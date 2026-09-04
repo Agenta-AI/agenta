@@ -19,6 +19,7 @@ import {
   PROBE_FAILURES_ENV,
   PROBE_INTERVAL_ENV,
   resolveSandboxLivenessLimits,
+  sandboxHealthUrl,
   startSandboxLivenessProbe,
   type Clock,
   type SandboxLivenessLimits,
@@ -66,6 +67,20 @@ afterEach(() => {
 });
 
 describe("sandbox liveness probe", () => {
+  it.each([
+    ["local", "http://127.0.0.1:43123/ui/", "http://127.0.0.1:43123/v1/health"],
+    [
+      "Daytona",
+      "https://3000-sandbox-id.proxy.daytona.works/ui/",
+      "https://3000-sandbox-id.proxy.daytona.works/v1/health",
+    ],
+  ])(
+    "derives the daemon health route from a %s inspector URL",
+    (_provider, inspectorUrl, expected) => {
+      expect(sandboxHealthUrl({ inspectorUrl })).toBe(expected);
+    },
+  );
+
   it("declares the sandbox gone after the threshold of consecutive failures", async () => {
     const onGone = vi.fn();
     const probe = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));

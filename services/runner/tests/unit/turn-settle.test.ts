@@ -139,6 +139,35 @@ describe("awaitTurnOrAbandon", () => {
     expect(clock.pending()).toBe(0);
   });
 
+  it("leaves an abandoned run alive to execute its own teardown when it later settles", async () => {
+    const clock = fakeClock();
+    const teardown = vi.fn();
+    let finishRun: ((value: { ok: boolean }) => void) | undefined;
+    const run = new Promise<{ ok: boolean }>((resolve) => {
+      finishRun = resolve;
+    }).finally(teardown);
+
+    const settling = awaitTurnOrAbandon({
+      run,
+      abort: vi.fn(),
+      interrupted: Promise.resolve("declared lost by the platform"),
+      limits,
+      clock,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await clock.fireAll();
+
+    await expect(settling).resolves.toEqual({
+      settled: false,
+      reason: "declared lost by the platform",
+    });
+    expect(teardown).not.toHaveBeenCalled();
+
+    finishRun?.({ ok: false });
+    await run;
+    expect(teardown).toHaveBeenCalledTimes(1);
+  });
+
   it("gives up on the hard deadline even with no interruption signal at all", async () => {
     const clock = fakeClock();
     const settling = awaitTurnOrAbandon({
