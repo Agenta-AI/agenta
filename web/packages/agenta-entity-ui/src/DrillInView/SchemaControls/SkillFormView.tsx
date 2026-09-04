@@ -15,6 +15,7 @@
 import {useEffect, useRef, useState} from "react"
 
 import {message} from "@agenta/ui/app-message"
+import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {cn} from "@agenta/ui/styles"
 import {
     AutosizeTextarea,
@@ -26,7 +27,14 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@agenta/ui/ui"
-import {File as FileIcon, Info, Plus, Trash} from "@phosphor-icons/react"
+import {
+    CaretDown,
+    File as FileIcon,
+    Info,
+    Plus,
+    SlidersHorizontal,
+    Trash,
+} from "@phosphor-icons/react"
 
 import {CodeEditor, codeLanguageFromPath} from "./CodeEditor"
 import {MarkdownEditor} from "./MarkdownEditor"
@@ -77,7 +85,7 @@ function ToggleRow({
                                 <Info size={13} className="shrink-0 text-[var(--ag-zinc-5)]" />
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent>{description}</TooltipContent>
+                        <TooltipContent side="right">{description}</TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             </div>
@@ -164,6 +172,10 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         Boolean(String(skill.description ?? "").trim()),
     )
     const [bodyTouched, setBodyTouched] = useState(() => Boolean(String(skill.body ?? "").trim()))
+    // Open when a flag is already off-default, so an existing skill never hides a set toggle.
+    const [advancedOpen, setAdvancedOpen] = useState(
+        () => Boolean(skill.disable_model_invocation) || Boolean(skill.allow_executable_files),
+    )
 
     // The JSON view can put any type here, and a cast alone would let `.trim()` / spread throw.
     const asText = (value: unknown) => (typeof value === "string" ? value : "")
@@ -171,23 +183,29 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
     const name = asText(skill.name)
     const description = asText(skill.description)
     const body = asText(skill.body)
-    const nameError = skillNameError(skill.name, {touched: nameTouched})
+    // An empty value reads as red chrome (label + input border) rather than a "Required." line.
+    // A non-string value is NOT missing — it has its own NOT_TEXT message, which must still show.
+    const missing = (raw: unknown, text: string, touched: boolean) =>
+        !notText(raw) && touched && !text.trim()
+
+    const rawNameError = skillNameError(skill.name, {touched: nameTouched})
+    const nameMissing = missing(skill.name, name, nameTouched)
+    const nameError = nameMissing ? undefined : rawNameError
     const nameSuggestion = nameError && name.trim() ? slugifySkillName(name) : ""
     const showNameSuggestion = Boolean(nameSuggestion) && nameSuggestion !== name
+    const descriptionMissing = missing(skill.description, description, descriptionTouched)
     const descriptionError = notText(skill.description)
         ? NOT_TEXT
-        : descriptionTouched && !description.trim()
-          ? "Required."
-          : [...description].length > SKILL_DESCRIPTION_MAX
-            ? `Max ${SKILL_DESCRIPTION_MAX} characters.`
-            : undefined
+        : [...description].length > SKILL_DESCRIPTION_MAX
+          ? `Max ${SKILL_DESCRIPTION_MAX} characters.`
+          : undefined
+    // Body gets the same treatment: without it an empty SKILL.md disables Create with no cue.
+    const bodyMissing = missing(skill.body, body, bodyTouched)
     const bodyError = notText(skill.body)
         ? NOT_TEXT
-        : bodyTouched && !body.trim()
-          ? "Required."
-          : [...body].length > SKILL_BODY_MAX
-            ? `Max ${SKILL_BODY_MAX} characters.`
-            : undefined
+        : [...body].length > SKILL_BODY_MAX
+          ? `Max ${SKILL_BODY_MAX} characters.`
+          : undefined
 
     const set = (key: string, fieldValue: unknown) => {
         const next = {...skill}
@@ -280,7 +298,16 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
     return (
         <div className="flex h-full gap-3">
             {/* Left: full-height file list (SKILL.md pinned) with the drop zone pinned to the bottom. */}
-            <div className="ag-drawer-rail flex h-full w-44 shrink-0 flex-col gap-2 border-0 border-r border-solid border-[var(--ag-c-EAEFF5)] pr-3">
+            <div
+                className={cn(
+                    // -my/py pair: bleeds the divider through the drawer body's vertical padding so
+                    // it meets the header and footer rules, without moving the rail's content.
+                    // No `ag-drawer-rail`: that class paints a recessed band in dark, which shows
+                    // through around the Files panel. The panel is this rail's surface, as in light.
+                    "-my-4 flex w-44 shrink-0 flex-col gap-2 py-4 pr-3",
+                    "border-0 border-r border-solid border-colorBorderSecondary",
+                )}
+            >
                 <div className="flex shrink-0 items-center justify-between gap-1">
                     <span className="text-xs font-medium">Files</span>
                     {!disabled ? (
@@ -324,21 +351,19 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                 </div>
 
                 {!disabled ? (
-                    <div className="flex shrink-0 flex-col gap-1.5">
+                    <div className="shrink-0">
                         <SkillUploadZone onParsed={applyParsed} disabled={disabled} />
-                        <span className="text-xs leading-snug text-colorTextDescription">
-                            …or paste a SKILL.md anywhere here to fill the fields
-                        </span>
                     </div>
                 ) : null}
             </div>
 
             {/* Right: skill-level fields + the selected file's editor + behaviour toggles. */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
                 <Field
+                    className="shrink-0"
+                    invalid={nameMissing}
                     label="Name"
-                    required
-                    tooltip="Lowercase letters, digits and single hyphens — this becomes the skill's directory name and its /skill:name handle, so the harness rejects anything else"
+                    tooltip="A short name like weather-report. Lowercase letters, numbers and hyphens only."
                     error={
                         nameError ? (
                             <span>
@@ -371,16 +396,17 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                         }}
                         onBlur={() => setNameTouched(true)}
                         maxLength={SKILL_NAME_MAX}
-                        aria-invalid={nameError ? true : undefined}
+                        aria-invalid={nameMissing || nameError ? true : undefined}
                         placeholder="my-skill"
                         disabled={disabled}
                     />
                 </Field>
 
                 <Field
+                    className="shrink-0"
+                    invalid={descriptionMissing}
                     label="Description"
-                    required
-                    tooltip="The trigger the model matches when deciding to use this skill"
+                    tooltip="Tells the agent when to use this skill."
                     error={descriptionError}
                 >
                     <AutosizeTextarea
@@ -391,7 +417,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                         }}
                         onBlur={() => setDescriptionTouched(true)}
                         autoSize={{minRows: 2, maxRows: 4}}
-                        aria-invalid={descriptionError ? true : undefined}
+                        aria-invalid={descriptionMissing || descriptionError ? true : undefined}
                         placeholder="When the agent should reach for this skill"
                         disabled={disabled}
                     />
@@ -399,9 +425,10 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
 
                 {showSkill ? (
                     <Field
+                        className="min-h-0 flex-1"
+                        invalid={bodyMissing}
                         label="SKILL.md"
-                        required
-                        tooltip="The Markdown body the harness reads, written after the composed frontmatter"
+                        tooltip="The instructions the agent follows when it uses this skill."
                         error={bodyError}
                     >
                         <MarkdownEditor
@@ -416,16 +443,14 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                             disabled={disabled}
                             showToolbar
                             defaultView="rendered"
-                            // Viewport-relative, not a fixed 360px: the SKILL.md body is the point of
-                            // this form, so let it use most of the drawer height (scrolls internally
-                            // past that). Full parent-fill for consistency with the instructions
-                            // editor is a larger cross-package layout change (LabeledField in @agenta/ui).
-                            maxHeight="60vh"
+                            // Takes the drawer height left over after the other fields, so the body
+                            // scrolls inside the editor and the drawer itself never does.
+                            grow
                         />
                     </Field>
                 ) : (
-                    <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
+                    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+                        <div className="flex shrink-0 items-center gap-2">
                             <Input
                                 value={activeFile?.path ?? ""}
                                 onChange={(e) =>
@@ -456,7 +481,8 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                                         </span>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        Mark executable (sandbox policy must also allow it)
+                                        Let this file run as a program. Your sandbox settings must
+                                        allow it too.
                                     </TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
@@ -470,25 +496,57 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                             placeholder="File content"
                             disabled={disabled}
                             disableDebounce
+                            grow
                         />
                     </div>
                 )}
 
-                <ToggleRow
-                    label="Hide from prompt"
-                    description="Don't list this skill in the prompt — invoke only via /skill:name (Pi / Claude)"
-                    checked={Boolean(skill.disable_model_invocation)}
-                    onChange={(v) => set("disable_model_invocation", v)}
-                    disabled={disabled}
-                />
+                <div className="flex shrink-0 flex-col">
+                    <button
+                        type="button"
+                        onClick={() => setAdvancedOpen((prev) => !prev)}
+                        // Not disabled in read-only mode: the flags stay readable, just not editable.
+                        aria-expanded={advancedOpen}
+                        // px-0/font-[inherit]: preflight is off, so a bare button keeps the
+                        // UA's 6px inline padding (misaligning it from the fields) and Arial.
+                        className="flex cursor-pointer items-center justify-between border-0 bg-transparent px-0 py-1.5 font-[inherit]"
+                    >
+                        <span className="flex items-center gap-2">
+                            <SlidersHorizontal
+                                size={15}
+                                className="text-[var(--ag-colorTextSecondary)]"
+                            />
+                            <span className="text-xs font-medium text-[var(--ag-colorText)]">
+                                Advanced
+                            </span>
+                        </span>
+                        <CaretDown
+                            size={14}
+                            className={`text-[var(--ag-colorIcon)] transition-transform ${
+                                advancedOpen ? "" : "-rotate-90"
+                            }`}
+                        />
+                    </button>
+                    <HeightCollapse open={advancedOpen}>
+                        <div className="flex flex-col gap-3 pb-2 pt-1">
+                            <ToggleRow
+                                label="Hide from prompt"
+                                description="The agent won't pick this skill on its own. You run it yourself with /skill:name."
+                                checked={Boolean(skill.disable_model_invocation)}
+                                onChange={(v) => set("disable_model_invocation", v)}
+                                disabled={disabled}
+                            />
 
-                <ToggleRow
-                    label="Allow executable files"
-                    description="Permit executable bundled files (the sandbox policy must also allow execution)"
-                    checked={Boolean(skill.allow_executable_files)}
-                    onChange={(v) => set("allow_executable_files", v)}
-                    disabled={disabled}
-                />
+                            <ToggleRow
+                                label="Allow executable files"
+                                description="Let the files in this skill run as programs. Your sandbox settings must allow it too."
+                                checked={Boolean(skill.allow_executable_files)}
+                                onChange={(v) => set("allow_executable_files", v)}
+                                disabled={disabled}
+                            />
+                        </div>
+                    </HeightCollapse>
+                </div>
             </div>
         </div>
     )

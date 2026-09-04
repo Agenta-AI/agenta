@@ -4,24 +4,39 @@ import {
     BOTTOM_FADE_HOVER_HIDE,
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
+    jumpGateOpen,
 } from "@agenta/chat/assets"
 import {
     ConnectionDock,
+    ElicitationDock,
     ConnectionFocusProvider,
+    QueuedMessagesDock,
     RunningElsewhereStrip,
 } from "@agenta/chat/components"
-import {useAgentConversation, useAgentModelKeyStatus, useConnectionDock} from "@agenta/chat/hooks"
+import type {QueuedMessage} from "@agenta/chat/hooks"
+import {
+    useAgentConversation,
+    useAgentModelKeyStatus,
+    useConnectionDock,
+    useElicitationDock,
+} from "@agenta/chat/hooks"
 import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {modal} from "@agenta/ui/app-message"
-import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
+import {
+    ChatBubble,
+    ChatBubbleAvatar,
+    ChatJumpToLatest,
+    turnRowClass,
+} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
+import {User} from "lucide-react"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
-import {takePendingTaskAtom} from "../home/pendingTask"
+import {pendingTasksAtom, takePendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
 
 import {ApprovalDock} from "./ApprovalDock"
@@ -105,6 +120,23 @@ export const LiveConversation = ({
     // the composer, and rewind (far below) refills it the same way.
     const composerRef = useRef<RichChatInputHandle | null>(null)
 
+    // Editing borrows the composer: the row's text goes in, the draft it displaces is stashed.
+    const {beginEdit, cancelEdit} = conversation
+    const editQueued = useCallback(
+        (message: QueuedMessage) => {
+            const input = composerRef.current
+            beginEdit(message.id, input?.getMarkdown() ?? "")
+            input?.setMarkdown(message.text)
+            input?.focus()
+        },
+        [beginEdit],
+    )
+    const cancelQueuedEdit = useCallback(() => {
+        const input = composerRef.current
+        input?.setMarkdown(cancelEdit())
+        input?.focus()
+    }, [cancelEdit])
+
     // A task started from Home lands here as a stashed message: the session did not exist when
     // it was typed, and the first send is what creates it. Ref-guarded and the slot is consumed
     // on read, so a re-render (or React 18's double-invoke in dev) cannot send it twice. Held
@@ -114,6 +146,12 @@ export const LiveConversation = ({
     // vault says one already exists). The guard holds the SESSION it
     // fired for, not a bare flag: this component survives a session switch, and a flag would
     // swallow the next session's stashed task.
+
+    // Peek at the parked task WITHOUT consuming it — used only for display while the gate holds.
+    // `takePendingTaskAtom` removes the entry; this read leaves it in place for the send effect.
+    const pendingTasks = useAtomValue(pendingTasksAtom)
+    const heldTaskText = pendingTasks[sessionId]?.text ?? null
+
     const takePendingTask = useSetAtom(takePendingTaskAtom)
     const sentPendingTaskFor = useRef<string | null>(null)
     const [pendingTaskError, setPendingTaskError] = useState<string | null>(null)
@@ -204,9 +242,29 @@ export const LiveConversation = ({
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
     // Parked connect interactions → the dock above the composer owns their actions, so a paused
     // run can't scroll out of reach. Gated the same way desktop gates it.
+    // Parked question forms → the docked card owns the questions and the answers; the transcript
+    // rows are passive markers.
+    const elicits = useElicitationDock({
+        messages: conversation.messages,
+        enabled: !streamingHere && !conversation.stopped,
+        approvalsPending: pendingApprovals.length > 0,
+        onOutput: conversation.sendToolOutput,
+    })
     const connects = useConnectionDock({
         messages: conversation.messages,
         enabled: !streamingHere && !conversation.stopped,
+        approvalsPending: pendingApprovals.length > 0,
+        elicitationPending: elicits.open,
+    })
+    // Any blocking dock on screen. The queue card yields to all of them rather than stacking,
+    // mid-edit included — the composer keeps the edit, so Enter still rewrites the held row.
+    const gateDockOpen = pendingApprovals.length > 0 || elicits.open || connects.open
+    // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
+    // surface has no question-form dock yet, so only approvals and connect cards can gate it.
+    const gateOpen = jumpGateOpen({
+        approvals: pendingApprovals.length,
+        elicitationOpen: false,
+        connectionOpen: connects.open,
     })
 
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
@@ -246,6 +304,30 @@ export const LiveConversation = ({
     } else {
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                {/* A task typed before any provider key exists is held in `pendingTasksAtom`
+                    (not yet sent — the gate is up). Render it as a user bubble so the person
+                    can see what they wrote, matching desktop parity: the desktop shows the
+                    held seed above the connect-model banner. Cleared the moment the gate
+                    drops and the send effect fires (`takePendingTaskAtom` removes the entry). */}
+                {heldTaskText ? (
+                    <div className={`${turnRowClass} justify-end`}>
+                        <ChatBubble
+                            placement="end"
+                            variant="filled"
+                            avatar={<ChatBubbleAvatar icon={<User className="size-4" />} />}
+                            className="min-w-0 max-w-[85%]"
+                            classNames={{
+                                content: "min-w-0 max-w-full overflow-hidden text-xs",
+                                body: "min-w-0 max-w-full overflow-hidden",
+                            }}
+                            content={
+                                <span className="whitespace-pre-wrap break-words">
+                                    {heldTaskText}
+                                </span>
+                            }
+                        />
+                    </div>
+                ) : null}
                 {conversation.isEmpty ? (
                     // The SAME card the desktop shows a conversation with no messages: who you are
                     // about to talk to. A blank session is not an error state — /m rendered nothing
@@ -263,6 +345,7 @@ export const LiveConversation = ({
                 ) : null}
                 {visibleTurns.map((turn) => (
                     <TurnRow
+                        workflowId={agentId}
                         key={turn.message.id}
                         turn={turn}
                         onClientToolOutput={conversation.sendToolOutput}
@@ -290,7 +373,7 @@ export const LiveConversation = ({
                 onScroll={autoScroll.onScroll}
                 scrollOverlay={
                     <ChatJumpToLatest
-                        show={autoScroll.showJump}
+                        show={autoScroll.showJump && !gateOpen}
                         onClick={autoScroll.jumpToLatest}
                     />
                 }
@@ -309,6 +392,24 @@ export const LiveConversation = ({
                             className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
                             style={BOTTOM_FADE_OVERLAY_STYLE}
                         />
+                        {/* What you have lined up. Yields to the gate docks entirely: those are
+                        blocked runs wanting an answer, and stacking a second card above one
+                        buries the composer. It comes back when the gate clears. */}
+                        {conversation.queued.length > 0 && !gateDockOpen ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <QueuedMessagesDock
+                                        queued={conversation.queued}
+                                        held={conversation.hitlPending}
+                                        onRemove={conversation.removeQueued}
+                                        onEdit={editQueued}
+                                        onCancelEdit={cancelQueuedEdit}
+                                        editingId={conversation.editingId}
+                                        touch
+                                    />
+                                </ContentRail>
+                            </div>
+                        ) : null}
                         {/* A run this device is not driving. Docked with the other strips above the
                         composer, as on the desktop — it used to be a top bar that also appeared for
                         THIS device's own turns, duplicating the composer's Stop and shifting the
@@ -329,6 +430,19 @@ export const LiveConversation = ({
                                 entityId={entityId}
                                 bottomMost={false}
                             />
+                        ) : null}
+                        {/* Parked question forms, between approval and connect — the same order as
+                        desktop, and the same order as the keyboard precedence. */}
+                        {elicits.open ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <ElicitationDock
+                                        elicits={elicits}
+                                        onOutput={conversation.sendToolOutput}
+                                        touch
+                                    />
+                                </ContentRail>
+                            </div>
                         ) : null}
                         {/* Parked connections. The rail and padding are all this host adds; the dock
                         itself is the shared package component. */}
@@ -362,8 +476,23 @@ export const LiveConversation = ({
                         ) : null}
                         <Composer
                             sessionId={sessionId}
-                            onSend={({text, parts}) => conversation.send({text, parts})}
+                            onSend={({text, parts}) => {
+                                // An open edit rewrites its held message instead of sending. The
+                                // input clears on submit, so the displaced draft goes back after.
+                                if (!conversation.editingId) {
+                                    conversation.send({text, parts})
+                                    return
+                                }
+                                const draft = conversation.commitEdit({text, fileParts: parts})
+                                if (draft)
+                                    requestAnimationFrame(() =>
+                                        composerRef.current?.setMarkdown(draft),
+                                    )
+                            }}
                             disabled={conversation.isHydrating || modelBlocked}
+                            placeholder={
+                                modelBlocked ? "Connect a model to start chatting…" : undefined
+                            }
                             waitingOnUser={conversation.hitlPending}
                             streaming={streamingHere}
                             onStop={conversation.stop}

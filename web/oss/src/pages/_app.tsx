@@ -3,8 +3,9 @@ import "@agenta/ui/custom-resize-handle.css"
 
 import "@/oss/styles/globals.css"
 import "react-resizable/css/styles.css"
-// Streamdown's token-animation keyframes ([data-sd-animate]) — without this the streaming
-// "typing" effect is inert: the plugin marks tokens but nothing animates them.
+// Streamdown's own stylesheet. Its token-animation keyframes ([data-sd-animate]) are unused —
+// that animator is gated on an `isAnimating` prop nothing here passes, and the chat types text
+// through `useTypewriter` instead — but the sheet also carries the renderer's base styles.
 import "streamdown/styles.css"
 import {registerDriveCodeBlock, registerDriveMarkdown} from "@agenta/entity-ui/drive"
 import dynamic from "next/dynamic"

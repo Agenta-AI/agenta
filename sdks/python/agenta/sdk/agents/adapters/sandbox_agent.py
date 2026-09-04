@@ -28,6 +28,7 @@ from ..dtos import (
 )
 from ..interfaces import Backend, Sandbox, Session
 from ..streaming import AgentStream
+from ..tools.models import ResolvedGatewayPolicy
 from ..utils import (
     deliver_http_result,
     deliver_http_stream,
@@ -68,6 +69,7 @@ class SandboxAgentSession(Session):
         run_context: Optional[RunContext],
         session_id: Optional[str],
         effective_parameters: Optional[Dict[str, Any]] = None,
+        gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> None:
         self._backend = backend
         self._sandbox = sandbox
@@ -77,6 +79,7 @@ class SandboxAgentSession(Session):
         self._run_context = run_context
         self._session_id = session_id
         self._effective_parameters = effective_parameters
+        self._gateway_policy = gateway_policy
 
     @property
     def id(self) -> Optional[str]:
@@ -93,6 +96,7 @@ class SandboxAgentSession(Session):
             run_context=self._run_context,
             session_id=self._session_id,
             effective_parameters=self._effective_parameters,
+            gateway_policy=self._gateway_policy,
         )
 
     def _absorb_result(self, result: AgentResult) -> None:
@@ -121,14 +125,13 @@ class SandboxAgentSession(Session):
 
 
 class SandboxAgentBackend(Backend):
-    """The sandbox-agent engine: a harness over ACP through the TS runner. Pi, Claude, Codex, and Agenta."""
+    """The sandbox-agent engine: a harness over ACP through the TS runner. Pi, Claude, and Codex."""
 
     supported_harnesses = frozenset(
         {
             HarnessKind.PI,
             HarnessKind.CLAUDE,
             HarnessKind.CODEX,
-            HarnessKind.AGENTA,
         }
     )
 
@@ -166,6 +169,7 @@ class SandboxAgentBackend(Backend):
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
+        gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> SandboxAgentSession:
         if not isinstance(sandbox, SandboxAgentSandbox):
             raise TypeError(
@@ -180,6 +184,7 @@ class SandboxAgentBackend(Backend):
             run_context=run_context,
             session_id=session_id,
             effective_parameters=effective_parameters,
+            gateway_policy=gateway_policy,
         )
 
     async def _deliver_result(self, payload: Dict[str, Any]) -> Dict[str, Any]:

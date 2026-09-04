@@ -14,6 +14,20 @@ export {
 
 // Platform detection (modifier-key naming)
 export {isMacPlatform, modifierKeyLabel, altKeyPrefix, pushToTalkLabel} from "./platform"
+// Overlay ownership detection
+export {isOnScreen, isOverlayOpen} from "./overlay"
+
+// The playground's keyboard shortcut registry
+export {
+    PLAYGROUND_SHORTCUTS,
+    SHORTCUT_GROUP_TITLES,
+    getShortcut,
+    shortcutAria,
+    shortcutGroups,
+    shortcutFaces,
+    shortcutText,
+} from "./shortcuts"
+export type {Shortcut, ShortcutGroupId, ShortcutModifier} from "./shortcuts"
 
 // Filtering utilities
 export {filterItems} from "./filterItems"
@@ -211,10 +225,17 @@ export type {
 // Gateway Tool Slug utilities
 export {
     slugify as connectionSlugify,
+    connectionDisplayName,
+    defaultConnectionName,
     generateDefaultSlug,
     randomAlphanumeric,
 } from "./connectionSlug"
-export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "./toolSlug"
+export {
+    buildGatewayToolSlug,
+    humanizeActionKey,
+    isGatewayToolSlug,
+    parseGatewayToolSlug,
+} from "./toolSlug"
 
 // Gateway Tool JSON-Schema → form-field descriptor utilities
 export {
@@ -236,7 +257,6 @@ export {
     deriveElicitationPartState,
     hasPriorElicitationDegradation,
     parseElicitationPayload,
-    partitionElicitationDraft,
     serializeElicitationContent,
     type ElicitationAction,
     type ElicitationFieldSchema,
@@ -245,6 +265,21 @@ export {
     type ElicitationRequestPayload,
     type ElicitationResult,
 } from "./elicitation"
+
+// The question form as ordered steps — the docked card's model
+export {
+    buildElicitationSteps,
+    collectStepContent,
+    formatStepValue,
+    initialStepValues,
+    isStepAnswered,
+    parseSecretRefusal,
+    validateStep,
+    type ElicitationForm,
+    type ElicitationStep,
+    type ElicitationStepKind,
+    type ElicitationStepOption,
+} from "./elicitationSteps"
 
 // Polling utilities
 export {shortPoll} from "./shortPoll"

@@ -16,6 +16,7 @@ import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import isEqual from "fast-deep-equal"
 import {atom, type Getter} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -464,6 +465,7 @@ export const appWorkflowsListQueryAtom = atomWithQuery((get) => {
             const response = await queryWorkflows({
                 projectId,
                 flags: {is_evaluator: false},
+                // Keep UNPAGED: the rail reads "absent from this list" as "archived" (#6457).
                 lowPriority: true,
             })
             const workflows = response.workflows ?? []
@@ -934,8 +936,10 @@ export const promptWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>(
 export const agentWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
     const appQuery = get(appWorkflowsListQueryAtom)
     const agentFlagsQuery = get(appWorkflowsWithAgentFlagsQueryAtom)
+    // `deleted_at` too, like the prompts list above: an archived agent kept listing in the rail
+    // and in the session filter's agent facet, where picking it emptied a list it could not fill.
     const data = (agentFlagsQuery.data ?? []).filter(
-        (workflow) => workflow.flags?.is_agent === true,
+        (workflow) => !workflow.deleted_at && workflow.flags?.is_agent === true,
     )
     return {
         data,
@@ -1454,19 +1458,79 @@ export const workflowAgentTemplateOverlayAtomFamily = atomFamily((revisionId: st
     }),
 )
 
-export const workflowBuildKitEnabledAtomFamily = atomFamily((_revisionId: string) =>
-    atom<boolean>(true),
-)
-
 /** The build kit's UI state: the master on/off plus the platform ops the user switched off. */
 export interface BuildKitUiState {
     enabled: boolean
     disabledOps: string[]
 }
 
-/** Platform ops switched off individually, by `op`. Empty = all on. In-memory like the master flag. */
-export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((_revisionId: string) =>
-    atom<string[]>([]),
+const DEFAULT_BUILD_KIT_UI_STATE: BuildKitUiState = {enabled: true, disabledOps: []}
+
+/**
+ * The build-kit UI state per revision, persisted so an individually switched-off tool (or the
+ * master off) survives a page reload (#6493). One localStorage record keyed by revision id, the
+ * scoped-persistence pattern; the two atom families below expose per-revision read/write access.
+ */
+const buildKitUiStateByRevisionAtom = atomWithStorage<Record<string, BuildKitUiState>>(
+    "agenta:playground:build-kit",
+    {},
+    undefined,
+    {getOnInit: true},
+)
+
+/**
+ * Read one revision's UI state, normalizing whatever localStorage held. jotai already falls back to
+ * the default record on invalid JSON, but valid-JSON-of-the-wrong-shape (tampering, a future shape
+ * change) still passes through, so guard each field: a non-array `disabledOps` would otherwise throw
+ * in the switches' `.filter`.
+ */
+const readBuildKitUiState = (get: Getter, revisionId: string): BuildKitUiState => {
+    const entry: unknown = get(buildKitUiStateByRevisionAtom)[revisionId]
+    if (!entry || typeof entry !== "object") return DEFAULT_BUILD_KIT_UI_STATE
+    const {enabled, disabledOps} = entry as Partial<BuildKitUiState>
+    return {
+        enabled: typeof enabled === "boolean" ? enabled : true,
+        disabledOps: Array.isArray(disabledOps)
+            ? disabledOps.filter((op): op is string => typeof op === "string")
+            : [],
+    }
+}
+
+const writeBuildKitUiState = (
+    get: Getter,
+    set: (next: Record<string, BuildKitUiState>) => void,
+    revisionId: string,
+    patch: Partial<BuildKitUiState>,
+) => {
+    const all = get(buildKitUiStateByRevisionAtom)
+    set({...all, [revisionId]: {...readBuildKitUiState(get, revisionId), ...patch}})
+}
+
+export const workflowBuildKitEnabledAtomFamily = atomFamily((revisionId: string) =>
+    atom(
+        (get) => readBuildKitUiState(get, revisionId).enabled,
+        (get, set, next: boolean) =>
+            writeBuildKitUiState(
+                get,
+                (value) => set(buildKitUiStateByRevisionAtom, value),
+                revisionId,
+                {enabled: next},
+            ),
+    ),
+)
+
+/** Platform ops switched off individually, by `op`. Empty = all on. Persisted like the master flag. */
+export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((revisionId: string) =>
+    atom(
+        (get) => readBuildKitUiState(get, revisionId).disabledOps,
+        (get, set, next: string[]) =>
+            writeBuildKitUiState(
+                get,
+                (value) => set(buildKitUiStateByRevisionAtom, value),
+                revisionId,
+                {disabledOps: next},
+            ),
+    ),
 )
 
 /**
@@ -2945,6 +3009,11 @@ export function invalidateAgentCommittedRevisionCache(options?: StoreOptions) {
         const qc = store.get(queryClientAtom)
         qc.invalidateQueries({queryKey: ["workflows", "latestRevision"], exact: false})
         qc.invalidateQueries({queryKey: ["workflows", "inspect"], exact: false})
+        // The version SELECTOR reads the revisions list, not the latest-revision tag, so leaving
+        // it out left the freshly committed version missing from the picker until a reload
+        // (#6380) — the config had already moved on to a version you could not name.
+        qc.invalidateQueries({queryKey: ["workflows", "revisionsByWorkflow"], exact: false})
+        qc.invalidateQueries({queryKey: ["workflows", "revisions"], exact: false})
     } catch {
         // queryClientAtom may not be initialized yet
     }

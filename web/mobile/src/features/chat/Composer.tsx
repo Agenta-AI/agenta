@@ -1,6 +1,8 @@
-import {useRef, type MutableRefObject} from "react"
+import {useEffect, useRef, type MutableRefObject} from "react"
 
+import {describeAccepted} from "@agenta/chat/assets"
 import {
+    AttachmentDropOverlay,
     ChatComposer,
     MicPermissionNotice,
     RecordingBar,
@@ -34,6 +36,7 @@ export const Composer = ({
     streaming = false,
     onStop,
     inputRef,
+    placeholder,
 }: {
     sessionId: string
     onSend: (input: {text: string; parts?: FileUIPart[]}) => void | Promise<void>
@@ -46,6 +49,8 @@ export const Composer = ({
     onStop?: () => void
     /** Lets the host write into the input — a rewind puts the rewound message back to edit. */
     inputRef?: MutableRefObject<RichChatInputHandle | null>
+    /** Full placeholder override — used when the composer is gated (no model key). */
+    placeholder?: string
 }) => {
     const attachments = useComposerAttachments({sessionId})
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
@@ -62,6 +67,8 @@ export const Composer = ({
         // is still in flight; a second pass would re-send the same staged tray.
         if (sending.current) return
         sending.current = true
+        // The message is written; anything still coming in belongs to no draft.
+        voice.endDictation()
         // Close the on-screen keyboard. It covered the transcript while you typed, and the reply
         // to the message you just sent is the thing you want to see next. The helper defers the
         // blur past the editor's own clear, whose reconcile would otherwise re-focus the input and
@@ -95,7 +102,6 @@ export const Composer = ({
             // through the composer's own inline channel.
             richInputRef.current?.setMarkdown(text)
             attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
-            attachments.setAttachmentsOpen(true)
         }
     }
 
@@ -109,6 +115,7 @@ export const Composer = ({
         voiceRecorder,
         voiceWillSend,
         startVoiceMessage,
+        dictationStopRef,
         dictating,
         setDictating,
         setDictationError,
@@ -120,6 +127,31 @@ export const Composer = ({
     // unusable composer is a dead end for a file.
     const attachmentsBlocked = () => voiceRecorder.active || disabled
 
+    // Desktop accepts a drop anywhere on the canvas and highlights only the composer. Mobile owns
+    // no element above itself, so it reaches for the shared `.ag-canvas` root and binds there —
+    // the overlay still paints over the composer alone.
+    const dropHostRef = useRef<HTMLDivElement>(null)
+    const dropHandlersRef = useRef(attachments.bindDropTarget(attachmentsBlocked))
+    dropHandlersRef.current = attachments.bindDropTarget(attachmentsBlocked)
+    useEffect(() => {
+        const host = dropHostRef.current?.closest(".ag-canvas")
+        if (!host) return
+        const enter = (e: Event) => dropHandlersRef.current.onDragEnter(e as never)
+        const over = (e: Event) => dropHandlersRef.current.onDragOver(e as never)
+        const leave = (e: Event) => dropHandlersRef.current.onDragLeave(e as never)
+        const drop = (e: Event) => dropHandlersRef.current.onDrop(e as never)
+        host.addEventListener("dragenter", enter)
+        host.addEventListener("dragover", over)
+        host.addEventListener("dragleave", leave)
+        host.addEventListener("drop", drop)
+        return () => {
+            host.removeEventListener("dragenter", enter)
+            host.removeEventListener("dragover", over)
+            host.removeEventListener("dragleave", leave)
+            host.removeEventListener("drop", drop)
+        }
+    }, [])
+
     return (
         <div className="bg-background shrink-0 px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
             <ContentRail>
@@ -128,7 +160,16 @@ export const Composer = ({
                     message={micError}
                     onDismiss={dismissMicError}
                 />
-                <div className="relative">
+                <div ref={dropHostRef} className="relative">
+                    <AttachmentDropOverlay
+                        active={attachments.isDragging}
+                        atMax={attachments.atMax}
+                        hint={
+                            attachments.atMax
+                                ? `Remove one to add another (${attachments.limits.maxCount} max)`
+                                : describeAccepted(attachments.limits)
+                        }
+                    />
                     <ChatComposer
                         inputRef={richInputRef}
                         onSubmit={submit}
@@ -137,6 +178,7 @@ export const Composer = ({
                         disabled={disabled}
                         composerDisabled={disabled}
                         dictating={dictating}
+                        placeholder={placeholder}
                         waitingOnUser={waitingOnUser}
                         streaming={streaming}
                         onStop={onStop}
@@ -152,6 +194,7 @@ export const Composer = ({
                                 attachmentsFull={attachments.atMax}
                                 onDictationError={setDictationError}
                                 onDictatingChange={setDictating}
+                                stopRef={dictationStopRef}
                                 disabled={disabled}
                             />
                         }

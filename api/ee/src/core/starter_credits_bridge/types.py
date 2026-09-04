@@ -194,5 +194,5 @@ DEVELOPMENT_POLICY_VALUES: dict = {
     "grant_usd": 5.0,
     "key_max_parallel_requests": 2,
     "key_rpm_limit": 30,
-    "key_tpm_limit": 200_000,
+    "key_tpm_limit": 1_000_000,
 }

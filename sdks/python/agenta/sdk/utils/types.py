@@ -1342,7 +1342,7 @@ class _HarnessSchema(BaseModel):
     """The coding agent to drive plus its execution knobs (was the flat ``harness`` scalar and
     its ``harness_kwargs`` slice).
 
-    ``kind`` is the harness selector (the bare ``pi_core`` / ``pi_agenta`` / ``claude`` value).
+    ``kind`` is the harness selector (the bare ``pi_core`` / ``claude`` / ``codex`` value).
     ``permissions`` is the allow/ask/deny rule lists that decide which tools may run. ``extras``
     is the per-harness escape hatch (Pi's ``system`` / ``append_system`` prompt overrides)."""
 
@@ -1352,8 +1352,7 @@ class _HarnessSchema(BaseModel):
         default=_DEFAULT_HARNESS,
         title="Harness",
         description=(
-            "Coding agent to drive: pi_core (plain Pi), claude, or pi_agenta (Pi with "
-            "Agenta's forced skills, tools, and base instructions)."
+            "Coding agent to drive: pi_core (Pi), claude (Claude Code), or codex (Codex)."
         ),
         json_schema_extra=_harness_field_schema_extra(),
     )

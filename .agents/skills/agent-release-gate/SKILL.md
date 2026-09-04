@@ -37,6 +37,16 @@ uv run resources/qa_product.py --cell C1 --only chat              # one journey
 uv run resources/qa_product.py --cell S2 --only warm --only cold1 --require-store  # continuity
 ```
 
+**EXPORT the three variables, do not just set them.** The driver falls back to an env FILE when
+`AGENTA_*` is absent from its environment, which is helpful interactively and dangerous in a
+release run: a credentials file of bare `KEY=value` lines sourced with `. file` sets the shell
+only, the child `uv run` process inherits nothing, and the driver silently runs the whole gate
+against WHATEVER DEPLOYMENT the fallback file names. The failure surfaces as `401 Invalid
+credentials` from a stage whose key you just watched answer 200, or worse as a green run
+recorded against the wrong stack. Use `set -a` around the source, or `export` each variable,
+and confirm the stage in the results before trusting them. (Cost a staging gate run on
+2026-08-28; the fallback degrades to "wrong deployment", never to "no credentials".)
+
 Paths are relative to this skill's directory. The deployment's vault must hold the provider keys
 the cells use (Anthropic / OpenAI / OpenRouter). If the three env vars are unset the driver stops
 immediately and names exactly what is missing; a legacy `--env-file <path>` fallback also exists.
@@ -59,6 +69,31 @@ configured and pass `--require-store`, or the greenest possible run still says n
 durability. `cold2` additionally needs an operator hook that SIGKILLs the runner replica
 (`--cold2-replace-cmd`) and SKIPs without it.
 
+**The flag that makes the gate fit the release: `--release-base`.** The matrix is fixed, so
+without it a release that reworked a subsystem gets exactly the coverage of a release that did
+not touch it. Pass the ref the release branches from, and the driver reads the release's own
+changed paths, matches them against the rules in `resources/path_triggers.py`, and makes the
+cells those rules name MANDATORY for this run:
+
+```bash
+uv run resources/qa_product.py --all --release-base origin/main --require-store   # every release run
+uv run resources/path_triggers.py --release-base origin/main                      # preview only, runs nothing
+```
+
+A mandatory cell that lives in `qa_product.py` is added to the run even when `--cell` did not ask
+for it. A mandatory cell that is a standalone `matrix_*.py` script is a separate process the
+driver cannot observe, so it is printed, written to `mandatory.json`, and listed in `summary.md`
+under "Mandatory for this release" — **the release is not green until each of those has a recorded
+result of its own.** If a rule names a cell that does not exist, the driver stops before running
+anything and says so: the release changed code a rule protects and the coverage was never
+written, which is the one outcome that must never read as green. Add `--changed-path` to state
+paths by hand where the checkout is not the release branch. With no `--release-base` and no
+`--changed-path` nothing changes, so every existing invocation behaves exactly as before.
+
+Adding a rule is one line in `PATH_TRIGGERS` (a glob, and the cells it makes mandatory) plus the
+cell it names. Matching is `fnmatch` over the whole repo-relative path, so `*` crosses directory
+separators and `a/b/*` covers the whole subtree; write `**` so a subtree rule reads as one.
+
 **Reading the result.** Each journey prints `PASS`, `FAIL`, or `SKIP` with a one-line reason, and
 a per-cell markdown table lands with the full JSON in `./qa-gate-runs/<timestamp>/` (override the
 location with `AGENTA_QA_RUNS_DIR`). Runs are written to the current working directory, never into
@@ -70,6 +105,45 @@ summary line, not green.** State it as "N passed, M skipped OF WHICH k are untes
 name the k. A commit-lock race test skipping for want of a reachable Postgres is exactly how a
 one-line syntax error (`SET LOCAL lock_timeout` with a bind parameter, which Postgres rejects
 outright) survived 1911 green tests before a human hit it as his first live action.
+
+**The two journeys that run many things at once: `burst` and `crosstalk`.** Every other journey
+drives one run at a time, so the gate only ever saw faults that reproduce on a quiet deployment.
+The credential-delivery fault of AGE-4249 does not: about one production first message in five
+failed because some fresh Daytona sandboxes start without their Secret substitution wiring, and
+per cold sandbox that is roughly an 8 percent fault. `burst` sends 16 first messages at the same
+time on 16 brand new sessions, so the run buys 16 cold starts instead of one. `crosstalk` runs 3
+two-turn conversations with long output beside 2 approval flows, and checks that no stream carries
+another session's nonce, except on the codex harness, where the gate rides a platform tool with
+empty arguments, so the approval command carries no nonce and isolation is not checked there
+(`nonce_checked=false`). Both are Daytona-only by default and skip elsewhere; both report the
+runner's stable error code per run, so a `credential_delivery_failed` names itself.
+
+```bash
+uv run resources/qa_product.py --cell C4 --only burst --only crosstalk
+uv run resources/qa_product.py --cell C4 --only burst --burst-size 24         # more cold starts
+uv run resources/qa_product.py --cell C3 --only crosstalk --concurrency-everywhere  # local too
+uv run resources/test_qa_product_concurrency.py                               # offline tests
+```
+
+**Read a green burst honestly.** At an 8 percent per-cold-start fault rate, 8 runs miss the fault
+51 percent of the time, 16 miss it 26 percent, and two Daytona cells at 16 miss it about 7 percent.
+A PASS is a sample, not an all-clear, and the result says so in its own reason line. A FAIL is
+proof.
+
+Each concurrent run holds its own Daytona sandbox, about 5 GiB of the organization's disk, and a
+parked sandbox keeps counting until its auto-delete window closes, so a burst of 16 is about 80
+GiB in flight. The counts are `--burst-size` (default 16), `--crosstalk-conversations` (default 3)
+and `--crosstalk-approvals` (default 2). The cap is 32 concurrent runs: 32 for the burst size, and
+32 for the two crosstalk counts TOGETHER, because what costs disk is what runs at once. When the
+provider refuses on capacity the journey reports SKIP with a loud reason, never a PASS or a FAIL,
+because nothing about the product was measured. `--concurrency-timeout` (default 300s) bounds one
+TURN and rides into the stream as an absolute deadline, so a two-turn crosstalk run gets twice
+that and a stream that never ends is abandoned rather than followed.
+
+A release that changes `services/runner/src/engines/sandbox_agent/**` or
+`services/runner/src/providers/daytona*` makes the Daytona cells C2, C4 and X2 mandatory through
+`path_triggers.py`, and forces `burst` and `crosstalk` into the run even when `--only` named
+something else. That is how these journeys reach a release that needs them.
 
 **Before a human gets a deployment URL, run `resources/qa_commit_approval.py` too.** It is not
 part of `qa_product.py`'s cell × journey matrix — none of that matrix's journeys drive a live turn
@@ -124,6 +198,20 @@ proves nothing about the durable working directory (LESSONS #16).
   tiers and their method, and a table of what each cell needs beyond the three env vars.
 - `resources/LESSONS.md` — the traps. Read before writing or trusting any agent QA test.
 - `resources/qa_product.py` — the gate driver (cells × journeys).
+- `resources/matrix_gw1_gateway_tools.py` — **[coached, with one mechanism-blind leg]** the
+  gateway tool surface against a real provider: search filters by policy (the denied key never
+  reaches the model), an allowed tool executes unattended with a genuine provider result, and an
+  ask-tier tool parks with the right stored identity and is answered through the **interactions
+  API** — the durable plane a reloaded browser uses, which no other cell covers. The fixed
+  matrix proves approvals with a builtin, so nothing else notices when the compiled policy and
+  the enforced policy drift apart. Defaults to the no-auth `text_to_pdf` connection; `--integration`
+  and `--connection` point it elsewhere. SKIPs, naming the fixture, when no valid connection
+  exists, and SKIPs rather than failing the release when the model provider itself errors.
+  Made mandatory by the gateway rule in `path_triggers.py`.
+- `resources/path_triggers.py` — the path-scoped rules: one dict mapping a path glob to the cells
+  a release must run when its diff touches that glob, plus the two functions the driver calls.
+  Runs standalone as a preview (`--release-base <ref>`). Add a rule here whenever new coverage is
+  only meaningful for changes in one part of the tree.
 - `resources/qa_probe.py` — a one-turn wire probe: `uv run resources/qa_probe.py` confirms the
   product path answers at all before running the full gate.
 - `resources/qa_commit_approval.py` — **[coached]** the mandatory pre-handoff commit-approval
@@ -295,10 +383,13 @@ ever reaches the stream. An empty ledger FAILS a cell; missing evidence is not e
 
 - `resources/matrix_l1_lifecycle_routes.py` — **MANDATORY. [mechanism-blind]** the routing matrix
   itself: for each kind of mid-conversation config change, assert the route the runner took. One
-  sandbox id = applied in place, two = rebuilt. Blocks on the four unambiguous cases (no change
-  must stay warm; an instructions edit, a permissions edit and a tool-catalog edit must escalate)
-  and reports the `model` case rather than guessing at a deployment's connection shape. This is
-  the cell that would have caught the `cold1` rot described below.
+  sandbox id = applied in place, two = rebuilt. Blocks on six cases: no change must stay warm; an
+  instructions edit, a permissions edit and a tool-catalog edit must escalate; and a
+  same-connection model switch must stay warm on BOTH claude and pi_core. The pi_core model case
+  (added 2026-08-29) is the standing trap for the wire-spelling bug class: the router once keyed
+  its table on the bare "pi" literal while the wire carries "pi_core", every playground model
+  switch silently rebuilt, and the claude-only case could not see it (#6364). This is the cell
+  that would have caught the `cold1` rot described below.
 - `resources/matrix_l2_approval_across_config_change.py` — **MANDATORY. [coached]** the killer
   combination: an approval answered while a config change rides along in the SAME request. It is
   the regression test for the applied-state bug (the pool used to stamp the INCOMING fingerprint
@@ -380,12 +471,92 @@ lands on a pool miss and takes the cold decision-map path, which is exactly the 
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.
 
+### The incident checks — born from the free-credits 401 of 2026-08-30
+
+A free-credits user on cloud hit a 401 because a fresh Daytona sandbox's first model call raced
+the asynchronous substitution of its Daytona Secret: the provider got the raw `dtn_secret_<id>`
+placeholder. The product then blamed the user's own key, which was wrong. The same release fixed a
+family of warm-session over-evictions caused by drift between two identity views in the runner.
+These four checks make each layer's failure loud instead of silent. Run all four on every gate.
+
+- `resources/matrix_c5_first_call_race.py` — **[mechanical]** the placeholder race, and whether it
+  is reported honestly. Mints a new workflow so the sandbox is necessarily cold, sends one short
+  message so the first model call lands as early as possible, and asserts the STORED turn row came
+  back. PASSes when the turn succeeds or when the failure carries the runner's
+  `credential_delivery_failed` code with its retry copy. FAILs when the run advises adding a key
+  while the underlying refusal carries the placeholder signature (`Received=dtn_`/`dtn_secret_`) —
+  the incident itself. The assertion is deliberately body-INDEPENDENT: only the litellm proxy
+  echoes a placeholder, so on a direct provider (where BYO-key cloud users live) an echo test is
+  blind, and F6 shipped a user-blaming 401 straight through the first version of this cell. A
+  credential refusal on this cell's necessarily-fresh sandbox must never advise adding a key, echo
+  or no echo; with PR #6408 the honest classification is `credential_delivery_failed`. Against a
+  deployment predating #6408 that assertion fails by construction — pass `--pre-6408` to report it
+  as a SKIP naming the known gap instead of an unexplained failure. It also counts `Received=dtn_`
+  lines in the credits proxy and reports the
+  count as diagnostic, never as a verdict. The proxy is never guessed by name across the box: it
+  must be named with `--proxy-container`, or belong to the target stack's compose project
+  (`--compose-project`, else derived from whichever container publishes the port in
+  `AGENTA_BASE`). With no match it prints "no credits proxy in this deployment; count not
+  applicable" and carries on. Reading a foreign project's proxy invents evidence about a
+  deployment that was never under test, which is worse than reading none. A run that dies on an
+  exhausted provider key SKIPs with "environment: provider key out of credit" rather than
+  failing — but only when the stored error carries a credit or billing signature, and never
+  when a placeholder refusal is present, because that combination is the incident itself.
+- `resources/sweep_disagree.py` — **[mechanism-level invariant; run AFTER a gate session]** greps
+  the runner log for `[reconcile] shadow ... DISAGREE ...`, the line `logReconcileShadow` writes
+  when the coordinator's `configFingerprint` decision and the router's facet digests disagree.
+  That drift is the over-eviction signature and it is invisible from the wire — the turn still
+  succeeds, it just paid for a rebuild it did not need — so a log sweep is the only way to catch
+  it. `--since <iso-timestamp>` is required; `--container` defaults to autodetecting the local
+  stack's runner. Exits 0 PASS, 1 FAIL (printing the offending lines), 2 SKIP when the log is not
+  reachable. Three line shapes are excluded as known SHADOW-COMPARATOR gaps (triage 2026-08-31,
+  `f7-disagree-triage.md`): the coordinator is correct and pinned, only the shadow's model of it
+  disagrees, and the comparator fixes are a post-release follow-up — without the exceptions the
+  sweep fails on the runner's own expected behavior on every loaded window. They are never
+  silent: each excluded line is printed with its shape and the triage marker, the excluded count
+  is reported separately, each shape is anchored on both halves of the line so it cannot swallow
+  a real disagreement, and any line matching no shape still FAILS. Delete a shape when its fix
+  lands; `--no-exceptions` fails on every DISAGREE line and is how you prove one can go.
+- `resources/matrix_h1_bad_harness.py` — **[mechanical]** a malformed harness must fail closed.
+  Drives three unreadable `harness` blocks (a wrong-type value, an unknown string, a null kind) at
+  both the commit API and the live invoke, and records WHICH boundary refused (`commit_api`,
+  `invoke_http`, or `runner_stream`) rather than demanding a particular one — a refusal further
+  out is better, not worse. The invariant is that some boundary refuses attributably and no turn
+  ever runs on a defaulted harness. FAILs if a turn executes and stores output.
+- `resources/check_secrets_teardown.py` — **[mechanical]** a Daytona Secret must not outlive its
+  run. Inventories the Daytona organization's Secret NAMES (never values) before a short Daytona
+  journey, forces the teardown with a config-change eviction, then asserts every `agenta_*` Secret
+  the run created is gone within a bounded settle window. Needs a Daytona API key in the
+  environment (`DAYTONA_API_KEY` or `AGENTA_RUNNER_DAYTONA_API_KEY`) and SKIPs with the exact
+  reason without one. Run it alone: a concurrent Daytona run against the same organization looks
+  the same as a leftover. The listing walks `GET /secret/paginated` by cursor to exhaustion —
+  `/secrets` does not exist, plain `/secret` is deprecated and fails above 1500 secrets, and a
+  `page` parameter is silently ignored, so anything less than real cursor pagination is noise
+  against an organization this size. The settle loop polls `GET /secret/{secretId}` per created
+  Secret rather than re-enumerating. `test_check_secrets_teardown_pagination.py` pins the walk.
+  A journey that dies on an exhausted provider key never creates a Secret, so it SKIPs with
+  "environment: provider key out of credit" instead of failing the teardown path it never
+  exercised.
+- `qa_matrix_lib.out_of_credit(error_text, codes)` — **[shared classification; no cell of its
+  own]** the SKIP reason when a run failed ONLY because the provider key has no credit left, and
+  `None` for everything else. An exhausted key is an environment condition: a cell that renders
+  it as FAIL spends a reviewer's attention on a topped-up balance, and teaches the reader that
+  this cell's FAIL is sometimes noise, which is how a real regression gets waved through later.
+  Recognition is narrow in both directions — the `starter_credits_*` codes plus the runner's own
+  credits copy and the provider's billing refusal, and deliberately NOT a bare 401, a rate limit,
+  or the placeholder refusal. Wired into `matrix_c5_first_call_race.py` and
+  `check_secrets_teardown.py`; `test_out_of_credit_skip.py` pins the boundary from both sides.
+
 ## Contributing
 
 Before committing any resource script, run the repo-pinned ruff (`uv run --no-sync ruff format`
 then `uv run --no-sync ruff check` from the repo root covers it) — not `uvx`, whose pulled
 version has different defaults and produces a false block. Unformatted resource files break the
 repo-wide format CI job.
+
+When you add a cell, ask whether it is only meaningful for changes in one part of the tree. If it
+is, add the rule to `resources/path_triggers.py` in the same change. A cell whose subsystem can be
+rewritten without anyone remembering to run it is coverage on paper.
 
 Release-night findings and the full evidence history are archived in
 `docs/design/agent-workflows/projects/qa/` (STATUS.md, findings.md, matrix.md).

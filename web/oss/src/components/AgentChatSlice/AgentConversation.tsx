@@ -3,22 +3,28 @@ import {useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject
 import {
     describeAccepted,
     filesToParts,
+    jumpGateOpen,
     messageText,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
 import {getMessageTraceId} from "@agenta/chat/assets"
-import {ConnectionFocusProvider} from "@agenta/chat/components"
+import {AttachmentDropOverlay, ConnectionFocusProvider} from "@agenta/chat/components"
 import {
     stagedFilesToParts,
     useComposerAttachments,
     useAgentChatQueue,
     type QueuedMessage,
 } from "@agenta/chat/hooks"
-import {useAgentModelKeyStatus, useConnectionDock, useVoiceComposer} from "@agenta/chat/hooks"
+import {
+    useAgentModelKeyStatus,
+    useConnectionDock,
+    useElicitationDock,
+    useVoiceComposer,
+} from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
 import {getPendingApprovals} from "@agenta/chat/model"
-import {sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
+import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
 import {
     contextWindowForModel,
@@ -31,9 +37,10 @@ import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
+import {isOverlayOpen} from "@agenta/shared/utils"
 import {modal} from "@agenta/ui/app-message"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {UploadSimple} from "@phosphor-icons/react"
+import {isAltChord} from "@agenta/ui/shortcuts"
 import {type FileUIPart, type UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -49,6 +56,7 @@ import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
 import AttachmentViewerDrawer from "./components/AttachmentViewerDrawer"
 import {Inspector} from "./components/Inspector/Inspector"
+import MessageAttachmentViewer from "./components/MessageAttachmentViewer"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import TranscriptPlaceholder from "./components/TranscriptPlaceholder"
 import {useAgentChatSession} from "./hooks/useAgentChatSession"
@@ -66,6 +74,7 @@ import {
     bumpSessionActivityAtomFamily,
     firstUserText,
 } from "./state/sessions"
+import {focusComposerRequestAtom, matchesSessionRequest} from "./state/uiRequests"
 
 /**
  * One agent conversation for a single session tab. A `useChat` whose transport is fed by the
@@ -74,8 +83,8 @@ import {
  * Messages persist to localStorage (seeded on mount, written when the stream settles) so the
  * tab survives a reload / revision swap.
  *
- * Design decisions baked in (docs/design/agent-workflows/playground-agent-generation.md):
- *  - D9  teardown: abort the in-flight stream on unmount (tab close / revision swap).
+ * Design decisions baked in (docs/design/agent-workflows/projects/session-chat-registry/decisions.md):
+ *  - D9  teardown: release the chat on unmount; it is preserved while its session tab is open.
  *  - DT3 cancelled state: a stopped stream tags its partial bubble "Stopped" + offers Resend.
  *  - DT4 autoscroll: stick to bottom while streaming; pause when scrolled up; "jump to latest".
  *  - DT5 a11y: the message log is an aria-live region; controls are keyboard-operable.
@@ -118,7 +127,6 @@ const AgentConversation = ({
         sendMessage,
         regenerate,
         setMessages,
-        addToolApprovalResponse,
         messagesRef,
         busyRef,
         isHydrating,
@@ -128,6 +136,7 @@ const AgentConversation = ({
         handleStop,
         handleClientToolOutput,
         markLiveGate,
+        answerApproval,
         resumeOrphaned,
         isSeen,
         runningElsewhere,
@@ -321,7 +330,16 @@ const AgentConversation = ({
     // one-by-one once the turn truly settles (never mid-approval). A user stop is the exception —
     // it voids the pending gate, so `stopped` lets a fresh send go immediately (not queue). An
     // orphaned restored resume shape (reload mid-approval-resume) voids it the same way.
-    const {queued, submit, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
+    const {
+        queued,
+        submit,
+        removeQueued,
+        hitlPending,
+        editingId,
+        beginEdit,
+        cancelEdit,
+        commitEdit,
+    } = useAgentChatQueue({
         status,
         messages,
         stopped,
@@ -336,7 +354,9 @@ const AgentConversation = ({
     const handleApprovalResponse = useCallback(
         (args: {id: string; approved: boolean; message?: string}) => {
             markLiveGate({kind: "approval", id: args.id})
-            addToolApprovalResponse({id: args.id, approved: args.approved})
+            // `answerApproval` owns the whole ordered click: the row first, then the part flip that
+            // lets the SDK resume. Never flip here — an early flip lets the resume's stale sweep
+            // cancel the row being answered.
             // Steer: a denial that carries a redirect answers the gate AND sends the instruction as a
             // follow-up turn. It must be its OWN turn, not bundled into the deny-resume: resuming a
             // parked gate calls `respondPermission(reject)`, which makes the harness CONTINUE the
@@ -346,9 +366,12 @@ const AgentConversation = ({
             // harness owns the reject continuation and exposes no reject-with-feedback seam; killing
             // that flail needs an upstream ACP change, not an FE one.)
             const steer = args.message?.trim()
-            if (!args.approved && steer) submit({text: steer})
+            void answerApproval(args.id, args.approved).then(() => {
+                // After the answer for the same reason the flip is: a steer starts its own turn.
+                if (!args.approved && steer) submit({text: steer})
+            })
         },
-        [addToolApprovalResponse, markLiveGate, submit],
+        [answerApproval, markLiveGate, submit],
     )
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
@@ -357,15 +380,31 @@ const AgentConversation = ({
     // Parked connect interactions on the paused turn → the connect dock owns their actions (the
     // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
     // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
+    // Parked question forms → the docked card owns their actions (the inline rows are markers).
+    // Same gate as the connect dock: the stream genuinely ends when an interaction parks, so `busy`
+    // is already false by the time the dock should open.
+    const elicits = useElicitationDock({
+        messages,
+        enabled: !busy && !stopped,
+        approvalsPending: pendingApprovals.length > 0,
+        onOutput: handleClientToolOutput,
+    })
     const connects = useConnectionDock({
         messages,
         enabled: !busy && !stopped,
         approvalsPending: pendingApprovals.length > 0,
+        elicitationPending: elicits.open,
+    })
+    // A docked gate holds the jump pill back: same bottom corner, and a paused run has nothing
+    // arriving below to jump to.
+    const gateOpen = jumpGateOpen({
+        approvals: pendingApprovals.length,
+        elicitationOpen: false,
+        connectionOpen: connects.open,
     })
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
-    // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
-    // tab keeps no stale dot and stops claiming it's the live watcher.
+    // Precedence error > awaiting approval > running > idle.
     // `hitlPending` reads only the LAST assistant message, so the moment a new turn starts
     // streaming (or hydration reshapes the transcript) a still-pending interaction in an
     // EARLIER message stops counting — status collapses to idle, the settle stamp lands, and
@@ -392,8 +431,14 @@ const AgentConversation = ({
                 : "idle"
         setSessionStatus({id: sessionId, status})
     }, [error, hitlPending, anyPendingInteraction, busy, sessionId, setSessionStatus])
+    // On unmount, retire the dot ONLY if the run went with us. A chat preserved past this mount
+    // (route change with the tab still open) is still this browser's run to report, so it keeps its
+    // status until it settles — `useAgentChatSession`'s `onFinish` retires it then. The session hook
+    // releases the chat in an earlier cleanup, so the registry is already authoritative here.
     useEffect(
-        () => () => setSessionStatus({id: sessionId, status: "idle"}),
+        () => () => {
+            if (!hasSessionChat(sessionId)) setSessionStatus({id: sessionId, status: "idle"})
+        },
         [sessionId, setSessionStatus],
     )
 
@@ -410,6 +455,49 @@ const AgentConversation = ({
         submit({text: pendingRun.text})
         setPendingRun(null)
     }, [pendingRun, activeSessionId, sessionId, submit, setPendingRun])
+
+    // Run-level shortcuts. They live here, not in the panel's session hook, because only this
+    // conversation knows whether a run is in flight and what it is waiting on. Bubble phase, so an
+    // open picker or dialog that stops propagation still gets Escape first.
+    useEffect(() => {
+        if (activeSessionId !== sessionId) return
+        const onKey = (e: KeyboardEvent) => {
+            // Radix cancels Escape for a layer but still lets it reach us, and it never touches
+            // Alt+G, which only the overlay check catches.
+            if (e.defaultPrevented || isOverlayOpen()) return
+            // An IME user presses Escape to cancel composition, not to stop the run.
+            if (e.key === "Escape" && !e.isComposing && busyRef.current) {
+                e.preventDefault()
+                handleStop()
+                return
+            }
+            // Approve answers ONE gate, never the dock's "Approve all": a mis-press should not
+            // grant a tool the user never read.
+            if (isAltChord(e) && e.code === "KeyG" && pendingApprovals.length > 0) {
+                e.preventDefault()
+                handleApprovalResponse({id: pendingApprovals[0].approvalId, approved: true})
+            }
+        }
+        document.addEventListener("keydown", onKey)
+        return () => document.removeEventListener("keydown", onKey)
+    }, [activeSessionId, sessionId, busyRef, handleStop, pendingApprovals, handleApprovalResponse])
+
+    // A keyboard switch (Alt+1…9 / Alt+Z / Alt+X) lands the caret here. antd mounts a never-visited
+    // pane only on activation, so this effect runs on that mount and a first-visit switch focuses
+    // too. The frame claims the nonce, not the effect body: StrictMode replays the mount, and
+    // claiming it up front would leave the replay with nothing to do.
+    const focusRequest = useAtomValue(focusComposerRequestAtom)
+    const consumedFocusNonceRef = useRef<number | null>(null)
+    useEffect(() => {
+        if (!matchesSessionRequest(focusRequest, scopeKey, sessionId)) return
+        const {nonce} = focusRequest
+        if (consumedFocusNonceRef.current === nonce) return
+        requestAnimationFrame(() => {
+            if (consumedFocusNonceRef.current === nonce) return
+            consumedFocusNonceRef.current = nonce
+            richInputRef.current?.focus()
+        })
+    }, [focusRequest, scopeKey, sessionId])
 
     // Exactly one scroll engine owns the transcript: Virtuoso when it's enabled in the playground
     // settings, the SC-1..4 DOM engine otherwise (each bails on the other's flag). Both act on the
@@ -428,13 +516,20 @@ const AgentConversation = ({
         fileParts: FileUIPart[] | undefined,
         consumedUids: string[],
     ) => {
-        // Glide to the bottom; the min-h-full active turn makes that show the new question at the top
-        // with the answer streaming below. Park during the glide, follow again on settle. Clear any
-        // prior "stopped" marker — it's resolved by asking again.
-        scrollIntent.armGlide()
-        setStopped(false)
-        // One path: `submit` sends now or queues behind held messages via the shared release gate.
-        submit({text: trimmed, fileParts})
+        if (editingId) {
+            // A rewrite of a held message: nothing is sent, so the transcript must not move.
+            // The input clears itself on submit, so the displaced draft goes back after that.
+            const draft = commitEdit({text: trimmed, fileParts})
+            if (draft) requestAnimationFrame(() => richInputRef.current?.setMarkdown(draft))
+        } else {
+            // Glide to the bottom; the min-h-full active turn makes that show the new question at the
+            // top with the answer streaming below. Park during the glide, follow again on settle.
+            // Clear any prior "stopped" marker — it's resolved by asking again.
+            scrollIntent.armGlide()
+            setStopped(false)
+            // One path: `submit` sends now or queues behind held messages via the shared release gate.
+            submit({text: trimmed, fileParts})
+        }
         // The message left the composer — drop its persisted draft (and any pending capture).
         composer.clearDraft()
         onboardingChat.consumeTemplateProvenance()
@@ -470,7 +565,6 @@ const AgentConversation = ({
                                 reason: "couldn't be read — remove it and attach it again",
                             })),
                         )
-                        attachments.setAttachmentsOpen(true)
                         return
                     }
                     fileParts = parts
@@ -549,8 +643,29 @@ const AgentConversation = ({
     )
     const handleResend = useCallback(
         (messageId: string) => {
-            setStopped(false)
-            regenerate({messageId}).catch(ignoreStreamRejection)
+            const msgs = messagesRef.current
+            const idx = msgs.findIndex((m) => m.id === messageId)
+            // Same hazard as rewind (#6362 review): regenerating drops the failed assistant
+            // turn, including any tool that already ran — a retryable model error can land
+            // AFTER a completed write, and the retry would run the write again.
+            const sideEffects = idx >= 0 ? sideEffectingToolsInRange(msgs.slice(idx)) : []
+            const run = () => {
+                setStopped(false)
+                regenerate({messageId}).catch(ignoreStreamRejection)
+            }
+            if (sideEffects.length > 0) {
+                modal.confirm({
+                    title: "Retry past a tool that already ran?",
+                    content: `${sideEffects.join(", ")} already executed. Retrying re-runs this turn but will NOT undo it.`,
+                    okText: "Retry anyway",
+                    okButtonProps: {danger: true},
+                    cancelText: "Cancel",
+                    centered: true,
+                    onOk: run,
+                })
+            } else {
+                run()
+            }
         },
         [regenerate, setStopped],
     )
@@ -609,12 +724,16 @@ const AgentConversation = ({
         <DriveSessionProvider sessionId={sessionId} artifactId={artifactId}>
             {/* Wraps transcript AND dock: a parked "Connect to X below" row links to X's card. */}
             <ConnectionFocusProvider connects={connects}>
+                {/* The whole conversation ACCEPTS a drop; only the composer shows it (below).
+                Aiming at a 100px dock to attach a file is a needless demand. */}
                 <div
                     className="ag-canvas relative flex h-full min-h-0 w-full flex-row"
                     {...dropTarget}
                 >
                     {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
                     {quickLookHost}
+                    {/* Previews a SENT attachment; the tray's own drawer is below. */}
+                    <MessageAttachmentViewer />
                     {uploadsEnabled ? (
                         <AttachmentViewerDrawer
                             uploads={files}
@@ -641,38 +760,12 @@ const AgentConversation = ({
                             absolute bar in build and reclaims the space in chat. It lives on the
                             TRANSCRIPT COLUMN alone — not a shared ancestor — so the context rail
                             beside it keeps a fixed top and doesn't ride the transition upward.
-                            box-border so the padding fits inside h-full (preflight is off). */}
-                            <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col gap-3 box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
-                                {/* At the limit the overlay says so rather than inviting a drop it is
-                            about to reject wholesale. */}
-                                {isDragging && (
-                                    <div
-                                        className={`pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed ${
-                                            atMax
-                                                ? "border-colorError bg-[var(--ant-color-error-bg)]"
-                                                : "border-colorPrimary bg-[var(--ant-color-primary-bg)]"
-                                        }`}
-                                    >
-                                        <UploadSimple
-                                            size={26}
-                                            className={
-                                                atMax ? "text-colorError" : "text-colorPrimary"
-                                            }
-                                        />
-                                        <span
-                                            className={`text-sm font-medium ${
-                                                atMax ? "text-colorError" : "text-colorPrimary"
-                                            }`}
-                                        >
-                                            {atMax ? "Attachment limit reached" : "Drop files here"}
-                                        </span>
-                                        <span className="text-xs text-colorTextSecondary">
-                                            {atMax
-                                                ? `Remove one to add another (${limits.maxCount} max)`
-                                                : `${describeAccepted(limits)} · up to ${limits.maxCount} files`}
-                                        </span>
-                                    </div>
-                                )}
+                            box-border so the padding fits inside h-full (preflight is off).
+                            NO column gap: the transcript's bottom fade is meant to dissolve content
+                            into the composer edge, and a gap between them left a dead band of canvas
+                            that read as the transcript being cut short. Docked chrome below carries
+                            its own `mb-2`, so nothing here depended on the gap for separation. */}
+                            <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col box-border pt-[var(--agent-bar-inset,0px)] motion-safe:transition-[padding-top] motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]">
                                 {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
                 real reason), stamped in the effect above — no separate top-level banner. */}
                                 <AgentTranscript
@@ -683,6 +776,7 @@ const AgentConversation = ({
                                     virt={virt}
                                     scroll={scroll}
                                     showJump={showJump}
+                                    gateOpen={gateOpen}
                                     placeholder={
                                         <TranscriptPlaceholder
                                             entityId={entityId}
@@ -706,33 +800,54 @@ const AgentConversation = ({
                                     }
                                 />
 
-                                <AgentComposerDock
-                                    entityId={entityId}
-                                    messages={messages}
-                                    busy={busy}
-                                    runningElsewhere={runningElsewhere}
-                                    hitlPending={hitlPending}
-                                    queue={{queued, removeQueued, clearQueue}}
-                                    modelKey={{...modelKey, entityId}}
-                                    modelBlocked={modelBlocked}
-                                    contextMaxTokens={contextMaxTokens}
-                                    showContextBudget={showContextBudget}
-                                    showTemplateStrip={showTemplateStrip}
-                                    pendingApprovals={pendingApprovals}
-                                    onApprovalResponse={handleApprovalResponse}
-                                    connects={connects}
-                                    onClientToolOutput={handleClientToolOutput}
-                                    onSubmit={handleSubmit}
-                                    onStop={handleStop}
-                                    richInputRef={richInputRef}
-                                    composer={composer}
-                                    attachments={attachments}
-                                    onboardingChat={onboardingChat}
-                                    voice={voice}
-                                    audioPerceivable={audioPerceivable}
-                                    composerDisabled={composerDisabled}
-                                    attachmentsBlocked={attachmentsBlocked}
-                                />
+                                {/* The highlight is the composer alone: lighting the whole
+                                transcript to accept a file the composer will hold read as the
+                                page itself being the target. */}
+                                <div className="relative">
+                                    <AttachmentDropOverlay
+                                        active={isDragging}
+                                        atMax={atMax}
+                                        hint={
+                                            atMax
+                                                ? `Remove one to add another (${limits.maxCount} max)`
+                                                : `${describeAccepted(limits)} · up to ${limits.maxCount} files`
+                                        }
+                                    />
+                                    <AgentComposerDock
+                                        entityId={entityId}
+                                        messages={messages}
+                                        busy={busy}
+                                        runningElsewhere={runningElsewhere}
+                                        hitlPending={hitlPending}
+                                        queue={{
+                                            queued,
+                                            removeQueued,
+                                            editingId,
+                                            beginEdit,
+                                            cancelEdit,
+                                        }}
+                                        modelKey={{...modelKey, entityId}}
+                                        modelBlocked={modelBlocked}
+                                        contextMaxTokens={contextMaxTokens}
+                                        showContextBudget={showContextBudget}
+                                        showTemplateStrip={showTemplateStrip}
+                                        pendingApprovals={pendingApprovals}
+                                        onApprovalResponse={handleApprovalResponse}
+                                        connects={connects}
+                                        elicits={elicits}
+                                        onClientToolOutput={handleClientToolOutput}
+                                        onSubmit={handleSubmit}
+                                        onStop={handleStop}
+                                        richInputRef={richInputRef}
+                                        composer={composer}
+                                        attachments={attachments}
+                                        onboardingChat={onboardingChat}
+                                        voice={voice}
+                                        audioPerceivable={audioPerceivable}
+                                        composerDisabled={composerDisabled}
+                                        attachmentsBlocked={attachmentsBlocked}
+                                    />
+                                </div>
                             </div>
                             {/* Chat-mode context rail (spec E1): docked right of the transcript, Files
                             pinned on top. Always mounted so hide/show SLIDES (width transition) —

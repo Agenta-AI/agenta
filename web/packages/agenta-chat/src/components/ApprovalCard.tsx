@@ -8,9 +8,12 @@
  * There is no `body` slot and no mode flag, because a second visual shape is exactly what this
  * card exists to remove.
  */
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useId, useMemo, useRef, useState} from "react"
 
+import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {isOnScreen, isOverlayOpen, shortcutAria} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
 import {CaretRight, ShieldCheck} from "@phosphor-icons/react"
 
@@ -67,8 +70,10 @@ export const ApprovalCard = ({
             else next.add(index)
             return next
         })
-    // Armed "don't ask again" intent — applied only when the user approves, never on its own.
+    // Armed auto-approve intent — applied only when the user approves, never on its own.
     const [alwaysAllowArmed, setAlwaysAllowArmed] = useState(false)
+    const alwaysAllowId = useId()
+    const alwaysAllowLabelId = `${alwaysAllowId}-label`
     // Which button fired, so the spinner lands on it (the hosts only report "busy").
     const [firedAction, setFiredAction] = useState<"approve" | "deny" | null>(null)
     const [steerOpen, setSteerOpen] = useState(false)
@@ -76,6 +81,8 @@ export const ApprovalCard = ({
     // The field stays mounted inside the collapse, so focus it explicitly each time it opens; the
     // rAF waits for the expand to start so focus lands on a laid-out element.
     const steerInputRef = useRef<HTMLTextAreaElement>(null)
+    // Every visited session stays mounted behind `display: none`, so a hidden card must not answer.
+    const rootRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
         if (!steerOpen) return
         const raf = requestAnimationFrame(() => steerInputRef.current?.focus())
@@ -96,13 +103,18 @@ export const ApprovalCard = ({
         if (!responding) setFiredAction(null)
     }, [responding])
 
-    const {infoFor, grant} = useAlwaysAllowTool(entityId)
+    const {infoFor, grantMany} = useAlwaysAllowTool(entityId)
 
     // A commit gate parses its whole delta + manifest, so memoize on the gate id (a gate's payload
     // is immutable) rather than re-parsing on every keystroke and `responding` toggle.
+    const base = useMemo(() => (current ? describeApproval(current) : null), [current?.approvalId])
+    // The catalog answers late, so re-describe once it names the slug (#6349). Disabled on "".
+    const sourceKey = base?.sourceKey ?? ""
+    const {integration} = useToolIntegrationDetail(sourceKey)
+    const appName = sourceKey ? integration?.name : undefined
     const preview = useMemo(
-        () => (current ? describeApproval(current) : null),
-        [current?.approvalId],
+        () => (current && appName ? describeApproval(current, appName) : base),
+        [current?.approvalId, appName, base],
     )
     // A batch answers as a whole, so the rows list the pending ACTIONS rather than one gate's
     // changes — this is what replaced the peek popover.
@@ -113,17 +125,27 @@ export const ApprovalCard = ({
 
     if (!current || !preview) return null
 
-    const grantInfo = infoFor(current.toolName)
-    const canAlwaysAllow = Boolean(grantInfo.eligible && !grantInfo.alreadyAllowed)
+    // A batch answers as a whole, so the grant covers every tool it would approve, not just the
+    // first gate's. Ineligible members (a commit op mixed in) simply stay gated.
+    const grantableTools = [
+        ...new Set((batched ? approvals : [current]).map((approval) => approval.toolName)),
+    ].filter((toolName) => {
+        const info = infoFor(toolName)
+        return info.eligible && !info.alreadyAllowed
+    })
+    const canAlwaysAllow = grantableTools.length > 0
     // Touch must NOT change the chrome — the tap target extends invisibly instead.
     const touchCls = touch
         ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
         : ""
+    // The keycaps ride on the actions themselves, so the gesture reads without a hover. A touch
+    // reader has no keyboard, so they earn no space there.
+    const showKeys = !touch
 
     const approve = () => {
         if (responding) return
         setFiredAction("approve")
-        if (alwaysAllowArmed && canAlwaysAllow) grant(current.toolName)
+        if (alwaysAllowArmed && canAlwaysAllow) grantMany(grantableTools)
         if (batched) return onApproveAll(approvals.map((a) => a.approvalId))
         onRespond({approvalId: current.approvalId, approved: true})
     }
@@ -142,6 +164,13 @@ export const ApprovalCard = ({
     // already no-op while `responding`, so a double-fire is harmless.
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
+            // Something on top owns the keyboard. Both halves are load-bearing: Radix cancels
+            // Escape for a dialog, menu or popover but still lets it reach us, and it never
+            // touches Cmd+Enter, which only the overlay check catches.
+            if (event.defaultPrevented || isOverlayOpen()) return
+            // The listener is on `window`, and a parallel run parks a gate in a session you are
+            // not looking at. Without this, one Cmd+Enter answered every hidden card too.
+            if (rootRef.current && !isOnScreen(rootRef.current)) return
             if (steerOpen) return
             const approveChord = (event.metaKey || event.ctrlKey) && event.key === "Enter"
             const denyChord = event.key === "Escape" && !event.metaKey && !event.ctrlKey
@@ -164,7 +193,7 @@ export const ApprovalCard = ({
     })
 
     return (
-        <div className={`flex flex-col rounded-lg ${className}`}>
+        <div ref={rootRef} className={`flex flex-col rounded-lg ${className}`}>
             {/* Eyebrow: a quiet cue that a decision is owed, not an error tint. */}
             <div className="flex items-center gap-1.5">
                 <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorText" />
@@ -246,18 +275,22 @@ export const ApprovalCard = ({
             {/* Actions. The whole row collapses while steering: an explicit deny+redirect shouldn't
                 leave Approve competing, so the redirect panel becomes the entire action surface. */}
             <HeightCollapse className="-mt-1" open={!steerOpen} fade inert>
-                <div className="flex items-center gap-2">
+                {/* Wraps rather than squeezes: with Redirect on, the buttons drop to their own line
+                    instead of shoving Approve off a narrow screen. */}
+                <div className="flex flex-wrap items-center gap-2">
                     {canAlwaysAllow ? (
-                        <label className="flex cursor-pointer items-center gap-2 text-xs text-colorTextSecondary">
+                        <label className="flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap text-xs text-colorTextSecondary">
                             <Checkbox
                                 checked={alwaysAllowArmed}
                                 disabled={responding}
                                 onCheckedChange={(checked) => setAlwaysAllowArmed(checked === true)}
+                                aria-labelledby={alwaysAllowLabelId}
+                                className="shrink-0"
                             />
-                            Don&apos;t ask again for this
+                            <span id={alwaysAllowLabelId}>Always auto-approve</span>
                         </label>
                     ) : null}
-                    <div className="ml-auto flex items-center gap-1.5">
+                    <div className="ml-auto flex shrink-0 items-center gap-1.5">
                         {steerEnabled ? (
                             <Button
                                 variant="ghost"
@@ -274,16 +307,30 @@ export const ApprovalCard = ({
                             loading={responding && firedAction === "deny"}
                             className={touchCls}
                             onClick={deny}
+                            aria-keyshortcuts={shortcutAria("approval.deny")}
                         >
                             {batched && onDenyAll ? "Deny all" : "Deny"}
+                            {/* Decorative: the button's own label already names the action. */}
+                            {showKeys ? (
+                                <ShortcutKeys id="approval.deny" aria-hidden className="ml-1.5" />
+                            ) : null}
                         </LoadingButton>
                         <LoadingButton
                             disabled={responding}
                             loading={responding && firedAction === "approve"}
                             className={touchCls}
                             onClick={approve}
+                            aria-keyshortcuts={shortcutAria("approval.approve")}
                         >
                             {batched ? "Approve all" : "Approve"}
+                            {showKeys ? (
+                                <ShortcutKeys
+                                    id="approval.approve"
+                                    tone="inverse"
+                                    aria-hidden
+                                    className="ml-1.5"
+                                />
+                            ) : null}
                         </LoadingButton>
                     </div>
                 </div>

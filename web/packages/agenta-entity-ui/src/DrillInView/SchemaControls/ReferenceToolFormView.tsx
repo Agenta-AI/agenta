@@ -1,48 +1,17 @@
-/**
- * ReferenceToolFormView
- *
- * Form side of the tool {@link ConfigItemDrawer} for a `type:"reference"` workflow tool (#4860) —
- * the edit counterpart of the {@link WorkflowReferenceSelector} detail panel, so editing an existing
- * reference reads the same as adding one (instead of a raw JSON blob). Shows the exposed tool name,
- * description, and the resolved input schema (read-only, from the stored `input_schema`), plus an
- * editable "Reference by" axis (pin a variant+version, or follow a deployed environment) wired to the
- * workflow-reference bridge.
- *
- * Built from the shared pieces (`RailField`, `SchemaTree`, `RunVersionField`, `ConfigAccordionSection`);
- * dark-safe (`--ag-color*` tokens only).
- */
-import {useEffect, useMemo, useState} from "react"
+/** One saved subagent: the calling agent's own description, over a read-only summary of the agent
+ *  it calls. A subagent always runs that agent's LATEST revision, and this offers no way to pin. */
+import {useMemo, useState} from "react"
 
-import {ConfigAccordionSection, CopyButton} from "@agenta/ui/components/presentational"
-import {
-    useDrillInUI,
-    type WorkflowReferenceBridge,
-    type WorkflowReferenceUI,
-} from "@agenta/ui/drill-in"
-import {AutosizeTextarea, Spinner} from "@agenta/ui/ui"
-import {GitBranch, Info, TreeStructure} from "@phosphor-icons/react"
-import {atom, useSetAtom} from "jotai"
+import type {SubagentDetail, WorkflowReferenceBridge} from "@agenta/ui/drill-in"
+import {useDrillInUI} from "@agenta/ui/drill-in"
+import {getProviderIcon} from "@agenta/ui/select-llm-provider"
+import {cn} from "@agenta/ui/styles"
+import {AutosizeTextarea, Badge, SkeletonBlock} from "@agenta/ui/ui"
+import {CaretDown, CaretUp, Cube, FileText, Info, Lock} from "@phosphor-icons/react"
 
-import {RailField} from "../../drawers/shared/RailField"
-import {RunVersionField} from "../../gatewayTrigger/drawers/shared/RunVersionField"
-import {createWorkflowRevisionAdapter, type WorkflowRevisionSelectionResult} from "../../selection"
-
-import {SchemaTree} from "./SchemaTree"
-
-// Revision picker scoped to the edited reference's workflow (module-level: only one reference drawer
-// is open at a time). Separate from the selector's atom so the two never collide.
-const editRefWorkflowIdAtom = atom<string | null>(null)
-const editReferenceRevisionAdapter = createWorkflowRevisionAdapter({
-    workflowIdAtom: editRefWorkflowIdAtom,
-})
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-function countProps(schema: Record<string, unknown> | null): number {
-    return schema && isRecord(schema.properties) ? Object.keys(schema.properties).length : 0
-}
+import {normalizeSubagentReference} from "./agentTemplate/subagentReference"
+import {useIntegrationLogos} from "./hooks/useIntegrationLogos"
+import {ProviderLogo} from "./sectionGroups"
 
 export interface ReferenceToolFormViewProps {
     value: Record<string, unknown>
@@ -50,203 +19,214 @@ export interface ReferenceToolFormViewProps {
     disabled?: boolean
 }
 
-/**
- * The editable Reference-by axis. Isolated so the bridge hooks (`useWorkflowEnvironments`) are only
- * mounted when the bridge is available. Commits binding changes onto the reference tool immediately.
- */
-function ReferenceBindingEditor({
-    tool,
-    onChange,
-    bridge,
-    workflow,
-}: {
-    tool: Record<string, unknown>
-    onChange: (next: Record<string, unknown>) => void
-    bridge: WorkflowReferenceBridge
-    workflow: WorkflowReferenceUI | null
-}) {
-    const setWorkflowId = useSetAtom(editRefWorkflowIdAtom)
-    useEffect(() => {
-        setWorkflowId(workflow?.id ?? null)
-        return () => setWorkflowId(null)
-    }, [workflow?.id, setWorkflowId])
-
-    const [bindMode, setBindMode] = useState<"revision" | "environment">(
-        tool.ref_by === "environment" ? "environment" : "revision",
-    )
-    const [version, setVersion] = useState<string | undefined>(
-        typeof tool.version === "string" ? tool.version : undefined,
-    )
-    const [environment, setEnvironment] = useState<string | undefined>(
-        typeof tool.environment === "string" ? tool.environment : undefined,
-    )
-    // Selected variant id — kept even when following its latest (no pinned version).
-    const [variant, setVariant] = useState<string | undefined>(
-        typeof tool.variant_id === "string" ? tool.variant_id : undefined,
-    )
-
-    const {environments, isLoading} = bridge.useWorkflowEnvironments(workflow)
-
-    // Rebuild the reference tool from the current binding, clearing the now-irrelevant axis field.
-    const commit = (
-        mode: "revision" | "environment",
-        ver?: string,
-        env?: string,
-        varId?: string,
-    ) => {
-        const next = {...tool}
-        if (mode === "revision") {
-            next.ref_by = "variant"
-            if (varId) next.variant_id = varId
-            else delete next.variant_id
-            if (ver) next.version = ver
-            else delete next.version
-            delete next.environment
-        } else {
-            next.ref_by = "environment"
-            if (env) next.environment = env
-            else delete next.environment
-            delete next.version
-            delete next.variant_id
-        }
-        onChange(next)
-    }
-
+/** One row of the configuration card: a muted label column, then the value. */
+function DetailRow({label, children}: {label: string; children: React.ReactNode}) {
     return (
-        <RunVersionField
-            bindMode={bindMode}
-            onBindModeChange={(mode) => {
-                setBindMode(mode)
-                commit(mode, version, environment, variant)
-            }}
-            revisionAdapter={editReferenceRevisionAdapter}
-            revisionPlaceholder={version ? `v${version}` : "Latest revision"}
-            onRevisionSelect={(sel: WorkflowRevisionSelectionResult) => {
-                const isRevision =
-                    Boolean(sel.metadata.variantId) && sel.id !== sel.metadata.variantId
-                const ver = isRevision ? String(sel.metadata.revision) : undefined
-                const varId = sel.metadata.variantId ? String(sel.metadata.variantId) : undefined
-                setVersion(ver)
-                setVariant(varId)
-                commit("revision", ver, environment, varId)
-            }}
-            revisionHint="Pin one variant + revision, or pick a variant to follow its latest."
-            envOptions={environments.map((env) => ({value: env.slug, label: env.name || env.slug}))}
-            envLoading={isLoading}
-            environmentSlug={environment}
-            onEnvironmentChange={(slug) => {
-                setEnvironment(slug)
-                commit("environment", version, slug)
-            }}
-            envNotFound={
-                isLoading ? (
-                    <Spinner size="small" />
-                ) : (
-                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                        No environments deployed
-                    </span>
-                )
-            }
-            envHint="Calls whatever revision is deployed in the chosen environment."
-        />
+        <div className="flex items-start gap-4 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-4 py-3 first:border-t-0">
+            <span className="w-24 shrink-0 pt-px text-[13px] text-[var(--ag-colorTextTertiary)]">
+                {label}
+            </span>
+            <div className="min-w-0 flex-1">{children}</div>
+        </div>
     )
 }
 
-/** One-line summary of the current binding (collapsed section preview + read-only fallback). */
-function bindingSummary(tool: Record<string, unknown>): string {
-    if (tool.ref_by === "environment") {
-        return typeof tool.environment === "string"
-            ? `Deployed in ${tool.environment}`
-            : "A deployed environment"
-    }
-    return typeof tool.version === "string" ? `Pinned to v${tool.version}` : "Latest revision"
-}
+/** Muted text for a row with nothing in it, worded like the picker's own empty line. */
+const Empty = ({children}: {children: React.ReactNode}) => (
+    <span className="text-[13px] text-[var(--ag-colorTextQuaternary)]">{children}</span>
+)
 
-/** Read-only binding summary shown when the workflow-reference bridge isn't available. */
-function ReadOnlyBinding({tool}: {tool: Record<string, unknown>}) {
-    return <p className="m-0 text-xs text-[var(--ag-colorTextSecondary)]">{bindingSummary(tool)}</p>
-}
-
-export function ReferenceToolFormView({value, onChange, disabled}: ReferenceToolFormViewProps) {
-    const tool = (value ?? {}) as Record<string, unknown>
-    const slug = typeof tool.slug === "string" ? tool.slug : ""
-    const description = typeof tool.description === "string" ? tool.description : ""
-    const inputSchema = isRecord(tool.input_schema)
-        ? (tool.input_schema as Record<string, unknown>)
-        : null
-
-    const {workflowReference} = useDrillInUI()
-    // Displaying an existing reference needs the workflow list to resolve its name — activate the
-    // (lazy) bridge. Configs with no reference never mount this view, so they never pull the list.
-    useEffect(() => {
-        if (slug) workflowReference?.activate?.()
-    }, [slug, workflowReference])
-    const workflow = useMemo(
-        () => workflowReference?.workflows.find((w) => w.slug === slug) ?? null,
-        [workflowReference, slug],
-    )
-
-    const setDescription = (next: string) => onChange({...tool, description: next})
-
+/** The agent's instruction file, clamped behind a fade and scrolled inside a fixed well. */
+function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>}) {
+    const [open, setOpen] = useState(false)
     return (
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4">
-            <div className="flex flex-col gap-4">
-                <ConfigAccordionSection
-                    size="compact"
-                    collapsible={false}
-                    icon={<Info size={15} />}
-                    title="Details"
-                >
-                    <RailField label="Exposed as" align="center">
-                        <div className="flex w-fit max-w-full items-center gap-1 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillTertiary)] py-0.5 pl-2.5 pr-1 font-mono text-xs text-[var(--ag-colorText)]">
-                            <span className="truncate">{slug}</span>
-                            <CopyButton text={slug} buttonText={null} icon variant="ghost" />
-                        </div>
-                    </RailField>
-
-                    <RailField label="Description">
-                        <AutosizeTextarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            autoSize={{minRows: 2, maxRows: 6}}
-                            placeholder="What this tool does and when the agent should call it"
-                            aria-label="Description"
-                            disabled={disabled}
-                        />
-                    </RailField>
-                </ConfigAccordionSection>
-
-                <ConfigAccordionSection
-                    size="compact"
-                    icon={<TreeStructure size={15} />}
-                    title="Schema"
-                    summary={`Inputs · ${countProps(inputSchema)}`}
-                    summaryCollapsedOnly
-                >
-                    <div className="max-h-[320px] max-w-prose overflow-y-auto overscroll-contain">
-                        <SchemaTree schema={inputSchema} emptyText="No declared inputs" />
-                    </div>
-                </ConfigAccordionSection>
-
-                <ConfigAccordionSection
-                    size="compact"
-                    noDivider
-                    icon={<GitBranch size={15} />}
-                    title="Reference by"
-                    summary={bindingSummary(tool)}
-                    summaryCollapsedOnly
-                >
-                    {workflowReference?.enabled && !disabled ? (
-                        <ReferenceBindingEditor
-                            tool={tool}
-                            onChange={onChange}
-                            bridge={workflowReference}
-                            workflow={workflow}
-                        />
-                    ) : (
-                        <ReadOnlyBinding tool={tool} />
+        <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-1.5">
+                <FileText size={14} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+                <span className="text-[13px]">{file.fileName}</span>
+                <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                    Markdown · {file.wordCount.toLocaleString()} words
+                </span>
+            </div>
+            <div className="relative">
+                <div
+                    className={cn(
+                        "whitespace-pre-line rounded-md bg-[var(--ag-colorFillQuaternary)] p-3 text-[13px] leading-relaxed text-[var(--ag-colorTextSecondary)]",
+                        open ? "max-h-80 overflow-y-auto" : "line-clamp-4 overflow-hidden",
                     )}
-                </ConfigAccordionSection>
+                >
+                    {file.text}
+                </div>
+                {/* The fade says "there is more" without a second control competing with the link. */}
+                {open ? null : (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 rounded-b-md bg-gradient-to-t from-[var(--ag-colorFillQuaternary)] to-transparent" />
+                )}
+            </div>
+            <button
+                type="button"
+                onClick={() => setOpen((v) => !v)}
+                aria-expanded={open}
+                className="flex w-fit cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[13px] text-[var(--ag-colorLink)]"
+            >
+                {open ? "Hide instructions" : "Show full instructions"}
+                {open ? <CaretUp size={12} /> : <CaretDown size={12} />}
+            </button>
+        </div>
+    )
+}
+
+export function ReferenceToolFormView(props: ReferenceToolFormViewProps) {
+    const {workflowReference} = useDrillInUI()
+    // Split so the bridge's hook is never called through an optional member: each branch is its
+    // own component, so React remounts rather than shifting hook order.
+    return workflowReference ? (
+        <ConnectedReferenceToolFormView bridge={workflowReference} {...props} />
+    ) : (
+        <SubagentDetailPanel {...props} detail={null} loading={false} />
+    )
+}
+
+function ConnectedReferenceToolFormView({
+    bridge,
+    ...props
+}: ReferenceToolFormViewProps & {bridge: WorkflowReferenceBridge}) {
+    const slug = typeof props.value?.slug === "string" ? props.value.slug : ""
+    const {detail, loading} = bridge.useSubagentDetail(slug)
+    return <SubagentDetailPanel {...props} detail={detail} loading={loading} />
+}
+
+function SubagentDetailPanel({
+    value,
+    onChange,
+    disabled,
+    detail,
+    loading,
+}: ReferenceToolFormViewProps & {detail: SubagentDetail | null; loading: boolean}) {
+    const tool = value ?? {}
+
+    // The bridge knows WHICH apps connect; their logos come from the catalog, which needs a component.
+    const appKeys = useMemo(
+        () => (detail?.integrations ?? []).map((a) => a.key),
+        [detail?.integrations],
+    )
+    const appByKey = useIntegrationLogos(appKeys)
+
+    const description = typeof tool.description === "string" ? tool.description : ""
+    const ProviderIcon = detail?.provider ? getProviderIcon(detail.provider) : null
+
+    return (
+        <div className="flex flex-col gap-6 p-4">
+            <div className="flex flex-col gap-2">
+                <span className="text-[13px] font-medium">Description</span>
+                <AutosizeTextarea
+                    value={description}
+                    disabled={disabled}
+                    onChange={(e) =>
+                        onChange(normalizeSubagentReference({...tool, description: e.target.value}))
+                    }
+                    aria-label="Subagent description"
+                />
+                <span className="flex items-start gap-1.5 text-xs text-[var(--ag-colorTextTertiary)]">
+                    <Info size={13} className="mt-px shrink-0" />
+                    The agent reads this description to decide when to call this subagent. Edit it
+                    to change when it is used.
+                </span>
+            </div>
+
+            <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-medium">Configuration</span>
+                    <Badge variant="default" className="m-0 gap-1 px-2 text-xs font-normal">
+                        <Lock size={11} />
+                        Read-only
+                    </Badge>
+                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                        Managed on the agent itself
+                    </span>
+                </div>
+                <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)]">
+                    {loading && !detail ? (
+                        <div className="flex flex-col gap-2 p-4">
+                            <SkeletonBlock className="h-3 w-40" />
+                            <SkeletonBlock className="h-3 w-full" />
+                            <SkeletonBlock className="h-3 w-3/5" />
+                        </div>
+                    ) : (
+                        <>
+                            <DetailRow label="Model">
+                                {detail?.model ? (
+                                    <span className="flex items-center gap-2">
+                                        <span className="flex size-[18px] shrink-0 items-center justify-center rounded bg-[var(--ag-colorFillTertiary)]">
+                                            {ProviderIcon ? (
+                                                <ProviderIcon className="size-3" />
+                                            ) : (
+                                                <Cube size={11} />
+                                            )}
+                                        </span>
+                                        <span className="truncate text-[13px] tabular-nums">
+                                            {detail.model}
+                                        </span>
+                                    </span>
+                                ) : (
+                                    <Empty>No model</Empty>
+                                )}
+                            </DetailRow>
+                            <DetailRow label="Instructions">
+                                {detail?.instructions ? (
+                                    <Instructions file={detail.instructions} />
+                                ) : (
+                                    <Empty>No instructions</Empty>
+                                )}
+                            </DetailRow>
+                            <DetailRow label="Integrations">
+                                {detail?.integrations.length ? (
+                                    <div className="flex flex-col gap-2">
+                                        {detail.integrations.map((app) => {
+                                            const catalog = appByKey.get(app.key)
+                                            return (
+                                                <span
+                                                    key={app.key}
+                                                    className="flex items-center gap-2 text-[13px]"
+                                                >
+                                                    <ProviderLogo
+                                                        logo={catalog?.logo ?? null}
+                                                        size={18}
+                                                    />
+                                                    <span className="min-w-0 flex-1 truncate">
+                                                        {catalog?.name ?? app.key}
+                                                    </span>
+                                                    {app.permission ? (
+                                                        <span className="shrink-0 text-[13px] text-[var(--ag-colorTextTertiary)]">
+                                                            {app.permission}
+                                                        </span>
+                                                    ) : null}
+                                                </span>
+                                            )
+                                        })}
+                                    </div>
+                                ) : (
+                                    <Empty>No connected apps</Empty>
+                                )}
+                            </DetailRow>
+                            <DetailRow label="Skills">
+                                {detail?.skills.length ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {detail.skills.map((skill) => (
+                                            <span
+                                                key={skill}
+                                                className="rounded-md bg-[var(--ag-colorFillQuaternary)] px-2 py-1 text-[13px] text-[var(--ag-colorTextSecondary)]"
+                                            >
+                                                {skill}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <Empty>No skills</Empty>
+                                )}
+                            </DetailRow>
+                        </>
+                    )}
+                </div>
             </div>
         </div>
     )

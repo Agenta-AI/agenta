@@ -2,10 +2,18 @@ import {useMemo, useState} from "react"
 
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
-import {StartupActivity, TurnFooter} from "@agenta/chat/components"
+import {
+    AttachmentCard,
+    AttachmentCardGrid,
+    CollapsibleMessageBody,
+    StartupActivity,
+    TurnFooter,
+} from "@agenta/chat/components"
+import {useTypewriter} from "@agenta/chat/hooks"
 import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 import {resolveToolDisplay} from "@agenta/chat/skin"
-import {useStartupPhase} from "@agenta/chat/state"
+import {messageBodyKey, useStartupPhase} from "@agenta/chat/state"
+import {AgentChatAvatar} from "@agenta/entity-ui/agent"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
@@ -16,6 +24,7 @@ import {
     turnRowClass,
     turnToolbarClass,
     turnToolbarRevealClass,
+    userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
 import {useSetAtom} from "jotai"
 import {
@@ -30,14 +39,33 @@ import {
     XCircle,
 } from "lucide-react"
 
+import {Button} from "@/components/ui/button"
+
 import {AssistantMarkdown} from "./AssistantMarkdown"
-import {AttachmentPart} from "./AttachmentPart"
 import {isLiveTextItem} from "./markdownStream"
 
 type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
 
+/** Split out so a COLLAPSED fold does not run a frame loop revealing text nobody can see. */
+const ReasoningBody = ({text, urgent}: {text: string; urgent?: boolean}) => {
+    const {text: revealed} = useTypewriter(text, {urgent})
+    return (
+        <div className="text-colorTextTertiary ml-5 mt-1 whitespace-pre-wrap text-xs">
+            {revealed}
+        </div>
+    )
+}
+
 /** Desktop ReasoningPart's shape: a caret+brain toggle over a muted italic aside. */
-const ReasoningFold = ({text, streaming}: {text: string; streaming: boolean}) => {
+const ReasoningFold = ({
+    text,
+    streaming,
+    urgent,
+}: {
+    text: string
+    streaming: boolean
+    urgent?: boolean
+}) => {
     const [manual, setManual] = useState<boolean | null>(null)
     const open = manual ?? streaming
     return (
@@ -54,11 +82,7 @@ const ReasoningFold = ({text, streaming}: {text: string; streaming: boolean}) =>
                 <Brain className="size-3" />
                 <span>{streaming ? "Thinking…" : "Thought"}</span>
             </button>
-            {open ? (
-                <div className="text-colorTextTertiary ml-5 mt-1 whitespace-pre-wrap text-xs">
-                    {text}
-                </div>
-            ) : null}
+            {open ? <ReasoningBody text={text} urgent={urgent} /> : null}
         </div>
     )
 }
@@ -136,8 +160,14 @@ const ToolLines = ({item}: {item: ToolsItem}) => (
     </div>
 )
 
-/** Desktop RunErrorBody's callout: the red card with a title and the reason inline. */
-const RunErrorCallout = ({text}: {text: string}) => {
+/**
+ * Desktop RunErrorBody's callout: the red card with a title and the reason inline.
+ *
+ * The retry is here rather than in the turn's hover toolbar because the toolbar hides rewind on
+ * the LAST turn (rewinding it just re-runs what is already current) — and a failed run is always
+ * the last turn, so the one turn that most needs re-running was the one turn with no way to do it.
+ */
+const RunErrorCallout = ({text, onRetry}: {text: string; onRetry?: () => void}) => {
     const [expanded, setExpanded] = useState(false)
     const big = text.length > 240 || text.split("\n").length > 4
     return (
@@ -161,6 +191,11 @@ const RunErrorCallout = ({text}: {text: string}) => {
                         {expanded ? "Show less" : "Show more"}
                     </button>
                 ) : null}
+                {onRetry ? (
+                    <Button size="sm" variant="outline" className="mt-1" onClick={onRetry}>
+                        Retry
+                    </Button>
+                ) : null}
             </div>
         </div>
     )
@@ -174,14 +209,25 @@ const RunErrorCallout = ({text}: {text: string}) => {
  * anything. And it was wordless — the runner narrates its startup (#6047) so a cold boot reads as
  * progress rather than a stall, and /m dropped that narration entirely.
  */
-const PendingTurn = ({sessionId}: {sessionId: string}) => {
+const TurnAvatar = ({
+    isUser = false,
+    workflowId,
+}: {
+    isUser?: boolean
+    workflowId?: string | null
+}) => {
+    if (isUser) return <ChatBubbleAvatar icon={<User className="size-4" />} />
+    return <AgentChatAvatar workflowId={workflowId} fallback={<Bot className="size-4" />} />
+}
+
+const PendingTurn = ({sessionId, workflowId}: {sessionId: string; workflowId?: string | null}) => {
     const startupPhase = useStartupPhase(sessionId)
     return (
         <div className={`${turnRowClass} justify-start`}>
             <ChatBubble
                 placement="start"
                 variant="borderless"
-                avatar={<ChatBubbleAvatar icon={<Bot className="size-4" />} />}
+                avatar={<TurnAvatar workflowId={workflowId} />}
                 className="min-w-0 max-w-[85%]"
                 content={
                     startupPhase ? <StartupActivity label={startupPhase} /> : <ChatTypingDots />
@@ -189,6 +235,17 @@ const PendingTurn = ({sessionId}: {sessionId: string}) => {
             />
         </div>
     )
+}
+
+/** The content endpoint carries the session cookie, so a same-origin anchor saves it directly. */
+const downloadAttachment = (url: string, name: string) => {
+    const link = document.createElement("a")
+    link.href = url
+    link.download = name
+    link.hidden = true
+    document.body.append(link)
+    link.click()
+    link.remove()
 }
 
 /**
@@ -202,6 +259,7 @@ export const TurnRow = ({
     onClientToolOutput,
     onRewind,
     sessionId,
+    workflowId,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -212,6 +270,8 @@ export const TurnRow = ({
     onRewind?: (turn: TurnViewModel) => void
     /** Scopes the startup narration to this conversation. */
     sessionId: string
+    /** The agent's workflow id, so its own icon rides the assistant bubbles. Display only. */
+    workflowId?: string | null
 }) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const traceId = getMessageTraceId(turn.message)
@@ -236,14 +296,16 @@ export const TurnRow = ({
     // Only the turn being generated shows the loading state, and only until it has content —
     // the same gate the desktop uses.
     if (!turn.isUser && turn.isStreamingTurn && !turn.status.hasContent) {
-        return <PendingTurn sessionId={sessionId} />
+        return <PendingTurn sessionId={sessionId} workflowId={workflowId} />
     }
 
     const body = (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
             {turn.items.map((item, position) => {
+                if (item.kind === "files") return null
                 if (item.kind === "part") {
                     if (item.part.type === "text") {
+                        if (!(item.part.text ?? "").trim()) return null
                         // What the user typed renders literally — markdown in your own words
                         // is surprising (desktop parity).
                         if (turn.isUser) {
@@ -261,11 +323,9 @@ export const TurnRow = ({
                                 key={item.index}
                                 streaming={isLiveTextItem(turn, position)}
                                 text={item.part.text}
+                                urgent={position !== turn.items.length - 1}
                             />
                         )
-                    }
-                    if (item.part.type === "file") {
-                        return <AttachmentPart key={item.index} part={item.part} />
                     }
                     if (item.part.type === "reasoning") {
                         return (
@@ -273,6 +333,7 @@ export const TurnRow = ({
                                 key={item.index}
                                 text={item.part.text}
                                 streaming={isLiveTextItem(turn, position)}
+                                urgent={position !== turn.items.length - 1}
                             />
                         )
                     }
@@ -295,29 +356,79 @@ export const TurnRow = ({
                 return null
             })}
             {turn.status.showError ? (
-                <RunErrorCallout text={turn.status.errorText ?? "Something went wrong."} />
+                <RunErrorCallout
+                    text={turn.status.errorText ?? "Something went wrong."}
+                    // Re-runs the failed turn through the same rewind path the toolbar uses, so a
+                    // tool that already ran still gets its warning first.
+                    onRetry={onRewind && !turn.isUser ? () => onRewind(turn) : undefined}
+                />
             ) : null}
         </div>
+    )
+
+    // Attachments hang above the bubble rather than inside its fill, so a message reads as its
+    // files first and its words second.
+    const fileItems = turn.items.filter((item) => item.kind === "files")
+    const attachments = fileItems.length ? (
+        <div className="flex flex-col gap-2">
+            {fileItems.map((item) => (
+                <AttachmentCardGrid key={item.index}>
+                    {item.parts.map((file, n) => (
+                        <AttachmentCard
+                            key={`${item.index}-${n}`}
+                            name={file.filename || file.mediaType || "attachment"}
+                            mediaType={file.mediaType ?? ""}
+                            src={file.url}
+                            action={file.url ? "download" : "none"}
+                            onDownload={() =>
+                                downloadAttachment(
+                                    file.url,
+                                    file.filename || file.mediaType || "attachment",
+                                )
+                            }
+                        />
+                    ))}
+                </AttachmentCardGrid>
+            ))}
+        </div>
+    ) : null
+    // Attachments with no words: there is no bubble to paint, only the cards. An empty text part
+    // counts as no words — a turn carrying only files still arrives with one.
+    const hasBubbleContent =
+        turn.items.some(
+            (item) =>
+                item.kind !== "files" &&
+                !(
+                    item.kind === "part" &&
+                    item.part.type === "text" &&
+                    !(item.part.text ?? "").trim()
+                ),
+        ) || turn.status.showError
+
+    // Desktop parity: a long pasted message clamps behind "Show more" rather than burying its reply.
+    const content = turn.isUser ? (
+        <CollapsibleMessageBody stateKey={messageBodyKey(turn.message.id)}>
+            {body}
+        </CollapsibleMessageBody>
+    ) : (
+        body
     )
 
     return (
         <div className={`${turnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
             <ChatBubble
                 placement={turn.isUser ? "end" : "start"}
-                variant={turn.isUser ? "filled" : "borderless"}
-                avatar={
-                    <ChatBubbleAvatar
-                        icon={
-                            turn.isUser ? <User className="size-4" /> : <Bot className="size-4" />
-                        }
-                    />
-                }
+                variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
+                avatar={<TurnAvatar isUser={turn.isUser} workflowId={workflowId} />}
                 className="min-w-0 max-w-[85%]"
                 classNames={{
-                    content: "min-w-0 max-w-full overflow-hidden text-xs",
+                    content: turn.isUser
+                        ? `${userBubbleContentClass} text-xs`
+                        : "min-w-0 max-w-full overflow-hidden text-xs",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
-                content={body}
+                content={hasBubbleContent ? content : null}
+                header={attachments}
             />
             {/* The turn's information and actions, revealed on hover or keyboard focus — the same
                 lane the desktop transcript reserves, so a settled turn reads quietly until you

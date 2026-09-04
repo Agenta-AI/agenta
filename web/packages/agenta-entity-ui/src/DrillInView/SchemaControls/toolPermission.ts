@@ -17,10 +17,21 @@
 import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {parseGatewayToolSlug} from "@agenta/shared/utils"
 
+import {mergeToolPermission} from "./integrationPolicy"
 import {PI_BUILTIN_RULE_NAMES} from "./piPermissions"
-import {parseGatewayTool} from "./toolUtils"
+import {
+    findGatewayConnectionIndex,
+    parseGatewayConnection,
+    setGatewayConnectionPermissions,
+    type GatewayConnectionPermissions,
+    type GatewayConnectionTarget,
+    type GatewayPermission,
+    parseGatewayTool,
+} from "./toolUtils"
 
-export type ToolPermission = "allow" | "ask" | "deny"
+/** A legacy per-tool entry's `permission`. The connection policy's four values minus `inherit`,
+ *  which only a `gateway_connection` entry can hold. */
+export type ToolPermission = Exclude<GatewayPermission, "inherit">
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
     Boolean(v && typeof v === "object" && !Array.isArray(v))
@@ -285,4 +296,68 @@ export function withToolPermission(
     const nextTools = tools.slice()
     nextTools[i] = entry
     return wrap({...template, tools: nextTools})
+}
+
+// ---------------------------------------------------------------------------
+// The connection policy: an integration's `gateway_connection` entry
+// ---------------------------------------------------------------------------
+//
+// A connection entry governs a whole integration, so it is addressed by provider and integration
+// rather than by a runtime gate name. These are the `parameters`-level counterparts of the array
+// operations in `toolUtils`, for a caller that holds a whole parameters object — the approval card
+// path, the way `withToolPermission` above serves it. The permission drawer edits the agent
+// template directly and goes through `useAgentTools` instead; both end at the same pure operation,
+// so there is one implementation of the write.
+
+function readTools(parameters: unknown): unknown[] {
+    if (!isRecord(parameters)) return []
+    const {template} = locateTemplate(parameters)
+    return Array.isArray(template.tools) ? (template.tools as unknown[]) : []
+}
+
+/** The saved policy of an integration's connection entry, or null when it has none. */
+export function readConnectionPermissions(
+    parameters: unknown,
+    target: GatewayConnectionTarget,
+): GatewayConnectionPermissions | null {
+    const tools = readTools(parameters)
+    const i = findGatewayConnectionIndex(tools, target)
+    if (i < 0) return null
+    return parseGatewayConnection(tools[i])?.permissions ?? null
+}
+
+/** Return a new `parameters` whose connection entry carries `permissions`, or null when the
+ *  integration has no entry, so the caller leaves the config untouched. */
+export function withConnectionPermissions(
+    parameters: unknown,
+    target: GatewayConnectionTarget,
+    permissions: GatewayConnectionPermissions,
+): Record<string, unknown> | null {
+    if (!isRecord(parameters)) return null
+    const {template, wrap} = locateTemplate(parameters)
+    const tools = Array.isArray(template.tools) ? (template.tools as unknown[]) : []
+    if (findGatewayConnectionIndex(tools, target) < 0) return null
+    return wrap({...template, tools: setGatewayConnectionPermissions(tools, target, permissions)})
+}
+
+/**
+ * Set one tool's permission on an integration's connection entry. The entry is saved even when its
+ * value equals the current default: the author set it deliberately, and it survives a later change
+ * of default. That redundancy is intended — it is also what keeps the override count and the Custom
+ * label saying the same thing.
+ */
+export function withConnectionToolPermission(
+    parameters: unknown,
+    target: GatewayConnectionTarget,
+    toolKey: string,
+    permission: GatewayPermission,
+): Record<string, unknown> | null {
+    if (!toolKey) return null
+    const current = readConnectionPermissions(parameters, target)
+    if (!current) return null
+    return withConnectionPermissions(
+        parameters,
+        target,
+        mergeToolPermission(current, toolKey, permission),
+    )
 }

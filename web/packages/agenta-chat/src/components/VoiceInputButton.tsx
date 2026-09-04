@@ -11,7 +11,7 @@ import {
     DropdownMenuTrigger,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {CaretDown, Microphone, Waveform} from "@phosphor-icons/react"
+import {CaretDown, Microphone, StopCircle, Waveform} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -69,6 +69,7 @@ const VoiceInputButton = ({
     attachmentsFull,
     onDictationError,
     onDictatingChange,
+    stopRef,
     disabled,
 }: {
     inputRef: RefObject<RichChatInputHandle | null>
@@ -79,6 +80,8 @@ const VoiceInputButton = ({
     onDictationError: (message: string | null) => void
     /** Dictation locks the editor while it runs, which the composer owns. */
     onDictatingChange: (active: boolean) => void
+    /** Where the composer picks up the stopper, so a send can close the mic it opened. */
+    stopRef?: RefObject<() => void>
     /** Tray is at its file limit. A voice message attaches like any file, so recording one now
      * would be rejected on attach — i.e. the take would be destroyed after the fact. */
     attachmentsFull: boolean
@@ -95,6 +98,7 @@ const VoiceInputButton = ({
     // hear. With no explicit choice, lead with whichever the model can actually use.
     const mode: VoiceMode = chosenMode ?? (audioPerceivable === false ? "transcribe" : "audio")
     const transcribe = useVoiceInput()
+    if (stopRef) stopRef.current = transcribe.stop
 
     useEffect(() => {
         onDictationError(transcribe.error)
@@ -103,22 +107,30 @@ const VoiceInputButton = ({
     // Push the transcript through the editor's dictation session: committed words land as normal
     // text, the provisional tail is styled as unsettled. No document rewrite, so the undo history
     // and anything already typed survive.
+    //
+    // Unguarded: the browser can deliver a last final result in the same commit that ends the
+    // session, and skipping the write there would drop exactly the words `active` exists to save.
+    // Writing once the session is over is already a no-op — `endDictation` clears its ref.
     useEffect(() => {
-        if (!transcribe.recording) return
         inputRef.current?.updateDictation(transcribe.finalText, transcribe.interimText)
-    }, [transcribe.recording, transcribe.finalText, transcribe.interimText, inputRef])
+    }, [transcribe.active, transcribe.finalText, transcribe.interimText, inputRef])
 
     // Settle the editor session once the recogniser actually stops (it emits a last final result
     // on the way out, so ending earlier would drop those words).
-    const wasRecording = useRef(false)
+    const wasActive = useRef(false)
     useEffect(() => {
-        if (wasRecording.current && !transcribe.recording) {
+        if (wasActive.current && !transcribe.active) {
             inputRef.current?.endDictation()
             inputRef.current?.focus()
         }
-        wasRecording.current = transcribe.recording
+        wasActive.current = transcribe.active
+    }, [transcribe.active, inputRef])
+
+    // Intent, not `active`: the browser's teardown takes seconds, and the editor must not stay
+    // locked across it once the person has released the chord to type or send.
+    useEffect(() => {
         onDictatingChange(transcribe.recording)
-    }, [transcribe.recording, inputRef, onDictatingChange])
+    }, [transcribe.recording, onDictatingChange])
 
     // Primary action first: a voice message is the default; dictation is the alternative.
     const modes: {key: VoiceMode; supported: boolean}[] = [
@@ -134,21 +146,24 @@ const VoiceInputButton = ({
     // takeover bar (which covers this button while active).
     const dictating = effective === "transcribe" && transcribe.recording
 
-    // Guarded because `beginDictation` would otherwise orphan the live session's node pair,
-    // stranding its interim text at reduced opacity forever.
+    // The editor session follows whether `start` actually opened one — rendered state lags a press
+    // by a commit, and opening a second session over a running recogniser replays its whole
+    // transcript into the new node. A press while the LAST session is merely closing does open one:
+    // `beginDictation` settles the outgoing nodes rather than orphaning them, and the recogniser
+    // queues the start across that teardown.
     const startDictation = useCallback(() => {
-        if (transcribe.recording) return
-        inputRef.current?.beginDictation()
-        transcribe.start()
-    }, [transcribe.recording, transcribe.start, inputRef])
+        if (transcribe.start()) inputRef.current?.beginDictation()
+    }, [transcribe.start, inputRef])
 
     // Resolved after mount so SSR can't mismatch the glyph.
     const [holdLabel, setHoldLabel] = useState("Ctrl+Alt")
     useEffect(() => setHoldLabel(pushToTalkLabel()), [])
 
     // Hold ⌃⌥ / Ctrl+Alt to dictate. Same start/stop the button's own click drives.
+    const rootRef = useRef<HTMLDivElement>(null)
     usePushToTalk({
         enabled: effective === "transcribe" && !disabled && !audioPending,
+        rootRef,
         onStart: startDictation,
         onStop: transcribe.stop,
     })
@@ -202,7 +217,7 @@ const VoiceInputButton = ({
     const highlighted = dictating || audioPending
 
     return (
-        <div className="flex items-center">
+        <div ref={rootRef} className="flex items-center">
             <SimpleTooltip title={title}>
                 <Button
                     variant="ghost"
@@ -211,15 +226,15 @@ const VoiceInputButton = ({
                     // A second press while the prompt is open would only queue another request.
                     disabled={disabled || audioPending || audioBlocked}
                     aria-label={dictating ? "Stop voice input" : (title ?? MODE_HINT[effective])}
-                    className={
-                        dictating
-                            ? "animate-pulse text-colorError"
-                            : audioPending
-                              ? "animate-pulse"
-                              : undefined
-                    }
+                    className={highlighted ? "animate-pulse" : undefined}
                 >
-                    {modeIcon(effective, highlighted)}
+                    {/* While dictating the button's job is to stop, so it shows that instead of
+                        the mode it was started from. */}
+                    {dictating ? (
+                        <StopCircle size={16} weight="fill" />
+                    ) : (
+                        modeIcon(effective, highlighted)
+                    )}
                 </Button>
             </SimpleTooltip>
             {available.length > 1 && !dictating && !audioPending ? (

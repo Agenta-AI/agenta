@@ -62,7 +62,9 @@ def _service(*, schedules=None, seen=False, with_task=True):
 
 class TestValidateSchedule:
     def test_accepts_valid_five_field_cron(self):
-        TriggersService._validate_schedule("*/5 * * * *")
+        # Above the frequency floor; the floor itself is pinned in
+        # test_triggers_schedule_frequency_floor.py.
+        TriggersService._validate_schedule("*/30 * * * *")
 
     @pytest.mark.parametrize("expr", ["* * * *", "* * * * * *", "", "daily"])
     def test_rejects_wrong_field_count(self, expr):

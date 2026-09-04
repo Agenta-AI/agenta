@@ -27,6 +27,7 @@ const AgentTranscript = ({
     virt,
     scroll,
     showJump,
+    gateOpen,
 }: {
     messages: UIMessage[]
     /** Index where the ACTIVE turn (last user message + its response) starts. */
@@ -39,6 +40,8 @@ const AgentTranscript = ({
     virt: ReturnType<typeof useVirtuosoTranscript>
     scroll: ReturnType<typeof useTranscriptScroll>
     showJump: ScrollIntent["showJump"]
+    /** A blocking HITL gate is docked below — the pill stands down (see `jumpGateOpen`). */
+    gateOpen: boolean
 }) => {
     const useVirtuoso = virt.enabled
     return (
@@ -161,7 +164,7 @@ const AgentTranscript = ({
             />
 
             <ChatJumpToLatest
-                show={showJump}
+                show={showJump && !gateOpen}
                 onClick={useVirtuoso ? virt.jumpToLatest : scroll.jumpToLatest}
             />
         </div>

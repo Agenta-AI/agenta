@@ -71,10 +71,15 @@ export function StatusTag({status}: {status: ItemRowStatus}) {
 
 /** Colored avatar square (icon or monogram) at the start of a config-item row. */
 export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
+    // `chip` wins when the item paints itself; everything else keeps the solid type square.
+    const chipped = Boolean(descriptor.avatarClassName)
     return (
         <span
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[12px] font-semibold leading-none text-white"
-            style={{background: descriptor.color}}
+            className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded text-[12px] font-semibold leading-none",
+                chipped ? descriptor.avatarClassName : "text-white",
+            )}
+            style={chipped ? descriptor.avatarStyle : {background: descriptor.color}}
         >
             {descriptor.icon ?? descriptor.mono}
         </span>
@@ -111,26 +116,28 @@ export function ItemRow({
     extra?: ReactNode
     status?: ItemRowStatus
 }) {
-    const interactive = Boolean(onEdit) && !locked
+    // `disabled` counts: a disabled row that still reads as a button invokes a handler that no-ops.
+    const interactive = Boolean(onEdit) && !locked && !disabled
     return (
         <div
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
+            // The whole row opens it; the chevron and tags used to be a dead target.
+            onClick={interactive ? onEdit : undefined}
             className={cn(
-                "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2 transition-colors",
+                "group flex items-center gap-2.5 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] py-2.5 pl-3 pr-2 transition-colors",
                 // Item cards read as white sheets sitting ON the expanded section's band.
                 !locked && "bg-[var(--ag-surface-section-content)]",
-                interactive && !status && "cursor-pointer hover:border-[var(--ag-zinc-5)]",
+                interactive && !status && "cursor-pointer hover:bg-[var(--ag-colorFillQuaternary)]",
                 interactive && status && "cursor-pointer",
                 locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
             )}
         >
             {/* The `role="button"` region is a SIBLING of the remove button, never its ancestor
-                (axe nested-interactive) — same split as SubscriptionChildRow. The outer flex
-                still supplies the gap between the two groups, so geometry is unchanged. */}
+                (axe nested-interactive) — same split as SubscriptionChildRow. It carries the
+                keyboard affordance only; the click is handled once, on the row. */}
             <div
                 role={interactive ? "button" : undefined}
                 tabIndex={interactive ? 0 : undefined}
-                onClick={interactive ? onEdit : undefined}
                 onKeyDown={
                     interactive
                         ? (e) => {
@@ -149,14 +156,14 @@ export function ItemRow({
                 <ItemAvatar descriptor={descriptor} />
                 <div className="min-w-0 flex-1">
                     <div
-                        className={`truncate text-xs font-medium ${
+                        className={`truncate text-[13px] font-medium ${
                             descriptor.monoName === false ? "" : "font-mono"
                         }`}
                     >
                         {descriptor.name}
                     </div>
                     {descriptor.description ? (
-                        <span className="block truncate text-xs leading-tight text-colorTextDescription">
+                        <span className="block truncate text-xs leading-tight text-[var(--ag-colorTextTertiary)]">
                             {descriptor.description}
                         </span>
                     ) : null}
@@ -179,12 +186,15 @@ export function ItemRow({
                             e.stopPropagation()
                             onRemove()
                         }}
-                        className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-zinc-5)] opacity-0 transition-opacity hover:text-colorError group-hover:opacity-100"
+                        // A 24px ghost target, not a bare glyph: a hover-only icon is hard to hit.
+                        className="flex size-6 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-[var(--ag-colorTextTertiary)] opacity-0 transition-opacity hover:bg-[var(--ag-colorErrorBg)] hover:text-[var(--ag-colorErrorText)] focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ag-colorPrimary)] group-hover:opacity-100"
                     >
                         <Trash size={14} />
                     </button>
                 ) : null}
-                {interactive ? <CaretRight size={14} className="text-[var(--ag-zinc-5)]" /> : null}
+                {interactive ? (
+                    <CaretRight size={13} className="text-[var(--ag-colorTextQuaternary)]" />
+                ) : null}
             </div>
         </div>
     )

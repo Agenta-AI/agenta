@@ -60,7 +60,6 @@ export function CreateSecretDrawer({
             placement="right"
             width={600}
             zIndex={zIndex}
-            closeOnLayoutClick={false}
             // The header carries its own Back arrow — the built-in close would duplicate it.
             closable={false}
             destroyOnClose

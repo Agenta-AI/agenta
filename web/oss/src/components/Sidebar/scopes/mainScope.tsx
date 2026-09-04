@@ -8,9 +8,10 @@ import type {
 } from "@agenta/navigation"
 import {HOME_SIDEBAR_KEY, MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "@agenta/navigation"
 import {SidebarLogo} from "@agenta/navigation-ui"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
 
 import SidePanelSubscriptionInfo from "@/oss/components/SidePanel/Subscription"
+import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {homeNavHighlightedAtom} from "@/oss/state/onboarding"
 
 import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
@@ -35,23 +36,28 @@ const MainSidebarAfterBottom = ({collapsed}: SidebarSlotContext) => (
     <ProjectOrgSwitcher collapsed={collapsed} />
 )
 
+// The open session is a fact about the playground, not about where you are: the tab list is
+// persisted per agent, so off that route the pin outranked the row the route itself selects (#6389).
+const playgroundRouteAtom = atom((get) => get(appStateSnapshotAtom).restPath[0] === "playground")
+
 // During onboarding the route is the ephemeral playground, but Home IS the surface — pin it selected.
 const useMainSidebarSelection = (): SidebarSelection => {
     const highlightHome = useAtomValue(homeNavHighlightedAtom)
     // A session row links to its AGENT's playground, so the route cannot tell the two apart and
-    // the agent row won every tie. Pin the open session instead; the shell falls back to the
-    // route match when that row is filtered out of the rail.
+    // the agent row won every tie. Pin the open session instead; when that row is not rendered
+    // (its group collapsed, or filtered out) the shell selects nothing rather than the agent.
     const activeSessionId = useAtomValue(activePlaygroundSessionIdAtom)
+    const onPlaygroundRoute = useAtomValue(playgroundRouteAtom)
     return useMemo(() => {
         if (highlightHome) return {mode: "route", selectedKeyOverride: HOME_SIDEBAR_KEY}
-        if (activeSessionId) {
+        if (onPlaygroundRoute && activeSessionId) {
             return {
                 mode: "route",
                 selectedKeyOverride: `${SESSIONS_SIDEBAR_KEY}-${activeSessionId}`,
             }
         }
         return {mode: "route"}
-    }, [activeSessionId, highlightHome])
+    }, [activeSessionId, highlightHome, onPlaygroundRoute])
 }
 
 const useMainSidebarSections = (): SidebarSection[] => {

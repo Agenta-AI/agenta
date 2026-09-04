@@ -23,6 +23,7 @@ import {PlaygroundModeSwitch} from "@agenta/playground-ui/mode-switch"
 import {textColors} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {VersionBadge} from "@agenta/ui/components/presentational"
+import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {
     Button,
     DropdownMenu,
@@ -54,6 +55,7 @@ import {
     agentChatVirtualizeAtom,
     isAgentChatVirtualizationAvailable,
 } from "@/oss/components/AgentChatSlice/state/virtualization"
+import {AgentIconTrigger} from "@/oss/components/AgentIconChip"
 import {AgentNameInline} from "@/oss/components/EntityIdentity"
 import EvaluatorTemplateDropdown from "@/oss/components/Evaluators/components/EvaluatorTemplateDropdown"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
@@ -661,6 +663,9 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
             <AgentPageHeader
                 className={className}
                 leading={leading}
+                icon={
+                    isAgentWorkflow ? <AgentIconTrigger workflowId={renameWorkflowId} /> : undefined
+                }
                 title={isAgentWorkflow ? undefined : "Playground"}
                 name={
                     isAgentWorkflow ? (
@@ -846,6 +851,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 )}
+                                <ShortcutsHelpButton className="h-8 w-8 shrink-0 p-0" />
                             </>
                         )}
                     </>

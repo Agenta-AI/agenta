@@ -15,6 +15,14 @@ import {cn} from "@agenta/ui/ui"
  * and the transcript already shows the turn working, so a second "running" banner is noise — and
  * one that mounts and unmounts around every turn shifts the layout twice per run.
  *
+ * The copy stops short of promising the transcript WILL move. `is_running` says a turn took the
+ * lock, not that anything is still serving it: a runner that dies mid-turn leaves the flag set
+ * until its shutdown drain completes, or failing that until the orphan sweep clears it
+ * (`ORPHAN_THRESHOLD_SECONDS`, 300s). Measured on a dev stack, that window runs from ~20s to a few
+ * minutes. Asserting progress through it told people to keep waiting on a run that was over, so
+ * the second sentence names that possibility instead. It is deliberately not a call to action:
+ * only /m passes a Stop here, and the desktop has no control to point at.
+ *
  * Matches the `running` dot in the session bar (`bg-colorInfo`, pulsing) so the two read as one
  * signal.
  */
@@ -40,6 +48,7 @@ export const RunningElsewhereStrip = ({
         </span>
         <span className="text-colorTextSecondary text-xs">
             This session is running somewhere else — the transcript updates as the turn progresses.
+            If it stays still, the run may have already ended.
         </span>
         {action ? <span className="ml-auto shrink-0">{action}</span> : null}
     </div>

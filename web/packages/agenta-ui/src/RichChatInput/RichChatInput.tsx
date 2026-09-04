@@ -1,4 +1,12 @@
-import {forwardRef, type ReactNode, useEffect, useImperativeHandle, useRef, useState} from "react"
+import {
+    forwardRef,
+    type ReactNode,
+    useCallback,
+    useEffect,
+    useImperativeHandle,
+    useRef,
+    useState,
+} from "react"
 
 import {modifierKeyLabel} from "@agenta/shared/utils"
 import {CodeHighlightNode, CodeNode} from "@lexical/code"
@@ -179,6 +187,16 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
 
         useEffect(() => setModKey(modifierKeyLabel()), [])
 
+        // A send empties the editor, so the session must go with it: the recogniser flushes a last
+        // final result on its way out, which would otherwise rebuild its nodes in the empty box.
+        const handleSubmit = useCallback(
+            (markdown: string) => {
+                dictationRef.current = null
+                onSubmit(markdown)
+            },
+            [onSubmit],
+        )
+
         // Seed once at mount. EditorRefBridge (a child) binds the editor in its own effect,
         // which runs before this one, so the ref is live here. Mount-only by design — the
         // ref freezes the first value so a re-render can't re-apply it over user edits.
@@ -199,12 +217,15 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                 // focus theft to an overlay that just autofocused itself (it dismisses).
                 blur: () => editorRef.current?.blur(),
                 focus: () => editorRef.current?.focus(),
-                clear: () =>
+                clear: () => {
+                    // Same reason as a send: an emptied editor cannot host a live session.
+                    dictationRef.current = null
                     editorRef.current?.update(() => {
                         const root = $getRoot()
                         root.clear()
                         root.append($createParagraphNode())
-                    }),
+                    })
+                },
                 insertText: (text: string) => {
                     const editor = editorRef.current
                     if (!editor) return
@@ -233,7 +254,11 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         .read(() => $convertToMarkdownString(CHAT_TRANSFORMERS)) ?? "",
                 beginDictation: () => {
                     const editor = editorRef.current
-                    if (editor) dictationRef.current = beginDictation(editor)
+                    if (!editor) return
+                    // Settle any session still open (a re-press while the last one is closing) so
+                    // its words stay put instead of being orphaned at interim opacity.
+                    dictationRef.current?.end()
+                    dictationRef.current = beginDictation(editor)
                 },
                 updateDictation: (finalText: string, interimText: string) =>
                     dictationRef.current?.update(finalText, interimText),
@@ -336,7 +361,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         <div className="ml-auto flex items-center gap-2">
                             {hideSendButton ? null : (
                                 <SendButton
-                                    onSubmit={onSubmit}
+                                    onSubmit={handleSubmit}
                                     forceEnabled={sendForceEnabled}
                                     disabled={disabled || sendDisabled}
                                     disabledReason={sendDisabledReason}
@@ -366,7 +391,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     {/* Enter on a lone ``` fence opener → code block (runs before SubmitPlugin). */}
                     <CodeFencePlugin />
                     {submitOnEnter ? (
-                        <SubmitPlugin onSubmit={onSubmit} disabled={sendDisabled} />
+                        <SubmitPlugin onSubmit={handleSubmit} disabled={sendDisabled} />
                     ) : null}
                     <FocusStatePlugin onFocusChange={setFocused} />
                     {onChange ? <CharacterCountPlugin onTextChange={onChange} /> : null}

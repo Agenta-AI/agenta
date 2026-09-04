@@ -290,7 +290,6 @@ describe("createAgentServer", () => {
         claude: { state: "login_missing", provider: "anthropic" },
         // One Pi mount, one login: both Pi harnesses read it.
         pi_core: { state: "ready" },
-        pi_agenta: { state: "ready" },
       });
       // The fake credential sitting in the login file the route just read is not on the wire,
       // and neither is any path.
@@ -653,6 +652,11 @@ describe("createAgentServer", () => {
   });
 
   it("never sends a third-party collector credential to session APIs", async () => {
+    // The protection is only decidable once the runner knows its own PUBLIC api base: without it
+    // a public-looking endpoint could equally be this platform under its public name. Configure it
+    // here so this case exercises the armed check rather than the undecidable state (which the
+    // sibling case below covers).
+    vi.stubEnv("AGENTA_API_URL", "https://agenta.example.test/api");
     let engineCredential: string | undefined;
     const s = await listen(async (_request, _emit, _signal, options) => {
       engineCredential = options?.credential?.();
@@ -713,6 +717,71 @@ describe("createAgentServer", () => {
           (call) => call.authorization === "Bearer collector-secret",
         ),
         false,
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("still authenticates session APIs when only the internal api hop is configured", async () => {
+    // The self-hosted shape that broke in v0.114.0. The api and services containers know the
+    // deployment by its public name, so a dispatched run's trace endpoint is the public base,
+    // while the runner is given only the in-network hop. Those two never string-match, and
+    // dropping the credential there 401s every session call — persistence, heartbeat, and the
+    // history rebuild that reports it as "record log is unreadable". Undecidable must not mean
+    // unauthenticated.
+    vi.stubEnv("AGENTA_API_URL", undefined);
+    vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://api:8000");
+    let engineCredential: string | undefined;
+    const s = await listen(async (_request, _emit, _signal, options) => {
+      engineCredential = options?.credential?.();
+      return { ok: true, output: "done", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const platformCalls: Array<{ url: string; authorization: string }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        const headers = (init?.headers ?? {}) as Record<string, string>;
+        platformCalls.push({ url, authorization: headers.authorization ?? "" });
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-1" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({});
+      });
+
+    try {
+      const res = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-self-hosted",
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: "https://selfhosted.example.test/api/otlp/v1/traces",
+                headers: { authorization: "Secret platform-credential" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "hello" }],
+        }),
+      });
+      await res.text();
+
+      assert.equal(engineCredential, "Secret platform-credential");
+      assert.equal(
+        platformCalls.some(
+          (call) => call.authorization === "Secret platform-credential",
+        ),
+        true,
       );
     } finally {
       fetchSpy.mockRestore();

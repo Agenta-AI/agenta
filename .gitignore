@@ -94,6 +94,7 @@ services/runner/tests/results/
 !.agents/skills/agent-release-gate/
 !.agents/skills/agenta-package-practices/
 !.agents/skills/create-changelog-announcement/
+!.agents/skills/gitbutler-stacks/
 !.agents/skills/implement-feature/
 !.agents/skills/plan-feature/
 !.agents/skills/style-editing/
@@ -135,6 +136,7 @@ services/runner/tests/results/
 !.claude/skills/mobile-app-structure
 !.claude/skills/mobile-shadcn-conventions
 !.claude/skills/mobile-motion-patterns
+!.claude/skills/gitbutler-stacks
 
 # Temporary SDK copies created by run.sh --local
 api/sdks
@@ -163,6 +165,10 @@ skills-lock.json
 # Storybook config is real source — carve it out of the dotfile ignore above.
 !web/storybook/.storybook/
 !web/storybook/.storybook/**
+
+# Storybook build output and the VRT's diff PNGs.
+web/storybook/storybook-static/
+web/storybook/parity/__vrt__/
 
 # Test artifacts in any workspace (vitest/playwright write a junit report on every run).
 test-results/

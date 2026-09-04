@@ -436,7 +436,6 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             onClose={onClose}
             width={520}
             destroyOnHidden
-            closeOnLayoutClick={false}
             styles={{body: {padding: 0}, footer: {padding: 8}}}
             footer={
                 <div className="w-full flex items-center justify-end gap-2">
