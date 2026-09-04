@@ -49,8 +49,9 @@ class _FakeScalars:
 
 
 class _FakeResult:
-    def __init__(self, rows):
+    def __init__(self, rows, *, rowcount=0):
         self._rows = rows
+        self.rowcount = rowcount
 
     def scalars(self):
         return _FakeScalars(self._rows)
@@ -80,9 +81,12 @@ class _FakePgSession:
                 elif isinstance(value, str):
                     ids.add(value)
             if flags_val is not None:
+                matched = 0
                 for row in self._rows:
                     if row.id in ids:
                         row.flags = dict(flags_val)
+                        matched += 1
+                return _FakeResult([], rowcount=matched)
             return _FakeResult([])
         return _FakeResult(self._rows)
 
