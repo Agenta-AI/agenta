@@ -55,6 +55,25 @@ def _frame(index: int = 0):
     }
 
 
+def _event(sequence: int = 1):
+    return {
+        "version": 1,
+        "kind": "event",
+        "session_id": "session-1",
+        "execution_id": "execution-1",
+        "frame_or_event_id": f"event-{sequence}",
+        "entity_id": "message-1",
+        "sequence": sequence,
+        "type": "message.completed",
+        "payload": {
+            "message_id": "message-1",
+            "role": "assistant",
+            "content": "hello",
+        },
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 async def test_rechecks_authorization_and_closes_revoked_reader():
     pubsub = FakePubSub([])
     checks = 0
@@ -103,6 +122,26 @@ async def test_slow_reader_gets_terminal_close_frame():
     terminal = await anext(stream)
     assert terminal.startswith("event: relay-close")
     assert json.loads(terminal.split("data: ", 1)[1])["reason"] == "slow_reader"
+
+
+async def test_live_stream_forwards_durable_event_envelopes():
+    pubsub = FakePubSub([{"type": "message", "data": dumps(_event())}])
+    stream = live_event_stream(
+        channel="events:project-1:session:session-1",
+        pubsub_factory=lambda: pubsub,
+        authorization_check=AsyncMock(return_value=True),
+        authorization_recheck_seconds=60,
+        heartbeat_seconds=60,
+        retry_milliseconds=5000,
+        buffer_limit=4,
+    )
+
+    assert (await anext(stream)).startswith("retry:")
+    assert (await anext(stream)).startswith("event: ready")
+    event = json.loads((await anext(stream)).split("data: ", 1)[1])
+    assert event["kind"] == "event"
+    assert event["sequence"] == 1
+    await stream.aclose()
 
 
 async def test_relay_worker_publishes_and_deletes_frames():
@@ -187,6 +226,32 @@ async def test_relay_worker_discards_frames_older_than_900_seconds():
     assert published == 1
     assert processed == [b"1-0", b"2-0"]
     redis.publish.assert_awaited_once()
+
+
+async def test_relay_worker_publishes_durable_events():
+    project_id = uuid4()
+    redis = AsyncMock()
+    worker = LiveRelayWorker(
+        redis_client=redis,
+        stream_name=LIVE_FRAME_STREAM_NAME,
+        consumer_group="worker-session-live-relay",
+    )
+    event_message = {
+        "organization_id": None,
+        "project_id": str(project_id),
+        "kind": "event",
+        "event": _event(),
+    }
+
+    published, processed = await worker.process_batch(
+        [(b"1-0", {b"data": zlib.compress(dumps(event_message))})]
+    )
+
+    assert published == 1
+    assert processed == [b"1-0"]
+    relayed = json.loads(redis.publish.await_args.args[1])
+    assert relayed["kind"] == "event"
+    assert relayed["sequence"] == 1
 
 
 async def test_events_route_is_hidden_when_shared_reader_is_off():

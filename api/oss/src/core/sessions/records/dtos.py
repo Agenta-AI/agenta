@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Any, Dict, Literal
+from typing import Annotated, Optional, Any, Dict, Literal, Union
 from uuid import UUID
 
 from orjson import dumps
@@ -70,6 +70,113 @@ class SessionLiveFrame(BaseModel):
                 f"serialized live frame exceeds {MAX_LIVE_FRAME_BYTES} bytes"
             )
         return self
+
+
+class SessionExecutionError(BaseModel):
+    code: str
+    message: str
+    retryable: bool
+    details: Optional[Dict[str, Any]] = None
+
+
+class ExecutionStartedPayload(BaseModel):
+    started_at: datetime
+
+
+class ExecutionStoppedPayload(BaseModel):
+    stopped_at: datetime
+    reason: str
+    command_id: Optional[str] = None
+
+
+class ExecutionFailedPayload(BaseModel):
+    failed_at: datetime
+    error: SessionExecutionError
+
+
+class ExecutionLostPayload(BaseModel):
+    lost_at: datetime
+    reason: str
+    history_complete: Literal[False]
+
+
+class MessageCompletedPayload(BaseModel):
+    message_id: str
+    role: str
+    content: Any
+    finish_reason: Optional[str] = None
+
+
+class ToolCompletedPayload(BaseModel):
+    tool_call_id: str
+    name: str
+    input: Any
+    output: Any = None
+    error: Any = None
+    status: str
+
+
+class SessionDurableEventBase(BaseModel):
+    version: Literal[1] = 1
+    kind: Literal["event"] = "event"
+    session_id: str
+    execution_id: str
+    frame_or_event_id: str
+    entity_id: str
+    sequence: int = Field(ge=1)
+    created_at: datetime
+
+
+class ExecutionStartedEvent(SessionDurableEventBase):
+    type: Literal["execution.started"]
+    payload: ExecutionStartedPayload
+
+
+class ExecutionStoppedEvent(SessionDurableEventBase):
+    type: Literal["execution.stopped"]
+    payload: ExecutionStoppedPayload
+
+
+class ExecutionFailedEvent(SessionDurableEventBase):
+    type: Literal["execution.failed"]
+    payload: ExecutionFailedPayload
+
+
+class ExecutionLostEvent(SessionDurableEventBase):
+    type: Literal["execution.lost"]
+    payload: ExecutionLostPayload
+
+
+class MessageCompletedEvent(SessionDurableEventBase):
+    type: Literal["message.completed"]
+    payload: MessageCompletedPayload
+
+
+class ToolCompletedEvent(SessionDurableEventBase):
+    type: Literal["tool.completed"]
+    payload: ToolCompletedPayload
+
+
+SessionDurableEvent = Annotated[
+    Union[
+        ExecutionStartedEvent,
+        ExecutionStoppedEvent,
+        ExecutionFailedEvent,
+        ExecutionLostEvent,
+        MessageCompletedEvent,
+        ToolCompletedEvent,
+    ],
+    Field(discriminator="type"),
+]
+
+SESSION_DURABLE_EVENT_TYPES = {
+    "execution.started",
+    "execution.stopped",
+    "execution.failed",
+    "execution.lost",
+    "message.completed",
+    "tool.completed",
+}
 
 
 class SessionRecord(Lifecycle):

@@ -9,7 +9,8 @@ service/DAO layer, not just that records got persisted — a result-only test wo
 still pass with the old one-append-per-event code.
 """
 
-from unittest.mock import AsyncMock
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 import zlib
 
@@ -117,3 +118,58 @@ async def test_process_batch_groups_by_project_one_append_many_per_project():
     # never one per event (which would be 3).
     assert records_dao.append_many.await_count == 2
     records_dao.append.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_durable_event_is_published_only_after_record_commit_returns():
+    project_id = uuid4()
+    committed = False
+
+    class Service:
+        async def append_many(self, *, events):
+            nonlocal committed
+            committed = True
+            return [
+                SessionRecord(
+                    record_id=uuid4(),
+                    session_id="sess-1",
+                    project_id=project_id,
+                    sequence=1,
+                    turn_id="turn-1",
+                    record_type="message",
+                    record_source="agent",
+                    attributes={"type": "message", "text": "done"},
+                    created_at=datetime.now(timezone.utc),
+                )
+            ]
+
+    async def publish(**kwargs):
+        assert committed is True
+        assert kwargs["event"].sequence == 1
+        return True
+
+    worker = RecordsWorker(
+        service=Service(),
+        redis_client=None,
+        stream_name="streams:records",
+        consumer_group="worker-records",
+    )
+
+    with patch(
+        "oss.src.tasks.asyncio.sessions.records_worker.publish_durable_event",
+        side_effect=publish,
+    ) as publisher:
+        await worker.process_batch(
+            [
+                (
+                    b"1-0",
+                    {
+                        b"data": _payload(
+                            project_id=project_id, session_id="sess-1", record_index=0
+                        )
+                    },
+                )
+            ]
+        )
+
+    publisher.assert_awaited_once()

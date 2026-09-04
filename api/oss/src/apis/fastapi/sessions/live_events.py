@@ -30,7 +30,7 @@ def format_live_frame(raw: Any) -> Optional[str]:
         payload = json.loads(raw)
     except (ValueError, TypeError):
         return None
-    if not isinstance(payload, dict) or payload.get("kind") != "frame":
+    if not isinstance(payload, dict) or payload.get("kind") not in {"frame", "event"}:
         return None
     return f"data: {json.dumps(payload)}\n\n"
 
