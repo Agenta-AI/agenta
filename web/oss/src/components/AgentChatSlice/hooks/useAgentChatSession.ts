@@ -6,7 +6,7 @@ import {
     latestTurnId,
     prepareAfterContinuationPreflight,
     startupLabelFromDataPart,
-    submitServerOwnedApproval,
+    submitApprovalForCapability,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
@@ -47,6 +47,7 @@ import {
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
     resumeSessionContinuationAtom,
+    sessionDurableApprovalsCapabilityAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
 } from "@agenta/entities/session"
@@ -54,6 +55,7 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
     agentShouldResumeAfterApproval,
+    approvalResolution,
     buildAgentRequest,
     buildTurnCapture,
     isHitlPending,
@@ -152,6 +154,7 @@ export const useAgentChatSession = ({
     const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
     const respondInteractionAnswers = useSetAtom(respondInteractionAnswersAtom)
     const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
+    const supportsDurableApprovals = useSetAtom(sessionDurableApprovalsCapabilityAtom)
     const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     // `null` means "no live gate" — voided by a stop, or spent once a resume really went out;
@@ -390,36 +393,69 @@ export const useAgentChatSession = ({
         liveGateInteractionRef.current = interaction
     }, [])
 
-    /** Submit an approval to the server-owned dispatcher. Durable mode returns 202 after recording
-     * the command; flag-off mode returns 200 after enqueueing the existing detached resume. */
+    /** Choose the durable dispatcher only when the server advertises it. */
     const answerApproval = useCallback(
         async (approvalId: string, approved: boolean) => {
-            await submitServerOwnedApproval({
-                submit: () =>
+            return submitApprovalForCapability({
+                durableApprovals: await supportsDurableApprovals(sessionId),
+                submitDurable: () =>
                     respondInteractionAnswer({
                         sessionId,
                         toolCallId: approvalId,
                         approved,
                     }),
-                retire: () => {
+                retireDurable: () => {
                     // A lost HTTP response may still follow a committed continuation.
                     liveGateInteractionRef.current = null
                 },
+                recordLegacy: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId: approvalId,
+                        resolution: approvalResolution(approvalId, approved),
+                    }),
+                releaseLegacy: () => addToolApprovalResponse({id: approvalId, approved}),
             })
         },
-        [respondInteractionAnswer, sessionId],
+        [
+            addToolApprovalResponse,
+            recordInteractionAnswer,
+            respondInteractionAnswer,
+            sessionId,
+            supportsDurableApprovals,
+        ],
     )
 
     const answerApprovals = useCallback(
         async (toolCallIds: string[], approved: boolean) => {
-            await submitServerOwnedApproval({
-                submit: () => respondInteractionAnswers({sessionId, toolCallIds, approved}),
-                retire: () => {
+            return submitApprovalForCapability({
+                durableApprovals: await supportsDurableApprovals(sessionId),
+                submitDurable: () => respondInteractionAnswers({sessionId, toolCallIds, approved}),
+                retireDurable: () => {
                     liveGateInteractionRef.current = null
+                },
+                recordLegacy: () =>
+                    Promise.all(
+                        toolCallIds.map((approvalId) =>
+                            recordInteractionAnswer({
+                                sessionId,
+                                toolCallId: approvalId,
+                                resolution: approvalResolution(approvalId, approved),
+                            }),
+                        ),
+                    ).then(() => undefined),
+                releaseLegacy: () => {
+                    for (const id of toolCallIds) addToolApprovalResponse({id, approved})
                 },
             })
         },
-        [respondInteractionAnswers, sessionId],
+        [
+            addToolApprovalResponse,
+            recordInteractionAnswer,
+            respondInteractionAnswers,
+            sessionId,
+            supportsDurableApprovals,
+        ],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a

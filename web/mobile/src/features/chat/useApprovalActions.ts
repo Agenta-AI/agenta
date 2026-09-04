@@ -9,7 +9,7 @@ import {
 import {hasSettledResume, selectApprovalTargets, type ApprovalTarget} from "./approvalTargets"
 import {buildApprovalAnswer} from "./steer"
 
-export type ResumePhase = "idle" | "resuming" | "answered" | "error"
+export type ResumePhase = "idle" | "resuming" | "answered" | "recoverable" | "error"
 
 /** Fern's `AgentaApiError` message is transport jargon — show the status instead. */
 const respondErrorText = (error: unknown): string => {
@@ -73,7 +73,7 @@ export const useApprovalActions = ({
     // Failure-path re-arm: if the respond was accepted but the run dies before the gate
     // resolves, the poll never settles us — drop back to idle so the buttons re-arm.
     useEffect(() => {
-        if (phase !== "resuming" && phase !== "answered") return
+        if (phase !== "resuming" && phase !== "answered" && phase !== "recoverable") return
         const handle = setTimeout(() => setPhase("idle"), 60_000)
         return () => clearTimeout(handle)
     }, [phase])
@@ -108,7 +108,7 @@ export const useApprovalActions = ({
                 let answered = targets.length
                 try {
                     const ids = targets.map((row) => row.id as string).sort()
-                    await respondInteraction({
+                    const result = await respondInteraction({
                         interactionId: ids[0],
                         projectId,
                         ...(targets.length === 1
@@ -125,6 +125,10 @@ export const useApprovalActions = ({
                                 ? `approval:${targets[0].id}:${approved ? "approve" : "deny"}`
                                 : `approval-batch:${ids[0]}:${ids.length}:${approved ? "approve" : "deny"}`,
                     })
+                    if (result?.execution?.state === "recoverable") {
+                        setPhase("recoverable")
+                        return
+                    }
                 } catch (err) {
                     // Someone (desktop, another tab) already answered this gate — benign.
                     if (!isInteractionConflict(err)) throw new Error(respondErrorText(err))

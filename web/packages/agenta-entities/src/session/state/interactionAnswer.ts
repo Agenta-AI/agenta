@@ -49,6 +49,14 @@ export const resumeSessionContinuationAtom = atom(
     },
 )
 
+export const sessionDurableApprovalsCapabilityAtom = atom(
+    null,
+    async (get, _set, sessionId: string): Promise<boolean> => {
+        const projectId = get(projectIdAtom) ?? ""
+        return fetchSessionDurableApprovalsCapability({projectId, sessionId})
+    },
+)
+
 /**
  * Submit an approval through the response endpoint and preserve its failure for the card.
  * HTTP 202 means the server durably owns continuation; HTTP 200 is the flag-off server dispatcher
@@ -64,7 +72,7 @@ export const respondInteractionAnswerAtom = atom(
             toolCallId: string
             approved: boolean
         },
-    ): Promise<{durable: boolean}> => {
+    ): Promise<{durable: boolean; recoverable: boolean}> => {
         const {sessionId, toolCallId, approved} = params
         const projectId = get(projectIdAtom) ?? ""
         if (!projectId || !sessionId) throw new Error("Approval has no project or session scope.")
@@ -89,7 +97,10 @@ export const respondInteractionAnswerAtom = atom(
         })
         if (!result) throw new Error("Approval could not be submitted.")
         await queryClient.invalidateQueries({queryKey: rowsQueryKey})
-        return {durable: result.accepted}
+        return {
+            durable: result.accepted,
+            recoverable: result.execution?.state === "recoverable",
+        }
     },
 )
 

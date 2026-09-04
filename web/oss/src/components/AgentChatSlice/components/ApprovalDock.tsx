@@ -1,5 +1,6 @@
 import {memo, useEffect, useRef, useState} from "react"
 
+import type {ApprovalSubmissionOutcome} from "@agenta/chat/assets"
 import {ApprovalCard} from "@agenta/chat/components"
 import type {PendingApproval} from "@agenta/chat/model"
 import {HeightCollapse} from "@agenta/ui"
@@ -13,8 +14,11 @@ interface ApprovalDockProps {
         id: string
         approved: boolean
         message?: string
-    }) => void | Promise<void>
-    onApprovalResponses?: (ids: string[], approved: boolean) => void | Promise<void>
+    }) => void | ApprovalSubmissionOutcome | Promise<void | ApprovalSubmissionOutcome>
+    onApprovalResponses?: (
+        ids: string[],
+        approved: boolean,
+    ) => void | ApprovalSubmissionOutcome | Promise<void | ApprovalSubmissionOutcome>
     /** Selected agent revision — enables the always-allow grant. */
     entityId?: string
     className?: string
@@ -50,6 +54,7 @@ const ApprovalDock = ({
 
     const [responding, setResponding] = useState(false)
     const [answered, setAnswered] = useState(false)
+    const [recoverable, setRecoverable] = useState(false)
     const [errorText, setErrorText] = useState<string | null>(null)
     // Feature flag: the "Redirect" (steer) control is OFF by default. The UI is complete, but the
     // redirect runs as a follow-up turn — the model reasons about the bare denial before it lands —
@@ -60,6 +65,7 @@ const ApprovalDock = ({
     useEffect(() => {
         setResponding(false)
         setAnswered(false)
+        setRecoverable(false)
         setErrorText(null)
     }, [current?.approvalId])
 
@@ -71,12 +77,19 @@ const ApprovalDock = ({
         }
     }, [approvals, resolvingIds])
 
-    const settle = async (responses: (Promise<void> | void)[]) => {
+    const settle = async (
+        responses: (void | ApprovalSubmissionOutcome | Promise<void | ApprovalSubmissionOutcome>)[],
+    ) => {
         const results = await Promise.allSettled(responses)
         const failed = results.find(
             (result): result is PromiseRejectedResult => result.status === "rejected",
         )
         if (!failed) {
+            setRecoverable(
+                results.some(
+                    (result) => result.status === "fulfilled" && result.value?.recoverable === true,
+                ),
+            )
             setAnswered(true)
             return
         }
@@ -111,6 +124,7 @@ const ApprovalDock = ({
                         approvals={shown}
                         responding={responding}
                         answered={answered}
+                        recoverable={recoverable}
                         errorText={errorText}
                         entityId={entityId}
                         steerEnabled={steerEnabled}

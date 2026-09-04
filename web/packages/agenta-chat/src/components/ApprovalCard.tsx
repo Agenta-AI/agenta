@@ -28,6 +28,8 @@ export interface ApprovalCardProps {
     responding?: boolean
     /** The durable response was accepted; the card stays put while records catch up. */
     answered?: boolean
+    /** The durable continuation could not be delivered and will retry on the next Send. */
+    recoverable?: boolean
     /** The agent revision — enables the always-allow row (a draft-config grant). */
     entityId?: string
     /** Show the Redirect (deny + note) entry point — hosts gate it by their own flag. */
@@ -50,6 +52,7 @@ export const ApprovalCard = ({
     approvals,
     responding = false,
     answered = false,
+    recoverable = false,
     entityId,
     steerEnabled = false,
     touch = false,
@@ -201,7 +204,11 @@ export const ApprovalCard = ({
             <div className="flex items-center gap-1.5">
                 <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorText" />
                 <span className="text-xs font-medium text-colorText">
-                    {answered ? "Answered, waiting for the agent" : "Needs your approval"}
+                    {answered
+                        ? recoverable
+                            ? "Answer saved, retry needed"
+                            : "Answered, waiting for the agent"
+                        : "Needs your approval"}
                 </span>
             </div>
 
@@ -392,7 +399,9 @@ export const ApprovalCard = ({
 
             {answered ? (
                 <p role="status" aria-live="polite" className="m-0 text-xs text-colorTextSecondary">
-                    The answer is saved. Waiting for the agent’s next update…
+                    {recoverable
+                        ? "The answer is saved. Send your next message to retry the continuation."
+                        : "The answer is saved. Waiting for the agent’s next update…"}
                 </p>
             ) : null}
             {errorText ? (

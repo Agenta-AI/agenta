@@ -23,6 +23,7 @@ import {
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
     resumeSessionContinuationAtom,
+    sessionDurableApprovalsCapabilityAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
     shouldAdoptServerTranscript,
@@ -31,6 +32,7 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {buildRenderMap} from "@agenta/playground"
 import {
     agentShouldResumeAfterApproval,
+    approvalResolution,
     buildAgentRequest,
     isResumeSend,
     recordAnswerThenRelease,
@@ -51,7 +53,7 @@ import {
     type SessionTranscript,
 } from "../assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
-import {submitServerOwnedApproval} from "../assets/serverOwnedApproval"
+import {submitApprovalForCapability} from "../assets/serverOwnedApproval"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
@@ -281,6 +283,7 @@ export const useAgentConversation = ({
     const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
     const respondInteractionAnswers = useSetAtom(respondInteractionAnswersAtom)
     const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
+    const supportsDurableApprovals = useSetAtom(sessionDurableApprovalsCapabilityAtom)
 
     // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
     // `onData` and never the transcript — this is the only place the answer survives. A stream that
@@ -411,6 +414,7 @@ export const useAgentConversation = ({
         stop,
         regenerate,
         setMessages,
+        addToolApprovalResponse,
         addToolOutput,
         error,
         clearError,
@@ -636,42 +640,78 @@ export const useAgentConversation = ({
         sessionId,
     })
 
-    // Approval responses flow through the server-owned dispatcher. Retire the local marker even
-    // on an ambiguous transport error: the server may already have committed the continuation.
+    // The server capability chooses one owner. Feature-off servers keep the original ordered row
+    // transition + AI SDK gate release; durable servers own continuation after their 202.
     const handleApprovalResponse = useCallback(
         async (args: {id: string; approved: boolean}) => {
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
-            await submitServerOwnedApproval({
-                submit: () =>
+            return submitApprovalForCapability({
+                durableApprovals: await supportsDurableApprovals(sessionId),
+                submitDurable: () =>
                     respondInteractionAnswer({
                         sessionId,
                         toolCallId: args.id,
                         approved: args.approved,
                     }),
-                retire: () => {
+                retireDurable: () => {
                     liveGateInteractionRef.current = null
                 },
+                recordLegacy: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId: args.id,
+                        resolution: approvalResolution(args.id, args.approved),
+                    }),
+                releaseLegacy: () => addToolApprovalResponse(args),
             })
         },
-        [respondInteractionAnswer, sessionId],
+        [
+            addToolApprovalResponse,
+            recordInteractionAnswer,
+            respondInteractionAnswer,
+            sessionId,
+            supportsDurableApprovals,
+        ],
     )
 
     const handleApprovalResponses = useCallback(
         async (args: {ids: string[]; approved: boolean}) => {
             liveGateInteractionRef.current = {kind: "approval", id: args.ids[0]}
-            await submitServerOwnedApproval({
-                submit: () =>
+            return submitApprovalForCapability({
+                durableApprovals: await supportsDurableApprovals(sessionId),
+                submitDurable: () =>
                     respondInteractionAnswers({
                         sessionId,
                         toolCallIds: args.ids,
                         approved: args.approved,
                     }),
-                retire: () => {
+                retireDurable: () => {
                     liveGateInteractionRef.current = null
+                },
+                recordLegacy: () =>
+                    Promise.all(
+                        args.ids.map((id) =>
+                            recordInteractionAnswer({
+                                sessionId,
+                                toolCallId: id,
+                                resolution: approvalResolution(id, args.approved),
+                            }),
+                        ),
+                    ).then(() => undefined),
+                releaseLegacy: () => {
+                    for (const id of args.ids) {
+                        addToolApprovalResponse({id, approved: args.approved})
+                    }
                 },
             })
         },
-        [respondInteractionAnswers, sessionId],
+        [
+            addToolApprovalResponse,
+            recordInteractionAnswer,
+            respondInteractionAnswers,
+            sessionId,
+            supportsDurableApprovals,
+        ],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a

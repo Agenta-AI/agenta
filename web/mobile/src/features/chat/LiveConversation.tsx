@@ -383,13 +383,15 @@ export const LiveConversation = ({
     })
     const approvalActions: ApprovalActions = useMemo(
         () => ({
-            phase: conversation.approvals.answered
-                ? "answered"
-                : conversation.approvals.responding
-                  ? "resuming"
-                  : conversation.approvals.errorText
-                    ? "error"
-                    : steerActions.phase,
+            phase: conversation.approvals.recoverable
+                ? "recoverable"
+                : conversation.approvals.answered
+                  ? "answered"
+                  : conversation.approvals.responding
+                    ? "resuming"
+                    : conversation.approvals.errorText
+                      ? "error"
+                      : steerActions.phase,
             errorText: conversation.approvals.errorText ?? steerActions.errorText,
             respond: ({approved, message, approvalId}) => {
                 if (message) {

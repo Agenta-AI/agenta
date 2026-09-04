@@ -134,6 +134,21 @@ describe("durable response state", () => {
         expect(markup).toContain("Approval failed. Please try again.")
         expect(markup).toContain(">Approve<")
     })
+
+    it("explains a recoverable 202 on the shared desktop and mobile card", () => {
+        const markup = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[{approvalId: "a1", toolName: "bash", input: {command: "ls"}}]}
+                answered
+                recoverable
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+
+        expect(markup).toContain("Answer saved, retry needed")
+        expect(markup).toContain("Send your next message to retry the continuation")
+    })
 })
 
 describe("granting a batch", () => {

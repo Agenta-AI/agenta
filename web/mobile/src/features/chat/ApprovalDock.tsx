@@ -30,7 +30,7 @@ export const ApprovalDock = ({
     bottomMost?: boolean
 }) => {
     const busy = actions.phase === "resuming"
-    const answered = actions.phase === "answered"
+    const answered = actions.phase === "answered" || actions.phase === "recoverable"
 
     if (approvals.length === 0) return null
     return (
@@ -46,6 +46,7 @@ export const ApprovalDock = ({
                     approvals={approvals}
                     responding={busy}
                     answered={answered}
+                    recoverable={actions.phase === "recoverable"}
                     entityId={entityId}
                     steerEnabled={isSteerEnabled()}
                     touch

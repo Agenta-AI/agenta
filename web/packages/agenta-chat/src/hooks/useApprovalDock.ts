@@ -10,14 +10,20 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {UIMessage} from "ai"
 
+import type {ApprovalSubmissionOutcome} from "../assets/serverOwnedApproval"
 import {getPendingApprovals, type PendingApproval} from "../model/approvals"
+
+type ApprovalResponse = void | ApprovalSubmissionOutcome
 
 export interface UseApprovalDockArgs {
     messages: UIMessage[]
     /** Answer one gate — the host's approval-response path (which marks the resume live). */
-    respond: (args: {id: string; approved: boolean}) => void | Promise<void>
+    respond: (args: {id: string; approved: boolean}) => ApprovalResponse | Promise<ApprovalResponse>
     /** Answer one paused turn's shown gates in a single server transaction. */
-    respondAll?: (args: {ids: string[]; approved: boolean}) => void | Promise<void>
+    respondAll?: (args: {
+        ids: string[]
+        approved: boolean
+    }) => ApprovalResponse | Promise<ApprovalResponse>
 }
 
 export interface ApprovalDock {
@@ -31,6 +37,8 @@ export interface ApprovalDock {
     responding: boolean
     /** The server accepted the durable response; wait for records to replace the parked gate. */
     answered: boolean
+    /** The answer is durable, but delivery needs the user's next Send to retry. */
+    recoverable: boolean
     errorText: string | null
     /** Answer the current gate. */
     respond: (approved: boolean) => void
@@ -71,6 +79,7 @@ export const useApprovalDock = ({
 
     const [responding, setResponding] = useState(false)
     const [answered, setAnswered] = useState(false)
+    const [recoverable, setRecoverable] = useState(false)
     const [errorText, setErrorText] = useState<string | null>(null)
 
     // The current gate changed (we answered one, the next slid in) — re-enable. Held during a
@@ -78,26 +87,36 @@ export const useApprovalDock = ({
     useEffect(() => {
         setResponding(false)
         setAnswered(false)
+        setRecoverable(false)
         setErrorText(null)
     }, [current?.approvalId])
 
-    const settle = useCallback(async (responses: (void | Promise<void>)[]) => {
-        const results = await Promise.allSettled(responses)
-        const failed = results.find(
-            (result): result is PromiseRejectedResult => result.status === "rejected",
-        )
-        if (!failed) {
-            setAnswered(true)
-            return
-        }
-        setResponding(false)
-        setResolvingIds(null)
-        setErrorText(
-            failed.reason instanceof Error
-                ? failed.reason.message
-                : "Approval failed. Please try again.",
-        )
-    }, [])
+    const settle = useCallback(
+        async (responses: (ApprovalResponse | Promise<ApprovalResponse>)[]) => {
+            const results = await Promise.allSettled(responses)
+            const failed = results.find(
+                (result): result is PromiseRejectedResult => result.status === "rejected",
+            )
+            if (!failed) {
+                setRecoverable(
+                    results.some(
+                        (result) =>
+                            result.status === "fulfilled" && result.value?.recoverable === true,
+                    ),
+                )
+                setAnswered(true)
+                return
+            }
+            setResponding(false)
+            setResolvingIds(null)
+            setErrorText(
+                failed.reason instanceof Error
+                    ? failed.reason.message
+                    : "Approval failed. Please try again.",
+            )
+        },
+        [],
+    )
 
     // Once every gate we fired has settled (left the pending set), drop the latch — the dock then
     // closes if nothing remains, or re-latches onto the uncovered gates (a mixed batch).
@@ -132,5 +151,5 @@ export const useApprovalDock = ({
         )
     }, [responding, shown, onRespond, onRespondAll, settle])
 
-    return {open, current, count, responding, answered, errorText, respond, approveAll}
+    return {open, current, count, responding, answered, recoverable, errorText, respond, approveAll}
 }

@@ -149,6 +149,7 @@ export {
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
     resumeSessionContinuationAtom,
+    sessionDurableApprovalsCapabilityAtom,
 } from "./state/interactionAnswer"
 export {
     sessionMountsQueryFamily,

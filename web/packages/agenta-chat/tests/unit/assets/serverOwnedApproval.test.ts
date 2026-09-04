@@ -1,6 +1,9 @@
 import {describe, expect, it, vi} from "vitest"
 
-import {submitServerOwnedApproval} from "../../../src/assets/serverOwnedApproval"
+import {
+    submitApprovalForCapability,
+    submitServerOwnedApproval,
+} from "../../../src/assets/serverOwnedApproval"
 
 describe("submitServerOwnedApproval", () => {
     it("retires local resume ownership after a successful response", async () => {
@@ -20,5 +23,29 @@ describe("submitServerOwnedApproval", () => {
             submitServerOwnedApproval({submit: () => Promise.reject(lostResponse), retire}),
         ).rejects.toBe(lostResponse)
         expect(retire).toHaveBeenCalledOnce()
+    })
+})
+
+describe("submitApprovalForCapability", () => {
+    it("uses the legacy row transition and local gate release when capability is off", async () => {
+        const submitDurable = vi.fn()
+        const retireDurable = vi.fn()
+        const recordLegacy = vi.fn().mockResolvedValue(undefined)
+        const releaseLegacy = vi.fn()
+
+        await expect(
+            submitApprovalForCapability({
+                durableApprovals: false,
+                submitDurable,
+                retireDurable,
+                recordLegacy,
+                releaseLegacy,
+            }),
+        ).resolves.toEqual({durable: false, recoverable: false})
+
+        expect(submitDurable).not.toHaveBeenCalled()
+        expect(retireDurable).not.toHaveBeenCalled()
+        expect(recordLegacy).toHaveBeenCalledOnce()
+        expect(releaseLegacy).toHaveBeenCalledOnce()
     })
 })

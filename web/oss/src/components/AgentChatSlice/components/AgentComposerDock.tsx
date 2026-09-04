@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useRef, type RefObject} from "react"
 
-import {CHAT_COLUMN, shouldShowStopControl} from "@agenta/chat/assets"
+import {
+    CHAT_COLUMN,
+    shouldShowStopControl,
+    type ApprovalSubmissionOutcome,
+} from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {
     ChatComposer,
@@ -112,8 +116,11 @@ const AgentComposerDock = ({
         id: string
         approved: boolean
         message?: string
-    }) => void | Promise<void>
-    onApprovalResponses: (ids: string[], approved: boolean) => void | Promise<void>
+    }) => void | ApprovalSubmissionOutcome | Promise<void | ApprovalSubmissionOutcome>
+    onApprovalResponses: (
+        ids: string[],
+        approved: boolean,
+    ) => void | ApprovalSubmissionOutcome | Promise<void | ApprovalSubmissionOutcome>
     connects: ConnectionDockState
     /** Parked question forms the run is blocked on (from `useElicitationDock`). */
     elicits: ElicitationDockState
