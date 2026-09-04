@@ -1,9 +1,21 @@
-import {useCallback} from "react"
+import {useCallback, useMemo} from "react"
 
+import {
+    triggerDeliveriesDrawerAtom,
+    triggerScheduleDrawerAtom,
+    triggerSubscriptionDrawerAtom,
+} from "@agenta/entities/gatewayTrigger"
 import type {SessionStream} from "@agenta/entities/session"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {sessionOpenTarget, type SessionRowVm} from "@agenta/sessions/row"
-import {useSessionActions, type SessionActionTarget} from "@agenta/sessions-ui"
+import {
+    createSessionAutomationActions,
+    mergeSessionMenuEntries,
+    useSessionActions,
+    type SessionActionTarget,
+} from "@agenta/sessions-ui"
+import {isToolsEnabled} from "@agenta/shared/api"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 const targetFor = (vm: SessionRowVm) => ({
@@ -30,6 +42,21 @@ const targetForStream = (session: SessionStream) => ({
  */
 export const useSessionRowMenu = (base: string) => {
     const router = useRouter()
+    // The automation verbs — "Open automation", "View delivery" — from the same shared factory the
+    // desktop sessions page uses. They only appear on trigger-created rows, so a list that
+    // excludes those never shows them. `SessionAutomationDrawers` is what they open.
+    const openSchedule = useSetAtom(triggerScheduleDrawerAtom)
+    const openSubscription = useSetAtom(triggerSubscriptionDrawerAtom)
+    const openDelivery = useSetAtom(triggerDeliveriesDrawerAtom)
+    const automation = useMemo(
+        () =>
+            createSessionAutomationActions(isToolsEnabled(), {
+                openSchedule,
+                openSubscription,
+                openDelivery,
+            }),
+        [openDelivery, openSchedule, openSubscription],
+    )
     // Every session has its own page here, so no agent is needed for a link.
     const sharePathFor = useCallback(
         ({sessionId}: SessionActionTarget) => sessionRoutePath(base, sessionId),
@@ -42,15 +69,23 @@ export const useSessionRowMenu = (base: string) => {
         [base, router],
     )
 
+    // Automation verbs slot above the destructive divider — a trigger row IS its automation, so
+    // those read first (#5927), exactly as the desktop list orders them.
     const menuFor = useCallback(
-        (vm: SessionRowVm) => actions.menuItems(targetFor(vm), {onOpen: () => open(vm)}),
-        [actions, open],
+        (vm: SessionRowVm) =>
+            mergeSessionMenuEntries(
+                actions.menuItems(targetFor(vm), {onOpen: () => open(vm)}),
+                automation.menuItems(vm),
+            ),
+        [actions, automation, open],
     )
 
     const onMenuSelect = useCallback(
-        (vm: SessionRowVm, key: string) =>
-            actions.onMenuClick(targetFor(vm), {onOpen: () => open(vm)})({key}),
-        [actions, open],
+        (vm: SessionRowVm, key: string) => {
+            if (automation.onSelect(vm, key)) return
+            actions.onMenuClick(targetFor(vm), {onOpen: () => open(vm)})({key})
+        },
+        [actions, automation, open],
     )
 
     // Rename happens IN the row; the hook only supplies the commit.

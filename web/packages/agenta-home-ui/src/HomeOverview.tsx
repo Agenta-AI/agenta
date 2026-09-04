@@ -18,6 +18,8 @@ export interface HomeOverviewProps {
     onOpenSession: (vm: SessionRowVm) => void
     sessionMenuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onSessionMenuSelect?: (vm: SessionRowVm, key: string) => void
+    /** Persists a session rename; given it, a row renames in place from its menu. */
+    onSessionRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
     /** Touch has no hover, so the pin must stay visible there. */
     alwaysShowPin?: boolean
     /** The rail, top to bottom: agents, next triggers, usage. Apps pass what they can render. */
@@ -60,6 +62,7 @@ export const HomeOverview = ({
     onOpenSession,
     sessionMenuFor,
     onSessionMenuSelect,
+    onSessionRenameRow,
     alwaysShowPin,
     agentsPanel,
     triggersPanel,
@@ -113,6 +116,7 @@ export const HomeOverview = ({
                     onOpenRow={onOpenSession}
                     menuFor={sessionMenuFor}
                     onMenuSelect={onSessionMenuSelect}
+                    onRenameRow={onSessionRenameRow}
                     alwaysShowPin={alwaysShowPin}
                 />
                 {/*
@@ -136,6 +140,7 @@ export const HomeOverview = ({
                     onOpenRow={onOpenSession}
                     menuFor={sessionMenuFor}
                     onMenuSelect={onSessionMenuSelect}
+                    onRenameRow={onSessionRenameRow}
                     alwaysShowPin={alwaysShowPin}
                 />
             </div>

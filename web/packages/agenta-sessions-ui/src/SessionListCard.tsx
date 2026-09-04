@@ -28,6 +28,8 @@ export interface SessionListCardProps {
     onOpenRow: SessionCardListProps["onOpenRow"]
     menuFor?: SessionCardListProps["menuFor"]
     onMenuSelect?: SessionCardListProps["onMenuSelect"]
+    /** Persists a rename; given it, a row renames in place instead of falling through. */
+    onRenameRow?: SessionCardListProps["onRenameRow"]
 }
 
 const WAITING_BADGE_CLASS =
@@ -70,6 +72,7 @@ export const SessionListCard = ({
     onOpenRow,
     menuFor,
     onMenuSelect,
+    onRenameRow,
 }: SessionListCardProps) => {
     // Only the header badge reads the list here; the shared card list runs the same hook (one
     // query — the args match, so the fetch is shared through the query cache).
@@ -126,6 +129,7 @@ export const SessionListCard = ({
                 onOpenRow={onOpenRow}
                 menuFor={menuFor}
                 onMenuSelect={onMenuSelect}
+                onRenameRow={onRenameRow}
             />
         </PanelSection>
     )

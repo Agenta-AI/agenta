@@ -56,3 +56,18 @@ export const applySessionScopeAtom = atom(null, (_get, set, scope: SessionScope)
     if (scope.origin === "trigger") set(sessionShowTriggeredAtom, true)
     if (scope.status) set(sessionStatusFilterAtom, scope.status)
 })
+
+export const sessionRouteModes = {automation: "automation"} as const
+
+export type SessionRouteMode = (typeof sessionRouteModes)[keyof typeof sessionRouteModes]
+
+export type SessionRouteQuery = Record<string, string | string[] | undefined>
+
+/**
+ * Maps the public sessions route query to the in-memory scope above.
+ *
+ * The URL names a user-facing mode rather than the internal request policy, so the route stays
+ * independent from how this package implements its server-side predicates.
+ */
+export const sessionScopeFromRouteQuery = (query: SessionRouteQuery): SessionScope | undefined =>
+    query.mode === sessionRouteModes.automation ? {origin: "trigger"} : undefined

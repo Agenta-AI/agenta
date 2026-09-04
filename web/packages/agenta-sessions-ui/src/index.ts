@@ -17,6 +17,7 @@ export {type SessionMenuEntry, isMenuDivider} from "./menu"
 export {SessionRowContextMenu, type SessionRowContextMenuProps} from "./SessionRowContextMenu"
 export {
     isSessionAutomationAction,
+    mergeSessionMenuEntries,
     OPEN_SESSION_AUTOMATION_ACTION,
     sessionAutomationMenuEntries,
     VIEW_SESSION_DELIVERY_ACTION,
