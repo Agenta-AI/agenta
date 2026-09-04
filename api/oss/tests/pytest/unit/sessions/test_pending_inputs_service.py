@@ -34,7 +34,9 @@ class MemoryInputsDAO:
             None,
         )
 
-    async def create_input(self, *, user_id, pending_input, prioritize=False, **_kwargs):
+    async def create_input(
+        self, *, user_id, pending_input, prioritize=False, **_kwargs
+    ):
         item = PendingInput(
             id=uuid4(),
             created_at=datetime.now(timezone.utc),
@@ -93,7 +95,9 @@ class Streams:
 @pytest.mark.asyncio
 async def test_busy_queue_is_rejected_when_switch_is_off(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "queue", False)
-    service = SessionInputsService(inputs_dao=MemoryInputsDAO(), streams_service=Streams())
+    service = SessionInputsService(
+        inputs_dao=MemoryInputsDAO(), streams_service=Streams()
+    )
 
     with pytest.raises(SessionInputBusy):
         await service.admit(
@@ -125,9 +129,9 @@ async def test_busy_queue_is_durable_and_removable(monkeypatch):
 
     assert admitted.action == "pending"
     assert admitted.input is not None
-    assert await service.list_pending(project_id=project_id, session_id="session-1") == [
-        admitted.input
-    ]
+    assert await service.list_pending(
+        project_id=project_id, session_id="session-1"
+    ) == [admitted.input]
     removed = await service.remove(
         project_id=project_id,
         user_id=user_id,
@@ -135,7 +139,9 @@ async def test_busy_queue_is_durable_and_removable(monkeypatch):
         input_id=admitted.input.id,
     )
     assert removed.state == PendingInputState.removed
-    assert await service.list_pending(project_id=project_id, session_id="session-1") == []
+    assert (
+        await service.list_pending(project_id=project_id, session_id="session-1") == []
+    )
 
 
 @pytest.mark.asyncio
@@ -210,8 +216,6 @@ async def test_steer_is_saved_ahead_of_queued_input(monkeypatch):
         idempotency_key="steer-1",
     )
 
-    pending = await service.list_pending(
-        project_id=project_id, session_id="session-1"
-    )
+    pending = await service.list_pending(project_id=project_id, session_id="session-1")
     assert [item.id for item in pending] == [steered.input.id, queued.input.id]
     assert steered.execution_id == "execution-1"
