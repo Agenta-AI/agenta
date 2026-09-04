@@ -156,7 +156,9 @@ async def cancel_runner_execution(
 
     replica_id = None
     try:
-        replica_id = (response.json() or {}).get("replicaId")
+        payload = response.json()
+        if isinstance(payload, dict):
+            replica_id = payload.get("replicaId")
     except ValueError:
         # A 2xx with no JSON body still means accepted; the claim then falls back to a
         # placeholder and the runner's report is refused, so log it rather than hide it.

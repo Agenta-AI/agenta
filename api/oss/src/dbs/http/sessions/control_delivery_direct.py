@@ -32,6 +32,7 @@ every ordinary runner restart, because a runner mints a fresh id at boot when
 broke Stop for the whole window after every deploy, which is worse than the failure it guarded.
 """
 
+from typing import Optional
 from uuid import UUID
 
 from oss.src.core.sessions.commands.dtos import SessionCommand
@@ -50,7 +51,7 @@ log = get_module_logger(__name__)
 
 
 class DirectControlDelivery(ControlDeliveryPort):
-    def __init__(self, *, timeout_seconds: float = None) -> None:
+    def __init__(self, *, timeout_seconds: Optional[float] = None) -> None:
         self._timeout = (
             timeout_seconds
             if timeout_seconds is not None
