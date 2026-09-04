@@ -26,16 +26,15 @@ const frame = (
 })
 
 describe("session live preview reducer", () => {
-    it("orders frames by execution and frame index before projecting deltas", () => {
+    it("collapses ordered frames into their current entity state", () => {
         let state = createSessionLivePreviewState()
-        state = reduceSessionLivePreview(state, frame(2, "text-delta", {delta: "world"}))
         state = reduceSessionLivePreview(state, frame(0, "text-start", {}))
         state = reduceSessionLivePreview(state, frame(1, "text-delta", {delta: "hello "}))
+        state = reduceSessionLivePreview(state, frame(2, "text-delta", {delta: "world"}))
 
         expect(state.executionOrder).toEqual(["turn-1"])
-        expect(state.byExecution["turn-1"].frames.map((item) => item.frame_index)).toEqual([
-            0, 1, 2,
-        ])
+        expect(state.byExecution["turn-1"].lastFrameIndex).toBe(2)
+        expect(state.byExecution["turn-1"].entityOrder).toEqual(["text-1"])
         expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
             {type: "text", text: "hello world"},
         ])
@@ -48,6 +47,17 @@ describe("session live preview reducer", () => {
 
         expect(twice).toBe(once)
         expect(sessionLivePreviewMessages(twice)[0].parts).toEqual([{type: "text", text: "once"}])
+    })
+
+    it("ignores a stale frame index without retaining a dedupe history", () => {
+        const current = reduceSessionLivePreview(
+            createSessionLivePreviewState(),
+            frame(2, "text-delta", {delta: "new"}),
+        )
+        const stale = reduceSessionLivePreview(current, frame(1, "text-delta", {delta: "old"}))
+
+        expect(stale).toBe(current)
+        expect(sessionLivePreviewMessages(stale)[0].parts).toEqual([{type: "text", text: "new"}])
     })
 
     it("updates one tool part by entity id through input and output", () => {
@@ -84,6 +94,21 @@ describe("session live preview reducer", () => {
                 input: {path: "note.md"},
                 output: {written: true},
             },
+        ])
+    })
+
+    it("keeps 5,000 deltas bounded to one entity with the same final text", () => {
+        let state = createSessionLivePreviewState()
+        for (let index = 0; index < 5_000; index += 1) {
+            state = reduceSessionLivePreview(state, frame(index, "text-delta", {delta: "x"}))
+        }
+
+        const execution = state.byExecution["turn-1"]
+        expect(execution.lastFrameIndex).toBe(4_999)
+        expect(execution.entityOrder).toEqual(["text-1"])
+        expect(Object.keys(execution.byEntity)).toEqual(["text-1"])
+        expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
+            {type: "text", text: "x".repeat(5_000)},
         ])
     })
 })

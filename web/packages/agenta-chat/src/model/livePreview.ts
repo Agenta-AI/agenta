@@ -1,104 +1,55 @@
 import {
     createSessionLivePreviewState,
     type SessionLiveFrame,
+    type SessionLivePreviewExecution,
     type SessionLivePreviewState,
 } from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 
 type PreviewPart = Record<string, unknown> & {type: string}
 
-/**
- * Insert one temporary frame without assuming delivery order. The relay normally preserves Redis
- * order, but browser reconnects and duplicate fan-out must not duplicate or rewind a preview.
- */
-export const reduceSessionLivePreview = (
-    state: SessionLivePreviewState,
-    frame: SessionLiveFrame,
-): SessionLivePreviewState => {
-    if (state.seenFrameIds[frame.frame_or_event_id]) return state
-
-    const current = state.byExecution[frame.execution_id]
-    if (current?.frames.some((candidate) => candidate.frame_index === frame.frame_index)) {
-        return {
-            ...state,
-            seenFrameIds: {...state.seenFrameIds, [frame.frame_or_event_id]: true},
-        }
-    }
-
-    const frames = [...(current?.frames ?? []), frame].sort(
-        (left, right) => left.frame_index - right.frame_index,
-    )
-    return {
-        executionOrder: current
-            ? state.executionOrder
-            : [...state.executionOrder, frame.execution_id],
-        byExecution: {
-            ...state.byExecution,
-            [frame.execution_id]: {frames},
-        },
-        seenFrameIds: {...state.seenFrameIds, [frame.frame_or_event_id]: true},
-    }
-}
-
 const stringValue = (value: unknown): string =>
     typeof value === "string" ? value : value == null ? "" : String(value)
 
 const applyFrame = (
-    parts: PreviewPart[],
-    partIndex: Map<string, number>,
+    current: PreviewPart | undefined,
     frame: SessionLiveFrame,
-): void => {
-    const at = partIndex.get(frame.entity_id)
-    const current = at === undefined ? undefined : parts[at]
-    const update = (part: PreviewPart) => {
-        if (at === undefined) {
-            partIndex.set(frame.entity_id, parts.length)
-            parts.push(part)
-        } else {
-            parts[at] = part
-        }
-    }
-
+): PreviewPart | undefined => {
     switch (frame.type) {
         case "text-start":
-            if (!current) update({type: "text", text: ""})
-            return
+            return current ?? {type: "text", text: ""}
         case "text-delta":
-            update({
+            return {
                 type: "text",
                 text:
                     stringValue(current?.type === "text" ? current.text : "") +
                     stringValue(frame.payload.delta),
-            })
-            return
+            }
         case "text-end":
-            return
+            return current
         case "reasoning-start":
-            if (!current) update({type: "reasoning", text: ""})
-            return
+            return current ?? {type: "reasoning", text: ""}
         case "reasoning-delta":
-            update({
+            return {
                 type: "reasoning",
                 text:
                     stringValue(current?.type === "reasoning" ? current.text : "") +
                     stringValue(frame.payload.delta),
-            })
-            return
+            }
         case "reasoning-end":
-            return
+            return current
         case "tool-input-start":
         case "tool-input-available": {
             const toolCallId = stringValue(frame.payload.toolCallId) || frame.entity_id
             const toolName = stringValue(frame.payload.toolName) || "tool"
-            update({
+            return {
                 ...(current ?? {}),
                 type: "dynamic-tool",
                 toolCallId,
                 toolName,
                 state: frame.type === "tool-input-start" ? "input-streaming" : "input-available",
                 input: frame.payload.input ?? current?.input,
-            })
-            return
+            }
         }
         case "tool-output-available":
         case "tool-output-error":
@@ -111,32 +62,71 @@ const applyFrame = (
                 toolName: stringValue(current?.toolName) || "tool",
             }
             if (frame.type === "tool-output-available") {
-                update({...base, state: "output-available", output: frame.payload.output})
+                return {...base, state: "output-available", output: frame.payload.output}
             } else if (frame.type === "tool-output-error") {
-                update({
+                return {
                     ...base,
                     state: "output-error",
                     errorText: stringValue(frame.payload.errorText),
-                })
+                }
             } else {
-                update({...base, state: "output-denied"})
+                return {...base, state: "output-denied"}
             }
-            return
         }
         default:
             // Forward-compatible clients ignore frame types they do not understand.
-            return
+            return current
     }
 }
 
-/** Build disposable UI messages from the ordered frame sets. */
+/** Collapse one ordered frame into bounded per-entity preview state. */
+export const reduceSessionLivePreview = (
+    state: SessionLivePreviewState,
+    frame: SessionLiveFrame,
+): SessionLivePreviewState => {
+    const current = state.byExecution[frame.execution_id]
+    if (current && frame.frame_index <= current.lastFrameIndex) return state
+
+    const previousPart = current?.byEntity[frame.entity_id]?.part
+    const nextPart = applyFrame(previousPart, frame)
+    const execution: SessionLivePreviewExecution = current ?? {
+        entityOrder: [],
+        byEntity: {},
+        lastFrameIndex: -1,
+    }
+
+    return {
+        executionOrder: current
+            ? state.executionOrder
+            : [...state.executionOrder, frame.execution_id],
+        byExecution: {
+            ...state.byExecution,
+            [frame.execution_id]: {
+                entityOrder:
+                    nextPart && !previousPart
+                        ? [...execution.entityOrder, frame.entity_id]
+                        : execution.entityOrder,
+                byEntity: nextPart
+                    ? {
+                          ...execution.byEntity,
+                          [frame.entity_id]: {part: nextPart},
+                      }
+                    : execution.byEntity,
+                lastFrameIndex: frame.frame_index,
+            },
+        },
+    }
+}
+
+/** Build disposable UI messages from the collapsed entity state. */
 export const sessionLivePreviewMessages = (state: SessionLivePreviewState): UIMessage[] =>
     state.executionOrder.flatMap((executionId) => {
         const execution = state.byExecution[executionId]
         if (!execution) return []
-        const parts: PreviewPart[] = []
-        const partIndex = new Map<string, number>()
-        for (const frame of execution.frames) applyFrame(parts, partIndex, frame)
+        const parts = execution.entityOrder.flatMap((entityId) => {
+            const entity = execution.byEntity[entityId]
+            return entity ? [entity.part] : []
+        })
         if (parts.length === 0) return []
         return [
             {

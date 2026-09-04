@@ -120,6 +120,7 @@ export {
     clearSessionLivePreviewAtom,
     createSessionLivePreviewState,
     type SessionLivePreviewExecution,
+    type SessionLivePreviewEntityState,
     type SessionLivePreviewState,
 } from "./state/livePreview"
 export {

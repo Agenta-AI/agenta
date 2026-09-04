@@ -1,10 +1,14 @@
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
-import type {SessionLiveFrame} from "../core/schema"
+export interface SessionLivePreviewEntityState {
+    part: Record<string, unknown> & {type: string}
+}
 
 export interface SessionLivePreviewExecution {
-    frames: SessionLiveFrame[]
+    entityOrder: string[]
+    byEntity: Record<string, SessionLivePreviewEntityState>
+    lastFrameIndex: number
 }
 
 /**
@@ -15,13 +19,11 @@ export interface SessionLivePreviewExecution {
 export interface SessionLivePreviewState {
     executionOrder: string[]
     byExecution: Record<string, SessionLivePreviewExecution>
-    seenFrameIds: Record<string, true>
 }
 
 export const createSessionLivePreviewState = (): SessionLivePreviewState => ({
     executionOrder: [],
     byExecution: {},
-    seenFrameIds: {},
 })
 
 export const sessionLivePreviewAtomFamily = atomFamily((_sessionId: string) =>
