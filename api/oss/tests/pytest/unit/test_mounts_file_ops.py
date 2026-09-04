@@ -678,6 +678,74 @@ class TestMountFileOpsRoundtrip:
         assert listing.total == 1
         assert listing.files == []
 
+    async def test_hidden_tree_does_not_spend_the_count_budget(self, monkeypatch):
+        # `cap` bounds the DESCENT, but the number it produces is the VISIBLE file count — so the
+        # two have to be measured in the same unit. A hidden directory is pruned during the walk,
+        # not counted and then filtered away afterwards; otherwise a drive with a big `.claude/`
+        # reports a needless "N+" when its real files could have been counted exactly.
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 5)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for i in range(10):
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=f".claude/f{i}.json", content=b"x"
+            )
+        for path in ["a.txt", "b.txt"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total == 2
+        assert listing.total_capped is False
+
+    async def test_internal_tree_does_not_spend_the_count_budget(self, monkeypatch):
+        # Same rule for the runner-owned `agents/` namespace, which can hold a whole transcript
+        # workspace: pruned during the walk, so it never crowds out the real files.
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 5)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for i in range(10):
+            await service.write_file(
+                project_id=pid,
+                mount_id=mid,
+                path=f"agents/sessions/s{i}.json",
+                content=b"x",
+            )
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="a.txt", content=b"x"
+        )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total == 1
+        assert listing.total_capped is False
+
+    async def test_count_still_caps_on_a_genuinely_large_visible_tree(
+        self, monkeypatch
+    ):
+        # The budget still bites when the files really are visible — the prunes narrow what counts,
+        # they do not remove the bound.
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 5)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for i in range(12):
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=f"docs/f{i}.md", content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total_capped is True
+        assert listing.total >= 5
+
     async def test_raw_flat_listing_keeps_hidden_paths(self):
         # The hidden-file pruning is part of the CURATED view only — the raw contract still lists
         # everything that is stored, so other API consumers see the mount as it really is.

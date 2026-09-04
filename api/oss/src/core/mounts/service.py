@@ -960,9 +960,10 @@ class MountsService:
         mount_base: str,
         cap: Optional[int] = None,
     ) -> Tuple[List[StoreObject], List[Tuple[str, "pathspec.PathSpec"]], bool]:
-        """Enumerate a mount's FILES by descending the tree LEVEL BY LEVEL, skipping `.git` and
-        gitignored DIRECTORIES at the store layer — so a dependency dump (`node_modules`, tens of
-        thousands of objects) is never enumerated at all. The flat `recursive=True` listing cannot
+        """Enumerate a mount's FILES by descending the tree LEVEL BY LEVEL, skipping every directory
+        the curated view discards — `.git`, gitignored, runner-internal (`agents/`) and hidden
+        (dot-prefixed) — at the store layer, so a dependency dump (`node_modules`, tens of thousands
+        of objects) is never enumerated at all. The flat `recursive=True` listing cannot
         exclude a prefix, so it must scan every object; this walks only what survives, listing sibling
         directories concurrently (bounded by `_LIST_CONCURRENCY`) so wall-clock tracks the tree DEPTH,
         not the object count. Each level's `.gitignore` files are read before that level's children are
@@ -970,6 +971,9 @@ class MountsService:
 
         `cap` early-stops the descent once that many files are collected — for a bounded COUNT of a
         pathologically large (non-ignored) tree, so the cost never runs away regardless of contents.
+        Because the prunes above run DURING the walk, what `cap` budgets is (near enough) the files
+        the caller will actually count, so a drive only reports "N+" when it genuinely holds that
+        many VISIBLE files.
 
         Returns (kept StoreObjects, specs, truncated). `truncated` is True when the `cap` stopped the
         walk early (the real count is higher). The caller still applies FILE-level gitignore for
@@ -1034,7 +1038,16 @@ class MountsService:
                 ).rstrip("/")
                 if not dir_rel:
                     continue
-                if _is_git_plumbing(dir_rel) or _path_gitignored(dir_rel, True, specs):
+                # Every directory whose files the curated view would discard anyway. Pruning them
+                # HERE, not after the walk, is what keeps `cap` a budget of COUNTABLE files: a big
+                # `.claude/` or `agents/` tree would otherwise spend the budget and then be filtered
+                # out, reporting a needless "N+" on a drive that could be counted exactly.
+                if (
+                    _is_git_plumbing(dir_rel)
+                    or _is_internal_mount_path(dir_rel)
+                    or _is_hidden_path(dir_rel)
+                    or _path_gitignored(dir_rel, True, specs)
+                ):
                     continue
                 visited.add(sub_prefix)
                 frontier.append(sub_prefix)
@@ -1267,18 +1280,20 @@ class MountsService:
                 for o in store_files
             ]
             if git_aware:
-                # Whole-directory pruning happened at the store level; a `.git` file or a gitignored
-                # FILE inside a KEPT directory (e.g. a stray `*.pyc`) still needs dropping here.
+                # The descent already pruned these as whole DIRECTORIES. What is left to drop is the
+                # matching FILE sitting in a KEPT directory — a stray `*.pyc`, a root `.gitignore` or
+                # `.env`, a `.agenta-*` marker — which no directory prune can reach.
+                #
+                # Hidden files leave the curated flat view entirely: this is the "N files" badge and
+                # the recency list it labels, which are about user content, not plumbing. The
+                # browsable tree still lists them (dimmed, behind the UI's "show hidden" toggle),
+                # which is why they drop here and not in the browse/`depth=1` views.
                 files = [f for f in files if not _is_git_plumbing(f.path)]
                 if specs:
                     files = [
                         f for f in files if not _path_gitignored(f.path, False, specs)
                     ]
                 files = [f for f in files if not _is_internal_mount_path(f.path)]
-                # Dotfile plumbing (`.claude/…`, `.gitignore`, `.env`) is not user content, so the
-                # curated flat view — the "N files" badge AND the recency list it labels — leaves it
-                # out entirely. The browsable tree still lists it (dimmed, behind the UI's "show
-                # hidden" toggle), which is why this drops here and not in the browse/`depth=1` views.
                 files = [f for f in files if not _is_hidden_path(f.path)]
             total = len(files)
             if count_only:
