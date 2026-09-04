@@ -174,9 +174,7 @@ async def test_cancel_with_stale_expected_id_is_refused_and_touches_nothing(
     await _seat_turn(lock_engine, "turn-2", started_at_ms=2_000)
 
     with pytest.raises(SessionTurnMismatch) as excinfo:
-        await svc.command(
-            project_id=_PROJECT, user_id=_USER, request=_cancel("turn-1")
-        )
+        await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel("turn-1"))
 
     assert excinfo.value.expected_turn_id == "turn-1"
     assert excinfo.value.actual_turn_id == "turn-2"
