@@ -3646,6 +3646,117 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     }
   });
 
+  it("parks a FIRST-turn Pi batch whose allowed sibling can never close", async () => {
+    // The browser pass of 2026-09-04, sessions d66e2920 (17:32Z) and 6d06f624 (17:57Z). The model
+    // asked for a Read and a Bash in ONE parallel batch. The Read answered `allow`; the Bash
+    // parked. Pi will not execute any call in a batch while a sibling gate is open, so the
+    // allowed Read never closed. This is the FIRST turn, and the carry-and-park branch used to
+    // require a resume, so the turn took the closure wait instead and sat on the 30-minute
+    // per-tool-call bound. It never parked, never emitted `done`, and its alive watchdog kept
+    // beating `running=true`, so every durable continuation aimed at the next turn was refused
+    // with "Continuation could not establish alive ownership".
+    //
+    // A healthy gated turn from the same hour shows the Read's `tool_result` BEFORE the Bash
+    // gate. Sequential calls leave nothing open at pause time, which is why this only bites a
+    // parallel batch.
+    const batch: PiBatchCall[] = [
+      {
+        permissionId: "permission-read",
+        toolCallId: "tool-read",
+        toolName: "reader",
+        args: { path: "notes.md" },
+        output: "read output",
+      },
+      {
+        permissionId: "permission-bash",
+        toolCallId: "tool-bash",
+        toolName: "runner",
+        args: { command: "echo one" },
+        output: "bash output",
+      },
+    ];
+    const { deps } = pausableHarness({ piBatching: batch });
+    deps.createOtel = createSandboxAgentOtel as any;
+    // The real responder, so the plan below actually decides. The fake one pends every gate and
+    // would never mark an allowed execution, which is the whole precondition here.
+    delete (deps as { responderFactory?: unknown }).responderFactory;
+    const closureWaitMs = 271_828;
+    deps.resolveRunLimits = () => ({
+      totalMs: 1_000_000,
+      idleMs: 500_000,
+      ttfbMs: 500_000,
+      toolCallMs: closureWaitMs,
+    });
+    deps.createRunLimits = () => ({
+      onTrip() {},
+      noteToolCallStart() {},
+      noteToolCallEnd() {},
+      wrapEmit: (emit: (event: any) => void) => emit,
+      notePaused() {},
+      dispose() {},
+    });
+    // Count the closure waits by their bound, and let one that IS armed fire at once, so the red
+    // is an assertion rather than a 30-minute hang.
+    const realSetTimeout = globalThis.setTimeout;
+    let closureWaitCount = 0;
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+      handler: (...args: any[]) => void,
+      timeout?: number,
+      ...args: any[]
+    ) => {
+      if (timeout === closureWaitMs) {
+        closureWaitCount += 1;
+        return realSetTimeout(handler, 0, ...args);
+      }
+      return realSetTimeout(handler, timeout, ...args);
+    }) as typeof setTimeout);
+    let env: SessionEnvironment | undefined;
+
+    try {
+      const piRequest: AgentRunRequest = {
+        ...engineReq,
+        harness: "pi_agenta",
+        permissions: { default: "ask" },
+        customTools: [
+          { name: "reader", permission: "allow" },
+          { name: "runner", permission: "ask" },
+        ],
+        messages: [{ role: "user", content: "read the file then echo" }],
+      };
+      const acquired = await acquireEnvironment(piRequest, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      env = acquired.env;
+
+      const result = await runTurn(env, piRequest, undefined, undefined, {
+        approvalParkMode: true,
+      });
+
+      assert.equal(
+        result.stopReason,
+        "paused",
+        "the gated first turn must END as paused, not hang in terminalization",
+      );
+      assert.equal(
+        closureWaitCount,
+        0,
+        "an allowed sibling of a pending Pi gate can never close, so the turn must not wait",
+      );
+      assert.deepEqual(
+        [...(env.parkedApprovedExecutions?.keys() ?? [])],
+        ["tool-read"],
+        "the allowed call is carried so the resume re-announces it",
+      );
+      assert.ok(
+        env.parkedApprovals.has("tool-bash"),
+        "the gated call is parked for the human to answer",
+      );
+    } finally {
+      timeoutSpy.mockRestore();
+      if (env) await env.destroy();
+    }
+  });
+
   it("records the non-retry sentinel when an approved result misses the bound", async () => {
     const { calls, deps, captured } = pausableHarness();
     deps.resolveRunLimits = () => ({
