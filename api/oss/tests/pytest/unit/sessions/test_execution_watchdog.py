@@ -144,6 +144,28 @@ class _FakePgSession:
                 )[:SWEEP_BATCH_SIZE]
             )
 
+        # The lost-turn is_running clear: a session_streams SELECT keyed by a list of
+        # (project_id, session_id, turn_id) tuples. Return the rows those keys name that still
+        # read is_running true, so the sweep can clear the flag on them.
+        params = stmt.compile().params
+        key_lists = [
+            value
+            for value in params.values()
+            if isinstance(value, (list, set, tuple))
+            and value
+            and all(isinstance(key, tuple) and len(key) == 3 for key in value)
+        ]
+        if key_lists:
+            keys = set(key_lists[0])
+            return _FakeResult(
+                [
+                    r
+                    for r in self._rows
+                    if r.flags.get("is_running") is True
+                    and (r.project_id, r.session_id, str(r.turn_id)) in keys
+                ]
+            )
+
         def age(row):
             return (now - (row.updated_at or row.created_at)).total_seconds()
 
@@ -241,9 +263,13 @@ class _FakeRecordsService:
 class _FakeWatchPublisher:
     def __init__(self):
         self.lifecycles: List[Tuple[str, str, str]] = []
+        self.changes: List[Tuple[str, str, str]] = []
 
     async def lifecycle(self, *, project_id, session_id, state):
         self.lifecycles.append((project_id, session_id, state))
+
+    async def changed(self, *, project_id, entity, id):
+        self.changes.append((project_id, entity, id))
 
 
 class _Publisher:
@@ -770,3 +796,85 @@ async def test_records_plane_ending_marks_candidate_and_skips_publish(anyio_back
 
     assert publisher.published == []
     assert execution.ending_written_at is not None
+
+
+@pytest.mark.anyio
+async def test_a_lost_execution_clears_is_running_on_a_row_that_still_names_it(
+    anyio_backend,
+):
+    # The execution is settled lost, but the session's stream row still names that turn and
+    # still reads is_running true, so the SEND gate would refuse the next message. The pass
+    # that writes the lost ending must clear is_running (keeping is_alive so the session stays
+    # resumable), clear the running lock, and update the mirror -- in the same pass. The row is
+    # fresh here so the went-silent collapse never touches it; the fix must.
+    stream = _FakeRow(
+        session_id="sess-stuck-running",
+        turn_id="turn-lost",
+        is_running=True,
+        age_seconds=0,
+    )
+    execution = _FakeExecutionRow(
+        session_id=stream.session_id,
+        execution_id="turn-lost",
+        terminal_outcome="lost",
+    )
+    redis = _FakeRedis()
+    alive_key = f"alive:{stream.project_id}:session:{stream.session_id}"
+    running_key = f"running:{stream.project_id}:session:{stream.session_id}"
+    redis._store[running_key] = b"turn-lost"
+    redis._store[alive_key] = b"turn-lost"
+    publisher = _Publisher()
+    watch = _FakeWatchPublisher()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([stream], [execution]),
+        redis,
+        records_service=_FakeRecordsService(),
+        watch_publisher=watch,
+        publish=publisher,
+    )
+
+    # is_running is cleared on the row, is_alive is kept, and the row is NOT collapsed.
+    assert stream.flags == {
+        "is_alive": True,
+        "is_running": False,
+        "is_attached": False,
+    }
+    # The running lock the SEND gate reads is cleared too, guarded on the dead turn.
+    assert running_key not in redis._store
+    # The mirror update reaches open readers.
+    assert (str(stream.project_id), "session", stream.session_id) in watch.changes
+
+
+@pytest.mark.anyio
+async def test_a_lost_execution_leaves_a_newer_running_turn_running(anyio_backend):
+    # The row has advanced to a NEWER turn that is genuinely running. Settling the OLD turn
+    # lost must not clear is_running on that row, nor its running lock.
+    stream = _FakeRow(
+        session_id="sess-advanced-newer",
+        turn_id="turn-new",
+        is_running=True,
+        age_seconds=0,
+    )
+    execution = _FakeExecutionRow(
+        session_id=stream.session_id,
+        execution_id="turn-old",
+        terminal_outcome="lost",
+    )
+    redis = _FakeRedis()
+    running_key = f"running:{stream.project_id}:session:{stream.session_id}"
+    redis._store[running_key] = b"turn-new"
+    publisher = _Publisher()
+    watch = _FakeWatchPublisher()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([stream], [execution]),
+        redis,
+        records_service=_FakeRecordsService(),
+        watch_publisher=watch,
+        publish=publisher,
+    )
+
+    # The newer running turn is untouched: its flag stands and its lock survives.
+    assert stream.flags["is_running"] is True
+    assert redis._store[running_key] == b"turn-new"

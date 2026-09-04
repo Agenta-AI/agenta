@@ -65,6 +65,7 @@ from oss.src.dbs.redis.sessions.locks import (
     force_clear_owner,
     mark_turn_superseded,
     release_alive,
+    release_running,
 )
 
 from sqlalchemy import and_, func, not_, or_, select, tuple_, update as sa_update
@@ -414,7 +415,6 @@ async def run_orphan_sweep(
                 continue
             seen.add(key)
             claimed.append(key)
-        current_turns = set(claimed)
         terminal_turns: Set[Tuple[UUID, str, str]] = set()
         terminal_outcomes: Dict[Tuple[UUID, str, str], str] = {}
         for execution in terminal_executions:
@@ -505,17 +505,48 @@ async def run_orphan_sweep(
 
         unsettled = terminal_winners
 
-        # A stopped row whose turn was just given its ending is NOT collapsed, but the dead
-        # turn may still hold the session's `alive` lock: settlement leaves `alive` to its
-        # TTL on purpose, and that TTL is an hour. The SEND gate reads that lock, so a new
-        # message would be refused with "another turn owns this session" until it expired.
-        # Release it only if it still names the dead turn, and tombstone the turn so a late
-        # beat cannot re-nest the session. Observed live on the integration stack: the
-        # ending landed at 96.7 s and the next message was still refused.
+        # A lost turn whose stream row the went-silent collapse did NOT touch must still be
+        # brought to rest here, in this same pass, or the SEND gate refuses the next message
+        # until the runner returns -- which, for a lost turn, may be never. The RFC's rule is
+        # that the settlement writes the ending, clears `is_running`, releases `alive`, and
+        # updates the mirror together. The collapse below owns the rows the orphan query
+        # matched; this owns every other lost turn (a row the query did not return, or an
+        # older execution whose row has since advanced). Everything here is guarded on
+        # `turn_id`, so a row that now names a NEWER running turn is never disturbed.
         collapsing = {(r.project_id, r.session_id, str(r.turn_id)) for r in orphans}
-        for project_id, session_id, turn_id in sorted(
-            (unsettled - collapsing) & current_turns, key=lambda t: t[1]
-        ):
+        newly_lost = sorted(unsettled - collapsing, key=lambda t: t[1])
+
+        # Clear `is_running` on the DB row that STILL names a lost turn, keeping `is_alive` so
+        # the session stays resumable. Guarded on turn_id: a row that advanced to a newer turn
+        # is left alone. Observed live on the integration stack: the execution was settled lost
+        # but the stream row kept `is_running: true`, and the next Send was refused.
+        running_rows_cleared: List[SessionStreamDBE] = []
+        if newly_lost:
+            rows_to_clear = (
+                (
+                    await session.execute(
+                        select(SessionStreamDBE).where(
+                            SessionStreamDBE.deleted_at.is_(None),
+                            SessionStreamDBE.flags.contains({"is_running": True}),
+                            tuple_(
+                                SessionStreamDBE.project_id,
+                                SessionStreamDBE.session_id,
+                                SessionStreamDBE.turn_id,
+                            ).in_(list(newly_lost)),
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            for row in rows_to_clear:
+                flags = dict(row.flags or {})
+                flags["is_running"] = False
+                row.flags = flags
+                row.updated_at = now
+                running_rows_cleared.append(row)
+
+        for project_id, session_id, turn_id in newly_lost:
             released = await release_alive(
                 lock_engine,
                 project_id=str(project_id),
@@ -530,6 +561,15 @@ async def run_orphan_sweep(
                     project_id=str(project_id),
                     session_id=session_id,
                 )
+            # Clear the running lock too, guarded so a newer turn's lock survives. Without this
+            # the SEND gate's running check keeps refusing even after `is_running` is cleared
+            # on the row.
+            await release_running(
+                lock_engine,
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=turn_id,
+            )
             await mark_turn_superseded(
                 lock_engine,
                 project_id=str(project_id),
@@ -600,6 +640,22 @@ async def run_orphan_sweep(
                     # The session channel reaches a tab that has this session open. A list
                     # row lives on the project channel, so publish there too, or every other
                     # tab keeps the session marked running until its own poll comes round.
+                    await watch_publisher.changed(
+                        project_id=str(row.project_id),
+                        entity="session",
+                        id=row.session_id,
+                    )
+                except Exception:
+                    log.warning(
+                        "watchdog: watch publish failed",
+                        session_id=row.session_id,
+                        exc_info=True,
+                    )
+
+            # A row whose `is_running` was cleared (but not collapsed) also needs the mirror
+            # update, or a browser sitting on it keeps the turn drawn as running until a reload.
+            for row in running_rows_cleared:
+                try:
                     await watch_publisher.changed(
                         project_id=str(row.project_id),
                         entity="session",
