@@ -1,3 +1,5 @@
+import {useSyncExternalStore} from "react"
+
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -97,3 +99,37 @@ export const FILES_PANE_MAX = 1600
 
 /** The agent config pane's fixed width in the desktop MainLayout; kept in sync there. */
 export const AGENT_CONFIG_WIDTH = 440
+
+/** Divider hairlines + panel edge paddings between the four regions. */
+const SEAM_SLACK = 25
+
+/**
+ * Window width at which the config pane, the transcript and the Files pane all fit at fair
+ * widths. Below it the two side panes are mutually exclusive, so the transcript never falls under
+ * CHAT_MIN; at or above it they may stay open together.
+ *
+ * Takes the nav sidebar width rather than importing it, so `@agenta/chat` keeps no dependency on
+ * `@agenta/navigation`. Both hosts pass SIDEBAR_DEFAULT_WIDTH — they dock the same sidebar.
+ */
+export const panesCoexistMinWindow = (sidebarWidth: number): number =>
+    sidebarWidth + AGENT_CONFIG_WIDTH + CHAT_MIN + FILES_PANE_MIN + SEAM_SLACK
+
+/**
+ * True when the window fits all three regions at once.
+ *
+ * Window width, not container width, on purpose: the threshold is derived assuming the nav
+ * sidebar at its default width.
+ */
+export const useCanPanesCoexist = (sidebarWidth: number): boolean => {
+    const query = `(min-width: ${panesCoexistMinWindow(sidebarWidth)}px)`
+    return useSyncExternalStore(
+        (onChange) => {
+            if (typeof window === "undefined" || !window.matchMedia) return () => undefined
+            const list = window.matchMedia(query)
+            list.addEventListener("change", onChange)
+            return () => list.removeEventListener("change", onChange)
+        },
+        () => window.matchMedia(query).matches,
+        () => false,
+    )
+}

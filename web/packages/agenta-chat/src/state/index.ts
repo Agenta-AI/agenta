@@ -19,6 +19,8 @@ export {
     FILES_PANE_MIN,
     FILES_PANE_MAX,
     AGENT_CONFIG_WIDTH,
+    panesCoexistMinWindow,
+    useCanPanesCoexist,
 } from "./panelLayout"
 
 export {sessionLocalSettledAtAtomFamily} from "./sessionMessages"
