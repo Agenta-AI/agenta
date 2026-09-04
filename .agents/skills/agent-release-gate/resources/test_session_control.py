@@ -121,6 +121,7 @@ def test_cell_names_are_stable_and_known():
         "records-outage",
         "stop-after-finish",
         "restart-after-stop",
+        "runner-gone",
         "post-stop-row",
         "codex-child",
         "stale-tail",

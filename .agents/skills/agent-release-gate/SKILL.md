@@ -183,7 +183,7 @@ mechanism-blind cell from scratch, to avoid duplicating scaffolding.
 
 ## Session control cells
 
-`resources/session_control.py` is a second, standalone driver: thirteen cells that cover Stop,
+`resources/session_control.py` is a second, standalone driver: fourteen cells that cover Stop,
 durable commands, and the runner's recovery paths (owner release, park/resume, watchdog
 quarantine). It drives the same product endpoint and asserts on the same wire, but it needs its
 own account bootstrap, so it runs as a separate process rather than as `qa_product.py` cells. See
@@ -204,9 +204,9 @@ Run every cell with one line:
 uv run resources/session_control.py --cells all --harness pi_core --sandbox local
 ```
 
-Add `--project <docker-compose project name>` to also run the seven cells that need direct
+Add `--project <docker-compose project name>` to also run the eight cells that need direct
 Docker and Postgres access (`sandbox-gone`, `records-outage`, `restart-after-stop`,
-`post-stop-row`, `codex-child`, `stale-tail`, plus the abort-log check inside
+`runner-gone`, `post-stop-row`, `codex-child`, `stale-tail`, plus the abort-log check inside
 `stop-after-finish`). Without `--project` those cells SKIP with a named reason; the other six
 (`stop-warm`, `double-send`, `stale-stop`, `stop-approval`, `stop-after-finish`,
 `repeat-stop`, `stop-during-completion`) run over HTTP alone against any deployment. Add

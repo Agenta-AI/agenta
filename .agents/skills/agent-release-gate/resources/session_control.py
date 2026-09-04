@@ -1308,6 +1308,99 @@ def cell_restart_after_stop(cfg, references, args, hooks: OperatorHooks) -> Cell
     )
 
 
+def cell_runner_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
+    """Restart the runner right after a Stop is claimed, before it can report the outcome.
+
+    The sweep must settle the command as `lost`, not `claimed`, after the stale threshold and
+    the sweep interval both pass. The session_streams row must then read `is_running: false`,
+    and a Send sent after that must run.
+    """
+    if not hooks.available:
+        return {}, _skip("no --project given: restarting the runner needs docker")
+    session_id = str(uuid.uuid4())
+    marker = f"FIG{uuid.uuid4().hex[:6].upper()}"
+    msgs = [user_msg(sleep_prompt(marker, 240))]
+    handle = invoke_async(session_id, msgs, cfg, references, "gone-turn1")
+    turn = wait_for_turn(session_id)
+    time.sleep(5)
+
+    # Stop first, then take the runner away before it can report the outcome.
+    stop = cancel(session_id, expected=turn, label="stop-then-kill")
+    kill_at = time.time()
+    hooks.kill_runner()
+    print(
+        f"[runner-gone] restarted the runner at {time.strftime('%H:%M:%S')}",
+        file=sys.stderr,
+    )
+    handle["thread"].join(timeout=60)
+
+    # Wait for the sweep. The plan budgets the stale threshold plus the sweep interval, held in
+    # --sweep-wait.
+    settled_at = None
+    terminal: list = []
+    deadline = time.time() + args.sweep_wait
+    while time.time() < deadline:
+        stream = session_stream(session_id)
+        flags = stream.get("flags") or {}
+        terminal = terminal_records(session_id, turn)
+        if terminal and not flags.get("is_running"):
+            settled_at = time.time()
+            break
+        time.sleep(5)
+
+    time.sleep(3)
+    commands = hooks.command_rows(session_id)
+    stream_row = hooks.stream_row(session_id)
+    matching = [c for c in commands if turn and c.get("target_turn_id") == turn]
+    stop_command = matching[-1] if matching else (commands[-1] if commands else None)
+    t2 = invoke(
+        session_id,
+        [user_msg(f"The codeword is {marker}. Reply with just the single word READY.")],
+        cfg,
+        references,
+        "gone-turn2",
+    )
+    evidence = {
+        "session_id": session_id,
+        "turn_id": turn,
+        "stop": stop,
+        "seconds_to_settle": round(settled_at - kill_at, 1) if settled_at else None,
+        "terminal_records": terminal,
+        "stream_after": session_stream(session_id),
+        "commands": commands,
+        "stop_command": stop_command,
+        "stream_row": stream_row,
+        "new_message_ran": bool(t2.get("frames")) and not t2.get("errors"),
+        "new_message_errors": t2.get("errors"),
+    }
+    if settled_at is None:
+        return evidence, _fail(
+            "no terminal record settled within the sweep-wait window after the runner was taken away"
+        )
+    if stop_command is None:
+        return evidence, _fail("no session_commands row was found for the Stop")
+    if stop_command.get("state") not in ("obsolete", "applied"):
+        return evidence, _fail(
+            f"the Stop command read state {stop_command.get('state')!r}, expected obsolete or applied"
+        )
+    if stop_command.get("outcome") != "lost":
+        return evidence, _fail(
+            f"the Stop command read outcome {stop_command.get('outcome')!r}, expected lost, not claimed"
+        )
+    if (stream_row.get("flags") or {}).get("is_running") is not False:
+        return evidence, _fail(
+            "the session_streams row did not read is_running: false after the sweep settled the command"
+        )
+    if not evidence["new_message_ran"]:
+        return evidence, _fail(
+            "the Send sent after the runner recovered did not run cleanly"
+        )
+    return evidence, _pass(
+        "the sweep settled the Stop as lost, the stream row read is_running: false, and the "
+        "next Send ran"
+    )
+
+
 def cell_post_stop_row(cfg, references, args, hooks: OperatorHooks) -> Cell:
     """After a Stop the row must read is_running: false within a few seconds."""
     if not hooks.available:
@@ -1595,6 +1688,7 @@ CELLS: dict[str, tuple[bool, str, "object"]] = {
     "records-outage": (True, "allow", cell_records_outage),
     "stop-after-finish": (False, "allow", cell_stop_after_finish),
     "restart-after-stop": (True, "allow", cell_restart_after_stop),
+    "runner-gone": (True, "allow", cell_runner_gone),
     "post-stop-row": (True, "allow", cell_post_stop_row),
     "codex-child": (True, "allow", cell_codex_child),
     "stale-tail": (True, "allow", cell_stale_tail),
