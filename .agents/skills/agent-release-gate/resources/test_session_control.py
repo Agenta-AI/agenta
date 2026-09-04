@@ -1143,6 +1143,104 @@ def test_recover_then_send_does_not_send_when_health_never_recovers():
     assert clock.now >= 6.0
 
 
+class _RunnerGoneStubHooks(sc.OperatorHooks):
+    """Records the order of pause/read/unpause and DB reads, so the runner-gone measurement can be
+    tested without Docker or Postgres. `settle_on_call` makes the command settle on the Nth poll."""
+
+    available = True
+
+    def __init__(self, *, command, executions, stream, settle_on_call=1):
+        self.calls: list[str] = []
+        self._command = command
+        self._executions = executions
+        self._stream = stream
+        self._settle_on_call = settle_on_call
+        self._cmd_calls = 0
+
+    def pause_runner(self) -> None:
+        self.calls.append("pause")
+
+    def unpause_runner(self) -> None:
+        self.calls.append("unpause")
+
+    def command_rows(self, session_id: str) -> list[dict]:
+        self._cmd_calls += 1
+        self.calls.append("command_rows")
+        return self._command if self._cmd_calls >= self._settle_on_call else []
+
+    def execution_rows(self, session_id: str) -> list[dict]:
+        self.calls.append("execution_rows")
+        return self._executions
+
+    def stream_row(self, session_id: str) -> dict:
+        self.calls.append("stream_row")
+        return self._stream
+
+
+def test_runner_gone_measurement_reads_is_running_while_paused():
+    """The is_running read must happen while the pause is still in effect: pause before the read,
+    unpause after it. Reading after the unpause would catch the returning runner's new turn."""
+    hooks = _RunnerGoneStubHooks(
+        command=[{"state": "applied", "outcome": "lost", "target_turn_id": "t1"}],
+        executions=[{"terminal_outcome": "execution_lost"}],
+        stream={"flags": {"is_running": False}},
+    )
+    stop_calls = []
+    terminal = [
+        {
+            "type": "error",
+            "attributes": {"code": "execution_lost", "settled_by": "watchdog"},
+        }
+    ]
+    clock = _FakeClock()
+    measured = sc._measure_runner_gone_while_paused(
+        hooks,
+        "sess",
+        "t1",
+        do_stop=lambda: (stop_calls.append("stop"), {"status": 202})[1],
+        read_terminal=lambda: terminal,
+        sweep_wait=60.0,
+        poll_interval=5.0,
+        clock=clock,
+    )
+    assert "pause" in hooks.calls and "unpause" in hooks.calls
+    assert (
+        hooks.calls.index("pause")
+        < hooks.calls.index("stream_row")
+        < hooks.calls.index("unpause")
+    )
+    assert measured["stream_row"] == {"flags": {"is_running": False}}
+    assert measured["stream_row"]["flags"]["is_running"] is False
+    assert measured["settled_at"] is not None
+    assert measured["paused_read_at"] is not None
+    assert stop_calls == ["stop"]
+
+
+def test_runner_gone_measurement_unpauses_even_when_it_never_settles():
+    """No settlement within the window still unpauses (never strand the runner) and still takes the
+    is_running read while paused, so the cell can report the timeout honestly."""
+    hooks = _RunnerGoneStubHooks(
+        command=[],
+        executions=[],
+        stream={"flags": {"is_running": True}},
+        settle_on_call=999,
+    )
+    clock = _FakeClock()
+    measured = sc._measure_runner_gone_while_paused(
+        hooks,
+        "sess",
+        "t1",
+        do_stop=lambda: {"status": 202},
+        read_terminal=lambda: [],
+        sweep_wait=6.0,
+        poll_interval=3.0,
+        clock=clock,
+    )
+    assert measured["settled_at"] is None
+    assert "unpause" in hooks.calls
+    assert hooks.calls.index("stream_row") < hooks.calls.index("unpause")
+
+
 def test_sandbox_gone_settle_budget_derives_from_probe_defaults():
     saved = sc.SANDBOX_STARTUP_SLACK_S
     sc.SANDBOX_STARTUP_SLACK_S = 0.0

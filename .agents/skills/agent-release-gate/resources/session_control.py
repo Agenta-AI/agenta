@@ -1015,6 +1015,76 @@ def _recover_then_send(health_poll, send, *, timeout, poll_interval, clock=time)
     return healthy, result
 
 
+def _measure_runner_gone_while_paused(
+    hooks,
+    session_id,
+    turn,
+    do_stop,
+    read_terminal,
+    *,
+    sweep_wait,
+    poll_interval=5.0,
+    clock=time,
+):
+    """Pause the runner, fire the Stop while it is gone, wait for the sweep to settle it lost, and
+    read is_running from the stream row WHILE THE RUNNER IS STILL PAUSED.
+
+    The pause is the whole assertion. "Runner gone" must be measured while the runner is still
+    gone: once it is unpaused it starts a new turn on the same session that legitimately sets
+    is_running true again, so a read after the unpause sees that new turn and misreads a healthy
+    recovery as a failure. Settlement is detected on the durable rows — the Stop command reaching
+    `obsolete`/`applied` with outcome `lost`, or an execution row carrying a terminal outcome —
+    not on the volatile stream. Unpauses on every path. Returns the paused measurements."""
+    stop = None
+    stop_at = None
+    settled_at = None
+    paused_read_at = None
+    stream_row = None
+    stop_command = None
+    commands: list = []
+    executions: list = []
+    terminal: list = []
+    hooks.pause_runner()
+    try:
+        stop = do_stop()
+        stop_at = clock.time()
+        deadline = clock.time() + sweep_wait
+        while True:
+            commands = hooks.command_rows(session_id)
+            stop_command = _match_stop_command(commands, turn)
+            executions = hooks.execution_rows(session_id)
+            command_settled = (
+                stop_command is not None
+                and stop_command.get("state") in ("obsolete", "applied")
+                and stop_command.get("outcome") == "lost"
+            )
+            execution_lost = any(e.get("terminal_outcome") for e in executions)
+            if command_settled or execution_lost:
+                settled_at = clock.time()
+                break
+            if clock.time() >= deadline:
+                break
+            clock.sleep(poll_interval)
+        terminal = read_terminal()
+        # THE gone-and-stays-gone read: is_running, taken while the runner is still paused.
+        stream_row = hooks.stream_row(session_id)
+        paused_read_at = clock.time()
+    finally:
+        # Unpause on every path: a paused runner left behind strands every later cell.
+        hooks.unpause_runner()
+    return {
+        "stop": stop,
+        "stop_at": stop_at,
+        "settled_at": settled_at,
+        "paused_read_at": paused_read_at,
+        "stream_row": stream_row,
+        "stop_command": stop_command,
+        "commands": commands,
+        "executions": executions,
+        "terminal": terminal,
+    }
+
+
 def api(method: str, path: str, *, timeout: float = 120.0, **kw) -> httpx.Response:
     headers = {
         "Authorization": STATE["credentials"],
@@ -2230,7 +2300,13 @@ def cell_runner_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
     or report the command at all, so it must stay `pending` until the stale threshold and the
     sweep interval both pass (--sweep-wait), at which point the sweep must settle it `lost`
     (state `obsolete` or `applied`, outcome `lost`) and write the execution's own watchdog
-    `execution_lost` ending. Unpause, confirm healthy, then send the next message.
+    `execution_lost` ending.
+
+    Every gone-and-stays-gone signal — the settled command, the watchdog ending, and is_running:
+    false — is read WHILE THE RUNNER IS STILL PAUSED. Reading after the unpause is the run-2b bug:
+    the returning runner starts a new turn on the same session that legitimately sets is_running
+    true. The unpause and the Send that follows are only a restore step plus an OPTIONAL, separately
+    recorded resumability check; they are not part of this cell's pass.
     """
     if not hooks.available:
         return {}, _skip("no --project given: pausing the runner needs docker")
@@ -2241,65 +2317,81 @@ def cell_runner_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
     turn = wait_for_turn(session_id)
     time.sleep(5)
 
-    hooks.pause_runner()
-    try:
-        # The runner is paused: it cannot claim or report the Stop. Fire it anyway — the API
-        # accepts and enqueues the command whether or not the runner is reachable.
-        stop = cancel(session_id, expected=turn, label="stop-then-pause")
-        stop_at = time.time()
-
-        # Wait for the sweep. The plan budgets the stale threshold plus the sweep interval,
-        # held in --sweep-wait.
-        settled_at = None
-        terminal: list = []
-        deadline = time.time() + args.sweep_wait
-        while time.time() < deadline:
-            stream = session_stream(session_id)
-            flags = stream.get("flags") or {}
-            terminal = terminal_records(session_id, turn)
-            if terminal and not flags.get("is_running"):
-                settled_at = time.time()
-                break
-            time.sleep(5)
-
-        time.sleep(3)
-        commands = hooks.command_rows(session_id)
-        stream_row = hooks.stream_row(session_id)
-    finally:
-        # Unpause even if the wait above raises: a paused runner left behind strands every
-        # cell that runs after this one.
-        hooks.unpause_runner()
-    healthy_after_s = hooks.wait_for_runner()
-
-    stop_command = _match_stop_command(commands, turn)
-
-    handle["thread"].join(timeout=60)
-    t2 = invoke(
+    # Pause, Stop, settle, and READ is_running all while the runner is still gone. Measuring after
+    # the unpause is the run-2b bug: the returning runner starts a new turn on the same session
+    # that legitimately sets is_running true, and the driver read that true.
+    measured = _measure_runner_gone_while_paused(
+        hooks,
         session_id,
-        [user_msg(f"The codeword is {marker}. Reply with just the single word READY.")],
-        cfg,
-        references,
-        "gone-turn2",
+        turn,
+        do_stop=lambda: cancel(session_id, expected=turn, label="stop-then-pause"),
+        read_terminal=lambda: terminal_records(session_id, turn),
+        sweep_wait=args.sweep_wait,
     )
+    stop = measured["stop"]
+    settled_at = measured["settled_at"]
+    stop_command = measured["stop_command"]
+    terminal = measured["terminal"]
+    stream_row = measured["stream_row"]
+    paused_is_running = (
+        (stream_row.get("flags") or {}).get("is_running") if stream_row else None
+    )
+
+    # The runner is back. Restore health, then run an OPTIONAL, separately-recorded resumability
+    # check — a Send after health. It is NOT part of the runner-gone verdict: a returning runner
+    # starting a new turn is exactly the signal that must not count against "gone".
+    healthy_after_s = hooks.wait_for_runner()
+    resume: dict = {"attempted": False}
+    if healthy_after_s is not None:
+        handle["thread"].join(timeout=60)
+        runner_recovered, t2 = _recover_then_send(
+            health_poll=hooks.runner_healthy,
+            send=lambda: invoke(
+                session_id,
+                [
+                    user_msg(
+                        f"The codeword is {marker}. Reply with just the single word READY."
+                    )
+                ],
+                cfg,
+                references,
+                "gone-turn2",
+            ),
+            timeout=RECOVERY_HEALTH_TIMEOUT_S,
+            poll_interval=RECOVERY_HEALTH_POLL_S,
+        )
+        t2 = t2 or {}
+        resume = {
+            "attempted": True,
+            "runner_recovered": runner_recovered,
+            "ran": bool(t2.get("frames")) and not t2.get("errors"),
+            "errors": t2.get("errors"),
+        }
+
     evidence = {
         "session_id": session_id,
         "turn_id": turn,
         "stop": stop,
-        "seconds_to_settle": round(settled_at - stop_at, 1) if settled_at else None,
+        "settled_at": measured["settled_at"],
+        "paused_read_at": measured["paused_read_at"],
+        "seconds_to_settle": (
+            round(settled_at - measured["stop_at"], 1)
+            if settled_at and measured["stop_at"]
+            else None
+        ),
         "terminal_records": terminal,
-        "stream_after": session_stream(session_id),
-        "commands": commands,
+        "commands": measured["commands"],
+        "executions": measured["executions"],
         "stop_command": stop_command,
-        "stream_row": stream_row,
+        "stream_row_while_paused": stream_row,
+        "is_running_while_paused": paused_is_running,
         "healthy_after_unpause_s": healthy_after_s,
-        "new_message_ran": bool(t2.get("frames")) and not t2.get("errors"),
-        "new_message_errors": t2.get("errors"),
+        "resumability": resume,
     }
-    if healthy_after_s is None:
-        return evidence, _fail("the runner never reported healthy after the unpause")
+    # Gone-and-stays-gone verdict, every signal measured WHILE the runner was still paused.
     if settled_at is None:
         return evidence, _fail(
-            "no terminal record settled within the sweep-wait window while the runner was paused"
+            "the Stop was not settled lost within the sweep-wait window while the runner was paused"
         )
     if stop_command is None:
         return evidence, _fail("no session_commands row was found for the Stop")
@@ -2323,17 +2415,15 @@ def cell_runner_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
         return evidence, _fail(
             "no watchdog execution_lost ending was found among the terminal records"
         )
-    evidence["race"] = "never-reported"
-    if (stream_row.get("flags") or {}).get("is_running") is not False:
+    if paused_is_running is not False:
         return evidence, _fail(
-            "the session_streams row did not read is_running: false after the sweep settled the command"
+            "the session_streams row did not read is_running: false while the runner was still paused"
         )
-    if not evidence["new_message_ran"]:
-        return evidence, _fail("the Send sent after the unpause did not run cleanly")
+    evidence["race"] = "never-reported"
     return evidence, _pass(
-        "pausing the runner first deterministically forced the never-reported race: the sweep "
-        "settled the Stop lost with a watchdog execution_lost ending, the stream row read "
-        "is_running: false, and the next Send ran"
+        "pausing the runner first forced the never-reported race: while the runner was still gone "
+        "the sweep settled the Stop lost with a watchdog execution_lost ending and the stream row "
+        "read is_running: false"
     )
 
 
