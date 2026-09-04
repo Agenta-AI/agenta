@@ -52,30 +52,46 @@ const toUnixMs = (value: string | null | undefined): number => {
     return Number.isFinite(timestamp) ? timestamp : 0
 }
 
-const getWorkflowRecencyScore = (workflow: Workflow | null | undefined): number => {
+const workflowRecencyScore = (workflow: Workflow | null | undefined): number => {
     if (!workflow) return 0
-    return (
-        toUnixMs(workflow.created_at) ||
-        toUnixMs(workflow.updated_at) ||
-        Number(workflow.version ?? 0)
-    )
+    return toUnixMs(workflow.created_at) || toUnixMs(workflow.updated_at)
 }
 
-const selectMostRecentWorkflowRevision = (
-    workflows: (Workflow | null | undefined)[],
-): Workflow | undefined => {
-    let latest: Workflow | undefined
-    let latestScore = -1
+/**
+ * Is `a` a later revision than `b`?
+ *
+ * VERSION decides, not the timestamp. `version` is server-assigned and monotonic; `created_at` is
+ * not a reliable ordering — revisions committed by the agent land in bursts that tie to the second,
+ * and a tie used to fall through to array order and pick an arbitrary revision as "latest".
+ *
+ * Timestamps stay as the tie-break for revisions that share a version.
+ *
+ * `store.ts` carries the same rule. It cannot be shared from there — `state/` imports this
+ * module, not the reverse — and this copy exists to stop the two diverging: what stood here was
+ * the timestamp-first picker commit 0c9b25b7e2 already replaced on the store side.
+ */
+const isLaterWorkflowRevision = (
+    a: Workflow | null | undefined,
+    b: Workflow | null | undefined,
+): boolean => {
+    if (!a) return false
+    if (!b) return true
+    const aVersion = Number(a.version ?? 0)
+    const bVersion = Number(b.version ?? 0)
+    if (aVersion !== bVersion) return aVersion > bVersion
+    return workflowRecencyScore(a) > workflowRecencyScore(b)
+}
 
-    for (const workflow of workflows) {
-        if (!workflow) continue
-        // Skip v0 revisions (auto-created initial revisions with no useful data)
-        if ((workflow.version ?? 0) === 0) continue
-        const score = getWorkflowRecencyScore(workflow)
-        if (!latest || score > latestScore) {
-            latest = workflow
-            latestScore = score
-        }
+/** The newest real revision in a list. Version-0 placeholders carry no config and never win. */
+const pickMostRecentWorkflowRevision = (
+    revisions: (Workflow | null | undefined)[],
+): Workflow | null => {
+    let latest: Workflow | null = null
+
+    for (const revision of revisions) {
+        if (!revision) continue
+        if ((revision.version ?? 0) === 0) continue
+        if (isLaterWorkflowRevision(revision, latest)) latest = revision
     }
 
     return latest
@@ -1319,13 +1335,72 @@ export async function fetchWorkflowsBatch(
 
     for (const workflowId of workflowIds) {
         const candidates = groupedByWorkflowId.get(workflowId) ?? []
-        const mostRecent = selectMostRecentWorkflowRevision(candidates)
+        const mostRecent = pickMostRecentWorkflowRevision(candidates)
         if (mostRecent) {
             results.set(workflowId, mostRecent)
         }
     }
 
     return results
+}
+
+/**
+ * Classify workflows as agent / not-agent, in ONE bounded request.
+ *
+ * `is_agent` lives on the revision, never on the artifact, so the artifact list cannot answer
+ * this. Asking the revision query for `latest_per_artifact` gets the server to return one row per
+ * workflow — its real head, placeholder revisions skipped — instead of the entire history of each,
+ * which is what this used to cost through `fetchWorkflowsBatch`.
+ *
+ * Returns booleans, not revisions: a caller that wants the revision object wants a different
+ * cache entry, and mixing the two is what spread this fetch across six uncoordinated call sites.
+ *
+ * Endpoint: `POST /workflows/revisions/query`
+ *
+ * Raw axios rather than the Fern client this file's newer functions prefer: `latest_per_artifact`
+ * ships in the same change as this call, so the generated client does not carry it until the
+ * OpenAPI spec is regenerated. Migrate with the rest of this file once it does.
+ *
+ * @param projectId - Project ID
+ * @param workflowIds - Workflow IDs to classify
+ * @returns Map of workflow ID → whether its latest revision is an agent
+ */
+export async function fetchWorkflowAgentFlags(
+    projectId: string,
+    workflowIds: string[],
+    opts?: {lowPriority?: boolean},
+): Promise<Map<string, boolean>> {
+    const flags = new Map<string, boolean>()
+
+    if (!projectId || workflowIds.length === 0) return flags
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/workflows/revisions/query`,
+        {
+            workflow_refs: workflowIds.map((id) => ({id})),
+            workflow_revision: {latest_per_artifact: true},
+            // Archived workflows are classified too: the archived Agents tab needs them split the
+            // same way, and their revisions are not themselves archived.
+            include_archived: true,
+        },
+        {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
+    )
+
+    const validated = safeParseWithLogging(
+        workflowRevisionsResponseSchema,
+        response.data,
+        "[fetchWorkflowAgentFlags]",
+    )
+    if (!validated) return flags
+
+    // `workflowRevisionsResponseSchema` already parsed every row; re-parsing each one item by item
+    // (as `fetchWorkflowsBatch` does) just doubles the work on a payload we are here to shrink.
+    for (const revision of validated.workflow_revisions) {
+        const key = revision.workflow_id ?? revision.id
+        if (key) flags.set(key, revision.flags?.is_agent === true)
+    }
+
+    return flags
 }
 
 /**

@@ -14,16 +14,19 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 import {
     applyManualOrder,
+    applyManualOrderByActivity,
     SIDEBAR_AGENT_GROUP_ZONE,
     SIDEBAR_AGENT_ORDER_ZONE,
     SIDEBAR_STATUS_GROUP_ZONE,
     sidebarManualOrderAtomFamily,
     sidebarManualOrdersAtom,
+    sidebarReorderActiveAtom,
     sidebarSessionZone,
     withManualAgentRanks,
 } from "../reorder"
 import {
     sidebarAlwaysOpenGroupsAtomFamily,
+    sidebarOpenFilterMenusAtomFamily,
     sidebarOpenGroupsAtomFamily,
     sidebarPopupGroupsAtomFamily,
 } from "../state"
@@ -81,10 +84,6 @@ const SCOPE_SESSION_LIMIT: Record<string, number> = {
 }
 
 const scopeLimit = (scopeId: string) => SCOPE_SESSION_LIMIT[scopeId] ?? SIDEBAR_SESSION_LIMIT
-
-/** The fetched window, for a rail that renders all of it — so the two numbers cannot drift and
- * leave rows silently dropped between the request and the render. */
-export const sidebarSessionScopeLimit = scopeLimit
 
 /** Scopes whose rail groups and filters. Everything below is gated on this so a scope that does
  * neither issues exactly the request, and takes exactly the subscriptions, it always did. */
@@ -253,6 +252,161 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
             refetchInterval: (query) => livePollInterval(query.state.data),
             refetchOnWindowFocus: true,
         }
+    }),
+)
+
+/** Each page widens one request, so the last one is the most expensive — stop before it hurts. */
+const MAX_SESSION_PAGES = 12
+
+/** The predicate a page count belongs to — change it and the count is meaningless. */
+const filtersKey = (filters: SidebarSessionFilters) =>
+    [filters.agentIds.join(","), filters.status, filters.activity, filters.type].join("|")
+
+const sessionPageCountStateAtomFamily = atomFamily((_scopeId: string) =>
+    atom<{key: string; pages: number; boundary?: string}>({key: "", pages: 0}),
+)
+
+/**
+ * How many pages BEYOND the polling head the rail has asked for.
+ *
+ * Self-resetting: a stored count from another predicate reads as 0, so switching a facet drops
+ * you back to one page rather than firing a several-hundred-row request for a list you have not
+ * scrolled yet.
+ */
+export const sidebarSessionPageCountAtomFamily = atomFamily((scopeId: string) =>
+    atom(
+        (get) => {
+            const state = get(sessionPageCountStateAtomFamily(scopeId))
+            const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)))
+            return state.key === key ? state.pages : 0
+        },
+        (get, set, next: {pages: number; boundary?: string}) => {
+            const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)))
+            set(sessionPageCountStateAtomFamily(scopeId), {key, ...next})
+        },
+    ),
+)
+
+/**
+ * Where the tail starts, frozen when the first page is asked for.
+ *
+ * NOT re-read from the head: the head polls, so any new session shifts its oldest row, and a
+ * boundary taken live would re-key the tail query and refetch every loaded page on that tick.
+ * Frozen, the tail is fetched once per page and the head's churn stays the head's problem.
+ */
+const sidebarSessionBoundaryAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => {
+        const state = get(sessionPageCountStateAtomFamily(scopeId))
+        const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)))
+        return state.key === key ? state.boundary : undefined
+    }),
+)
+
+/** Oldest activity in the head window — where the next page starts. */
+const oldestActivity = (rows: readonly SessionStream[]): string | undefined => {
+    let oldest: string | undefined
+    for (const row of rows) {
+        const at = row.updated_at ?? row.created_at
+        if (!at) continue
+        if (!oldest || at < oldest) oldest = at
+    }
+    return oldest
+}
+
+/**
+ * Sessions older than the polling head, one page per request.
+ *
+ * Deliberately NOT polled: a refetch interval on an accumulating list costs one request per page
+ * per tick. Liveness stays on the head, which every changed row re-enters — activity ordering
+ * means a session that just did something IS newest — so a stale copy down here always loses the
+ * dedupe to the fresh one above.
+ */
+const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
+    atomWithQuery<SessionStream[] | null>((get) => {
+        const projectId = get(projectIdAtom)
+        const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
+        const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
+        const {agentIds, flags, includeArchived, origin, excludeOrigin, oldest} =
+            requestFilters(filters)
+        const boundary = get(sidebarSessionBoundaryAtomFamily(scopeId))
+        return {
+            // `projectId` stays at index 1: `keepPreviousDataWithinProject` reads that slot to
+            // tell a facet change from a project switch.
+            queryKey: [
+                "sidebar-sessions",
+                projectId,
+                "older",
+                filters.agentIds,
+                filters.status,
+                filters.activity,
+                filters.type,
+                boundary ?? null,
+                pages,
+            ],
+            queryFn: ({signal}) =>
+                queryByAgents(agentIds, (references) =>
+                    querySessions({
+                        projectId: projectId ?? "",
+                        references,
+                        flags,
+                        includeArchived,
+                        origin,
+                        excludeOrigin,
+                        // The activity floor still applies; the boundary only narrows it further.
+                        oldest,
+                        newest: boundary,
+                        limit: scopeLimit(scopeId) * pages,
+                        order: "descending",
+                        abortSignal: signal,
+                        lowPriority: true,
+                    }),
+                ),
+            // Nothing to page until the head has landed, and no pages asked for yet.
+            enabled: Boolean(projectId) && pages > 0 && Boolean(boundary),
+            placeholderData: keepPreviousDataWithinProject(scopeId, projectId),
+            staleTime: 30_000,
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
+
+/**
+ * What the rail needs to page: whether more exist, whether a page is in flight, and how to ask.
+ *
+ * `loadMore` widens the window rather than appending a cursor page, so every reload re-reads the
+ * whole tail — which is also what lets a row archived elsewhere disappear from it.
+ */
+export const sidebarSessionPagingAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => {
+        const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
+        const head = get(sidebarSessionsQueryAtomFamily(scopeId))
+        const older = get(sidebarSessionsOlderQueryAtomFamily(scopeId))
+        const pageSize = scopeLimit(scopeId)
+        const headFull = (head.data?.length ?? 0) >= pageSize
+        // A short page is the end of the list; a full one means there is probably another.
+        const olderFull = (older.data?.length ?? 0) >= pageSize * pages
+        return {
+            hasMore: pages < MAX_SESSION_PAGES && (pages === 0 ? headFull : olderFull),
+            isLoadingMore: older.isFetching,
+            isError: older.isError,
+        }
+    }),
+)
+
+/** Ask for one more page. No-op mid-drag: the engine caches every row's rect at dragstart. */
+export const loadMoreSidebarSessionsAtomFamily = atomFamily((scopeId: string) =>
+    atom(null, (get, set) => {
+        if (get(sidebarReorderActiveAtom)) return
+        const paging = get(sidebarSessionPagingAtomFamily(scopeId))
+        if (!paging.hasMore || paging.isLoadingMore) return
+        const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
+        // The first page fixes the boundary off the head as it stands right now; later pages keep
+        // it, so the tail is not re-fetched every time the head polls.
+        const boundary =
+            get(sidebarSessionBoundaryAtomFamily(scopeId)) ??
+            oldestActivity(get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? [])
+        if (!boundary) return
+        set(sidebarSessionPageCountAtomFamily(scopeId), {pages: pages + 1, boundary})
     }),
 )
 
@@ -457,10 +611,17 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
             (row) => !pinned.has(row.session_id),
         )
 
+        // Pages past the head. They trail it, and `uniqueBySession` keeps the head's copy of any
+        // row that has since climbed back into it.
+        const olderRows = (get(sidebarSessionsOlderQueryAtomFamily(scopeId)).data ?? []).filter(
+            (row) => !pinned.has(row.session_id),
+        )
+
         const isRef = (ref: SessionSidebarRef | null): ref is SessionSidebarRef => ref !== null
         const server = [
             ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
             ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
+            ...olderRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
         ]
         const all = withLocalSessions(
             server,
@@ -533,9 +694,15 @@ const applyManualSessionOrder = (
     const out: SessionSidebarRef[] = []
     for (const [key, bucket] of buckets) {
         const order = orderFor(sidebarSessionZone(key))
-        // A session the arrangement has not seen leads: you just started it.
+        // Unseen rows place by activity: a newer one is a session you just started and leads; the
+        // older ones a later page brings in trail, instead of hoisting over the arrangement.
         const sorted = order.length
-            ? applyManualOrder(bucket, (row) => row.sessionId, order, "lead")
+            ? applyManualOrderByActivity(
+                  bucket,
+                  (row) => row.sessionId,
+                  (row) => row.activityAt,
+                  order,
+              )
             : bucket
         if (sorted.some((row, index) => row !== bucket[index])) changed = true
         out.push(...sorted)
@@ -771,6 +938,14 @@ const sessionsGroupOpen = (get: Getter, scopeId: string): boolean => {
     return (alwaysOpen || inlineOpen || popupOpen) && get(idleReadyAtom)
 }
 
+/**
+ * Is the Sessions filter menu open? The Agent facet's catalog hangs off this rather than off the
+ * group, because the Sessions group is always open and so gates nothing.
+ */
+const sessionFilterMenuOpen = (get: Getter, scopeId: string): boolean =>
+    get(sidebarOpenFilterMenusAtomFamily(scopeId)).includes(SESSIONS_SIDEBAR_KEY) &&
+    get(idleReadyAtom)
+
 /** The window the agent ranking counts over. The server caps a page at 200; a project with more
  * sessions than this ranks its long tail by catalog order, which is stable and good enough. */
 const AGENT_RANK_WINDOW = 200
@@ -855,19 +1030,35 @@ export const sidebarAgentRanksAtomFamily = atomFamily((scopeId: string) =>
 /**
  * Agents the filter can narrow to, from the same catalog the Agents group lists.
  *
- * Gated on the Sessions group being open, exactly like the session query itself: the filter is
- * only reachable from an open group, and an ungated read would pull the agent catalog on every
- * sidebar mount. Derived from the catalog rather than from the loaded sessions on purpose —
- * options taken from the current rows would collapse to one entry as soon as a filter applied.
+ * Gated on the FILTER MENU being open, not on the Sessions group. The group is `alwaysOpen`, so a
+ * group-level gate is always true and this pulled the whole agent catalog on every sidebar mount,
+ * on every page — the catalog costs a revision fetch per workflow, and nothing on screen needed it
+ * until someone opened the menu. Derived from the catalog rather than from the loaded sessions on
+ * purpose — options taken from the current rows would collapse to one entry as soon as a filter
+ * applied.
  */
 export const sidebarSessionAgentOptionsAtomFamily = atomFamily((scopeId: string) =>
     atom<{value: string; label: string}[]>((get) => {
-        if (!sessionsGroupOpen(get, scopeId)) return []
+        if (!sessionFilterMenuOpen(get, scopeId)) return []
 
         const agents = get(agentWorkflowsListQueryStateAtom)
         return agents.data.map((agent) => ({
             value: agent.id,
             label: agent.name || agent.slug || "Untitled agent",
         }))
+    }),
+)
+
+/**
+ * Is the Agent facet's catalog still resolving?
+ *
+ * Deferring the fetch to menu-open means the facet is briefly empty, and an empty facet reads as
+ * "this project has no agents". The menu renders a placeholder off this instead. Gated the same
+ * way, so reading it never starts the fetch either.
+ */
+export const sidebarSessionAgentOptionsPendingAtomFamily = atomFamily((scopeId: string) =>
+    atom<boolean>((get) => {
+        if (!sessionFilterMenuOpen(get, scopeId)) return false
+        return get(agentWorkflowsListQueryStateAtom).isPending
     }),
 )

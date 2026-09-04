@@ -45,10 +45,12 @@ import "./snapshotAdapter"
 export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./state/molecule"
 
 export {
+    agentFlagsQueryOptions,
     deriveWorkflowTypeFromRevision,
-    fetchAndClassifyWorkflows,
-    filterAgentWorkflows,
-    filterNonAgentWorkflows,
+    ensureAgentFlags,
+    selectAgentWorkflows,
+    selectNonAgentWorkflows,
+    withAgentFlags,
 } from "./state/helpers"
 
 // Per-harness capability map from the `/inspect` response `meta` (agent playground picker).
@@ -225,6 +227,7 @@ export {
     archiveWorkflowVariant,
     unarchiveWorkflow,
     // Batch
+    fetchWorkflowAgentFlags,
     fetchWorkflowsBatch,
     // Schema
     fetchAgTypeSchema,
@@ -250,6 +253,8 @@ export {
     appWorkflowsListQueryStateAtom,
     promptWorkflowsListQueryStateAtom,
     agentWorkflowsListQueryStateAtom,
+    appWorkflowsAgentFlagsQueryAtom,
+    appWorkflowsWithAgentFlagsAtom,
     // Single workflow artifact by id (current-workflow resolution without listing all)
     workflowDetailQueryAtomFamily,
     // Union atoms (app + evaluator combined)

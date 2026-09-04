@@ -8,6 +8,7 @@ import {
 } from "@agenta/navigation"
 import {SidebarConfig} from "@agenta/navigation"
 import {HOME_SIDEBAR_KEY, MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "@agenta/navigation"
+import {loadMoreSidebarSessionsAtomFamily} from "@agenta/navigation"
 import {SessionFilterMenu} from "@agenta/navigation-ui"
 import {
     ChartLineUpIcon,
@@ -22,7 +23,7 @@ import {
     RobotIcon,
     ChatsCircleIcon,
 } from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {getEntityKindIcon} from "@/oss/components/References"
 import useURL from "@/oss/hooks/useURL"
@@ -49,6 +50,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
     const {appId: routedAppId, routeLayer} = useAppState()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
     const dynamicChildren = useSidebarDynamicChildren()
+    const loadMoreSessions = useSetAtom(loadMoreSidebarSessionsAtomFamily(MAIN_SIDEBAR_SCOPE_ID))
     const homeNavInert = useAtomValue(homeNavInertAtom)
     const deadEndNavDisabled = useAtomValue(deadEndNavDisabledAtom)
     const hideAdvancedNav = useAtomValue(advancedNavHiddenAtom)
@@ -116,6 +118,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 // The rail does not scroll; THIS group does. Sessions is the only list that grows
                 // without bound, so the entries after it stay on screen.
                 scrollChildren: true,
+                onReachEnd: loadMoreSessions,
                 groupAction: <SessionFilterMenu scopeId={MAIN_SIDEBAR_SCOPE_ID} />,
             },
             {
@@ -173,7 +176,15 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 disabled: !hasProjectURL,
             },
         ],
-        [baseAppURL, deadEndNavDisabled, hasProjectURL, hideAdvancedNav, homeNavInert, projectURL],
+        [
+            baseAppURL,
+            deadEndNavDisabled,
+            hasProjectURL,
+            hideAdvancedNav,
+            homeNavInert,
+            loadMoreSessions,
+            projectURL,
+        ],
     )
 
     const appItems = useMemo<SidebarConfig[]>(() => {

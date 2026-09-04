@@ -52,10 +52,12 @@ export {
 // ============================================================================
 
 export {
+    agentFlagsQueryOptions,
     deriveWorkflowTypeFromRevision,
-    fetchAndClassifyWorkflows,
-    filterAgentWorkflows,
-    filterNonAgentWorkflows,
+    ensureAgentFlags,
+    selectAgentWorkflows,
+    selectNonAgentWorkflows,
+    withAgentFlags,
 } from "./helpers"
 
 // ============================================================================
@@ -72,6 +74,8 @@ export {
     appWorkflowsListQueryStateAtom,
     promptWorkflowsListQueryStateAtom,
     agentWorkflowsListQueryStateAtom,
+    appWorkflowsAgentFlagsQueryAtom,
+    appWorkflowsWithAgentFlagsAtom,
     // Single workflow artifact by id (current-workflow resolution without listing all)
     workflowDetailQueryAtomFamily,
     // Variant/Revision list queries (for 3-level hierarchy)

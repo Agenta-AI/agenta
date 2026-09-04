@@ -11,11 +11,12 @@ import {createPaginatedEntityStore} from "@agenta/entities/shared"
 import type {InfiniteTableFetchResult} from "@agenta/entities/shared"
 import {
     deriveWorkflowTypeFromRevision,
+    ensureAgentFlags,
     fetchWorkflowsBatch,
-    filterAgentWorkflows,
-    filterNonAgentWorkflows,
     parseWorkflowKeyFromUri,
     queryWorkflows,
+    selectAgentWorkflows,
+    selectNonAgentWorkflows,
 } from "@agenta/entities/workflow"
 import type {Workflow, WorkflowType} from "@agenta/entities/workflow"
 import {queryClient} from "@agenta/shared/api"
@@ -213,13 +214,10 @@ async function fetchArchivedAppWorkflows(meta: AppWorkflowQueryMeta) {
         .filter(isArchivedWorkflow)
         .sort(compareDeletedAtDesc)
 
-    const latestRevisions = await fetchWorkflowsBatch(
-        meta.projectId,
-        archivedWorkflows.map((workflow) => workflow.id),
-    )
+    const agentFlags = await ensureAgentFlags(meta.projectId)
     return meta.agentScope
-        ? filterAgentWorkflows(archivedWorkflows, latestRevisions)
-        : filterNonAgentWorkflows(archivedWorkflows, latestRevisions)
+        ? selectAgentWorkflows(archivedWorkflows, agentFlags)
+        : selectNonAgentWorkflows(archivedWorkflows, agentFlags)
 }
 
 const skeletonDefaults: Partial<AppWorkflowRow> = {

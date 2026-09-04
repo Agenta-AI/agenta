@@ -1500,7 +1500,40 @@ class GitDAO(GitDAOInterface):
                     self.RevisionDBE.deleted_at.is_(None),  # type: ignore
                 )
 
-            if windowing:
+            # `revision_refs` names exact revisions, so collapsing to one per artifact would
+            # silently drop revisions the caller asked for by id. The explicit list wins.
+            latest_per_artifact = (
+                bool(revision_query.latest_per_artifact) and not revision_refs
+            )
+
+            if latest_per_artifact:
+                # Skip empty placeholder revisions — version "0" carrying no data and no flags.
+                # Nothing committed them, and on a multi-variant artifact one can hold a NEWER id
+                # than the real head, which would resolve the artifact to a row with no flags.
+                # A first commit lands ON version 0 and DOES carry data, so the data/flags arms
+                # are what keep a single-revision artifact from disappearing here.
+                stmt = stmt.filter(
+                    or_(
+                        self.RevisionDBE.version.is_(None),  # type: ignore
+                        self.RevisionDBE.version != "0",  # type: ignore
+                        self.RevisionDBE.data.isnot(None),  # type: ignore
+                        self.RevisionDBE.flags.isnot(None),  # type: ignore
+                    )
+                )
+
+                # Newest per artifact, by `id`, NEVER by `version`. Two reasons, both load-bearing:
+                #   - `version` is a nullable String column, so ordering by it is lexicographic —
+                #     "9" sorts above "10", which is wrong past nine commits.
+                #   - `version` counts revisions WITHIN a variant, so "max version per artifact"
+                #     is not even well defined for a multi-variant artifact.
+                # Ids are UUID7, so id order is commit order, and within a variant it is exactly
+                # version order.
+                stmt = stmt.distinct(self.RevisionDBE.artifact_id).order_by(  # type: ignore
+                    self.RevisionDBE.artifact_id,  # type: ignore
+                    self.RevisionDBE.id.desc(),  # type: ignore
+                )
+
+            elif windowing:
                 stmt = apply_windowing(
                     stmt=stmt,
                     DBE=self.RevisionDBE,
