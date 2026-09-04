@@ -69,6 +69,44 @@ describe("transcriptToMessages", () => {
         expect(transcriptToMessages([record("r1", {type: "done"})])).toBeNull()
     })
 
+    it("preserves a cancelled terminal as a neutral stopped turn", () => {
+        const messages = transcriptToMessages([
+            record("r1", {type: "message", text: "partial answer"}),
+            record("r2", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages?.[0]).toMatchObject({
+            role: "assistant",
+            parts: [{type: "text", text: "partial answer"}],
+            metadata: {runStopped: true},
+        })
+    })
+
+    it("keeps a stopped carrier when cancellation lands before any content", () => {
+        const messages = transcriptToMessages([
+            record("r1", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(messages).toEqual([
+            expect.objectContaining({
+                id: "r1",
+                role: "assistant",
+                parts: [],
+                metadata: {runStopped: true},
+            }),
+        ])
+    })
+
+    it("suppresses an abort error when the same durable turn is explicitly user-stopped", () => {
+        const messages = transcriptToMessages([
+            record("r1", {type: "error", message: "Request was aborted"}),
+            record("r2", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(messages?.[0].metadata).toEqual({runStopped: true})
+    })
+
     it("splits assistant turns on a `done` boundary into separate messages", () => {
         const messages = transcriptToMessages([
             record("r1", {type: "message", text: "first turn"}),

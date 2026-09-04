@@ -71,6 +71,8 @@ interface DraftMessage {
     runError?: string
     /** That error's stable failure class (`error.code`), so a reload keeps the callout's action. */
     runErrorCode?: string
+    /** The terminal `done` carried `stopReason:"cancelled"` — a user Stop, not a failure. */
+    runStopped?: boolean
 }
 
 interface TranscriptIndex {
@@ -579,6 +581,15 @@ export function transcriptToMessages(
                 current.paused = true
                 continue
             }
+            if (p.stopReason === "cancelled") {
+                // A Stop can land before the runner emitted any content. Keep a minimal assistant
+                // carrier so the neutral Stopped / Resend affordance still has a turn to attach to.
+                if (!current || current.role !== "assistant") {
+                    current = newDraft(row.id, "assistant")
+                    drafts.push(current)
+                }
+                current.runStopped = true
+            }
             // A resumed-then-completed turn is no longer paused.
             if (current?.paused) current.resumed = true
             if (current) current.paused = false
@@ -613,7 +624,7 @@ export function transcriptToMessages(
 
     const messages = drafts
         // A turn whose only content was the failure has no parts — keep it, or the error vanishes.
-        .filter((d) => d.parts.length > 0 || d.runError)
+        .filter((d) => d.parts.length > 0 || d.runError || d.runStopped)
         .map((d) => {
             // `getMessageTraceId`/`getMessageUsage` read exactly these, so the hover trace actions
             // and metrics bar light up on reload. traceId stays absent until the backend stamps one;
@@ -622,7 +633,8 @@ export function transcriptToMessages(
             if (d.traceId) metadata.traceId = d.traceId
             if (d.usage) metadata.usage = d.usage
             if (d.paused) metadata.paused = true
-            if (d.runError)
+            if (d.runStopped) metadata.runStopped = true
+            if (d.runError && !d.runStopped)
                 metadata.runError = {
                     message: d.runError,
                     ...(d.runErrorCode ? {code: d.runErrorCode} : {}),
