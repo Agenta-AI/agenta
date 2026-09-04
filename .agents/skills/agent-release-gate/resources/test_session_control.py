@@ -29,7 +29,13 @@ def test_cells_registry_is_internally_consistent():
 def test_null_hooks_raises_on_every_method():
     hooks = sc.NullHooks()
     assert hooks.available is False
-    for method in ("stream_row", "record_rows", "command_rows", "sandbox_procs"):
+    for method in (
+        "stream_row",
+        "record_rows",
+        "command_rows",
+        "execution_rows",
+        "sandbox_procs",
+    ):
         try:
             getattr(hooks, method)("x")
         except sc.HooksUnavailable:
@@ -285,6 +291,130 @@ def test_judge_restart_after_stop_fails_when_the_continuation_was_never_admitted
     verdict = sc._judge_restart_after_stop(evidence)
     assert verdict["pass"] is False
     assert "refused for the whole wait window" in verdict["why"]
+
+
+def test_match_stop_command_prefers_the_row_targeting_the_turn():
+    commands = [
+        {"id": "old", "target_turn_id": "turn-a", "state": "applied"},
+        {"id": "new", "target_turn_id": "turn-b", "state": "obsolete"},
+    ]
+    assert sc._match_stop_command(commands, "turn-b")["id"] == "new"
+
+
+def test_match_stop_command_falls_back_to_the_last_row_when_nothing_matches():
+    commands = [
+        {"id": "a", "target_turn_id": None},
+        {"id": "b", "target_turn_id": None},
+    ]
+    assert sc._match_stop_command(commands, "turn-x")["id"] == "b"
+    assert sc._match_stop_command(commands, None)["id"] == "b"
+
+
+def test_match_stop_command_returns_none_for_no_commands():
+    assert sc._match_stop_command([], "turn-a") is None
+
+
+class _StubSettlementHooks(sc.OperatorHooks):
+    """A hook stub whose command_rows/execution_rows are scripted per call, so
+    assert_command_settled can be tested without Docker or Postgres."""
+
+    available = True
+
+    def __init__(self, command_sequence, execution_sequence):
+        # Each is a list of return values, one per poll iteration; the last value repeats once
+        # exhausted, so a test can describe "stays this way forever" with one entry.
+        self._commands = command_sequence
+        self._executions = execution_sequence
+        self._i = 0
+
+    def command_rows(self, session_id: str) -> list[dict]:
+        i = min(self._i, len(self._commands) - 1)
+        return self._commands[i]
+
+    def execution_rows(self, session_id: str) -> list[dict]:
+        i = min(self._i, len(self._executions) - 1)
+        result = self._executions[i]
+        self._i += (
+            1  # advance once per poll iteration (execution_rows is always called)
+        )
+        return result
+
+
+def test_assert_command_settled_is_a_noop_without_hooks():
+    """A cell running without --project (NullHooks) must not be blocked by a check it has no
+    way to make — the cell's own hooks.available guard already SKIPs it where needed."""
+    result = sc.assert_command_settled(
+        sc.NullHooks(), "session-1", "turn-1", timeout=5.0
+    )
+    assert result == {
+        "settled": True,
+        "command": None,
+        "execution_rows": [],
+        "why": None,
+    }
+
+
+def test_assert_command_settled_passes_immediately_when_already_settled():
+    hooks = _StubSettlementHooks(
+        command_sequence=[
+            [{"id": "cmd-1", "target_turn_id": "turn-1", "state": "applied"}]
+        ],
+        execution_sequence=[
+            [{"execution_id": "exec-1", "terminal_outcome": "stopped"}]
+        ],
+    )
+    result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=5.0)
+    assert result["settled"] is True
+    assert result["why"] is None
+    assert result["command"]["state"] == "applied"
+    assert result["execution_rows"][0]["terminal_outcome"] == "stopped"
+
+
+def test_assert_command_settled_catches_the_repeat_stop_false_pass():
+    """The exact case this function exists to catch (2026-09-04): a command stuck `claimed`
+    forever with zero session_executions rows, even though every OTHER driver assertion (one
+    terminal trace record, a warm resume) would still pass. Must FAIL, fast (timeout=0 -> no
+    retry sleep), with a reason naming the stuck state."""
+    hooks = _StubSettlementHooks(
+        command_sequence=[
+            [
+                {
+                    "id": "cmd-1",
+                    "target_turn_id": "turn-1",
+                    "state": "claimed",
+                    "outcome": None,
+                }
+            ]
+        ],
+        execution_sequence=[[]],
+    )
+    result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=0)
+    assert result["settled"] is False
+    assert "claimed" in result["why"]
+
+
+def test_assert_command_settled_fails_when_no_command_row_exists():
+    hooks = _StubSettlementHooks(command_sequence=[[]], execution_sequence=[[]])
+    result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=0)
+    assert result["settled"] is False
+    assert "no session_commands row" in result["why"]
+
+
+def test_assert_command_settled_fails_on_more_than_one_execution_row():
+    hooks = _StubSettlementHooks(
+        command_sequence=[
+            [{"id": "cmd-1", "target_turn_id": "turn-1", "state": "applied"}]
+        ],
+        execution_sequence=[
+            [
+                {"execution_id": "exec-1", "terminal_outcome": "stopped"},
+                {"execution_id": "exec-2", "terminal_outcome": "stopped"},
+            ]
+        ],
+    )
+    result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=0)
+    assert result["settled"] is False
+    assert "exactly one session_executions row" in result["why"]
 
 
 def test_run_cell_finally_path_with_null_hooks_does_not_crash():

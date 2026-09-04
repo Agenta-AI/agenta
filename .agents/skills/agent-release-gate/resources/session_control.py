@@ -138,6 +138,9 @@ class OperatorHooks:
     def command_rows(self, session_id: str) -> list[dict]:
         raise HooksUnavailable
 
+    def execution_rows(self, session_id: str) -> list[dict]:
+        raise HooksUnavailable
+
     def wait_for_runner(self, *, timeout: float = 120.0) -> float | None:
         raise HooksUnavailable
 
@@ -301,6 +304,24 @@ class DockerComposeHooks(OperatorHooks):
             }
             for r in rows
             if len(r) >= 5
+        ]
+
+    def execution_rows(self, session_id: str) -> list[dict]:
+        rows = self.psql(
+            "agenta_ee_core",
+            "select execution_id, terminal_outcome, coalesce(settled_by,''), "
+            "coalesce(to_char(settled_at,'HH24:MI:SS.MS'),'') from session_executions "
+            f"where session_id = '{session_id}' order by settled_at",
+        )
+        return [
+            {
+                "execution_id": r[0],
+                "terminal_outcome": r[1] or None,
+                "settled_by": r[2] or None,
+                "settled_at": r[3] or None,
+            }
+            for r in rows
+            if len(r) >= 4
         ]
 
     def wait_for_runner(self, *, timeout: float = 120.0) -> float | None:
@@ -1125,6 +1146,75 @@ def _skip(why: str) -> dict:
     return {"pass": False, "skip": True, "why": why}
 
 
+def _match_stop_command(commands: list[dict], turn_id: str | None) -> dict | None:
+    """The Stop command for a given turn: the last command row targeting it, or (when the turn
+    id is unknown, or nothing targets it) the last command row overall. Shared by every cell that
+    needs to find "the command the Stop I just sent produced" among a session's command rows."""
+    matching = [c for c in commands if turn_id and c.get("target_turn_id") == turn_id]
+    return matching[-1] if matching else (commands[-1] if commands else None)
+
+
+def assert_command_settled(
+    hooks: OperatorHooks, session_id: str, turn_id: str | None, *, timeout: float = 20.0
+) -> dict:
+    """Poll for up to `timeout` seconds after a Stop for the durable settlement invariant every
+    Stop-issuing cell must observe: the session_commands row for the Stop reaches a terminal
+    state (`applied` or `obsolete` — never left `pending` or `claimed`), and exactly one
+    session_executions row exists for the stopped session with a non-empty terminal outcome. This
+    is the check that would have caught the repeat-stop false pass on 2026-09-04 (session
+    190e9118: command stuck `claimed` forever, zero session_executions rows, yet every driver-
+    level assertion — one terminal trace record, a warm resume — still passed).
+
+    Returns a dict with `settled` (bool), `command`, `execution_rows`, and `why` (a one-line
+    reason, only set when `settled` is False). Never raises: a hookless run (`NullHooks`) reads
+    as `settled=True` with `why=None` so a cell that runs without --project is not blocked by a
+    check it has no way to make (the cell's own `hooks.available` guard already SKIPs it).
+    """
+    if not hooks.available:
+        return {"settled": True, "command": None, "execution_rows": [], "why": None}
+    deadline = time.time() + timeout
+    command: dict | None = None
+    executions: list[dict] = []
+    while True:
+        commands = hooks.command_rows(session_id)
+        command = _match_stop_command(commands, turn_id)
+        executions = hooks.execution_rows(session_id)
+        settled_command = command is not None and command.get("state") in (
+            "applied",
+            "obsolete",
+        )
+        settled_execution = len(executions) == 1 and bool(
+            executions[0].get("terminal_outcome")
+        )
+        if settled_command and settled_execution:
+            return {
+                "settled": True,
+                "command": command,
+                "execution_rows": executions,
+                "why": None,
+            }
+        if time.time() >= deadline:
+            break
+        time.sleep(1)
+    if command is None:
+        why = "no session_commands row was found for the Stop"
+    elif command.get("state") not in ("applied", "obsolete"):
+        why = f"the Stop command was left {command.get('state')!r}, expected applied or obsolete"
+    elif len(executions) != 1:
+        why = (
+            "expected exactly one session_executions row for the stopped session, saw "
+            f"{len(executions)}"
+        )
+    else:
+        why = "the session_executions row settled with no terminal outcome"
+    return {
+        "settled": False,
+        "command": command,
+        "execution_rows": executions,
+        "why": why,
+    }
+
+
 def _judge_runner_gone(evidence: dict) -> dict:
     """Shared PASS rule for the runner-gone family (`runner-gone`, `runner-gone-late`).
 
@@ -1174,6 +1264,7 @@ def cell_stop_warm(cfg, references, args, hooks: OperatorHooks) -> Cell:
     turn = wait_for_turn(session_id)
     open_call = wait_for_tool(handle)
     stop = cancel(session_id, expected=turn, label="stop-warm")
+    settle = assert_command_settled(hooks, session_id, turn)
     handle["thread"].join(timeout=180)
     t1 = handle["out"] or {}
     time.sleep(4)
@@ -1189,6 +1280,7 @@ def cell_stop_warm(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "terminal_records": terminal_records(session_id, turn),
         "resume_recalled_marker": marker in (t2.get("text") or ""),
         "resume_elapsed_s": t2.get("elapsed_s"),
+        "command_settled": settle,
     }
     evidence["sandbox_ids"] = sandbox_ids(session_id)
     evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
@@ -1196,6 +1288,8 @@ def cell_stop_warm(cfg, references, args, hooks: OperatorHooks) -> Cell:
         return evidence, _fail(
             f"Stop returned HTTP {stop['status']}, expected 200 or 202"
         )
+    if not settle["settled"]:
+        return evidence, _fail(settle["why"])
     if not evidence["resume_recalled_marker"]:
         return evidence, _fail("warm resume did not recall the codeword")
     return evidence, _pass(
@@ -1274,6 +1368,9 @@ def cell_stale_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
     stale = cancel(session_id, expected=turn1, label="stale-stop")
     time.sleep(3)
     bare = cancel(session_id, label="bare-stop")
+    # The stale Stop (targets turn1, already settled) is expected to be REFUSED, not to produce
+    # a settlement of its own — only `bare` (the real Stop, targets the live turn2) must settle.
+    settle = assert_command_settled(hooks, session_id, turn2)
     handle["thread"].join(timeout=180)
     t2 = handle["out"] or {}
     time.sleep(4)
@@ -1287,6 +1384,7 @@ def cell_stale_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "bare_stop": bare,
         "turn2_elapsed_s": t2.get("elapsed_s"),
         "turn3_recalled_marker": marker in (t3.get("text") or ""),
+        "command_settled": settle,
     }
     evidence["sandbox_ids"] = sandbox_ids(session_id)
     evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
@@ -1294,6 +1392,8 @@ def cell_stale_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
         return evidence, _fail(
             f"stale Stop returned HTTP {stale['status']}, expected a mismatch status"
         )
+    if not settle["settled"]:
+        return evidence, _fail(settle["why"])
     if not evidence["turn3_recalled_marker"]:
         return evidence, _fail("turn 2 did not survive the stale Stop")
     return evidence, _pass("stale Stop was refused and turn 2 completed and survived")
@@ -1312,6 +1412,7 @@ def cell_stop_approval(cfg_ask, references_ask, args, hooks: OperatorHooks) -> C
     stream_before = session_stream(session_id)
     expected = t1.get("turn_id") or stream_before.get("turn_id")
     stop = cancel(session_id, expected=expected, label="stop-approval-named")
+    settle = assert_command_settled(hooks, session_id, expected)
     time.sleep(3)
     pending = next((i for i in before if i.get("status") == "pending"), None)
     late = {"skipped": "no pending interaction was found before the Stop"}
@@ -1344,6 +1445,7 @@ def cell_stop_approval(cfg_ask, references_ask, args, hooks: OperatorHooks) -> C
         "resume_text": (t2.get("text") or "")[:400],
         "resume_frames": t2.get("frames", [])[:20],
         "resume_errors": t2.get("errors"),
+        "command_settled": settle,
     }
     evidence["sandbox_ids"] = sandbox_ids(session_id)
     evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
@@ -1355,6 +1457,8 @@ def cell_stop_approval(cfg_ask, references_ask, args, hooks: OperatorHooks) -> C
         return evidence, _fail(
             f"named Stop on a parked approval returned HTTP {stop['status']}, expected 200 or 202"
         )
+    if not settle["settled"]:
+        return evidence, _fail(settle["why"])
     if late.get("status") == 200:
         return evidence, _fail(
             "the late approval answer was accepted after the Stop settled it"
@@ -1693,8 +1797,7 @@ def cell_runner_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
         hooks.unpause_runner()
     healthy_after_s = hooks.wait_for_runner()
 
-    matching = [c for c in commands if turn and c.get("target_turn_id") == turn]
-    stop_command = matching[-1] if matching else (commands[-1] if commands else None)
+    stop_command = _match_stop_command(commands, turn)
 
     handle["thread"].join(timeout=60)
     t2 = invoke(
@@ -1802,8 +1905,7 @@ def cell_runner_gone_late(cfg, references, args, hooks: OperatorHooks) -> Cell:
     time.sleep(3)
     commands = hooks.command_rows(session_id)
     stream_row = hooks.stream_row(session_id)
-    matching = [c for c in commands if turn and c.get("target_turn_id") == turn]
-    stop_command = matching[-1] if matching else (commands[-1] if commands else None)
+    stop_command = _match_stop_command(commands, turn)
     t2 = invoke(
         session_id,
         [user_msg(f"The codeword is {marker}. Reply with just the single word READY.")],
@@ -1847,12 +1949,14 @@ def cell_post_stop_row(cfg, references, args, hooks: OperatorHooks) -> Cell:
             first_false_at = round(row.get("read_at", time.time()) - stop["sent_at"], 2)
             break
         time.sleep(0.1)
+    settle = assert_command_settled(hooks, session_id, turn)
     handle["thread"].join(timeout=180)
     evidence = {
         "session_id": session_id,
         "turn_id": turn,
         "stop": stop,
         "seconds_to_is_running_false": first_false_at,
+        "command_settled": settle,
     }
     if first_false_at is None:
         return evidence, _fail(
@@ -1862,6 +1966,8 @@ def cell_post_stop_row(cfg, references, args, hooks: OperatorHooks) -> Cell:
         return evidence, _fail(
             f"the row took {first_false_at}s to read is_running: false, expected under 5s"
         )
+    if not settle["settled"]:
+        return evidence, _fail(settle["why"])
     return evidence, _pass(
         f"the row read is_running: false {first_false_at}s after the Stop"
     )
@@ -1902,6 +2008,7 @@ def cell_codex_child(cfg, references, args, hooks: OperatorHooks) -> Cell:
             target_sandbox_id = observed_ids[-1] if observed_ids else None
         time.sleep(1)
     stop = cancel(session_id, expected=turn, label="stop-codex")
+    settle = assert_command_settled(hooks, session_id, turn)
     handle["thread"].join(timeout=180)
     gone_at = None
     deadline = time.time() + 45
@@ -1927,6 +2034,7 @@ def cell_codex_child(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "stop": stop,
         "seconds_until_child_gone": gone_at,
         "resume_recalled_marker": codeword in (t2.get("text") or ""),
+        "command_settled": settle,
     }
     if not child_before:
         return evidence, _fail(
@@ -1934,6 +2042,8 @@ def cell_codex_child(cfg, references, args, hooks: OperatorHooks) -> Cell:
         )
     if gone_at is None:
         return evidence, _fail("the child process was still alive 45s after the Stop")
+    if not settle["settled"]:
+        return evidence, _fail(settle["why"])
     if not evidence["resume_recalled_marker"]:
         return evidence, _fail(
             "the parked Codex sandbox did not recall the codeword on resume"
@@ -2011,6 +2121,7 @@ def cell_repeat_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
     t2.start()
     t1.join()
     t2.join()
+    settle = assert_command_settled(hooks, session_id, turn)
     handle["thread"].join(timeout=180)
     out = handle["out"] or {}
     time.sleep(4)
@@ -2027,6 +2138,7 @@ def cell_repeat_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "stops": results,
         "terminal_records": terminal_records(session_id, turn),
         "resume_recalled_marker": marker in (t3.get("text") or ""),
+        "command_settled": settle,
     }
     evidence["sandbox_ids"] = sandbox_ids(session_id)
     evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
@@ -2039,6 +2151,8 @@ def cell_repeat_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
         return evidence, _fail(
             f"expected exactly one terminal record for the turn, saw {len(evidence['terminal_records'])}"
         )
+    if not settle["settled"]:
+        return evidence, _fail(settle["why"])
     if not evidence["resume_recalled_marker"]:
         return evidence, _fail(
             "resume after the repeated Stop did not recall the codeword"
@@ -2092,6 +2206,17 @@ def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
         t.join()
     stop_window_s = round(time.time() - fired_at, 3)
 
+    def settle(s: dict) -> None:
+        s["command_settled"] = assert_command_settled(
+            hooks, s["session_id"], s["turn_id"]
+        )
+
+    settle_threads = [threading.Thread(target=settle, args=(s,)) for s in sessions]
+    for t in settle_threads:
+        t.start()
+    for t in settle_threads:
+        t.join()
+
     for s in sessions:
         s["handle"]["thread"].join(timeout=180)
         s["out"] = s["handle"]["out"] or {}
@@ -2117,6 +2242,7 @@ def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
                 "stop_round_trip_s": s["stop"]["round_trip_s"],
                 "terminal_record_count": len(s["terminal_records"]),
                 "resume_recalled_marker": s["resume_recalled_marker"],
+                "command_settled": s["command_settled"],
             }
             for s in sessions
         ],
@@ -2125,6 +2251,14 @@ def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
     if not_202:
         return evidence, _fail(
             f"{len(not_202)} of {n} concurrent Stops did not return HTTP 202: {not_202}"
+        )
+    unsettled = [
+        s["session_id"] for s in sessions if not s["command_settled"]["settled"]
+    ]
+    if unsettled:
+        return evidence, _fail(
+            f"{len(unsettled)} of {n} sessions did not settle their Stop command within "
+            f"20s: {unsettled}"
         )
     bad_terminal = [
         s["session_id"] for s in sessions if len(s["terminal_records"]) != 1
