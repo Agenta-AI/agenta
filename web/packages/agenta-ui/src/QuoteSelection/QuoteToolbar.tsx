@@ -46,7 +46,7 @@ export const QuoteToolbar = ({anchor, bounds, onCopy, onReply, touch}: QuoteTool
             data-quote-ignore="true"
             role="toolbar"
             aria-label="Quote actions"
-            className="absolute z-30 flex items-center gap-0.5 rounded-[9px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-1 shadow-lg"
+            className="absolute z-30 flex items-center gap-px rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-0.5 shadow-lg"
             style={{top, left, opacity: size.height ? 1 : 0}}
             // A mousedown inside the pill would collapse the very selection it acts on.
             onMouseDown={(e) => e.preventDefault()}
@@ -54,23 +54,23 @@ export const QuoteToolbar = ({anchor, bounds, onCopy, onReply, touch}: QuoteTool
             <button
                 type="button"
                 onClick={onCopy}
-                className={`flex cursor-pointer items-center gap-1.5 rounded-[7px] border-0 bg-transparent px-2.5 font-medium text-colorText hover:bg-colorFillTertiary ${
-                    touch ? "h-9 text-sm" : "h-7 text-xs"
+                className={`flex cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-2 font-medium text-colorText hover:bg-colorFillTertiary ${
+                    touch ? "h-8 text-xs" : "h-6 text-[11px]"
                 }`}
             >
-                <Copy size={touch ? 16 : 14} />
+                <Copy size={touch ? 14 : 12} />
                 Copy
             </button>
-            <span className="h-4 w-px bg-colorBorderSecondary" aria-hidden />
+            <span className="h-3 w-px bg-colorBorderSecondary" aria-hidden />
             <button
                 type="button"
                 onClick={onReply}
                 autoFocus
-                className={`flex cursor-pointer items-center gap-1.5 rounded-[7px] border-0 bg-transparent px-2.5 font-medium text-colorPrimary hover:bg-colorFillTertiary ${
-                    touch ? "h-9 text-sm" : "h-7 text-xs"
+                className={`flex cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-2 font-medium text-colorPrimary hover:bg-colorFillTertiary ${
+                    touch ? "h-8 text-xs" : "h-6 text-[11px]"
                 }`}
             >
-                <ChatCircleText size={touch ? 16 : 14} />
+                <ChatCircleText size={touch ? 14 : 12} />
                 Reply
             </button>
         </div>
