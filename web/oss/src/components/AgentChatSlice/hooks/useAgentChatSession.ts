@@ -53,6 +53,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {doesAgentChatStopKillSession} from "../assets/constants"
+import {stopWhileResolvingExecution} from "../assets/stopWhileResolvingExecution"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {useChatScopeKey} from "../state/scope"
 import {openSessionIdsAtomFamily} from "../state/sessions"
@@ -484,12 +485,16 @@ export const useAgentChatSession = ({
             stop()
             return
         }
-        const stream = await fetchSessionStream({sessionId, projectId}).catch(() => null)
-        stop()
-        await cancelSessionExecution({
-            sessionId,
-            projectId,
-            expectedExecutionId: stream?.turn_id ?? undefined,
+        await stopWhileResolvingExecution({
+            stop,
+            resolveExecutionId: async () =>
+                (await fetchSessionStream({sessionId, projectId}))?.turn_id ?? undefined,
+            cancelExecution: (expectedExecutionId) =>
+                cancelSessionExecution({
+                    sessionId,
+                    projectId,
+                    expectedExecutionId,
+                }),
         })
         // Refresh even on conflict because the session state is authoritative.
         void invalidateSessionInspector(queryClient, sessionId)
