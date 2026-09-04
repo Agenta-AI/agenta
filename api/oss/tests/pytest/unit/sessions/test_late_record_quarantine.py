@@ -101,9 +101,10 @@ class _StubDAO(RecordsDAOInterface):
 
 
 class _ExecutionSettlements:
-    def __init__(self, *, raises: bool = False):
+    def __init__(self, *, raises: bool = False, mark_raises: bool = False):
         self.rows: Dict[Tuple[str, str], SessionExecutionSettlement] = {}
         self.raises = raises
+        self.mark_raises = mark_raises
 
     async def settle(
         self,
@@ -135,6 +136,17 @@ class _ExecutionSettlements:
         if self.raises:
             raise RuntimeError("core database is unreachable")
         return {key: self.rows[key] for key in keys if key in self.rows}
+
+    async def mark_endings_written(self, *, project_id, keys, written_at=None):
+        if self.raises or self.mark_raises:
+            raise RuntimeError("core database is unreachable")
+        for key in keys:
+            if key in self.rows and self.rows[key].ending_written_at is None:
+                self.rows[key] = self.rows[key].model_copy(
+                    update={
+                        "ending_written_at": written_at or datetime.now(timezone.utc)
+                    }
+                )
 
 
 def _event(record_type: str, **over) -> SessionRecordEvent:
@@ -324,6 +336,45 @@ async def test_ingest_does_not_write_a_terminal_execution(monkeypatch):
     )
 
     assert executions.rows == {}
+
+
+async def test_ingest_marks_the_runners_terminal_record_written(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    executions = _ExecutionSettlements()
+    await executions.settle(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id=_TURN,
+        terminal_outcome="stopped",
+        settled_by="runner",
+    )
+    service = RecordsService(records_dao=_StubDAO(), executions_dao=executions)
+
+    await service.append_many(
+        events=[_event("done", attributes={"type": "done", "stopReason": "cancelled"})]
+    )
+
+    assert executions.rows[(_SESSION, _TURN)].ending_written_at is not None
+
+
+async def test_ending_marker_failure_does_not_fail_record_ingest(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    executions = _ExecutionSettlements(mark_raises=True)
+    await executions.settle(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id=_TURN,
+        terminal_outcome="stopped",
+        settled_by="runner",
+    )
+    dao = _StubDAO()
+    service = RecordsService(records_dao=dao, executions_dao=executions)
+
+    results = await service.append_many(events=[_event("done")])
+
+    assert len(results) == 1
+    assert [event.record_type for event in dao.appended] == ["done"]
+    assert executions.rows[(_SESSION, _TURN)].ending_written_at is None
 
 
 async def test_the_guard_asks_only_about_watchdog_endings():
