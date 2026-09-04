@@ -364,11 +364,7 @@ describe("useAgentChatQueue", () => {
 })
 
 describe("useAgentChatQueue: reclaiming a sent message", () => {
-    // Single-turn admission (#6417) refuses a message sent while another turn owns the session.
-    // A QUEUED message survives that on its own — it is still in `queued`. An immediately-sent one
-    // had nowhere to live: `submit` handed it to `sendQueued` and dropped it, so a refused send
-    // lost the user's text with no trace. `takeLastSent` is how the host puts it back in the
-    // composer.
+    // The host reclaims an immediate send only until the runner confirms admission.
 
     it("hands back the message that was sent immediately", () => {
         const {result} = setup(settledEmpty)
@@ -384,6 +380,41 @@ describe("useAgentChatQueue: reclaiming a sent message", () => {
             result.current.submit({text: "once"})
         })
         expect(result.current.takeLastSent()?.text).toBe("once")
+        expect(result.current.takeLastSent()).toBeUndefined()
+    })
+
+    it("keeps an attachment-only refused send recoverable", () => {
+        const {result} = setup(settledEmpty)
+        const stagedFiles = [{uid: "file-1", name: "brief.pdf", status: "done"}] as never
+        act(() => {
+            result.current.submit({text: "", stagedFiles})
+        })
+
+        expect(result.current.takeLastSent()).toMatchObject({text: "", stagedFiles})
+    })
+
+    it("does not clear recovery when dispatch only changes the stream status", () => {
+        const {result, rerender} = setup(settledEmpty)
+        act(() => {
+            result.current.submit({text: "sent"})
+        })
+        rerender({status: "streaming", messages: [userTurn("u1", "sent")], stopped: false})
+        expect(result.current.takeLastSent()?.text).toBe("sent")
+    })
+
+    it("clears recovery after a runner turn id confirms admission", () => {
+        const {result, rerender} = setup(settledEmpty)
+        act(() => {
+            result.current.submit({text: "admitted"})
+        })
+        rerender({
+            status: "streaming",
+            messages: [
+                userTurn("u2", "admitted"),
+                {...assistantText("a2", ""), metadata: {turnId: "turn-2"}},
+            ],
+            stopped: false,
+        })
         expect(result.current.takeLastSent()).toBeUndefined()
     })
 

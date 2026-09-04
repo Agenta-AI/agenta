@@ -5,10 +5,15 @@ import {canReleaseQueuedMessage, isHitlPending} from "@agenta/playground/agent-c
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
+import {latestTurnId} from "../assets/agentTurn"
+
+import type {ComposerAttachment} from "./useComposerAttachments"
+
 export interface QueuedMessage {
     id: string
     text: string
     fileParts?: FileUIPart[]
+    stagedFiles?: ComposerAttachment[]
 }
 
 interface UseAgentChatQueueArgs {
@@ -83,19 +88,13 @@ export const useAgentChatQueue = ({
         queuedRef.current = queued
     }, [queued])
 
-    /**
-     * The message this mount sent immediately, held until something claims it.
-     *
-     * A QUEUED message survives a failed turn on its own — it is in `queued`, which the dock
-     * renders and the store mirrors. An immediately-sent one had nowhere to live: `submit` handed
-     * it to `sendQueued` and dropped the object, so a send the backend refuses lost the user's
-     * text with no trace. `takeLastSent` is how the host gets it back and puts it in the composer.
-     *
-     * NOT re-queued automatically: the queue releases on a settled `"error"` status, which for a
-     * refusal ("another turn is running") would re-send and be refused again in a tight loop. The
-     * user decides when to send again.
-     */
+    // Retained until admission so a refused immediate send can return to the composer.
     const lastSentRef = useRef<QueuedMessage | undefined>(undefined)
+
+    const admittedTurnId = latestTurnId(messages)
+    useEffect(() => {
+        if (admittedTurnId) lastSentRef.current = undefined
+    }, [admittedTurnId])
 
     /** Take back the last immediately-sent message, once. */
     const takeLastSent = useCallback(() => {
@@ -106,7 +105,7 @@ export const useAgentChatQueue = ({
 
     // Send now only if idle, unlatched, and the queue is empty; otherwise append (FIFO).
     const submit = useCallback(
-        (item: {text: string; fileParts?: FileUIPart[]}) => {
+        (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const message: QueuedMessage = {...item, id: generateId()}
             if (!releasingRef.current && queuedRef.current.length === 0 && canReleaseNow) {
                 releasingRef.current = true
@@ -164,7 +163,7 @@ export const useAgentChatQueue = ({
      * so the text the session displaced has to come back here too or it is lost for good.
      */
     const commitEdit = useCallback(
-        (item: {text: string; fileParts?: FileUIPart[]}) => {
+        (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const id = editingId
             setEditingId(null)
             const draft = takeStash()
@@ -174,6 +173,7 @@ export const useAgentChatQueue = ({
                 return draft
             }
             const fileParts = [...(target.fileParts ?? []), ...(item.fileParts ?? [])]
+            const stagedFiles = [...(target.stagedFiles ?? []), ...(item.stagedFiles ?? [])]
             // Edited down to nothing and carrying no files: there is no message left to hold.
             if (!item.text.trim() && fileParts.length === 0) {
                 setQueued((q) => q.filter((m) => m.id !== id))
@@ -186,6 +186,7 @@ export const useAgentChatQueue = ({
                               ...m,
                               text: item.text,
                               fileParts: fileParts.length ? fileParts : undefined,
+                              stagedFiles: stagedFiles.length ? stagedFiles : undefined,
                           }
                         : m,
                 ),
@@ -209,8 +210,7 @@ export const useAgentChatQueue = ({
         releasingRef.current = true
         const [head, ...rest] = queued
         setQueued(rest)
-        // Reclaimable for the same reason as the immediate path: the release removed it from the
-        // queue, so a refusal would otherwise lose it.
+        // A released head also needs refusal recovery because it has left the queue.
         lastSentRef.current = head
         sendQueued(head)
     }, [settled, canReleaseNow, queued, sendQueued])

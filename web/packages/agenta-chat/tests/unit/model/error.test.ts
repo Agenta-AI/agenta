@@ -84,10 +84,7 @@ describe("parseAgentRunError", () => {
 })
 
 describe("single-turn admission refusal", () => {
-    // The runner refuses a message sent while another turn owns the session (#6417, #5539, #5538).
-    // Nothing ran and nothing was sent, so the client keeps the user's text instead of losing it.
-    // The message text is the contract with `services/runner/src/sessions/admission.ts`; it reaches
-    // the browser verbatim through the SDK's `sanitize_runner_error` and the Vercel egress.
+    // The runner refusal message is the browser recovery contract.
 
     it("recognises the refusal and carries its stable class", () => {
         expect(parseAgentRunError(new Error(SESSION_TURN_IN_USE_MESSAGE))).toEqual({
