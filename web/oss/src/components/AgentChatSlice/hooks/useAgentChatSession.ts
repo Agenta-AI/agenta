@@ -53,7 +53,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {doesAgentChatStopKillSession} from "../assets/constants"
-import {stopWhileResolvingExecution} from "../assets/stopWhileResolvingExecution"
+import {createStopPendingGate} from "../assets/stopWhileResolvingExecution"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {useChatScopeKey} from "../state/scope"
 import {openSessionIdsAtomFamily} from "../state/sessions"
@@ -111,6 +111,9 @@ export const useAgentChatSession = ({
     // can be missing/duplicated in restore/error paths and would otherwise smear the tag onto every
     // turn). Cleared on the next send/resend.
     const [stopped, setStopped] = useState(false)
+    const stopPendingGateRef = useRef<ReturnType<typeof createStopPendingGate> | null>(null)
+    if (!stopPendingGateRef.current) stopPendingGateRef.current = createStopPendingGate()
+    const stopPendingGate = stopPendingGateRef.current
 
     const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
@@ -208,10 +211,10 @@ export const useAgentChatSession = ({
 
     const {
         messages,
-        sendMessage,
+        sendMessage: sendChatMessage,
         status,
         stop,
-        regenerate,
+        regenerate: regenerateChatMessage,
         setMessages,
         addToolApprovalResponse,
         addToolOutput,
@@ -231,6 +234,17 @@ export const useAgentChatSession = ({
     messagesRef.current = messages
     const busyRef = useRef(busy)
     busyRef.current = busy
+
+    const sendMessage = useCallback(
+        (...args: Parameters<typeof sendChatMessage>) =>
+            stopPendingGate.runAfterPendingStop(() => sendChatMessage(...args)),
+        [sendChatMessage, stopPendingGate],
+    )
+    const regenerate = useCallback(
+        (...args: Parameters<typeof regenerateChatMessage>) =>
+            stopPendingGate.runAfterPendingStop(() => regenerateChatMessage(...args)),
+        [regenerateChatMessage, stopPendingGate],
+    )
 
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
@@ -485,7 +499,7 @@ export const useAgentChatSession = ({
             stop()
             return
         }
-        await stopWhileResolvingExecution({
+        await stopPendingGate.stopWhileResolvingExecution({
             stop,
             resolveExecutionId: async () =>
                 (await fetchSessionStream({sessionId, projectId}))?.turn_id ?? undefined,
@@ -499,7 +513,7 @@ export const useAgentChatSession = ({
         // Refresh even on conflict because the session state is authoritative.
         void invalidateSessionInspector(queryClient, sessionId)
         void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
-    }, [projectId, sessionId, queryClient, stop])
+    }, [projectId, sessionId, queryClient, stop, stopPendingGate])
 
     const handleStop = useCallback(() => {
         markStopped()
