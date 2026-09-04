@@ -5,6 +5,12 @@
  * `selectionchange` fires on every caret move and continuously through a drag-select, so the
  * handler early-exits on a collapsed selection BEFORE it touches the DOM, and everything past that
  * is coalesced into one rAF. With the feature flag down nothing is bound at all.
+ *
+ * Nothing is offered WHILE the pointer is down. The pill anchors on the selection's centre, so
+ * re-arming mid-drag walks it under the cursor — the pointer then enters the pill and the browser
+ * stops extending the selection, which reads as "I can only select a few words". The candidate is
+ * therefore computed on release (`mouseup`/`touchend`), and `selectionchange` only drives the
+ * keyboard path.
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
@@ -91,6 +97,7 @@ export const useQuoteSelection = ({
         if (!enabled) return
         let frame = 0
         let timer: ReturnType<typeof setTimeout> | undefined
+        let dragging = false
         const coarse = hasCoarsePointer()
 
         const evaluate = () => {
@@ -130,6 +137,9 @@ export const useQuoteSelection = ({
         }
 
         const schedule = () => {
+            // A drag in progress owns the pointer; offering the pill now would put it under the
+            // cursor and cut the selection short. The release handler picks it up.
+            if (dragging) return
             const selection = window.getSelection()
             // Early-exit before any DOM work — this is the hot path during a drag-select.
             if (!selection || selection.isCollapsed) {
@@ -138,6 +148,19 @@ export const useQuoteSelection = ({
             }
             if (frame) cancelAnimationFrame(frame)
             frame = requestAnimationFrame(evaluate)
+        }
+
+        /** A new press starts a fresh selection — drop the old pill and hold off until release. */
+        const onPointerDown = (e: PointerEvent) => {
+            if (e.button !== 0 || isOwnUi(e.target as Node)) return
+            dragging = true
+            if (candidateRef.current) setCandidate(null)
+        }
+
+        const onPointerUp = () => {
+            if (!dragging) return
+            dragging = false
+            scheduleSettled()
         }
 
         /** Touch reports its selection before the native callout lands; wait it out, then measure. */
@@ -172,6 +195,10 @@ export const useQuoteSelection = ({
         }
 
         document.addEventListener("selectionchange", schedule)
+        document.addEventListener("pointerdown", onPointerDown, true)
+        document.addEventListener("pointerup", onPointerUp, true)
+        // Pointer capture can swallow the release (a drag that ends outside the window).
+        document.addEventListener("pointercancel", onPointerUp, true)
         document.addEventListener("mouseup", scheduleSettled)
         document.addEventListener("keyup", schedule)
         document.addEventListener("touchend", scheduleSettled)
@@ -183,6 +210,9 @@ export const useQuoteSelection = ({
             if (frame) cancelAnimationFrame(frame)
             if (timer) clearTimeout(timer)
             document.removeEventListener("selectionchange", schedule)
+            document.removeEventListener("pointerdown", onPointerDown, true)
+            document.removeEventListener("pointerup", onPointerUp, true)
+            document.removeEventListener("pointercancel", onPointerUp, true)
             document.removeEventListener("mouseup", scheduleSettled)
             document.removeEventListener("keyup", schedule)
             document.removeEventListener("touchend", scheduleSettled)

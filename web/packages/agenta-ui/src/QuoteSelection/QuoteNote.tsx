@@ -48,7 +48,7 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: Quo
             data-quote-ignore="true"
             role="dialog"
             aria-label="Reply to the selected part"
-            className="absolute z-30 flex flex-col gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated p-2.5 shadow-xl"
+            className="absolute z-30 flex flex-col gap-2 rounded-[14px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-2.5 shadow-xl"
             style={{top, left, width, opacity: height ? 1 : 0}}
             onKeyDown={(e) => {
                 if (e.key === "Escape") {
