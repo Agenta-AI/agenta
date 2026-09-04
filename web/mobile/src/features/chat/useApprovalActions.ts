@@ -28,6 +28,8 @@ export interface ApprovalActions {
     respond: (args: {approvalId: string; approved: boolean; message?: string}) => void
     /** Approve every pending gate — one respond call per gate (the endpoint is per-interaction). */
     approveAll: () => void
+    /** Deny every pending gate. Optional: the engine-backed live path supplies no batch deny yet. */
+    denyAll?: () => void
 }
 
 /**
@@ -153,6 +155,9 @@ export const useApprovalActions = ({
     const approveAll = useCallback(() => {
         void submit({all: true}, true)
     }, [submit])
+    const denyAll = useCallback(() => {
+        void submit({all: true}, false)
+    }, [submit])
 
-    return {phase, errorText, respond, approveAll}
+    return {phase, errorText, respond, approveAll, denyAll}
 }
