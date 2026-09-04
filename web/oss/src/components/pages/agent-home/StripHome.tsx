@@ -284,8 +284,22 @@ const StripHome: React.FC = () => {
             <div className="mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto">
                 {/* `my-auto` (not `justify-center`) so the block still centres when it outgrows
                     the frame without clipping its top out of the scroller. */}
-                <div className={`flex w-full flex-col ${blankCreate ? "my-auto" : ""}`}>
-                    <div className="mx-auto flex w-full max-w-[840px] flex-col">
+                <div
+                    className={clsx(
+                        "flex w-full flex-col",
+                        blankCreate && "my-auto",
+                        // The step owns the frame: the card centres in it and the prompt is pushed
+                        // to the bottom by its own `mt-auto`, which needs the full height to push
+                        // against.
+                        setup.draft && "min-h-full flex-1",
+                    )}
+                >
+                    <div
+                        className={clsx(
+                            "mx-auto flex w-full max-w-[840px] flex-col",
+                            setup.draft && "my-auto",
+                        )}
+                    >
                         {creatingAgent && !isFirstRun ? (
                             <Link
                                 href={baseAppURL}
@@ -309,7 +323,8 @@ const StripHome: React.FC = () => {
                                     : HERO.title}
                             </Typography.Title>
                             <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
-                                {pickedTemplate ? TEMPLATE_HERO.subtitle : HERO.subtitle}
+                                {setup.draft?.seedMessage ??
+                                    (pickedTemplate ? TEMPLATE_HERO.subtitle : HERO.subtitle)}
                             </Typography.Text>
                         </div>
 
@@ -325,29 +340,7 @@ const StripHome: React.FC = () => {
                                     {provenance.chipNode}
                                 </div>
                             )}
-                            {setup.draft ? (
-                                // The step is open: what they asked for settles into a line above
-                                // the card, still editable, so the description stays on screen
-                                // rather than being replaced by a form.
-                                <div className="flex items-start gap-3 px-1 text-left">
-                                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                                            Building
-                                        </span>
-                                        <span className="text-sm leading-snug text-[var(--ag-colorText)]">
-                                            {setup.draft.seedMessage}
-                                        </span>
-                                    </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={handleEditDescription}
-                                        disabled={loading}
-                                    >
-                                        Edit
-                                    </Button>
-                                </div>
-                            ) : (
+                            {setup.draft ? null : (
                                 // First run has no agent to talk to, so the composer describes one
                                 // to create. Once agents exist the daily action is starting a task
                                 // with one of them — that composer lives on the shared Home above.
@@ -377,6 +370,27 @@ const StripHome: React.FC = () => {
                             />
                         ) : null}
                     </div>
+
+                    {/* The prompt the pick carries, docked where the composer sits and read-only:
+                        it is what the agent will be built from, not something to answer here — the
+                        card above is. Edit reopens it for typing. */}
+                    {setup.draft ? (
+                        <div className="mx-auto mt-auto w-full max-w-[840px] pt-8">
+                            <div className="flex items-start gap-3 rounded-xl border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)] px-4 py-3">
+                                <p className="m-0 min-w-0 flex-1 text-sm leading-snug text-[var(--ag-colorTextSecondary)]">
+                                    {setup.draft.seedMessage}
+                                </p>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleEditDescription}
+                                    disabled={loading}
+                                >
+                                    Edit
+                                </Button>
+                            </div>
+                        </div>
+                    ) : null}
 
                     {blankCreate || setup.draft ? null : (
                         <TemplateStrip
