@@ -478,56 +478,44 @@ export const useAgentChatSession = ({
 
     const projectId = useAtomValue(projectIdAtom)
 
-    /**
-     * Send the Stop, naming the execution we mean.
-     *
-     * The execution id is read FRESH from the session row rather than from the liveness query,
-     * which is a project-wide poll up to 15 seconds stale. A stale id would be refused with a
-     * conflict and the user's Stop would do nothing. When the row names no turn we send no
-     * expectation and let the API resolve the target, which is the same behaviour as before.
-     *
-     * A conflict means the run this tab was watching had already ended, so refresh rather than
-     * retry: the session's own state is the answer, never this response.
-     */
+    /** Capture the current execution before client stop unlocks the next send. */
     const stopCurrentExecution = useCallback(async () => {
-        if (!projectId || !sessionId) return
+        if (!projectId || !sessionId) {
+            stop()
+            return
+        }
         const stream = await fetchSessionStream({sessionId, projectId}).catch(() => null)
+        stop()
         await cancelSessionExecution({
             sessionId,
             projectId,
             expectedExecutionId: stream?.turn_id ?? undefined,
         })
-        // Refresh on every answer, conflict included. A conflict means the run this tab was
-        // watching had already ended, and the session's own state is what says so.
+        // Refresh even on conflict because the session state is authoritative.
         void invalidateSessionInspector(queryClient, sessionId)
         void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
-    }, [projectId, sessionId, queryClient])
+    }, [projectId, sessionId, queryClient, stop])
 
     const handleStop = useCallback(() => {
         markStopped()
-        // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
-        // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
+        // Stop clears the pending gate marker before it can block later record adoption.
         liveGateInteractionRef.current = null
-        stop() // abort the client stream immediately
-        if (!projectId || !sessionId) return
         // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.
         if (doesAgentChatStopKillSession()) {
+            stop()
+            if (!projectId || !sessionId) return
             killSession({sessionId, projectId})
                 .then((ok) => {
                     if (ok) {
                         queryClient.invalidateQueries({queryKey: ["session-liveness"]})
-                        // Refresh an open Inspector's Runtime lens so its Lifecycle/State reflect the
-                        // kill immediately (mirrors the panel's own Kill button).
+                        // Refresh an open Inspector so it reflects the kill immediately.
                         void invalidateSessionInspector(queryClient, sessionId)
                     }
                 })
                 .catch(() => {})
             return
         }
-        // Default Stop: cancel the CURRENT EXECUTION and keep the session warm. The API records a
-        // durable command and reaches the runner directly, so the turn stops in seconds instead of
-        // on the next heartbeat, and the sandbox and native harness session survive for the next
-        // message. This is not a kill: the session stays open and resumable.
+        // Default Stop cancels the current execution while preserving the warm session.
         void stopCurrentExecution()
     }, [markStopped, stop, projectId, sessionId, queryClient, stopCurrentExecution])
 
