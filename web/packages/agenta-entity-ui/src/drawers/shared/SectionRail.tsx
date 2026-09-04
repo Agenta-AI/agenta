@@ -40,11 +40,7 @@ export interface SectionRailProps {
      * internally-scrolling child. @default false (content-flow, natural height — the drawer case).
      */
     fill?: boolean
-    /**
-     * Run the divider past the host's 16px top/bottom body padding so it meets the drawer's header
-     * and footer rules instead of floating between them. The padding is restored inside the panel,
-     * so the content sits where it did. @default false
-     */
+    /** Bleed the divider past the host's 16px vertical padding, onto its rules. @default false */
     bleed?: boolean
     /** Right-hand content panel; separated from the rail by a left border. */
     children: ReactNode

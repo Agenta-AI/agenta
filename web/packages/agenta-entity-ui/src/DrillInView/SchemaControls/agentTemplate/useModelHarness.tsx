@@ -763,8 +763,7 @@ export function useModelHarness({
         </>
     )
 
-    // Rail panels: one per Advanced group, in the order the drawer nav lists them. Schema-gated, so
-    // a template without a group shows neither the rail item nor its panel.
+    // One rail panel per Advanced group, schema-gated: no group, no rail item and no panel.
     const advancedPanels: AdvancedPanel[] = (
         [
             hasPermissionsGroup && {
@@ -856,8 +855,7 @@ export function useModelHarness({
             activeAdvancedPanelBody
         )
 
-    // A focus filter narrows the body to the changed properties, where a nav would be noise — that
-    // path keeps the flat/grouped stack. Otherwise the rail is the drawer's shape.
+    // Under a focus filter the body is already narrowed, so it keeps the stack over the rail.
     const advancedDrawerBody = focus.active ? (
         <div className="flex h-full flex-col overflow-y-auto [&>*:last-child]:!border-b-0">
             {advancedControls}

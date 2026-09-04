@@ -74,9 +74,7 @@ export function SectionDrawer({
                 }
                 // The body itself doesn't scroll — the content (a full-height flex row) gives each
                 // panel its own overflow, so the left and right panels scroll independently.
-                // Tighter side inset than top/bottom: the rail sits right against the left edge,
-                // and 16px there read as a gutter. The vertical 16 is what the rail's `bleed`
-                // negates, so it stays put.
+                // Tighter at the sides; the vertical 16 is what the rail's `bleed` negates.
                 styles={{body: {padding: "16px 12px", overflow: "hidden"}}}
             >
                 {children}

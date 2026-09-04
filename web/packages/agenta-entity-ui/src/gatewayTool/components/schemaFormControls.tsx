@@ -237,14 +237,10 @@ export function MultiSelect({
 }
 
 /**
- * Free chip input (antd `Select mode="tags"`): type + Enter adds a chip, Backspace on an empty
- * input removes the last one.
+ * Free chip input (antd `Select mode="tags"`): type + Enter chips, Backspace on an empty input
+ * removes the last. `options` suggest; any typed value still lands.
  *
- * `options` are SUGGESTIONS, not a closed set — the field still takes any typed value. They used
- * to ride on a native `<datalist>`, which renders an unstyled OS popup, opens only on some
- * gestures and can't be keyboard-driven from our own markup. So the suggestion list is built here
- * on the same Popover + `role=listbox` + `aria-activedescendant` pattern as `Combobox`, and looks
- * like every other dropdown in the form.
+ * Suggestions use the `Combobox` pattern, not a `<datalist>` the keyboard can't reach.
  */
 export function ChipsInput({
     value,
@@ -270,8 +266,7 @@ export function ChipsInput({
     const listRef = useRef<HTMLDivElement>(null)
     const selected = value ?? []
 
-    // Stable ids so the input's aria-controls/aria-activedescendant can point at the listbox and
-    // the active row (WAI-ARIA combobox), the way `Combobox` does.
+    // Stable ids for the input's aria-controls/aria-activedescendant (WAI-ARIA combobox).
     const rid = useId()
     const listId = `${rid}-listbox`
     const optionId = (index: number) => `${rid}-opt-${index}`
@@ -318,9 +313,7 @@ export function ChipsInput({
             data-slot="chips-input"
             onMouseDown={(e) => {
                 if (disabled) return
-                // Focus by hand off the box chrome (Combobox does the same): letting the browser
-                // do it mid-gesture opens the list on a `focus` the rest of the click then
-                // reads as an interaction outside, and the list shuts again on mouseup.
+                // Focus by hand: browser focus opens a list the same click dismisses.
                 if (e.target !== inputRef.current) {
                     e.preventDefault()
                     inputRef.current?.focus()
@@ -387,8 +380,7 @@ export function ChipsInput({
                     add(draft)
                     setOpen(false)
                 }}
-                // antd's tags-mode search input is width-auto; an 80px floor pushed the caret
-                // onto a second line as soon as the chips filled the row.
+                // Width-auto like antd's tags input: a min-width floor wraps the caret.
                 className="h-6 min-w-[4px] flex-1 px-1"
             />
             {hasSuggestions && (
@@ -411,8 +403,7 @@ export function ChipsInput({
                 // Focus stays in the input — the list is driven by aria-activedescendant.
                 onOpenAutoFocus={(e) => e.preventDefault()}
                 onCloseAutoFocus={(e) => e.preventDefault()}
-                // The input lives in the ANCHOR, so every click and focus inside the field reads
-                // as "outside the layer" to Radix and would dismiss the list the moment it opened.
+                // The input is in the ANCHOR, so Radix reads clicks in the field as outside.
                 onPointerDownOutside={(e) => fromBox(e) && e.preventDefault()}
                 onFocusOutside={(e) => fromBox(e) && e.preventDefault()}
                 className="w-[var(--radix-popover-trigger-width)] p-1 font-portal"
