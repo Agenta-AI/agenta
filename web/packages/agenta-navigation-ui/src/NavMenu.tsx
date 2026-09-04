@@ -147,13 +147,13 @@ const rowClickHandler = (item: NavItem, onItemSelect?: NavMenuProps["onItemSelec
     return item.onClick
 }
 
-const RowLabel = ({
+const RowLabel = memo(function RowLabel({
     item,
     onItemSelect,
 }: {
     item: NavItem
     onItemSelect?: NavMenuProps["onItemSelect"]
-}) => {
+}) {
     // Rows truncate at almost every rail width, so the label carries its own hover text: the
     // entity's tooltip where it has one, the full title otherwise. `Tip` is the collapsed rail's,
     // and both list groups hide their children there.
@@ -189,11 +189,11 @@ const RowLabel = ({
     )
     // Per-row chrome (a kebab, a right-click menu) owns its own hooks — this only mounts it.
     return item.wrapRow ? item.wrapRow(label) : label
-}
+})
 
 /** A group heading inside a submenu — a label over the rows below it, never a row itself.
  * With `onClick` it folds the rows under it away, and grows a caret to say so. */
-const GroupLabelRow = ({item}: {item: NavItem}) => {
+const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
     const toggle = item.onClick
     if (!toggle)
         return (
@@ -238,9 +238,9 @@ const GroupLabelRow = ({item}: {item: NavItem}) => {
             </span>
         </div>
     )
-}
+})
 
-const LeafRow = ({
+const LeafRow = memo(function LeafRow({
     item,
     selected,
     onItemSelect,
@@ -248,7 +248,7 @@ const LeafRow = ({
     item: NavItem
     selected: boolean
     onItemSelect?: NavMenuProps["onItemSelect"]
-}) => {
+}) {
     const onClick = rowClickHandler(item, onItemSelect)
     // A controlled scope (Settings) gives its items `onItemSelect` and no `link`, so the row
     // is the only control there is — without this it is an unfocusable <div> wrapping a
@@ -281,7 +281,7 @@ const LeafRow = ({
             <RowLabel item={item} onItemSelect={onItemSelect} />
         </div>
     )
-}
+})
 
 /** Children of a collapsed-rail (or vertical-mode) group, flattened into a Radix flyout. */
 const FlyoutChildren = ({
