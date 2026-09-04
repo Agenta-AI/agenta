@@ -292,6 +292,7 @@ async def lifespan(*args, **kwargs):
             _lock_engine,
             records_service=records_service,
             watch_publisher=_sessions_watch_publisher,
+            commands_service=session_commands_service,
         )
     )
 
