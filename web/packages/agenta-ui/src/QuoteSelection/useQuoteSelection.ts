@@ -64,7 +64,7 @@ const sourceFrom = (el: HTMLElement): QuoteSource | null => {
     return null
 }
 
-const rectIn = (root: HTMLElement, range: Range): QuoteCandidate["rect"] | null => {
+export const rectIn = (root: HTMLElement, range: Range): QuoteCandidate["rect"] | null => {
     const box = range.getBoundingClientRect()
     // A row parked offscreen under `content-visibility:auto` measures as zero — never anchor to it.
     if (box.width === 0 && box.height === 0) return null
