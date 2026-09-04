@@ -371,197 +371,208 @@ const AgentComposerDock = ({
                         />
                     </div>
                 ) : null}
-                {/* Composer region hydrates independently (Lexical chunk); the fallback is the
+                {/* The connect step replaces the composer rather than docking above it (as it
+                    already does on /m). Leaving both up put two "Create agent" buttons on screen
+                    — and the composer's one only re-opened the step it was already showing. */}
+                {onboardingSetup?.draft ? null : (
+                    <>
+                        {/* Composer region hydrates independently (Lexical chunk); the fallback is the
                     same skeleton the pane-level gates render for this slot, so the box never
                     changes shape — the editor just materializes inside it. */}
-                <MicPermissionNotice
-                    className={CHAT_COLUMN}
-                    open={!!micError && !voiceRecorder.active}
-                    message={micError}
-                    onDismiss={dismissMicError}
-                />
-                {/* `mb-3` lives here, not on the input, so the recording overlay
+                        <MicPermissionNotice
+                            className={CHAT_COLUMN}
+                            open={!!micError && !voiceRecorder.active}
+                            message={micError}
+                            onDismiss={dismissMicError}
+                        />
+                        {/* `mb-3` lives here, not on the input, so the recording overlay
                 (inset-0) covers the composer box exactly. */}
-                <div className="relative mb-3" ref={composerBoxRef}>
-                    {slash.picker === "permissions" ? (
-                        <div
-                            className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}
-                        >
-                            <PermissionsPickerPanel
-                                current={slash.currentPermission}
-                                options={slash.permissionOptions}
-                                onApply={slash.applyPermission}
-                                onDismiss={dismissPicker}
-                                onBackToCommands={backToCommands}
-                                onOpenConfig={openPermissionsConfig}
+                        <div className="relative mb-3" ref={composerBoxRef}>
+                            {slash.picker === "permissions" ? (
+                                <div
+                                    className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}
+                                >
+                                    <PermissionsPickerPanel
+                                        current={slash.currentPermission}
+                                        options={slash.permissionOptions}
+                                        onApply={slash.applyPermission}
+                                        onDismiss={dismissPicker}
+                                        onBackToCommands={backToCommands}
+                                        onOpenConfig={openPermissionsConfig}
+                                    />
+                                </div>
+                            ) : null}
+                            {/* The catalog picker itself — controlled open, no trigger of its own. */}
+                            <SelectLLMProviderBase
+                                open={slash.picker === "model"}
+                                onOpenChange={(next) => {
+                                    if (!next) slash.closePicker()
+                                }}
+                                onDismissOutside={() => {
+                                    skipFocusRestoreRef.current = true
+                                }}
+                                onStepBack={backToCommands}
+                                anchorRef={composerBoxRef}
+                                hideTrigger
+                                showGroup
+                                showSearch
+                                searchPlaceholder="Search models"
+                                sectionTooltip={<HarnessTooltip />}
+                                options={slash.modelGroups}
+                                value={slash.currentModel}
+                                // The option carries a vault pick's connection slug + kind; `applyModel`
+                                // needs it to attach the right connection instead of guessing by model id.
+                                onChange={(next, option) => slash.applyModel(next, option)}
+                                searchSuffix="/model"
+                                panelFooter={
+                                    <div className="flex items-center gap-1.5 text-[10.5px] text-[var(--ag-colorTextTertiary)]">
+                                        <span>Changes this agent&apos;s draft config.</span>
+                                        <button
+                                            type="button"
+                                            onClick={openModelHarnessConfig}
+                                            className="cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorPrimary)]"
+                                        >
+                                            Open config →
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={backToCommands}
+                                            className="ml-auto flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorTextTertiary)]"
+                                        >
+                                            <span className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)] px-1 font-mono text-[9.5px] font-medium text-[var(--ag-colorTextSecondary)]">
+                                                ←
+                                            </span>
+                                            back to commands
+                                        </button>
+                                    </div>
+                                }
                             />
-                        </div>
-                    ) : null}
-                    {/* The catalog picker itself — controlled open, no trigger of its own. */}
-                    <SelectLLMProviderBase
-                        open={slash.picker === "model"}
-                        onOpenChange={(next) => {
-                            if (!next) slash.closePicker()
-                        }}
-                        onDismissOutside={() => {
-                            skipFocusRestoreRef.current = true
-                        }}
-                        onStepBack={backToCommands}
-                        anchorRef={composerBoxRef}
-                        hideTrigger
-                        showGroup
-                        showSearch
-                        searchPlaceholder="Search models"
-                        sectionTooltip={<HarnessTooltip />}
-                        options={slash.modelGroups}
-                        value={slash.currentModel}
-                        // The option carries a vault pick's connection slug + kind; `applyModel`
-                        // needs it to attach the right connection instead of guessing by model id.
-                        onChange={(next, option) => slash.applyModel(next, option)}
-                        searchSuffix="/model"
-                        panelFooter={
-                            <div className="flex items-center gap-1.5 text-[10.5px] text-[var(--ag-colorTextTertiary)]">
-                                <span>Changes this agent&apos;s draft config.</span>
-                                <button
-                                    type="button"
-                                    onClick={openModelHarnessConfig}
-                                    className="cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorPrimary)]"
-                                >
-                                    Open config →
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={backToCommands}
-                                    className="ml-auto flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorTextTertiary)]"
-                                >
-                                    <span className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)] px-1 font-mono text-[9.5px] font-medium text-[var(--ag-colorTextSecondary)]">
-                                        ←
-                                    </span>
-                                    back to commands
-                                </button>
-                            </div>
-                        }
-                    />
-                    {/* The SHARED composer — the same component mobile renders: lazy Lexical
+                            {/* The SHARED composer — the same component mobile renders: lazy Lexical
                         input, paperclip, attachments tray, placeholders. Desktop-only chrome
                         (voice mic, context budget, onboarding actions) rides its slots. */}
-                    <ChatComposer
-                        inputRef={richInputRef}
-                        autoFocus={composer.autoFocusComposer}
-                        dictating={dictating}
-                        className={CHAT_COLUMN}
-                        fallback={<ComposerSkeleton className={CHAT_COLUMN} />}
-                        onSubmit={handleComposerSubmit}
-                        disabled={onboardingActive ? ideHandoffActive : modelBlocked}
-                        hideSendButton={onboardingActive}
-                        placeholder={
-                            onboardingActive
-                                ? ideHandoffActive
-                                    ? "Continue in your IDE from the steps above — or start over."
-                                    : STRIP_COPY.describeAgentPlaceholder
-                                : modelBlocked
-                                  ? "Connect a model to start chatting…"
-                                  : undefined
-                        }
-                        waitingOnUser={hitlPending}
-                        initialMarkdown={composer.initialDraft}
-                        slashCommands={slash.sections}
-                        onChange={composer.handleComposerChange}
-                        streaming={busy}
-                        onStop={onStop}
-                        attachments={attachments}
-                        attachmentsBlocked={attachmentsBlocked}
-                        composerDisabled={composerDisabled}
-                        onViewAttachment={setViewingUid}
-                        extraPrefix={
-                            <>
-                                <VoiceInputButton
-                                    inputRef={richInputRef}
-                                    onStartAudio={startVoiceMessage}
-                                    // During onboarding the composer commits the ephemeral via
-                                    // handleCreateAgent, but a voice MESSAGE routes through
-                                    // handleSubmit → submit, bypassing that commit. So offer
-                                    // dictation only — voice-message returns once the agent exists.
-                                    audioSupported={!onboardingActive && voiceRecorder.supported}
-                                    audioPending={voiceRecorder.pending}
-                                    audioPerceivable={audioPerceivable}
-                                    attachmentsFull={atMax}
-                                    onDictationError={setDictationError}
-                                    onDictatingChange={setDictating}
-                                    stopRef={dictationStopRef}
-                                    disabled={onboardingActive ? ideHandoffActive : modelBlocked}
-                                />
-                                {/* Context-budget meter temporarily hidden from the UI.
+                            <ChatComposer
+                                inputRef={richInputRef}
+                                autoFocus={composer.autoFocusComposer}
+                                dictating={dictating}
+                                className={CHAT_COLUMN}
+                                fallback={<ComposerSkeleton className={CHAT_COLUMN} />}
+                                onSubmit={handleComposerSubmit}
+                                disabled={onboardingActive ? ideHandoffActive : modelBlocked}
+                                hideSendButton={onboardingActive}
+                                placeholder={
+                                    onboardingActive
+                                        ? ideHandoffActive
+                                            ? "Continue in your IDE from the steps above — or start over."
+                                            : STRIP_COPY.describeAgentPlaceholder
+                                        : modelBlocked
+                                          ? "Connect a model to start chatting…"
+                                          : undefined
+                                }
+                                waitingOnUser={hitlPending}
+                                initialMarkdown={composer.initialDraft}
+                                slashCommands={slash.sections}
+                                onChange={composer.handleComposerChange}
+                                streaming={busy}
+                                onStop={onStop}
+                                attachments={attachments}
+                                attachmentsBlocked={attachmentsBlocked}
+                                composerDisabled={composerDisabled}
+                                onViewAttachment={setViewingUid}
+                                extraPrefix={
+                                    <>
+                                        <VoiceInputButton
+                                            inputRef={richInputRef}
+                                            onStartAudio={startVoiceMessage}
+                                            // During onboarding the composer commits the ephemeral via
+                                            // handleCreateAgent, but a voice MESSAGE routes through
+                                            // handleSubmit → submit, bypassing that commit. So offer
+                                            // dictation only — voice-message returns once the agent exists.
+                                            audioSupported={
+                                                !onboardingActive && voiceRecorder.supported
+                                            }
+                                            audioPending={voiceRecorder.pending}
+                                            audioPerceivable={audioPerceivable}
+                                            attachmentsFull={atMax}
+                                            onDictationError={setDictationError}
+                                            onDictatingChange={setDictating}
+                                            stopRef={dictationStopRef}
+                                            disabled={
+                                                onboardingActive ? ideHandoffActive : modelBlocked
+                                            }
+                                        />
+                                        {/* Context-budget meter temporarily hidden from the UI.
                                     Logic is retained — flip `showContextBudget` to re-enable. */}
-                                {showContextBudget && !onboardingActive ? (
-                                    <ContextBudgetIndicator
-                                        messages={messages}
-                                        maxTokens={contextMaxTokens}
-                                    />
-                                ) : null}
-                            </>
-                        }
-                        trailing={
-                            onboardingActive ? (
-                                ideHandoffActive ? (
-                                    <Button
-                                        variant="outline"
-                                        onClick={handleStartOver}
-                                        className="shadow-none"
-                                    >
-                                        Start over
-                                    </Button>
-                                ) : TEMPLATE_STRIP_MODE ? (
-                                    // Strip era: the SAME action cluster as the home hero composer
-                                    // (shared component).
-                                    <AgentIntentActions
-                                        onCreate={handleCreateAgent}
-                                        loading={!!onboarding?.committing}
-                                    />
-                                ) : (
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            onClick={streamIdeBubble}
-                                            className="shadow-none"
-                                        >
-                                            <Code size={14} />
-                                            Continue in IDE
-                                        </Button>
-                                        <LoadingButton
-                                            loading={!!onboarding?.committing}
-                                            onClick={handleCreateAgent}
-                                            className="shadow-none"
-                                        >
-                                            Create agent
-                                            <ArrowRight size={14} />
-                                        </LoadingButton>
-                                    </div>
-                                )
-                            ) : undefined
-                        }
-                    />
-                    {/* Cross-fades over the composer instead of popping; same spring
+                                        {showContextBudget && !onboardingActive ? (
+                                            <ContextBudgetIndicator
+                                                messages={messages}
+                                                maxTokens={contextMaxTokens}
+                                            />
+                                        ) : null}
+                                    </>
+                                }
+                                trailing={
+                                    onboardingActive ? (
+                                        ideHandoffActive ? (
+                                            <Button
+                                                variant="outline"
+                                                onClick={handleStartOver}
+                                                className="shadow-none"
+                                            >
+                                                Start over
+                                            </Button>
+                                        ) : TEMPLATE_STRIP_MODE ? (
+                                            // Strip era: the SAME action cluster as the home hero composer
+                                            // (shared component).
+                                            <AgentIntentActions
+                                                onCreate={handleCreateAgent}
+                                                loading={!!onboarding?.committing}
+                                            />
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={streamIdeBubble}
+                                                    className="shadow-none"
+                                                >
+                                                    <Code size={14} />
+                                                    Continue in IDE
+                                                </Button>
+                                                <LoadingButton
+                                                    loading={!!onboarding?.committing}
+                                                    onClick={handleCreateAgent}
+                                                    className="shadow-none"
+                                                >
+                                                    Create agent
+                                                    <ArrowRight size={14} />
+                                                </LoadingButton>
+                                            </div>
+                                        )
+                                    ) : undefined
+                                }
+                            />
+                            {/* Cross-fades over the composer instead of popping; same spring
                     as the rest of the slice's chrome. */}
-                    <AnimatePresence initial={false}>
-                        {voiceRecorder.takeoverVisible && (
-                            <motion.div
-                                key="recording"
-                                initial={{opacity: 0, y: 4}}
-                                animate={{opacity: 1, y: 0}}
-                                exit={{opacity: 0, y: 4}}
-                                transition={SESSION_SPRING}
-                                className="pointer-events-none absolute inset-0 flex justify-center"
-                            >
-                                <RecordingBar
-                                    recorder={voiceRecorder}
-                                    willSend={voiceWillSend}
-                                    className={`${CHAT_COLUMN} h-full`}
-                                />
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
+                            <AnimatePresence initial={false}>
+                                {voiceRecorder.takeoverVisible && (
+                                    <motion.div
+                                        key="recording"
+                                        initial={{opacity: 0, y: 4}}
+                                        animate={{opacity: 1, y: 0}}
+                                        exit={{opacity: 0, y: 4}}
+                                        transition={SESSION_SPRING}
+                                        className="pointer-events-none absolute inset-0 flex justify-center"
+                                    >
+                                        <RecordingBar
+                                            recorder={voiceRecorder}
+                                            willSend={voiceWillSend}
+                                            className={`${CHAT_COLUMN} h-full`}
+                                        />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </>
+                )}
             </Reveal>
         </>
     )

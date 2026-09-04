@@ -52,12 +52,14 @@ export const FirstRunScreen = ({
     })
 
     const pickTemplate = (template: AgentStarterTemplate) => {
-        if (CONNECT_STEP_MODE) {
+        if (
+            CONNECT_STEP_MODE &&
             step.open({
                 seedMessage: templateBuilderMessage(template),
                 name: template.name,
                 template,
             })
+        ) {
             return
         }
         newAgent.createFromTemplate(template.key)

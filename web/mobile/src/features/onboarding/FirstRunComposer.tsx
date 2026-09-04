@@ -100,8 +100,8 @@ export const FirstRunComposer = ({
         if (CONNECT_STEP_MODE) {
             const typed = text.trim()
             if (!typed) return
-            step.open({seedMessage: typed})
-            return
+            // Only stop for the step when it has an account to ask about.
+            if (step.open({seedMessage: typed})) return
         }
         await create(text)
     }

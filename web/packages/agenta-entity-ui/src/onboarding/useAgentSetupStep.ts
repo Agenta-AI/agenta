@@ -37,7 +37,8 @@ export interface AgentSetupStep {
     skippedSlugs: string[]
     permission: AgentPermission
     /** Start the step. Detection runs here, once, off the description and template. */
-    open: (draft: AgentSetupDraft) => void
+    /** Opens the step; `false` means nothing was detected, so the caller should just commit. */
+    open: (draft: AgentSetupDraft) => boolean
     /** Abandon the step and go back to the composer. */
     close: () => void
     skip: (slug: string) => void
@@ -52,13 +53,21 @@ export function useAgentSetupStep(): AgentSetupStep {
     const [skippedSlugs, setSkippedSlugs] = useState<string[]>([])
     const [permission, setPermission] = useState<AgentPermission>(DEFAULT_PERMISSION)
 
+    /**
+     * Opens the step, and reports whether it had anything to ask for. A draft with no detected
+     * account has nothing to connect and nothing to show — opening on it puts a blocking card
+     * reading "Nothing required." between the user and their agent.
+     */
     const open = useCallback((next: AgentSetupDraft) => {
         // Detection is a one-shot: re-running it as the user connects would reshuffle the rows
         // under their cursor, and an account they added by hand must never be detected away.
-        setAccounts(detectAccounts({description: next.seedMessage, template: next.template}))
+        const detected = detectAccounts({description: next.seedMessage, template: next.template})
+        if (detected.length === 0) return false
+        setAccounts(detected)
         setSkippedSlugs([])
         setPermission(DEFAULT_PERMISSION)
         setDraft(next)
+        return true
     }, [])
 
     const close = useCallback(() => setDraft(null), [])
