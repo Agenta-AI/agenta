@@ -1,4 +1,4 @@
-import {useEffect, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {
     chatPanelMaximizedAtom,
@@ -9,13 +9,20 @@ import {
     RIGHT_PANEL_MAX,
     RIGHT_PANEL_MIN,
     rightPanelWidthAtom,
+    useCanPanesCoexist,
 } from "@agenta/chat/state"
 import {DriveSessionProvider, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
+import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
+import {sessionRoutePath} from "@agenta/sessions/link"
+import {renderedSessionTabsAtomFamily, sessionTabScope} from "@agenta/sessions/state"
+import {useSessionActions} from "@agenta/sessions-ui"
 import {useMediaQuery} from "@agenta/ui/hooks"
+import {useSessionShortcuts} from "@agenta/ui/shortcuts"
 import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import {AppShell} from "../nav/AppShell"
 
@@ -24,6 +31,8 @@ import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
+import {useSessionTabClose} from "./useSessionTabClose"
+import {useStartBlankSession} from "./useStartBlankSession"
 
 // Build's config panel carries the whole schema-form surface (DrillInView + the editor). Chat
 // mode never renders it, so it loads on demand instead of riding in the session page's bundle —
@@ -31,6 +40,9 @@ import {SessionTopBar} from "./SessionTopBar"
 const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane), {
     ssr: false,
 })
+
+/** Alt+R has nothing to open here: the rail renames nowhere yet. */
+const noop = () => undefined
 
 /**
  * The playground's two-pane frame, on the SAME kit `SplitPane` the desktop drives it with and the
@@ -91,7 +103,11 @@ export const SessionWorkspace = ({
     // overlay drawer. Scope is the AGENT, not the session: opening files then switching session
     // must not snap the pane shut.
     const filesScope = agentId ?? sessionId
-    const {open: filesOpen} = useSessionFilesPane(filesScope, sessionId)
+    const {
+        open: filesOpen,
+        close: closeFilesPane,
+        toggle: toggleFilesPane,
+    } = useSessionFilesPane(filesScope, sessionId)
     // Tailwind's `md`. Client-only, so the first paint is the phone layout — the right guess here.
     const twoPane = useMediaQuery("(min-width: 768px)")
     // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
@@ -117,6 +133,82 @@ export const SessionWorkspace = ({
     // opening and hiding either panel jumped instead of moving.
     const configSlide = usePaneSlide(showPane)
     const filesSlide = usePaneSlide(twoPane && filesOpen)
+
+    // The desktop's coexistence rule, same threshold: too narrow to seat the config pane, the
+    // transcript and the Files pane at fair widths, so the two side panes take turns and the
+    // transcript keeps its floor. Only meaningful in two-pane layouts — below `md` the panes
+    // already alternate. Transition-edge effects, so they cannot evict each other in a loop.
+    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
+    const panesMustAlternate = twoPane && !canPanesCoexist
+    const prevFilesOpenRef = useRef(filesOpen)
+    useEffect(() => {
+        if (filesOpen && !prevFilesOpenRef.current && panesMustAlternate) setConfigCollapsed(true)
+        prevFilesOpenRef.current = filesOpen
+    }, [filesOpen, panesMustAlternate, setConfigCollapsed])
+    const prevConfigCollapsedRef = useRef(configCollapsed)
+    useEffect(() => {
+        if (!configCollapsed && prevConfigCollapsedRef.current && panesMustAlternate)
+            closeFilesPane()
+        prevConfigCollapsedRef.current = configCollapsed
+    }, [configCollapsed, panesMustAlternate, closeFilesPane])
+    // Shrinking past the threshold with both open keeps Files, the surface opened deliberately.
+    const prevAlternateRef = useRef(panesMustAlternate)
+    useEffect(() => {
+        if (panesMustAlternate && !prevAlternateRef.current && filesOpen && !configCollapsed)
+            setConfigCollapsed(true)
+        prevAlternateRef.current = panesMustAlternate
+    }, [panesMustAlternate, filesOpen, configCollapsed, setConfigCollapsed])
+
+    // The SAME session shortcuts the desktop playground binds. The rail publishes the tabs it
+    // renders, so `Alt+1…9` addresses exactly what is on screen. A phone sends no Alt chord, so
+    // mounting this on a touch surface is inert rather than harmful.
+    const router = useRouter()
+    const tabScope = sessionTabScope(agentId)
+    const openTabIds = useAtomValue(renderedSessionTabsAtomFamily(tabScope))
+    const shortcutSessions = useMemo(() => openTabIds.map((id) => ({id})), [openTabIds])
+    const startBlank = useStartBlankSession(base)
+    const closeTabs = useSessionTabClose({agentId, sessionId, base})
+    const sessionActions = useSessionActions()
+    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
+    useSessionShortcuts({
+        sessions: shortcutSessions,
+        activeId: sessionId,
+        onJump: useCallback(
+            (id: string) => {
+                if (id !== sessionId) void router.push(sessionRoutePath(base, id))
+            },
+            [base, router, sessionId],
+        ),
+        onRename: noop,
+        onArchive: useCallback(
+            (id: string) =>
+                void sessionActions.setArchived({
+                    sessionId: id,
+                    appId: agentId ?? null,
+                    archived: false,
+                }),
+            [agentId, sessionActions],
+        ),
+        onNewSession: useCallback(() => {
+            if (agentId) startBlank(agentId)
+        }, [agentId, startBlank]),
+        onCloseSession: useCallback(
+            (id: string) => closeTabs([id], openTabIds),
+            [closeTabs, openTabIds],
+        ),
+        // No search box in the sessions pane yet — reveal the pane, which is the half of the
+        // desktop's binding that exists here.
+        onSearch: useCallback(
+            () => setChatMaximized(!chatMaximized),
+            [chatMaximized, setChatMaximized],
+        ),
+        onToggleConfigPanel: useCallback(
+            () => setConfigCollapsed(!configCollapsed),
+            [configCollapsed, setConfigCollapsed],
+        ),
+        onToggleFilesPane: toggleFilesPane,
+    })
 
     // The same surface treatment the desktop layout applies: the workspace is a recessed ground,
     // the config panel is raised above it, the conversation is the recessed canvas. Without these
