@@ -43,16 +43,21 @@ log = get_module_logger(__name__)
 _OPEN_STATES = (SessionCommandState.pending.value, SessionCommandState.claimed.value)
 
 
-def _map_settle_candidates(rows: List[SessionCommandDBE]) -> List[SessionCommand]:
-    """Map an abandoned-command batch to DTOs, skipping any row this API cannot map.
+def _map_commands_skipping_unmappable(
+    rows: List[SessionCommandDBE],
+    *,
+    context: str,
+) -> List[SessionCommand]:
+    """Map a batch of command rows to DTOs, skipping any row this API cannot map.
 
     A newer API replica can write a command `kind` (or state, or outcome) an older replica's
-    enums do not know; `map_command_dbe_to_dto` then raises `ValueError` on that row. The
-    watchdog reads the whole abandoned batch before it settles any of it, so one such row used
-    to poison the entire pass -- the ValueError escaped the list comprehension and no command
-    was ever settled. Skip the rows this API cannot act on, warn once per pass with their kinds
-    and count, and settle the rest. The unknown row is left untouched for a replica that knows
-    its kind; this never changes the enum or the write path.
+    enums do not know; `map_command_dbe_to_dto` then raises `ValueError` on that row. Both the
+    abandoned-command sweep and a runner's claim read a whole batch before acting on any of it,
+    so one such row used to poison the entire batch -- the ValueError escaped the list
+    comprehension and nothing was settled or claimed. Skip the rows this API cannot act on,
+    warn once per batch with their kinds and count, and return the rest. The unknown row is
+    left untouched for a replica that knows its kind; this never changes the enum or the write
+    path. `context` names the batch in the warning (for example "abandoned" or "claimed").
     """
     mapped: List[SessionCommand] = []
     skipped: Dict[str, int] = {}
@@ -67,8 +72,9 @@ def _map_settle_candidates(rows: List[SessionCommandDBE]) -> List[SessionCommand
             f"{kind}={count}" for kind, count in sorted(skipped.items())
         )
         log.warning(
-            "commands: skipped %d abandoned row(s) this API cannot map (by kind: %s)",
+            "commands: skipped %d %s row(s) this API cannot map (by kind: %s)",
             sum(skipped.values()),
+            context,
             by_kind,
         )
     return mapped
@@ -296,7 +302,7 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             )
             claimed = (await session.execute(stmt)).scalars().all()
             await session.commit()
-        return [map_command_dbe_to_dto(dbe) for dbe in claimed]
+        return _map_commands_skipping_unmappable(claimed, context="claimed")
 
     async def claim_for_delivery(
         self,
@@ -484,7 +490,7 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             )
             result = await session.execute(stmt)
             rows = result.scalars().all()
-        return _map_settle_candidates(rows)
+        return _map_commands_skipping_unmappable(rows, context="abandoned")
 
     async def count_open(self, *, project_id: UUID, session_id: str) -> int:
         """Open commands for a session. Diagnostics and tests only."""

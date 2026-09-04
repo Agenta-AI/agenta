@@ -8,7 +8,7 @@ raised `ValueError: 'continue_interaction' is not a valid SessionCommandKind` on
 The ValueError escaped the batch, so NO command was settled and the Stop stayed pending pass
 after pass.
 
-`_map_settle_candidates` now skips the rows this API cannot map, warns once with the kinds and
+`_map_commands_skipping_unmappable` now skips the rows this API cannot map, warns once with the kinds and
 count, and returns the rest. These tests hold that contract: the known Stop survives as a
 settle candidate, the unknown row is dropped and left for a replica that knows its kind, and
 the skip is logged exactly once.
@@ -68,7 +68,9 @@ def test_a_known_stop_survives_and_an_unknown_kind_is_left_alone(monkeypatch):
     stop = _row(SessionCommandKind.cancel.value)
     unknown = _row("continue_interaction")
 
-    mapped = commands_dao._map_settle_candidates([stop, unknown])
+    mapped = commands_dao._map_commands_skipping_unmappable(
+        [stop, unknown], context="abandoned"
+    )
 
     # The Stop is returned, so the sweep will settle it.
     assert [c.id for c in mapped] == [stop.id]
@@ -87,21 +89,23 @@ def test_the_unknown_kind_is_warned_once_with_its_kind_and_count(monkeypatch):
         _row("continue_interaction"),
     ]
 
-    commands_dao._map_settle_candidates(rows)
+    commands_dao._map_commands_skipping_unmappable(rows, context="abandoned")
 
     assert len(recorder.warnings) == 1, "exactly one warning per pass"
     args = recorder.warnings[0][0]
-    # The message and its args name the count and the offending kind.
+    # The message and its args name the count, the batch context, and the offending kind.
     assert args[1] == 2  # two unmappable rows
-    assert "continue_interaction=2" in args[2]
+    assert args[2] == "abandoned"  # the batch context
+    assert "continue_interaction=2" in args[3]
 
 
 def test_an_all_mappable_batch_logs_nothing(monkeypatch):
     recorder = _RecordingLog()
     monkeypatch.setattr(commands_dao, "log", recorder)
 
-    mapped = commands_dao._map_settle_candidates(
-        [_row(SessionCommandKind.cancel.value), _row(SessionCommandKind.cancel.value)]
+    mapped = commands_dao._map_commands_skipping_unmappable(
+        [_row(SessionCommandKind.cancel.value), _row(SessionCommandKind.cancel.value)],
+        context="abandoned",
     )
 
     assert len(mapped) == 2
