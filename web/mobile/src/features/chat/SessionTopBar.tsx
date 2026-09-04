@@ -1,12 +1,17 @@
+import {useState} from "react"
+
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {useAgentIconChrome} from "@agenta/entity-ui/agent"
+import {AgentNameInline, useAgentIconChrome} from "@agenta/entity-ui/agent"
 import {
     AGENT_CHIP_BOX,
+    AGENT_CHIP_FALLBACK,
     AgentPageHeader,
     AgentRevisionStatus,
 } from "@agenta/playground-ui/agent-page-header"
 import {useAtomValue} from "jotai"
+import {Bot} from "lucide-react"
 
+import {AgentIconSheet} from "../agents/AgentIconSheet"
 import {NavDrawer} from "../nav/NavDrawer"
 
 /**
@@ -34,30 +39,67 @@ export const SessionTopBar = ({
 }) => {
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
-    // Only override the bar's chip once this agent has an icon; uncustomised, the shared bar draws
-    // its own, so /m has no reason to carry a second robot.
     const chrome = useAgentIconChrome(agentId, {size: 15, fallbackGlyph: null})
+    const [iconSheetOpen, setIconSheetOpen] = useState(false)
+
+    // The chip is always drawn here rather than deferred to the bar's own: on this surface it is the
+    // picker's trigger, so it has to exist before the agent has an icon.
+    const chip = chrome.customised ? (
+        <span className={`${AGENT_CHIP_BOX} ${chrome.className}`} style={chrome.style}>
+            {chrome.glyph}
+        </span>
+    ) : (
+        <span className={`${AGENT_CHIP_BOX} ${AGENT_CHIP_FALLBACK}`}>
+            <Bot className="size-[15px]" />
+        </span>
+    )
 
     return (
-        <AgentPageHeader
-            // Nav is the DRAWER here, as on every other screen in this app — not a bespoke back
-            // chevron. It hides itself at lg, where the rail takes over and the bar then opens with
-            // the agent icon exactly like the desktop playground's. Getting back to the sessions
-            // list is the drawer's Sessions entry, or the tab rail above the conversation.
-            leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
-            name={name || "Agent"}
-            icon={
-                chrome.customised ? (
-                    <span className={`${AGENT_CHIP_BOX} ${chrome.className}`} style={chrome.style}>
-                        {chrome.glyph}
-                    </span>
-                ) : undefined
-            }
-            revision={
-                entityId ? (
-                    <AgentRevisionStatus revisionId={entityId} historyWorkflowId={agentId} />
-                ) : undefined
-            }
-        />
+        <>
+            <AgentPageHeader
+                // Nav is the DRAWER here, as on every other screen in this app — not a bespoke back
+                // chevron. It hides itself at lg, where the rail takes over and the bar then opens with
+                // the agent icon exactly like the desktop playground's. Getting back to the sessions
+                // list is the drawer's Sessions entry, or the tab rail above the conversation.
+                leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
+                name={
+                    agentId ? (
+                        <AgentNameInline
+                            workflowId={agentId}
+                            name={name || "Agent"}
+                            revealOnHover={false}
+                        />
+                    ) : (
+                        name || "Agent"
+                    )
+                }
+                icon={
+                    agentId ? (
+                        <button
+                            type="button"
+                            aria-label="Change agent icon"
+                            className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0"
+                            onClick={() => setIconSheetOpen(true)}
+                        >
+                            {chip}
+                        </button>
+                    ) : (
+                        chip
+                    )
+                }
+                revision={
+                    entityId ? (
+                        <AgentRevisionStatus revisionId={entityId} historyWorkflowId={agentId} />
+                    ) : undefined
+                }
+            />
+            {agentId ? (
+                <AgentIconSheet
+                    workflowId={agentId}
+                    open={iconSheetOpen}
+                    onClose={() => setIconSheetOpen(false)}
+                />
+            ) : null}
+        </>
     )
 }
