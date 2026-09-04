@@ -9,7 +9,7 @@
 
 import {getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
 
-import {fetchWorkflowAgentFlags, fetchWorkflowsBatch, queryWorkflows} from "../api/api"
+import {fetchWorkflowAgentFlags, queryWorkflows} from "../api/api"
 import {collectEvaluatorCandidates, isOnlineCapableEvaluator, type Workflow} from "../core"
 
 import type {WorkflowType} from "./molecule"
@@ -87,66 +87,6 @@ export function withAgentFlags(
             is_agent: agentFlags.get(workflow.id) === true,
         } as Workflow["flags"],
     }))
-}
-
-/**
- * Fetch each non-deleted workflow's latest revision and classify the list.
- * Agent identity is revision-derived, so classification needs latest revisions.
- */
-export async function fetchAndClassifyWorkflows(
-    projectId: string,
-    workflows: Workflow[],
-    classify: (workflows: Workflow[], latestRevisions: ReadonlyMap<string, Workflow>) => Workflow[],
-): Promise<Workflow[]> {
-    const nonDeleted = workflows.filter((workflow) => !workflow.deleted_at)
-    const latestRevisions = await fetchWorkflowsBatch(
-        projectId,
-        nonDeleted.map((workflow) => workflow.id),
-    )
-    return classify(nonDeleted, latestRevisions)
-}
-
-export function withLatestAgentFlags(
-    workflows: Workflow[],
-    latestRevisions: ReadonlyMap<string, Workflow>,
-): Workflow[] {
-    return workflows.map((workflow) => {
-        const latestRevision = latestRevisions.get(workflow.id)
-        if (!latestRevision) return workflow
-
-        return {
-            ...workflow,
-            flags: {
-                ...workflow.flags,
-                is_agent: latestRevision.flags?.is_agent ?? false,
-            } as Workflow["flags"],
-        }
-    })
-}
-
-/**
- * Keep workflow artifacts whose latest revision is marked as an agent.
- *
- * Agent identity is revision-derived, so the artifact list cannot be filtered
- * reliably with `WorkflowQuery.flags.is_agent`.
- */
-export function filterAgentWorkflows(
-    workflows: Workflow[],
-    latestRevisions: ReadonlyMap<string, Workflow>,
-): Workflow[] {
-    return withLatestAgentFlags(workflows, latestRevisions).filter(
-        (workflow) => workflow.flags?.is_agent === true,
-    )
-}
-
-/** Keep workflow artifacts whose latest revision is not marked as an agent. */
-export function filterNonAgentWorkflows(
-    workflows: Workflow[],
-    latestRevisions: ReadonlyMap<string, Workflow>,
-): Workflow[] {
-    return withLatestAgentFlags(workflows, latestRevisions).filter(
-        (workflow) => workflow.flags?.is_agent !== true,
-    )
 }
 
 /**

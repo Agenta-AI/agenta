@@ -286,6 +286,9 @@ const LeafRow = memo(function LeafRow({
 /** Within this many px of the bottom counts as reaching the end. */
 const REACH_END_PX = 120
 
+/** Long enough that one flick asks once, short enough not to be felt as a stall. */
+const REACH_END_THROTTLE_MS = 400
+
 /**
  * The one scrolling group's rows, which page in more as you reach the end.
  *
@@ -302,15 +305,16 @@ const ScrollGroupChildren = ({
     onReachEnd?: () => void
 }) => {
     const boxRef = useRef<HTMLDivElement>(null)
-    // One ask per growth step. A flick fires dozens of scroll events at the bottom, and each one
-    // asking for a page both stacks requests and rebuilds the list under the pointer.
-    const askedAt = useRef(-1)
+    // Throttled, NOT keyed on scrollHeight: a page whose rows all land in collapsed groups adds no
+    // height, and a height-keyed guard would then never let another page be asked for. Time cannot
+    // latch. The source's own in-flight check stops the duplicate a flick would otherwise queue.
+    const askedAt = useRef(0)
 
     const reachEnd = () => {
-        const box = boxRef.current
-        if (!box || !onReachEnd) return
-        if (askedAt.current === box.scrollHeight) return
-        askedAt.current = box.scrollHeight
+        if (!onReachEnd) return
+        const now = Date.now()
+        if (now - askedAt.current < REACH_END_THROTTLE_MS) return
+        askedAt.current = now
         onReachEnd()
     }
 
