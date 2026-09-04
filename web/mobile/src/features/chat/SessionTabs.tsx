@@ -2,6 +2,7 @@ import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/sta
 import {querySessionStreams} from "@agenta/entities/session"
 import {useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {SessionTabRail} from "@agenta/sessions-ui"
+import {ShortcutKeys, ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
@@ -13,6 +14,7 @@ import {PageTitle} from "@/components/PageTitle"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
+import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 
 /**
@@ -49,6 +51,7 @@ export const SessionTabs = ({
     // with their confirms — so a session's menu is the same whether it is a tab or a row.
     const menu = useSessionRowMenu(base)
     const startBlank = useStartBlankSession(base)
+    const closeTabs = useSessionTabClose({agentId, sessionId, base})
     const [configCollapsed, setConfigCollapsed] = useAtom(configPanelCollapsedAtom)
     const {open: filesOpen, openPane} = useSessionFilesPane(agentId ?? sessionId, sessionId)
     // The singular GET /sessions/streams redirects with a root-path-less Location
@@ -73,6 +76,9 @@ export const SessionTabs = ({
                 activeFallbackTitle={query.data?.name}
                 menuFor={menu.menuFor}
                 onMenuSelect={menu.onMenuSelect}
+                // Closing drops the tab from this device's open set — never from the server.
+                onClose={(vm, ordered) => closeTabs([vm.id], ordered)}
+                onCloseMany={closeTabs}
                 onSelect={(vm) => {
                     if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
                 }}
@@ -82,7 +88,14 @@ export const SessionTabs = ({
                 onNew={agentId ? () => startBlank(agentId) : undefined}
                 leadingExtra={
                     !chatMaximized && configCollapsed ? (
-                        <SimpleTooltip title="Show configuration">
+                        <SimpleTooltip
+                            title={
+                                <span className="flex items-center gap-1.5">
+                                    Show configuration{" "}
+                                    <ShortcutKeys id="panel.config" tone="inverse" />
+                                </span>
+                            }
+                        >
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
@@ -105,8 +118,17 @@ export const SessionTabs = ({
                                 base={base}
                                 activeSessionId={sessionId}
                             />
+                            <ShortcutsHelpButton />
                             {filesOpen ? null : (
-                                <SimpleTooltip title="Show files" side="left">
+                                <SimpleTooltip
+                                    title={
+                                        <span className="flex items-center gap-1.5">
+                                            Show files{" "}
+                                            <ShortcutKeys id="panel.files" tone="inverse" />
+                                        </span>
+                                    }
+                                    side="left"
+                                >
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
