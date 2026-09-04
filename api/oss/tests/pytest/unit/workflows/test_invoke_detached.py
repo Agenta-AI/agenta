@@ -134,7 +134,8 @@ async def test_stream_service_started_raises_on_http_error():
         "[]",
         '{"kind": "result", "result": {"ok": false, "error": "rejected"}}',
         '{"kind": "result"}',
-        '{"kind": "unknown"}',
+        # The service wire's own failure frame (an agenta `error` event).
+        '{"type": "error", "data": {"type": "error", "message": "no key", "code": "auth"}}',
     ],
 )
 async def test_stream_service_started_rejects_failure_or_malformed_first_record(line):
@@ -162,6 +163,81 @@ async def test_stream_service_started_keeps_legacy_best_effort_for_ordinary_trig
 
     assert result.accepted is True
     assert result.run_id == "run-x"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        # The record sequence a durable continuation really produced (browser pass,
+        # 2026-09-04 17:35Z, session d99f32ae / command 01a06d7d): the runner admitted the
+        # continuation and its first event was a `tool_call`. The DEPLOYED SERVICE re-frames
+        # every runner record as an agenta event, `{"type", "data"}` — there is no `kind` on
+        # that wire, and reading the first frame as a runner record called every one of those
+        # deliveries unreachable while the turn ran to completion underneath the card.
+        '{"type": "tool_call", "data": {"type": "tool_call", "id": "t1", "name": "Bash"}}',
+        '{"type": "interaction_response", "data": {"type": "interaction_response"}}',
+        '{"type": "message", "data": {"type": "message", "text": "ok"}}',
+        # An unrecognised record is a start, not a failure: only an explicit failure frame is.
+        '{"kind": "unknown"}',
+        '{"type": "error_recovered", "data": {}}',
+    ],
+)
+async def test_stream_service_started_accepts_a_service_event_frame_as_the_start(line):
+    response = _FakeStreamResponse(lines=[line, '{"type": "done", "data": {}}'])
+    with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
+        result = await _service()._stream_service_started(
+            url="http://svc/invoke",
+            credentials="Secret tok",
+            payload={},
+            run_id="run-x",
+            strict_first_record=True,
+        )
+    assert result.accepted is True
+    assert result.run_id == "run-x"
+    assert response.consumed == 1
+
+
+async def test_stream_service_started_reports_a_runner_refusal_verbatim():
+    """Case (b) of the same browser pass, command 01a06d7a.
+
+    The runner refuses a continuation it cannot prove it owns and writes
+    ``{"kind": "result", ok: false}``. Where a deployment forwards that record verbatim the
+    caller must surface the reason, not report a start.
+    """
+    refusal = (
+        '{"kind": "result", "result": {"ok": false, "error": '
+        '"Continuation could not establish alive ownership; retry delivery."}}'
+    )
+    response = _FakeStreamResponse(lines=[refusal])
+    with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
+        with pytest.raises(WorkflowDetachedStartFailed) as failure:
+            await _service()._stream_service_started(
+                url="http://svc/invoke",
+                credentials="Secret tok",
+                payload={},
+                run_id="run-x",
+                strict_first_record=True,
+            )
+    assert "alive ownership" in str(failure.value)
+
+
+async def test_stream_service_started_reports_an_empty_stream_as_a_failed_start():
+    """The same refusal as it actually reaches the API through the SDK service.
+
+    The SDK turns the runner's ``ok: false`` result into an exception inside an ASGI response
+    whose 200 is already committed, so the service closes the stream having written nothing.
+    """
+    response = _FakeStreamResponse(lines=[])
+    with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
+        with pytest.raises(WorkflowDetachedStartFailed) as failure:
+            await _service()._stream_service_started(
+                url="http://svc/invoke",
+                credentials="Secret tok",
+                payload={},
+                run_id="run-x",
+                strict_first_record=True,
+            )
+    assert "closed the stream" in str(failure.value)
 
 
 async def test_stream_service_started_accepts_success_result_record():
