@@ -29,40 +29,34 @@ interface AppliedAdmission {
 
 type Admission = PendingAdmission | AppliedAdmission;
 
+export type ContinuationAdmissionLeader = {
+  role: "leader";
+  executionId: string;
+  admit: () => void;
+  release: () => void;
+};
+
 export type ContinuationAdmissionClaim =
-  | {
-      role: "leader";
-      executionId: string;
-      admit: () => void;
-      release: () => void;
-    }
+  | ContinuationAdmissionLeader
   | {
       role: "duplicate";
       /** The first delivery's execution id is authoritative for duplicate outcome reports. */
       executionId: string;
       /** False means the leader failed before durable admission and this delivery may be retried. */
       admitted: Promise<boolean>;
+      /** Replace a stale applied cache entry after the API grants a recoverable generation. */
+      promote: () => ContinuationAdmissionLeader | undefined;
+      /** Evict only the cache generation this duplicate observed. */
+      forget: () => void;
     };
 
 const admissions = new Map<string, Admission>();
 
-/** Claim a command immediately before creating/registering its fresh execution guard. */
-export function claimContinuationAdmission(
+function createLeader(
   commandId: string,
   executionId: string,
-  now = Date.now(),
-): ContinuationAdmissionClaim {
-  prune(now);
-  const existing = admissions.get(commandId);
-  if (existing) {
-    return {
-      role: "duplicate",
-      executionId: existing.executionId,
-      admitted:
-        existing.phase === "applied" ? Promise.resolve(true) : existing.settled,
-    };
-  }
-
+  now: number,
+): ContinuationAdmissionLeader {
   let settle!: (admitted: boolean) => void;
   const settled = new Promise<boolean>((resolve) => {
     settle = resolve;
@@ -94,6 +88,39 @@ export function claimContinuationAdmission(
       pending.settle(false);
     },
   };
+}
+
+/** Claim a command immediately before creating/registering its fresh execution guard. */
+export function claimContinuationAdmission(
+  commandId: string,
+  executionId: string,
+  now = Date.now(),
+): ContinuationAdmissionClaim {
+  prune(now);
+  const existing = admissions.get(commandId);
+  if (existing) {
+    return {
+      role: "duplicate",
+      executionId: existing.executionId,
+      admitted:
+        existing.phase === "applied" ? Promise.resolve(true) : existing.settled,
+      promote: () => {
+        const current = admissions.get(commandId);
+        if (current && current !== existing) return undefined;
+        // A losing concurrent probe may evict the stale generation before this API-winning
+        // response returns. The durable API CAS is authoritative: its sole winner may recreate
+        // the local barrier when the old cache entry is still present or gone. It must never
+        // overwrite a newer pending generation: doing that strands every duplicate awaiting
+        // the newer generation's promise.
+        return createLeader(commandId, executionId, Date.now());
+      },
+      forget: () => {
+        if (admissions.get(commandId) === existing)
+          admissions.delete(commandId);
+      },
+    };
+  }
+  return createLeader(commandId, executionId, now);
 }
 
 function prune(now: number): void {

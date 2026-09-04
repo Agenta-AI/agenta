@@ -91,6 +91,7 @@ from oss.src.core.sessions.records.dtos import (
     MAX_LIVE_FRAME_BYTES,
     SessionLiveFrame,
     SessionRecordEvent,
+    TERMINAL_RECORD_TYPE,
 )
 from oss.src.core.sessions.records.streaming import publish_live_frame, publish_record
 from oss.src.core.sessions.interactions.dtos import (
@@ -814,8 +815,13 @@ class SessionStreamsRouter:
 class RecordsRouter:
     """Records sub-router — /sessions/records/*"""
 
-    def __init__(self, records_service: RecordsService):
+    def __init__(
+        self,
+        records_service: RecordsService,
+        commands_service: Optional[SessionCommandsService] = None,
+    ):
         self.records_service = records_service
+        self.commands_service = commands_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -996,7 +1002,24 @@ class RecordsRouter:
             return {"ok": True}
 
         assert not isinstance(body, list)
-        await publish_record(
+        # For a finished continuation, commit the core execution outcome before accepting its
+        # terminal record into the asynchronous tracing stream. This closes the cross-database
+        # window where the watchdog could see no `done`, expose recovery, and replay work that
+        # had already finished while the records worker was still settling core state.
+        if (
+            env.agenta.sessions.durable_stop
+            and self.commands_service is not None
+            and body.record_type == TERMINAL_RECORD_TYPE
+            and body.turn_id
+            and (body.attributes or {}).get("stopReason") != "paused"
+        ):
+            await self.commands_service.settle_execution_completed(
+                project_id=UUID(project_id),
+                session_id=body.session_id,
+                execution_id=body.turn_id,
+            )
+
+        published = await publish_record(
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(project_id),
             record_event=SessionRecordEvent(
@@ -1012,6 +1035,11 @@ class RecordsRouter:
                 span_id=body.span_id,
             ),
         )
+        if not published:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Record ingestion is temporarily unavailable.",
+            )
         return {"ok": True}
 
 
@@ -2540,7 +2568,10 @@ class SessionsRouter:
             interactions_service=interactions_service,
             records_service=records_service,
         )
-        self.records = RecordsRouter(records_service=records_service)
+        self.records = RecordsRouter(
+            records_service=records_service,
+            commands_service=commands_service,
+        )
         self.interactions = InteractionsRouter(
             interactions_service=interactions_service,
             workflows_service=workflows_service,

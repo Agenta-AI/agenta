@@ -104,6 +104,7 @@ import {
 } from "./sessions/control-channel.ts";
 import { claimContinuationAdmission } from "./sessions/continuation-admission.ts";
 import {
+  findExecution,
   noteExecutionProject,
   registerExecution,
   unregisterExecution,
@@ -523,12 +524,13 @@ async function runAndStreamWithApiBaseResolved(
   // This is the continuation's exactly-once admission boundary. Everything above it is pure
   // request validation and remains retryable. A duplicate never creates a controller, never
   // replaces the live-execution registry entry, and never calls the engine.
-  const continuationAdmission = controlCommandId
+  let continuationAdmission = controlCommandId
     ? claimContinuationAdmission(controlCommandId, turnId)
     : undefined;
+  let continuationAlreadyAdmitted = false;
   if (continuationAdmission?.role === "duplicate") {
-    const admitted = await continuationAdmission.admitted;
-    if (!admitted) {
+    const priorGenerationAdmitted = await continuationAdmission.admitted;
+    if (!priorGenerationAdmitted) {
       writeRecord({
         kind: "result",
         result: {
@@ -542,11 +544,40 @@ async function runAndStreamWithApiBaseResolved(
       return;
     }
     try {
-      await reportContinuationAdmission({
+      const admitted = await reportContinuationAdmission({
         commandId: controlCommandId!,
         sessionId,
-        executionId: continuationAdmission.executionId,
+        executionId: turnId,
       });
+      if (!admitted) {
+        const live = findExecution(
+          projectScopeFor(request, undefined)?.id ?? "",
+          sessionId,
+        );
+        if (!live || live.turnId !== turnId) {
+          continuationAdmission.forget();
+        }
+        writeRecord({
+          kind: "result",
+          result: {
+            ok: true,
+            output: "",
+            stopReason: "control_command_duplicate",
+            events: [],
+            sessionId,
+          },
+        });
+        res.end();
+        return;
+      }
+      const promoted = continuationAdmission.promote();
+      if (!promoted) {
+        throw new Error(
+          "Continuation admission changed while recovering; retry delivery.",
+        );
+      }
+      continuationAdmission = promoted;
+      continuationAlreadyAdmitted = true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       process.stderr.write(
@@ -559,18 +590,6 @@ async function runAndStreamWithApiBaseResolved(
       res.end();
       return;
     }
-    writeRecord({
-      kind: "result",
-      result: {
-        ok: true,
-        output: "",
-        stopReason: "control_command_duplicate",
-        events: [],
-        sessionId,
-      },
-    });
-    res.end();
-    return;
   }
 
   // Diagnostic: surface whether the session-owned persist/alive path is entered and whether the
@@ -719,13 +738,15 @@ async function runAndStreamWithApiBaseResolved(
       // The API settles the durable command and marks this execution running before the harness
       // can observe the approval. If the callback fails, release the process-local claim and live
       // registry entry: no engine work started, so redelivery is safe.
-      const admitted = await reportContinuationAdmission({
-        commandId: controlCommandId!,
-        sessionId,
-        executionId: turnId,
-      });
-      continuationAdmission.admit();
+      const admitted = continuationAlreadyAdmitted
+        ? true
+        : await reportContinuationAdmission({
+            commandId: controlCommandId!,
+            sessionId,
+            executionId: turnId,
+          });
       if (!admitted) {
+        continuationAdmission.release();
         aliveWatchdog?.abandon();
         unregisterExecution(sessionId, turnId);
         writeRecord({
@@ -741,6 +762,7 @@ async function runAndStreamWithApiBaseResolved(
         res.end();
         return;
       }
+      continuationAdmission.admit();
     } catch (error) {
       continuationAdmission.release();
       aliveWatchdog?.abandon();

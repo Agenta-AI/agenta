@@ -69,4 +69,83 @@ describe("durable continuation admission", () => {
     );
     assert.equal(afterTtl.role, "leader");
   });
+
+  it("evicts a stale applied generation after the API finds no live execution", async () => {
+    const first = claimContinuationAdmission("command-1", "turn-1", 1);
+    assert.equal(first.role, "leader");
+    first.admit();
+    const stale = claimContinuationAdmission("command-1", "turn-1", 2);
+    assert.equal(stale.role, "duplicate");
+    stale.forget();
+    assert.equal(
+      claimContinuationAdmission("command-1", "turn-1", 3).role,
+      "leader",
+    );
+  });
+
+  it("promotes only the API-winning duplicate into a fresh generation", () => {
+    const first = claimContinuationAdmission("command-1", "turn-1", 1);
+    assert.equal(first.role, "leader");
+    first.admit();
+    const winner = claimContinuationAdmission("command-1", "turn-1", 2);
+    const loser = claimContinuationAdmission("command-1", "turn-1", 2);
+    assert.equal(winner.role, "duplicate");
+    assert.equal(loser.role, "duplicate");
+    const promoted = winner.promote();
+    assert.equal(promoted?.role, "leader");
+    loser.forget();
+    assert.equal(
+      claimContinuationAdmission("command-1", "turn-1", 3).role,
+      "duplicate",
+      "the prior loser cannot evict the recovered generation",
+    );
+  });
+
+  it("promotes a recovered command with its fresh execution generation", () => {
+    const first = claimContinuationAdmission("command-1", "turn-old", 1);
+    assert.equal(first.role, "leader");
+    first.admit();
+
+    const recovered = claimContinuationAdmission("command-1", "turn-fresh", 2);
+    assert.equal(recovered.role, "duplicate");
+    assert.equal(recovered.executionId, "turn-old");
+
+    const promoted = recovered.promote();
+    assert.equal(promoted?.executionId, "turn-fresh");
+    const waiter = claimContinuationAdmission("command-1", "turn-fresh", 3);
+    assert.equal(waiter.role, "duplicate");
+    assert.equal(waiter.executionId, "turn-fresh");
+  });
+
+  it("lets the API winner recover after a losing probe evicts the stale cache", () => {
+    const first = claimContinuationAdmission("command-1", "turn-1", 1);
+    assert.equal(first.role, "leader");
+    first.admit();
+    const winner = claimContinuationAdmission("command-1", "turn-1", 2);
+    const loser = claimContinuationAdmission("command-1", "turn-1", 2);
+    assert.equal(winner.role, "duplicate");
+    assert.equal(loser.role, "duplicate");
+    loser.forget();
+    assert.equal(winner.promote()?.role, "leader");
+  });
+
+  it("never overwrites a newer pending generation during promotion", async () => {
+    const first = claimContinuationAdmission("command-1", "turn-1", 1);
+    assert.equal(first.role, "leader");
+    first.admit();
+    const staleWinner = claimContinuationAdmission("command-1", "turn-1", 2);
+    const staleLoser = claimContinuationAdmission("command-1", "turn-1", 2);
+    assert.equal(staleWinner.role, "duplicate");
+    assert.equal(staleLoser.role, "duplicate");
+
+    staleLoser.forget();
+    const freshLeader = claimContinuationAdmission("command-1", "turn-1", 3);
+    const freshWaiter = claimContinuationAdmission("command-1", "turn-1", 4);
+    assert.equal(freshLeader.role, "leader");
+    assert.equal(freshWaiter.role, "duplicate");
+
+    assert.equal(staleWinner.promote(), undefined);
+    freshLeader.release();
+    assert.equal(await freshWaiter.admitted, false);
+  });
 });

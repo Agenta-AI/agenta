@@ -139,6 +139,9 @@ class _FakeRow:
         self.flags = flags
         self.created_at = datetime.now(timezone.utc) - timedelta(days=1)
         self.updated_at = datetime.now(timezone.utc) - timedelta(seconds=age_seconds)
+        self.terminal_outcome = None
+        self.ending_written_at = None
+        self.settled_at = None
 
 
 class _FakeScalars:

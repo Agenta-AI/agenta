@@ -1092,6 +1092,82 @@ describe("createAgentServer", () => {
     }
   });
 
+  it("recovers after the API committed admission but its response was lost", async () => {
+    vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+    let runCalls = 0;
+    let reportCalls = 0;
+    const s = await listen(async () => {
+      runCalls += 1;
+      return { ok: true, output: "continued", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (
+          url.includes(
+            "/sessions/control/commands/command-response-loss/outcome",
+          )
+        ) {
+          reportCalls += 1;
+          if (reportCalls === 1) {
+            // The API committed applied/running, but the runner never observed the response.
+            throw new Error("connection reset after response commit");
+          }
+          return Response.json({
+            command: { id: "command-response-loss", state: "applied" },
+            // The immediate retry sees running. The later retry represents API watchdog/preflight
+            // recovery, whose recoverable->running CAS grants exactly one fresh admission.
+            admitted: reportCalls >= 3,
+          });
+        }
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-response-loss" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({ ok: true });
+      });
+    const request = {
+      harness: "pi_core",
+      sessionId: "session-response-loss",
+      turnId: "continuation-turn-response-loss",
+      projectId: "project-1",
+      controlCommandId: "command-response-loss",
+      messages: [{ role: "user", content: "approved" }],
+    };
+
+    try {
+      const deliver = async () => {
+        const response = await fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify(request),
+        });
+        return (await response.text())
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+      };
+
+      assert.equal((await deliver()).at(-1).result.ok, false);
+      assert.equal(
+        (await deliver()).at(-1).result.stopReason,
+        "control_command_duplicate",
+      );
+      assert.equal(runCalls, 0);
+      assert.equal((await deliver()).at(-1).result.ok, true);
+      assert.equal(runCalls, 1);
+      assert.equal(reportCalls, 3);
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
   it("does not report or run a continuation until a fresh controller owns the alive lock", async () => {
     vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
     let runCalls = 0;
