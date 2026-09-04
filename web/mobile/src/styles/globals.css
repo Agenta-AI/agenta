@@ -139,7 +139,8 @@
     /* `font-portal` re-declares the app font on portaled content, which escapes the app's font
        scope. Mobile has no custom face, so that is the default sans stack. */
     --font-portal: var(--font-sans);
-    /* @agenta/ui control scale (tailwind v4 sizing reads the spacing namespace). */
+    /* @agenta/ui control scale (tailwind v4 sizing reads the spacing namespace). Literals are
+       copied from oss/src/styles/theme/controlScale.ts and verified by `pnpm tokens:check`. */
     --spacing-control-check: 16px;
     --spacing-control-check-dash: 7px;
     --spacing-control-sm: 24px;
@@ -157,24 +158,25 @@
     --spacing-input-y-ghost-sm: 1px;
     --spacing-input-y-ghost: 5px;
     --spacing-input-y-ghost-lg: 8px;
+    --spacing-control-dot: 8px;
     --spacing-switch-thumb: 18px;
     --spacing-switch-thumb-sm: 12px;
     --radius-control-sm: 6px;
     --radius-control: 8px;
     --radius-control-lg: 10px;
     --radius-control-round: 50%;
-    --text-btn-sm: 12px;
+    --text-btn-sm: 14px;
     --text-btn-sm--line-height: normal;
-    --text-btn-md: 12px;
+    --text-btn-md: 14px;
     --text-btn-md--line-height: normal;
-    --text-btn-lg: 14px;
+    --text-btn-lg: 16px;
     --text-btn-lg--line-height: normal;
-    --text-field-sm: 10px;
+    --text-field-sm: 12px;
     --text-field-sm--line-height: 1.6666666666666667;
-    --text-field-md: 12px;
-    --text-field-md--line-height: 1.6666666666666667;
-    --text-field-lg: 14px;
-    --text-field-lg--line-height: 1.5714285714285714;
+    --text-field-md: 14px;
+    --text-field-md--line-height: 1.4285714285714286;
+    --text-field-lg: 16px;
+    --text-field-lg--line-height: 1.5;
     /* The `secondary` step of the type scale, same literals as oss/tailwind.config.ts. Leaving it
        undeclared did not inherit the scale — it fell through to Tailwind's stock 12px/16px, so
        every shared @agenta/* component's secondary text rendered a step smaller here than in
@@ -188,19 +190,32 @@
     --text-badge-md--line-height: 1.8666666666666667;
     --shadow-switch-handle: var(--switch-handle-shadow);
     /* The kit Sheet's directional drawer shadows — its only separation from the page (the panel
-       is borderless). Same literals as oss/tailwind.config.ts. */
-    --shadow-drawer-right:
-        -6px 0 16px 0 rgba(0, 0, 0, 0.08), -3px 0 6px -4px rgba(0, 0, 0, 0.12),
-        -9px 0 28px 8px rgba(0, 0, 0, 0.05);
-    --shadow-drawer-left:
-        6px 0 16px 0 rgba(0, 0, 0, 0.08), 3px 0 6px -4px rgba(0, 0, 0, 0.12),
-        9px 0 28px 8px rgba(0, 0, 0, 0.05);
-    --shadow-drawer-top:
-        0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12),
-        0 9px 28px 8px rgba(0, 0, 0, 0.05);
-    --shadow-drawer-bottom:
-        0 -6px 16px 0 rgba(0, 0, 0, 0.08), 0 -3px 6px -4px rgba(0, 0, 0, 0.12),
-        0 -9px 28px 8px rgba(0, 0, 0, 0.05);
+       is borderless). Light stays local because the palette's light side is an antd() ref mobile
+       cannot resolve; the dark side is bridged and carries the ring that a #141414 page needs. */
+    --shadow-drawer-right: var(
+        --drawer-right-shadow,
+        -6px 0 16px 0 rgba(0, 0, 0, 0.08),
+        -3px 0 6px -4px rgba(0, 0, 0, 0.12),
+        -9px 0 28px 8px rgba(0, 0, 0, 0.05)
+    );
+    --shadow-drawer-left: var(
+        --drawer-left-shadow,
+        6px 0 16px 0 rgba(0, 0, 0, 0.08),
+        3px 0 6px -4px rgba(0, 0, 0, 0.12),
+        9px 0 28px 8px rgba(0, 0, 0, 0.05)
+    );
+    --shadow-drawer-top: var(
+        --drawer-top-shadow,
+        0 6px 16px 0 rgba(0, 0, 0, 0.08),
+        0 3px 6px -4px rgba(0, 0, 0, 0.12),
+        0 9px 28px 8px rgba(0, 0, 0, 0.05)
+    );
+    --shadow-drawer-bottom: var(
+        --drawer-bottom-shadow,
+        0 -6px 16px 0 rgba(0, 0, 0, 0.08),
+        0 -3px 6px -4px rgba(0, 0, 0, 0.12),
+        0 -9px 28px 8px rgba(0, 0, 0, 0.05)
+    );
     /* Kit control-state tokens — values come from theme.generated.css (palette-bridged). */
     --color-placeholder: var(--placeholder);
     --color-focus-ring: var(--focus-ring);

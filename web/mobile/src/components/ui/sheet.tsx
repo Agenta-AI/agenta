@@ -55,22 +55,22 @@ function SheetContent({
             <SheetPrimitive.Content
                 data-slot="sheet-content"
                 className={cn(
-                    "fixed z-50 flex flex-col gap-4 bg-background shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500",
-                    // Below lg the overlay is clear, so these shadows carry the separation instead.
+                    "fixed z-50 flex flex-col gap-4 bg-background shadow-overlay transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500",
+                    // Below lg the overlay is clear, so the drawer shadows carry the separation instead.
                     side === "right" &&
-                        "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm max-lg:shadow-[-8px_0_24px_-6px_rgb(0_0_0/0.28)]",
+                        "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm max-lg:shadow-drawer-right",
                     side === "left" &&
-                        "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm max-lg:shadow-[8px_0_24px_-6px_rgb(0_0_0/0.28)]",
+                        "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm max-lg:shadow-drawer-left",
                     side === "top" &&
                         "inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
                     // A bottom sheet is full-bleed on a phone, but a window this wide would
                     // stretch a two-field form across the whole screen — so it caps and centres,
                     // and rounds its top the way it does against a phone's edge.
                     side === "bottom" &&
-                        "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-2xl border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:border-x max-lg:shadow-[0_-8px_24px_-6px_rgb(0_0_0/0.28)]",
+                        "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-2xl border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:border-x max-lg:shadow-drawer-bottom",
                     // Bottom sheet on a phone…
                     side === "responsive" &&
-                        "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-2xl border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom max-lg:shadow-[0_-8px_24px_-6px_rgb(0_0_0/0.28)]",
+                        "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-2xl border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom max-lg:shadow-drawer-bottom",
                     // …and the app's right-edge drawer from lg up, which is where the settings
                     // rail also stops being a phone layout. Every bottom-sheet property is
                     // unset explicitly — Tailwind would otherwise keep the narrower rule.
