@@ -7,7 +7,7 @@ state machine and terminal settlement live in the service and must not move into
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, Optional
+from typing import List, NamedTuple, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -25,6 +25,13 @@ class SessionScope(BaseModel):
 
     project_id: UUID
     session_id: str
+
+
+class CommandCreateResult(NamedTuple):
+    """The stored command and whether this call inserted it."""
+
+    command: SessionCommand
+    inserted: bool
 
 
 class DeliveryReceipt(BaseModel):
@@ -72,6 +79,16 @@ class SessionCommandsDAOInterface(ABC):
     ) -> SessionCommand:
         """Insert one command and, in the SAME transaction, stamp the session row's
         `stopping_turn_id`. Idempotent on `(project_id, session_id, idempotency_key)`."""
+
+    @abstractmethod
+    async def create_command_with_status(
+        self,
+        *,
+        user_id: Optional[UUID],
+        command: SessionCommandCreate,
+        stopping_turn_id: Optional[str] = None,
+    ) -> CommandCreateResult:
+        """Create a command and report whether this call inserted it."""
 
     @abstractmethod
     async def fetch_open_command(

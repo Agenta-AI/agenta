@@ -27,7 +27,10 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandOutcome,
     SessionCommandState,
 )
-from oss.src.core.sessions.commands.interfaces import DeliveryReceipt
+from oss.src.core.sessions.commands.interfaces import (
+    CommandCreateResult,
+    DeliveryReceipt,
+)
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.commands.types import ExecutionExpectationFailed
 from oss.src.core.sessions.streams.dtos import (
@@ -43,6 +46,7 @@ from oss.src.dbs.redis.sessions.locks import (
     get_alive_owner,
     get_running_owner,
     get_session_liveness,
+    release_running,
 )
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
@@ -81,6 +85,24 @@ class _FakeCommandsDAO:
         self.rows.append(row)
         self.stopping_turn_ids.append(stopping_turn_id)
         return row
+
+    async def create_command_with_status(
+        self, *, user_id, command: SessionCommandCreate, stopping_turn_id=None
+    ):
+        if command.idempotency_key is not None:
+            for row in self.rows:
+                if (
+                    row.project_id == command.project_id
+                    and row.session_id == command.session_id
+                    and row.idempotency_key == command.idempotency_key
+                ):
+                    return CommandCreateResult(command=row, inserted=False)
+        row = await self.create_command(
+            user_id=user_id,
+            command=command,
+            stopping_turn_id=stopping_turn_id,
+        )
+        return CommandCreateResult(command=row, inserted=True)
 
     async def fetch_open_command(self, *, project_id, session_id, kind, target_turn_id):
         for row in reversed(self.rows):
@@ -605,6 +627,65 @@ async def test_two_stops_in_a_row_collapse_onto_one_command(lock_engine):
     assert len(dao.rows) == 1, "one intent, one command"
     assert second.command.id == first.command.id
     assert second.accepted is True
+
+
+@pytest.mark.asyncio
+async def test_reused_idempotency_key_replays_the_original_turn_without_redelivery(
+    lock_engine,
+):
+    await _run_turn(lock_engine, "turn-A")
+    dao = _FakeCommandsDAO()
+    delivery = _RecordingDelivery()
+    streams = _FakeStreamsService(
+        _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+    )
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=streams,
+        delivery=delivery,
+    )
+
+    first = await svc.request_cancel(
+        project_id=_PROJECT,
+        user_id=_USER,
+        session_id=_SESSION,
+        idempotency_key="same-request",
+    )
+    dao.rows[0] = dao.rows[0].model_copy(
+        update={
+            "state": SessionCommandState.applied,
+            "outcome": SessionCommandOutcome.stopped,
+        }
+    )
+    await release_running(
+        lock_engine,
+        project_id=str(_PROJECT),
+        session_id=_SESSION,
+        turn_id="turn-A",
+    )
+    await acquire_running(
+        lock_engine,
+        project_id=str(_PROJECT),
+        session_id=_SESSION,
+        turn_id="turn-B",
+    )
+    streams.stream = _stream(
+        "turn-B", datetime.now(timezone.utc) - timedelta(seconds=5)
+    )
+
+    replay = await svc.request_cancel(
+        project_id=_PROJECT,
+        user_id=_USER,
+        session_id=_SESSION,
+        idempotency_key="same-request",
+    )
+
+    assert replay.command.id == first.command.id
+    assert replay.command.state == SessionCommandState.applied
+    assert replay.execution_id == "turn-A"
+    assert replay.accepted is True
+    assert len(delivery.delivered) == 1, "an idempotent replay must not target turn-B"
 
 
 @pytest.mark.asyncio

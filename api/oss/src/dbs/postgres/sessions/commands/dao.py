@@ -21,6 +21,7 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandState,
 )
 from oss.src.core.sessions.commands.interfaces import (
+    CommandCreateResult,
     SessionCommandsDAOInterface,
     SessionScope,
 )
@@ -51,6 +52,20 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         command: SessionCommandCreate,
         stopping_turn_id: Optional[str] = None,
     ) -> SessionCommand:
+        result = await self.create_command_with_status(
+            user_id=user_id,
+            command=command,
+            stopping_turn_id=stopping_turn_id,
+        )
+        return result.command
+
+    async def create_command_with_status(
+        self,
+        *,
+        user_id: Optional[UUID],
+        command: SessionCommandCreate,
+        stopping_turn_id: Optional[str] = None,
+    ) -> CommandCreateResult:
         """Insert the command and stamp the session row's `stopping_turn_id` together.
 
         One transaction, on purpose. A user whose Stop was recorded but whose session row never
@@ -77,7 +92,9 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                     )
                 await session.commit()
                 await session.refresh(dbe)
-            return map_command_dbe_to_dto(dbe)
+            return CommandCreateResult(
+                command=map_command_dbe_to_dto(dbe), inserted=True
+            )
         except IntegrityError:
             # One of two unique constraints refused this insert, and both mean the same thing:
             # a command for this intent already exists. Return it rather than a second command.
@@ -95,7 +112,7 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                     idempotency_key=command.idempotency_key,
                 )
                 if existing is not None:
-                    return existing
+                    return CommandCreateResult(command=existing, inserted=False)
             open_command = await self.fetch_open_command(
                 project_id=command.project_id,
                 session_id=command.session_id,
@@ -104,7 +121,7 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             )
             if open_command is None:
                 raise
-            return open_command
+            return CommandCreateResult(command=open_command, inserted=False)
 
     async def _fetch_by_idempotency_key(
         self,

@@ -44,6 +44,7 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandState,
 )
 from oss.src.core.sessions.commands.interfaces import (
+    CommandCreateResult,
     ControlDeliveryPort,
     SessionCommandsDAOInterface,
 )
@@ -179,7 +180,7 @@ class SessionCommandsService:
         if target_turn_id is None:
             # Nothing is running and nothing is parked. Record the intent so a retry with the
             # same key gets the same answer, and settle it in the same write.
-            command = await self._insert(
+            created = await self._insert(
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
@@ -190,6 +191,9 @@ class SessionCommandsService:
                 state=SessionCommandState.obsolete,
                 outcome=SessionCommandOutcome.not_running,
             )
+            if not created.inserted:
+                return self._admission_for_existing(created.command)
+            command = created.command
             return CancelAdmission(command=command, execution_id=None, accepted=False)
 
         if (
@@ -200,7 +204,7 @@ class SessionCommandsService:
             # The execution now running began AFTER the user pressed Stop, so it is not the one
             # they meant. Do not target it, do not touch Redis, and tell the caller there is
             # nothing of theirs left to stop.
-            command = await self._insert(
+            created = await self._insert(
                 project_id=project_id,
                 user_id=user_id,
                 session_id=session_id,
@@ -211,6 +215,9 @@ class SessionCommandsService:
                 state=SessionCommandState.obsolete,
                 outcome=SessionCommandOutcome.superseded_by_newer_turn,
             )
+            if not created.inserted:
+                return self._admission_for_existing(created.command)
+            command = created.command
             return CancelAdmission(command=command, execution_id=None, accepted=False)
 
         # Two Stops in a row are one intent. Collapse onto the open command for the same target
@@ -232,7 +239,7 @@ class SessionCommandsService:
                 accepted=True,
             )
 
-        command = await self._insert(
+        created = await self._insert(
             project_id=project_id,
             user_id=user_id,
             session_id=session_id,
@@ -244,6 +251,9 @@ class SessionCommandsService:
             outcome=None,
             stopping_turn_id=target_turn_id,
         )
+        if not created.inserted:
+            return self._admission_for_existing(created.command)
+        command = created.command
         # The row is committed. Everything from here is promptness, not correctness.
         await self._deliver(command)
         return CancelAdmission(
@@ -295,8 +305,8 @@ class SessionCommandsService:
         state: SessionCommandState,
         outcome: Optional[SessionCommandOutcome],
         stopping_turn_id: Optional[str] = None,
-    ) -> SessionCommand:
-        return await self._dao.create_command(
+    ) -> CommandCreateResult:
+        return await self._dao.create_command_with_status(
             user_id=user_id,
             command=SessionCommandCreate(
                 project_id=project_id,
@@ -311,6 +321,15 @@ class SessionCommandsService:
                 created_at=received_at,
             ),
             stopping_turn_id=stopping_turn_id,
+        )
+
+    @staticmethod
+    def _admission_for_existing(command: SessionCommand) -> CancelAdmission:
+        """Replay the command's original target without delivering it again."""
+        return CancelAdmission(
+            command=command,
+            execution_id=command.target_turn_id,
+            accepted=command.target_turn_id is not None,
         )
 
     # -- delivery ----------------------------------------------------------- #
