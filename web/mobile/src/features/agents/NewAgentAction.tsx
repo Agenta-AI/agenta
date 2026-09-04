@@ -1,3 +1,5 @@
+import {useRouter} from "next/router"
+
 import {AGENT_TEMPLATES} from "@agenta/entities/workflow"
 import {NewAgentButton} from "@agenta/home-ui"
 
@@ -32,16 +34,25 @@ export const NewAgentAction = ({
      * on the other surface.
      */
     align?: "end" | "stretch"
-}) => (
-    <span className={`flex flex-col gap-1 ${align === "end" ? "items-end" : "items-stretch"}`}>
-        <NewAgentButton
-            label={label}
-            loading={creating}
-            onCreateBlank={create}
-            templates={AGENT_TEMPLATES}
-            onPickTemplate={createFromTemplate}
-            browseHref={`${base}/templates`}
-        />
-        {error ? <span className="text-destructive text-[11px]">{error}</span> : null}
-    </span>
-)
+}) => {
+    const router = useRouter()
+
+    return (
+        <span className={`flex flex-col gap-1 ${align === "end" ? "items-end" : "items-stretch"}`}>
+            <NewAgentButton
+                label={label}
+                loading={creating}
+                onCreateBlank={create}
+                templates={AGENT_TEMPLATES}
+                // A menu has nowhere to show the connect step, so a pick OPENS the template instead of
+                // creating from it — the detail screen asks for what it needs, as every other surface
+                // does. Picking a template used to be the one route that skipped the question.
+                onPickTemplate={(templateKey: string) =>
+                    void router.push(`${base}/templates/${templateKey}`)
+                }
+                browseHref={`${base}/templates`}
+            />
+            {error ? <span className="text-destructive text-[11px]">{error}</span> : null}
+        </span>
+    )
+}

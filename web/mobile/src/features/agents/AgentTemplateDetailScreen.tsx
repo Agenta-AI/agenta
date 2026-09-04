@@ -4,6 +4,7 @@ import {TemplateDetail} from "@agenta/home-ui"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {FirstRunSetupStep} from "../onboarding/FirstRunSetupStep"
 import {AssistantMarkdown} from "../chat/AssistantMarkdown"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -47,15 +48,33 @@ export const AgentTemplateDetailScreen = ({
                         ) : undefined
                     }
                 >
-                    <TemplateDetail
-                        template={template}
-                        allTemplatesHref={`${base}/templates`}
-                        busy={newAgent.creating}
-                        onUseTemplate={(picked) => newAgent.createFromTemplate(picked.key)}
-                        renderMarkdown={(markdown) => (
-                            <AssistantMarkdown streaming={false} text={markdown} />
-                        )}
-                    />
+                    {newAgent.step.draft ? (
+                        // The connect step replaces the detail, as it replaces the composer on
+                        // first run: one thing to answer, not a card competing with a page.
+                        <div className="px-4 py-3">
+                            <FirstRunSetupStep
+                                step={newAgent.step}
+                                creating={newAgent.creating}
+                                onCreate={(selection) =>
+                                    void newAgent.createFromPrompt({
+                                        text: newAgent.step.draft?.seedMessage ?? "",
+                                        setup: selection,
+                                    })
+                                }
+                                onEdit={() => newAgent.step.close()}
+                            />
+                        </div>
+                    ) : (
+                        <TemplateDetail
+                            template={template}
+                            allTemplatesHref={`${base}/templates`}
+                            busy={newAgent.creating}
+                            onUseTemplate={(picked) => newAgent.createFromTemplate(picked.key)}
+                            renderMarkdown={(markdown) => (
+                                <AssistantMarkdown streaming={false} text={markdown} />
+                            )}
+                        />
+                    )}
                 </ScreenScaffold>
             </AppShell>
         </>

@@ -1,8 +1,10 @@
 import {useCallback, useState} from "react"
 
+import {useAgentSetupStep} from "@agenta/entity-ui/onboarding"
 import {
     agentTemplateByKey,
     agentTemplateSeed,
+    templateBuilderMessage,
     appendSetupPreamble,
     invalidateWorkflowsListCache,
     type AgentSetupSelection,
@@ -12,6 +14,7 @@ import type {FileUIPart} from "ai"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {CONNECT_STEP_MODE} from "@/lib/connectStep"
 import {newId} from "@/lib/ids"
 
 import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
@@ -35,6 +38,8 @@ export const useNewAgentAction = (base: string) => {
     const createAgent = useCreateAgent({onError: setError})
     const stashTask = useSetAtom(stashPendingTaskAtom)
     const dropTask = useSetAtom(takePendingTaskAtom)
+
+    const step = useAgentSetupStep()
 
     const run = useCallback(
         async (params?: {
@@ -105,13 +110,28 @@ export const useNewAgentAction = (base: string) => {
 
     const create = useCallback(() => void run(), [run])
 
+    /**
+     * A template pick. It stops at the connect step when the template needs an account this
+     * workspace has not got — the same stop the first-run composer makes, so a template behaves
+     * the same wherever it is picked from. `open` declining means there is nothing to ask.
+     */
     const createFromTemplate = useCallback(
         (templateKey: string) => {
             const template = agentTemplateByKey(templateKey)
             if (!template) return
+            if (
+                CONNECT_STEP_MODE &&
+                step.open({
+                    seedMessage: templateBuilderMessage(template),
+                    name: template.name,
+                    template,
+                })
+            ) {
+                return
+            }
             void run(agentTemplateSeed(template))
         },
-        [run],
+        [run, step.open],
     )
 
     /**
@@ -137,5 +157,5 @@ export const useNewAgentAction = (base: string) => {
         [run],
     )
 
-    return {create, createFromTemplate, createFromPrompt, creating, error}
+    return {create, createFromTemplate, createFromPrompt, creating, error, step}
 }

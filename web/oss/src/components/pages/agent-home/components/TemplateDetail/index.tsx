@@ -1,11 +1,10 @@
 import {agentTemplateByKey} from "@agenta/entities/workflow"
 import {TemplateDetail as TemplateDetailView} from "@agenta/home-ui"
 import {PageLayout} from "@agenta/ui"
+import {useRouter} from "next/router"
 
 import Markdown from "@/oss/components/AgentChatSlice/assets/markdown"
 import useURL from "@/oss/hooks/useURL"
-
-import {useCreateAgentFromTemplate} from "../../hooks/useCreateAgentFromTemplate"
 
 /**
  * One template, in full — the SHARED detail view under this app's page chrome.
@@ -16,7 +15,7 @@ import {useCreateAgentFromTemplate} from "../../hooks/useCreateAgentFromTemplate
  */
 const TemplateDetail = ({templateKey}: {templateKey: string}) => {
     const {baseAppURL} = useURL()
-    const {createFromTemplate, pendingKey} = useCreateAgentFromTemplate("template_detail")
+    const router = useRouter()
     const template = agentTemplateByKey(templateKey)
 
     return (
@@ -24,8 +23,12 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
             <TemplateDetailView
                 template={template}
                 allTemplatesHref={`${baseAppURL}/agent-templates`}
-                busy={pendingKey === template?.key}
-                onUseTemplate={(pickedTemplate) => void createFromTemplate(pickedTemplate)}
+                // Hand the pick to the create surface rather than creating here, so a template
+                // taken from this page meets the same connect step as one taken from the gallery.
+                // Creating straight from here was the one path that never asked to connect.
+                onUseTemplate={(pickedTemplate) =>
+                    void router.push(`${baseAppURL}?new=1&template=${pickedTemplate.key}`)
+                }
                 renderMarkdown={(markdown) => (
                     <Markdown content={markdown} className="!text-[13px]" />
                 )}

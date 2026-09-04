@@ -170,7 +170,20 @@ const StripHome: React.FC = () => {
         if (!template) return
         seededTemplate.current = templateParam
         provenance.pick(template)
-    }, [templateParam, provenance.pick])
+        // Arriving with a template is a PICK that happened on another page — the gallery or a
+        // template's own detail page. Treat it as one, or the same choice asks to connect on one
+        // surface and silently skips it on another.
+        if (
+            CONNECT_STEP_MODE &&
+            setup.open({
+                seedMessage: templateBuilderMessage(template),
+                name: template.name,
+                template,
+            })
+        ) {
+            return
+        }
+    }, [templateParam, provenance.pick, setup.open])
 
     const handleCreate = useCallback(
         async (markdown?: string) => {
