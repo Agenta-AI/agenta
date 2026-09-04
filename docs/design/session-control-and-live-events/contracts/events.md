@@ -7,6 +7,13 @@
 The initiating browser receives invoke frames. The current watch SSE emits notices such as
 `records-changed`, then secondary clients reload completed records. It does not carry live content.
 
+## Sender on the shared path
+
+For `x-ag-session-response: shared`, invoke emits one transient `data-session-accepted` event with
+`{sessionId, turnId, executionId}`. The current contract uses the same ID for the turn and execution.
+The sender consumes invoke only for this acceptance, protocol lifecycle, and errors. It renders text,
+reasoning, and tool progress from the session event route.
+
 ## One ingest envelope
 
 Temporary frames and durable events reuse the existing records ingest stream. The envelope is
@@ -28,6 +35,7 @@ when kind = frame:
 
 when kind = event:
   sequence
+  watermark
 ```
 
 - `session_id` reuses the current `sessionId`.
@@ -35,11 +43,19 @@ when kind = event:
 - `frame_or_event_id` is stable across an identical retry.
 - `entity_id` reuses `id`, `toolCallId`, or `messageId`. Execution events use `execution_id`.
 - `frame_index` increases by one within an execution and orders temporary frames.
-- `sequence` is the database-assigned per-session cursor for durable events.
+- `sequence` is the database-assigned per-session record cursor for this durable event. It can skip
+  values because every record receives a sequence, while the relay exposes only the six typed events.
+- `watermark` is the session's latest committed record sequence when the event is published or
+  replayed. On a live event it is the highest sequence committed in the publishing batch. On the
+  replay's final `ready` event it is the session cursor after the replay. A client that receives a
+  `ready` event without it keeps the `after` cursor it requested.
 - `created_at` is the producer timestamp in UTC. It does not define order.
 
 Ingress accepts an identical retry and rejects conflicting reuse of an ID or index. It records a
-frame gap. Clients order frames by `(execution_id, frame_index)` and durable events by `sequence`.
+frame gap. Clients order frames by `(execution_id, frame_index)`. Clients apply durable events with
+a `sequence` greater than the last event they applied and discard duplicate or older events. They do
+not wait for a contiguous sequence. After applying an event, they advance their reconnect cursor to
+the greater of `sequence` and `watermark`.
 
 ## Temporary frame payloads
 
@@ -90,6 +106,10 @@ follows current frames. The runner never waits for retention or readers.
 The event endpoint subscribes to the wake-up source before its first history query. It queries
 Postgres after the supplied sequence, sends rows in order, and queries again when a notification
 arrives. Notifications carry no durable truth.
+
+Each replay is bounded by the current database watermark. Replayed events carry that watermark. The
+replay's final `ready` event also carries it, including when no typed event follows the supplied
+sequence.
 
 Each reader has a bounded output buffer. The API closes a reader that falls behind. The reader then
 reloads the snapshot and resumes from its durable sequence.

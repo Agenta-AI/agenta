@@ -64,6 +64,13 @@ Queue and Steer become public with their work package. The API compares the requ
 idempotency key. An identical retry returns the first stable IDs, while a different body returns
 `409 idempotency_key_reused`.
 
+## Sender on the shared path
+
+When `shared_reader` is advertised, a first-party sender opens the event route before invoke and
+sends `x-ag-session-response: shared`. The SDK maps that header to `flags.detached: true` only for a
+session-owned run. A detached invoke no longer owns the run lifetime; Stop keeps the contract below.
+Without the capability, the client omits the header and flag and uses the existing invoke response.
+
 ## Stop
 
 ```http
@@ -121,7 +128,15 @@ Accept: text/event-stream
 ```
 
 The connection first sends committed events after the supplied sequence, then follows new durable
-events and temporary frames. Durable events carry `sequence`; frames carry `frame_index`.
+events and temporary frames. Durable events carry `sequence` and `watermark`; frames carry
+`frame_index`. `sequence` orders the typed events a client receives but can have gaps because every
+session record receives a sequence. `watermark` is the latest committed session record sequence at
+publish time.
+
+The replay ends with a `ready` event containing the current `watermark`, even when it returns no
+typed events. Clients apply an event only when its `sequence` is greater than the last applied event,
+discard duplicate or older events, and advance the reconnect cursor to the greater of `sequence`
+and `watermark`. Clients do not wait for `sequence + 1`.
 
 On disconnect, the client discards unfinished previews, fetches a fresh snapshot, and follows from
 its sequence. The server revalidates access during a connection or closes it within 15 minutes so
