@@ -204,11 +204,12 @@ Run every cell with one line:
 uv run resources/session_control.py --cells all --harness pi_core --sandbox local
 ```
 
-Add `--project <docker-compose project name>` to also run the nine cells that need direct
-Docker and Postgres access (`sandbox-gone`, `records-outage`, `restart-after-stop`,
-`runner-gone`, `runner-gone-late`, `post-stop-row`, `codex-child`, `stale-tail`, plus the
-abort-log check inside `stop-after-finish`). Without `--project` those cells SKIP with a named
-reason; the other eight
+Add `--project <docker-compose project name>` to run the eight cells that need direct Docker and
+Postgres access (`sandbox-gone`, `records-outage`, `restart-after-stop`, `runner-gone`,
+`runner-gone-late`, `post-stop-row`, `codex-child`, `stale-tail`) and the abort-log subcheck inside
+`stop-after-finish`. Without `--project`, those eight cells SKIP with a named reason. The
+`stop-after-finish` HTTP check still runs, but only its abort-log subcheck is unavailable. The
+other eight cells
 (`stop-warm`, `double-send`, `stale-stop`, `stop-approval`, `stop-after-finish`,
 `repeat-stop`, `concurrent-stops`, `stop-during-completion`) run over HTTP alone against any
 deployment. Add
@@ -217,7 +218,9 @@ recorded there is loaded instead of re-run.
 
 Results land in a timestamped folder under `~/agenta-qa-evidence/` (override with
 `AGENTA_QA_RUNS_DIR`), as `results.json` and `summary.md` — the same PASS/FAIL/SKIP shape as the
-rest of the gate.
+rest of the gate. When a release path makes session control mandatory, pass that artifact to the
+standing gate with `--session-control-results <path>`: a missing or incomplete artifact stops the
+gate before the matrix runs, and a recorded FAIL makes the final gate exit nonzero.
 
 **Environment, by name.** Same three-variable discipline as the rest of the gate, no env-file
 fallback:
