@@ -169,11 +169,16 @@ const StripHome: React.FC = () => {
         const template = AGENT_TEMPLATES.find((entry) => entry.key === templateParam)
         if (!template) return
         seededTemplate.current = templateParam
-        // Seeds the composer and its chip; the connect step comes when the user submits. Opening
-        // it HERE left the hero asking for a description, the chip pointing at a composer that was
-        // no longer rendered, and the card underneath — four things saying the same thing.
         provenance.pick(template)
-    }, [templateParam, provenance.pick])
+        // A template arriving on the URL was picked on another page, so it goes straight to the
+        // step — which renders in the composer's place, at the bottom, where the card belongs.
+        if (!CONNECT_STEP_MODE) return
+        setup.open({
+            seedMessage: templateBuilderMessage(template),
+            name: template.name,
+            template,
+        })
+    }, [templateParam, provenance.pick, setup.open])
 
     const handleCreate = useCallback(
         async (markdown?: string) => {
@@ -238,9 +243,14 @@ const StripHome: React.FC = () => {
                             {/* Chip docks into this gap (bottom-full), so it can only tighten so
                                 far. The 2px nudge + z-10 overlap and paint above the composer's
                                 top border so the chip reads as one shape, not a seam. */}
-                            <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
-                                {provenance.chipNode}
-                            </div>
+                            {/* The chip docks onto the composer's top edge, so it has nothing to
+                                sit on once the step replaces the composer — and the step already
+                                names the template above the card. */}
+                            {setup.draft ? null : (
+                                <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
+                                    {provenance.chipNode}
+                                </div>
+                            )}
                             <HomeTaskComposer />
                         </>
                     }
