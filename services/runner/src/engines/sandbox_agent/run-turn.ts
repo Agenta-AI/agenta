@@ -70,7 +70,10 @@ import {
 import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
 import { isUserStopAbort } from "../../sessions/stop-signal.ts";
 import { cancelHarnessTurn } from "./cancel-turn.ts";
-import { reapLeakedExecChildren } from "./reap-exec.ts";
+import {
+  reapLeakedExecChildren,
+  reapResultAllowsParking,
+} from "./reap-exec.ts";
 import { sandboxAgentServerPort } from "./provider.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import {
@@ -1382,14 +1385,16 @@ export async function runTurn(
       // Codex leaves its shell child running inside the sandbox we are about to park; Pi and
       // Claude kill theirs. Reap it here, never in the bridge: the Codex shell is a child of a
       // vendored Rust binary the JS bridge holds no pid for, and a bridge patch would ship only
-      // through a Daytona snapshot rebuild. Best effort, and it cannot change the park decision.
+      // through a Daytona snapshot rebuild. Parking is safe only when cleanup succeeds or proves
+      // there is nothing to reap.
       if (cancel.settled && plan.acpAgent === "codex") {
-        await reapLeakedExecChildren({
+        const reap = await reapLeakedExecChildren({
           sandbox: env.sandbox,
           sandboxAgentPort: sandboxAgentServerPort(env.sandbox?.sandboxId),
           turnElapsedMs: Date.now() - promptStartedAtMs,
           log: logger,
         }).catch(() => undefined);
+        cancelSettled = reapResultAllowsParking(reap);
       }
       // The harness has been asked to stop, so the Pi trace port and the environment teardown must
       // not ask again. Their `destroySession` also aborts `env.mcpAbort`, which belongs to the

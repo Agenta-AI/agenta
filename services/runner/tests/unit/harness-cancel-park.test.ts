@@ -9,7 +9,7 @@
  *  3. The parked reason is on the teardown allowlist, so the sandbox is stopped, not deleted.
  */
 import assert from "node:assert/strict";
-import { describe, it } from "vitest";
+import { afterEach, beforeEach, describe, it } from "vitest";
 
 import {
   cancelHarnessTurn,
@@ -130,6 +130,21 @@ describe("cancelHarnessTurn", () => {
     assert.equal(result.settled, false);
   });
 
+  it("bounds a cancel request that never answers", async () => {
+    const logs: string[] = [];
+    const result = await cancelHarnessTurn({
+      sandbox: { cancelSession: never },
+      sessionId: "sess-1",
+      promptPromise: Promise.resolve({ stopReason: "cancelled" }),
+      timeoutMs: 5_000,
+      wait: async () => {},
+      log: (message) => logs.push(message),
+    });
+
+    assert.deepEqual(result, { settled: false, requested: false, elapsedMs: 0 });
+    assert.ok(logs.some((line) => line.includes("reason=request-timeout")));
+  });
+
   it("keeps a settle budget a user would wait through", () => {
     assert.ok(DEFAULT_CANCEL_SETTLE_MS > 0);
     assert.ok(DEFAULT_CANCEL_SETTLE_MS <= 30_000);
@@ -239,6 +254,29 @@ describe("the cancelled teardown reason", () => {
 });
 
 describe("the stopped-session park window", () => {
+  const ttlEnvNames = [
+    "AGENTA_RUNNER_SESSION_TTL_MS",
+    "AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS",
+    "AGENTA_RUNNER_SESSION_STOPPED_TTL_MS",
+    "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS",
+  ] as const;
+  let savedTtlEnv: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    savedTtlEnv = Object.fromEntries(
+      ttlEnvNames.map((name) => [name, process.env[name]]),
+    );
+    for (const name of ttlEnvNames) delete process.env[name];
+  });
+
+  afterEach(() => {
+    for (const name of ttlEnvNames) {
+      const value = savedTtlEnv[name];
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
   // A settled Stop gets the same ten-minute human-response window on both providers. The
   // ordinary idle windows remain shorter and continue to govern clean completed turns.
   it("defaults a local stopped session to the approval window", () => {
@@ -256,16 +294,12 @@ describe("the stopped-session park window", () => {
 
   it("moves with its own env var, without touching the ordinary idle window", () => {
     process.env.AGENTA_RUNNER_SESSION_STOPPED_TTL_MS = "300000";
-    try {
-      const local = readKeepaliveConfig("local");
-      const daytona = readKeepaliveConfig("daytona");
-      assert.equal(local.stoppedTtlMs, 300_000);
-      assert.equal(local.ttlMs, 60_000);
-      assert.equal(daytona.stoppedTtlMs, 300_000);
-      assert.equal(daytona.ttlMs, 120_000);
-    } finally {
-      delete process.env.AGENTA_RUNNER_SESSION_STOPPED_TTL_MS;
-    }
+    const local = readKeepaliveConfig("local");
+    const daytona = readKeepaliveConfig("daytona");
+    assert.equal(local.stoppedTtlMs, 300_000);
+    assert.equal(local.ttlMs, 60_000);
+    assert.equal(daytona.stoppedTtlMs, 300_000);
+    assert.equal(daytona.ttlMs, 120_000);
   });
 });
 

@@ -13,6 +13,7 @@ import {
   findSandboxAgentServerPid,
   parseProcessTable,
   reapLeakedExecChildren,
+  reapResultAllowsParking,
   selectLeakedExecPids,
 } from "../../src/engines/sandbox_agent/reap-exec.ts";
 import {
@@ -21,6 +22,19 @@ import {
 } from "../../src/engines/sandbox_agent/provider.ts";
 
 const LIVE_PORT = 43_123;
+
+describe("reapResultAllowsParking", () => {
+  it("accepts only a successful reap or a clean inspection", () => {
+    expect(reapResultAllowsParking({ killed: 1 })).toBe(true);
+    expect(
+      reapResultAllowsParking({ killed: 0, skipped: "nothing-to-reap" }),
+    ).toBe(true);
+    expect(reapResultAllowsParking({ killed: 0, skipped: "ps-failed" })).toBe(
+      false,
+    );
+    expect(reapResultAllowsParking(undefined)).toBe(false);
+  });
+});
 
 /** The real tree, copied from the live probe on the integration stack (2026-09-03). */
 const LIVE_PS = [

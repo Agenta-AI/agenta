@@ -39,10 +39,8 @@
  * that was just stopped. An MCP server starts when the session is created, before the prompt, so
  * it is always older than the turn and is never selected.
  *
- * WHY A FAILURE IS NOT A DESTROY. The reap is best effort and cannot change the park decision. A
- * sandbox that would have been parked is still parked when the reap cannot run, because trading a
- * warm session away for a tidier process table is the wrong trade. The cost of not reaping is
- * bounded by the park window; the cost of destroying is a cold start on the user's next message.
+ * WHY A FAILURE DESTROYS. A parked sandbox must not retain a command from the stopped turn. Only a
+ * successful kill or a successful inspection that finds nothing to reap proves parking is safe.
  */
 
 /** One row of `ps -eo pid=,ppid=,etimes=,args=`. */
@@ -209,6 +207,11 @@ export interface ReapResult {
     | "kill-failed";
 }
 
+/** True only when Codex cleanup proved the sandbox safe to park. */
+export function reapResultAllowsParking(result: ReapResult | undefined): boolean {
+  return Boolean(result && (result.killed > 0 || result.skipped === "nothing-to-reap"));
+}
+
 /**
  * Best effort. Never throws, and every outcome is one log line the release gate can assert on.
  */
@@ -233,8 +236,7 @@ export async function reapLeakedExecChildren(
     rows = parseProcessTable(listing.stdout ?? "");
     if (rows.length === 0) throw new Error("no parseable rows");
   } catch (error) {
-    // A sandbox image without a `ps` that understands `-eo` lands here. That is a reason to leave
-    // the leak alone, never a reason to delete a sandbox the user is about to write to.
+    // A sandbox image without a compatible `ps` cannot prove that parking is safe.
     input.log(
       "stage=harness_reap killed=0 skipped=ps-failed error=" +
         (error instanceof Error ? error.message : String(error)).slice(0, 120),

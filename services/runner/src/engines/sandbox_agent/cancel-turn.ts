@@ -98,16 +98,6 @@ export async function cancelHarnessTurn(
 
   const now = input.now ?? (() => Date.now());
   const startedAt = now();
-  try {
-    await cancelSession.call(input.sandbox, input.sessionId);
-  } catch (error) {
-    input.log(
-      "stage=harness_cancel sent=false error=" +
-        (error instanceof Error ? error.message : String(error)).slice(0, 160),
-    );
-    return unsettled;
-  }
-
   const timeoutMs = input.timeoutMs ?? resolveCancelSettleMs();
   const wait =
     input.wait ??
@@ -116,8 +106,27 @@ export async function cancelHarnessTurn(
         const handle = setTimeout(resolve, ms);
         handle.unref?.();
       }));
-
   const TIMED_OUT = Symbol("cancel-settle-timeout");
+
+  try {
+    const requested = await Promise.race([
+      cancelSession.call(input.sandbox, input.sessionId).then(() => true),
+      wait(timeoutMs).then(() => TIMED_OUT),
+    ]);
+    if (requested === TIMED_OUT) {
+      input.log(
+        `stage=harness_cancel sent=false reason=request-timeout budget_ms=${timeoutMs}`,
+      );
+      return unsettled;
+    }
+  } catch (error) {
+    input.log(
+      "stage=harness_cancel sent=false error=" +
+        (error instanceof Error ? error.message : String(error)).slice(0, 160),
+    );
+    return unsettled;
+  }
+
   // A RESOLVED prompt is the harness reporting its own `stopReason`. A REJECTED one means the
   // prompt died on the transport instead, which says nothing about whether the harness stopped,
   // so it counts as unsettled and the environment is destroyed.
