@@ -7,15 +7,18 @@ import ChatMarkdown from "@agenta/chat/markdown"
  * having to fork every element renderer. Semantic tokens only — the `sidebar` role Streamdown
  * reaches for is not part of the generated token bridge, so code/table chrome is re-surfaced
  * onto `muted`, and long unbroken tokens wrap instead of widening the viewport.
+ *
+ * From `sm:` the prose steps up to the desktop app's 14px body (oss AgentChatSlice/markdown.tsx),
+ * so a wide window reads at the same scale as /w instead of staying phone-sized.
  */
 const proseClassName = [
-    "w-full min-w-0 space-y-2 overflow-hidden text-xs wrap-anywhere",
+    "w-full min-w-0 space-y-2 overflow-hidden text-xs wrap-anywhere sm:text-sm",
     "[&_a]:text-primary [&_a]:font-medium [&_a]:underline",
-    "[&_p]:text-foreground [&_p]:text-xs",
+    "[&_p]:text-foreground [&_p]:text-xs sm:[&_p]:text-sm",
     "[&_:is(h1,h2,h3,h4,h5,h6)]:mt-3 [&_:is(h1,h2,h3,h4,h5,h6)]:mb-1",
-    "[&_h1]:text-base [&_:is(h2,h3)]:text-sm [&_:is(h4,h5,h6)]:text-xs",
-    "[&_:is(ul,ol)]:my-1 [&_li]:py-0.5 [&_li]:text-xs",
-    "[&_blockquote]:my-2 [&_blockquote]:text-xs [&_blockquote_p]:text-muted-foreground",
+    "[&_h1]:text-base [&_:is(h2,h3)]:text-sm [&_:is(h4,h5,h6)]:text-xs sm:[&_:is(h4,h5,h6)]:text-sm",
+    "[&_:is(ul,ol)]:my-1 [&_li]:py-0.5 [&_li]:text-xs sm:[&_li]:text-sm",
+    "[&_blockquote]:my-2 [&_blockquote]:text-xs sm:[&_blockquote]:text-sm [&_blockquote_p]:text-muted-foreground",
     "[&_hr]:my-3",
     "[&_code]:text-[0.95em]",
     "[&_:is(th,td)]:px-2 [&_:is(th,td)]:py-1 [&_:is(th,td)]:text-xs",
