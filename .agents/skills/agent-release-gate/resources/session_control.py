@@ -585,6 +585,27 @@ HARNESSES = {
     },
 }
 
+# Read timeout for the SSE stream `invoke()` opens, per harness kind (`cfg["harness"]["kind"]`,
+# the same key HARNESSES above sets). Pi is a single in-process model loop; Codex and Claude Code
+# are agentic CLIs behind an ACP bridge and routinely take longer per turn under load, so their
+# budget is about 1.5x Pi's — high enough that a genuinely slow-but-healthy turn does not trip
+# the driver's OWN httpx.ReadTimeout and get misread as a product failure (concurrent-stops hit
+# exactly this on Claude Code). A cell whose Stop settlement is the actual problem is caught by
+# `assert_command_settled` well before this ever fires, at its own fixed 20s budget regardless of
+# harness — this table is about not confusing "the driver gave up too early" with "the product is
+# broken", not about giving a broken product more rope.
+STREAM_TIMEOUT_S = {
+    "pi_core": 600.0,
+    "codex": 900.0,
+    "claude": 900.0,
+}
+DEFAULT_STREAM_TIMEOUT_S = 600.0
+
+
+def stream_timeout_s(cfg: dict) -> float:
+    kind = (cfg.get("harness") or {}).get("kind")
+    return STREAM_TIMEOUT_S.get(kind, DEFAULT_STREAM_TIMEOUT_S)
+
 
 def api(method: str, path: str, *, timeout: float = 120.0, **kw) -> httpx.Response:
     headers = {
@@ -844,7 +865,7 @@ def invoke(
         }
     )
     started = time.time()
-    with httpx.Client(timeout=600.0) as client:
+    with httpx.Client(timeout=stream_timeout_s(cfg)) as client:
         with client.stream(
             "POST",
             url,

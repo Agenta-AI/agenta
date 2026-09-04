@@ -533,6 +533,20 @@ def test_resolve_env_populates_globals(monkeypatch):
     assert sc.OPENAI_KEY == "sk-test"
 
 
+def test_stream_timeout_s_gives_pi_the_shorter_budget():
+    assert sc.stream_timeout_s({"harness": {"kind": "pi_core"}}) == 600.0
+
+
+def test_stream_timeout_s_gives_codex_and_claude_1_5x_pi():
+    assert sc.stream_timeout_s({"harness": {"kind": "codex"}}) == 900.0
+    assert sc.stream_timeout_s({"harness": {"kind": "claude"}}) == 900.0
+
+
+def test_stream_timeout_s_defaults_for_an_unknown_or_missing_harness():
+    assert sc.stream_timeout_s({"harness": {"kind": "some-future-harness"}}) == 600.0
+    assert sc.stream_timeout_s({}) == 600.0
+
+
 def test_client_shape_messages_full_is_a_noop():
     """--client-shape full (the default) must not touch the outbound messages at all."""
     assert sc.CLIENT_SHAPE == "full"
