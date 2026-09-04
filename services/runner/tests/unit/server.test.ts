@@ -827,6 +827,102 @@ describe("createAgentServer", () => {
       await s.close();
     }
   });
+  for (const detached of [false, true]) {
+    it(`a dropped session invoke ${detached ? "does not cancel an explicitly detached turn" : "still cancels a legacy turn"}`, async () => {
+      vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://api:8000");
+      let releaseRun: (() => void) | undefined;
+      let observedAbort = false;
+      let completed = false;
+      let markStarted: (() => void) | undefined;
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+      const run: RunAgent = async (_request, _emit, signal) => {
+        markStarted?.();
+        return await new Promise((resolve) => {
+          const finish = () => {
+            if (completed) return;
+            completed = true;
+            resolve({ ok: true, output: "done", events: [] });
+          };
+          releaseRun = finish;
+          signal?.addEventListener(
+            "abort",
+            () => {
+              observedAbort = true;
+              finish();
+            },
+            { once: true },
+          );
+        });
+      };
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-1" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({});
+      });
+      const s = await listen(run);
+
+      try {
+        const request = http.request(`${s.url}/run`, {
+          method: "POST",
+          headers: {
+            ...AUTH,
+            accept: "application/x-ndjson",
+            "content-type": "application/json",
+          },
+        });
+        request.on("error", () => {});
+        request.end(
+          JSON.stringify({
+            harness: "pi_core",
+            sessionId: `session-${detached ? "detached" : "legacy"}`,
+            ...(detached ? { detached: true } : {}),
+            telemetry: {
+              exporters: {
+                otlp: {
+                  endpoint: "http://api:8000/otlp/v1/traces",
+                  headers: { authorization: "ApiKey test" },
+                },
+              },
+            },
+            messages: [{ role: "user", content: "hello" }],
+          }),
+        );
+
+        await started;
+        request.destroy();
+        await new Promise<void>((resolve) => setTimeout(resolve, 25));
+
+        if (detached) {
+          assert.equal(observedAbort, false, "the dropped response must not own turn lifetime");
+          assert.equal(completed, false, "the fake turn is still running after disconnect");
+          releaseRun?.();
+        }
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error("run did not settle")), 1_000);
+          const poll = () => {
+            if (completed) {
+              clearTimeout(timeout);
+              resolve();
+            } else setImmediate(poll);
+          };
+          poll();
+        });
+        assert.equal(observedAbort, !detached);
+      } finally {
+        releaseRun?.();
+        await s.close();
+        fetchSpy.mockRestore();
+      }
+    });
+  }
 
   it("redacts this run's credentials from the stderr stack log when a run throws", async () => {
     // A per-run provider key rides ONLY the typed request (never process env). When the run

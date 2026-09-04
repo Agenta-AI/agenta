@@ -93,6 +93,7 @@ def request_to_wire(
     trace: Optional[TraceContext] = None,
     run_context: Optional[RunContext] = None,
     session_id: Optional[str] = None,
+    detached: bool = False,
     turn_id: Optional[str] = None,
     project_id: Optional[str] = None,
     effective_parameters: Optional[Dict[str, Any]] = None,
@@ -172,6 +173,8 @@ def request_to_wire(
             payload["runContext"] = run_context_wire
     if turn_id is not None:
         payload["turnId"] = turn_id
+    if detached and session_id:
+        payload["detached"] = True
     if project_id is not None:
         payload["projectId"] = project_id
     if session_id:

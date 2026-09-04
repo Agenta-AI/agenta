@@ -433,6 +433,7 @@ export async function buildAgentRequest(
         headers,
         requestBody: {
             session_id: opts.sessionId,
+            ...(opts.sharedResponse ? {flags: {detached: true}} : {}),
             references,
             data: {inputs: {messages: outboundMessages}, parameters},
         },
