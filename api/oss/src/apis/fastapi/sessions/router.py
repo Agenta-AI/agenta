@@ -158,6 +158,9 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionRecordQueryRequest,
     SessionRecordResponse,
     SessionRecordsQueryResponse,
+    SessionSnapshotPending,
+    SessionSnapshotResponse,
+    SessionTranscriptWindowing,
     # interactions
     SessionInteractionCancelStaleRequest,
     SessionInteractionCreateRequest,
@@ -838,10 +841,35 @@ class RecordsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        records = await self.records_service.get_records(
-            project_id=UUID(request.state.project_id),
-            session_id=query_request.session_id,
+        records = (
+            await self.records_service.get_records(
+                project_id=UUID(request.state.project_id),
+                session_id=query_request.session_id,
+            )
+            if query_request.windowing is None
+            else None
         )
+        if query_request.windowing is not None:
+            page = await self.records_service.get_records_page(
+                project_id=UUID(request.state.project_id),
+                session_id=query_request.session_id,
+                offset=query_request.windowing.offset,
+                limit=query_request.windowing.limit,
+                through_sequence=query_request.windowing.through_sequence,
+            )
+            return SessionRecordsQueryResponse(
+                count=len(page.records),
+                records=page.records,
+                windowing=SessionTranscriptWindowing(
+                    offset=page.next_offset
+                    if page.next_offset is not None
+                    else page.offset,
+                    limit=page.limit,
+                    through_sequence=page.through_sequence,
+                )
+                if page.next_offset is not None
+                else None,
+            )
         return SessionRecordsQueryResponse(
             count=len(records),
             records=records,
@@ -1841,8 +1869,20 @@ class SessionsRootRouter:
     three mutations.
     """
 
-    def __init__(self, *, sessions_service: SessionsService) -> None:
+    def __init__(
+        self,
+        *,
+        sessions_service: SessionsService,
+        streams_service: Optional[SessionStreamsService] = None,
+        records_service: Optional[RecordsService] = None,
+        interactions_service: Optional[SessionInteractionsService] = None,
+        turns_service: Optional[SessionTurnsService] = None,
+    ) -> None:
         self.sessions_service = sessions_service
+        self.streams_service = streams_service
+        self.records_service = records_service
+        self.interactions_service = interactions_service
+        self.turns_service = turns_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -1882,6 +1922,73 @@ class SessionsRootRouter:
             response_model=SessionResponse,
             response_model_exclude_none=True,
             tags=["Sessions"],
+        )
+        self.router.add_api_route(
+            "/sessions/{session_id}",
+            self.get_session_snapshot,
+            methods=["GET"],
+            operation_id="get_session_snapshot",
+            status_code=status.HTTP_200_OK,
+            response_model=SessionSnapshotResponse,
+            response_model_exclude_none=True,
+            tags=["Sessions"],
+        )
+
+    @intercept_exceptions()
+    @_handle_session_exceptions()
+    async def get_session_snapshot(
+        self,
+        request: Request,
+        session_id: str,
+    ) -> SessionSnapshotResponse:
+        if not env.sessions.shared_reader:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        _validate_session_id_http(session_id)
+        if not await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+        if not all(
+            (
+                self.streams_service,
+                self.records_service,
+                self.interactions_service,
+                self.turns_service,
+            )
+        ):
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        project_id = UUID(str(request.state.project_id))
+        session = await self.streams_service.fetch(
+            project_id=project_id,
+            session_id=session_id,
+        )
+        if session is None:
+            raise SessionStreamNotFound(session_id)
+        read = await self.records_service.get_read_state(
+            project_id=project_id,
+            session_id=session_id,
+        )
+        if getattr(session, "history_incomplete", False):
+            read = read.model_copy(update={"history_complete": False})
+        execution = await self.turns_service.latest_turn(
+            project_id=project_id,
+            session_id=session_id,
+        )
+        interactions = await self.interactions_service.query_interactions(
+            project_id=project_id,
+            query=SessionInteractionQuery(
+                session_id=session_id,
+                status=SessionInteractionStatus.pending,
+            ),
+        )
+        return SessionSnapshotResponse(
+            session=sanitize_session_stream(session),
+            execution=execution,
+            pending=SessionSnapshotPending(interactions=interactions),
+            read=read,
         )
 
     @intercept_exceptions()
@@ -2285,5 +2392,11 @@ class SessionsRouter:
             mounts_service=mounts_service,
         )
         self.turns = SessionTurnsRouter(turns_service=turns_service)
-        self.root = SessionsRootRouter(sessions_service=sessions_service)
+        self.root = SessionsRootRouter(
+            sessions_service=sessions_service,
+            streams_service=streams_service,
+            records_service=records_service,
+            interactions_service=interactions_service,
+            turns_service=turns_service,
+        )
         self.control = SessionControlRouter(commands_service=commands_service)

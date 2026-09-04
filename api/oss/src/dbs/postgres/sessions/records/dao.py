@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import func, select, tuple_, update
+from sqlalchemy import case, func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,8 @@ from oss.src.core.sessions.records.dtos import (
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
+    SessionRecordsPage,
+    SessionRecordsReadState,
 )
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.dbs.postgres.sessions.records.dbes import (
@@ -244,6 +246,107 @@ class RecordsDAO(RecordsDAOInterface):
 
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
+    @staticmethod
+    def _transcript_order():
+        return (
+            case((RecordDBE.sequence.is_(None), 0), else_=1),
+            case((RecordDBE.sequence.is_(None), RecordDBE.timestamp), else_=None)
+            .asc()
+            .nullslast(),
+            case((RecordDBE.sequence.is_(None), RecordDBE.created_at), else_=None)
+            .asc()
+            .nullslast(),
+            case((RecordDBE.sequence.is_(None), RecordDBE.record_index), else_=None)
+            .asc()
+            .nullslast(),
+            RecordDBE.sequence.asc().nullslast(),
+        )
+
+    async def get_records_page(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        offset: int,
+        limit: int,
+        through_sequence: int,
+    ) -> SessionRecordsPage:
+        async with self.engine.session() as session:
+            stmt = (
+                select(RecordDBE)
+                .where(
+                    RecordDBE.project_id == project_id,
+                    RecordDBE.session_id == session_id,
+                    RecordDBE.deleted_at.is_(None),
+                    or_(
+                        RecordDBE.sequence.is_(None),
+                        RecordDBE.sequence <= through_sequence,
+                    ),
+                )
+                .order_by(*self._transcript_order())
+                .offset(offset)
+                .limit(limit + 1)
+            )
+            rows = list((await session.execute(stmt)).scalars().all())
+
+        has_more = len(rows) > limit
+        records = [map_record_dbe_to_dto(dbe=row) for row in rows[:limit]]
+        return SessionRecordsPage(
+            records=records,
+            offset=offset,
+            limit=limit,
+            next_offset=offset + limit if has_more else None,
+            through_sequence=through_sequence,
+        )
+
+    async def get_read_state(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> SessionRecordsReadState:
+        async with self.engine.session() as session:
+            latest_sequence = await session.scalar(
+                select(SessionSequenceCursorDBE.latest_sequence).where(
+                    SessionSequenceCursorDBE.session_id == session_id
+                )
+            )
+            record_count, first_sequenced_at = (
+                await session.execute(
+                    select(
+                        func.count(RecordDBE.record_id),
+                        func.min(RecordDBE.created_at).filter(
+                            RecordDBE.sequence.is_not(None)
+                        ),
+                    ).where(
+                        RecordDBE.project_id == project_id,
+                        RecordDBE.session_id == session_id,
+                        RecordDBE.deleted_at.is_(None),
+                    )
+                )
+            ).one()
+            null_after_cutover = False
+            if first_sequenced_at is not None:
+                null_after_cutover = bool(
+                    await session.scalar(
+                        select(func.count(RecordDBE.record_id)).where(
+                            RecordDBE.project_id == project_id,
+                            RecordDBE.session_id == session_id,
+                            RecordDBE.deleted_at.is_(None),
+                            RecordDBE.sequence.is_(None),
+                            RecordDBE.created_at >= first_sequenced_at,
+                        )
+                    )
+                )
+
+        history_complete = record_count == 0 or (
+            latest_sequence is not None and not null_after_cutover
+        )
+        return SessionRecordsReadState(
+            latest_sequence=latest_sequence or 0,
+            history_complete=history_complete,
+        )
 
     async def latest_message_per_session(
         self,

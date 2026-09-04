@@ -219,3 +219,16 @@ class SessionMessagePreview(BaseModel):
 
 class SessionRecordQuery(BaseModel):
     session_id: str
+
+
+class SessionRecordsReadState(BaseModel):
+    latest_sequence: int = Field(ge=0)
+    history_complete: bool
+
+
+class SessionRecordsPage(BaseModel):
+    records: list[SessionRecord]
+    offset: int = Field(ge=0)
+    limit: int = Field(ge=1)
+    next_offset: Optional[int] = Field(default=None, ge=0)
+    through_sequence: int = Field(ge=0)
