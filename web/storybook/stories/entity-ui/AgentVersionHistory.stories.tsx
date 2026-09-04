@@ -158,19 +158,19 @@ export const ChangesLoading: PaneStory = {
     args: {sections: [], version: 2, message: "Add the Linear MCP server", isLoading: true},
 }
 
-/** Selected version's configuration is byte-identical to the current one. */
-export const ChangesIdentical: PaneStory = {
+/** The oldest version: no predecessor, so there is no change of its own to show. */
+export const ChangesFirstVersion: PaneStory = {
     ...Changes,
     args: {
         sections: [],
-        version: 2,
-        message: "Add the Linear MCP server",
+        version: 1,
+        message: null,
         isLoading: false,
-        emptyText: "Identical to your current configuration — restoring it would change nothing.",
+        emptyText: "The first version — there is nothing before it to compare.",
     },
 }
 
-/** The configs differ, but only in fields the classifier does not surface — still restorable. */
+/** A commit whose only changes are in fields the classifier does not surface. */
 export const ChangesUnclassified: PaneStory = {
     ...Changes,
     args: {
@@ -178,8 +178,7 @@ export const ChangesUnclassified: PaneStory = {
         version: 2,
         message: "Add the Linear MCP server",
         isLoading: false,
-        emptyText:
-            "This version differs, but not in anything the summary can describe. Restoring it still applies the stored configuration.",
+        emptyText: "No configuration changes recorded in this version.",
     },
 }
 
@@ -189,7 +188,7 @@ export const ChangesNoSelection: PaneStory = {
         sections: [],
         version: null,
         isLoading: false,
-        placeholder: "Pick a version to see what restoring it would change.",
+        placeholder: "Pick a version to see what changed in it.",
     },
 }
 

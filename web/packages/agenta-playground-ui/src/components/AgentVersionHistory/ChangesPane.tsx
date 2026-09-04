@@ -106,10 +106,10 @@ export const ChangesPane = ({
                         {message}
                     </span>
                 ) : null}
-                {/* Without this the rows read as the version's contents, so a removal reads backwards. */}
+                {/* Names the tense: these rows are this version's own change, not its contents. */}
                 {sections.length ? (
                     <span className={cn("mt-1.5 text-[11.5px] leading-snug", textColors.tertiary)}>
-                        What restoring v{version} would change on your agent
+                        What v{version} changed
                     </span>
                 ) : null}
             </div>

@@ -1,8 +1,8 @@
 /**
  * The drawer's left rail: every version of the agent, newest first.
  *
- * Three states: loading, load error (retryable), and the list. A lone first version is a normal
- * row — it lists like any other, disabled the way the latest always is.
+ * Three states: loading, load error (retryable), and the list. Every version is selectable —
+ * each one is diffed against its predecessor, so the newest has something to show too.
  */
 import type {AgentVersionRow} from "@agenta/playground/state"
 import {timeAgo} from "@agenta/shared/utils"
@@ -89,30 +89,24 @@ export const VersionList = ({
                         "mb-px flex items-center gap-1 rounded-md",
                         row.id === selectedId
                             ? "bg-[var(--ag-colorFillSecondary)]"
-                            : !row.isLatest && "hover:bg-[var(--ag-colorFillQuaternary)]",
+                            : "hover:bg-[var(--ag-colorFillQuaternary)]",
                     )}
                 >
-                    {/* The latest version is what everything else is compared against, so
-                        selecting it could only ever diff against itself. Listed, not selectable. */}
                     <button
                         type="button"
-                        disabled={row.isLatest || !!disabled}
+                        disabled={!!disabled}
                         aria-current={row.id === selectedId}
                         onClick={() => onSelect(row.id)}
                         className={cn(
                             "flex min-w-0 flex-1 flex-col gap-1 rounded-md border-0 bg-transparent px-2.5 py-2 text-left font-[inherit]",
-                            // Dimmed so the row READS unselectable, not just behaves that way.
-                            row.isLatest || disabled ? "cursor-default" : "cursor-pointer",
-                            row.isLatest && "opacity-55",
+                            disabled ? "cursor-default" : "cursor-pointer",
                         )}
                     >
                         <span className="flex items-center gap-1.5">
                             <span className="text-xs font-medium text-colorText">
                                 v{row.version}
                             </span>
-                            {/* One tag, one meaning: the newest revision. Whether the surface
-                                happens to sit on it is carried by the row's disabled state, not
-                                by a second competing label. */}
+                            {/* One tag, one meaning: the newest revision. */}
                             {row.isLatest ? (
                                 <span className="rounded bg-[var(--ag-colorInfoBg)] px-1.5 py-px text-[10px] font-medium text-[var(--ag-colorInfo)]">
                                     Latest
