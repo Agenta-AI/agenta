@@ -61,7 +61,11 @@ import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {cancelledStopAction} from "./stopHereState"
 import {TurnRow} from "./TurnRow"
-import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
+import {
+    deriveMobileRemoteTurnPresentation,
+    showRunningElsewhere,
+    showTrailingWorkingPulse,
+} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
@@ -586,7 +590,10 @@ export const LiveConversation = ({
                         composer, as on the desktop — it used to be a top bar that also appeared for
                         THIS device's own turns, duplicating the composer's Stop and shifting the
                         transcript twice per run. */}
-                        {remoteTurn.showStrip && !streamingHere ? (
+                        {showRunningElsewhere({
+                            running: remoteTurn.showStrip,
+                            localStatus: conversation.runStatus,
+                        }) && !streamingHere ? (
                             <ContentRail>
                                 <RunningElsewhereStrip
                                     action={
