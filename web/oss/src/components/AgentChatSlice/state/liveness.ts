@@ -47,6 +47,9 @@ export interface SessionLiveness {
     lifecycle: SessionLifecycle
     /** The stream nest + derived resumable/reattachable predicates. */
     nest: SessionStreamNest
+    /** Current execution and durable Stop admission marker from the stream row. */
+    turnId: string | null
+    stoppingTurnId: string | null
     isLoading: boolean
 }
 
@@ -60,6 +63,8 @@ export const sessionLivenessAtomFamily = atomFamily((sessionId: string) =>
         return {
             lifecycle: deriveSessionLifecycle(stream),
             nest: deriveStreamNest(stream),
+            turnId: stream?.turn_id ?? null,
+            stoppingTurnId: stream?.stopping_turn_id ?? null,
             isLoading: get(aliveStreamsQueryAtom).isLoading,
         }
     }),

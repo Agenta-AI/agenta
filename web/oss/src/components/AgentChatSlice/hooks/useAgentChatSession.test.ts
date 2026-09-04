@@ -11,6 +11,12 @@ const state = vi.hoisted(() => ({
         | {prepareRequest: (args: {messages: UIMessage[]; id?: string}) => Promise<unknown>}
         | undefined,
     messages: [] as UIMessage[],
+    latestTurnId: undefined as string | undefined,
+    hitlPending: false,
+    sessionTurnId: null as string | null,
+    stoppingTurnId: null as string | null,
+    stopStateLoading: false,
+    cancelSessionExecution: vi.fn(),
     regenerate: vi.fn(() => Promise.resolve()),
     sendMessage: vi.fn(() => Promise.resolve()),
     turnIds: new Map<string, string>(),
@@ -19,7 +25,7 @@ const state = vi.hoisted(() => ({
 vi.mock("@agenta/chat/assets", () => ({
     buildRequestWithinDeadline: (build: () => Promise<unknown>) => build(),
     getMessageTraceId: () => undefined,
-    latestTurnId: () => undefined,
+    latestTurnId: () => state.latestTurnId,
     startupLabelFromDataPart: () => undefined,
 }))
 
@@ -33,6 +39,13 @@ vi.mock("@agenta/chat/hooks", () => ({
 vi.mock("@agenta/chat/model", () => ({
     createUserStoppedState: () => ({stopped: false, turnIdentity: null}),
     ignoreStreamRejection: () => undefined,
+    isSessionTurnStopping: ({
+        currentTurnId,
+        stoppingTurnId,
+    }: {
+        currentTurnId?: string | null
+        stoppingTurnId?: string | null
+    }) => Boolean(currentTurnId && stoppingTurnId === currentTurnId),
     parseAgentRunError: () => ({message: "error"}),
     reduceUserStoppedState: (
         current: {stopped: boolean; turnIdentity: null},
@@ -61,7 +74,7 @@ vi.mock("@agenta/chat/state", () => ({
 }))
 
 vi.mock("@agenta/entities/session", () => ({
-    cancelSessionStream: vi.fn(),
+    cancelSessionExecution: state.cancelSessionExecution,
     invalidateSessionListQueries: vi.fn(),
     killSession: vi.fn(),
     recordInteractionAnswerAtom: "record-interaction-answer",
@@ -86,7 +99,7 @@ vi.mock("@agenta/playground", () => ({
         requestBody: {},
     })),
     buildTurnCapture: vi.fn(),
-    isHitlPending: () => false,
+    isHitlPending: () => state.hitlPending,
     isResumeSend: () => false,
     playgroundController: {actions: {switchEntity: "switch-entity"}},
     recordAnswerThenRelease: vi.fn(),
@@ -126,10 +139,6 @@ vi.mock("jotai", () => ({
 
 vi.mock("@/oss/state/project", () => ({projectIdAtom: "project-id"}))
 vi.mock("../assets/constants", () => ({doesAgentChatStopKillSession: () => false}))
-vi.mock("../assets/stopState", () => ({
-    isStoppingPhase: () => false,
-    reduceStopPhase: (state: string) => state,
-}))
 vi.mock("../components/Inspector/invalidate", () => ({invalidateSessionInspector: vi.fn()}))
 vi.mock("../state/scope", () => ({useChatScopeKey: () => "scope"}))
 vi.mock("../state/sessions", () => ({openSessionIdsAtomFamily: () => "open-sessions"}))
@@ -140,6 +149,9 @@ vi.mock("./useSessionHydration", () => ({
         hydratedEmpty: false,
         isHydrating: false,
         runningElsewhere: false,
+        sessionTurnId: state.sessionTurnId,
+        stoppingTurnId: state.stoppingTurnId,
+        stopStateLoading: state.stopStateLoading,
     }),
 }))
 vi.mock("./useToolCacheInvalidation", () => ({useToolCacheInvalidation: vi.fn()}))
@@ -151,6 +163,12 @@ describe("useAgentChatSession execution guard", () => {
         state.turnIds.clear()
         state.sendMessage.mockClear()
         state.regenerate.mockClear()
+        state.cancelSessionExecution.mockReset()
+        state.latestTurnId = undefined
+        state.hitlPending = false
+        state.sessionTurnId = null
+        state.stoppingTurnId = null
+        state.stopStateLoading = false
     })
 
     it("clears the previous turn before sends, regeneration, and SDK automatic requests", async () => {
@@ -182,5 +200,54 @@ describe("useAgentChatSession execution guard", () => {
         expect(state.turnIds.get(sessionId)).toBeUndefined()
 
         act(() => root.unmount())
+    })
+
+    it("keeps remounted interaction actions closed until an accepted paused Stop settles", async () => {
+        const sessionId = "session-1"
+        state.latestTurnId = "turn-1"
+        state.hitlPending = true
+        state.cancelSessionExecution.mockResolvedValue({
+            accepted: true,
+            conflict: false,
+            execution: {id: "turn-1", state: "stopping"},
+        })
+
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+
+        const firstContainer = document.createElement("div")
+        const firstRoot = createRoot(firstContainer)
+        act(() => firstRoot.render(createElement(Probe)))
+        await act(async () => {
+            result!.handleStop()
+            await Promise.resolve()
+        })
+        expect(state.cancelSessionExecution).toHaveBeenCalledWith({
+            sessionId,
+            projectId: "project-id",
+            expectedExecutionId: "turn-1",
+        })
+        act(() => firstRoot.unmount())
+
+        state.sessionTurnId = "turn-1"
+        state.stoppingTurnId = "turn-1"
+        const remountContainer = document.createElement("div")
+        const remountRoot = createRoot(remountContainer)
+        act(() => remountRoot.render(createElement(Probe)))
+        expect(result!.stopping).toBe(true)
+
+        state.stoppingTurnId = null
+        act(() => remountRoot.render(createElement(Probe)))
+        expect(result!.stopping).toBe(false)
+
+        act(() => remountRoot.unmount())
     })
 })

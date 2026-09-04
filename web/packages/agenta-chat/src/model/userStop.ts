@@ -17,6 +17,15 @@ const hasPendingInteraction = (messages: UIMessage[]): boolean =>
             }),
     )
 
+/** True when the durable Stop marker still owns the session's current turn. */
+export const isSessionTurnStopping = ({
+    currentTurnId,
+    stoppingTurnId,
+}: {
+    currentTurnId?: string | null
+    stoppingTurnId?: string | null
+}): boolean => Boolean(currentTurnId && stoppingTurnId === currentTurnId)
+
 /** True only for the durable marker written on a user-cancelled assistant turn. */
 export const lastTurnWasUserStopped = (messages: UIMessage[]): boolean => {
     const last = messages[messages.length - 1] as MessageWithStopMetadata | undefined

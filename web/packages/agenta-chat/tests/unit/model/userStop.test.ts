@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     createUserStoppedState,
+    isSessionTurnStopping,
     lastTurnWasUserStopped,
     reduceUserStoppedState,
     type UserStoppedState,
@@ -45,6 +46,21 @@ const reduce = (
 ) => reduceUserStoppedState(state, event)
 
 describe("user stopped state", () => {
+    it("keeps a remounted turn guarded until its durable Stop settles", () => {
+        expect(
+            isSessionTurnStopping({currentTurnId: "turn-1", stoppingTurnId: "turn-1"}),
+        ).toBe(true)
+        expect(isSessionTurnStopping({currentTurnId: "turn-1", stoppingTurnId: null})).toBe(
+            false,
+        )
+    })
+
+    it("does not apply a stale Stop marker to a newer turn", () => {
+        expect(
+            isSessionTurnStopping({currentTurnId: "turn-2", stoppingTurnId: "turn-1"}),
+        ).toBe(false)
+    })
+
     it("maps a stream-delivered cancelled ending to the neutral state", () => {
         expect(
             reduce({

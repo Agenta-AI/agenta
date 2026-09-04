@@ -5,6 +5,7 @@ import {
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
     jumpGateOpen,
+    latestTurnId,
     shouldShowStopControl,
 } from "@agenta/chat/assets"
 import {
@@ -24,6 +25,7 @@ import {
 import {
     getInteractionAvailability,
     getLivePendingApprovals,
+    isSessionTurnStopping,
     type TurnViewModel,
 } from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
@@ -81,6 +83,9 @@ export const LiveConversation = ({
     projectId,
     workspaceId,
     running,
+    stopStateLoading,
+    sessionTurnId,
+    stoppingTurnId,
     agentId,
     embedded = false,
 }: {
@@ -90,6 +95,10 @@ export const LiveConversation = ({
     workspaceId: string
     /** Backend liveness (cross-device) — shows the running strip even when this device idles. */
     running: boolean
+    /** Initial liveness load and durable Stop ownership for remount recovery. */
+    stopStateLoading: boolean
+    sessionTurnId?: string | null
+    stoppingTurnId?: string | null
     /** Scopes the session tab rail to this agent's sessions. */
     agentId?: string | null
     /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
@@ -207,6 +216,13 @@ export const LiveConversation = ({
     const retryStopRef = useRef(false)
     const stopSessionIdRef = useRef(sessionId)
     stopSessionIdRef.current = sessionId
+    const stopping =
+        stoppingHere ||
+        isSessionTurnStopping({
+            currentTurnId: sessionTurnId ?? latestTurnId(conversation.messages),
+            stoppingTurnId,
+        }) ||
+        (stopStateLoading && conversation.hitlPending)
     const settleParkedStop = useCallback(() => {
         if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
         stopWatchdogTimerRef.current = null
@@ -254,7 +270,7 @@ export const LiveConversation = ({
 
     // Composer Stop cancels on the server before changing local presentation.
     const stopHere = useCallback(() => {
-        if (stoppingHere) return
+        if (stopping) return
         if (!projectId || !sessionId) return
         setStoppingHere(true)
         const wasParked = !streamingHereRef.current && conversation.hitlPending
@@ -320,11 +336,11 @@ export const LiveConversation = ({
                         : "Could not stop the run. It may still be running.",
                 )
             })
-    }, [projectId, sessionId, stop, stoppingHere, conversation.hitlPending, settleParkedStop])
+    }, [projectId, sessionId, stop, stopping, conversation.hitlPending, settleParkedStop])
 
     const interactionAvailability = getInteractionAvailability({
         stopped: conversation.stopped,
-        stopping: stoppingHere,
+        stopping,
         streaming: streamingHere,
     })
     const pendingApprovals = useMemo(
@@ -627,7 +643,7 @@ export const LiveConversation = ({
                                 busy: streamingHere,
                                 hitlPending: conversation.hitlPending,
                             })}
-                            stopping={stoppingHere}
+                            stopping={stopping}
                             onStop={stopHere}
                             inputRef={composerRef}
                         />

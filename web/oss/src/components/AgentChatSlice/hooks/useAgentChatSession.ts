@@ -11,6 +11,7 @@ import {useSessionChat} from "@agenta/chat/hooks"
 import {
     ignoreStreamRejection,
     createUserStoppedState,
+    isSessionTurnStopping,
     parseAgentRunError,
     reduceUserStoppedState,
 } from "@agenta/chat/model"
@@ -131,7 +132,6 @@ export const useAgentChatSession = ({
         [],
     )
     const [stopPhase, dispatchStop] = useReducer(reduceStopPhase, "idle")
-    const stopping = isStoppingPhase(stopPhase)
 
     const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
@@ -284,7 +284,14 @@ export const useAgentChatSession = ({
     // Server-side platform ops (create_schedule, …) stale the client cache with no other signal.
     useToolCacheInvalidation({sessionId, messages})
 
-    const {isHydrating, hydratedEmpty, runningElsewhere} = useSessionHydration({
+    const {
+        isHydrating,
+        hydratedEmpty,
+        runningElsewhere,
+        stopStateLoading,
+        sessionTurnId,
+        stoppingTurnId,
+    } = useSessionHydration({
         sessionId,
         initialMessages,
         messagesRef,
@@ -298,6 +305,13 @@ export const useAgentChatSession = ({
         intent,
         pendingResumeRef: liveGateInteractionRef,
     })
+    const stopping =
+        isStoppingPhase(stopPhase) ||
+        isSessionTurnStopping({
+            currentTurnId: sessionTurnId ?? latestTurnId(messages),
+            stoppingTurnId,
+        }) ||
+        (stopStateLoading && isHitlPending(messages))
 
     // A decision made in THIS mount marks the resume as live — a restored approval-requested tail
     // the user answers after a reload genuinely auto-resumes, so the queue's pre-resume hold applies.

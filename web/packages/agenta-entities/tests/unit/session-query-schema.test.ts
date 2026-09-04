@@ -27,6 +27,7 @@ const wireRow = {
     tags: {priority: "high"},
     meta: {source: "web"},
     turn_id: "turn-7",
+    stopping_turn_id: "turn-7",
     created_at: "2026-07-20T10:00:00Z",
     updated_at: "2026-07-24T09:30:00Z",
     references: [
@@ -71,6 +72,7 @@ describe("sessionStreamSchema (/sessions/query rows)", () => {
         expect(out.name).toBe("Refactor the auth flow")
         expect(out.flags).toEqual({is_alive: true, is_running: false, is_attached: false})
         expect(out.updated_at).toBe("2026-07-24T09:30:00Z")
+        expect(out.stopping_turn_id).toBe("turn-7")
         expect(out.references?.[0]?.id).toBe("33333333-3333-3333-3333-333333333333")
         expect(out.references?.[0]?.slug).toBe("support-router")
         expect(out.references?.[0]?.version).toBe("v3")
@@ -90,6 +92,7 @@ describe("sessionStreamSchema (/sessions/query rows)", () => {
         expect(out.description).toBeUndefined()
         expect(out.flags).toBeUndefined()
         expect(out.turn_id).toBeUndefined()
+        expect(out.stopping_turn_id).toBeUndefined()
         expect(out.created_at).toBeUndefined()
         expect(out.updated_at).toBeUndefined()
         expect(out.deleted_at).toBeUndefined()

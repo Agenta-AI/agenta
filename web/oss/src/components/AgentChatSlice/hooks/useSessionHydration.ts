@@ -509,5 +509,12 @@ export const useSessionHydration = ({
         onRecordsChanged: refreshFromRecords,
     })
 
-    return {isHydrating, hydratedEmpty, runningElsewhere}
+    return {
+        isHydrating,
+        hydratedEmpty,
+        runningElsewhere,
+        stopStateLoading: liveness.isLoading,
+        sessionTurnId: liveness.turnId,
+        stoppingTurnId: liveness.stoppingTurnId,
+    }
 }
