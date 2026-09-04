@@ -84,8 +84,7 @@ export const isListableDrivePath = (path: string, opts?: {fromAgentMount?: boole
     return opts?.fromAgentMount === true || rel !== AGENT_FILES_DIR
 }
 
-/** {@link isListableDrivePath} minus hidden paths: the summary counts user content, not plumbing
- * (#6027). The browse explorer asks the wider question, so it still lists them. */
+/** {@link isListableDrivePath} minus hidden paths; the explorer asks the wider one (#6027). */
 export const isSummaryDrivePath = (path: string, opts?: {fromAgentMount?: boolean}): boolean =>
     isListableDrivePath(path, opts) && !isHiddenPath(path)
 
