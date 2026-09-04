@@ -52,6 +52,10 @@ import {
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
 import {
+  cancelHarnessTurn,
+  resolveCancelSettleMs,
+} from "./engines/sandbox_agent/cancel-turn.ts";
+import {
   isMounted,
   type MountCredentials,
 } from "./engines/sandbox_agent/mount.ts";
@@ -95,12 +99,21 @@ import {
   applyCommand,
   holdsSession,
   type ControlCommand,
+  type ParkedSessionControl,
 } from "./sessions/control-channel.ts";
 import {
   noteExecutionProject,
   registerExecution,
   unregisterExecution,
 } from "./sessions/execution-registry.ts";
+import {
+  awaitTurnOrAbandon,
+  resolveTurnSettleLimits,
+} from "./sessions/turn-settle.ts";
+import {
+  ABANDONED_TURN_MARKER,
+  type RunErrorCode,
+} from "./engines/sandbox_agent/errors.ts";
 import {
   buildWorkflowReferenceList,
   cancelStaleInteractions,
@@ -483,6 +496,13 @@ async function runAndStreamWithApiBaseResolved(
   // runs abort on disconnect (original behavior: caller drives, disconnect = cancel).
   const controller = new AbortController();
   let clientDisconnected = false;
+  // Resolves when the platform tells us this turn is no longer current — a Stop, a takeover,
+  // or the API's own execution watchdog having declared the turn lost. `awaitTurnOrAbandon`
+  // uses it to stop waiting on a run that may never return. See `sessions/turn-settle.ts`.
+  let markInterrupted: ((reason: string) => void) | undefined;
+  const interrupted = new Promise<string>((resolve) => {
+    markInterrupted = resolve;
+  });
   if (!sessionOwned) {
     // Listen on the response, not the request: the request body is already fully read, so
     // its `close` can fire early on a keep-alive connection. `res` `close` fires when the
@@ -519,8 +539,18 @@ async function runAndStreamWithApiBaseResolved(
   // For session-owned runs: wrap the live emitter so every event is also persisted
   // producer-side, independent of whether the client is still connected.
   let emitFn: EmitEvent = liveEmit;
+  // Closed once this request has written the turn's terminal outcome. An abandoned run may
+  // still unwind minutes later and emit its own `error`/`done` through the same emitter; the
+  // turn already has an ending, and a second one would put two endings in one transcript.
+  let turnClosed = false;
+  const gatedEmit: EmitEvent = (event) => {
+    if (turnClosed) return;
+    emitFn(event);
+  };
   let flushPersist: (() => Promise<void>) | undefined;
-  let persistError: ((message: string) => void) | undefined;
+  let persistError:
+    | ((message: string, code?: RunErrorCode) => void)
+    | undefined;
   let persistTerminal: ((stopReason?: string) => void) | undefined;
   let terminalRecordEmitted = false;
   let aliveWatchdog:
@@ -553,9 +583,15 @@ async function runAndStreamWithApiBaseResolved(
         sessionId,
         turnId,
         platformCredentialForRequest(request),
-        // LABELLED, not a bare abort: `shouldPark` parks only an abort it can prove was a
-        // cooperative Stop. See `sessions/stop-signal.ts`.
-        () => controller.abort(USER_STOP_ABORT_REASON),
+        () => {
+          markInterrupted?.(
+            "the platform reported this turn is no longer current (stopped, taken over, or " +
+              "declared lost)",
+          );
+          // LABELLED, not a bare abort: `shouldPark` parks only an abort it can prove was a
+          // cooperative Stop. See `sessions/stop-signal.ts`.
+          controller.abort(USER_STOP_ABORT_REASON);
+        },
         {
           name: proposeSessionName(request),
           references: buildWorkflowReferenceList(request.runContext?.workflow),
@@ -673,7 +709,8 @@ async function runAndStreamWithApiBaseResolved(
         persistingEmit(event);
       };
       flushPersist = flush;
-      persistError = (message) => persist({ type: "error", message }, "agent");
+      persistError = (message, code) =>
+        persist({ type: "error", message, ...(code ? { code } : {}) }, "agent");
       persistTerminal = (stopReason) => {
         terminalRecordEmitted = true;
         persist(
@@ -693,29 +730,56 @@ async function runAndStreamWithApiBaseResolved(
 
   let result: AgentRunResult;
   try {
-    result = await run(request, emitFn, controller.signal, {
-      clientGone: () => clientDisconnected,
-      credential: aliveWatchdog?.credential,
+    // Not a bare `await run(...)`: an await inside the run that never settles would keep this
+    // function parked forever, and with it the terminal record below AND the alive watchdog's
+    // release in the `finally` — the turn would announce `running=true` every 30s for good.
+    // `awaitTurnOrAbandon` returns either the run's own result or a reason to write one
+    // without it, so this request always produces exactly one terminal outcome.
+    const outcome = await awaitTurnOrAbandon({
+      run: run(request, gatedEmit, controller.signal, {
+        clientGone: () => clientDisconnected,
+        credential: aliveWatchdog?.credential,
+      }),
+      abort: () => controller.abort(),
+      interrupted: sessionOwned ? interrupted : undefined,
+      limits: resolveTurnSettleLimits((message) =>
+        process.stderr.write(`${message}\n`),
+      ),
+      log: (message) => process.stderr.write(`${message}\n`),
     });
-    // `runTurn` normally emits `done` itself. Acquisition can fail before `runTurn` starts,
-    // though, and a cooperative Stop during a cold sandbox create reaches exactly that path.
-    // Close any failed run that emitted no terminal record; preserve the Stop marker when the
-    // labelled control-plane abort caused it. A genuine acquire failure never reached runTurn's
-    // error emitter, so preserve its error before the done backstop instead of making the empty
-    // turn look successful. Both records use the same ordered persistence chain as runTurn's
-    // emitter but stay off the live stream, whose result envelope is unchanged.
-    if (
-      !terminalRecordEmitted &&
-      persistTerminal &&
-      (!result.ok || isUserStopAbort(controller.signal))
-    ) {
-      const userStopped = isUserStopAbort(controller.signal);
-      if (!userStopped && !result.ok && persistError) {
-        persistError(result.error ?? "Agent run failed.");
+    if (outcome.settled) {
+      result = outcome.value;
+      // `runTurn` normally emits `done` itself. Acquisition can fail before `runTurn` starts,
+      // though, and a cooperative Stop during a cold sandbox create reaches exactly that path.
+      // Close any failed run that emitted no terminal record; preserve the Stop marker when the
+      // labelled control-plane abort caused it. A genuine acquire failure never reached runTurn's
+      // error emitter, so preserve its error before the done backstop instead of making the empty
+      // turn look successful. Both records use the same ordered persistence chain as runTurn's
+      // emitter but stay off the live stream, whose result envelope is unchanged.
+      if (
+        !terminalRecordEmitted &&
+        persistTerminal &&
+        (!result.ok || isUserStopAbort(controller.signal))
+      ) {
+        const userStopped = isUserStopAbort(controller.signal);
+        if (!userStopped && !result.ok && persistError) {
+          persistError(result.error ?? "Agent run failed.");
+        }
+        persistTerminal(userStopped ? "cancelled" : undefined);
       }
-      persistTerminal(userStopped ? "cancelled" : undefined);
+    } else {
+      // The run is still pending and may never settle. Give the turn the ending the runner
+      // owes it, and let the abandoned run keep its own teardown if it ever unwinds.
+      turnClosed = true;
+      const message = `${ABANDONED_TURN_MARKER}: ${outcome.reason}`;
+      process.stderr.write(
+        `[sessions] ABANDONED session=${sessionId ?? "-"} turn=${turnId ?? "-"}: ${outcome.reason}\n`,
+      );
+      if (persistError) persistError(message, "execution_lost");
+      result = { ok: false, error: message };
     }
-    // Drain the terminal backstop and all prior persists before the sandbox tears down.
+    // Drain the terminal backstop or abandonment marker and all prior persists before the
+    // sandbox tears down.
     if (flushPersist) await flushPersist();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -842,11 +906,111 @@ function readRequiredId(value: unknown): string | null {
  * control channel at all today: a parked session stops heartbeating, so the only existing Stop
  * signal never reaches it.
  */
-function isSessionParked(projectId: string, sessionId: string): boolean {
+function parkedSessionControl(
+  projectId: string,
+  sessionId: string,
+): ParkedSessionControl | undefined {
   const key = `${projectId}:${sessionId}`;
-  return Object.values(keepalivePools).some(
-    (pool) => pool.get(key)?.state === "awaiting_approval",
-  );
+  for (const provider of Object.keys(
+    keepalivePools,
+  ) as KeepaliveProviderName[]) {
+    const pool = keepalivePools[provider];
+    const parked = pool.get(key);
+    if (!parked || parked.state !== "awaiting_approval") continue;
+    return {
+      stop: async () => {
+        // Checkout makes the transition exclusive: a racing request cannot consume the same
+        // permission gate while Stop is releasing it.
+        const live = pool.checkoutApproval(key);
+        if (!live) throw new Error("parked approval was already checked out");
+        await stopParkedApprovalSession({
+          environment: live.environment,
+          repark: () =>
+            pool.repark(
+              live,
+              {
+                historyFingerprint: live.historyFingerprint,
+                historyAsserted: live.historyAsserted,
+                credentialEpoch: live.credentialEpoch,
+              },
+              keepaliveConfigs[provider].stoppedTtlMs ??
+                keepaliveConfigs[provider].ttlMs,
+            ),
+          teardown: () =>
+            pool.evictIfCurrent(
+              live,
+              "stop-approval-failed",
+              "failed-turn",
+            ),
+        });
+      },
+    };
+  }
+  return undefined;
+}
+
+interface StopParkedApprovalSessionInput {
+  environment: SessionEnvironment;
+  repark: () => Promise<boolean>;
+  teardown: () => Promise<void>;
+  /** Test seams; production uses the operator-configured bound and a real timer. */
+  cancelSettleMs?: number;
+  wait?: (ms: number) => Promise<void>;
+}
+
+/** Reject and cancel a parked prompt before exposing its environment as idle again. */
+export async function stopParkedApprovalSession(
+  input: StopParkedApprovalSessionInput,
+): Promise<void> {
+  const env = input.environment;
+  const gates = [...env.parkedApprovals.values()];
+  try {
+    await Promise.all(
+      gates.map((gate) =>
+        env.session.respondPermission(gate.permissionId, "reject"),
+      ),
+    );
+    const cancel = await cancelHarnessTurn({
+      sandbox: env.sandbox,
+      sessionId: env.session?.id,
+      promptPromise: gates[0]?.promptPromise,
+      timeoutMs: input.cancelSettleMs ?? resolveCancelSettleMs(),
+      log: env.logger,
+      wait: input.wait,
+    });
+    if (cancel.requested) env.sessionDestroyRequested = true;
+    if (!cancel.settled && cancel.requested) {
+      // The ACP cancel WAS sent but the harness did not confirm it inside the budget. The prompt
+      // may still be open, so fail closed rather than present a possibly-running turn as idle.
+      throw new Error("parked approval harness cancel did not settle");
+    }
+    if (!cancel.settled) {
+      // No ACP cancel could be SENT: a local runtime whose sandbox client has no `cancelSession`
+      // (`stage=harness_cancel sent=false reason=client-has-no-cancelSession`). The reject above
+      // is still the stop signal for a parked approval, which runs no turn, and a Stop must NEVER
+      // evict the warm sandbox. So repark it warm, exactly as the reject-then-repark path did
+      // before the ACP cancel was added, instead of tearing it down and reporting a failed Stop.
+      env.logger(
+        "stage=parked_stop reject-only (client has no cancelSession); reparking warm",
+      );
+    }
+
+    env.parkedApprovals.clear();
+    env.parkedApproval = undefined;
+    env.parkedApprovedExecutions?.clear();
+    env.approvalGateCount = 0;
+    env.nonParkablePauseCount = 0;
+    env.commitAuthorization = undefined;
+    env.clearTurn();
+    if (!(await input.repark())) {
+      throw new Error("released approval could not return to the pool");
+    }
+  } catch (error) {
+    // A partly released or unsettled prompt is not safe to present as idle. Fail closed through
+    // the normal teardown path; applyCommand reports the failed outcome.
+    await input.teardown();
+    throw error;
+  }
 }
 
 /** Build the HTTP request listener around a given engine runner (the testable seam). */
@@ -971,16 +1135,22 @@ export function createRequestListener(
               ? cancelBody.createdAt
               : "",
         };
-        if (!holdsSession(cancelProjectId, cancelSessionId, isSessionParked)) {
+        if (
+          !holdsSession(
+            cancelProjectId,
+            cancelSessionId,
+            parkedSessionControl,
+          )
+        ) {
           // 404 is ambiguous on purpose and the API disambiguates it: a `not_held` for a
           // session whose row is alive and beating means the call reached the wrong replica.
           return send(res, 404, { ok: false, error: "session not held here" });
         }
         // Answer before the outcome. The applier reports it separately, and a Stop that takes
         // seconds to settle must not hold this request open.
-        void applyCommand(command, { isParked: isSessionParked }).catch(
-          () => {},
-        );
+        void applyCommand(command, {
+          isParked: parkedSessionControl,
+        }).catch(() => {});
         return send(res, 202, { ok: true, replicaId: REPLICA_ID });
       }
 

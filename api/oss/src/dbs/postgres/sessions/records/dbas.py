@@ -65,3 +65,13 @@ class RecordDBA:
         JSONB(none_as_null=True),
         nullable=True,
     )
+
+    # Non-null when this record reached ingest for a turn the watchdog had ALREADY ended.
+    # The row is kept — the agent really did that work, and the token accounting on a late
+    # `usage` is real money — but every read that rebuilds a transcript excludes it, so one
+    # execution still shows exactly one ending. Written only by the ingest guard in
+    # `RecordsService.append_many`; forward-fill only, like every other column here.
+    quarantined_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=True,
+    )

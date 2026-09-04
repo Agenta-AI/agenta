@@ -80,6 +80,10 @@ class SessionStreamEdit(Header):
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
+    # Internal heartbeat fence. When present, the DAO updates only this still-current,
+    # non-terminal execution generation. Excluded from serialization because it is a write
+    # precondition, not stream state.
+    expected_turn_id: Optional[str] = Field(default=None, exclude=True)
 
 
 class SessionStreamHeaderEdit(Header):
@@ -148,7 +152,14 @@ class SessionStreamCommandRequest(BaseModel):
     data: Optional[WorkflowServiceRequestData] = None
     force: bool = False
     detached: bool = False  # fire-and-forget mode
-    expected_execution_id: Optional[str] = None
+    # A stale-request guard for cancel mode only; send, steer, and attach ignore it.
+    expected_execution_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional stale-request guard honored only in cancel mode; ignored for send, "
+            "steer, and attach."
+        ),
+    )
 
     @field_validator("expected_execution_id")
     @classmethod

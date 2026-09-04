@@ -217,6 +217,14 @@ export interface RunTurnOptions {
     decisions: ResumeApprovalInput[];
     carriedForward: ParkedApproval[];
   };
+  /**
+   * Settle the parked gate first, then send this request's fresh user tail as a normal prompt on
+   * the same warm session. Unlike `resume`, this does not make the old prompt the request's turn:
+   * its decision is context for the new prompt rather than the turn's terminal interaction.
+   */
+  settleApprovalsThenPrompt?: {
+    decisions: ResumeApprovalInput[];
+  };
 }
 
 /**
@@ -288,6 +296,13 @@ export interface SessionEnvironment {
   plan: RunPlan;
   logger: Log;
   deps: SandboxAgentDeps;
+  /**
+   * Set once this environment's sandbox is known to be gone, by the ACP transport that talks to
+   * it. A remote provider answers for a deleted sandbox instead of refusing the socket, so this
+   * report is often the only evidence of the death that arrives at all. `run-turn.ts` hands the
+   * latch to the liveness probe, which is what ends the turn. See `sandbox-gone.ts`.
+   */
+  sandboxGone?: import("./sandbox-gone.ts").SandboxGoneLatch;
   sandbox: any;
   session: any;
   sessionId: string;

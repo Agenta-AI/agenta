@@ -12,9 +12,10 @@ run they meant, and it can kill a run they never meant. These pin the rules that
   * Redis is not written at admission, so the stopping execution keeps its locks while it stops.
 """
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -31,10 +32,16 @@ from oss.src.core.sessions.commands.interfaces import (
     CommandCreateResult,
     DeliveryReceipt,
 )
+from oss.src.core.sessions.commands import service as commands_service_module
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.commands.types import (
     ExecutionExpectationFailed,
     SessionCommandIdempotencyConflict,
+    SessionCommandNotClaimable,
+)
+from oss.src.core.sessions.executions.dtos import (
+    SessionExecutionSettlement,
+    SessionExecutionSettlementResult,
 )
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
@@ -52,6 +59,8 @@ from oss.src.dbs.redis.sessions.locks import (
     is_turn_superseded,
     release_running,
 )
+from oss.src.utils.env import env
+from oss.src.tasks.asyncio.sessions.orphan_sweep import _repair_terminal_redis
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 
@@ -68,6 +77,11 @@ class _FakeCommandsDAO:
         self.rows: List[SessionCommand] = []
         self.stopping_turn_ids: List[Optional[str]] = []
         self.claims: List[Dict] = []
+        self.abandoned: List[SessionCommand] = []
+
+    @asynccontextmanager
+    async def transaction(self):
+        yield object()
 
     async def create_command(
         self, *, user_id, command: SessionCommandCreate, stopping_turn_id=None
@@ -157,10 +171,33 @@ class _FakeCommandsDAO:
                 return claimed
         return None
 
+    async def record_delivery_attempt(
+        self, *, project_id, command_id, now, max_deliveries
+    ):
+        for index, row in enumerate(self.rows):
+            if (
+                row.id == command_id
+                and row.state
+                in (SessionCommandState.pending, SessionCommandState.claimed)
+                and row.claim_count < max_deliveries
+            ):
+                attempted = row.model_copy(
+                    update={
+                        "state": SessionCommandState.pending,
+                        "claimed_by": None,
+                        "claim_expires_at": None,
+                        "claim_count": row.claim_count + 1,
+                        "updated_at": now,
+                    }
+                )
+                self.rows[index] = attempted
+                return attempted
+        return None
+
     async def claim_commands(self, **_):
         return []
 
-    async def settle_command(self, *, settle):
+    async def settle_command(self, *, settle, transaction=None):
         for index, row in enumerate(self.rows):
             if row.id == settle.command_id and row.state in settle.expected_states:
                 # Mirrors the real guard: a `pending` row holds no claim, so a null
@@ -185,8 +222,8 @@ class _FakeCommandsDAO:
     async def clear_stopping_turn(self, *, project_id, session_id, turn_id=None):
         self.stopping_turn_ids.append(None)
 
-    async def expire_claims(self, *, now, max_deliveries):
-        return []
+    async def expire_claims(self, *, now, max_deliveries, pending_before=None):
+        return self.abandoned
 
 
 class _FakeStreamsService:
@@ -242,11 +279,29 @@ class _FakeStreamsService:
             }
         )
 
+    async def settle_command(
+        self,
+        *,
+        project_id,
+        session_id,
+        turn_id,
+        mirror_stopped,
+        transaction=None,
+    ):
+        if mirror_stopped and self.stream is not None:
+            self.stream = self.stream.model_copy(
+                update={
+                    "flags": self.stream.flags.model_copy(update={"is_running": False})
+                }
+            )
+
 
 class _FakeInteractionsService:
-    def __init__(self) -> None:
+    def __init__(self, *, cancelled_count: int = 1) -> None:
         self.cancelled: List[Optional[str]] = []
         self.command_ids: List[Optional[UUID]] = []
+        self.published_cancelled: List[str] = []
+        self.cancelled_count = cancelled_count
 
     async def cancel_session_pending(
         self,
@@ -259,7 +314,12 @@ class _FakeInteractionsService:
     ):
         self.cancelled.append(only_turn_id)
         self.command_ids.append(command_id)
-        return 1
+        return self.cancelled_count
+
+    async def publish_session_pending_cancelled(
+        self, *, project_id, session_id
+    ) -> None:
+        self.published_cancelled.append(session_id)
 
 
 class _RecordingDelivery:
@@ -273,6 +333,55 @@ class _RecordingDelivery:
 
     async def acknowledge(self, *, command_id, replica_id) -> None:
         return None
+
+
+class _FakeExecutionsDAO:
+    def __init__(self) -> None:
+        self.rows: Dict[tuple[str, str], SessionExecutionSettlement] = {}
+        self.commands = None
+        self.interactions = None
+
+    async def settle(
+        self,
+        *,
+        project_id,
+        session_id,
+        execution_id,
+        terminal_outcome,
+        settled_by,
+        settled_at=None,
+        transaction=None,
+    ):
+        key = (session_id, execution_id)
+        if key in self.rows:
+            return SessionExecutionSettlementResult(
+                settlement=self.rows[key], won=False
+            )
+        row = SessionExecutionSettlement(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+            terminal_outcome=terminal_outcome,
+            settled_by=settled_by,
+            settled_at=settled_at or datetime.now(timezone.utc),
+        )
+        self.rows[key] = row
+        return SessionExecutionSettlementResult(settlement=row, won=True)
+
+    async def list_redis_unreconciled(self, *, limit):
+        return [
+            row
+            for row in self.rows.values()
+            if row.settled_by == "runner"
+            and row.terminal_outcome == "stopped"
+            and row.redis_reconciled_at is None
+        ][:limit]
+
+    async def mark_redis_reconciled(self, *, project_id, session_id, execution_id):
+        key = (session_id, execution_id)
+        self.rows[key] = self.rows[key].model_copy(
+            update={"redis_reconciled_at": datetime.now(timezone.utc)}
+        )
 
 
 def _stream(
@@ -298,17 +407,31 @@ async def lock_engine():
         yield eng
 
 
-def _service(lock_engine, *, dao=None, streams=None, interactions=None, delivery=None):
+def _service(
+    lock_engine,
+    *,
+    dao=None,
+    streams=None,
+    interactions=None,
+    delivery=None,
+    executions=None,
+):
     streams = streams or _FakeStreamsService()
     # The fake mirrors from Redis, so it reads the same engine the service writes through.
     if streams.lock_engine is None:
         streams.lock_engine = lock_engine
+    commands = dao or _FakeCommandsDAO()
+    interactions = interactions or _FakeInteractionsService()
+    if executions is not None:
+        executions.commands = commands
+        executions.interactions = interactions
     return SessionCommandsService(
-        commands_dao=dao or _FakeCommandsDAO(),
+        commands_dao=commands,
         streams_service=streams,
-        interactions_service=interactions or _FakeInteractionsService(),
+        interactions_service=interactions,
         lock_engine=lock_engine,
         delivery=delivery or _RecordingDelivery(),
+        executions_dao=executions,
     )
 
 
@@ -1111,6 +1234,262 @@ async def test_a_second_outcome_report_changes_nothing(lock_engine):
         )
 
     assert interactions.cancelled == ["turn-A"], "the side effects run exactly once"
+
+
+@pytest.mark.asyncio
+async def test_runner_outcome_settles_the_execution_authority(lock_engine):
+    await _run_turn(lock_engine, "turn-A")
+    executions = _FakeExecutionsDAO()
+    interactions = _FakeInteractionsService()
+    svc = _service(
+        lock_engine,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+        ),
+        interactions=interactions,
+        executions=executions,
+    )
+
+    admission = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+    await svc.report_outcome(
+        command_id=admission.command.id,
+        replica_id="runner-1",
+        result="applied",
+        execution_id="turn-A",
+        execution_state="stopped",
+    )
+
+    winner = executions.rows[(_SESSION, "turn-A")]
+    assert winner.terminal_outcome == "stopped"
+    assert winner.settled_by == "runner"
+    assert interactions.published_cancelled == [_SESSION]
+
+
+@pytest.mark.asyncio
+async def test_atomic_settlement_does_not_publish_when_no_gate_was_cancelled(
+    lock_engine,
+):
+    await _run_turn(lock_engine, "turn-A")
+    interactions = _FakeInteractionsService(cancelled_count=0)
+    svc = _service(
+        lock_engine,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+        ),
+        interactions=interactions,
+        executions=_FakeExecutionsDAO(),
+    )
+
+    admission = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+    await svc.report_outcome(
+        command_id=admission.command.id,
+        replica_id="runner-1",
+        result="applied",
+        execution_id="turn-A",
+        execution_state="stopped",
+    )
+
+    assert interactions.cancelled == ["turn-A"]
+    assert interactions.published_cancelled == []
+
+
+@pytest.mark.asyncio
+async def test_watchdog_cannot_replace_the_runners_terminal_outcome(lock_engine):
+    executions = _FakeExecutionsDAO()
+    svc = _service(lock_engine, executions=executions)
+    first = await executions.settle(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id="turn-A",
+        terminal_outcome="stopped",
+        settled_by="runner",
+    )
+    assert first.won is True
+
+    won = await svc.settle_execution_lost(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id="turn-A",
+        settled_at=datetime.now(timezone.utc),
+    )
+
+    assert won is False
+    assert executions.rows[(_SESSION, "turn-A")].terminal_outcome == "stopped"
+
+
+@pytest.mark.asyncio
+async def test_next_sweep_repairs_a_post_commit_redis_failure(lock_engine, monkeypatch):
+    await _run_turn(lock_engine, "turn-A")
+    dao = _FakeCommandsDAO()
+    executions = _FakeExecutionsDAO()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+        ),
+        executions=executions,
+    )
+    admission = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+    supersede = AsyncMock(side_effect=RuntimeError("injected after commit"))
+    monkeypatch.setattr(commands_service_module, "mark_turn_superseded", supersede)
+
+    with pytest.raises(RuntimeError, match="injected after commit"):
+        await svc.report_outcome(
+            command_id=admission.command.id,
+            replica_id="runner-1",
+            result="applied",
+            execution_id="turn-A",
+            execution_state="stopped",
+        )
+
+    assert dao.rows[0].state == SessionCommandState.applied
+    assert executions.rows[(_SESSION, "turn-A")].redis_reconciled_at is None
+
+    supersede.side_effect = None
+    repaired = await _repair_terminal_redis(svc)
+
+    assert repaired == 1
+    assert executions.rows[(_SESSION, "turn-A")].redis_reconciled_at is not None
+
+
+@pytest.mark.asyncio
+async def test_successful_redis_projection_is_not_offered_for_repair(lock_engine):
+    await _run_turn(lock_engine, "turn-A")
+    executions = _FakeExecutionsDAO()
+    svc = _service(
+        lock_engine,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+        ),
+        executions=executions,
+    )
+    admission = await svc.request_cancel(
+        project_id=_PROJECT,
+        user_id=_USER,
+        session_id=_SESSION,
+    )
+
+    await svc.report_outcome(
+        command_id=admission.command.id,
+        replica_id="runner-1",
+        result="applied",
+        execution_id="turn-A",
+        execution_state="stopped",
+    )
+
+    assert executions.rows[(_SESSION, "turn-A")].redis_reconciled_at is not None
+    assert await svc.repair_terminal_redis() == 0
+
+
+def _abandoned_command(*, claim_count: int = 1) -> SessionCommand:
+    return SessionCommand(
+        id=uuid.uuid7(),
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        kind="cancel",
+        target_turn_id="turn-A",
+        state=SessionCommandState.pending,
+        claim_count=claim_count,
+        created_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_pending_command_is_redelivered_while_the_session_beats(lock_engine):
+    command = _abandoned_command()
+    dao = _FakeCommandsDAO()
+    dao.rows = [command]
+    dao.abandoned = [command]
+    delivery = _RecordingDelivery()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(_stream("turn-A", datetime.now(timezone.utc))),
+        delivery=delivery,
+    )
+
+    settled = await svc.settle_abandoned_commands(now=datetime.now(timezone.utc))
+
+    assert settled == 0
+    assert [row.id for row in delivery.delivered] == [command.id]
+    assert dao.rows[0].claim_count == command.claim_count + 1
+
+
+@pytest.mark.asyncio
+async def test_a_pending_command_is_settled_lost_when_the_runner_is_gone(lock_engine):
+    command = _abandoned_command()
+    dao = _FakeCommandsDAO()
+    dao.rows = [command]
+    dao.abandoned = [command]
+    delivery = _RecordingDelivery()
+    executions = _FakeExecutionsDAO()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(
+            _stream(
+                "turn-A",
+                datetime.now(timezone.utc) - timedelta(minutes=5),
+            ).model_copy(
+                update={"updated_at": datetime.now(timezone.utc) - timedelta(minutes=5)}
+            )
+        ),
+        delivery=delivery,
+        executions=executions,
+    )
+
+    settled = await svc.settle_abandoned_commands(now=datetime.now(timezone.utc))
+
+    assert settled == 1
+    assert delivery.delivered == []
+    assert dao.rows[0].state == SessionCommandState.obsolete
+    assert dao.rows[0].outcome == SessionCommandOutcome.lost
+    winner = executions.rows[(_SESSION, "turn-A")]
+    assert winner.terminal_outcome == "lost"
+    assert winner.settled_by == "watchdog"
+
+    with pytest.raises(SessionCommandNotClaimable):
+        await svc.report_outcome(
+            command_id=command.id,
+            replica_id="runner-1",
+            result="applied",
+            execution_id="turn-A",
+            execution_state="stopped",
+        )
+
+    assert dao.rows[0].state == SessionCommandState.obsolete
+    assert dao.rows[0].outcome == SessionCommandOutcome.lost
+    assert executions.rows[(_SESSION, "turn-A")] == winner
+
+
+@pytest.mark.asyncio
+async def test_redelivery_stops_at_the_configured_maximum(lock_engine, monkeypatch):
+    maximum = 2
+    monkeypatch.setattr(env.agenta.sessions.commands, "max_deliveries", maximum)
+    command = _abandoned_command(claim_count=maximum)
+    dao = _FakeCommandsDAO()
+    dao.rows = [command]
+    dao.abandoned = [command]
+    delivery = _RecordingDelivery()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(_stream("turn-A", datetime.now(timezone.utc))),
+        delivery=delivery,
+    )
+
+    settled = await svc.settle_abandoned_commands(now=datetime.now(timezone.utc))
+
+    assert settled == 1
+    assert delivery.delivered == []
+    assert dao.rows[0].outcome == SessionCommandOutcome.lost
 
 
 @pytest.mark.asyncio

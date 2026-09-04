@@ -7,7 +7,7 @@ state machine and terminal settlement live in the service and must not move into
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, NamedTuple, Optional
+from typing import Any, AsyncContextManager, List, NamedTuple, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -69,6 +69,10 @@ class ControlDeliveryPort(ABC):
 
 
 class SessionCommandsDAOInterface(ABC):
+    @abstractmethod
+    def transaction(self) -> AsyncContextManager[Any]:
+        """Open a transaction that sibling session DAOs can share."""
+
     @abstractmethod
     async def create_command(
         self,
@@ -148,10 +152,22 @@ class SessionCommandsDAOInterface(ABC):
         `claim_commands`; both exist so the outcome route's guard reads the same either way."""
 
     @abstractmethod
+    async def record_delivery_attempt(
+        self,
+        *,
+        project_id: UUID,
+        command_id: UUID,
+        now: datetime,
+        max_deliveries: int,
+    ) -> Optional[SessionCommand]:
+        """Reserve one bounded delivery attempt and return the updated command."""
+
+    @abstractmethod
     async def settle_command(
         self,
         *,
         settle: SessionCommandSettle,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
         """Terminal transition, guarded on `state='claimed' AND claimed_by=:replica_id`.
         None means the claim had expired or somebody else settled it first."""
@@ -173,6 +189,6 @@ class SessionCommandsDAOInterface(ABC):
         *,
         now: datetime,
         max_deliveries: int,
+        pending_before: Optional[datetime] = None,
     ) -> List[SessionCommand]:
-        """Commands whose claim lease has passed. The settlement sweep reads this. Not called
-        in this slice; the execution watchdog owns settlement (see the slice document)."""
+        """Pending or claimed commands old enough for recovery."""

@@ -184,6 +184,7 @@ from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.dbs.postgres.sessions.commands.dbes import SessionCommandDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
+from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
@@ -283,8 +284,16 @@ async def lifespan(*args, **kwargs):
         except Exception as e:  # noqa: BLE001
             log.warning("Store bucket ensure failed at startup: %s", e)
 
+    # The execution watchdog. It needs the records plane to write the terminal outcome a
+    # dead runner owed, and the watch publisher so an open browser sees the turn close.
     _orphan_sweep_task = asyncio.create_task(
-        orphan_sweep_loop(_transactions_engine, _lock_engine)
+        orphan_sweep_loop(
+            _transactions_engine,
+            _lock_engine,
+            records_service=records_service,
+            watch_publisher=_sessions_watch_publisher,
+            commands_service=session_commands_service,
+        )
     )
 
     _attachment_sweep_task = asyncio.create_task(
@@ -591,6 +600,8 @@ evaluations_dao = EvaluationsDAO(engine=_transactions_engine)
 folders_dao = FoldersDAO(engine=_transactions_engine)
 session_streams_dao = SessionStreamsDAO(engine=_transactions_engine)
 session_turns_dao = SessionTurnsDAO(engine=_transactions_engine)
+session_commands_dao = SessionCommandsDAO(engine=_transactions_engine)
+session_executions_dao = SessionExecutionsDAO(engine=_transactions_engine)
 
 connections_dao = ConnectionsDAO(engine=_transactions_engine)
 mounts_dao = MountsDAO(engine=_transactions_engine)
@@ -625,6 +636,7 @@ events_service = EventsService(
 
 records_service = RecordsService(
     records_dao=records_dao,
+    executions_dao=session_executions_dao,
 )
 
 
@@ -1131,13 +1143,13 @@ if _control_adapter != "direct":
         "Only 'direct' is implemented; the long-poll adapter is a later change."
     )
 
-session_commands_dao = SessionCommandsDAO()
 session_commands_service = SessionCommandsService(
     commands_dao=session_commands_dao,
     streams_service=session_streams_service,
     interactions_service=interactions_service,
     lock_engine=_lock_engine,
     delivery=DirectControlDelivery(),
+    executions_dao=session_executions_dao,
 )
 
 sessions = SessionsRouter(

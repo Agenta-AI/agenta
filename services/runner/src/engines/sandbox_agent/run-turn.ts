@@ -86,6 +86,12 @@ import {
 } from "./approved-content.ts";
 import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import {
+  httpLivenessProbe,
+  resolveSandboxLivenessLimits,
+  sandboxHealthUrl,
+  startSandboxLivenessProbe,
+} from "./sandbox-liveness.ts";
+import {
   RUN_LIMIT_TRIPPED,
   sendLastMessageOnly,
   type CurrentTurn,
@@ -223,7 +229,8 @@ export async function runTurn(
   // A fresh turn never inherits an approval. Only a resume may consume records minted before
   // the park; anything else starts empty, so no call can execute on the strength of an approval
   // raised for an earlier turn.
-  if (!opts.resume) env.commitAuthorization = undefined;
+  if (!opts.resume && !opts.settleApprovalsThenPrompt)
+    env.commitAuthorization = undefined;
   env.nonParkablePauseCount = 0;
   // Hoisted so the catch can flush a partial trace (mirroring the pre-split `otel?` handling —
   // a createOtel throw must still return `{ ok: false }`, not propagate raw) and the finally can
@@ -261,6 +268,33 @@ export async function runTurn(
     runLimitReason = reason;
     runLimitTrip?.();
   });
+
+  // The run limits above cannot see a sandbox that DIED under the turn: the ACP prompt they
+  // race against never settles once the peer is gone, and `notePaused()` retires them entirely
+  // while a turn waits for a human. So probe the sandbox's own HTTP surface, independently of
+  // the wedged ACP channel, and end the turn through the same trip path any other limit uses.
+  // See `sandbox-liveness.ts` and issue #6418.
+  // A remote sandbox does not refuse the socket when it dies: its provider's proxy answers for it
+  // with "sandbox <id> not found" indefinitely, which the poll reads as alive. So the turn's own
+  // ACP transport reports that answer on `env.sandboxGone`, and the probe ends the turn on it at
+  // once. That path needs no health URL, so it is wired even when the poll is disabled.
+  const sandboxHealth = sandboxHealthUrl(env.sandbox);
+  const sandboxLiveness = startSandboxLivenessProbe({
+    ...(sandboxHealth ? { probe: httpLivenessProbe(sandboxHealth) } : {}),
+    goneSignal: env.sandboxGone,
+    limits: resolveSandboxLivenessLimits(logger),
+    onGone: (reason: string) => {
+      runLimitReason = reason;
+      runLimitTrip?.();
+    },
+    log: logger,
+  });
+  if (!sandboxHealth) {
+    logger(
+      "[sandbox-liveness] no health URL on this sandbox; polling disabled " +
+        "(the transport's own sandbox-gone report still ends the turn)",
+    );
+  }
 
   try {
     // AGENTA_SESSIONS_RECONSTRUCT defaults on so minimal-history clients keep their conversation;
@@ -1091,10 +1125,12 @@ export async function runTurn(
     // from one the SESSION started earlier (an stdio MCP server). A resumed turn keeps the
     // resume's own start, which only ever makes the reap more conservative. See `reap-exec.ts`.
     let promptStartedAtMs = Date.now();
-    if (opts.resume) {
+    const approvalTransition =
+      opts.resume ?? opts.settleApprovalsThenPrompt;
+    if (approvalTransition) {
       // The resume turn owns continued events; each decision answers one parked gate by id.
       // Carried gates keep the shared original prompt pending until a later answer.
-      const decisions = opts.resume.decisions;
+      const decisions = approvalTransition.decisions;
       promptPromise = Promise.resolve(decisions[0]?.promptPromise);
       promptPromise.catch(() => {});
       for (const seed of carriedApprovedExecutions) {
@@ -1160,7 +1196,7 @@ export async function runTurn(
       // refresh the carried gates' approval TTL. Pi is exempt on purpose: it prepares the whole
       // batch before executing any call, so while a carried sibling gate is pending closure is
       // impossible and the paused-settle's park-and-carry branch owns those spans.
-      if (opts.resume.carriedForward.length > 0) {
+      if (opts.resume && opts.resume.carriedForward.length > 0) {
         if (!plan.isPi) {
           const answeredAllowedIds = decisions
             .filter((decision) => decision.reply === "once")
@@ -1195,15 +1231,34 @@ export async function runTurn(
           once: true,
         });
     });
-    const raced = await Promise.race([
-      promptPromise.then(
-        (value) => value,
-        (err) => (signal?.aborted ? CANCELLED : Promise.reject(err)),
-      ),
-      pause.signal.then(() => PAUSED),
-      runLimitTripped.then(() => RUN_LIMIT_TRIPPED),
-      cancelled,
-    ]);
+    const racePrompt = (pending: Promise<unknown>) =>
+      Promise.race([
+        pending.then(
+          (value) => value,
+          (err) => (signal?.aborted ? CANCELLED : Promise.reject(err)),
+        ),
+        pause.signal.then(() => PAUSED),
+        runLimitTripped.then(() => RUN_LIMIT_TRIPPED),
+        cancelled,
+      ]);
+    let raced = await racePrompt(promptPromise);
+    if (
+      opts.settleApprovalsThenPrompt &&
+      raced !== PAUSED &&
+      raced !== RUN_LIMIT_TRIPPED &&
+      raced !== CANCELLED &&
+      !pause.active
+    ) {
+      // The request ends in a NEW user turn. Finish applying the interaction decision to the old
+      // prompt first, then make the request's actual work a regular prompt. Without this second
+      // prompt the runner silently answers the old denied tool call and drops the new text. The
+      // old prompt was raced above, so a harness that opened another gate after the denial pauses
+      // this turn instead of hanging unwatched. `continuation` makes promptBlocks the fresh tail.
+      promptStartedAtMs = Date.now();
+      promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
+      promptPromise.catch(() => {});
+      raced = await racePrompt(promptPromise);
+    }
     // A tripped run-limit ends the turn as an error: throw into the shared catch below so the
     // trace is flushed and the caller's teardown reclaims the (wedged) sandbox.
     if (raced === RUN_LIMIT_TRIPPED) {
@@ -1560,6 +1615,8 @@ export async function runTurn(
     void settleInBandInteractions?.();
     // Release every run-limits timer (idempotent, never re-arms on a late event) on EVERY path.
     runLimits.dispose();
+    // Same contract for the sandbox liveness probe: one timer, released on EVERY path.
+    sandboxLiveness?.dispose();
     // This turn owns its relay: stop it on EVERY exit path (the happy path already stopped it
     // after the prompt; stop is safe to repeat, matching the old finally). Null it afterwards so
     // a later `destroy()` — possibly after the dispatch cleared the sink — cannot double-stop or

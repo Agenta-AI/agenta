@@ -96,7 +96,11 @@ class _FakeRedis:
                 return 1
             return 0
         # CLAIM_OWNER_LUA
-        if current_s is None or current_s == argv[0]:
+        from oss.src.dbs.redis.sessions.contract import owner_replica_id
+
+        if current_s is None or owner_replica_id(current_s) == owner_replica_id(
+            argv[0]
+        ):
             self._values[key] = argv[0].encode()
             self._ttl[key] = int(argv[1])
             return argv[0]

@@ -23,6 +23,7 @@ import pytest_asyncio
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
+from oss.src.apis.fastapi.sessions.models import SessionCancelRequest
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
     SessionStream,
@@ -295,6 +296,15 @@ async def test_cancel_with_a_stale_execution_guard_touches_no_holder(lock_engine
         )
         == started.turn_id
     )
+
+
+def test_expected_execution_id_schema_documents_cancel_only_guard():
+    description = SessionCancelRequest.model_json_schema()["properties"][
+        "expected_execution_id"
+    ]["description"]
+
+    assert "only in cancel mode" in description
+    assert "ignored for send, steer, and attach" in description
 
 
 @pytest.mark.asyncio

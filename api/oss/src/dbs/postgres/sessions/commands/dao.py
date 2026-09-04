@@ -7,11 +7,13 @@ write a terminal outcome, and it is the same pattern
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select, update as sa_update
 from sqlalchemy.exc import IntegrityError
+
+from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.sessions.commands.dtos import (
     SessionCommand,
@@ -36,7 +38,46 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
 )
 
+log = get_module_logger(__name__)
+
 _OPEN_STATES = (SessionCommandState.pending.value, SessionCommandState.claimed.value)
+
+
+def _map_commands_skipping_unmappable(
+    rows: List[SessionCommandDBE],
+    *,
+    context: str,
+) -> List[SessionCommand]:
+    """Map a batch of command rows to DTOs, skipping any row this API cannot map.
+
+    A newer API replica can write a command `kind` (or state, or outcome) an older replica's
+    enums do not know; `map_command_dbe_to_dto` then raises `ValueError` on that row. Both the
+    abandoned-command sweep and a runner's claim read a whole batch before acting on any of it,
+    so one such row used to poison the entire batch -- the ValueError escaped the list
+    comprehension and nothing was settled or claimed. Skip the rows this API cannot act on,
+    warn once per batch with their kinds and count, and return the rest. The unknown row is
+    left untouched for a replica that knows its kind; this never changes the enum or the write
+    path. `context` names the batch in the warning (for example "abandoned" or "claimed").
+    """
+    mapped: List[SessionCommand] = []
+    skipped: Dict[str, int] = {}
+    for dbe in rows:
+        try:
+            mapped.append(map_command_dbe_to_dto(dbe))
+        except ValueError:
+            kind = str(dbe.kind)
+            skipped[kind] = skipped.get(kind, 0) + 1
+    if skipped:
+        by_kind = ", ".join(
+            f"{kind}={count}" for kind, count in sorted(skipped.items())
+        )
+        log.warning(
+            "commands: skipped %d %s row(s) this API cannot map (by kind: %s)",
+            sum(skipped.values()),
+            context,
+            by_kind,
+        )
+    return mapped
 
 
 class SessionCommandsDAO(SessionCommandsDAOInterface):
@@ -44,6 +85,9 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         if engine is None:
             engine = get_transactions_engine()
         self.engine = engine
+
+    def transaction(self):
+        return self.engine.session()
 
     async def create_command(
         self,
@@ -258,7 +302,7 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             )
             claimed = (await session.execute(stmt)).scalars().all()
             await session.commit()
-        return [map_command_dbe_to_dto(dbe) for dbe in claimed]
+        return _map_commands_skipping_unmappable(claimed, context="claimed")
 
     async def claim_for_delivery(
         self,
@@ -272,6 +316,9 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
 
         None means somebody else already took or settled it, which is not an error: the runner
         that answered will still report, and the outcome route decides on the stored state.
+        The delivery budget was already consumed by `record_delivery_attempt`; incrementing it
+        again here would charge one direct delivery twice. Long-poll claims use `claim_commands`,
+        which performs its own increment.
         """
         async with self.engine.session() as session:
             now = datetime.now(timezone.utc)
@@ -286,7 +333,6 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                     state=SessionCommandState.claimed.value,
                     claimed_by=replica_id,
                     claim_expires_at=now + timedelta(seconds=lease_seconds),
-                    claim_count=SessionCommandDBE.claim_count + 1,
                     updated_at=now,
                 )
                 .returning(SessionCommandDBE)
@@ -296,10 +342,46 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             await session.commit()
         return map_command_dbe_to_dto(dbe) if dbe is not None else None
 
+    async def record_delivery_attempt(
+        self,
+        *,
+        project_id: UUID,
+        command_id: UUID,
+        now: datetime,
+        max_deliveries: int,
+    ) -> Optional[SessionCommand]:
+        stmt = (
+            sa_update(SessionCommandDBE)
+            .where(
+                SessionCommandDBE.project_id == project_id,
+                SessionCommandDBE.id == command_id,
+                SessionCommandDBE.state.in_(_OPEN_STATES),
+                SessionCommandDBE.claim_count < max_deliveries,
+                or_(
+                    SessionCommandDBE.state == SessionCommandState.pending.value,
+                    SessionCommandDBE.claim_expires_at < now,
+                ),
+            )
+            .values(
+                state=SessionCommandState.pending.value,
+                claimed_by=None,
+                claim_expires_at=None,
+                claim_count=SessionCommandDBE.claim_count + 1,
+                updated_at=now,
+            )
+            .returning(SessionCommandDBE)
+        )
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            dbe = result.scalar_one_or_none()
+            await session.commit()
+        return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
     async def settle_command(
         self,
         *,
         settle: SessionCommandSettle,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
         """Terminal transition. None means the command was in none of the states the caller
         expected, so the caller reads the stored row and answers 409 instead of letting a runner
@@ -309,7 +391,8 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         first and updating after would reopen the very race this exists to close: the claim can
         commit between the read and the write.
         """
-        async with self.engine.session() as session:
+
+        async def execute(session: Any) -> Optional[SessionCommand]:
             now = datetime.now(timezone.utc)
             stmt = sa_update(SessionCommandDBE).where(
                 SessionCommandDBE.project_id == settle.project_id,
@@ -336,8 +419,12 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             ).returning(SessionCommandDBE)
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
-            await session.commit()
-        return map_command_dbe_to_dto(dbe) if dbe is not None else None
+            return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def clear_stopping_turn(
         self,
@@ -367,22 +454,43 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         *,
         now: datetime,
         max_deliveries: int,
+        pending_before: Optional[datetime] = None,
     ) -> List[SessionCommand]:
         async with self.engine.session() as session:
+            abandoned = and_(
+                SessionCommandDBE.state == SessionCommandState.claimed.value,
+                SessionCommandDBE.claim_expires_at < now,
+            )
+            if pending_before is not None:
+                abandoned = or_(
+                    abandoned,
+                    and_(
+                        SessionCommandDBE.state == SessionCommandState.pending.value,
+                        func.coalesce(
+                            SessionCommandDBE.updated_at,
+                            SessionCommandDBE.created_at,
+                        )
+                        < pending_before,
+                    ),
+                )
             stmt = (
                 select(SessionCommandDBE)
                 .where(
-                    SessionCommandDBE.state == SessionCommandState.claimed.value,
                     SessionCommandDBE.deleted_at.is_(None),
-                    SessionCommandDBE.claim_expires_at < now,
-                    SessionCommandDBE.claim_count < max_deliveries,
+                    abandoned,
                 )
-                .order_by(SessionCommandDBE.claim_expires_at)
+                .order_by(
+                    func.coalesce(
+                        SessionCommandDBE.claim_expires_at,
+                        SessionCommandDBE.updated_at,
+                        SessionCommandDBE.created_at,
+                    )
+                )
                 .limit(200)
             )
             result = await session.execute(stmt)
             rows = result.scalars().all()
-        return [map_command_dbe_to_dto(dbe) for dbe in rows]
+        return _map_commands_skipping_unmappable(rows, context="abandoned")
 
     async def count_open(self, *, project_id: UUID, session_id: str) -> int:
         """Open commands for a session. Diagnostics and tests only."""

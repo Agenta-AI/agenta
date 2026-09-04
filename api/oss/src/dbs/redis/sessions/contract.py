@@ -8,7 +8,7 @@ Key namespace — every key is project-scoped:
   alive:<project_id>:session:<session_id>      — session claimed; runner owns it
   running:<project_id>:session:<session_id>    — a turn is actively executing right now
   attached:<project_id>:session:<session_id>   — attach lock (client watching live view)
-  owner:<project_id>:session:<session_id>      — which replica currently owns this session
+  owner:<project_id>:session:<session_id>      — replica + turn generation owning this session
   displaced:<project_id>:session:<session_id>  — pub/sub for attach-steal notifications
   watch:<project_id>:session:<session_id>      — pub/sub for the live relay (SSE watch)
   superseded:<project_id>:session:<session_id>:turn:<turn_id>
@@ -44,6 +44,20 @@ HEARTBEAT_WRITE_THRESHOLD_SECONDS: int = env.sessions.heartbeat_write_threshold_
 # API-side only — the runner never reads the tombstone key, so this constant is
 # deliberately absent from the shared golden fixture (like `watch_heartbeat_seconds`).
 SUPERSEDED_TTL_SECONDS: int = env.sessions.superseded_ttl_seconds
+
+# API-side owner payload. The runner reaches affinity through the heartbeat response and never
+# reads this Redis value directly. Unit Separator cannot occur in either UUID-like component and
+# keeps legacy bare-replica values unambiguous.
+OWNER_VALUE_SEPARATOR = "\x1f"
+
+
+def make_owner_value(*, replica_id: str, turn_id: str | None) -> str:
+    return f"{replica_id}{OWNER_VALUE_SEPARATOR}{turn_id or ''}"
+
+
+def owner_replica_id(owner_value: str) -> str:
+    return owner_value.split(OWNER_VALUE_SEPARATOR, 1)[0]
+
 
 # ---------------------------------------------------------------------------
 # Key builders
@@ -159,12 +173,56 @@ else
 end
 """.strip()
 
-# Atomic claim-or-read: take ownership iff the key is absent or already ours (refreshing the
-# TTL), never steal it from another replica. Returns the actual owner after the operation, so
-# the caller learns who won without a second racy read.
+# Atomically release only the generation the watchdog swept. A new Send or Steer may install
+# another turn after the database commit, so every destructive Redis action must compare the
+# value captured before the guarded stream update. The swept turn is tombstoned regardless of
+# whether its old lock keys still exist.
+WATCHDOG_RELEASE_TURN_LUA = """
+-- AGENTA_WATCHDOG_RELEASE_TURN
+local expected_turn = ARGV[1]
+local expected_owner = ARGV[2]
+local superseded_ttl = tonumber(ARGV[3])
+local alive = redis.call('GET', KEYS[1]) or ''
+local running = redis.call('GET', KEYS[2]) or ''
+local owner = redis.call('GET', KEYS[3]) or ''
+local released_alive = 0
+local released_running = 0
+local released_owner = 0
+
+if expected_turn ~= '' and alive == expected_turn then
+    released_alive = redis.call('DEL', KEYS[1])
+end
+if expected_turn ~= '' and running == expected_turn then
+    released_running = redis.call('DEL', KEYS[2])
+end
+
+local foreign_turn = (alive ~= '' and alive ~= expected_turn)
+    or (running ~= '' and running ~= expected_turn)
+if expected_owner ~= '' and owner == expected_owner and not foreign_turn then
+    released_owner = redis.call('DEL', KEYS[3])
+end
+
+if expected_turn ~= '' then
+    redis.call('SET', KEYS[4], '1', 'EX', superseded_ttl)
+end
+
+return {released_alive, released_running, released_owner}
+""".strip()
+
+# Atomic claim-or-read: take ownership iff the key is absent or already belongs to this replica,
+# refreshing both its TTL and turn generation. Returns the full actual value without a second
+# racy read. Bare legacy values compare as their own replica id and are upgraded on refresh.
 CLAIM_OWNER_LUA = """
 local current = redis.call('GET', KEYS[1])
-if current == false or current == ARGV[1] then
+local separator = string.char(31)
+local function replica(value)
+    local boundary = string.find(value, separator, 1, true)
+    if boundary then
+        return string.sub(value, 1, boundary - 1)
+    end
+    return value
+end
+if current == false or replica(current) == replica(ARGV[1]) then
     redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
     return ARGV[1]
 end

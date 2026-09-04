@@ -1,7 +1,7 @@
 import os
 import hashlib
 import warnings
-from typing import List, Optional
+from typing import List, Literal, Optional
 from uuid import getnode
 from json import loads
 from urllib.parse import urlparse, quote_plus
@@ -512,6 +512,18 @@ class RedactionConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _parse_sessions_late_output() -> Literal["quarantine", "reject"]:
+    value = (os.getenv("AGENTA_SESSIONS_LATE_OUTPUT") or "quarantine").strip().lower()
+    if value in ("quarantine", "reject"):
+        return value
+    warnings.warn(
+        f"AGENTA_SESSIONS_LATE_OUTPUT={value!r} is not recognized; "
+        "behaving as 'quarantine'.",
+        stacklevel=2,
+    )
+    return "quarantine"
+
+
 class SessionsRecordsConfig(BaseModel):
     """Durable session-record ingest tuning (server-side history reconstruction)."""
 
@@ -564,6 +576,59 @@ class SessionAttachmentsConfig(BaseModel):
     )
     sweep_interval_seconds: int = int(
         os.getenv("AGENTA_ATTACHMENTS_SWEEP_INTERVAL_SECONDS") or 3_600
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class SessionWatchdogConfig(BaseModel):
+    """The execution watchdog: how long a running turn may go silent before it is settled.
+
+    The rule is HEARTBEAT AGE, not lease expiry. The Redis `alive` and `running` keys carry a
+    one-hour TTL, so "shortly after the lease expires" would mean an hour after the runner
+    died. The runner beats every `heartbeat_interval_seconds` (30) and the beat is mirrored
+    onto `session_streams.updated_at`, so the age of that column is the real liveness signal.
+
+    A turn is declared lost when its stream row still claims `is_running` and its last
+    heartbeat is older than `stale_heartbeat_seconds`. The default of 90 seconds is three
+    missed beats.
+
+    Only a turn that still claims `is_running` is eligible. A turn parked for a human sends a
+    final beat with `is_running: false` and then stops beating on purpose; that state is
+    resumable, not lost, and the watchdog must never end it.
+
+    Raise `stale_heartbeat_seconds` if a healthy deployment settles live turns. Lower it to
+    settle a dead turn sooner. It is a plain restart-time setting; nothing else changes.
+    """
+
+    # Maximum age of the last heartbeat before a RUNNING turn is declared lost.
+    stale_heartbeat_seconds: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS"
+        )
+        or 90
+    )
+
+    # How long an ALIVE-but-not-running row (between turns, or parked awaiting a human) is left
+    # alone before it is RECLAIMED. That state is resumable, so it is keyed to the 30-minute
+    # approval TTL rather than to three missed beats. It does not govern whether such a row owes
+    # its turn a terminal record: that question is asked of the records plane on the
+    # `stale_heartbeat_seconds` clock, because a durable Stop clears `is_running` before the
+    # runner has written its own ending.
+    idle_grace_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_IDLE_GRACE_SECONDS")
+        or 1_800
+    )
+
+    # How often the watchdog runs.
+    interval_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_INTERVAL_SECONDS")
+        or 60
+    )
+
+    # Rows settled per pass. A backlog drains over successive passes, not one huge commit.
+    batch_size: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_BATCH_SIZE") or 500
     )
 
     model_config = ConfigDict(extra="ignore")
@@ -622,9 +687,11 @@ class SessionsConfig(BaseModel):
     durable_stop: bool = (
         os.getenv("AGENTA_SESSIONS_DURABLE_STOP") or "false"
     ).lower() in _TRUTHY
+    late_output: Literal["quarantine", "reject"] = _parse_sessions_late_output()
     attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
+    watchdog: SessionWatchdogConfig = SessionWatchdogConfig()
 
     model_config = ConfigDict(extra="ignore")
 

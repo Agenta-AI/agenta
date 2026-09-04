@@ -23,6 +23,7 @@ from oss.src.dbs.redis.sessions.contract import (
     CONCURRENCY_LIMIT,
     WATCH_LIFECYCLE_ENDED,
     WATCH_LIFECYCLE_RUNNING,
+    owner_replica_id,
     validate_session_id as _validate_session_id_fn,
 )
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -30,6 +31,7 @@ from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
     acquire_running,
     claim_owner,
+    claim_owner_value,
     clear_owner,
     clear_running,
     release_running,
@@ -45,6 +47,7 @@ from oss.src.dbs.redis.sessions.locks import (
     refresh_running,
     release_alive,
     release_attached,
+    release_owner_value,
     steal_attached,
 )
 
@@ -295,12 +298,30 @@ class SessionStreamsService:
                 entity="session",
                 id=session_id,
             )
+
         except Exception:
             log.warning(
                 "[WATCH] session change publish failed",
                 project_id=str(project_id),
                 session_id=session_id,
             )
+
+    async def settle_command(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str],
+        mirror_stopped: bool,
+        transaction: Optional[Any] = None,
+    ) -> None:
+        await self._dao.settle_command(
+            project_id=project_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            mirror_stopped=mirror_stopped,
+            transaction=transaction,
+        )
 
     async def command(
         self,
@@ -486,6 +507,87 @@ class SessionStreamsService:
             session_id=session_id,
         )
 
+    async def _reclaim_affinity_from_a_departed_replica(
+        self,
+        *,
+        project_id: UUID,
+        request: SessionHeartbeatRequest,
+        incumbent_value: str,
+    ) -> str:
+        """Take `owner:session:<id>` from a replica that holds no running turn on it.
+
+        `owner` exists to say which box is SERVING the session, and only an in-flight turn's
+        heartbeat ever refreshes it. So a claim held by a replica with no running turn is not
+        protecting anything: it is the residue of a runner that stopped beating. A runner that
+        dies without a graceful shutdown (SIGKILL, OOM, a crashed node, `docker restart -t 0`)
+        always leaves exactly that, because nothing releases the key on its way out and
+        `claim_owner` never steals. The replacement replica then loses every beat for the rest
+        of OWNER_TTL_SECONDS, and the runner reads that refusal as "another turn owns this
+        session" and refuses the user's next message for two minutes.
+
+        `running` is the discriminator, the same one the alive-lock handover below uses. A live
+        turn holds it under its own id for the whole turn and re-arms it every beat, so a
+        replica that is genuinely serving the session can never be mistaken for a departed one.
+        A `running` lock held by the CALLER's own turn is not an obstacle: `_start_turn` arms
+        alive and running before the runner's first beat, so an API-minted turn legitimately
+        arrives here with its own lock already in place.
+
+        Only the beat of a real, running turn may reclaim. A turn-end beat asserts nothing
+        about who should serve the session next, and a beat with no turn id proves no work.
+
+        KNOWN LIMIT. A turn parked awaiting an approval also holds `alive` with no `running`,
+        so on a MULTI-replica deployment a second replica can take affinity from a live first
+        one and the handover below then tombstones the parked turn, killing the pending
+        approval. That outcome is not new: nothing refreshes `owner` on a parked session, so the
+        key expires after OWNER_TTL_SECONDS and the same handover follows. This only makes it up
+        to that TTL sooner, and only on a topology the direct control adapter cannot route to
+        anyway (`core/sessions/commands/service.py`). On a single replica the caller already
+        equals the owner and this method is never entered.
+
+        Returns the owner after the attempt: the caller when the reclaim landed, otherwise
+        whoever holds the key, which is what the refusal above must report.
+        """
+        incumbent = owner_replica_id(incumbent_value)
+        if not (request.turn_id and request.is_running):
+            return incumbent
+
+        running_owner = await get_running_owner(
+            self._lock,
+            project_id=str(project_id),
+            session_id=request.session_id,
+        )
+        if running_owner is not None and running_owner != request.turn_id:
+            return incumbent
+
+        # Release-if-owner, then the ordinary non-stealing claim. Two atomic steps rather than
+        # one so no new script is needed, and the gap is safe in both directions: a concurrent
+        # claim by a third replica makes the release a no-op and the claim below returns that
+        # replica, so this path can never hand the session to the wrong caller.
+        await release_owner_value(
+            self._lock,
+            project_id=str(project_id),
+            session_id=request.session_id,
+            owner_value=incumbent_value,
+        )
+        owner = await claim_owner(
+            self._lock,
+            project_id=str(project_id),
+            session_id=request.session_id,
+            replica_id=request.replica_id,
+            turn_id=request.turn_id,
+        )
+        if owner == request.replica_id:
+            log.info(
+                "sessions: reclaimed session affinity from a replica with no running turn",
+                extra={
+                    "session_id": request.session_id,
+                    "departed_replica_id": incumbent,
+                    "replica_id": request.replica_id,
+                    "turn_id": request.turn_id,
+                },
+            )
+        return owner
+
     async def heartbeat(
         self,
         *,
@@ -581,12 +683,23 @@ class SessionStreamsService:
         # replica_id claims affinity without stealing from a live different owner; turn_id
         # separately refreshes the alive/running TTLs. `owner` is the actual winner (this
         # replica if it won or already held it, another replica otherwise).
-        owner = await claim_owner(
+        owner_value = await claim_owner_value(
             self._lock,
             project_id=str(project_id),
             session_id=request.session_id,
             replica_id=request.replica_id,
+            turn_id=request.turn_id,
         )
+        owner = owner_replica_id(owner_value)
+        # A different replica holds affinity. That claim is worth honouring only while it
+        # protects a turn, so before refusing, check whether it still protects one.
+        if owner != request.replica_id:
+            owner = await self._reclaim_affinity_from_a_departed_replica(
+                project_id=project_id,
+                request=request,
+                incumbent_value=owner_value,
+            )
+
         # A replica that lost the claim owns nothing here: mutating the nest would let it
         # overwrite the winner's turn locks and stream row. Report the true owner and stop.
         if owner != request.replica_id:
@@ -814,8 +927,21 @@ class SessionStreamsService:
                 project_id=project_id,
                 user_id=None,
                 session_id=request.session_id,
-                stream=SessionStreamEdit(flags=flags, turn_id=durable_turn_id),
+                stream=SessionStreamEdit(
+                    flags=flags,
+                    turn_id=durable_turn_id,
+                    expected_turn_id=request.turn_id if turn_was_established else None,
+                ),
             )
+            if stream is None and turn_was_established:
+                # The guarded row write lost to settlement or to a new generation. Redis may
+                # already have been refreshed, but this beat no longer owns durable state and
+                # must tell the runner to stop.
+                is_current_turn = False
+                stream = await self._dao.get_by_session_id(
+                    project_id=project_id,
+                    session_id=request.session_id,
+                )
 
         # `running` lifecycle for the path that actually runs turns. `_start_turn` publishes it
         # for send/steer, but the runner mints its own turn id and only ever heartbeats, so

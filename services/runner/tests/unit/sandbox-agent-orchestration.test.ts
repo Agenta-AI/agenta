@@ -36,6 +36,8 @@ import {
   shouldSuppressPausedToolCallUpdate,
 } from "../../src/engines/sandbox_agent/runtime-policy.ts";
 import { mountStorage } from "../../src/engines/sandbox_agent/mount.ts";
+import { withSandboxGoneReport } from "../../src/engines/sandbox_agent/acp-fetch.ts";
+import { SANDBOX_GONE_MESSAGE } from "../../src/engines/sandbox_agent/errors.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
 import { appendPlatformGuidance } from "../../src/engines/sandbox_agent/system-prompt-appendix.ts";
 import { platformGuidanceAppendix } from "../../src/engines/sandbox_agent/platform-guidance.ts";
@@ -3513,5 +3515,120 @@ describe("runTurn run-limits deadline (split path)", () => {
     // Paused, not a deadline error: the pause path — not a tripped limit — ended the turn.
     assert.equal(result.stopReason, "paused");
     assert.equal(calls.sandboxDestroyed, 1);
+  });
+});
+
+/**
+ * The Daytona sandbox-gone path, end to end through the real environment wiring.
+ *
+ * On 2026-09-04 an isolated re-run showed the full cost of the gap this closes: the sandbox was
+ * deleted at 16:26:31, the runner's own socket was told `SANDBOX_NOT_FOUND` at 16:26:37, and the
+ * turn still beat `running=true` for THIRTY minutes. Nothing detected the death. What finally
+ * ended the turn was the 30 minute per-tool-call deadline
+ * (`[run-limits] tool call ... exceeded 1800000ms`), and only then did the turn's error and done
+ * records persist, 27 minutes after the client had already given up.
+ *
+ * Everything downstream of the turn ending is already correct: the error terminal, the records,
+ * the `running=false` beat that clears the row, the teardown. The only defect was WHEN the turn
+ * ended. So these tests pin the trigger and the terminal it produces, which is what puts all of
+ * that 27 minutes earlier.
+ */
+describe("a sandbox the provider deletes under a running turn", () => {
+  /** Daytona's real answer for a deleted sandbox, from the runner log of that re-run. */
+  const goneAnswer = () =>
+    new Response(
+      "not found: sandbox 39f3aa96-ddc7-4417-b8ab-71804894edf6 not found, " +
+        "it may have been deleted or stopped - inspect audit logs for more info",
+      { status: 404, headers: { "x-daytona-error-code": "SANDBOX_NOT_FOUND" } },
+    );
+
+  /**
+   * Production's reporter over a fake socket. The double stands in for the network only: the
+   * wrapper, the latch and the arming are the real ones, so this exercises the wiring rather
+   * than a copy of it.
+   */
+  function harnessWithGoneSocket(answer: () => Response) {
+    const fake = fakeHarness({ hangPrompt: true });
+    fake.deps.createAcpFetch = ((_dispatcher: unknown, options: any) =>
+      withSandboxGoneReport(
+        (async () => answer()) as unknown as typeof fetch,
+        options,
+      )) as any;
+    return fake;
+  }
+
+  /** Let the run reach its prompt, which is where the real turn sits when its sandbox dies. */
+  async function waitForStartedTurn(calls: { startOptions: any }) {
+    for (let i = 0; i < 50 && !calls.startOptions; i += 1)
+      await flushPromises();
+    assert.ok(calls.startOptions, "the run should have started its sandbox");
+    await flushPromises();
+  }
+
+  it("ends the turn with a sandbox_gone error terminal, from the turn's own socket", async () => {
+    const { calls, deps, events } = harnessWithGoneSocket(goneAnswer);
+
+    const run = runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "conv-sandbox-deleted",
+        messages: [{ role: "user", content: "run one shell command" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+    await waitForStartedTurn(calls);
+
+    // The turn is parked on a prompt that can never settle, exactly as on 2026-09-04. Its own
+    // socket is the next thing to speak, and what it says is that the sandbox is gone.
+    await (calls.startOptions.fetch as typeof fetch)(
+      "http://sandbox/v1/acp/session",
+    );
+    const result = await run;
+
+    // The turn RETURNED rather than hanging for thirty minutes, and it returned as this error.
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SANDBOX_GONE_MESSAGE);
+    // The terminal the client reads, and the record that persists at this moment.
+    const errorEvent = events.find((event) => event.type === "error") as any;
+    assert.ok(errorEvent, "the run should emit an error terminal");
+    assert.equal(errorEvent.code, "sandbox_gone");
+    // The teardown ran, so the sandbox and its slot are reclaimed here rather than at eviction.
+    assert.equal(calls.sandboxDestroyed, 1);
+  });
+
+  it("keeps running when the same socket merely returns an ordinary error", async () => {
+    // A 502 from the proxy is a blip, not a death. Nothing must end the turn on it, or a
+    // transient network fault would kill healthy runs.
+    const { calls, deps } = harnessWithGoneSocket(
+      () => new Response("", { status: 502 }),
+    );
+
+    const run = runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "conv-proxy-blip",
+        messages: [{ role: "user", content: "run one shell command" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+    await waitForStartedTurn(calls);
+
+    await (calls.startOptions.fetch as typeof fetch)(
+      "http://sandbox/v1/acp/session",
+    );
+    for (let i = 0; i < 20; i += 1) await flushPromises();
+
+    // Still parked on its prompt: no terminal, no teardown.
+    assert.equal(calls.sandboxDestroyed, 0);
+    const settled = await Promise.race([
+      run.then(() => "settled" as const),
+      Promise.resolve("pending" as const),
+    ]);
+    assert.equal(settled, "pending");
   });
 });

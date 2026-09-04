@@ -51,6 +51,7 @@ import {
 } from "../../protocol.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
+import { createSandboxGoneLatch } from "./sandbox-gone.ts";
 import {
   assert,
   assertRequiredCapabilities,
@@ -686,6 +687,23 @@ async function acquireEnvironmentOnce(
       signal,
       logger,
     );
+    // The turn's own socket is the first thing to learn that a remote sandbox was deleted, and it
+    // cannot end a turn by itself (the ACP transport swallows the failure and the pending prompt
+    // never settles). It notes the death here; `run-turn.ts` hands this latch to the liveness
+    // probe, which ends the turn. See `sandbox-gone.ts`.
+    //
+    // ARMED ONLY AFTER ACQUIRE. The same fetch also carries the SDK's health wait, which polls a
+    // sandbox that is still coming up and tolerates a provider error by design. On a warm resume
+    // the provider's proxy can lag its own control plane and answer for a sandbox it has not
+    // finished re-exposing. A report during acquire would latch a HEALTHY sandbox as dead and kill
+    // its first turn, and the latch is one-way, so the window has to be closed before it rather
+    // than reasoned about after. Acquire already has its own failure path for a sandbox that
+    // genuinely never comes up.
+    const sandboxGone = createSandboxGoneLatch();
+    environment.sandboxGone = sandboxGone;
+    const acpFetchOptions = {
+      onSandboxGone: (reason: string) => sandboxGone.note(reason),
+    };
     const startOptions = {
       sandbox: sandboxProvider,
       persist,
@@ -695,8 +713,11 @@ async function acquireEnvironmentOnce(
       // Long-timeout undici dispatcher so a paused HITL turn is not reaped by undici's default
       // headersTimeout; Daytona additionally carries the per-sandbox auth cookie.
       fetch: plan.isDaytona
-        ? (deps.createCookieFetch ?? createCookieFetch)()
-        : (deps.createAcpFetch ?? createAcpFetch)(),
+        ? (deps.createCookieFetch ?? createCookieFetch)(
+            undefined,
+            acpFetchOptions,
+          )
+        : (deps.createAcpFetch ?? createAcpFetch)(undefined, acpFetchOptions),
     };
     // SandboxLifecycle owns the reconnect ladder, the fresh-create fallback, and both
     // `sandbox_start` timing marks. See `environment/sandbox-lifecycle.ts`.
@@ -722,6 +743,9 @@ async function acquireEnvironmentOnce(
     environment.sandbox = acquiredSandbox.sandbox;
     throwIfAcquireAborted(signal);
     environment.resumable = acquiredSandbox.resumable;
+    // The sandbox is up and the reconnect ladder is done, so a "sandbox not found" from here on is
+    // a real death rather than a proxy that has not caught up. See the latch above.
+    sandboxGone.arm();
     // Read AFTER the sandbox is acquired, because the port is bound to a sandbox: the provider has
     // no allocation to deliver against until create (or reconnect) has settled. Undefined for
     // every provider that cannot deliver a credential to a live sandbox, which is what routes a

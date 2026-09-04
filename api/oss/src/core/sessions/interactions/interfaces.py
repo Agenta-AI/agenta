@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.interactions.dtos import (
@@ -47,6 +47,7 @@ class SessionInteractionsDAOInterface(ABC):
         except_turn_id: Optional[str] = None,
         except_tokens: Optional[List[str]] = None,
         only_turn_id: Optional[str] = None,
+        transaction: Optional[Any] = None,
     ) -> List[SessionInteraction]: ...
 
     @abstractmethod

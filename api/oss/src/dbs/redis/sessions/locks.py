@@ -6,7 +6,7 @@ every key name, TTL, and wire shape.
 """
 
 import json
-from typing import Optional
+from typing import Optional, Tuple
 
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
@@ -17,10 +17,13 @@ from oss.src.dbs.redis.sessions.contract import (
     RELEASE_IF_OWNER_LUA,
     RUNNING_TTL_SECONDS,
     SUPERSEDED_TTL_SECONDS,
+    WATCHDOG_RELEASE_TURN_LUA,
     alive_key,
     attached_key,
     displaced_channel,
     make_displacement_payload,
+    make_owner_value,
+    owner_replica_id,
     owner_key,
     running_key,
     superseded_key,
@@ -152,6 +155,29 @@ async def is_turn_superseded(
         return False
     await engine.expire(key, SUPERSEDED_TTL_SECONDS)
     return True
+
+
+async def release_watchdog_turn(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: Optional[str],
+    owner_value: Optional[str],
+) -> Tuple[bool, bool, bool]:
+    """Atomically release only the swept turn and its observed replica owner."""
+    result = await engine.eval(
+        WATCHDOG_RELEASE_TURN_LUA,
+        4,
+        alive_key(project_id, session_id).encode(),
+        running_key(project_id, session_id).encode(),
+        owner_key(project_id, session_id).encode(),
+        superseded_key(project_id, session_id, turn_id or "").encode(),
+        (turn_id or "").encode(),
+        (owner_value or "").encode(),
+        SUPERSEDED_TTL_SECONDS,
+    )
+    return bool(int(result[0])), bool(int(result[1])), bool(int(result[2]))
 
 
 # ---------------------------------------------------------------------------
@@ -321,9 +347,48 @@ async def get_owner(
     session_id: str,
 ) -> Optional[str]:
     """Return the replica id currently owning this session, or None."""
+    current = await get_owner_value(
+        engine, project_id=project_id, session_id=session_id
+    )
+    return owner_replica_id(current) if current else None
+
+
+async def get_owner_value(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+) -> Optional[str]:
+    """Return the full replica + turn-generation owner value, or None."""
     key = owner_key(project_id, session_id)
     current = await engine.get(key)
     return current.decode() if current else None
+
+
+async def claim_owner_value(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    replica_id: str,
+    turn_id: Optional[str] = None,
+) -> str:
+    """Atomically claim ownership and return the full observed owner generation.
+
+    Never steals from a live different owner: if another replica holds it, its id is
+    returned with its turn generation so a later compare-and-delete cannot clear a refresh.
+    """
+    key = owner_key(project_id, session_id)
+    owner_value = make_owner_value(replica_id=replica_id, turn_id=turn_id)
+    result = await engine.eval(
+        CLAIM_OWNER_LUA,
+        1,
+        key.encode(),
+        owner_value.encode(),
+        str(OWNER_TTL_SECONDS).encode(),
+    )
+    actual = result.decode() if isinstance(result, (bytes, bytearray)) else str(result)
+    return actual
 
 
 async def claim_owner(
@@ -332,21 +397,35 @@ async def claim_owner(
     project_id: str,
     session_id: str,
     replica_id: str,
+    turn_id: Optional[str] = None,
 ) -> str:
-    """Atomically claim ownership iff unowned or already ours, and return the actual owner.
+    """Claim ownership and return the actual owner's replica id."""
+    actual = await claim_owner_value(
+        engine,
+        project_id=project_id,
+        session_id=session_id,
+        replica_id=replica_id,
+        turn_id=turn_id,
+    )
+    return owner_replica_id(actual)
 
-    Never steals from a live different owner: if another replica holds it, its id is
-    returned so the caller can refuse to serve a local session on the wrong host.
-    """
+
+async def release_owner_value(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    owner_value: str,
+) -> bool:
+    """Remove the owner key only if its full replica + turn generation still matches."""
     key = owner_key(project_id, session_id)
     result = await engine.eval(
-        CLAIM_OWNER_LUA,
+        RELEASE_IF_OWNER_LUA,
         1,
         key.encode(),
-        replica_id.encode(),
-        str(OWNER_TTL_SECONDS).encode(),
+        owner_value.encode(),
     )
-    return result.decode() if isinstance(result, (bytes, bytearray)) else str(result)
+    return result == 1
 
 
 async def clear_owner(
@@ -357,14 +436,17 @@ async def clear_owner(
     replica_id: str,
 ) -> bool:
     """Remove the owner key if replica_id is still the owner."""
-    key = owner_key(project_id, session_id)
-    result = await engine.eval(
-        RELEASE_IF_OWNER_LUA,
-        1,
-        key.encode(),
-        replica_id.encode(),
+    owner_value = await get_owner_value(
+        engine, project_id=project_id, session_id=session_id
     )
-    return result == 1
+    if owner_value is None or owner_replica_id(owner_value) != replica_id:
+        return False
+    return await release_owner_value(
+        engine,
+        project_id=project_id,
+        session_id=session_id,
+        owner_value=owner_value,
+    )
 
 
 async def force_clear_owner(
@@ -382,7 +464,7 @@ async def force_clear_owner(
     key = owner_key(project_id, session_id)
     current = await engine.get(key)
     await engine.delete(key)
-    return current.decode() if current else None
+    return owner_replica_id(current.decode()) if current else None
 
 
 # ---------------------------------------------------------------------------
