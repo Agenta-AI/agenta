@@ -1075,7 +1075,7 @@ async def test_full_service_concurrent_same_key_conflicting_answer_is_409_domain
     assert isinstance(conflict, IdempotencyKeyReused)
 
 
-async def test_running_continuation_blocks_and_only_reopens_after_recovery(
+async def test_parked_running_continuation_is_steerable_and_reopens_after_recovery(
     command_scope,
 ):
     commands = SessionCommandsDAO(engine=command_scope["engine"])
@@ -1121,7 +1121,7 @@ async def test_running_continuation_blocks_and_only_reopens_after_recovery(
         project_id=command_scope["project_id"],
         session_id=command_scope["session_id"],
     )
-    assert blocker is not None and blocker.id == command.id
+    assert blocker is None
     assert (
         await commands.reopen_continuation(
             project_id=command_scope["project_id"],
@@ -1139,6 +1139,11 @@ async def test_running_continuation_blocks_and_only_reopens_after_recovery(
         state=SessionExecutionState.recoverable,
         expected_states=[SessionExecutionState.running],
     )
+    blocker = await commands.fetch_resumable_continuation(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+    )
+    assert blocker is not None and blocker.id == command.id
     async with commands.transaction() as transaction:
         await executions.create_continuation(
             project_id=command_scope["project_id"],

@@ -293,7 +293,7 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                             SessionCommandDBE.state
                             == SessionCommandState.applied.value,
                             SessionCommandDBE.outcome == "started",
-                            SessionExecutionDBE.state.in_(("recoverable", "running")),
+                            SessionExecutionDBE.state == "recoverable",
                         ),
                     ),
                     SessionCommandDBE.deleted_at.is_(None),

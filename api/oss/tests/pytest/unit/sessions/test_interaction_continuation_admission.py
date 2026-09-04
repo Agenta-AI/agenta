@@ -33,6 +33,7 @@ class _Commands:
     def __init__(self):
         self.command = None
         self.abandoned = []
+        self.resumable = True
 
     @asynccontextmanager
     async def transaction(self):
@@ -66,20 +67,24 @@ class _Commands:
         return self.command
 
     async def fetch_resumable_continuation(self, **kwargs):
-        if self.command and (
-            self.command.state
-            in (
-                SessionCommandState.pending,
-                SessionCommandState.claimed,
-            )
-            or (
-                self.command.state == SessionCommandState.obsolete
-                and self.command.outcome
-                in (SessionCommandOutcome.lost, SessionCommandOutcome.failed)
-            )
-            or (
-                self.command.state == SessionCommandState.applied
-                and self.command.outcome == SessionCommandOutcome.started
+        if (
+            self.resumable
+            and self.command
+            and (
+                self.command.state
+                in (
+                    SessionCommandState.pending,
+                    SessionCommandState.claimed,
+                )
+                or (
+                    self.command.state == SessionCommandState.obsolete
+                    and self.command.outcome
+                    in (SessionCommandOutcome.lost, SessionCommandOutcome.failed)
+                )
+                or (
+                    self.command.state == SessionCommandState.applied
+                    and self.command.outcome == SessionCommandOutcome.started
+                )
             )
         ):
             return self.command
@@ -728,7 +733,7 @@ async def test_only_the_winning_started_outcome_is_admitted():
 
 
 @pytest.mark.asyncio
-async def test_running_continuation_blocks_send_while_heartbeat_is_live():
+async def test_parked_running_continuation_does_not_own_send_preflight():
     project_id = uuid4()
     interaction_id = uuid4()
     commands = _Commands()
@@ -745,6 +750,7 @@ async def test_running_continuation_blocks_send_while_heartbeat_is_live():
     executions.continuation = executions.continuation.model_copy(
         update={"state": SessionExecutionState.running}
     )
+    commands.resumable = False
     delivery = _Unreachable()
     streams = SimpleNamespace(
         fetch_header=AsyncMock(
@@ -775,7 +781,7 @@ async def test_running_continuation_blocks_send_while_heartbeat_is_live():
         executions_dao=executions,
     )
 
-    assert await service.resume_recoverable_continuation(
+    assert not await service.resume_recoverable_continuation(
         project_id=project_id, session_id="session-1"
     )
     assert delivery.delivered == []
