@@ -43,7 +43,7 @@ import {Button} from "@/components/ui/button"
 
 import {AssistantMarkdown} from "./AssistantMarkdown"
 import {continuationRetryAction} from "./continuationRetry"
-import {isLiveTextItem} from "./markdownStream"
+import {isLiveReasoningPart, isLiveTextItem} from "./markdownStream"
 
 type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
 
@@ -333,7 +333,7 @@ export const TurnRow = ({
                             <ReasoningFold
                                 key={item.index}
                                 text={item.part.text}
-                                streaming={isLiveTextItem(turn, position)}
+                                streaming={isLiveReasoningPart(item.part)}
                                 urgent={position !== turn.items.length - 1}
                             />
                         )
