@@ -724,6 +724,11 @@ export async function mountStorageRemote(
           timeoutMs: deps.mountTimeoutMs ?? 60_000,
         }),
       deps.signal,
+      {
+        onLateSuccess: async () => {
+          await unmountRemoteDeadMount(sandbox, cwd, log);
+        },
+      },
     );
     if (res?.exitCode !== 0) {
       log(

@@ -592,6 +592,49 @@ describe("mountStorageRemote", () => {
     );
   });
 
+  it("detaches a remote mount that completes after cancellation", async () => {
+    const controller = new AbortController();
+    const unmountCalls: string[] = [];
+    let finishMount!: (value: { exitCode: number }) => void;
+    const mountFinished = new Promise<{ exitCode: number }>((resolve) => {
+      finishMount = resolve;
+    });
+    let mountStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      mountStarted = resolve;
+    });
+    const sandbox = {
+      runProcess: async (opts: { command: string; args?: string[] }) => {
+        const command = opts.args?.[1] ?? "";
+        if (command.includes("geesefs --log-file")) {
+          mountStarted();
+          return mountFinished;
+        }
+        if (command.includes("fusermount") || command.includes("umount")) {
+          unmountCalls.push(command);
+        }
+        return { exitCode: 0 };
+      },
+    };
+    const mount = mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      signal: controller.signal,
+      log: SILENT,
+    });
+
+    await started;
+    controller.abort();
+    await assert.rejects(mount, /acquisition was aborted/);
+    finishMount({ exitCode: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(
+      unmountCalls.length,
+      3,
+      "cleans before mounting, on cancellation, and after the mount completes",
+    );
+  });
+
   it("detaches an existing mount before starting geesefs", async () => {
     const commands: string[] = [];
     const sandbox = {

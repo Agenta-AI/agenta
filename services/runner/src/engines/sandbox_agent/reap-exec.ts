@@ -282,12 +282,15 @@ export async function reapLeakedExecChildren(
   }
 
   try {
-    await runProcess.call(input.sandbox, {
+    const result = await runProcess.call(input.sandbox, {
       command: "kill",
       args: ["-9", ...pids.map(String)],
       timeoutMs,
       maxOutputBytes: 4 * 1024,
     });
+    if (result.exitCode != null && result.exitCode !== 0) {
+      throw new Error(`kill exited with status ${result.exitCode}`);
+    }
   } catch (error) {
     input.log(
       "stage=harness_reap killed=0 skipped=kill-failed error=" +

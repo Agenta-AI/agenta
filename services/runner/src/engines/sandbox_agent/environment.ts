@@ -1000,6 +1000,7 @@ async function acquireEnvironmentOnce(
           logger(`remote agent mount active for artifact=${artifactId}`);
         }
       } catch (err) {
+        throwIfAcquireAborted(signal);
         logger(
           `remote agent mount failed artifact=${artifactId}: ${conciseError(err, plan.harness)}`,
         );

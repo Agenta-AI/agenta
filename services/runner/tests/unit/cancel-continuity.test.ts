@@ -40,6 +40,8 @@ interface CancelFakeOpts {
   cancellable?: boolean;
   /** Trigger the test's abort only after acquisition has completed and prompt has started. */
   onPrompt?: () => void;
+  /** Model the shell child Codex leaves behind after answering a cancelled prompt. */
+  leakedCodexChild?: boolean;
 }
 
 /**
@@ -60,7 +62,9 @@ function fakeCancellableSandbox(opts: CancelFakeOpts = {}) {
     }>,
     cancelled: [] as string[],
     logs: [] as string[],
+    lifecycle: [] as string[],
   };
+  let leakedCodexChildRunning = opts.leakedCodexChild === true;
 
   let answerPrompt: (() => void) | undefined;
   const session = {
@@ -78,7 +82,7 @@ function fakeCancellableSandbox(opts: CancelFakeOpts = {}) {
   };
 
   const sandbox: any = {
-    sandboxId: "sbx-warm",
+    sandboxId: "daytona/sbx-warm",
     sandboxProvider: { destroy: async () => {} },
     sandboxProviderRawId: "sbx-warm",
     async createSession() {
@@ -86,15 +90,37 @@ function fakeCancellableSandbox(opts: CancelFakeOpts = {}) {
     },
     async destroySession() {},
     async pauseSandbox() {
+      calls.lifecycle.push("park");
       calls.paused += 1;
     },
     async destroySandbox() {
       calls.destroyed += 1;
     },
     async dispose() {},
+    async runProcess(request: { command: string; args?: string[] }) {
+      if (request.command === "ps") {
+        calls.lifecycle.push("ps");
+        return {
+          stdout: [
+            "100 1 120 /x/bin/sandbox-agent server --port 3000",
+            "110 100 119 node /x/codex-acp",
+            "120 110 118 /x/bin/codex app-server",
+            ...(leakedCodexChildRunning ? ["130 120 0 sleep 300"] : []),
+          ].join("\n"),
+          exitCode: 0,
+        };
+      }
+      if (request.command === "kill") {
+        calls.lifecycle.push("kill");
+        leakedCodexChildRunning = false;
+        return { stdout: "", exitCode: 0 };
+      }
+      return { stdout: "", exitCode: 0 };
+    },
   };
   if (opts.cancellable !== false) {
     sandbox.cancelSession = async (id: string) => {
+      calls.lifecycle.push("cancel");
       calls.cancelled.push(id);
       // The harness answers the cancelled prompt: this is what `settled` measures.
       answerPrompt?.();
@@ -180,7 +206,12 @@ function fakeCancellableSandbox(opts: CancelFakeOpts = {}) {
     readStoredSandboxPointer: async () => ({ sandboxId: "sbx-warm" }),
   };
 
-  return { calls, deps, continuityStore };
+  return {
+    calls,
+    deps,
+    continuityStore,
+    leakedCodexChildRunning: () => leakedCodexChildRunning,
+  };
 }
 
 const stopRequest: AgentRunRequest = {
@@ -264,6 +295,26 @@ describe("a stopped turn's continuity record", () => {
 
     assert.equal(calls.paused, 1, "a confirmed Stop parks");
     assert.equal(calls.destroyed, 0);
+  });
+
+  it("reaps the Codex shell child before parking the warm sandbox", async () => {
+    const controller = new AbortController();
+    const fake = fakeCancellableSandbox({
+      leakedCodexChild: true,
+      onPrompt: () => controller.abort(USER_STOP_ABORT_REASON),
+    });
+
+    const result = await runSandboxAgent(
+      { ...stopRequest, harness: "codex" },
+      undefined,
+      controller.signal,
+      fake.deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.stopReason, "cancelled");
+    assert.equal(fake.leakedCodexChildRunning(), false);
+    assert.deepEqual(fake.calls.lifecycle, ["cancel", "ps", "kill", "park"]);
   });
 
   it("writes the record even when the abort was not a user Stop and the sandbox is deleted", async () => {

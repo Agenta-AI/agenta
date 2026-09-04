@@ -348,4 +348,28 @@ describe("reapLeakedExecChildren", () => {
       }),
     ).toEqual({ killed: 0, skipped: "kill-failed" });
   });
+
+  it("reports a non-zero kill exit instead of claiming the leak is gone", async () => {
+    let seen = 0;
+    const log = vi.fn();
+    const sandbox = {
+      runProcess: vi.fn(async () => {
+        seen += 1;
+        return seen === 1
+          ? { stdout: LIVE_PS, exitCode: 0 }
+          : { stdout: "", exitCode: 1 };
+      }),
+    };
+    expect(
+      await reapLeakedExecChildren({
+        sandbox,
+        sandboxAgentPort: LIVE_PORT,
+        turnElapsedMs: 20_000,
+        log,
+      }),
+    ).toEqual({ killed: 0, skipped: "kill-failed" });
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining("kill exited with status 1"),
+    );
+  });
 });
