@@ -81,6 +81,10 @@ def durable_events_from_records(
     tool_calls: Dict[tuple[str, str], Dict[str, Any]] = {}
 
     for record in records:
+        # Some DAO decorators and legacy test doubles return commit sentinels rather than hydrated
+        # rows. They still count as committed appends, but cannot describe a durable relay event.
+        if not isinstance(record, SessionRecord):
+            continue
         attributes = record.attributes or {}
         direct = _direct_event(record, include_legacy=include_legacy)
         if direct is not None:
