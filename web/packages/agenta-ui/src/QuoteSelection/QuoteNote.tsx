@@ -1,9 +1,10 @@
 /**
  * The inline note box, anchored under the highlighted span: the quote card, "What should change
- * about this part?", and a circular send. Enter stages the quote onto the composer; Esc cancels
- * and drops the draft. Opens below the selection and flips above when it does not fit.
+ * about this part?", and a circular send. Enter stages the quote onto the composer; Esc, or a
+ * click anywhere outside, cancels and drops the draft. Opens below the selection and flips above
+ * when it does not fit.
  */
-import {useLayoutEffect, useRef, useState} from "react"
+import {useEffect, useLayoutEffect, useRef, useState} from "react"
 
 import type {Quote} from "@agenta/shared/quotes"
 import {ArrowUp} from "@phosphor-icons/react"
@@ -32,6 +33,19 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: Quo
         setHeight(ref.current?.offsetHeight ?? 0)
         inputRef.current?.focus()
     }, [])
+
+    // A press outside the box abandons the draft, the way any popover behaves.
+    useEffect(() => {
+        const onDown = (e: PointerEvent) => {
+            if (!ref.current?.contains(e.target as Node)) onCancel()
+        }
+        // Deferred: the press that OPENED the box must not immediately close it.
+        const id = setTimeout(() => document.addEventListener("pointerdown", onDown, true))
+        return () => {
+            clearTimeout(id)
+            document.removeEventListener("pointerdown", onDown, true)
+        }
+    }, [onCancel])
 
     const width = Math.min(WIDTH, Math.max(bounds.width - GAP * 2, 200))
     const below = anchor.bottom + GAP
@@ -71,7 +85,7 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: Quo
                     }}
                     rows={touch ? 3 : 2}
                     placeholder="What should change about this part?"
-                    className="min-h-0 flex-1 resize-none rounded-md border border-solid border-colorBorder bg-colorBgContainer px-2 py-1.5 text-xs text-colorText outline-none placeholder:text-colorTextPlaceholder focus:border-colorPrimary"
+                    className="min-h-0 flex-1 resize-none rounded-md border border-solid border-colorBorder bg-colorBgContainer px-2 py-1.5 font-[inherit] text-xs text-colorText outline-none placeholder:text-colorTextPlaceholder focus:border-colorPrimary"
                 />
                 <button
                     type="button"
