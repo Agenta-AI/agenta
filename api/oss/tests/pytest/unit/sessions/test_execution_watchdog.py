@@ -8,8 +8,8 @@ an ending IS written for a turn that has none, and a SECOND ending is never writ
 that already has one.
 
 The threshold predicate itself is covered by `test_orphan_sweep_thresholds.py`; the fake
-session here returns whatever rows the test hands it, so these tests are about what the
-watchdog DOES with a candidate, not which rows it picks.
+session here models the execution filter, order, and batch limit so the durable candidate
+window is also covered.
 """
 
 from contextlib import asynccontextmanager
@@ -30,6 +30,7 @@ from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     LOST_ERROR_MESSAGE,
     ORPHAN_THRESHOLD_SECONDS,
     IDLE_THRESHOLD_SECONDS,
+    SWEEP_BATCH_SIZE,
     run_orphan_sweep,
 )
 
@@ -72,6 +73,7 @@ class _FakeExecutionRow:
         execution_id: str,
         terminal_outcome: str = "stopped",
         age_seconds: int = ORPHAN_THRESHOLD_SECONDS + 30,
+        ending_written_at: Optional[datetime] = None,
     ):
         self.project_id = _PROJECT_ID
         self.session_id = session_id
@@ -79,6 +81,7 @@ class _FakeExecutionRow:
         self.terminal_outcome = terminal_outcome
         self.settled_by = "runner"
         self.settled_at = datetime.now(timezone.utc) - timedelta(seconds=age_seconds)
+        self.ending_written_at = ending_written_at
 
 
 class _FakeResult:
@@ -107,6 +110,23 @@ class _FakePgSession:
         now = datetime.now(timezone.utc)
 
         if "session_executions" in text:
+            if text.startswith("UPDATE"):
+                params = stmt.compile().params
+                keys = next(
+                    value
+                    for value in params.values()
+                    if isinstance(value, (list, set, tuple))
+                    and all(isinstance(key, tuple) and len(key) == 3 for key in value)
+                )
+                for execution in self._executions:
+                    key = (
+                        execution.project_id,
+                        execution.session_id,
+                        execution.execution_id,
+                    )
+                    if key in keys and execution.ending_written_at is None:
+                        execution.ending_written_at = now
+                return _FakeResult([])
             rows = [
                 execution
                 for execution in self._executions
@@ -114,7 +134,15 @@ class _FakePgSession:
                 and (now - execution.settled_at).total_seconds()
                 > ORPHAN_THRESHOLD_SECONDS
             ]
-            return _FakeResult(sorted(rows, key=lambda row: row.settled_at))
+            if "ending_written_at IS NULL" in text:
+                rows = [row for row in rows if row.ending_written_at is None]
+            return _FakeResult(
+                sorted(
+                    rows,
+                    key=lambda row: row.settled_at,
+                    reverse="DESC" in text,
+                )[:SWEEP_BATCH_SIZE]
+            )
 
         def age(row):
             return (now - (row.updated_at or row.created_at)).total_seconds()
@@ -532,6 +560,10 @@ async def test_a_stopped_turn_whose_runner_died_still_gets_an_ending(anyio_backe
         age_seconds=ORPHAN_THRESHOLD_SECONDS + 30,
     )
     publisher = _Publisher()
+    execution = _FakeExecutionRow(
+        session_id=row.session_id,
+        execution_id="turn-stopped",
+    )
     redis = _FakeRedis()
     # Settlement leaves `alive` to its TTL, so the dead turn still holds the session's
     # alive lock when the sweep runs; the SEND gate reads that lock.
@@ -548,16 +580,22 @@ async def test_a_stopped_turn_whose_runner_died_still_gets_an_ending(anyio_backe
     )
 
     await run_orphan_sweep(
-        _FakeTransactionsEngine([row]),
+        _FakeTransactionsEngine([row], [execution]),
         redis,
         records_service=_FakeRecordsService(),
         publish=publisher,
     )
 
-    assert [event.record_type for event in publisher.published] == ["error", "done"], (
+    assert [event.record_type for event in publisher.published] == ["done"], (
         "a stopped turn whose runner never wrote an ending must be given one"
     )
+    assert publisher.published[0].attributes == {
+        "type": "done",
+        "stopReason": "cancelled",
+        RECORD_SETTLED_BY_ATTRIBUTE: SETTLED_BY_WATCHDOG,
+    }
     assert all(event.turn_id == "turn-stopped" for event in publisher.published)
+    assert execution.ending_written_at is not None
     assert alive_key not in redis._store, (
         "the dead turn's alive lock must be released, or the next Send is refused for an hour"
     )
@@ -638,7 +676,8 @@ async def test_a_stopped_execution_gets_an_ending_after_stream_advances(
         publish=publisher,
     )
 
-    assert [event.record_type for event in publisher.published] == ["error", "done"]
+    assert [event.record_type for event in publisher.published] == ["done"]
+    assert publisher.published[0].attributes["stopReason"] == "cancelled"
     assert all(event.turn_id == "turn-stopped" for event in publisher.published)
     assert redis._store[alive_key] == b"turn-later"
     assert redis._store[running_key] == b"turn-later"
@@ -672,7 +711,62 @@ async def test_a_stopped_execution_does_not_touch_a_newer_running_turn(
         publish=publisher,
     )
 
-    assert [event.record_type for event in publisher.published] == ["error", "done"]
+    assert [event.record_type for event in publisher.published] == ["done"]
+    assert publisher.published[0].attributes["stopReason"] == "cancelled"
     assert all(event.turn_id == "turn-stopped" for event in publisher.published)
     assert redis._store[alive_key] == b"turn-running"
     assert redis._store[running_key] == b"turn-running"
+
+
+@pytest.mark.anyio
+async def test_ended_execution_backlog_cannot_hide_a_recent_orphan(anyio_backend):
+    ended_at = datetime.now(timezone.utc)
+    ended = [
+        _FakeExecutionRow(
+            session_id=f"sess-ended-{index}",
+            execution_id=f"turn-ended-{index}",
+            age_seconds=ORPHAN_THRESHOLD_SECONDS + 1_000 + index,
+            ending_written_at=ended_at,
+        )
+        for index in range(SWEEP_BATCH_SIZE + 1)
+    ]
+    orphan = _FakeExecutionRow(
+        session_id="sess-recent-orphan",
+        execution_id="turn-recent-orphan",
+    )
+    records = _FakeRecordsService()
+    publisher = _Publisher()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([], [*ended, orphan]),
+        _FakeRedis(),
+        records_service=records,
+        publish=publisher,
+    )
+
+    assert records.queries == [[("sess-recent-orphan", "turn-recent-orphan")]]
+    assert [event.record_type for event in publisher.published] == ["done"]
+    assert publisher.published[0].turn_id == "turn-recent-orphan"
+    assert orphan.ending_written_at is not None
+
+
+@pytest.mark.anyio
+async def test_records_plane_ending_marks_candidate_and_skips_publish(anyio_backend):
+    execution = _FakeExecutionRow(
+        session_id="sess-already-ended",
+        execution_id="turn-already-ended",
+        terminal_outcome="lost",
+    )
+    publisher = _Publisher()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([], [execution]),
+        _FakeRedis(),
+        records_service=_FakeRecordsService(
+            {("sess-already-ended", "turn-already-ended")}
+        ),
+        publish=publisher,
+    )
+
+    assert publisher.published == []
+    assert execution.ending_written_at is not None

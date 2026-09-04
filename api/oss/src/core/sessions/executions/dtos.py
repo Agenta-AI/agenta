@@ -12,6 +12,7 @@ class SessionExecutionSettlement(BaseModel):
     terminal_outcome: str
     settled_by: str
     settled_at: datetime
+    ending_written_at: Optional[datetime] = None
     redis_reconciled_at: Optional[datetime] = None
 
 

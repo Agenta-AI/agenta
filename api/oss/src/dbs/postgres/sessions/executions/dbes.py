@@ -21,6 +21,7 @@ class SessionExecutionDBE(Base):
     terminal_outcome = Column(String, nullable=False)
     settled_by = Column(String, nullable=False)
     settled_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    ending_written_at = Column(TIMESTAMP(timezone=True), nullable=True)
     redis_reconciled_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     __table_args__ = (
@@ -30,6 +31,11 @@ class SessionExecutionDBE(Base):
             "ix_session_executions_project_session",
             "project_id",
             "session_id",
+        ),
+        Index(
+            "ix_session_executions_ending_unwritten",
+            "settled_at",
+            postgresql_where=text("ending_written_at IS NULL"),
         ),
         Index(
             "ix_session_executions_redis_unreconciled",

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
-from sqlalchemy import and_, literal_column, or_, select, update as sa_update
+from sqlalchemy import and_, literal_column, or_, select, tuple_, update as sa_update
 from sqlalchemy.dialects.postgresql import insert
 
 from oss.src.core.sessions.executions.dtos import (
@@ -25,6 +25,7 @@ def _to_dto(row: SessionExecutionDBE) -> SessionExecutionSettlement:
         terminal_outcome=row.terminal_outcome,
         settled_by=row.settled_by,
         settled_at=row.settled_at,
+        ending_written_at=row.ending_written_at,
         redis_reconciled_at=row.redis_reconciled_at,
     )
 
@@ -101,6 +102,29 @@ class SessionExecutionsDAO(SessionExecutionsDAOInterface):
                 )
             ).scalars()
             return {(row.session_id, row.execution_id): _to_dto(row) for row in rows}
+
+    async def mark_endings_written(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+        written_at: Optional[datetime] = None,
+    ) -> None:
+        if not keys:
+            return
+        async with self.engine.session() as session:
+            await session.execute(
+                sa_update(SessionExecutionDBE)
+                .where(
+                    SessionExecutionDBE.project_id == project_id,
+                    tuple_(
+                        SessionExecutionDBE.session_id,
+                        SessionExecutionDBE.execution_id,
+                    ).in_(keys),
+                    SessionExecutionDBE.ending_written_at.is_(None),
+                )
+                .values(ending_written_at=written_at or datetime.now(timezone.utc))
+            )
 
     async def list_redis_unreconciled(
         self,

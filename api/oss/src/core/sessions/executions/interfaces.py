@@ -34,6 +34,16 @@ class SessionExecutionsDAOInterface(ABC):
         """Fetch terminal state for `(session_id, execution_id)` keys."""
 
     @abstractmethod
+    async def mark_endings_written(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+        written_at: Optional[datetime] = None,
+    ) -> None:
+        """Mark terminal executions whose transcript ending has been written."""
+
+    @abstractmethod
     async def list_redis_unreconciled(
         self,
         *,
