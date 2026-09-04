@@ -7,7 +7,7 @@ import {FileText, Quotes, X} from "@phosphor-icons/react"
 
 export const QuoteSourceBadge = ({stale}: {stale: boolean}) => (
     <span
-        className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none ${
+        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium leading-none ${
             stale
                 ? "bg-colorWarningBg text-colorWarning"
                 : "bg-colorFillTertiary text-colorTextTertiary"
@@ -29,7 +29,7 @@ export const QuoteCard = ({
     const Icon = quote.source.kind === "file" ? FileText : Quotes
     return (
         <div
-            className={`flex items-start gap-2 rounded-md border-0 border-l-2 border-solid border-colorPrimary bg-colorFillQuaternary px-2.5 py-2 ${className}`}
+            className={`flex items-start gap-2 rounded-[10px] border-0 border-l-2 border-solid border-colorPrimary bg-colorFillQuaternary px-2.5 py-2 ${className}`}
         >
             <Icon size={14} className="mt-0.5 shrink-0 text-colorTextTertiary" />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -48,7 +48,7 @@ export const QuoteCard = ({
                     type="button"
                     aria-label="Remove quote"
                     onClick={onRemove}
-                    className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText"
+                    className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-[5px] border-0 bg-transparent text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText"
                 >
                     <X size={12} />
                 </button>
