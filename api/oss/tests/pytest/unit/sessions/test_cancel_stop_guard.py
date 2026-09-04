@@ -307,9 +307,12 @@ async def test_cancel_without_id_still_cancels_a_turn_that_started_earlier(lock_
 async def test_cancel_without_id_still_cancels_a_turn_with_no_recorded_start(
     lock_engine,
 ):
-    """Unknown must mean unknown, never "new". A turn from before this shipped stays stoppable."""
+    """Unknown must mean unknown, never "new". A running pre-deploy turn stays stoppable."""
     svc = _service(lock_engine)
     await acquire_alive(
+        lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id="turn-old"
+    )
+    await acquire_running(
         lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id="turn-old"
     )
 

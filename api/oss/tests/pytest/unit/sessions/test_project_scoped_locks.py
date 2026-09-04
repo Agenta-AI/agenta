@@ -129,7 +129,9 @@ class _FakeRedis:
             if (running_only or running != alive) and mismatches(running):
                 return [0, running.encode()]
             seen = set()
-            displaced = (running, expected) if running_only else (alive, running, expected)
+            displaced = (
+                (running, expected) if running_only else (alive, running, expected)
+            )
             for turn_id in displaced:
                 if turn_id and turn_id not in seen:
                     key = f"{argv[2]}{turn_id}"
@@ -263,7 +265,9 @@ async def test_tenant_cannot_clear_another_tenants_owner(engine):
 
 
 @pytest.mark.asyncio
-async def test_durable_stop_reconciliation_preserves_alive_and_a_new_running_turn(engine):
+async def test_durable_stop_reconciliation_preserves_alive_and_a_new_running_turn(
+    engine,
+):
     await acquire_alive(
         engine, project_id=_TENANT_A, session_id=_SESSION, turn_id="turn-old"
     )
