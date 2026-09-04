@@ -1318,6 +1318,19 @@ class InteractionsRouter:
         if not authorized:
             raise FORBIDDEN_EXCEPTION
 
+        if body.answers is not None and interaction_id not in {
+            item.interaction_id for item in body.answers
+        }:
+            return JSONResponse(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                content={
+                    "code": "validation_error",
+                    "message": "The path interaction must be included in answers.",
+                    "retryable": False,
+                    "details": {"field": "answers", "reason": "anchor_missing"},
+                },
+            )
+
         if env.agenta.sessions.durable_approvals and self.commands_service is not None:
             idempotency_key = (request.headers.get("Idempotency-Key") or "").strip()
             if not idempotency_key:
@@ -1348,16 +1361,6 @@ class InteractionsRouter:
                 if body.answers is not None
                 else [(interaction_id, body.answer)]
             )
-            if interaction_id not in {item[0] for item in interaction_answers}:
-                return JSONResponse(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    content={
-                        "code": "validation_error",
-                        "message": "The path interaction must be included in answers.",
-                        "retryable": False,
-                        "details": {"field": "answers", "reason": "anchor_missing"},
-                    },
-                )
             try:
                 if body.answers is not None:
                     admission = await self.commands_service.respond_interactions(

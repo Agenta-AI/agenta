@@ -269,3 +269,36 @@ async def test_continuation_resume_endpoint_is_feature_gated(monkeypatch):
     commands.resume_recoverable_continuation.assert_awaited_once_with(
         project_id=project_id, session_id="session-1"
     )
+
+
+async def test_feature_off_batch_without_path_anchor_returns_422(monkeypatch):
+    project_id = uuid4()
+    anchor_id = uuid4()
+    other_id = uuid4()
+    interactions = SimpleNamespace(fetch_interaction=AsyncMock())
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", False)
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    router = InteractionsRouter(
+        interactions_service=interactions,
+        workflows_service=AsyncMock(),
+        commands_service=AsyncMock(),
+    )
+
+    response = await router.respond_interaction(
+        request=SimpleNamespace(
+            state=SimpleNamespace(project_id=project_id, user_id=uuid4()), headers={}
+        ),
+        interaction_id=anchor_id,
+        body=SessionInteractionRespondRequest(
+            answers=[{"interaction_id": other_id, "answer": {"approved": True}}]
+        ),
+    )
+
+    assert response.status_code == 422
+    assert json.loads(response.body)["details"] == {
+        "field": "answers",
+        "reason": "anchor_missing",
+    }
+    interactions.fetch_interaction.assert_not_awaited()
