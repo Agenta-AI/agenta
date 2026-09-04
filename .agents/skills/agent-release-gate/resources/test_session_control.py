@@ -44,6 +44,7 @@ def test_null_hooks_raises_on_every_method():
         raise AssertionError(f"{method} should raise HooksUnavailable")
     for method in (
         "wait_for_runner",
+        "runner_healthy",
         "ensure_runner_healthy",
         "restart_runner",
         "kill_runner",
@@ -1092,6 +1093,54 @@ def test_sandbox_gone_command_outlasts_acquire_resolve_and_the_design_window():
         + sc.SANDBOX_GONE_RESOLVE_TIMEOUT_S
         + sc._SANDBOX_GONE_DESIGN_WINDOW_S
     )
+
+
+def test_recover_then_send_waits_for_health_before_sending():
+    """The recovery Send is not issued until the health poll returns healthy: fail twice, then
+    succeed, and the send must fire exactly once and only after the third (healthy) check."""
+    order: list = []
+    calls = {"n": 0}
+
+    def health():
+        calls["n"] += 1
+        order.append(("health", calls["n"]))
+        return calls["n"] >= 3  # unhealthy on the first two polls, healthy on the third
+
+    def send():
+        order.append(("send", None))
+        return {"ok": True}
+
+    clock = _FakeClock()
+    healthy, result = sc._recover_then_send(
+        health, send, timeout=60.0, poll_interval=2.0, clock=clock
+    )
+    assert healthy is True
+    assert result == {"ok": True}
+    assert calls["n"] == 3
+    assert clock.sleeps == [2.0, 2.0]  # slept between the two failed polls only
+    assert order == [
+        ("health", 1),
+        ("health", 2),
+        ("health", 3),
+        ("send", None),
+    ]
+
+
+def test_recover_then_send_does_not_send_when_health_never_recovers():
+    sent = {"n": 0}
+
+    def send():
+        sent["n"] += 1
+        return {"ok": True}
+
+    clock = _FakeClock()
+    healthy, result = sc._recover_then_send(
+        lambda: False, send, timeout=6.0, poll_interval=2.0, clock=clock
+    )
+    assert healthy is False
+    assert result is None
+    assert sent["n"] == 0  # a doomed Send is never attempted
+    assert clock.now >= 6.0
 
 
 def test_sandbox_gone_settle_budget_derives_from_probe_defaults():

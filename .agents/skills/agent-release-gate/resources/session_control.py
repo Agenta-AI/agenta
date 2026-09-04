@@ -208,6 +208,9 @@ class OperatorHooks:
     def wait_for_runner(self, *, timeout: float = 120.0) -> float | None:
         raise HooksUnavailable
 
+    def runner_healthy(self) -> bool:
+        raise HooksUnavailable
+
     def ensure_runner_healthy(self, *, timeout: float = 120.0) -> dict:
         raise HooksUnavailable
 
@@ -410,13 +413,17 @@ class DockerComposeHooks(OperatorHooks):
     def wait_for_runner(self, *, timeout: float = 120.0) -> float | None:
         started = time.time()
         while time.time() - started < timeout:
-            state = self.dc(
-                "inspect", "-f", "{{.State.Health.Status}}", f"{self.project}-runner-1"
-            ).strip()
-            if state == "healthy":
+            if self.runner_healthy():
                 return round(time.time() - started, 1)
             time.sleep(1)
         return None
+
+    def runner_healthy(self) -> bool:
+        """One health check: the runner container's Docker health status reads `healthy`."""
+        state = self.dc(
+            "inspect", "-f", "{{.State.Health.Status}}", f"{self.project}-runner-1"
+        ).strip()
+        return state == "healthy"
 
     def ensure_runner_healthy(self, *, timeout: float = 120.0) -> dict:
         """Recover the runner container to running and healthy, whatever a cell left it in.
@@ -980,6 +987,32 @@ def sandbox_gone_settle_budget_s() -> float:
         + SANDBOX_GONE_SETTLE_SLACK_S
         + SANDBOX_STARTUP_SLACK_S
     )
+
+
+# After the runner-gone-late cell restarts the runner, the recovery Send must not race the
+# runner coming back up: a Send issued mid-restart gets "All connection attempts failed" and is
+# misread as a product failure. Poll the runner's health until it is back, bounded, then send.
+RECOVERY_HEALTH_TIMEOUT_S = 60.0
+RECOVERY_HEALTH_POLL_S = 2.0
+
+
+def _recover_then_send(health_poll, send, *, timeout, poll_interval, clock=time):
+    """Poll `health_poll()` until it returns truthy (bounded by `timeout`), THEN call `send()`.
+
+    `send` runs ONLY once the runner is healthy again, so a recovery Send can never race a runner
+    that is still restarting. Returns `(healthy, result)`; when health never recovers within the
+    budget, `send` is not called and `result` is None. The clock is injectable for tests."""
+    deadline = clock.time() + timeout
+    healthy = False
+    while True:
+        if health_poll():
+            healthy = True
+            break
+        if clock.time() >= deadline:
+            break
+        clock.sleep(poll_interval)
+    result = send() if healthy else None
+    return healthy, result
 
 
 def api(method: str, path: str, *, timeout: float = 120.0, **kw) -> httpx.Response:
@@ -2347,13 +2380,28 @@ def cell_runner_gone_late(cfg, references, args, hooks: OperatorHooks) -> Cell:
     commands = hooks.command_rows(session_id)
     stream_row = hooks.stream_row(session_id)
     stop_command = _match_stop_command(commands, turn)
-    t2 = invoke(
-        session_id,
-        [user_msg(f"The codeword is {marker}. Reply with just the single word READY.")],
-        cfg,
-        references,
-        "gone-late-turn2",
+    # The runner is restarting from the kill above. A recovery Send issued before it is back up
+    # gets "All connection attempts failed" and is misread as a product failure. Wait for the
+    # runner to be healthy again (bounded), THEN send. If it never recovers, do not send a doomed
+    # request — `runner_recovered` records which happened.
+    recover_started = time.time()
+    runner_recovered, t2 = _recover_then_send(
+        health_poll=hooks.runner_healthy,
+        send=lambda: invoke(
+            session_id,
+            [
+                user_msg(
+                    f"The codeword is {marker}. Reply with just the single word READY."
+                )
+            ],
+            cfg,
+            references,
+            "gone-late-turn2",
+        ),
+        timeout=RECOVERY_HEALTH_TIMEOUT_S,
+        poll_interval=RECOVERY_HEALTH_POLL_S,
     )
+    t2 = t2 or {}
     evidence = {
         "session_id": session_id,
         "turn_id": turn,
@@ -2364,9 +2412,16 @@ def cell_runner_gone_late(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "commands": commands,
         "stop_command": stop_command,
         "stream_row": stream_row,
+        "runner_recovered": runner_recovered,
+        "runner_recover_seconds": round(time.time() - recover_started, 1),
         "new_message_ran": bool(t2.get("frames")) and not t2.get("errors"),
         "new_message_errors": t2.get("errors"),
     }
+    if not runner_recovered:
+        return evidence, _fail(
+            f"runner did not become healthy within {RECOVERY_HEALTH_TIMEOUT_S:.0f}s after the "
+            "restart; recovery Send not attempted"
+        )
     return evidence, _judge_runner_gone(evidence)
 
 
