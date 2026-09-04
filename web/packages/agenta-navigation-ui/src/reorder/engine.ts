@@ -267,6 +267,9 @@ export const attachReorder = (root: HTMLElement): (() => void) => {
         const item = readItem(el)
         if (!item) return
 
+        // Drop any prior press first: a second touch would otherwise leave the first's long-press
+        // timer live, firing a drag with the wrong pointer id.
+        clearPending()
         const touch = event.pointerType === "touch"
         pending = {el, item, x: event.clientX, y: event.clientY, pointerId: event.pointerId, touch}
         if (!touch) return

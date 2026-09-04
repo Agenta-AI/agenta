@@ -172,8 +172,7 @@ const ENTITIES: SidebarEntity[] = [
         // Busiest agent first, by session count — stable session to session, unlike recency,
         // which reshuffled on every turn. Frozen per page load. Same rule the mobile rail applies.
         ranksAtom: sidebarAgentRanksAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
-        // The rail's agent order IS the agent order: the headings under Sessions arrange the
-        // same list, through the rank atom above.
+        // This nav group's own arrangement; the Sessions agent headings carry a separate zone.
         dragZone: SIDEBAR_AGENT_ORDER_ZONE,
         emptyLabel: "No agents",
         showAllPath: "/agents",
