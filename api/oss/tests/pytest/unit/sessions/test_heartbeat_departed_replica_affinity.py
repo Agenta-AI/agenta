@@ -32,10 +32,13 @@ from oss.src.core.sessions.streams.dtos import (
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.dbs.redis.sessions.locks import (
+    claim_owner,
     get_alive_owner,
     get_owner,
+    get_owner_value,
     get_running_owner,
 )
+from oss.src.dbs.redis.sessions.contract import make_owner_value
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 
@@ -214,6 +217,41 @@ async def test_a_turn_that_already_holds_running_may_reclaim(lock_engine):
 
     assert result.is_current_turn is True
     assert await get_owner(lock_engine, project_id=pid, session_id=_SESSION) == _FRESH
+
+
+@pytest.mark.asyncio
+async def test_reclaim_does_not_clear_a_refreshed_owner_generation(lock_engine):
+    """A same-replica new turn may refresh affinity after the failed claim is observed."""
+    svc = _service(lock_engine)
+    pid = str(_PROJECT)
+    await _replay_the_killed_runner(svc)
+
+    async def refresh_owner_generation(engine, *, project_id, session_id):
+        await claim_owner(
+            engine,
+            project_id=project_id,
+            session_id=session_id,
+            replica_id=_DEAD,
+            turn_id="turn-new-on-incumbent",
+        )
+        return None
+
+    with patch(
+        "oss.src.core.sessions.streams.service.get_running_owner",
+        side_effect=refresh_owner_generation,
+    ):
+        result = await svc.heartbeat(
+            project_id=_PROJECT, request=_beat(_FRESH, "turn-challenger")
+        )
+
+    assert result.is_current_turn is False
+    assert result.replica_id == _DEAD
+    assert await get_owner_value(
+        lock_engine, project_id=pid, session_id=_SESSION
+    ) == make_owner_value(
+        replica_id=_DEAD,
+        turn_id="turn-new-on-incumbent",
+    )
 
 
 @pytest.mark.asyncio

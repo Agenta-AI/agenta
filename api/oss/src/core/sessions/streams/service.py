@@ -23,6 +23,7 @@ from oss.src.dbs.redis.sessions.contract import (
     CONCURRENCY_LIMIT,
     WATCH_LIFECYCLE_ENDED,
     WATCH_LIFECYCLE_RUNNING,
+    owner_replica_id,
     validate_session_id as _validate_session_id_fn,
 )
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -30,6 +31,7 @@ from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
     acquire_running,
     claim_owner,
+    claim_owner_value,
     clear_owner,
     clear_running,
     release_running,
@@ -45,6 +47,7 @@ from oss.src.dbs.redis.sessions.locks import (
     refresh_running,
     release_alive,
     release_attached,
+    release_owner_value,
     steal_attached,
 )
 
@@ -509,7 +512,7 @@ class SessionStreamsService:
         *,
         project_id: UUID,
         request: SessionHeartbeatRequest,
-        incumbent: str,
+        incumbent_value: str,
     ) -> str:
         """Take `owner:session:<id>` from a replica that holds no running turn on it.
 
@@ -544,6 +547,7 @@ class SessionStreamsService:
         Returns the owner after the attempt: the caller when the reclaim landed, otherwise
         whoever holds the key, which is what the refusal above must report.
         """
+        incumbent = owner_replica_id(incumbent_value)
         if not (request.turn_id and request.is_running):
             return incumbent
 
@@ -559,11 +563,11 @@ class SessionStreamsService:
         # one so no new script is needed, and the gap is safe in both directions: a concurrent
         # claim by a third replica makes the release a no-op and the claim below returns that
         # replica, so this path can never hand the session to the wrong caller.
-        await clear_owner(
+        await release_owner_value(
             self._lock,
             project_id=str(project_id),
             session_id=request.session_id,
-            replica_id=incumbent,
+            owner_value=incumbent_value,
         )
         owner = await claim_owner(
             self._lock,
@@ -679,20 +683,21 @@ class SessionStreamsService:
         # replica_id claims affinity without stealing from a live different owner; turn_id
         # separately refreshes the alive/running TTLs. `owner` is the actual winner (this
         # replica if it won or already held it, another replica otherwise).
-        owner = await claim_owner(
+        owner_value = await claim_owner_value(
             self._lock,
             project_id=str(project_id),
             session_id=request.session_id,
             replica_id=request.replica_id,
             turn_id=request.turn_id,
         )
+        owner = owner_replica_id(owner_value)
         # A different replica holds affinity. That claim is worth honouring only while it
         # protects a turn, so before refusing, check whether it still protects one.
         if owner != request.replica_id:
             owner = await self._reclaim_affinity_from_a_departed_replica(
                 project_id=project_id,
                 request=request,
-                incumbent=owner,
+                incumbent_value=owner_value,
             )
 
         # A replica that lost the claim owns nothing here: mutating the nest would let it

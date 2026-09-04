@@ -365,7 +365,7 @@ async def get_owner_value(
     return current.decode() if current else None
 
 
-async def claim_owner(
+async def claim_owner_value(
     engine: LockEngine,
     *,
     project_id: str,
@@ -373,10 +373,10 @@ async def claim_owner(
     replica_id: str,
     turn_id: Optional[str] = None,
 ) -> str:
-    """Atomically claim ownership iff unowned or already ours, and return the actual owner.
+    """Atomically claim ownership and return the full observed owner generation.
 
     Never steals from a live different owner: if another replica holds it, its id is
-    returned so the caller can refuse to serve a local session on the wrong host.
+    returned with its turn generation so a later compare-and-delete cannot clear a refresh.
     """
     key = owner_key(project_id, session_id)
     owner_value = make_owner_value(replica_id=replica_id, turn_id=turn_id)
@@ -388,7 +388,44 @@ async def claim_owner(
         str(OWNER_TTL_SECONDS).encode(),
     )
     actual = result.decode() if isinstance(result, (bytes, bytearray)) else str(result)
+    return actual
+
+
+async def claim_owner(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    replica_id: str,
+    turn_id: Optional[str] = None,
+) -> str:
+    """Claim ownership and return the actual owner's replica id."""
+    actual = await claim_owner_value(
+        engine,
+        project_id=project_id,
+        session_id=session_id,
+        replica_id=replica_id,
+        turn_id=turn_id,
+    )
     return owner_replica_id(actual)
+
+
+async def release_owner_value(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    owner_value: str,
+) -> bool:
+    """Remove the owner key only if its full replica + turn generation still matches."""
+    key = owner_key(project_id, session_id)
+    result = await engine.eval(
+        RELEASE_IF_OWNER_LUA,
+        1,
+        key.encode(),
+        owner_value.encode(),
+    )
+    return result == 1
 
 
 async def clear_owner(
@@ -404,14 +441,12 @@ async def clear_owner(
     )
     if owner_value is None or owner_replica_id(owner_value) != replica_id:
         return False
-    key = owner_key(project_id, session_id)
-    result = await engine.eval(
-        RELEASE_IF_OWNER_LUA,
-        1,
-        key.encode(),
-        owner_value.encode(),
+    return await release_owner_value(
+        engine,
+        project_id=project_id,
+        session_id=session_id,
+        owner_value=owner_value,
     )
-    return result == 1
 
 
 async def force_clear_owner(
