@@ -504,6 +504,85 @@ class SessionStreamsService:
             session_id=session_id,
         )
 
+    async def _reclaim_affinity_from_a_departed_replica(
+        self,
+        *,
+        project_id: UUID,
+        request: SessionHeartbeatRequest,
+        incumbent: str,
+    ) -> str:
+        """Take `owner:session:<id>` from a replica that holds no running turn on it.
+
+        `owner` exists to say which box is SERVING the session, and only an in-flight turn's
+        heartbeat ever refreshes it. So a claim held by a replica with no running turn is not
+        protecting anything: it is the residue of a runner that stopped beating. A runner that
+        dies without a graceful shutdown (SIGKILL, OOM, a crashed node, `docker restart -t 0`)
+        always leaves exactly that, because nothing releases the key on its way out and
+        `claim_owner` never steals. The replacement replica then loses every beat for the rest
+        of OWNER_TTL_SECONDS, and the runner reads that refusal as "another turn owns this
+        session" and refuses the user's next message for two minutes.
+
+        `running` is the discriminator, the same one the alive-lock handover below uses. A live
+        turn holds it under its own id for the whole turn and re-arms it every beat, so a
+        replica that is genuinely serving the session can never be mistaken for a departed one.
+        A `running` lock held by the CALLER's own turn is not an obstacle: `_start_turn` arms
+        alive and running before the runner's first beat, so an API-minted turn legitimately
+        arrives here with its own lock already in place.
+
+        Only the beat of a real, running turn may reclaim. A turn-end beat asserts nothing
+        about who should serve the session next, and a beat with no turn id proves no work.
+
+        KNOWN LIMIT. A turn parked awaiting an approval also holds `alive` with no `running`,
+        so on a MULTI-replica deployment a second replica can take affinity from a live first
+        one and the handover below then tombstones the parked turn, killing the pending
+        approval. That outcome is not new: nothing refreshes `owner` on a parked session, so the
+        key expires after OWNER_TTL_SECONDS and the same handover follows. This only makes it up
+        to that TTL sooner, and only on a topology the direct control adapter cannot route to
+        anyway (`core/sessions/commands/service.py`). On a single replica the caller already
+        equals the owner and this method is never entered.
+
+        Returns the owner after the attempt: the caller when the reclaim landed, otherwise
+        whoever holds the key, which is what the refusal above must report.
+        """
+        if not (request.turn_id and request.is_running):
+            return incumbent
+
+        running_owner = await get_running_owner(
+            self._lock,
+            project_id=str(project_id),
+            session_id=request.session_id,
+        )
+        if running_owner is not None and running_owner != request.turn_id:
+            return incumbent
+
+        # Release-if-owner, then the ordinary non-stealing claim. Two atomic steps rather than
+        # one so no new script is needed, and the gap is safe in both directions: a concurrent
+        # claim by a third replica makes the release a no-op and the claim below returns that
+        # replica, so this path can never hand the session to the wrong caller.
+        await clear_owner(
+            self._lock,
+            project_id=str(project_id),
+            session_id=request.session_id,
+            replica_id=incumbent,
+        )
+        owner = await claim_owner(
+            self._lock,
+            project_id=str(project_id),
+            session_id=request.session_id,
+            replica_id=request.replica_id,
+        )
+        if owner == request.replica_id:
+            log.info(
+                "sessions: reclaimed session affinity from a replica with no running turn",
+                extra={
+                    "session_id": request.session_id,
+                    "departed_replica_id": incumbent,
+                    "replica_id": request.replica_id,
+                    "turn_id": request.turn_id,
+                },
+            )
+        return owner
+
     async def heartbeat(
         self,
         *,
@@ -605,6 +684,15 @@ class SessionStreamsService:
             session_id=request.session_id,
             replica_id=request.replica_id,
         )
+        # A different replica holds affinity. That claim is worth honouring only while it
+        # protects a turn, so before refusing, check whether it still protects one.
+        if owner != request.replica_id:
+            owner = await self._reclaim_affinity_from_a_departed_replica(
+                project_id=project_id,
+                request=request,
+                incumbent=owner,
+            )
+
         # A replica that lost the claim owns nothing here: mutating the nest would let it
         # overwrite the winner's turn locks and stream row. Report the true owner and stop.
         if owner != request.replica_id:
