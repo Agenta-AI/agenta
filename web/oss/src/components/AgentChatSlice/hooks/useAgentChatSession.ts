@@ -3,6 +3,7 @@ import {useCallback, useEffect, useRef, useState} from "react"
 import {
     buildRequestWithinDeadline,
     getMessageTraceId,
+    latestTurnId,
     startupLabelFromDataPart,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
@@ -15,15 +16,18 @@ import {
 } from "@agenta/chat/state"
 import {expandedKeysForMessages, pruneExpandedAtom} from "@agenta/chat/state"
 import {
+    clearSessionTurnId,
+    getSessionTurnId,
     isChatBusy,
     persistSessionMessagesAtom,
     sessionMessagesAtom,
     sessionRecordCountsReadAtom,
     setSessionStatusAtom,
+    setSessionTurnId,
     type SessionChatHooks,
 } from "@agenta/chat/state"
 import {
-    commandSessionStream,
+    cancelSessionExecution,
     invalidateSessionListQueries,
     killSession,
     recordInteractionAnswerAtom,
@@ -52,6 +56,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {doesAgentChatStopKillSession} from "../assets/constants"
+import {stopPinnedExecution} from "../assets/stopWhileResolvingExecution"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {useChatScopeKey} from "../state/scope"
 import {openSessionIdsAtomFamily} from "../state/sessions"
@@ -130,6 +135,7 @@ export const useAgentChatSession = ({
     // instead of sticking to the revision this session first mounted on.
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
+            clearSessionTurnId(sessionId)
             // Bounded: retries while the invocation URL is still loading and rejects if the build
             // hangs, so a failed send surfaces as an error bubble instead of an eternal spinner
             // (#6042). The helper owns the not-ready / timed-out errors.
@@ -206,10 +212,10 @@ export const useAgentChatSession = ({
 
     const {
         messages,
-        sendMessage,
+        sendMessage: sendChatMessage,
         status,
         stop,
-        regenerate,
+        regenerate: regenerateChatMessage,
         setMessages,
         addToolApprovalResponse,
         addToolOutput,
@@ -229,6 +235,21 @@ export const useAgentChatSession = ({
     messagesRef.current = messages
     const busyRef = useRef(busy)
     busyRef.current = busy
+
+    const sendMessage = useCallback(
+        (...args: Parameters<typeof sendChatMessage>) => {
+            clearSessionTurnId(sessionId)
+            return sendChatMessage(...args)
+        },
+        [sendChatMessage, sessionId],
+    )
+    const regenerate = useCallback(
+        (...args: Parameters<typeof regenerateChatMessage>) => {
+            clearSessionTurnId(sessionId)
+            return regenerateChatMessage(...args)
+        },
+        [regenerateChatMessage, sessionId],
+    )
 
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
@@ -345,6 +366,11 @@ export const useAgentChatSession = ({
         !!lastMessage &&
         restoredIdsRef.current.has(lastMessage.id) &&
         agentShouldResumeAfterApproval({messages})
+
+    useEffect(() => {
+        const turnId = latestTurnId(messages)
+        if (turnId) setSessionTurnId(sessionId, turnId)
+    }, [messages, sessionId])
 
     // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
     // it renders as a red error bubble with the real reason (and persists with the session via the
@@ -477,33 +503,50 @@ export const useAgentChatSession = ({
 
     const projectId = useAtomValue(projectIdAtom)
 
+    /** Pin the visible execution before client stop unlocks the next send. */
+    const stopCurrentExecution = useCallback(async () => {
+        const expectedExecutionId = getSessionTurnId(sessionId)
+        if (!projectId || !sessionId) {
+            stop()
+            return
+        }
+        await stopPinnedExecution({
+            stop,
+            expectedExecutionId,
+            cancelExecution: (pinnedExecutionId) =>
+                cancelSessionExecution({
+                    sessionId,
+                    projectId,
+                    expectedExecutionId: pinnedExecutionId,
+                }),
+        })
+        // Refresh even on conflict because the session state is authoritative.
+        void invalidateSessionInspector(queryClient, sessionId)
+        void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+    }, [projectId, sessionId, queryClient, stop])
+
     const handleStop = useCallback(() => {
         markStopped()
-        // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
-        // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
+        // Stop clears the pending gate marker before it can block later record adoption.
         liveGateInteractionRef.current = null
-        stop() // abort the client stream immediately
-        if (!projectId || !sessionId) return
         // Opt-in hard kill (NEXT_PUBLIC_AGENT_CHAT_STOP_KILLS_SESSION): tear the whole session down.
         if (doesAgentChatStopKillSession()) {
+            stop()
+            if (!projectId || !sessionId) return
             killSession({sessionId, projectId})
                 .then((ok) => {
                     if (ok) {
                         queryClient.invalidateQueries({queryKey: ["session-liveness"]})
-                        // Refresh an open Inspector's Runtime lens so its Lifecycle/State reflect the
-                        // kill immediately (mirrors the panel's own Kill button).
+                        // Refresh an open Inspector so it reflects the kill immediately.
                         void invalidateSessionInspector(queryClient, sessionId)
                     }
                 })
                 .catch(() => {})
             return
         }
-        // Default Stop: cooperatively cancel the CURRENT TURN. The control-plane `cancel` command
-        // (no inputs, no force) drops the alive lock; the runner closes the turn as interrupted and
-        // the session STAYS OPEN so a follow-up prompt resumes it — instead of the old behaviour where
-        // the client stream aborted but the runner kept running and billing.
-        commandSessionStream({sessionId, projectId}).catch(() => {})
-    }, [markStopped, stop, projectId, sessionId, queryClient])
+        // Default Stop cancels the current execution while preserving the warm session.
+        void stopCurrentExecution()
+    }, [markStopped, stop, projectId, sessionId, queryClient, stopCurrentExecution])
 
     // ── D9 teardown: `useSessionChat` releases the claim; this tracks what it does not own ──
     // The startup clock only goes with the session when the session itself is gone — clearing it

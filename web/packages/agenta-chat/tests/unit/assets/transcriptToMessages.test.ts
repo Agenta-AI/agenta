@@ -1058,7 +1058,7 @@ describe("transcriptToMessages run-error code", () => {
 })
 
 describe("transcriptToMessages user-Stop terminal record", () => {
-    // A cancelled `done` is an ordinary turn terminator during reconstruction.
+    // A cancelled terminal closes its turn without swallowing the next one.
     it("closes a stopped turn like a completed one", () => {
         const messages = transcriptToMessages([
             record("r-user", {type: "message", text: "run something long"}, "user"),

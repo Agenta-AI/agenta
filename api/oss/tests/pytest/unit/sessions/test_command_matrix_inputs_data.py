@@ -29,7 +29,13 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCommandRequest,
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
-from oss.src.core.sessions.streams.types import SessionTurnInUse
+from oss.src.core.sessions.streams.types import SessionTurnInUse, SessionTurnMismatch
+from oss.src.dbs.redis.sessions.locks import (
+    acquire_alive,
+    get_alive_owner,
+    get_running_owner,
+    is_turn_superseded,
+)
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 
@@ -156,6 +162,139 @@ async def test_no_inputs_no_force_is_cancel(lock_engine):
     )
 
     assert result.mode == CommandMode.cancel
+
+
+@pytest.mark.asyncio
+async def test_unfenced_cancel_before_new_turn_admission_ignores_the_parked_owner(
+    lock_engine,
+):
+    session_id = _session_id()
+    await acquire_alive(
+        lock_engine,
+        project_id=str(_PROJECT),
+        session_id=session_id,
+        turn_id="turn-A",
+    )
+    existing = SessionStream(
+        id=uuid4(),
+        project_id=_PROJECT,
+        session_id=session_id,
+        turn_id="turn-A",
+    )
+    dao = _FakeStreamsDAO(existing)
+    svc = _service(lock_engine, dao=dao)
+
+    # Turn B was submitted by the browser but has not reached `_start_turn` yet.
+    result = await svc.command(
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=SessionStreamCommandRequest(session_id=session_id),
+    )
+
+    assert result.mode == CommandMode.cancel
+    assert result.cancelled_turn_ids == []
+    assert dao.row == existing
+    assert (
+        await get_alive_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=session_id
+        )
+        == "turn-A"
+    )
+    assert (
+        await get_running_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=session_id
+        )
+        is None
+    )
+    assert not await is_turn_superseded(
+        lock_engine,
+        project_id=str(_PROJECT),
+        session_id=session_id,
+        turn_id="turn-A",
+    )
+
+
+@pytest.mark.asyncio
+async def test_unfenced_cancel_targets_the_turn_once_it_is_running(lock_engine):
+    dao = _FakeStreamsDAO()
+    svc = _service(lock_engine, dao=dao)
+    session_id = _session_id()
+    started = await svc.command(
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=SessionStreamCommandRequest(
+            session_id=session_id,
+            data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
+        ),
+    )
+
+    result = await svc.command(
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=SessionStreamCommandRequest(session_id=session_id),
+    )
+
+    assert started.turn_id is not None
+    assert result.cancelled_turn_ids == [started.turn_id]
+    assert (
+        await get_alive_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=session_id
+        )
+        is None
+    )
+    assert (
+        await get_running_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=session_id
+        )
+        is None
+    )
+    assert await is_turn_superseded(
+        lock_engine,
+        project_id=str(_PROJECT),
+        session_id=session_id,
+        turn_id=started.turn_id,
+    )
+
+
+@pytest.mark.asyncio
+async def test_cancel_with_a_stale_execution_guard_touches_no_holder(lock_engine):
+    svc = _service(lock_engine)
+    session_id = _session_id()
+    started = await svc.command(
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=SessionStreamCommandRequest(
+            session_id=session_id,
+            data=WorkflowServiceRequestData(inputs={"messages": ["first"]}),
+        ),
+    )
+
+    with pytest.raises(SessionTurnMismatch):
+        await svc.command(
+            project_id=_PROJECT,
+            user_id=_USER,
+            request=SessionStreamCommandRequest(
+                session_id=session_id,
+                expected_execution_id="another-turn",
+            ),
+        )
+
+    assert (
+        await get_alive_owner(
+            lock_engine,
+            project_id=str(_PROJECT),
+            session_id=session_id,
+        )
+        == started.turn_id
+    )
+    assert (
+        await get_running_owner(
+            lock_engine,
+            project_id=str(_PROJECT),
+            session_id=session_id,
+        )
+        == started.turn_id
+    )
 
 
 @pytest.mark.asyncio

@@ -17,6 +17,7 @@ import {
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
+    sessionCancelExecutionResponseSchema,
     sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
     sessionStreamSchema,
@@ -43,6 +44,7 @@ import {
     getLowPrioritySessionsClient,
     getMountsClient,
     getSessionsClient,
+    isAbortError,
     projectScopedRequest,
 } from "./client"
 
@@ -936,4 +938,85 @@ export async function readMountFile({
 
     const validated = safeParseWithLogging(mountFileContentResponseSchema, data, "[readMountFile]")
     return validated?.content ?? null
+}
+
+export interface CancelSessionExecutionParams extends SessionScopedParams {
+    /** Fence Stop to the execution the caller observed. */
+    expectedExecutionId?: string
+    /** Retry identity for this request. Two sends of the same key are one command. */
+    idempotencyKey?: string
+}
+
+export interface CancelSessionExecutionResult {
+    /** The durable command's id and DELIVERY state — never the execution's state. */
+    command: {id: string; state: string}
+    /** What to render: the execution being stopped, or nothing. */
+    execution: {id: string | null; state: "stopping" | "idle"}
+    /** True when the active API path accepted or completed the Stop. */
+    accepted: boolean
+    /** True when the API refused because another execution is running (409). */
+    conflict: boolean
+}
+
+/** Cancel current work through Fern while keeping the session warm. */
+export async function cancelSessionExecution({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    expectedExecutionId,
+    idempotencyKey,
+}: CancelSessionExecutionParams): Promise<CancelSessionExecutionResult | null> {
+    if (!projectId || !sessionId) return null
+
+    try {
+        const requestOptions = {
+            ...projectScopedRequest(projectId, appId, abortSignal),
+            ...(idempotencyKey ? {headers: {"Idempotency-Key": idempotencyKey}} : {}),
+        }
+        const {data, rawResponse} = await getSessionsClient()
+            .cancelSessionExecution(
+                {
+                    session_id: sessionId,
+                    body: expectedExecutionId ? {expected_execution_id: expectedExecutionId} : null,
+                },
+                requestOptions,
+            )
+            .withRawResponse()
+        const validated = safeParseWithLogging(
+            sessionCancelExecutionResponseSchema,
+            data,
+            "[cancelSessionExecution]",
+        )
+        if (!validated) return null
+        if (!("command" in validated)) {
+            return {
+                command: {id: "", state: "applied"},
+                execution: {id: validated.turn_id ?? null, state: "idle"},
+                accepted: true,
+                conflict: false,
+            }
+        }
+        return {
+            command: validated.command,
+            execution: {...validated.execution, id: validated.execution.id ?? null},
+            accepted: rawResponse.status === 202,
+            conflict: false,
+        }
+    } catch (error) {
+        if (isAbortError(error)) throw error
+        if ((error as {statusCode?: number} | null)?.statusCode === 409) {
+            return {
+                command: {id: "", state: "obsolete"},
+                execution: {id: null, state: "idle"},
+                accepted: false,
+                conflict: true,
+            }
+        }
+        console.error(
+            "[cancelSessionExecution] failed:",
+            error instanceof Error ? error.message : String(error),
+        )
+        return null
+    }
 }

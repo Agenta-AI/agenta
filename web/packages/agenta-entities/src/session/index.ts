@@ -18,6 +18,7 @@ export {
     setSessionHeader,
     fetchSessionStream,
     commandSessionStream,
+    cancelSessionExecution,
     killSession,
     deleteSession as deleteSessionRemote,
     archiveSession as archiveSessionRemote,
@@ -38,6 +39,8 @@ export {
     type RespondInteractionParams,
     type TransitionInteractionParams,
     type CommandSessionStreamParams,
+    type CancelSessionExecutionParams,
+    type CancelSessionExecutionResult,
 } from "./api/api"
 export {
     getSessionsClient,
@@ -80,6 +83,8 @@ export {
     deriveStreamNest,
     deriveSessionLifecycle,
     refineLifecycleWithSandbox,
+    livenessPollInterval,
+    type LivenessPollInterval,
     type SessionLifecycle,
     type SessionStreamNest,
     type SandboxLiveness,

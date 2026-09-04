@@ -67,6 +67,8 @@ import {
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
   withinCredentialPropagationWindow,
 } from "./errors.ts";
+import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
+import { isUserStopAbort } from "../../sessions/stop-signal.ts";
 import { cancelHarnessTurn } from "./cancel-turn.ts";
 import { reapLeakedExecChildren } from "./reap-exec.ts";
 import { sandboxAgentServerPort } from "./provider.ts";
@@ -1207,12 +1209,22 @@ export async function runTurn(
     if (raced === RUN_LIMIT_TRIPPED) {
       throw new Error(runLimitReason ?? "run limit tripped");
     }
-    const stopReason =
+    let stopReason =
       raced === CANCELLED
         ? "cancelled"
         : raced === PAUSED || pause.active
           ? "paused"
           : (raced as any)?.stopReason;
+    // THE TURN'S OWN WORK IS OVER HERE. Everything below is teardown: draining gates, writing
+    // the transcript, exporting the trace, deciding whether to park. That takes hundreds of
+    // milliseconds, and the execution stays registered for all of it, so a Stop arriving now
+    // would abort a run that has already finished. The abort would change no outcome and would
+    // still make the teardown treat the run as aborted, which DESTROYS the warm environment
+    // instead of parking it. Marked here rather than where the caller awaits this function,
+    // because that window is precisely what lies between the two.
+    if (stopReason !== "paused" && request.sessionId && request.turnId) {
+      noteExecutionSettled(request.sessionId, request.turnId);
+    }
     // Terminalization drains queued gates, classifies pause-time completions, and gives allowed
     // executions their original per-call bound before the orphan sweep closes the turn.
     if (stopReason === "paused") {
@@ -1280,8 +1292,19 @@ export async function runTurn(
             unexpectedOpenToolCallIds.join(","),
         );
       }
+
+      if (isUserStopAbort(signal)) {
+        stopReason = "cancelled";
+      }
+      if (request.sessionId && request.turnId) {
+        noteExecutionSettled(request.sessionId, request.turnId);
+      }
     }
     if (stopReason === "cancelled") {
+      env.parkedApprovals.clear();
+      env.parkedApproval = undefined;
+      env.approvalGateCount = 0;
+      parkedApprovedExecutions.clear();
       // Tell the HARNESS to stop before anything else. The abort only made the runner stop
       // waiting; without this the harness still holds an open prompt and a running tool, and the
       // sandbox could never be parked. A settled cancel is what earns the warm park below; see

@@ -41,6 +41,11 @@ class SessionStream(Identifier, Header, Lifecycle):
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
+    # When `turn_id` started. Stamped only when the id changes, so repeated heartbeats never
+    # move it. The stale-Stop guard compares a cancel request's arrival time against this.
+    turn_started_at: Optional[datetime] = None
+    # The execution an accepted Stop is waiting on. Null when nothing is stopping.
+    stopping_turn_id: Optional[str] = None
     # What this session runs. Filled once, from the first beat that knows — turn appends
     # are fire-and-forget, so a session whose only reference carrier was a dropped append
     # is unopenable forever.
@@ -143,6 +148,16 @@ class SessionStreamCommandRequest(BaseModel):
     data: Optional[WorkflowServiceRequestData] = None
     force: bool = False
     detached: bool = False  # fire-and-forget mode
+    expected_execution_id: Optional[str] = None
+
+    @field_validator("expected_execution_id")
+    @classmethod
+    def _blank_expected_execution_id_means_absent(
+        cls, value: Optional[str]
+    ) -> Optional[str]:
+        if value is None:
+            return None
+        return value.strip() or None
 
 
 class SessionStreamCommandResponse(BaseModel):
@@ -151,6 +166,9 @@ class SessionStreamCommandResponse(BaseModel):
     turn_id: Optional[str] = None
     watcher_id: Optional[str] = None
     detached: bool = False
+    # Cancel only: every turn this cancel tombstoned. Usually one. It is a list because
+    # `alive` and `running` can be held by different turns during a handover, and both die.
+    cancelled_turn_ids: List[str] = Field(default_factory=list)
 
 
 class SessionHeartbeatRequest(BaseModel):

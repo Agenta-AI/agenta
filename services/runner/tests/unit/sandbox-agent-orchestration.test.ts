@@ -53,6 +53,12 @@ import {
   flushPromises,
   type FakeOptions,
 } from "../utils/sandbox-agent-harness.ts";
+import {
+  findExecution,
+  registerExecution,
+  resetExecutionsForTest,
+} from "../../src/sessions/execution-registry.ts";
+import { applyCommand } from "../../src/sessions/control-channel.ts";
 
 // Orchestration cases include Daytona runs: enable it (with a provisioning credential) on top of
 // the hermetic scrub, then drop the memoized config so the run plan reads the enabled set.
@@ -63,6 +69,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  resetExecutionsForTest();
   vi.unstubAllGlobals();
 });
 
@@ -2598,6 +2605,118 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     if (!result.ok) return;
     assert.equal(result.stopReason, "paused");
     assert.deepEqual(calls.permissionReplies, []);
+  });
+
+  it("marks a paused turn settled after its cancellable teardown window", async () => {
+    const { deps } = depsWithDefaultResponder();
+    const sessionId = "conv-paused-registry";
+    const turnId = "turn-paused-registry";
+    registerExecution({
+      projectId: "11111111-1111-4111-8111-111111111111",
+      sessionId,
+      turnId,
+      startedAt: Date.now(),
+      abort: () => {},
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId,
+        turnId,
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+    assert.equal(
+      findExecution("11111111-1111-4111-8111-111111111111", sessionId)?.settled,
+      true,
+    );
+  });
+
+  it("converts a Stop during pause teardown into the turn's cancelled outcome", async () => {
+    let markPauseTeardownStarted!: () => void;
+    const pauseTeardownStarted = new Promise<void>((resolve) => {
+      markPauseTeardownStarted = resolve;
+    });
+    let releasePauseTeardown!: () => void;
+    const pauseTeardownMayFinish = new Promise<void>((resolve) => {
+      releasePauseTeardown = resolve;
+    });
+    const { deps } = fakeHarness({
+      emitPermission: true,
+      hangPrompt: true,
+      afterDestroySession: async () => {
+        markPauseTeardownStarted();
+        await pauseTeardownMayFinish;
+      },
+    });
+    delete deps.responderFactory;
+    const startSandboxAgent = deps.startSandboxAgent!;
+    deps.startSandboxAgent = async (options) => {
+      const sandbox = await startSandboxAgent(options);
+      const cancellable = sandbox as unknown as {
+        destroySession: (id: string) => Promise<unknown>;
+        cancelSession?: (id: string) => Promise<unknown>;
+      };
+      cancellable.cancelSession = (id) => cancellable.destroySession(id);
+      return sandbox;
+    };
+
+    const projectId = "11111111-1111-4111-8111-111111111111";
+    const sessionId = "conv-stop-during-pause-teardown";
+    const turnId = "turn-stop-during-pause-teardown";
+    const controller = new AbortController();
+    registerExecution({
+      projectId,
+      sessionId,
+      turnId,
+      startedAt: Date.now(),
+      abort: () => controller.abort(USER_STOP_ABORT_REASON),
+    });
+
+    const turn = runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId,
+        turnId,
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      controller.signal,
+      deps,
+    );
+
+    await pauseTeardownStarted;
+    const outcome = await applyCommand(
+      {
+        id: "command-stop-during-pause-teardown",
+        projectId,
+        sessionId,
+        kind: "cancel",
+        target: { turnId, expectedTurnId: turnId },
+        createdAt: new Date().toISOString(),
+      },
+      { report: async () => {} },
+    );
+    assert.equal(outcome.execution.state, "stopped");
+
+    releasePauseTeardown();
+    const result = await turn;
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "cancelled");
+    assert.equal(result.cancelSettled, true);
+    assert.equal(findExecution(projectId, sessionId)?.settled, true);
   });
 
   it("effective ask with no decision pauses the tool, no harness reply (F-024)", async () => {

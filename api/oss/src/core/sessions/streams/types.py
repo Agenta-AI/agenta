@@ -36,6 +36,24 @@ class SessionTurnInUse(SessionStreamError):
         super().__init__(self.message)
 
 
+class SessionTurnMismatch(SessionStreamError):
+    def __init__(
+        self,
+        session_id: str,
+        *,
+        expected_turn_id: str,
+        actual_turn_id: str | None,
+    ) -> None:
+        self.session_id = session_id
+        self.expected_turn_id = expected_turn_id
+        self.actual_turn_id = actual_turn_id
+        self.message = (
+            f"expected execution '{expected_turn_id}' is not the running execution "
+            f"(current: {actual_turn_id or 'none'})"
+        )
+        super().__init__(self.message)
+
+
 class ConcurrencyLimitExceeded(SessionStreamError):
     """Raised when the per-project concurrent-run limit is exceeded."""
 

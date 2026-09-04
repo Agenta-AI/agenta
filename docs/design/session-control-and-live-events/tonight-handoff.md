@@ -6,10 +6,10 @@
 
 - Keep current Redis execution ownership for version one.
 - Add durable commands with `pending`, `claimed`, `applied`, and `obsolete` states.
-- Use runner-initiated HTTP long polling behind a replaceable control-delivery port.
+- Use direct API-to-runner HTTP behind a replaceable control-delivery port for version one.
 - Keep `expected_execution_id` optional on public Stop.
 - Keep the Redis ownership lock until Stop settles.
-- Use heartbeat command discovery as delivery fallback.
+- Keep durable storage and settlement independent of the delivery transport.
 - Require Stop followed by warm resume of the same sandbox and native harness session. Run this
   release-gate cell for every supported harness and sandbox-provider pair.
 - Keep live-frame work independent from Stop work.
@@ -32,14 +32,13 @@ Deliver a code-traced report, a characterization test, the smallest patch propos
 plan for start, Stop, and resume in the same sandbox and native session. Do not redesign ownership,
 commands, or public endpoints.
 
-## Work package B: durable command and long-poll design
+## Work package B: durable command and direct-delivery design
 
 **Goal:** Produce an implementation-ready design for reliable API-to-runner commands.
 
-Define the command schema, claim lease, idempotency, long-poll claim and acknowledgement behavior,
-heartbeat fallback, failure recovery, adapter boundary, and how Redis ownership remains held until
-Stop settles. Deliver a short design and migration sequence. Do not implement a new execution
-ownership model.
+Define the command schema, idempotency, direct-delivery acknowledgement, failure recovery, adapter
+boundary, and how Redis ownership remains held until Stop settles. Keep long-poll claim semantics
+as a deferred transport. Do not implement a new execution ownership model.
 
 ## Work package C: current Stop implementation map
 
@@ -62,7 +61,7 @@ or a separate event table.
 ## First implementation after the spikes
 
 1. Add the durable command repository and service behind interfaces.
-2. Add the runner long-poll claim loop and API adapter.
+2. Add the direct API-to-runner adapter and authenticated runner route.
 3. Let Stop create a durable command with an optional expected-execution guard.
 4. Let the runner apply Stop through its active abort controller.
 5. Preserve Redis ownership until cancellation settles.
@@ -79,3 +78,4 @@ or a separate event table.
 - Final records versus event-table selection.
 - Final public endpoint naming.
 - WebSocket or gRPC control transport.
+- Runner-initiated long-poll control transport.
