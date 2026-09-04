@@ -17,6 +17,7 @@ import {
     sessionTabOrderAtomFamily,
     setSessionTabOrderAtom,
     useSessionCardList,
+    useSessionTabOrderSeed,
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
 import {Skeleton, SimpleTooltip} from "@agenta/ui/ui"
@@ -193,6 +194,9 @@ export const SessionTabRail = ({
     const rows = useMemo(() => applySessionTabOrder(listRows, savedOrder), [listRows, savedOrder])
     const hasActive = rows.some((vm) => vm.id === activeSessionId)
     const orderedIds = useMemo(() => rows.map((vm) => vm.id), [rows])
+    // Without a saved order there is nothing holding the rail still, so record the first arrangement
+    // the rail shows and every tab added since.
+    useSessionTabOrderSeed(orderScope, orderedIds)
     // Persist the WHOLE visible order on every drop, so sessions the saved order had never seen are
     // captured by the first arrangement that touches them.
     const handleReorder = useCallback(

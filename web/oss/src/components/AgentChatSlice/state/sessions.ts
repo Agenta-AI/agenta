@@ -269,12 +269,19 @@ export const sessionHasMessages = (messages: Record<string, UIMessage[]>, id: st
  * sessions with neither sort last, preserving their order). */
 const sessionActivity = (s: AgentChatSession): number => s.lastMessageAt ?? s.createdAt ?? 0
 
+/** Activity desc, then a MONOTONIC tiebreak. `lastMessageAt` is refetched on a 30s stale window
+ * and on focus, so equal-activity rows swapped on every poll without one (#6544). */
+const byActivity = (a: AgentChatSession, b: AgentChatSession): number =>
+    sessionActivity(b) - sessionActivity(a) ||
+    (b.createdAt ?? 0) - (a.createdAt ?? 0) ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+
 /** Active (non-archived) sessions for a scope, most-recently-active first. Backs the main history
  * picker (see issue #5553: order by last message, not creation). */
 export const sessionHistoryAtomFamily = atomFamily((key: string) =>
     atom((get) => {
         const list = (get(sessionsByAppAtom)[key] ?? []).filter((s) => !s.archived)
-        return [...list].sort((a, b) => sessionActivity(b) - sessionActivity(a))
+        return [...list].sort(byActivity)
     }),
 )
 
@@ -291,7 +298,7 @@ export const sessionScopeKeysAtom = selectAtom(
 export const archivedSessionHistoryAtomFamily = atomFamily((key: string) =>
     atom((get) => {
         const list = (get(sessionsByAppAtom)[key] ?? []).filter((s) => s.archived)
-        return [...list].sort((a, b) => sessionActivity(b) - sessionActivity(a))
+        return [...list].sort(byActivity)
     }),
 )
 
