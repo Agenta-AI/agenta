@@ -687,23 +687,26 @@ export function buildRunPlan(
   const systemPrompt = isPi
     ? request.systemPrompt?.trim() || undefined
     : undefined;
-  // The gateway guidance is spliced HERE, at environment build time, guidance first and the
-  // author's text after it (the platform half leads, matching the old composed order). It is
-  // excluded from the session fingerprint on purpose, so this is the only moment the names
-  // list can change: a warm session keeps the text it was built with (the wording says the
-  // list may be stale), and the next cold or reopened session picks up the current names.
-  const guidance = request.gatewayGuidance?.text?.trim() || undefined;
-  const spliceGuidance = (
-    carrier: "appendSystemPrompt" | "agentsMd",
+  // SDK-owned platform instructions are spliced HERE, at environment build time, before the
+  // author's text. The runner owns the harness delivery choice: Pi uses its append-system prompt;
+  // Claude and Codex use their rendered instructions file. Keep accepting the old carrier-bearing
+  // field during the rolling deployment, but prefer the new field so a mixed request cannot
+  // duplicate guidance. Both inputs remain outside session identity to preserve today's warm
+  // behavior: generated guidance changes take effect on the next ordinary environment build.
+  const platformInstructions =
+    request.platformInstructions !== undefined
+      ? request.platformInstructions.trim() || undefined
+      : request.gatewayGuidance?.text?.trim() || undefined;
+  const splicePlatformInstructions = (
     authored: string | undefined,
-  ): string | undefined => {
-    if (!guidance || request.gatewayGuidance?.carrier !== carrier)
-      return authored;
-    return authored ? `${guidance}\n\n${authored}` : guidance;
-  };
+  ): string | undefined =>
+    platformInstructions
+      ? authored
+        ? `${platformInstructions}\n\n${authored}`
+        : platformInstructions
+      : authored;
   const appendSystemPrompt = isPi
-    ? spliceGuidance(
-        "appendSystemPrompt",
+    ? splicePlatformInstructions(
         request.appendSystemPrompt?.trim() || undefined,
       )
     : undefined;
@@ -787,10 +790,9 @@ export function buildRunPlan(
       prompt: {
         text: prompt,
         turnText: buildTurnText(request, log),
-        agentsMd: spliceGuidance(
-          "agentsMd",
-          request.agentsMd?.trim() || undefined,
-        ),
+        agentsMd: isPi
+          ? request.agentsMd?.trim() || undefined
+          : splicePlatformInstructions(request.agentsMd?.trim() || undefined),
         systemPrompt,
         appendSystemPrompt,
         hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),

@@ -1840,23 +1840,20 @@ describe("modelConnection validation", () => {
   });
 });
 
-describe("gateway guidance splice", () => {
+describe("platform instructions splice", () => {
   const base = {
     harness: "pi_core",
     messages: [{ role: "user", content: "hi" }],
   } as unknown as AgentRunRequest;
   const deps = { createLocalCwd: () => "local-cwd" };
 
-  it("splices the guidance ahead of the authored append prompt for Pi", () => {
+  it("splices platform instructions ahead of the authored append prompt for Pi", () => {
     const result = buildRunPlan(
       {
         ...base,
         appendSystemPrompt: "Be terse.",
-        gatewayGuidance: {
-          text: "## Connected integrations\nuse search_tools",
-          carrier: "appendSystemPrompt",
-        },
-      } as unknown as AgentRunRequest,
+        platformInstructions: "## Connected integrations\nuse search_tools",
+      },
       deps,
     );
     assert.equal(result.ok, true);
@@ -1866,12 +1863,12 @@ describe("gateway guidance splice", () => {
     );
   });
 
-  it("carries the guidance alone when nothing is authored on the carrier", () => {
+  it("carries platform instructions alone when Pi has no authored append prompt", () => {
     const result = buildRunPlan(
       {
         ...base,
-        gatewayGuidance: { text: "guide", carrier: "appendSystemPrompt" },
-      } as unknown as AgentRunRequest,
+        platformInstructions: "guide",
+      },
       deps,
     );
     assert.equal(result.ok, true);
@@ -1879,26 +1876,96 @@ describe("gateway guidance splice", () => {
     assert.equal(result.ok && result.plan.prompt.hasSystemPrompt, true);
   });
 
-  it("splices into agentsMd for the file-based carrier", () => {
+  for (const harness of ["claude", "codex"]) {
+    it(`splices into authored instructions for ${harness}`, () => {
+      const result = buildRunPlan(
+        {
+          ...base,
+          harness,
+          agentsMd: "My rules.",
+          appendSystemPrompt: "Pi only.",
+          platformInstructions: "guide",
+        },
+        deps,
+      );
+      assert.equal(result.ok, true);
+      assert.equal(
+        result.ok && result.plan.prompt.agentsMd,
+        "guide\n\nMy rules.",
+      );
+      assert.equal(
+        result.ok && result.plan.prompt.appendSystemPrompt,
+        undefined,
+      );
+    });
+  }
+
+  it("prefers the new field over legacy guidance without duplicating it", () => {
     const result = buildRunPlan(
       {
         ...base,
-        harness: "claude",
-        agentsMd: "My rules.",
-        gatewayGuidance: { text: "guide", carrier: "agentsMd" },
-      } as unknown as AgentRunRequest,
+        appendSystemPrompt: "Author text.",
+        platformInstructions: "new platform text",
+        gatewayGuidance: {
+          text: "legacy gateway text",
+          carrier: "appendSystemPrompt",
+        },
+      },
       deps,
     );
     assert.equal(result.ok, true);
     assert.equal(
-      result.ok && result.plan.prompt.agentsMd,
-      "guide\n\nMy rules.",
+      result.ok && result.plan.prompt.appendSystemPrompt,
+      "new platform text\n\nAuthor text.",
     );
-    // Claude never takes the Pi-only append field.
-    assert.equal(result.ok && result.plan.prompt.appendSystemPrompt, undefined);
   });
 
-  it("leaves the prompts untouched without a guidance field", () => {
+  it("treats an explicitly empty new field as authoritative over legacy guidance", () => {
+    const result = buildRunPlan(
+      {
+        ...base,
+        appendSystemPrompt: "Author text.",
+        platformInstructions: "   ",
+        gatewayGuidance: {
+          text: "legacy gateway text",
+          carrier: "appendSystemPrompt",
+        },
+      },
+      deps,
+    );
+    assert.equal(result.ok, true);
+    assert.equal(
+      result.ok && result.plan.prompt.appendSystemPrompt,
+      "Author text.",
+    );
+  });
+
+  for (const [harness, legacyCarrier, effectiveCarrier] of [
+    ["pi_core", "agentsMd", "appendSystemPrompt"],
+    ["claude", "appendSystemPrompt", "agentsMd"],
+  ] as const) {
+    it(`accepts legacy guidance but infers the carrier for ${harness}`, () => {
+      const result = buildRunPlan(
+        {
+          ...base,
+          harness,
+          gatewayGuidance: { text: "legacy", carrier: legacyCarrier },
+        },
+        deps,
+      );
+      assert.equal(result.ok, true);
+      assert.equal(result.ok && result.plan.prompt[effectiveCarrier], "legacy");
+      assert.equal(
+        result.ok &&
+          result.plan.prompt[
+            effectiveCarrier === "agentsMd" ? "appendSystemPrompt" : "agentsMd"
+          ],
+        undefined,
+      );
+    });
+  }
+
+  it("leaves prompts untouched without platform instructions", () => {
     const result = buildRunPlan(
       {
         ...base,
