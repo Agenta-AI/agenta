@@ -11,6 +11,7 @@ import {RobotIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
+import {SIDEBAR_AGENT_ORDER_ZONE} from "../reorder"
 
 import {withEntityGroups, withRefsByRecency} from "./groups"
 import {sidebarSessionToggledGroupsAtomFamily} from "./sessionFilters"
@@ -63,6 +64,7 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
         : undefined,
     emptyLabel: config.emptyLabel,
     maxItems: config.maxItems ?? DEFAULT_SIDEBAR_ENTITY_LIMIT,
+    dragZone: config.dragZone,
     showAllLink: config.showAllPath
         ? (projectURL) => `${projectURL}${config.showAllPath}`
         : undefined,
@@ -170,6 +172,8 @@ const ENTITIES: SidebarEntity[] = [
         // Busiest agent first, by session count — stable session to session, unlike recency,
         // which reshuffled on every turn. Frozen per page load. Same rule the mobile rail applies.
         ranksAtom: sidebarAgentRanksAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
+        // This nav group's own arrangement; the Sessions agent headings carry a separate zone.
+        dragZone: SIDEBAR_AGENT_ORDER_ZONE,
         emptyLabel: "No agents",
         showAllPath: "/agents",
     }),

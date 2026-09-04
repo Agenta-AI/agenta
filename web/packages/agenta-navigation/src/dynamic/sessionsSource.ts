@@ -13,6 +13,16 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 import {
+    applyManualOrder,
+    SIDEBAR_AGENT_GROUP_ZONE,
+    SIDEBAR_AGENT_ORDER_ZONE,
+    SIDEBAR_STATUS_GROUP_ZONE,
+    sidebarManualOrderAtomFamily,
+    sidebarManualOrdersAtom,
+    sidebarSessionZone,
+    withManualAgentRanks,
+} from "../reorder"
+import {
     sidebarAlwaysOpenGroupsAtomFamily,
     sidebarOpenGroupsAtomFamily,
     sidebarPopupGroupsAtomFamily,
@@ -27,7 +37,7 @@ import {
     sidebarSessionFiltersDirtyAtomFamily,
     type SidebarSessionFilters,
 } from "./sessionFilters"
-import type {SidebarEntityGroup, SidebarEntityRef} from "./types"
+import type {SidebarEntityGroup, SidebarEntityRef, SidebarEntityReorder} from "./types"
 
 /** A session row as the sidebar needs it: enough to label it, dot it, and open it. */
 export interface SessionSidebarRef extends SidebarEntityRef {
@@ -477,7 +487,7 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
         // session surface uses, so a heading and a row can never disagree about an agent's name.
         // The heading is resolved HERE, not in the entity's `getGroupKey`: that closure is not
         // reactive, so a `groupBy` change would not re-bucket the rows.
-        return merged.map((ref) => {
+        const grouped = merged.map((ref) => {
             const named = {
                 ...ref,
                 // OR, not a replacement: a gate the host already knows about is open before the
@@ -495,8 +505,43 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
                 groupRank: group.rank,
             }
         })
+
+        const orderFor = get(sidebarManualOrdersAtom)
+        return applyManualSessionOrder(grouped, orderFor)
     }),
 )
+
+/**
+ * Applies each heading's hand-arranged row order, heading by heading.
+ *
+ * Buckets keep their first-seen order — `groupedChildren` re-buckets anyway, and holding it steady
+ * avoids gratuitous identity churn. A bucket with no saved zone (Pinned, Recent, any date heading)
+ * passes through untouched, which is how "pins lead" survives.
+ */
+const applyManualSessionOrder = (
+    rows: SessionSidebarRef[],
+    orderFor: (zone: string) => string[],
+): SessionSidebarRef[] => {
+    const buckets = new Map<string, SessionSidebarRef[]>()
+    for (const row of rows) {
+        const key = row.groupKey ?? PINNED_GROUP_KEY
+        const bucket = buckets.get(key)
+        if (bucket) bucket.push(row)
+        else buckets.set(key, [row])
+    }
+    let changed = false
+    const out: SessionSidebarRef[] = []
+    for (const [key, bucket] of buckets) {
+        const order = orderFor(sidebarSessionZone(key))
+        // A session the arrangement has not seen leads: you just started it.
+        const sorted = order.length
+            ? applyManualOrder(bucket, (row) => row.sessionId, order, "lead")
+            : bucket
+        if (sorted.some((row, index) => row !== bucket[index])) changed = true
+        out.push(...sorted)
+    }
+    return changed ? out : rows
+}
 
 const UNASSIGNED_GROUP_KEY = "agent:none"
 
@@ -587,6 +632,35 @@ export const sidebarSessionGroupKey = (ref: SessionSidebarRef): string =>
     ref.groupKey ?? PINNED_GROUP_KEY
 
 /**
+ * Which zones each grouping offers.
+ *
+ * Module-level constants, NOT built inline: `withEntityGroups` spreads this object into the source
+ * and `useMobileNavItems` memoizes on its identity, so a fresh closure per evaluation would defeat
+ * that memo. Date and flat groupings offer nothing — their order MEANS something (a calendar, an
+ * activity run), and overriding it would make the heading lie.
+ */
+export const SESSION_REORDER_ZONES: Partial<Record<SidebarSessionGroupBy, SidebarEntityReorder>> = {
+    agent: {
+        // Its OWN zone, not the Agents group's: the two agent lists arrange independently.
+        groupZone: SIDEBAR_AGENT_GROUP_ZONE,
+        // Keyed as the heading is, like the status headings. Nothing else writes this zone, so
+        // there is no id shape to agree with.
+        groupId: (key) =>
+            key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY ? key : undefined,
+        rowZone: (key) =>
+            key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY
+                ? sidebarSessionZone(key)
+                : undefined,
+    },
+    status: {
+        groupZone: SIDEBAR_STATUS_GROUP_ZONE,
+        // Pinned leads under every grouping and is not a status; it is not the user's to move.
+        groupId: (key) => (key.startsWith("status:") ? key : undefined),
+        rowZone: (key) => (key.startsWith("status:") ? sidebarSessionZone(key) : undefined),
+    },
+}
+
+/**
  * The group headings the Sessions rows sit under, in a fixed order: Pinned first, then whatever
  * the grouping ranks. Ordering only — `resolveChildren` owns the row cap, so a group whose rows
  * all fall outside it is dropped there rather than here.
@@ -607,7 +681,7 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
         // first. Frozen per page load like that rank, so headings do not reshuffle as you work.
         // Pinned still leads and "No agent yet" still trails (their ranks are untouched).
         if (groupBy === "agent") {
-            const ranks = get(sidebarAgentRanksAtomFamily(scopeId))
+            const ranks = get(sidebarAgentCountsAtomFamily(scopeId))
             for (const [key, bucket] of labels) {
                 if (!key.startsWith("agent:") || key === UNASSIGNED_GROUP_KEY) continue
                 // NEGATED so more sessions sorts first, in the one ascending order compareGroups uses.
@@ -616,9 +690,24 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
         }
         // SORTED, not first-seen: the rows arrive in activity order, so taking their order made the
         // headings reshuffle every time you worked in a session. Only the rows under a heading move.
-        const all: SidebarEntityGroup[] = [...labels]
+        const sorted: SidebarEntityGroup[] = [...labels]
             .sort(([, a], [, b]) => compareGroups(a, b))
             .map(([key, {label}]) => ({key, label}))
+        // Only the status headings are hand-arrangeable. Pinned is not a status and never moves;
+        // agent headings arrange through the shared agent rank instead, so they are already sorted.
+        const headingZone = SESSION_REORDER_ZONES[groupBy]?.groupZone
+        const all = headingZone
+            ? [
+                  // Pinned leads under every grouping and is not the user's to move.
+                  ...sorted.filter((group) => group.key === PINNED_GROUP_KEY),
+                  ...applyManualOrder(
+                      sorted.filter((group) => group.key !== PINNED_GROUP_KEY),
+                      (group) => group.key,
+                      get(sidebarManualOrderAtomFamily(headingZone)),
+                      "trail",
+                  ),
+              ]
+            : sorted
         // "None" still separates the pins — a pinned conversation is one you keep coming back to,
         // and burying it in the run of recent rows is what the heading exists to prevent. With no
         // pins there is nothing to separate, so the list goes fully flat.
@@ -638,6 +727,7 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
             collapsedKeys: groups.filter((g) => toggled.has(g.key)).map((g) => g.key),
             // Say WHY the group is empty: with a filter on, "No sessions" reads as "you have none".
             emptyLabel: dirty ? "No sessions match these filters" : undefined,
+            reorder: SESSION_REORDER_ZONES[groupBy],
         }
     }),
 )
@@ -742,8 +832,24 @@ export const agentSessionCounts = (rows: readonly SessionStream[]): ReadonlyMap<
     return counts
 }
 
-export const sidebarAgentRanksAtomFamily = atomFamily((scopeId: string) =>
+/** Chat-session counts alone — the DEFAULT order, before anyone has arranged anything. */
+const sidebarAgentCountsAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => agentSessionCounts(get(sidebarAgentActivityQueryAtomFamily(scopeId)).data ?? [])),
+)
+
+/**
+ * Ranks for the Agents NAV GROUP: counts, with that group's own arrangement on top.
+ *
+ * The agent headings under Sessions deliberately do NOT read this — they carry their own zone, so
+ * arranging one list leaves the other alone.
+ */
+export const sidebarAgentRanksAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) =>
+        withManualAgentRanks(
+            get(sidebarAgentCountsAtomFamily(scopeId)),
+            get(sidebarManualOrderAtomFamily(SIDEBAR_AGENT_ORDER_ZONE)),
+        ),
+    ),
 )
 
 /**

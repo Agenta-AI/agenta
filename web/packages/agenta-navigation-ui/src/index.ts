@@ -26,3 +26,4 @@ export {SidebarToggleButton, type SidebarToggleButtonProps} from "./SidebarToggl
 export {default as SidebarBanners} from "./SidebarBanners"
 export {default as SidebarBanner} from "./SidebarBanner"
 export {SessionFilterMenu} from "./SessionFilterMenu"
+export {SidebarReorderLayer} from "./reorder"
