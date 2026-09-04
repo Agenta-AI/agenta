@@ -40,7 +40,9 @@ class _Commands:
         yield object()
 
     async def fetch_by_idempotency_key(self, **kwargs):
-        return self.command
+        if self.command and self.command.idempotency_key == kwargs["idempotency_key"]:
+            return self.command
+        return None
 
     async def fetch_command(self, **kwargs):
         return self.command
@@ -401,6 +403,19 @@ async def test_parallel_answers_wait_then_share_one_continuation():
         {"interaction_id": str(first_id), "answer": {"approved": True}},
         {"interaction_id": str(second_id), "answer": {"approved": False}},
     ]
+
+    retry = await service.respond_interaction(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=first_id,
+        answer={"approved": True},
+        expected_execution_id="source-1",
+        idempotency_key="response-1-retry",
+    )
+
+    assert retry.interaction.id == first_id
+    assert retry.command is None
+    assert len(delivery.delivered) == 1
 
 
 @pytest.mark.asyncio

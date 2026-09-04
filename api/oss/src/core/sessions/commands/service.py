@@ -494,10 +494,24 @@ class SessionCommandsService:
                     SessionExecutionState.stopping,
                     SessionExecutionState.terminal,
                 ):
-                    raise InteractionResponseConflict(
-                        code="execution_terminal",
-                        message="The source execution can no longer be continued.",
-                        details={"execution_state": source.state.value},
+                    for interaction_id, answer in interaction_answers:
+                        interaction = by_id[interaction_id]
+                        if (
+                            interaction.status != SessionInteractionStatus.responded
+                            or interaction.data is None
+                            or interaction.data.resolution != answer
+                        ):
+                            raise InteractionResponseConflict(
+                                code="execution_terminal",
+                                message="The source execution can no longer be continued.",
+                                details={"execution_state": source.state.value},
+                            )
+                    return InteractionContinuationAdmission(
+                        interaction=by_id[anchor_id],
+                        command=None,
+                        execution_id=source_execution_id,
+                        execution_state=source.state,
+                        interactions=[by_id[item] for item in requested],
                     )
 
                 transitioned: List[SessionInteraction] = []
