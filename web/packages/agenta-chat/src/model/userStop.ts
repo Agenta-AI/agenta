@@ -9,31 +9,6 @@ export const lastTurnWasUserStopped = (messages: UIMessage[]): boolean => {
     return last?.role === "assistant" && last.metadata?.runStopped === true
 }
 
-/**
- * Recognize an explicit runner user-stop label without treating a generic AbortError as a Stop.
- * Network disconnects and unrelated aborts must remain failures; only the runner's stable
- * `user-stop` marker is neutral.
- */
-export const isUserStopError = (error: unknown): boolean => {
-    const raw = error instanceof Error ? error.message : error
-    let value = raw
-    if (typeof raw === "string") {
-        try {
-            value = JSON.parse(raw)
-        } catch {
-            return raw.trim().toLowerCase() === "user-stop"
-        }
-    }
-    if (!value || typeof value !== "object") return false
-
-    const root = value as Record<string, unknown>
-    const status =
-        root.status && typeof root.status === "object"
-            ? (root.status as Record<string, unknown>)
-            : root
-    return root.agentaAbort === "user-stop" || status.code === "user-stop"
-}
-
 export type UserStoppedStateEvent =
     | {type: "user-stop"}
     | {type: "reset"}
@@ -42,7 +17,6 @@ export type UserStoppedStateEvent =
           type: "stream-terminal"
           messages: UIMessage[]
           finishReason?: string
-          error?: unknown
       }
 
 /**
@@ -62,7 +36,7 @@ export const reduceUserStoppedState = (stopped: boolean, event: UserStoppedState
         case "transcript":
             return lastTurnWasUserStopped(event.messages) || stopped
         case "stream-terminal":
-            if (lastTurnWasUserStopped(event.messages) || isUserStopError(event.error)) return true
+            if (lastTurnWasUserStopped(event.messages)) return true
             if (event.finishReason === "other" && !isHitlPending(event.messages)) return true
             return stopped
     }

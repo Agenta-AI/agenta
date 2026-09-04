@@ -21,6 +21,20 @@ describe("stop state", () => {
         expect(reduceStopPhase(phase, {type: "terminal"})).toBe("stopped")
     })
 
+    it("settles immediately when the server cancels a parked turn", () => {
+        const phase = transition([{type: "request"}, {type: "cancelled", parked: true}])
+
+        expect(phase).toBe("stopped")
+        expect(isStoppingPhase(phase)).toBe(false)
+    })
+
+    it("keeps waiting for a streaming turn after the server accepts cancellation", () => {
+        const phase = transition([{type: "request"}, {type: "cancelled", parked: false}])
+
+        expect(phase).toBe("accepted")
+        expect(isStoppingPhase(phase)).toBe(true)
+    })
+
     it("remembers a terminal event that beats the response", () => {
         expect(transition([{type: "request"}, {type: "terminal"}, {type: "accepted"}])).toBe(
             "stopped",

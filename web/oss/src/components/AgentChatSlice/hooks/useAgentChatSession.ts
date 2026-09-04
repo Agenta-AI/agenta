@@ -10,7 +10,6 @@ import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
 import {
     ignoreStreamRejection,
-    isUserStopError,
     lastTurnWasUserStopped,
     parseAgentRunError,
     reduceUserStoppedState,
@@ -47,6 +46,7 @@ import {
     approvalResolution,
     buildAgentRequest,
     buildTurnCapture,
+    isHitlPending,
     isResumeSend,
     playgroundController,
     recordAnswerThenRelease,
@@ -131,6 +131,13 @@ export const useAgentChatSession = ({
     )
     const [stopPhase, dispatchStop] = useReducer(reduceStopPhase, "idle")
     const stopping = isStoppingPhase(stopPhase)
+    // A parked interaction has no busy falling edge when Stop succeeds. Remember that shape so
+    // either the interaction relay, the refreshed transcript, or the cancel response can provide
+    // the terminal evidence instead of leaving the composer on "Stopping" for the watchdog.
+    const parkedStopRef = useRef(false)
+    const settleParkedStop = useCallback(() => {
+        if (parkedStopRef.current) dispatchStop({type: "cancelled", parked: true})
+    }, [])
 
     const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
@@ -209,12 +216,7 @@ export const useAgentChatSession = ({
             // (with error/awaiting precedence) from `busy`, so writing here would only flicker it.
             if (!mountedRef.current) setSessionStatus({id: sessionId, status: "idle"})
         },
-        onError: (streamError) => {
-            dispatchStopped({
-                type: "stream-terminal",
-                messages: messagesRef.current,
-                error: streamError,
-            })
+        onError: () => {
             // Clear the marker but do NOT void the resume. A gateway approval is answered while the
             // stream is still open, so the SDK skips its own dispatch and only re-evaluates when the
             // stream ends — often by erroring, right here. `null` made that last evaluation return
@@ -256,8 +258,6 @@ export const useAgentChatSession = ({
     })
 
     const busy = isChatBusy(status)
-    const userStopError = isUserStopError(error)
-
     // `messages`/`busy` change every token; consumers that must stay referentially stable
     // (`handleRewind`, the hydration/SWR adoption guards) read them through refs instead.
     messagesRef.current = messages
@@ -281,7 +281,8 @@ export const useAgentChatSession = ({
 
     useEffect(() => {
         dispatchStopped({type: "transcript", messages})
-    }, [messages])
+        if (!isHitlPending(messages)) settleParkedStop()
+    }, [messages, settleParkedStop])
 
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
@@ -303,6 +304,7 @@ export const useAgentChatSession = ({
         persistMessages,
         intent,
         pendingResumeRef: liveGateInteractionRef,
+        onInteractionChanged: settleParkedStop,
     })
 
     // A decision made in THIS mount marks the resume as live — a restored approval-requested tail
@@ -413,7 +415,7 @@ export const useAgentChatSession = ({
     // effect below), instead of a transient top banner + a generic "no response". FE-only — it
     // uses the error useChat already has; the backend doesn't need to attach it to the trace.
     useEffect(() => {
-        if (!error || userStopError) return
+        if (!error) return
         const parsed = parseAgentRunError(error)
         setMessages((prev) => {
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
@@ -439,7 +441,7 @@ export const useAgentChatSession = ({
                 } as (typeof prev)[number],
             ]
         })
-    }, [error, setMessages, userStopError])
+    }, [error, setMessages])
 
     // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
     // records the runner logged for it — so drop the watermark and let the next open re-sync from
@@ -538,8 +540,11 @@ export const useAgentChatSession = ({
 
     const handleStop = useCallback(() => {
         if (stopping) return
+        parkedStopRef.current = !busyRef.current && isHitlPending(messagesRef.current)
+        const wasParked = parkedStopRef.current
         dispatchStop({type: "request"})
         if (!projectId || !sessionId) {
+            parkedStopRef.current = false
             dispatchStop({type: "failed"})
             message.warning("Could not stop the run. It may still be running.")
             return
@@ -549,7 +554,9 @@ export const useAgentChatSession = ({
             killSession({sessionId, projectId})
                 .then((ok) => {
                     if (ok) {
-                        dispatchStop({type: "accepted"})
+                        dispatchStop(
+                            wasParked ? {type: "cancelled", parked: true} : {type: "accepted"},
+                        )
                         liveGateInteractionRef.current = null
                         queryClient.invalidateQueries({queryKey: ["session-liveness"]})
                         // Refresh an open Inspector so it reflects the kill immediately.
@@ -586,7 +593,7 @@ export const useAgentChatSession = ({
             .then((outcome) => {
                 void invalidateSessionInspector(queryClient, sessionId)
                 if (outcome?.accepted) {
-                    dispatchStop({type: "accepted"})
+                    dispatchStop({type: "cancelled", parked: wasParked})
                     if (abortAfterAcceptedRef.current) {
                         stop()
                         dispatchStop({type: "terminal"})
@@ -596,6 +603,7 @@ export const useAgentChatSession = ({
                     return
                 }
                 if (outcome && !outcome.conflict && outcome.execution.state === "idle") {
+                    parkedStopRef.current = false
                     abortAfterAcceptedRef.current = false
                     expectedStopExecutionIdRef.current = undefined
                     dispatchStop({type: "already_idle"})
@@ -603,6 +611,7 @@ export const useAgentChatSession = ({
                     return
                 }
                 if (abortAfterAcceptedRef.current) retryStopRef.current = true
+                parkedStopRef.current = false
                 abortAfterAcceptedRef.current = false
                 dispatchStop({type: "failed"})
                 message.warning(
@@ -614,6 +623,7 @@ export const useAgentChatSession = ({
             })
             .catch((error: unknown) => {
                 if (abortAfterAcceptedRef.current) retryStopRef.current = true
+                parkedStopRef.current = false
                 abortAfterAcceptedRef.current = false
                 dispatchStop({type: "failed"})
                 message.warning(
@@ -622,7 +632,7 @@ export const useAgentChatSession = ({
                         : "Could not stop the run. It may still be running.",
                 )
             })
-    }, [stopping, projectId, sessionId, queryClient, stop])
+    }, [stopping, projectId, sessionId, queryClient, stop, settleParkedStop])
 
     useEffect(() => {
         if (stopPhase !== "accepted") return
@@ -652,6 +662,7 @@ export const useAgentChatSession = ({
         retryStopRef.current = false
         abortAfterAcceptedRef.current = false
         expectedStopExecutionIdRef.current = undefined
+        parkedStopRef.current = false
         dispatchStop({type: "reset"})
     }, [stopPhase])
 
@@ -685,7 +696,7 @@ export const useAgentChatSession = ({
         messages,
         status,
         busy,
-        error: userStopError ? undefined : error,
+        error,
         sendMessage,
         regenerate,
         setMessages,

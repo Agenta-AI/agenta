@@ -1,11 +1,7 @@
 import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {
-    isUserStopError,
-    lastTurnWasUserStopped,
-    reduceUserStoppedState,
-} from "../../../src/model/userStop"
+import {lastTurnWasUserStopped, reduceUserStoppedState} from "../../../src/model/userStop"
 
 const assistant = (metadata?: Record<string, unknown>): UIMessage =>
     ({id: "a1", role: "assistant", parts: [], metadata}) as UIMessage
@@ -52,19 +48,11 @@ describe("user stopped state", () => {
         expect(reduceUserStoppedState(false, {type: "transcript", messages})).toBe(true)
     })
 
-    it("recognizes only the runner's explicit user-stop error label", () => {
-        expect(isUserStopError(new Error('{"status":{"code":"user-stop"}}'))).toBe(true)
-        expect(isUserStopError({agentaAbort: "user-stop"})).toBe(true)
-        expect(isUserStopError(new Error("Request was aborted"))).toBe(false)
-        expect(isUserStopError(new Error('{"status":{"code":"runner-error"}}'))).toBe(false)
-    })
-
     it("keeps genuine stream failures non-neutral", () => {
         expect(
             reduceUserStoppedState(false, {
                 type: "stream-terminal",
                 finishReason: "error",
-                error: new Error("model failed"),
                 messages: [assistant()],
             }),
         ).toBe(false)
