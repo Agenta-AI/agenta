@@ -17,8 +17,12 @@ export interface RequiredIntegration {
     slug: string
     /** Per-template scope line shown in the setup drawer. */
     scope: string
-    /** Tools the template calls on this integration — drive the Tools preview's provider group. */
-    tools: TemplateTool[]
+    /**
+     * Tools the template calls on this integration — drive the Tools preview's provider group.
+     * Absent where the playbook names the connection but not the calls, which is honest: the
+     * alternative to inventing a list is not having one.
+     */
+    tools?: TemplateTool[]
 }
 
 /**
@@ -106,24 +110,8 @@ export interface AgentStarterTemplate {
     builderMessage?: string
     /** Default model (Agenta-managed · Pi). */
     model: string
-    /**
-     * Every integration the use case might touch, shown as card/chip logos. Display-only — it
-     * never gates Create. `requiredIntegrations` is the separate, functional connect/tools list.
-     */
-    logoSlugs?: string[]
-    /**
-     * The connection slots, replacing `logoSlugs` + `requiredIntegrations`. Present on migrated
-     * templates; the two legacy fields are derived from it until every entry has moved over.
-     */
-    connections?: TemplateConnection[]
-    /**
-     * Exactly the connections the template's playbook hard-requires — drive the "Required to run"
-     * connect rows. Alternatives (the "X or Y" of a pick-one source/destination) and optional
-     * extensions are display-only `logoSlugs`, never listed here; only the primary/SOLID one of an
-     * alternative group is required. Mirrors each playbook's Connections section in
-     * `sdks/python/agenta/sdk/agents/adapters/agent_templates/*.py`.
-     */
-    requiredIntegrations?: RequiredIntegration[]
+    /** What the template needs connected, and what may stand in for each. */
+    connections: TemplateConnection[]
 }
 
 /** Provider slug → display label + brand logo URL (Composio logo CDN, the tool catalog's source). */
@@ -154,40 +142,21 @@ export const PROVIDERS: Record<string, {label: string; logo: string}> = {
     posthog: {label: "PostHog", logo: composioLogo("posthog")},
 }
 
-/**
- * The template's connection slots. A migrated template states them; one that has not moved over
- * yet is read as one required, single-option slot per `requiredIntegrations` entry — which is
- * exactly what it meant before, minus any notion of an alternative.
- */
+/** What the template needs connected. */
 export function templateConnections(template: AgentStarterTemplate): TemplateConnection[] {
-    if (template.connections) return template.connections
-    return (template.requiredIntegrations ?? []).map((integration) => ({
-        role: integration.scope,
-        required: true,
-        primary: integration,
-    }))
+    return template.connections
 }
 
-/** Integration slugs a template touches (card provider marks). Prefers display logos; falls
- * back to the required-to-run slugs so a template without `logoSlugs` still renders marks. */
+/** Integration slugs a template touches (card provider marks) — every provider its slots
+ * accept, primary first. */
 export const templateProviderSlugs = (template: AgentStarterTemplate): string[] => {
-    // Migrated templates derive their marks from the slots, so a logo cannot advertise a provider
-    // no slot accepts (or omit one it does). Unmigrated entries keep the hand-kept list.
-    if (template.connections) {
-        const slugs = templateConnections(template).flatMap((connection) => [
-            connection.primary.slug,
-            ...(connection.alternatives ?? []),
-        ])
-        return [...new Set(slugs)]
-    }
-    const declared = template.logoSlugs?.length
-        ? template.logoSlugs
-        : (template.requiredIntegrations ?? []).map((integration) => integration.slug)
-    // Lead with the primary whatever order the hand-kept list is in. Five templates drew a
-    // provider they do not require ahead of the one they do, and an overlapped card showed it.
-    const primary = (template.requiredIntegrations ?? [])[0]?.slug
-    if (!primary || declared[0] === primary || !declared.includes(primary)) return declared
-    return [primary, ...declared.filter((slug) => slug !== primary)]
+    // Derived, so a mark can only name a provider some slot accepts — and the PRIMARY leads,
+    // because a card that overlaps or truncates its marks shows the first one.
+    const slugs = templateConnections(template).flatMap((connection) => [
+        connection.primary.slug,
+        ...(connection.alternatives ?? []),
+    ])
+    return [...new Set(slugs)]
 }
 
 /**
@@ -199,7 +168,7 @@ export const templatePrimaryProvider = (template: AgentStarterTemplate): string 
 
 /** Total tool count across a template's integrations (drawer Tools count). */
 export const templateToolCount = (template: AgentStarterTemplate): number =>
-    templateConnections(template).reduce((n, slot) => n + slot.primary.tools.length, 0)
+    templateConnections(template).reduce((n, slot) => n + (slot.primary.tools?.length ?? 0), 0)
 
 /**
  * The initial instruction message for the agent-builder flow (Mahmoud's template mode): it seeds a
@@ -344,21 +313,34 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build a changelog writer that turns merged pull requests into release notes and publishes them.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["github", "gitlab", "notion", "linear"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "github",
-                scope: "Read merged PRs, publish releases",
-                tools: [
-                    {
-                        name: "List pull requests",
-                        description: "Fetch the PRs merged since the last release.",
-                    },
-                    {
-                        name: "Create release",
-                        description: "Publish the release notes as a GitHub release.",
-                    },
-                ],
+                role: "Read merged pull requests",
+                required: true,
+                primary: {
+                    slug: "github",
+                    scope: "Read merged PRs, publish releases",
+                    tools: [
+                        {
+                            name: "List pull requests",
+                            description: "Fetch the PRs merged since the last release.",
+                        },
+                        {
+                            name: "Create release",
+                            description: "Publish the release notes as a GitHub release.",
+                        },
+                    ],
+                },
+                alternatives: ["gitlab"],
+            },
+            {
+                role: "Publish the changelog",
+                required: true,
+                primary: {
+                    slug: "notion",
+                    scope: "Publish the changelog",
+                },
+                alternatives: ["linear"],
             },
         ],
     },
@@ -389,21 +371,34 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an issue triager that labels new issues by area and priority and assigns an owner.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["github", "gitlab", "linear", "jira"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "github",
-                scope: "Read issues, apply labels & assignees",
-                tools: [
-                    {
-                        name: "Get issue",
-                        description: "Read a new issue's title and body.",
-                    },
-                    {
-                        name: "Update issue",
-                        description: "Apply labels and assign an owner.",
-                    },
-                ],
+                role: "Read and label new issues",
+                required: true,
+                primary: {
+                    slug: "github",
+                    scope: "Read issues, apply labels & assignees",
+                    tools: [
+                        {
+                            name: "Get issue",
+                            description: "Read a new issue's title and body.",
+                        },
+                        {
+                            name: "Update issue",
+                            description: "Apply labels and assign an owner.",
+                        },
+                    ],
+                },
+                alternatives: ["gitlab"],
+            },
+            {
+                role: "Cross-post the triaged issue",
+                required: false,
+                primary: {
+                    slug: "linear",
+                    scope: "Cross-post the triaged issue",
+                },
+                alternatives: ["jira"],
             },
         ],
     },
@@ -435,21 +430,33 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that reads the logs when CI fails, summarizes the likely cause, and pings the author.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["github", "slack", "discord"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "github",
-                scope: "Read workflow runs, comment on commits",
-                tools: [
-                    {
-                        name: "Get workflow run logs",
-                        description: "Read the failing run's logs.",
-                    },
-                    {
-                        name: "Create commit comment",
-                        description: "Post the likely cause and ping the author.",
-                    },
-                ],
+                role: "Read runs and post comments",
+                required: true,
+                primary: {
+                    slug: "github",
+                    scope: "Read workflow runs, comment on commits",
+                    tools: [
+                        {
+                            name: "Get workflow run logs",
+                            description: "Read the failing run's logs.",
+                        },
+                        {
+                            name: "Create commit comment",
+                            description: "Post the likely cause and ping the author.",
+                        },
+                    ],
+                },
+            },
+            {
+                role: "Notify a channel",
+                required: false,
+                primary: {
+                    slug: "slack",
+                    scope: "Notify a channel",
+                },
+                alternatives: ["discord"],
             },
         ],
     },
@@ -477,21 +484,33 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build a code Q&A agent that answers questions about our repo when mentioned.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["github", "gitlab", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "github",
-                scope: "Read repo files & code",
-                tools: [
-                    {
-                        name: "Search code",
-                        description: "Find files relevant to the question.",
-                    },
-                    {
-                        name: "Get file content",
-                        description: "Read the matching file to answer accurately.",
-                    },
-                ],
+                role: "Read the code",
+                required: true,
+                primary: {
+                    slug: "github",
+                    scope: "Read repo files & code",
+                    tools: [
+                        {
+                            name: "Search code",
+                            description: "Find files relevant to the question.",
+                        },
+                        {
+                            name: "Get file content",
+                            description: "Read the matching file to answer accurately.",
+                        },
+                    ],
+                },
+                alternatives: ["gitlab"],
+            },
+            {
+                role: "Answer on a Slack mention",
+                required: false,
+                primary: {
+                    slug: "slack",
+                    scope: "Answer on a Slack mention",
+                },
             },
         ],
     },
@@ -513,21 +532,33 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that weekly summarizes open dependency-update PRs and what changed.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["github", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "github",
-                scope: "Read pull requests",
-                tools: [
-                    {
-                        name: "List pull requests",
-                        description: "Fetch open dependency-update PRs.",
-                    },
-                    {
-                        name: "Get pull request",
-                        description: "Read what changed in each.",
-                    },
-                ],
+                role: "List and read dependency PRs",
+                required: true,
+                primary: {
+                    slug: "github",
+                    scope: "Read pull requests",
+                    tools: [
+                        {
+                            name: "List pull requests",
+                            description: "Fetch open dependency-update PRs.",
+                        },
+                        {
+                            name: "Get pull request",
+                            description: "Read what changed in each.",
+                        },
+                    ],
+                },
+                alternatives: ["gitlab"],
+            },
+            {
+                role: "Post the digest",
+                required: false,
+                primary: {
+                    slug: "slack",
+                    scope: "Post the digest",
+                },
             },
         ],
     },
@@ -552,21 +583,35 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build a support triager that reads new #support threads, tags urgency, and routes to owners.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["slack", "discord", "intercom", "zendesk"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "slack",
-                scope: "Read channels, post & assign threads",
-                tools: [
-                    {
-                        name: "Fetch conversation history",
-                        description: "Read recent messages in a channel to understand the thread.",
-                    },
-                    {
-                        name: "Send message",
-                        description: "Reply in-thread and route it to the right owner.",
-                    },
-                ],
+                role: "Read and post in the support channel",
+                required: true,
+                primary: {
+                    slug: "slack",
+                    scope: "Read channels, post & assign threads",
+                    tools: [
+                        {
+                            name: "Fetch conversation history",
+                            description:
+                                "Read recent messages in a channel to understand the thread.",
+                        },
+                        {
+                            name: "Send message",
+                            description: "Reply in-thread and route it to the right owner.",
+                        },
+                    ],
+                },
+                alternatives: ["discord"],
+            },
+            {
+                role: "Read tickets",
+                required: false,
+                primary: {
+                    slug: "intercom",
+                    scope: "Read tickets",
+                },
+                alternatives: ["zendesk"],
             },
         ],
     },
@@ -599,23 +644,45 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that drafts replies to new support tickets using answers from our docs.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["zendesk", "intercom", "notion", "confluence", "googledrive", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                // CHECK confidence; required to run is zendesk (the ticket source) only.
-                // intercom/notion/confluence/googledrive/slack are display-only extensions.
-                slug: "zendesk",
-                scope: "Read tickets, post draft replies",
-                tools: [
-                    {
-                        name: "Get ticket",
-                        description: "Read the new ticket's subject, body, and history.",
-                    },
-                    {
-                        name: "Add comment",
-                        description: "Post the drafted reply as an internal comment for review.",
-                    },
-                ],
+                role: "Read the tickets",
+                required: true,
+                primary: {
+                    // CHECK confidence; required to run is zendesk (the ticket source) only.
+                    // intercom/notion/confluence/googledrive/slack are display-only extensions.
+                    slug: "zendesk",
+                    scope: "Read tickets, post draft replies",
+                    tools: [
+                        {
+                            name: "Get ticket",
+                            description: "Read the new ticket's subject, body, and history.",
+                        },
+                        {
+                            name: "Add comment",
+                            description:
+                                "Post the drafted reply as an internal comment for review.",
+                        },
+                    ],
+                },
+                alternatives: ["intercom"],
+            },
+            {
+                role: "Read a knowledge source",
+                required: false,
+                primary: {
+                    slug: "notion",
+                    scope: "Read a knowledge source",
+                },
+                alternatives: ["confluence", "googledrive"],
+            },
+            {
+                role: "Review the drafts",
+                required: false,
+                primary: {
+                    slug: "slack",
+                    scope: "Review the drafts",
+                },
             },
         ],
     },
@@ -638,37 +705,46 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that turns support complaints into Linear bug tickets with repro steps.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["slack", "intercom", "zendesk", "linear", "jira", "github"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "slack",
-                scope: "Read threads, confirm filed tickets",
-                tools: [
-                    {
-                        name: "Fetch conversation history",
-                        description: "Read the complaint thread.",
-                    },
-                    {
-                        name: "Send message",
-                        description: "Confirm the filed ticket back in-thread.",
-                    },
-                ],
+                role: "Read the report",
+                required: true,
+                primary: {
+                    slug: "slack",
+                    scope: "Read threads, confirm filed tickets",
+                    tools: [
+                        {
+                            name: "Fetch conversation history",
+                            description: "Read the complaint thread.",
+                        },
+                        {
+                            name: "Send message",
+                            description: "Confirm the filed ticket back in-thread.",
+                        },
+                    ],
+                },
+                alternatives: ["intercom", "zendesk"],
             },
             {
-                // Linear is the primary bug tracker the playbook hard-requires; Jira and GitHub are
-                // alternatives and stay display-only.
-                slug: "linear",
-                scope: "Search & create issues",
-                tools: [
-                    {
-                        name: "Search issues",
-                        description: "Check for an existing ticket on the same bug.",
-                    },
-                    {
-                        name: "Create issue",
-                        description: "File the bug ticket with the extracted repro steps.",
-                    },
-                ],
+                role: "File the bug",
+                required: true,
+                primary: {
+                    // Linear is the primary bug tracker the playbook hard-requires; Jira and GitHub are
+                    // alternatives and stay display-only.
+                    slug: "linear",
+                    scope: "Search & create issues",
+                    tools: [
+                        {
+                            name: "Search issues",
+                            description: "Check for an existing ticket on the same bug.",
+                        },
+                        {
+                            name: "Create issue",
+                            description: "File the bug ticket with the extracted repro steps.",
+                        },
+                    ],
+                },
+                alternatives: ["jira", "github"],
             },
         ],
     },
@@ -690,35 +766,43 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that daily clusters new customer feedback into themes and logs them to Notion.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["intercom", "slack", "notion"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "slack",
-                scope: "Read channels, post theme summaries",
-                tools: [
-                    {
-                        name: "Fetch conversation history",
-                        description: "Read new feedback messages.",
-                    },
-                    {
-                        name: "Send message",
-                        description: "Post the theme summary.",
-                    },
-                ],
+                role: "Read the feedback",
+                required: true,
+                primary: {
+                    slug: "slack",
+                    scope: "Read channels, post theme summaries",
+                    tools: [
+                        {
+                            name: "Fetch conversation history",
+                            description: "Read new feedback messages.",
+                        },
+                        {
+                            name: "Send message",
+                            description: "Post the theme summary.",
+                        },
+                    ],
+                },
+                alternatives: ["intercom"],
             },
             {
-                slug: "notion",
-                scope: "Log clusters to a page or database",
-                tools: [
-                    {
-                        name: "Create page",
-                        description: "Log the day's clustered themes as a page.",
-                    },
-                    {
-                        name: "Update database",
-                        description: "Append the themes as rows to a tracker database.",
-                    },
-                ],
+                role: "Log the clusters",
+                required: true,
+                primary: {
+                    slug: "notion",
+                    scope: "Log clusters to a page or database",
+                    tools: [
+                        {
+                            name: "Create page",
+                            description: "Log the day's clustered themes as a page.",
+                        },
+                        {
+                            name: "Update database",
+                            description: "Append the themes as rows to a tracker database.",
+                        },
+                    ],
+                },
             },
         ],
     },
@@ -743,21 +827,41 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that enriches each new inbound lead, qualifies it, and adds it to HubSpot.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["hubspot", "salesforce", "attio", "gmail", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "hubspot",
-                scope: "Read & create contacts",
-                tools: [
-                    {
-                        name: "Search contacts",
-                        description: "Check whether the lead already exists.",
-                    },
-                    {
-                        name: "Create contact",
-                        description: "Add the qualified lead to HubSpot.",
-                    },
-                ],
+                role: "Write the qualified lead",
+                required: true,
+                primary: {
+                    slug: "hubspot",
+                    scope: "Read & create contacts",
+                    tools: [
+                        {
+                            name: "Search contacts",
+                            description: "Check whether the lead already exists.",
+                        },
+                        {
+                            name: "Create contact",
+                            description: "Add the qualified lead to HubSpot.",
+                        },
+                    ],
+                },
+                alternatives: ["salesforce", "attio"],
+            },
+            {
+                role: "Read inbound email leads",
+                required: false,
+                primary: {
+                    slug: "gmail",
+                    scope: "Read inbound email leads",
+                },
+            },
+            {
+                role: "Notify the owner",
+                required: false,
+                primary: {
+                    slug: "slack",
+                    scope: "Notify the owner",
+                },
             },
         ],
     },
@@ -780,22 +884,34 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that updates CRM contact records from my recent email threads each day.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["gmail", "hubspot", "salesforce", "attio"],
-        requiredIntegrations: [
+        connections: [
             {
-                // Required to run: gmail. The CRM (hubspot, etc.) is a pick-one write target.
-                slug: "gmail",
-                scope: "Read recent email threads",
-                tools: [
-                    {
-                        name: "Fetch emails",
-                        description: "List recent threads to check for CRM-relevant updates.",
-                    },
-                    {
-                        name: "Read thread",
-                        description: "Read a thread's content to extract contact updates.",
-                    },
-                ],
+                role: "Read the threads",
+                required: true,
+                primary: {
+                    // Required to run: gmail. The CRM (hubspot, etc.) is a pick-one write target.
+                    slug: "gmail",
+                    scope: "Read recent email threads",
+                    tools: [
+                        {
+                            name: "Fetch emails",
+                            description: "List recent threads to check for CRM-relevant updates.",
+                        },
+                        {
+                            name: "Read thread",
+                            description: "Read a thread's content to extract contact updates.",
+                        },
+                    ],
+                },
+            },
+            {
+                role: "Land the updates",
+                required: false,
+                primary: {
+                    slug: "hubspot",
+                    scope: "Land the updates",
+                },
+                alternatives: ["salesforce", "attio"],
             },
         ],
     },
@@ -818,21 +934,33 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that drafts personalized outreach emails for a list of CRM contacts.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["hubspot", "salesforce", "attio", "gmail"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "hubspot",
-                scope: "Read contact lists",
-                tools: [
-                    {
-                        name: "List contacts",
-                        description: "Fetch the target contact list.",
-                    },
-                    {
-                        name: "Get contact",
-                        description: "Read a contact's details to personalize the draft.",
-                    },
-                ],
+                role: "Read the contact list",
+                required: true,
+                primary: {
+                    slug: "hubspot",
+                    scope: "Read contact lists",
+                    tools: [
+                        {
+                            name: "List contacts",
+                            description: "Fetch the target contact list.",
+                        },
+                        {
+                            name: "Get contact",
+                            description: "Read a contact's details to personalize the draft.",
+                        },
+                    ],
+                },
+                alternatives: ["salesforce", "attio"],
+            },
+            {
+                role: "Hold the drafts",
+                required: false,
+                primary: {
+                    slug: "gmail",
+                    scope: "Hold the drafts",
+                },
             },
         ],
     },
@@ -855,22 +983,42 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that drafts a follow-up email after each meeting and logs notes to the CRM.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["googlecalendar", "gmail", "hubspot", "salesforce", "attio"],
-        requiredIntegrations: [
+        connections: [
             {
-                // Required to run: gmail. The CRM (hubspot, etc.) is a pick-one write target.
-                slug: "gmail",
-                scope: "Read meeting notes, draft the follow-up",
-                tools: [
-                    {
-                        name: "Read thread",
-                        description: "Read the recap or notes email for the meeting.",
-                    },
-                    {
-                        name: "Create draft",
-                        description: "Draft the follow-up email to attendees.",
-                    },
-                ],
+                role: "Draft the follow-up",
+                required: true,
+                primary: {
+                    // Required to run: gmail. The CRM (hubspot, etc.) is a pick-one write target.
+                    slug: "gmail",
+                    scope: "Read meeting notes, draft the follow-up",
+                    tools: [
+                        {
+                            name: "Read thread",
+                            description: "Read the recap or notes email for the meeting.",
+                        },
+                        {
+                            name: "Create draft",
+                            description: "Draft the follow-up email to attendees.",
+                        },
+                    ],
+                },
+            },
+            {
+                role: "Read the meeting",
+                required: false,
+                primary: {
+                    slug: "googlecalendar",
+                    scope: "Read the meeting",
+                },
+            },
+            {
+                role: "Update the CRM",
+                required: false,
+                primary: {
+                    slug: "hubspot",
+                    scope: "Update the CRM",
+                },
+                alternatives: ["salesforce", "attio"],
             },
         ],
     },
@@ -891,37 +1039,45 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that posts a daily digest of pipeline changes and stale deals to Slack.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["hubspot", "salesforce", "attio", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "hubspot",
-                scope: "Read deals",
-                tools: [
-                    {
-                        name: "List deals",
-                        description: "Fetch deals changed since yesterday.",
-                    },
-                    {
-                        name: "Get deal",
-                        description: "Check how long a deal has been stale.",
-                    },
-                ],
+                role: "Read the deals",
+                required: true,
+                primary: {
+                    slug: "hubspot",
+                    scope: "Read deals",
+                    tools: [
+                        {
+                            name: "List deals",
+                            description: "Fetch deals changed since yesterday.",
+                        },
+                        {
+                            name: "Get deal",
+                            description: "Check how long a deal has been stale.",
+                        },
+                    ],
+                },
+                alternatives: ["salesforce", "attio"],
             },
             {
-                // HubSpot alternatives (Salesforce, Attio) stay display-only; Slack is the required
-                // post destination.
-                slug: "slack",
-                scope: "Post the pipeline digest",
-                tools: [
-                    {
-                        name: "List channels",
-                        description: "Resolve the target channel to post to.",
-                    },
-                    {
-                        name: "Send message",
-                        description: "Post the pipeline digest to the channel.",
-                    },
-                ],
+                role: "Post the digest",
+                required: true,
+                primary: {
+                    // HubSpot alternatives (Salesforce, Attio) stay display-only; Slack is the required
+                    // post destination.
+                    slug: "slack",
+                    scope: "Post the pipeline digest",
+                    tools: [
+                        {
+                            name: "List channels",
+                            description: "Resolve the target channel to post to.",
+                        },
+                        {
+                            name: "Send message",
+                            description: "Post the pipeline digest to the channel.",
+                        },
+                    ],
+                },
             },
         ],
     },
@@ -946,37 +1102,54 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an incident responder that gathers context on new alerts and pages on-call.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["sentry", "datadog", "newrelic", "pagerduty", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "sentry",
-                scope: "Read alerts & issues",
-                tools: [
-                    {
-                        name: "List issues",
-                        description: "Fetch recent alerts and their status.",
-                    },
-                    {
-                        name: "Get issue",
-                        description: "Read an issue's stack trace and recent events.",
-                    },
-                ],
+                role: "Read the errors",
+                required: true,
+                primary: {
+                    slug: "sentry",
+                    scope: "Read alerts & issues",
+                    tools: [
+                        {
+                            name: "List issues",
+                            description: "Fetch recent alerts and their status.",
+                        },
+                        {
+                            name: "Get issue",
+                            description: "Read an issue's stack trace and recent events.",
+                        },
+                    ],
+                },
             },
             {
-                // Slack is the SOLID notify target the playbook always posts to; PagerDuty is the
-                // alternative page target and stays display-only.
-                slug: "slack",
-                scope: "Post the incident summary",
-                tools: [
-                    {
-                        name: "List channels",
-                        description: "Resolve the alerts channel to post to.",
-                    },
-                    {
-                        name: "Send message",
-                        description: "Post the incident summary to the channel.",
-                    },
-                ],
+                role: "Notify or page",
+                required: true,
+                primary: {
+                    // Slack is the SOLID notify target the playbook always posts to; PagerDuty is the
+                    // alternative page target and stays display-only.
+                    slug: "slack",
+                    scope: "Post the incident summary",
+                    tools: [
+                        {
+                            name: "List channels",
+                            description: "Resolve the alerts channel to post to.",
+                        },
+                        {
+                            name: "Send message",
+                            description: "Post the incident summary to the channel.",
+                        },
+                    ],
+                },
+                alternatives: ["pagerduty"],
+            },
+            {
+                role: "Read extra context",
+                required: false,
+                primary: {
+                    slug: "datadog",
+                    scope: "Read extra context",
+                },
+                alternatives: ["newrelic"],
             },
         ],
     },
@@ -999,37 +1172,45 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that triages new Sentry errors by severity and files a ticket for real ones.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["sentry", "linear", "jira"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "sentry",
-                scope: "Read issues",
-                tools: [
-                    {
-                        name: "Get issue",
-                        description: "Read the new error's stack trace and events.",
-                    },
-                    {
-                        name: "List issues",
-                        description: "Check whether it's a duplicate of a known error.",
-                    },
-                ],
+                role: "Read the errors",
+                required: true,
+                primary: {
+                    slug: "sentry",
+                    scope: "Read issues",
+                    tools: [
+                        {
+                            name: "Get issue",
+                            description: "Read the new error's stack trace and events.",
+                        },
+                        {
+                            name: "List issues",
+                            description: "Check whether it's a duplicate of a known error.",
+                        },
+                    ],
+                },
             },
             {
-                // Linear is the primary filing destination the playbook hard-requires; Jira is the
-                // alternative and stays display-only.
-                slug: "linear",
-                scope: "Search & create issues",
-                tools: [
-                    {
-                        name: "Search issues",
-                        description: "Rule out a duplicate before filing.",
-                    },
-                    {
-                        name: "Create issue",
-                        description: "File a ticket for a real, actionable error.",
-                    },
-                ],
+                role: "File the issue",
+                required: true,
+                primary: {
+                    // Linear is the primary filing destination the playbook hard-requires; Jira is the
+                    // alternative and stays display-only.
+                    slug: "linear",
+                    scope: "Search & create issues",
+                    tools: [
+                        {
+                            name: "Search issues",
+                            description: "Rule out a duplicate before filing.",
+                        },
+                        {
+                            name: "Create issue",
+                            description: "File a ticket for a real, actionable error.",
+                        },
+                    ],
+                },
+                alternatives: ["jira"],
             },
         ],
     },
@@ -1048,38 +1229,54 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         seedMessage: "Build an agent that posts a daily uptime and error-rate summary to Slack.",
         builderMessage: "Build an agent that posts a daily uptime and error-rate summary to Slack.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["datadog", "newrelic", "sentry", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                // Sentry is the required error source; Datadog and New Relic stay display-only
-                // context extensions.
-                slug: "sentry",
-                scope: "Read issues",
-                tools: [
-                    {
-                        name: "List issues",
-                        description: "Count errors captured in the last day.",
-                    },
-                    {
-                        name: "Get issue",
-                        description: "Check status of ongoing errors.",
-                    },
-                ],
+                role: "Read the errors",
+                required: true,
+                primary: {
+                    // Sentry is the required error source; Datadog and New Relic stay display-only
+                    // context extensions.
+                    slug: "sentry",
+                    scope: "Read issues",
+                    tools: [
+                        {
+                            name: "List issues",
+                            description: "Count errors captured in the last day.",
+                        },
+                        {
+                            name: "Get issue",
+                            description: "Check status of ongoing errors.",
+                        },
+                    ],
+                },
             },
             {
-                // Slack is the required post destination the playbook posts every digest to.
-                slug: "slack",
-                scope: "Post the daily summary",
-                tools: [
-                    {
-                        name: "List channels",
-                        description: "Resolve the channel to post to.",
-                    },
-                    {
-                        name: "Send message",
-                        description: "Post the daily uptime and error-rate summary.",
-                    },
-                ],
+                role: "Post the report",
+                required: true,
+                primary: {
+                    // Slack is the required post destination the playbook posts every digest to.
+                    slug: "slack",
+                    scope: "Post the daily summary",
+                    tools: [
+                        {
+                            name: "List channels",
+                            description: "Resolve the channel to post to.",
+                        },
+                        {
+                            name: "Send message",
+                            description: "Post the daily uptime and error-rate summary.",
+                        },
+                    ],
+                },
+            },
+            {
+                role: "Read uptime context",
+                required: false,
+                primary: {
+                    slug: "datadog",
+                    scope: "Read uptime context",
+                },
+                alternatives: ["newrelic"],
             },
         ],
     },
@@ -1102,38 +1299,53 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that briefs on-call at 09:00 with all open incidents and their status.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["pagerduty", "sentry", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                // Sentry is the required incident source; PagerDuty stays a display-only extension
-                // for naming the on-call engineer.
-                slug: "sentry",
-                scope: "Read issues",
-                tools: [
-                    {
-                        name: "List issues",
-                        description: "Fetch currently open incidents.",
-                    },
-                    {
-                        name: "Get issue",
-                        description: "Read each incident's status.",
-                    },
-                ],
+                role: "Read the errors",
+                required: true,
+                primary: {
+                    // Sentry is the required incident source; PagerDuty stays a display-only extension
+                    // for naming the on-call engineer.
+                    slug: "sentry",
+                    scope: "Read issues",
+                    tools: [
+                        {
+                            name: "List issues",
+                            description: "Fetch currently open incidents.",
+                        },
+                        {
+                            name: "Get issue",
+                            description: "Read each incident's status.",
+                        },
+                    ],
+                },
             },
             {
-                // Slack is the required post destination the playbook posts every briefing to.
-                slug: "slack",
-                scope: "Post the on-call briefing",
-                tools: [
-                    {
-                        name: "List channels",
-                        description: "Resolve the channel to post to.",
-                    },
-                    {
-                        name: "Send message",
-                        description: "Post the on-call briefing to the channel.",
-                    },
-                ],
+                role: "Post the brief",
+                required: true,
+                primary: {
+                    // Slack is the required post destination the playbook posts every briefing to.
+                    slug: "slack",
+                    scope: "Post the on-call briefing",
+                    tools: [
+                        {
+                            name: "List channels",
+                            description: "Resolve the channel to post to.",
+                        },
+                        {
+                            name: "Send message",
+                            description: "Post the on-call briefing to the channel.",
+                        },
+                    ],
+                },
+            },
+            {
+                role: "Name the on-call engineer",
+                required: false,
+                primary: {
+                    slug: "pagerduty",
+                    scope: "Name the on-call engineer",
+                },
             },
         ],
     },
@@ -1158,21 +1370,33 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build a docs Q&A agent that answers questions from our workspace with cited answers.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["notion", "confluence", "googledrive", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "notion",
-                scope: "Read pages",
-                tools: [
-                    {
-                        name: "Search",
-                        description: "Find pages relevant to the question.",
-                    },
-                    {
-                        name: "Get page content",
-                        description: "Read a page's blocks to draft a cited answer.",
-                    },
-                ],
+                role: "Read the documentation",
+                required: true,
+                primary: {
+                    slug: "notion",
+                    scope: "Read pages",
+                    tools: [
+                        {
+                            name: "Search",
+                            description: "Find pages relevant to the question.",
+                        },
+                        {
+                            name: "Get page content",
+                            description: "Read a page's blocks to draft a cited answer.",
+                        },
+                    ],
+                },
+                alternatives: ["confluence", "googledrive"],
+            },
+            {
+                role: "Read an extra source",
+                required: false,
+                primary: {
+                    slug: "slack",
+                    scope: "Read an extra source",
+                },
             },
         ],
     },
@@ -1194,37 +1418,46 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build a customer-facing chatbot that answers questions from our knowledge base.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["notion", "confluence", "googledrive", "slack", "discord", "telegram"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "notion",
-                scope: "Read pages",
-                tools: [
-                    {
-                        name: "Search",
-                        description: "Find pages relevant to the question.",
-                    },
-                    {
-                        name: "Get page content",
-                        description: "Read the page to draft a cited answer.",
-                    },
-                ],
+                role: "Read the knowledge base",
+                required: true,
+                primary: {
+                    slug: "notion",
+                    scope: "Read pages",
+                    tools: [
+                        {
+                            name: "Search",
+                            description: "Find pages relevant to the question.",
+                        },
+                        {
+                            name: "Get page content",
+                            description: "Read the page to draft a cited answer.",
+                        },
+                    ],
+                },
+                alternatives: ["confluence", "googledrive"],
             },
             {
-                // Slack is the primary reply platform the playbook hard-requires; Discord and
-                // Telegram are alternatives and stay display-only.
-                slug: "slack",
-                scope: "Reply to customer questions",
-                tools: [
-                    {
-                        name: "Fetch conversation history",
-                        description: "Read the incoming question thread.",
-                    },
-                    {
-                        name: "Send message",
-                        description: "Reply in-thread with the cited answer.",
-                    },
-                ],
+                role: "Reply to the asker",
+                required: true,
+                primary: {
+                    // Slack is the primary reply platform the playbook hard-requires; Discord and
+                    // Telegram are alternatives and stay display-only.
+                    slug: "slack",
+                    scope: "Reply to customer questions",
+                    tools: [
+                        {
+                            name: "Fetch conversation history",
+                            description: "Read the incoming question thread.",
+                        },
+                        {
+                            name: "Send message",
+                            description: "Reply in-thread with the cited answer.",
+                        },
+                    ],
+                },
+                alternatives: ["discord", "telegram"],
             },
         ],
     },
@@ -1246,37 +1479,45 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an onboarding buddy that answers new-hire questions from our internal wiki.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["notion", "confluence", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "notion",
-                scope: "Read pages",
-                tools: [
-                    {
-                        name: "Search",
-                        description: "Find wiki pages relevant to the question.",
-                    },
-                    {
-                        name: "Get page content",
-                        description: "Read the page to answer accurately.",
-                    },
-                ],
+                role: "Read the onboarding material",
+                required: true,
+                primary: {
+                    slug: "notion",
+                    scope: "Read pages",
+                    tools: [
+                        {
+                            name: "Search",
+                            description: "Find wiki pages relevant to the question.",
+                        },
+                        {
+                            name: "Get page content",
+                            description: "Read the page to answer accurately.",
+                        },
+                    ],
+                },
+                alternatives: ["confluence"],
             },
             {
-                // Notion alternative Confluence stays display-only; Slack is the required reply
-                // channel.
-                slug: "slack",
-                scope: "Answer @mentions in-thread",
-                tools: [
-                    {
-                        name: "Fetch conversation history",
-                        description: "Read the new hire's mention thread.",
-                    },
-                    {
-                        name: "Send message",
-                        description: "Reply in-thread with the cited answer.",
-                    },
-                ],
+                role: "Reply to the new starter",
+                required: true,
+                primary: {
+                    // Notion alternative Confluence stays display-only; Slack is the required reply
+                    // channel.
+                    slug: "slack",
+                    scope: "Answer @mentions in-thread",
+                    tools: [
+                        {
+                            name: "Fetch conversation history",
+                            description: "Read the new hire's mention thread.",
+                        },
+                        {
+                            name: "Send message",
+                            description: "Reply in-thread with the cited answer.",
+                        },
+                    ],
+                },
             },
         ],
     },
@@ -1298,21 +1539,40 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that turns a published doc into draft LinkedIn and X posts for review.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["notion", "googledrive", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "notion",
-                scope: "Read & create pages",
-                tools: [
-                    {
-                        name: "Get page content",
-                        description: "Read the published doc.",
-                    },
-                    {
-                        name: "Create page",
-                        description: "Save the drafts for review.",
-                    },
-                ],
+                role: "Read the source and hold drafts",
+                required: true,
+                primary: {
+                    slug: "notion",
+                    scope: "Read & create pages",
+                    tools: [
+                        {
+                            name: "Get page content",
+                            description: "Read the published doc.",
+                        },
+                        {
+                            name: "Create page",
+                            description: "Save the drafts for review.",
+                        },
+                    ],
+                },
+            },
+            {
+                role: "Read a swappable source",
+                required: false,
+                primary: {
+                    slug: "googledrive",
+                    scope: "Read a swappable source",
+                },
+            },
+            {
+                role: "Review the drafts",
+                required: false,
+                primary: {
+                    slug: "slack",
+                    scope: "Review the drafts",
+                },
             },
         ],
     },
@@ -1333,37 +1593,45 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that drafts a weekly newsletter from our recent shipping activity.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["github", "notion", "linear"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "notion",
-                scope: "Read & create pages",
-                tools: [
-                    {
-                        name: "Search",
-                        description: "Find last week's shipping notes.",
-                    },
-                    {
-                        name: "Create page",
-                        description: "Draft the newsletter page.",
-                    },
-                ],
+                role: "Hold the draft",
+                required: true,
+                primary: {
+                    slug: "notion",
+                    scope: "Read & create pages",
+                    tools: [
+                        {
+                            name: "Search",
+                            description: "Find last week's shipping notes.",
+                        },
+                        {
+                            name: "Create page",
+                            description: "Draft the newsletter page.",
+                        },
+                    ],
+                },
             },
             {
-                // A shipping source is required; GitHub is the primary one. Linear is the swappable
-                // alternative source and stays display-only.
-                slug: "github",
-                scope: "Read merged PRs",
-                tools: [
-                    {
-                        name: "List pull requests",
-                        description: "Fetch PRs merged since the last newsletter.",
-                    },
-                    {
-                        name: "Get pull request",
-                        description: "Read merge details to summarize what shipped.",
-                    },
-                ],
+                role: "Read what shipped",
+                required: true,
+                primary: {
+                    // A shipping source is required; GitHub is the primary one. Linear is the swappable
+                    // alternative source and stays display-only.
+                    slug: "github",
+                    scope: "Read merged PRs",
+                    tools: [
+                        {
+                            name: "List pull requests",
+                            description: "Fetch PRs merged since the last newsletter.",
+                        },
+                        {
+                            name: "Get pull request",
+                            description: "Read merge details to summarize what shipped.",
+                        },
+                    ],
+                },
+                alternatives: ["linear"],
             },
         ],
     },
@@ -1388,21 +1656,25 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that posts a daily standup digest of yesterday's channel activity.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["slack", "discord"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "slack",
-                scope: "Read channels, post digest",
-                tools: [
-                    {
-                        name: "Fetch conversation history",
-                        description: "Read yesterday's messages across the tracked channels.",
-                    },
-                    {
-                        name: "Send message",
-                        description: "Post the standup digest.",
-                    },
-                ],
+                role: "Read and post to the channel",
+                required: true,
+                primary: {
+                    slug: "slack",
+                    scope: "Read channels, post digest",
+                    tools: [
+                        {
+                            name: "Fetch conversation history",
+                            description: "Read yesterday's messages across the tracked channels.",
+                        },
+                        {
+                            name: "Send message",
+                            description: "Post the standup digest.",
+                        },
+                    ],
+                },
+                alternatives: ["discord"],
             },
         ],
     },
@@ -1423,37 +1695,46 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that twice a day posts a digest of new issues, commits, and PRs to Slack.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["github", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "github",
-                scope: "Read issues & pull requests",
-                tools: [
-                    {
-                        name: "List issues",
-                        description: "Fetch issues opened since the last digest.",
-                    },
-                    {
-                        name: "List pull requests",
-                        description: "Fetch PRs opened or merged since the last digest.",
-                    },
-                ],
+                role: "Read repository activity",
+                required: true,
+                primary: {
+                    slug: "github",
+                    scope: "Read issues & pull requests",
+                    tools: [
+                        {
+                            name: "List issues",
+                            description: "Fetch issues opened since the last digest.",
+                        },
+                        {
+                            name: "List pull requests",
+                            description: "Fetch PRs opened or merged since the last digest.",
+                        },
+                    ],
+                },
+                alternatives: ["gitlab"],
             },
             {
-                // GitHub alternative GitLab and Slack alternative Discord stay display-only; Slack is
-                // the primary required post destination.
-                slug: "slack",
-                scope: "Post the repo digest",
-                tools: [
-                    {
-                        name: "List channels",
-                        description: "Resolve the channel to post to.",
-                    },
-                    {
-                        name: "Send message",
-                        description: "Post the grouped repo digest to the channel.",
-                    },
-                ],
+                role: "Post the digest",
+                required: true,
+                primary: {
+                    // GitHub alternative GitLab and Slack alternative Discord stay display-only; Slack is
+                    // the primary required post destination.
+                    slug: "slack",
+                    scope: "Post the repo digest",
+                    tools: [
+                        {
+                            name: "List channels",
+                            description: "Resolve the channel to post to.",
+                        },
+                        {
+                            name: "Send message",
+                            description: "Post the grouped repo digest to the channel.",
+                        },
+                    ],
+                },
+                alternatives: ["discord"],
             },
         ],
     },
@@ -1475,37 +1756,46 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that mirrors new Linear issues into a Notion tracker every hour.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["linear", "jira", "github", "notion"],
-        requiredIntegrations: [
+        connections: [
             {
-                slug: "linear",
-                scope: "Read issues",
-                tools: [
-                    {
-                        name: "List issues",
-                        description: "Fetch issues created since the last sync.",
-                    },
-                    {
-                        name: "Get issue",
-                        description: "Read an issue's details to mirror.",
-                    },
-                ],
+                role: "Read from the source tool",
+                required: true,
+                primary: {
+                    slug: "linear",
+                    scope: "Read issues",
+                    tools: [
+                        {
+                            name: "List issues",
+                            description: "Fetch issues created since the last sync.",
+                        },
+                        {
+                            name: "Get issue",
+                            description: "Read an issue's details to mirror.",
+                        },
+                    ],
+                },
+                alternatives: ["jira"],
             },
             {
-                // Source alternative Jira and destination alternatives Confluence/GitHub stay
-                // display-only; Linear and Notion are the primary source and destination.
-                slug: "notion",
-                scope: "Create & update tracker pages",
-                tools: [
-                    {
-                        name: "Query database",
-                        description: "Find an existing mirror by the source issue id.",
-                    },
-                    {
-                        name: "Create page",
-                        description: "Upsert a tracker row for each new source issue.",
-                    },
-                ],
+                role: "Write to the destination tool",
+                required: true,
+                primary: {
+                    // Source alternative Jira and destination alternatives Confluence/GitHub stay
+                    // display-only; Linear and Notion are the primary source and destination.
+                    slug: "notion",
+                    scope: "Create & update tracker pages",
+                    tools: [
+                        {
+                            name: "Query database",
+                            description: "Find an existing mirror by the source issue id.",
+                        },
+                        {
+                            name: "Create page",
+                            description: "Upsert a tracker row for each new source issue.",
+                        },
+                    ],
+                },
+                alternatives: ["confluence", "github"],
             },
         ],
     },
@@ -1528,39 +1818,56 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build an agent that compiles a weekly report of shipping and product metrics to Notion.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["github", "linear", "posthog", "notion", "slack"],
-        requiredIntegrations: [
+        connections: [
             {
-                // GitHub is the required shipping source every report depends on; PostHog and Linear
-                // stay display-only optional extensions.
-                slug: "github",
-                scope: "Read pull requests",
-                tools: [
-                    {
-                        name: "List pull requests",
-                        description: "Fetch what shipped this week.",
-                    },
-                    {
-                        name: "Get pull request",
-                        description: "Read merge details for the report.",
-                    },
-                ],
+                role: "Read the shipped work",
+                required: true,
+                primary: {
+                    // GitHub is the required shipping source every report depends on; PostHog and Linear
+                    // stay display-only optional extensions.
+                    slug: "github",
+                    scope: "Read pull requests",
+                    tools: [
+                        {
+                            name: "List pull requests",
+                            description: "Fetch what shipped this week.",
+                        },
+                        {
+                            name: "Get pull request",
+                            description: "Read merge details for the report.",
+                        },
+                    ],
+                },
+                alternatives: ["linear"],
             },
             {
-                // Notion is the primary required publish target; Slack is the alternative and stays
-                // display-only.
-                slug: "notion",
-                scope: "Publish the report",
-                tools: [
-                    {
-                        name: "Create page",
-                        description: "Publish the weekly report as a page.",
-                    },
-                    {
-                        name: "Update page",
-                        description: "Update an existing report page in place.",
-                    },
-                ],
+                role: "Publish the report",
+                required: true,
+                primary: {
+                    // Notion is the primary required publish target; Slack is the alternative and stays
+                    // display-only.
+                    slug: "notion",
+                    scope: "Publish the report",
+                    tools: [
+                        {
+                            name: "Create page",
+                            description: "Publish the weekly report as a page.",
+                        },
+                        {
+                            name: "Update page",
+                            description: "Update an existing report page in place.",
+                        },
+                    ],
+                },
+                alternatives: ["slack"],
+            },
+            {
+                role: "Read product metrics",
+                required: false,
+                primary: {
+                    slug: "posthog",
+                    scope: "Read product metrics",
+                },
             },
         ],
     },

@@ -29,7 +29,6 @@ describe("AGENT_TEMPLATES", () => {
         // The point of the slots: a mark can only name a provider some slot accepts, so the card
         // and the connect step cannot disagree the way a hand-kept logo list allowed.
         for (const template of AGENT_TEMPLATES) {
-            if (!template.connections) continue
             const fromSlots = new Set(
                 templateConnections(template).flatMap((connection) => [
                     connection.primary.slug,
@@ -38,14 +37,6 @@ describe("AGENT_TEMPLATES", () => {
             )
             expect(new Set(templateProviderSlugs(template))).toEqual(fromSlots)
         }
-    })
-
-    it("reads an unmigrated template as one required single-option slot per integration", () => {
-        const legacy = AGENT_TEMPLATES.find((template) => !template.connections)
-        if (!legacy) return
-        const slots = templateConnections(legacy)
-        expect(slots).toHaveLength(legacy.requiredIntegrations?.length ?? 0)
-        expect(slots.every((slot) => slot.required && !slot.alternatives)).toBe(true)
     })
 
     it("leads with the preferred provider, so a truncated card keeps it", () => {
@@ -69,14 +60,12 @@ describe("AGENT_TEMPLATES", () => {
         expect(slot.alternatives).toEqual(["gitlab"])
     })
 
-    it("every logoSlugs and requiredIntegrations slug exists in PROVIDERS", () => {
+    it("every slot slug exists in PROVIDERS", () => {
         for (const template of AGENT_TEMPLATES) {
-            for (const slug of template.logoSlugs ?? []) {
+            for (const slug of templateProviderSlugs(template)) {
                 expect(PROVIDERS[slug], `${template.key}: logo slug "${slug}"`).toBeDefined()
             }
-            for (const integration of (template.requiredIntegrations ?? []).concat(
-                templateConnections(template).map((slot) => slot.primary),
-            )) {
+            for (const integration of templateConnections(template).map((slot) => slot.primary)) {
                 expect(
                     PROVIDERS[integration.slug],
                     `${template.key}: required integration slug "${integration.slug}"`,

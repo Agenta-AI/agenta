@@ -91,7 +91,7 @@ export const TemplateDetail = ({
     // The primary option fronts the Tools list: an alternative's tools are the same job done
     // elsewhere, and listing both would read as twice the work.
     const tools = slots.flatMap((slot) =>
-        slot.primary.tools.map((tool) => ({...tool, provider: slot.primary.slug})),
+        (slot.primary.tools ?? []).map((tool) => ({...tool, provider: slot.primary.slug})),
     )
 
     const backLink = (

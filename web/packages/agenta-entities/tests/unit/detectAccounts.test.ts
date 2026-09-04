@@ -123,14 +123,6 @@ describe("detectAccounts", () => {
                 primary: {slug: "github", scope: "Read issues and comment", tools: []},
             },
         ],
-        requiredIntegrations: undefined,
-    }
-
-    /** A template that has not moved to slots yet — read as one required slot per integration. */
-    const legacyTemplate: AgentStarterTemplate = {
-        ...(AGENT_TEMPLATES[0] as AgentStarterTemplate),
-        connections: undefined,
-        requiredIntegrations: [{slug: "github", scope: "Read issues and comment", tools: []}],
     }
 
     it("puts template accounts first and text matches after", () => {
@@ -157,15 +149,6 @@ describe("detectAccounts", () => {
         expect(slugs(detectAccounts({template}))).toEqual(["github"])
         expect(slugs(detectAccounts({description: "notify Slack"}))).toEqual(["slack"])
         expect(detectAccounts({})).toEqual([])
-    })
-
-    it("reads a template that has not moved to slots yet", () => {
-        const accounts = detectAccounts({
-            description: "watch GitHub issues",
-            template: legacyTemplate,
-        })
-        expect(slugs(accounts)).toEqual(["github"])
-        expect(accounts[0].why).toBe("Read issues and comment")
     })
 
     it("handles a template that declares nothing", () => {
