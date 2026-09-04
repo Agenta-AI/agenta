@@ -8,7 +8,6 @@
  * const events = await querySessionRecords({sessionId, projectId})
  * ```
  */
-import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
@@ -18,6 +17,7 @@ import {
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
+    sessionCancelExecutionResponseSchema,
     sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
     sessionStreamSchema,
@@ -44,6 +44,7 @@ import {
     getLowPrioritySessionsClient,
     getMountsClient,
     getSessionsClient,
+    isAbortError,
     projectScopedRequest,
 } from "./client"
 
@@ -940,12 +941,7 @@ export async function readMountFile({
 }
 
 export interface CancelSessionExecutionParams extends SessionScopedParams {
-    /**
-     * The execution the caller believes is running. When present the API cancels only that one
-     * and answers 409 if another has taken over, which is what stops a late Stop from killing
-     * the turn that started after the user pressed the button. Omit only when the caller
-     * genuinely cannot know it.
-     */
+    /** Fence Stop to the execution the caller observed. */
     expectedExecutionId?: string
     /** Retry identity for this request. Two sends of the same key are one command. */
     idempotencyKey?: string
@@ -962,19 +958,7 @@ export interface CancelSessionExecutionResult {
     conflict: boolean
 }
 
-/**
- * STOP — cancel the session's current execution, and keep the session warm.
- *
- * Distinct from `killSession`, which ends the session. Stop ends the WORK: the sandbox, the
- * native harness session and the keep-alive entry all survive, so the next message continues the
- * same conversation. The API records a durable command and reaches the runner directly, instead
- * of dropping a Redis lock and waiting up to 30 seconds for the runner's heartbeat to notice.
- *
- * Raw axios rather than the Fern client: this route is new and the generated client does not
- * know it yet. Move it onto Fern when the API client is next regenerated.
- *
- * Returns `null` only when the project scope is missing or the call itself failed.
- */
+/** Cancel current work through Fern while keeping the session warm. */
 export async function cancelSessionExecution({
     sessionId,
     projectId,
@@ -986,19 +970,34 @@ export async function cancelSessionExecution({
     if (!projectId || !sessionId) return null
 
     try {
-        const response = await axios.post(
-            `${getAgentaApiUrl()}/sessions/${encodeURIComponent(sessionId)}/cancel`,
-            expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {},
-            {
-                params: {project_id: projectId, ...(appId ? {application_id: appId} : {})},
-                signal: abortSignal,
-                headers: idempotencyKey ? {"Idempotency-Key": idempotencyKey} : undefined,
-                // A 409 is an ANSWER, not a failure: the run the caller was looking at has
-                // already ended. Let it through so the caller can refresh instead of retrying.
-                validateStatus: (status) => status < 300 || status === 409,
-            },
+        const requestOptions = {
+            ...projectScopedRequest(projectId, appId, abortSignal),
+            ...(idempotencyKey ? {headers: {"Idempotency-Key": idempotencyKey}} : {}),
+        }
+        const {data, rawResponse} = await getSessionsClient()
+            .cancelSessionExecution(
+                {
+                    session_id: sessionId,
+                    body: expectedExecutionId ? {expected_execution_id: expectedExecutionId} : null,
+                },
+                requestOptions,
+            )
+            .withRawResponse()
+        const validated = safeParseWithLogging(
+            sessionCancelExecutionResponseSchema,
+            data,
+            "[cancelSessionExecution]",
         )
-        if (response.status === 409) {
+        if (!validated) return null
+        return {
+            command: validated.command,
+            execution: {...validated.execution, id: validated.execution.id ?? null},
+            accepted: rawResponse.status === 202,
+            conflict: false,
+        }
+    } catch (error) {
+        if (isAbortError(error)) throw error
+        if ((error as {statusCode?: number} | null)?.statusCode === 409) {
             return {
                 command: {id: "", state: "obsolete"},
                 execution: {id: null, state: "idle"},
@@ -1006,20 +1005,6 @@ export async function cancelSessionExecution({
                 conflict: true,
             }
         }
-        const data = response.data as {
-            command?: {id?: string; state?: string}
-            execution?: {id?: string | null; state?: string}
-        }
-        return {
-            command: {id: data.command?.id ?? "", state: data.command?.state ?? "pending"},
-            execution: {
-                id: data.execution?.id ?? null,
-                state: data.execution?.state === "stopping" ? "stopping" : "idle",
-            },
-            accepted: response.status === 202,
-            conflict: false,
-        }
-    } catch (error) {
         console.error(
             "[cancelSessionExecution] failed:",
             error instanceof Error ? error.message : String(error),
