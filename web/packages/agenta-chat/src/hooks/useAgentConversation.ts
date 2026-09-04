@@ -186,6 +186,8 @@ export interface AgentConversation {
      * revalidate-on-open (never mid-stream, only when strictly ahead). Wire push signals — a
      * session watch relay, a foreground event — to this. */
     revalidate: () => void
+    /** Atomic snapshot says an unfinished backend execution is still running after refresh. */
+    runningFromSnapshot: boolean
 }
 
 /**
@@ -261,6 +263,7 @@ export const useAgentConversation = ({
     // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
     const busyRef = useRef(false)
     const messagesRef = useRef(initialMessages)
+    const sharedSenderReadyRef = useRef(false)
 
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
@@ -272,6 +275,7 @@ export const useAgentConversation = ({
             const req = await buildRequestWithinDeadline(() =>
                 buildAgentRequest(entityIdRef.current, messages, {
                     sessionId: id ?? sessionId,
+                    sharedResponse: sharedSenderReadyRef.current,
                 }),
             )
             return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
@@ -777,10 +781,13 @@ export const useAgentConversation = ({
         [adoptServerTranscript, revalidateSessionRecords, sessionId],
     )
 
-    const {messages: previewMessages} = useSessionLivePreview({
+    const {messages: previewMessages, runningFromSnapshot} = useSessionLivePreview({
         sessionId,
-        sharedReaderAdvertised: sharedReaderEnabled,
-        runningElsewhere: !busy && remoteRunIsFresh,
+        enabled: sharedReaderEnabled && !busy && remoteRunIsFresh,
+        sender: true,
+        onReadyChange: (ready) => {
+            sharedSenderReadyRef.current = ready
+        },
         onDisconnect: revalidate,
     })
     const displayMessages = useMemo(
@@ -914,5 +921,6 @@ export const useAgentConversation = ({
         approvals,
         sendToolOutput,
         revalidate,
+        runningFromSnapshot,
     }
 }
