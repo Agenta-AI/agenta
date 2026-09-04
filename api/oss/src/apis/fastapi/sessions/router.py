@@ -740,7 +740,7 @@ class SessionStreamsRouter:
             stream,
             media_type="text/event-stream",
             headers={
-                "Cache-Control": "no-cache",
+                "Cache-Control": "no-store",
                 "Connection": "keep-alive",
                 "X-Accel-Buffering": "no",
             },

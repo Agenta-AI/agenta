@@ -211,3 +211,34 @@ async def test_events_route_is_hidden_when_shared_reader_is_off():
             await router.session_events(request=request, session_id="session-1")
 
     assert exc_info.value.status_code == 404
+
+
+async def test_events_route_disables_authenticated_response_storage():
+    router = SessionStreamsRouter(
+        service=AsyncMock(),
+        interactions_service=AsyncMock(),
+    )
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/sessions/session-1/events",
+            "headers": [],
+            "app": FastAPI(),
+        }
+    )
+    request.state.project_id = str(uuid4())
+    request.state.user_id = str(uuid4())
+
+    with (
+        patch.object(env.sessions, "shared_reader", True),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+    ):
+        response = await router.session_events(request=request, session_id="session-1")
+
+    assert response.headers["cache-control"] == "no-store"
+    await response.body_iterator.aclose()
