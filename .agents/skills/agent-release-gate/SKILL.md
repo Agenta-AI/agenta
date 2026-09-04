@@ -181,6 +181,62 @@ cell, promoted after the platform-guidance fix closed that exact gap; it reuses 
 the same way the separate one-shot benchmark (Tier B) does — check there before writing a new
 mechanism-blind cell from scratch, to avoid duplicating scaffolding.
 
+## Session control cells
+
+`resources/session_control.py` is a second, standalone driver: sixteen cells that cover Stop,
+durable commands, and the runner's recovery paths (owner release, park/resume, watchdog
+quarantine). It drives the same product endpoint and asserts on the same wire, but it needs its
+own account bootstrap, so it runs as a separate process rather than as `qa_product.py` cells. See
+`resources/path_triggers.py` for the exact mandatory-cell mechanism.
+
+**These cells are MANDATORY** — run them, not just the standing gate — whenever the release diff
+touches any of:
+
+- `services/runner/src/sessions/**`
+- `services/runner/src/engines/sandbox_agent/**`
+- `api/oss/src/core/sessions/**`
+- `api/oss/src/tasks/asyncio/sessions/**`
+- `api/oss/src/apis/fastapi/sessions/**`
+
+Run every cell with one line:
+
+```bash
+uv run resources/session_control.py --cells all --harness pi_core --sandbox local
+```
+
+Add `--project <docker-compose project name>` to run the eight cells that need direct Docker and
+Postgres access (`sandbox-gone`, `records-outage`, `restart-after-stop`, `runner-gone`,
+`runner-gone-late`, `post-stop-row`, `codex-child`, `stale-tail`) and the abort-log subcheck inside
+`stop-after-finish`. Without `--project`, those eight cells SKIP with a named reason. The
+`stop-after-finish` HTTP check still runs, but only its abort-log subcheck is unavailable. The
+other eight cells
+(`stop-warm`, `double-send`, `stale-stop`, `stop-approval`, `stop-after-finish`,
+`repeat-stop`, `concurrent-stops`, `stop-during-completion`) run over HTTP alone against any
+deployment. Add
+`--resume <path to a prior run's results.json>` to pick a lost run back up: any cell already
+recorded there is loaded instead of re-run.
+
+Results land in a timestamped folder under `~/agenta-qa-evidence/` (override with
+`AGENTA_QA_RUNS_DIR`), as `results.json` and `summary.md` — the same PASS/FAIL/SKIP shape as the
+rest of the gate. When a release path makes session control mandatory, pass that artifact to the
+standing gate with `--session-control-results <path>`: a missing or incomplete artifact stops the
+gate before the matrix runs, and a recorded FAIL makes the final gate exit nonzero.
+
+**Environment, by name.** Same three-variable discipline as the rest of the gate, no env-file
+fallback:
+
+- `AGENTA_BASE` — the deployment origin.
+- `AGENTA_ADMIN_KEY` — mints the ephemeral account this driver runs under. Lives in
+  `~/.agenta-qa-secrets.env`.
+- `QA_OPENAI_API_KEY` — stocked into that account's vault so the `pi_core` and `codex` harnesses
+  have a provider key. Lives in `~/.agenta-qa-openai.env`.
+- `ANTHROPIC_API_KEY` — only required for `--harness claude`, stocked into the same vault the
+  same way. Lives in `~/.agenta-qa-secrets.env`. A pi_core- or codex-only run does not need it.
+
+A Daytona run additionally needs a Secrets-capable Daytona key on the runner; the key in most
+session env files returns 403 on the Secrets endpoint, so check that before trusting a Daytona
+result.
+
 ## When results lie
 
 The runtime **fails open**: a component can break, get logged, and the turn still succeeds with a

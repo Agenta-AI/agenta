@@ -17,11 +17,14 @@ works, which is what the live gate is for.
 
 import gzip
 import importlib
+import json
 import os
 import sys
 import threading
 import time
 from pathlib import Path
+
+import pytest
 
 HERE = Path(__file__).resolve().parent
 
@@ -389,9 +392,111 @@ def test_a_runner_path_change_makes_the_journeys_mandatory():
     assert triggers.mandatory_journeys(["web/oss/src/app/page.tsx"]) == {}
 
 
+def _session_control_result(status="PASS"):
+    import session_control
+
+    return {
+        "cells": {
+            name: {
+                "verdict": {
+                    "pass": status == "PASS",
+                    "skip": status == "SKIP",
+                    "why": status.lower(),
+                }
+            }
+            for name in session_control.CELLS
+        }
+    }
+
+
+def test_session_control_result_consumer_accepts_a_complete_pass(tmp_path):
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(_session_control_result()))
+
+    result = qa._load_session_control_result(str(path))
+
+    assert result["status"] == "PASS"
+    assert result["failed"] == []
+    assert result["skipped"] == []
+
+
+def test_session_control_result_consumer_carries_a_failure(tmp_path):
+    payload = _session_control_result()
+    payload["cells"]["stop-warm"]["verdict"] = {
+        "pass": False,
+        "skip": False,
+        "why": "regression",
+    }
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(payload))
+
+    result = qa._load_session_control_result(str(path))
+
+    assert result["status"] == "FAIL"
+    assert result["failed"] == ["stop-warm"]
+
+
+def test_session_control_result_consumer_rejects_an_incomplete_run(tmp_path):
+    payload = _session_control_result()
+    del payload["cells"]["stop-warm"]
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(payload))
+
+    with pytest.raises(SystemExit, match="missing cells: stop-warm"):
+        qa._load_session_control_result(str(path))
+
+
+def test_driver_requires_mandatory_session_control_results(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "qa_product.py",
+            "--cell",
+            "C3",
+            "--only",
+            "chat",
+            "--changed-path",
+            "api/oss/src/core/sessions/service.py",
+        ],
+    )
+
+    with pytest.raises(SystemExit, match="session_control.py mandatory"):
+        qa.main()
+
+
+def test_driver_fails_for_a_failed_session_control_result(monkeypatch, tmp_path):
+    payload = _session_control_result()
+    payload["cells"]["stop-warm"]["verdict"] = {
+        "pass": False,
+        "skip": False,
+        "why": "regression",
+    }
+    result_path = tmp_path / "session-control-results.json"
+    result_path.write_text(json.dumps(payload))
+    monkeypatch.setattr(qa, "RUNS", tmp_path / "runs")
+    monkeypatch.setitem(qa.JOURNEYS, "chat", lambda _cell: {"pass": True, "why": "ok"})
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "qa_product.py",
+            "--cell",
+            "C3",
+            "--only",
+            "chat",
+            "--changed-path",
+            "api/oss/src/core/sessions/service.py",
+            "--session-control-results",
+            str(result_path),
+        ],
+    )
+
+    assert qa.main() == 1
+
+
 def test_the_driver_forces_a_mandatory_journey_past_only(tmp_path=None):
     """End to end through main(), with every journey stubbed out."""
-    import json
     import tempfile
 
     _reset()
@@ -408,6 +513,8 @@ def test_the_driver_forces_a_mandatory_journey_past_only(tmp_path=None):
         }
     )
     outdir = tempfile.mkdtemp()
+    session_control_results = Path(outdir) / "session-control-results.json"
+    session_control_results.write_text(json.dumps(_session_control_result()))
     argv = sys.argv
     runs_dir = qa.RUNS
     sys.argv = [
@@ -418,6 +525,8 @@ def test_the_driver_forces_a_mandatory_journey_past_only(tmp_path=None):
         "chat",
         "--changed-path",
         "services/runner/src/engines/sandbox_agent/daytona-secrets.ts",
+        "--session-control-results",
+        str(session_control_results),
     ]
     qa.RUNS = Path(outdir)
     try:
