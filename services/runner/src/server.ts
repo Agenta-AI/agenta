@@ -16,7 +16,10 @@
  */
 import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
-import { USER_STOP_ABORT_REASON } from "./sessions/stop-signal.ts";
+import {
+  isUserStopAbort,
+  USER_STOP_ABORT_REASON,
+} from "./sessions/stop-signal.ts";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
@@ -492,6 +495,8 @@ async function runAndStreamWithApiBaseResolved(
   let emitFn: EmitEvent = liveEmit;
   let flushPersist: (() => Promise<void>) | undefined;
   let persistError: ((message: string) => void) | undefined;
+  let persistTerminal: ((stopReason?: string) => void) | undefined;
+  let terminalRecordEmitted = false;
   let aliveWatchdog:
     | {
         release: () => Promise<void>;
@@ -626,9 +631,22 @@ async function runAndStreamWithApiBaseResolved(
         );
       }
     }
-    emitFn = persistingEmit;
+    emitFn = (event) => {
+      if (event.type === "done") terminalRecordEmitted = true;
+      persistingEmit(event);
+    };
     flushPersist = flush;
     persistError = (message) => persist({ type: "error", message }, "agent");
+    persistTerminal = (stopReason) => {
+      terminalRecordEmitted = true;
+      persist(
+        {
+          type: "done",
+          ...(stopReason === "cancelled" ? { stopReason } : {}),
+        },
+        "agent",
+      );
+    };
   }
 
   let result: AgentRunResult;
@@ -637,9 +655,23 @@ async function runAndStreamWithApiBaseResolved(
       clientGone: () => clientDisconnected,
       credential: aliveWatchdog?.credential,
     });
+    // `runTurn` normally emits `done` itself. Acquisition can fail before `runTurn` starts,
+    // though, and a cooperative Stop during a cold sandbox create reaches exactly that path.
+    // Close any failed run that emitted no terminal record; preserve the Stop marker when the
+    // labelled control-plane abort caused it. `persistTerminal` uses the same ordered chain as
+    // runTurn's emitter but stays off the live stream, whose result envelope is unchanged.
+    if (
+      !terminalRecordEmitted &&
+      persistTerminal &&
+      (!result.ok || isUserStopAbort(controller.signal))
+    ) {
+      persistTerminal(
+        isUserStopAbort(controller.signal) ? "cancelled" : undefined,
+      );
+    }
     // A failed engine run ({ok:false}) already emitted its own error EVENT through the
-    // persisting emitter, so no extra persist here (it would duplicate the record). Drain
-    // all queued persists before the sandbox tears down.
+    // persisting emitter, so no extra error persist here (it would duplicate the record). Drain
+    // the terminal backstop and all prior persists before the sandbox tears down.
     if (flushPersist) await flushPersist();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -654,6 +686,13 @@ async function runAndStreamWithApiBaseResolved(
     // A throw escaping run() itself (outside the engine's own try/catch) emitted no error
     // event — persist it here as the backstop.
     if (persistError) persistError(message);
+    if (
+      !terminalRecordEmitted &&
+      persistTerminal &&
+      isUserStopAbort(controller.signal)
+    ) {
+      persistTerminal("cancelled");
+    }
     if (flushPersist) await flushPersist().catch(() => {});
     result = { ok: false, error: message };
   } finally {
