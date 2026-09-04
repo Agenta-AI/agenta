@@ -327,7 +327,8 @@ async def test_persisted_done_is_terminalized_before_stale_ownership_is_cleared(
     anyio_backend,
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", False)
     row = _FakeRow(
         session_id="sess-completed-continuation",
         flags={"is_alive": True, "is_running": True, "is_attached": False},
@@ -352,7 +353,7 @@ async def test_completion_settlement_failure_keeps_ownership_blocking_replay(
     anyio_backend,
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     row = _FakeRow(
         session_id="sess-completion-race",
         flags={"is_alive": True, "is_running": True, "is_attached": False},
@@ -375,7 +376,7 @@ async def test_completion_lookup_failure_keeps_ownership_blocking_replay(
     anyio_backend,
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     row = _FakeRow(
         session_id="sess-completion-lookup-race",
         flags={"is_alive": True, "is_running": True, "is_attached": False},

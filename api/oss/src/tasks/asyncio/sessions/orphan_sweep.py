@@ -540,7 +540,7 @@ async def run_orphan_sweep(
         if (
             records_service is not None
             and commands_service is not None
-            and env.agenta.sessions.durable_stop
+            and env.agenta.sessions.durable_approvals
         ):
             runner_completed, completion_failures = await _runner_completed_executions(
                 records_service=records_service,
