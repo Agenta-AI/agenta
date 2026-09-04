@@ -256,7 +256,7 @@ If Agenta is useful to you, star the repository and tell us what you build.
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-85-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-86-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -376,6 +376,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     </tr>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://www.heysuraj.dev/"><img src="https://avatars.githubusercontent.com/u/46050946?v=4?s=100" width="100px;" alt="suraj ✨ "/><br /><sub><b>suraj ✨ </b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=uchiha-suraj" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/tomatotomata"><img src="https://avatars.githubusercontent.com/u/170848582?v=4?s=100" width="100px;" alt="tomatotomata"/><br /><sub><b>tomatotomata</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=tomatotomata" title="Documentation">📖</a></td>
     </tr>
   </tbody>
 </table>
