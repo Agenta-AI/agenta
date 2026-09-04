@@ -123,10 +123,14 @@ export const AgentRevisionStatus = ({
                         type="button"
                         aria-label={`Version ${version}, ${dot.label}. Open version history`}
                         onClick={() => openHistory(historyWorkflowId)}
-                        className="flex cursor-pointer items-center gap-1.5 rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                        className="group flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-colorTextTertiary"
                     >
-                        {/* A caret would promise a menu; this opens a drawer of history. */}
-                        <ClockCounterClockwise size={11} className="shrink-0" />v{version}
+                        {/* Only the version wears the chip — the save state is a fact about it,
+                            not a second control, so it reads as a label beside it. */}
+                        <span className="flex items-center gap-1 rounded bg-colorFillSecondary px-1.5 py-0.5 text-colorTextSecondary group-hover:bg-colorFillTertiary group-hover:text-colorText">
+                            {/* A caret would promise a menu; this opens a drawer of history. */}
+                            <ClockCounterClockwise size={11} className="shrink-0" />v{version}
+                        </span>
                         <span className="text-colorTextQuaternary">·</span>
                         {statusBody}
                     </button>
