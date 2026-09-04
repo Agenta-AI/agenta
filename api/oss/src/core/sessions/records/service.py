@@ -47,6 +47,8 @@ class RecordsService:
         events: List[SessionRecordEvent],
     ) -> SessionRecordsAppendResult:
         result = await self.records_dao.append_many(events=events)
+        if isinstance(result, list):
+            result = SessionRecordsAppendResult(records=result)
         if result.conflicting_record_ids:
             self._log_conflicts(
                 events=events,

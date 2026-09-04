@@ -185,7 +185,7 @@ async def test_typed_conflict_never_enters_the_destructive_worker_path():
 
 
 @pytest.mark.asyncio
-async def test_dropped_append_marks_every_affected_history_incomplete():
+async def test_failed_append_acknowledges_nothing():
     project_id = uuid4()
     records_dao = AsyncMock()
     records_dao.append_many = AsyncMock(
@@ -223,11 +223,24 @@ async def test_dropped_append_marks_every_affected_history_incomplete():
     )
 
     assert appended == 0
-    assert processed == [b"1-0", b"2-0"]
-    streams_dao.mark_history_incomplete.assert_awaited_once_with(
+    assert processed == []
+    streams_dao.mark_history_incomplete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_records_service_normalizes_list_returning_dao():
+    project_id = uuid4()
+    record = SessionRecord(
+        record_id=uuid4(),
+        session_id="sess-list-result",
         project_id=project_id,
-        session_ids=["sess-a", "sess-b"],
     )
+    records_dao = AsyncMock()
+    records_dao.append_many = AsyncMock(return_value=[record])
+
+    result = await RecordsService(records_dao=records_dao).append_many(events=[])
+
+    assert result == SessionRecordsAppendResult(records=[record])
 
 
 class _Result:

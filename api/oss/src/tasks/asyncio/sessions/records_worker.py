@@ -52,7 +52,7 @@ class RecordsWorker(StreamConsumer):
     3. Group by project_id
     4. Append record events to DB (session history is quota-exempt)
     5. Reconcile HITL gates orphaned by a finished turn
-    6. ACK + DEL messages — StreamConsumer
+    6. ACK + DEL only messages whose write committed or whose stable id was rejected
     """
 
     log_prefix = "[RECORDS]"
@@ -145,9 +145,9 @@ class RecordsWorker(StreamConsumer):
         self,
         batch: List[Tuple[bytes, Dict[bytes, bytes]]],
     ) -> Tuple[int, List[bytes]]:
-        """Process batch and append session history without tracing quota checks."""
+        """Process batch and acknowledge only durable or explicitly rejected records."""
         groups: Dict[UUID, Dict[str, Any]] = {}
-        processed_ids: List[bytes] = []
+        acknowledged_ids: List[bytes] = []
         batch_bytes = 0
 
         for msg_id, data in batch:
@@ -164,26 +164,26 @@ class RecordsWorker(StreamConsumer):
                     group = {
                         "organization_id": msg.organization_id,
                         "project_id": msg.project_id,
-                        "events": [],
+                        "entries": [],
                     }
                     groups[msg.project_id] = group
-                group["events"].append(msg)
-                processed_ids.append(msg_id)
+                group["entries"].append((msg_id, msg))
             except Exception:
                 log.error(
                     "[RECORDS] Failed to deserialize message",
                     msg_id=repr(msg_id),
                     exc_info=True,
                 )
-                processed_ids.append(msg_id)
+                acknowledged_ids.append(msg_id)
 
         batches = list(groups.values())
         total_appended = 0
 
         for project_batch in batches:
+            entries: List[Tuple[bytes, Any]] = project_batch["entries"]
             try:
                 result = await self.service.append_many(
-                    events=[msg.record_event for msg in project_batch["events"]],
+                    events=[msg.record_event for _, msg in entries],
                 )
                 total_appended += len(result.records)
             except RecordContentConflict as exc:
@@ -192,6 +192,24 @@ class RecordsWorker(StreamConsumer):
                     project_id=str(project_batch["project_id"]),
                     record_ids=[str(item.record_id) for item in exc.conflicts],
                 )
+                if len(entries) == 1:
+                    acknowledged_ids.append(entries[0][0])
+                else:
+                    for entry in entries:
+                        (
+                            appended,
+                            committed_ids,
+                            committed_events,
+                        ) = await self._append_one(
+                            project_id=project_batch["project_id"],
+                            entry=entry,
+                        )
+                        total_appended += appended
+                        acknowledged_ids.extend(committed_ids)
+                        await self._after_commit(
+                            project_id=project_batch["project_id"],
+                            events=committed_events,
+                        )
                 continue
             except Exception:
                 log.error(
@@ -199,49 +217,97 @@ class RecordsWorker(StreamConsumer):
                     project_id=str(project_batch["project_id"]),
                     exc_info=True,
                 )
-                session_ids = sorted(
-                    {msg.record_event.session_id for msg in project_batch["events"]}
-                )
-                try:
-                    await self.service.mark_history_incomplete(
-                        project_id=project_batch["project_id"],
-                        session_ids=session_ids,
-                    )
-                except Exception:
-                    log.error(
-                        "[RECORDS] Failed to mark dropped session history incomplete",
-                        project_id=str(project_batch["project_id"]),
-                        session_ids=session_ids,
-                        exc_info=True,
-                    )
+                if len(entries) > 1:
+                    for entry in entries:
+                        (
+                            appended,
+                            committed_ids,
+                            committed_events,
+                        ) = await self._append_one(
+                            project_id=project_batch["project_id"],
+                            entry=entry,
+                        )
+                        total_appended += appended
+                        acknowledged_ids.extend(committed_ids)
+                        await self._after_commit(
+                            project_id=project_batch["project_id"],
+                            events=committed_events,
+                        )
                 continue
 
-            # Strictly post-append, and BEFORE the relay tee: a client woken by the records
-            # notification below must already see the cancelled gate, not re-render it.
-            await self.reconcile_orphaned_gates(
+            acknowledged_ids.extend(msg_id for msg_id, _ in entries)
+            conflicts = set(result.conflicting_record_ids)
+            committed_events = [
+                msg
+                for _, msg in entries
+                if (msg.record_event.record_id or msg.record_event.producer_id)
+                not in conflicts
+            ]
+            await self._after_commit(
                 project_id=project_batch["project_id"],
-                events=project_batch["events"],
+                events=committed_events,
             )
 
-            # Relay tee (M3): strictly post-append so a notified client that
-            # revalidates always sees the new rows. One publish per distinct
-            # session in the project batch; failures never re-drive the append.
-            if self.watch_publisher is not None:
-                project_id = str(project_batch["project_id"])
-                session_ids = {
-                    msg.record_event.session_id for msg in project_batch["events"]
-                }
-                for session_id in sorted(session_ids):
-                    try:
-                        await self.watch_publisher.records_changed(
-                            project_id=project_id,
-                            session_id=session_id,
-                        )
-                    except Exception:
-                        log.warning(
-                            "[RECORDS] Watch publish failed",
-                            project_id=project_id,
-                            session_id=session_id,
-                        )
+        return total_appended, acknowledged_ids
 
-        return total_appended, processed_ids
+    async def _append_one(
+        self,
+        *,
+        project_id: UUID,
+        entry: Tuple[bytes, Any],
+    ) -> Tuple[int, List[bytes], List[Any]]:
+        msg_id, msg = entry
+        try:
+            result = await self.service.append_many(events=[msg.record_event])
+        except RecordContentConflict as exc:
+            log.error(
+                "[RECORDS] Rejected conflicting stable record ids",
+                project_id=str(project_id),
+                record_ids=[str(item.record_id) for item in exc.conflicts],
+            )
+            return 0, [msg_id], []
+        except Exception:
+            log.error(
+                "[RECORDS] Failed to append event",
+                project_id=str(project_id),
+                msg_id=repr(msg_id),
+                exc_info=True,
+            )
+            return 0, [], []
+
+        conflict_ids = set(result.conflicting_record_ids)
+        record_id = msg.record_event.record_id or msg.record_event.producer_id
+        committed_events = [] if record_id in conflict_ids else [msg]
+        return len(result.records), [msg_id], committed_events
+
+    async def _after_commit(
+        self,
+        *,
+        project_id: UUID,
+        events: List[Any],
+    ) -> None:
+        if not events:
+            return
+
+        # Strictly post-append, and BEFORE the relay tee: a client woken by the records
+        # notification below must already see the cancelled gate, not re-render it.
+        await self.reconcile_orphaned_gates(project_id=project_id, events=events)
+
+        # Relay tee (M3): strictly post-append so a notified client that
+        # revalidates always sees the new rows. One publish per distinct
+        # session in the project batch; failures never re-drive the append.
+        if self.watch_publisher is not None:
+            project_id_str = str(project_id)
+            session_ids = {msg.record_event.session_id for msg in events}
+            for session_id in sorted(session_ids):
+                try:
+                    await self.watch_publisher.records_changed(
+                        project_id=project_id_str,
+                        session_id=session_id,
+                    )
+                except Exception:
+                    log.warning(
+                        "[RECORDS] Watch publish failed",
+                        project_id=project_id_str,
+                        session_id=session_id,
+                    )

@@ -138,11 +138,7 @@ async def test_worker_skips_publish_when_append_fails():
 
     assert total_appended == 0
     assert publisher.calls == []
-    # `process_batch` acknowledges at parse time, before the append, so a failed append is still
-    # acked and dropped by the shared consumer loop. That predates this change and is shared by
-    # every worker on `BaseStreamConsumer`; the relay tee neither causes it nor repairs it. This
-    # assertion pins the tee's scope, not an endorsement of the acknowledgement rule.
-    assert len(processed_ids) == 1
+    assert processed_ids == []
 
 
 @pytest.mark.asyncio

@@ -4,6 +4,9 @@ Revision ID: oss000000025
 Revises: oss000000021
 Create Date: 2026-09-03 00:00:00.000000
 
+This branch is based on main, where ``down_revision`` is ``oss000000021``. When
+merged after the durable-cancel/watchdog stack, re-point it to ``oss000000024``.
+
 """
 
 from typing import Sequence, Union
