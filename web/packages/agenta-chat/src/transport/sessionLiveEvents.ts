@@ -1,4 +1,5 @@
 import {sessionLiveFrameSchema, type SessionLiveFrame} from "@agenta/entities/session"
+import {safeParseWithLogging} from "@agenta/entities/shared"
 import {getAgentaApiUrl} from "@agenta/shared/api"
 
 export interface SessionLiveDisconnect {
@@ -29,10 +30,14 @@ export const connectSessionLiveEvents = ({
 
     source.onmessage = (event) => {
         try {
-            const parsed = sessionLiveFrameSchema.safeParse(JSON.parse(event.data))
-            if (parsed.success && parsed.data.session_id === sessionId) onFrame(parsed.data)
+            const parsed = safeParseWithLogging(
+                sessionLiveFrameSchema,
+                JSON.parse(event.data),
+                "[sessionLiveEvents]",
+            )
+            if (parsed?.session_id === sessionId) onFrame(parsed)
         } catch {
-            // Malformed and forward-incompatible frames are display-only; ignore them.
+            // Ignore malformed JSON because live frames are display-only.
         }
     }
     source.addEventListener("ready", onReady)

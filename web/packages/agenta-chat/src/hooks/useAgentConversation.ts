@@ -356,8 +356,7 @@ export const useAgentConversation = ({
     })
 
     const busy = isChatBusy(status)
-    // A stale liveness snapshot can stay `is_running=true` after our stream settles. Only a
-    // liveness read newer than that local settle can reclassify the run as remote.
+    // Require liveness newer than the local settle before classifying a run as remote.
     const previousBusyForReaderRef = useRef(busy)
     const localReaderSettleAtRef = useRef(0)
     if (previousBusyForReaderRef.current && !busy) localReaderSettleAtRef.current = Date.now()

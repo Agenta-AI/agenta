@@ -742,8 +742,7 @@ const AgentConversation = ({
                 precededByEmptyAssistant={
                     index > 0 && isEmptyAssistantTurn(transcriptMessages[index - 1])
                 }
-                // A user turn has no trace of its own; borrow the paired (next) assistant turn's
-                // trace so its timestamp dates from the run, not this browser's first-seen stamp.
+                // A user turn borrows its paired assistant trace so the timestamp reflects the run.
                 turnTraceId={
                     message.role === "user" && transcriptMessages[index + 1]
                         ? getMessageTraceId(transcriptMessages[index + 1])

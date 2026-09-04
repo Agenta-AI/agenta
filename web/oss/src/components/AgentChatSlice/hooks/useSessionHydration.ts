@@ -319,10 +319,7 @@ export const useSessionHydration = ({
     }, [sessionId, readLog])
 
     // ── Follow a run happening somewhere else (#5530) ──────────────────────────
-    // Temporary frames now provide the immediate display path when the capability is advertised;
-    // this durable-log poll remains the convergence fallback and catches events outside that frame
-    // subset. The adoption guard above decides whether anything actually changed. `isRunning` also
-    // covers OUR stream, so the atom excludes every case where this browser drives the run (#5844).
+    // Live frames display immediately; durable polling converges events outside the frame subset.
     //
     // The settle stamp the derivation needs is written here rather than inside the package's
     // `setSessionStatusAtom`: this hook is mounted for the whole life of a session tab, which is
