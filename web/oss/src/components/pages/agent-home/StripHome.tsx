@@ -139,13 +139,17 @@ const StripHome: React.FC = () => {
                 void router.push(`${baseAppURL}?new=1&template=${template.key}`)
                 return
             }
-            // A template declares the accounts it needs, so it always has something to connect.
-            if (CONNECT_STEP_MODE) {
+            // A template usually has something to connect — but not when the workspace is already
+            // connected for it, and `open` says so. Falling through then is the whole point: the
+            // pick still has to create the agent, or the click does nothing at all.
+            if (
+                CONNECT_STEP_MODE &&
                 setup.open({
                     seedMessage: templateBuilderMessage(template),
                     name: template.name,
                     template,
                 })
+            ) {
                 return
             }
             void createFromTemplate(template)
@@ -173,16 +177,21 @@ const StripHome: React.FC = () => {
             if (loading) return
             // Connect step on: describing an agent opens the step instead of creating. The
             // composer has already cleared itself, so the text rides in the draft.
-            if (CONNECT_STEP_MODE) {
-                const message = (markdown ?? composerRef.current?.getMarkdown() ?? "").trim()
-                if (!message) return
+            const message = (markdown ?? composerRef.current?.getMarkdown() ?? "").trim()
+            // Nothing to ask for — nothing detected, or the workspace is already connected — so
+            // the description creates the agent directly instead of stopping at an empty card.
+            if (
+                CONNECT_STEP_MODE &&
+                message &&
                 setup.open({
                     seedMessage: message,
                     name:
                         provenance.resolveTemplateName() || agentNameFromTask(message) || undefined,
                 })
+            ) {
                 return
             }
+            if (CONNECT_STEP_MODE && !message) return
             setLoading(true)
             const ok = await onCreate(provenance.resolveTemplateName(), markdown)
             if (!ok) setLoading(false)
