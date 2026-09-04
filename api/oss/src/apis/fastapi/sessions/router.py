@@ -41,10 +41,15 @@ from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.dbs.redis.sessions.contract import project_watch_channel, watch_channel
+from oss.src.dbs.redis.sessions.contract import (
+    live_events_channel,
+    project_watch_channel,
+    watch_channel,
+)
 from oss.src.dbs.redis.shared.engine import get_lock_engine, get_streams_engine
 from oss.src.dbs.redis.sessions.locks import get_running_owner
 from oss.src.apis.fastapi.sessions.watch import watch_event_stream
+from oss.src.apis.fastapi.sessions.live_events import live_event_stream
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
@@ -386,6 +391,14 @@ class SessionStreamsRouter:
             response_model=None,
         )
         self.router.add_api_route(
+            "/sessions/{session_id}/events",
+            self.session_events,
+            methods=["GET"],
+            operation_id="watch_session_events",
+            tags=["Sessions"],
+            response_model=None,
+        )
+        self.router.add_api_route(
             "/sessions/watch",
             self.watch_project,
             methods=["GET"],
@@ -683,6 +696,48 @@ class SessionStreamsRouter:
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
                 # Disable proxy buffering so frames flush immediately.
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @intercept_exceptions()
+    async def session_events(
+        self,
+        request: Request,
+        session_id: str,
+    ) -> StreamingResponse:
+        if not env.sessions.shared_reader:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+        _validate_session_id_http(session_id)
+        project_id = str(request.state.project_id)
+        user_id = str(request.state.user_id)
+
+        async def authorized() -> bool:
+            return await check_action_access(
+                user_uid=user_id,
+                project_id=project_id,
+                permission=Permission.VIEW_SESSIONS,
+            )
+
+        if not await authorized():
+            raise FORBIDDEN_EXCEPTION
+
+        stream = live_event_stream(
+            channel=live_events_channel(project_id, session_id),
+            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            authorization_check=authorized,
+            authorization_recheck_seconds=env.sessions.live_auth_recheck_seconds,
+            heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
+            retry_milliseconds=env.sessions.watch_retry_milliseconds,
+            buffer_limit=env.sessions.live_reader_buffer_limit,
+        )
+        return StreamingResponse(
+            stream,
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
                 "X-Accel-Buffering": "no",
             },
         )

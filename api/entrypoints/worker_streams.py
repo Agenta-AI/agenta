@@ -37,6 +37,7 @@ from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.tasks.asyncio.events.worker import EventsWorker
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
+from oss.src.tasks.asyncio.sessions.live_relay_worker import LiveRelayWorker
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
@@ -103,6 +104,14 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
     )
 
 
+async def _build_live_relay_worker(redis_client: Redis) -> StreamConsumer:
+    return LiveRelayWorker(
+        redis_client=redis_client,
+        stream_name="streams:records",
+        consumer_group="worker-session-live-relay",
+    )
+
+
 async def _build_events_worker(redis_client: Redis) -> StreamConsumer:
     events_service = EventsService(events_dao=EventsDAO())
 
@@ -163,6 +172,8 @@ async def main_async() -> int:
         consumers: List[StreamConsumer] = [
             await builders[name](redis_client) for name in streams
         ]
+        if env.sessions.shared_reader and "records" in streams:
+            consumers.append(await _build_live_relay_worker(redis_client))
 
         for consumer in consumers:
             await consumer.create_consumer_group()

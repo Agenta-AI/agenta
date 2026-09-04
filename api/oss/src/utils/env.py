@@ -1591,6 +1591,17 @@ class SessionsRedisConfig(BaseModel):
         _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_FRAME_MAX_AGE_SECONDS")
         or 900
     )
+    shared_reader: bool = (
+        os.getenv("AGENTA_SESSIONS_SHARED_READER") or "false"
+    ).lower() in _TRUTHY
+    live_auth_recheck_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_AUTH_RECHECK_SECONDS")
+        or 60
+    )
+    live_reader_buffer_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_READER_BUFFER_LIMIT")
+        or 256
+    )
     # API-side only (SSE watch endpoint keep-alive cadence) — NOT part of the
     # runner golden fixture; safe to tune without touching the TS side.
     watch_heartbeat_seconds: int = (
