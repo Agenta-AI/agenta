@@ -27,6 +27,10 @@ from oss.src.core.events.service import EventsService
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
+from oss.src.core.sessions.records.streaming import (
+    LIVE_FRAME_STREAM_NAME,
+    RECORD_STREAM_NAME,
+)
 from oss.src.core.tracing.service import TracingService
 from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
@@ -86,7 +90,7 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
     return RecordsWorker(
         service=RecordsService(records_dao=RecordsDAO()),
         redis_client=redis_client,
-        stream_name="streams:records",
+        stream_name=RECORD_STREAM_NAME,
         consumer_group="worker-records",
         # M3 live relay: post-append change notifications on the durable plane,
         # reusing this process's durable connection.
@@ -107,7 +111,7 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
 async def _build_live_relay_worker(redis_client: Redis) -> StreamConsumer:
     return LiveRelayWorker(
         redis_client=redis_client,
-        stream_name="streams:records",
+        stream_name=LIVE_FRAME_STREAM_NAME,
         consumer_group="worker-session-live-relay",
     )
 

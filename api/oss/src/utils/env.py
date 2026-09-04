@@ -1581,11 +1581,9 @@ class SessionsRedisConfig(BaseModel):
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT")
         or 1000
     )
-    # Count is only a caught-up safety valve: 75.6 measured frames/s * 900 s * the
-    # 1,000-session concurrency limit = 68.04M, rounded up to 100M entries.
     live_stream_maxlen: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_STREAM_MAXLEN")
-        or 100_000_000
+        or 100_000
     )
     live_frame_max_age_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_FRAME_MAX_AGE_SECONDS")

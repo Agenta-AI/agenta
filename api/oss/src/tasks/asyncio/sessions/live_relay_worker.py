@@ -3,10 +3,7 @@ from typing import Dict, List, Tuple
 
 from orjson import dumps
 
-from oss.src.core.sessions.records.streaming import (
-    LiveFrameMessage,
-    deserialize_stream_message,
-)
+from oss.src.core.sessions.records.streaming import deserialize_live_frame
 from oss.src.dbs.redis.sessions.contract import live_events_channel
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 from oss.src.utils.env import env
@@ -44,9 +41,7 @@ class LiveRelayWorker(StreamConsumer):
         for msg_id, data in batch:
             processed_ids.append(msg_id)
             try:
-                message = deserialize_stream_message(payload=data[b"data"])
-                if not isinstance(message, LiveFrameMessage):
-                    continue
+                message = deserialize_live_frame(payload=data[b"data"])
                 created_at = message.frame.created_at
                 if created_at.tzinfo is None:
                     created_at = created_at.replace(tzinfo=timezone.utc)
@@ -67,15 +62,3 @@ class LiveRelayWorker(StreamConsumer):
                 )
 
         return published, processed_ids
-
-    async def ack_and_delete(self, message_ids: List[bytes]):
-        if not message_ids:
-            return
-        try:
-            await self.redis.xack(
-                self.stream_name,
-                self.consumer_group,
-                *message_ids,
-            )
-        except Exception as exc:
-            log.error(f"{self.log_prefix} Failed to ACK messages: {exc}")

@@ -11,6 +11,7 @@ from orjson import dumps
 
 from oss.src.apis.fastapi.sessions.live_events import live_event_stream
 from oss.src.apis.fastapi.sessions.router import SessionStreamsRouter
+from oss.src.core.sessions.records.streaming import LIVE_FRAME_STREAM_NAME
 from oss.src.tasks.asyncio.sessions.live_relay_worker import LiveRelayWorker
 from oss.src.utils.env import env
 
@@ -104,12 +105,12 @@ async def test_slow_reader_gets_terminal_close_frame():
     assert json.loads(terminal.split("data: ", 1)[1])["reason"] == "slow_reader"
 
 
-async def test_relay_worker_publishes_frames_and_skips_records():
+async def test_relay_worker_publishes_and_deletes_frames():
     project_id = uuid4()
     redis = AsyncMock()
     worker = LiveRelayWorker(
         redis_client=redis,
-        stream_name="streams:records",
+        stream_name=LIVE_FRAME_STREAM_NAME,
         consumer_group="worker-session-live-relay",
     )
     frame_message = {
@@ -118,21 +119,20 @@ async def test_relay_worker_publishes_frames_and_skips_records():
         "kind": "frame",
         "frame": _frame(),
     }
-    record_message = {
-        "organization_id": None,
-        "project_id": str(project_id),
-        "record_event": {"project_id": str(project_id), "session_id": "session-1"},
-    }
     batch = [
         (b"1-0", {b"data": zlib.compress(dumps(frame_message))}),
-        (b"2-0", {b"data": zlib.compress(dumps(record_message))}),
     ]
 
     published, processed = await worker.process_batch(batch)
+    await worker.ack_and_delete(processed)
 
     assert published == 1
-    assert processed == [b"1-0", b"2-0"]
+    assert processed == [b"1-0"]
     redis.publish.assert_awaited_once()
+    redis.xack.assert_awaited_once_with(
+        LIVE_FRAME_STREAM_NAME, "worker-session-live-relay", b"1-0"
+    )
+    redis.xdel.assert_awaited_once_with(LIVE_FRAME_STREAM_NAME, b"1-0")
 
 
 async def test_relay_worker_discards_frames_older_than_900_seconds():
@@ -140,7 +140,7 @@ async def test_relay_worker_discards_frames_older_than_900_seconds():
     redis = AsyncMock()
     worker = LiveRelayWorker(
         redis_client=redis,
-        stream_name="streams:records",
+        stream_name=LIVE_FRAME_STREAM_NAME,
         consumer_group="worker-session-live-relay",
     )
     expired = _frame(0)
