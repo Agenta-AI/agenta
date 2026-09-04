@@ -71,8 +71,7 @@ from oss.src.dbs.redis.sessions.locks import (
     get_alive_owner,
     get_owner,
     get_running_owner,
-    mark_turn_superseded,
-    release_running,
+    reconcile_stopped_turn,
 )
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -557,13 +556,7 @@ class SessionCommandsService:
         session_id: str,
         execution_id: str,
     ) -> None:
-        await mark_turn_superseded(
-            self._lock,
-            project_id=str(project_id),
-            session_id=session_id,
-            turn_id=execution_id,
-        )
-        await release_running(
+        await reconcile_stopped_turn(
             self._lock,
             project_id=str(project_id),
             session_id=session_id,

@@ -6,15 +6,17 @@ every key name, TTL, and wire shape.
 """
 
 import json
-import time
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
     ALIVE_TTL_SECONDS,
+    ACQUIRE_ALIVE_WITH_START_LUA,
     ATTACHED_TTL_SECONDS,
     CLAIM_OWNER_LUA,
+    DISPLACE_TURNS_LUA,
     OWNER_TTL_SECONDS,
+    RECONCILE_STOPPED_TURN_LUA,
     RELEASE_IF_OWNER_LUA,
     RUNNING_TTL_SECONDS,
     SUPERSEDED_TTL_SECONDS,
@@ -58,6 +60,26 @@ async def acquire_alive(
         ex=ALIVE_TTL_SECONDS,
     )
     return result is not None
+
+
+async def acquire_alive_with_start(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> bool:
+    """Atomically acquire `alive` and record its first start on the Redis clock."""
+    result = await engine.eval(
+        ACQUIRE_ALIVE_WITH_START_LUA,
+        2,
+        alive_key(project_id, session_id).encode(),
+        turn_started_key(project_id, session_id, turn_id).encode(),
+        turn_id.encode(),
+        ALIVE_TTL_SECONDS,
+        TURN_STARTED_TTL_SECONDS,
+    )
+    return result == 1
 
 
 async def refresh_alive(
@@ -209,7 +231,7 @@ async def record_turn_start(
     which is the stored one when a record already exists.
     """
     key = turn_started_key(project_id, session_id, turn_id)
-    now_ms = int(time.time() * 1000) if started_at_ms is None else started_at_ms
+    now_ms = await redis_time_ms(engine) if started_at_ms is None else started_at_ms
     written = await engine.set(
         key,
         str(now_ms).encode(),
@@ -224,6 +246,66 @@ async def record_turn_start(
         return int(current.decode()) if current else now_ms
     except ValueError:
         return now_ms
+
+
+async def redis_time_ms(engine: LockEngine) -> int:
+    """Read the shared Redis clock in epoch milliseconds."""
+    seconds, microseconds = await engine.time()
+    return int(seconds) * 1000 + int(microseconds) // 1000
+
+
+async def displace_turns(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    expected_turn_id: Optional[str] = None,
+    arrived_at_ms: Optional[int] = None,
+    running_only: bool = False,
+) -> Tuple[bool, Optional[str], List[str]]:
+    """Atomically validate, tombstone, and clear the alive/running owners."""
+    result = await engine.eval(
+        DISPLACE_TURNS_LUA,
+        2,
+        alive_key(project_id, session_id).encode(),
+        running_key(project_id, session_id).encode(),
+        (expected_turn_id or "").encode(),
+        "" if arrived_at_ms is None else str(arrived_at_ms),
+        superseded_key(project_id, session_id, "").encode(),
+        turn_started_key(project_id, session_id, "").encode(),
+        SUPERSEDED_TTL_SECONDS,
+        "1" if running_only else "0",
+    )
+
+    def _decode(value) -> str:
+        return value.decode() if isinstance(value, (bytes, bytearray)) else str(value)
+
+    accepted = bool(result) and int(result[0]) == 1
+    if not accepted:
+        return False, _decode(result[1]) if len(result) > 1 else None, []
+    turn_ids = list(
+        dict.fromkeys(_decode(value) for value in result[1:] if _decode(value))
+    )
+    return True, None, turn_ids
+
+
+async def reconcile_stopped_turn(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> bool:
+    """Atomically tombstone a stopped turn and release only its `running` generation."""
+    result = await engine.eval(
+        RECONCILE_STOPPED_TURN_LUA,
+        2,
+        running_key(project_id, session_id).encode(),
+        superseded_key(project_id, session_id, turn_id).encode(),
+        turn_id.encode(),
+        SUPERSEDED_TTL_SECONDS,
+    )
+    return result == 1
 
 
 async def get_turn_start(

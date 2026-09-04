@@ -64,11 +64,18 @@ _STEER = SessionStreamCommandRequest(
 )
 
 
-async def _post(response: SessionStreamCommandResponse, payload):
+async def _post(
+    response: SessionStreamCommandResponse,
+    payload,
+    *,
+    cleanup_error: Exception | None = None,
+):
     """Drive the route with a stubbed service that returns `response`."""
     service = AsyncMock()
+    service.clock_ms.return_value = 1_000
     service.command.return_value = response
     interactions = AsyncMock()
+    interactions.cancel_session_pending.side_effect = cleanup_error
     interactions.cancel_session_pending.return_value = 1
     router = SessionStreamsRouter(service=service, interactions_service=interactions)
 
@@ -117,6 +124,26 @@ async def test_cancel_that_ended_no_turn_cancels_every_pending_gate():
 
     interactions.cancel_session_pending.assert_awaited_once()
     assert "only_turn_id" not in interactions.cancel_session_pending.await_args.kwargs
+
+
+@pytest.mark.asyncio
+async def test_cancel_returns_the_accepted_response_when_gate_cleanup_fails():
+    response = SessionStreamCommandResponse(
+        mode=CommandMode.cancel,
+        session_id=_SESSION,
+        turn_id="turn-1",
+        cancelled_turn_ids=["turn-1"],
+        detached=True,
+    )
+
+    result, interactions, _, _ = await _post(
+        response,
+        _CANCEL,
+        cleanup_error=RuntimeError("cleanup unavailable"),
+    )
+
+    assert result == response
+    interactions.cancel_session_pending.assert_awaited_once()
 
 
 @pytest.mark.asyncio

@@ -198,6 +198,44 @@ async def test_cancel_with_stale_expected_id_is_refused_and_touches_nothing(
 
 
 @pytest.mark.asyncio
+async def test_cancel_refuses_owner_replaced_immediately_before_atomic_displacement(
+    lock_engine, monkeypatch
+):
+    svc = _service(lock_engine)
+    await _seat_turn(lock_engine, "turn-1", started_at_ms=1_000)
+    redis = lock_engine._client()
+    original_eval = redis.eval
+
+    async def replace_owner_then_eval(script, numkeys, *keys_and_args):
+        if "AGENTA_DISPLACE_TURNS" in script:
+            await redis.set(keys_and_args[0], b"turn-2", ex=60)
+            await redis.set(keys_and_args[1], b"turn-2", ex=60)
+        return await original_eval(script, numkeys, *keys_and_args)
+
+    monkeypatch.setattr(redis, "eval", replace_owner_then_eval)
+
+    with pytest.raises(SessionTurnMismatch) as excinfo:
+        await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel("turn-1"))
+
+    assert excinfo.value.actual_turn_id == "turn-2"
+    assert (
+        await get_alive_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=_SESSION
+        )
+        == "turn-2"
+    )
+    assert (
+        await get_running_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=_SESSION
+        )
+        == "turn-2"
+    )
+    assert not await is_turn_superseded(
+        lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id="turn-2"
+    )
+
+
+@pytest.mark.asyncio
 async def test_cancel_with_expected_id_tombstones_a_turn_that_holds_nothing(
     lock_engine,
 ):
@@ -278,6 +316,31 @@ async def test_cancel_without_id_still_cancels_a_turn_with_no_recorded_start(
     result = await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel())
 
     assert result.cancelled_turn_ids == ["turn-old"]
+
+
+@pytest.mark.asyncio
+async def test_cancel_ordering_uses_the_shared_redis_clock(lock_engine):
+    svc = _service(lock_engine)
+    redis = lock_engine._client()
+    redis.now_ms = 10_000
+    arrived_at_ms = await svc.clock_ms()
+    redis.now_ms = 11_000
+    await _seat_turn(lock_engine, "turn-2")
+
+    with pytest.raises(SessionTurnMismatch):
+        await svc.command(
+            project_id=_PROJECT,
+            user_id=_USER,
+            request=_cancel(),
+            arrived_at_ms=arrived_at_ms,
+        )
+
+    assert (
+        await get_alive_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=_SESSION
+        )
+        == "turn-2"
+    )
 
 
 # --------------------------------------------------------------------------- #
