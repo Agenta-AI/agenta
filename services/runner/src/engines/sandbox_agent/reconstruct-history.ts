@@ -30,6 +30,14 @@ export interface ReconstructHistoryOptions {
   restore?: (messages: ChatMessage[]) => Promise<ChatMessage[]>;
 }
 
+function isTruncatedRecord(row: { attributes?: unknown }): boolean {
+  return (
+    !!row.attributes &&
+    typeof row.attributes === "object" &&
+    "_truncated" in row.attributes
+  );
+}
+
 // Compose passes `${AGENTA_SESSIONS_RECONSTRUCT:-}`, so an empty value must mean on just like an
 // absent value. Only the literal "false" disables reconstruction.
 function reconstructEnabled(): boolean {
@@ -100,6 +108,11 @@ export async function reconstructHistoryIfNeeded(
   const prior = currentTurnId
     ? records.filter((row) => row.turn_id !== currentTurnId)
     : records;
+  if (prior.some(isTruncatedRecord)) {
+    throw new Error(
+      `session ${sessionId} contains a truncated durable record; refusing to rebuild an incomplete conversation`,
+    );
+  }
   // Reachable in practice: a caller that builds its answer from the durable interaction row can
   // echo the row's stored `turn_id`, which drops exactly the turn that parked.
   if (prior.length === 0) {

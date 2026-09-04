@@ -126,6 +126,40 @@ describe("reconstructHistoryIfNeeded", () => {
     assert.equal(fetchCalls, 0, "no query when the log is already known bad");
   });
 
+  it("refuses reconstruction from a smart-truncated record", async () => {
+    recordsToReturn = [
+      {
+        record_source: "user",
+        attributes: {
+          type: "message",
+          text: "partial",
+          _truncated: { fields: ["text"], original_bytes: 80_000 },
+        },
+      },
+    ];
+    const req = { messages: [userTurn] } as never;
+
+    await assert.rejects(
+      () => reconstructHistoryIfNeeded(req, "sess-1", auth),
+      /truncated durable record/,
+    );
+  });
+
+  it("refuses reconstruction from a legacy whole-record truncation", async () => {
+    recordsToReturn = [
+      {
+        record_source: "agent",
+        attributes: { _truncated: true, _original_bytes: 80_000 },
+      },
+    ];
+    const req = { messages: [userTurn] } as never;
+
+    await assert.rejects(
+      () => reconstructHistoryIfNeeded(req, "sess-1", auth),
+      /truncated durable record/,
+    );
+  });
+
   it("prepends reconstructed prior turns to the inbound message when enabled", async () => {
     vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     recordsToReturn = [
