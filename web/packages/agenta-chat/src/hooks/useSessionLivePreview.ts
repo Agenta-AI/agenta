@@ -22,7 +22,6 @@ import {
 import {
     reduceSessionLivePreview,
     sessionLivePreviewMessages,
-    shouldSubscribeToSessionLivePreview,
 } from "../model/livePreview"
 import {
     connectSessionLiveEvents,
@@ -34,18 +33,21 @@ const RECONNECT_MAX_DELAY_MS = 30_000
 
 export const useSessionLivePreview = ({
     sessionId,
-    sharedReaderAdvertised,
-    runningElsewhere,
+    enabled,
+    sender,
+    onReadyChange,
     onDisconnect,
 }: {
     sessionId: string
-    /** Capability copied from the current backend session snapshot. */
-    sharedReaderAdvertised: boolean
-    /** True only when this browser is not the sender of the running turn. */
-    runningElsewhere: boolean
+    /** True only when the backend advertises shared_reader and another browser owns the run. */
+    enabled: boolean
+    /** Probe the snapshot capability and subscribe before this browser sends its next turn. */
+    sender?: boolean
+    /** Non-reactive request-pipeline signal: true only while the shared event route is ready. */
+    onReadyChange?: (ready: boolean) => void
     /** Adopts a bounded transcript or re-fetches after a later gap/disconnect. */
     onDisconnect: (transcript?: SessionTranscript) => boolean | Promise<boolean>
-}): UIMessage[] => {
+}): {messages: UIMessage[]} => {
     const projectId = useAtomValue(projectIdAtom)
     const [preview, setPreview] = useAtom(sessionLivePreviewAtomFamily(sessionId))
     const clearPreview = useSetAtom(clearSessionLivePreviewAtom)
@@ -53,14 +55,13 @@ export const useSessionLivePreview = ({
     const onDisconnectRef = useRef(onDisconnect)
     onDisconnectRef.current = onDisconnect
     const retryHydrationRef = useRef<() => void>(() => undefined)
-    const enabled = shouldSubscribeToSessionLivePreview({
-        sharedReaderAdvertised,
-        runningElsewhere,
-    })
+    const onReadyChangeRef = useRef(onReadyChange)
+    onReadyChangeRef.current = onReadyChange
 
     useEffect(() => {
         clearPreview(sessionId)
-        if (!enabled || !sessionId) return
+        onReadyChangeRef.current?.(false)
+        if ((!enabled && !sender) || !sessionId) return
         if (typeof window === "undefined" || typeof window.EventSource === "undefined") return
 
         let connection: SessionLiveEventsConnection | null = null
@@ -73,6 +74,7 @@ export const useSessionLivePreview = ({
         const close = () => {
             connection?.close()
             connection = null
+            onReadyChangeRef.current?.(false)
             clearPreview(sessionId)
         }
 
@@ -109,6 +111,11 @@ export const useSessionLivePreview = ({
                 return
             }
             if (disposed || currentGeneration !== generation) return
+
+            // `sender` is only an opt-in request from the client. The stack controls activation
+            // through the snapshot capability; when the route is disabled (or this pre-first-turn
+            // session has no snapshot yet), invoke remains the legacy rendering source.
+            if (!enabled && snapshot?.session.capabilities?.shared_reader !== true) return
 
             if (snapshot && projectId) {
                 try {
@@ -175,6 +182,7 @@ export const useSessionLivePreview = ({
                 onReady: ({watermark}) => {
                     durable = completeSessionDurableEventReplay(durable, watermark)
                     reconnectDelayMs = RECONNECT_INITIAL_DELAY_MS
+                    onReadyChangeRef.current?.(true)
                 },
                 onDisconnect: ({reconnect}) => {
                     close()
@@ -199,11 +207,20 @@ export const useSessionLivePreview = ({
             disposed = true
             retryHydrationRef.current = () => undefined
             generation += 1
+            onReadyChangeRef.current?.(false)
             if (reconnectTimer) clearTimeout(reconnectTimer)
             document.removeEventListener("visibilitychange", onVisibility)
             close()
         }
-    }, [clearPreview, enabled, fetchInteractionStates, projectId, sessionId, setPreview])
+    }, [
+        clearPreview,
+        enabled,
+        fetchInteractionStates,
+        projectId,
+        sender,
+        sessionId,
+        setPreview,
+    ])
 
     useEffect(() => {
         if (!preview.gapDetected) return
@@ -213,5 +230,5 @@ export const useSessionLivePreview = ({
         }, retryHydration)
     }, [preview.gapDetected])
 
-    return useMemo(() => sessionLivePreviewMessages(preview), [preview])
+    return {messages: useMemo(() => sessionLivePreviewMessages(preview), [preview])}
 }

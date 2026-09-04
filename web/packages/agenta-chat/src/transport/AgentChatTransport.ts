@@ -1,5 +1,9 @@
 // Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
-import {createNegotiatingFetch, type NegotiatingFetch} from "@agenta/playground/agent-chat"
+import {
+    createNegotiatingFetch,
+    SHARED_SESSION_RESPONSE_HEADER,
+    type NegotiatingFetch,
+} from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
 import {DefaultChatTransport, type UIMessage, type UIMessageChunk} from "ai"
 
@@ -206,26 +210,70 @@ function batchJsonToUiMessageStream(
     })
 }
 
+const sharedAcceptanceChunk = (chunk: AnyChunk): AnyChunk | undefined => {
+    if (chunk.type === "start" || chunk.type === "finish") {
+        return {
+            ...chunk,
+            messageMetadata: {
+                ...((chunk as {messageMetadata?: Record<string, unknown>}).messageMetadata ?? {}),
+                sharedSender: true,
+            },
+        } as AnyChunk
+    }
+    if (
+        chunk.type === "start-step" ||
+        chunk.type === "finish-step" ||
+        chunk.type === "error" ||
+        chunk.type === "data-session-accepted"
+    )
+        return chunk
+    return undefined
+}
+
+/** Consume the invoke stream without letting its content become a second rendering source. */
+export const sharedAcceptanceStream = (
+    stream: ReadableStream<AnyChunk>,
+): ReadableStream<AnyChunk> =>
+    stream.pipeThrough(
+        new TransformStream<AnyChunk, AnyChunk>({
+            transform(chunk, controller) {
+                const accepted = sharedAcceptanceChunk(chunk)
+                if (accepted) controller.enqueue(accepted)
+            },
+        }),
+    )
+
 export class AgentChatTransport extends DefaultChatTransport<UIMessage> {
     private readonly negotiator: NegotiatingFetch
+    private readonly sharedResponses = new WeakSet<ReadableStream<Uint8Array>>()
 
     constructor(options: ConstructorParameters<typeof DefaultChatTransport<UIMessage>>[0] = {}) {
         // Own the transport's `fetch` so every request goes through stream→batch negotiation;
         // any caller-supplied fetch becomes the negotiator's base (tests inject one here).
         super({...options, fetch: undefined})
         this.negotiator = createNegotiatingFetch(options.fetch)
-        this.fetch = this.negotiator.fetch
+        this.fetch = async (input, init) => {
+            const shared =
+                new Headers(init?.headers).get(SHARED_SESSION_RESPONSE_HEADER) === "shared"
+            const response = await this.negotiator.fetch(input, init)
+            if (shared && response.body) this.sharedResponses.add(response.body)
+            return response
+        }
     }
 
     protected processResponseStream(stream: ReadableStream<Uint8Array>): ReadableStream<AnyChunk> {
         // Parse by the channel the request actually resolved to, not the requested one — a stream
         // request can come back as a batch via the 406 fallback. The mode is keyed off this exact
         // body stream (`resolvedMode(stream)`), so request and parse stay in lockstep.
-        if (this.negotiator.resolvedMode(stream) === "batch")
-            return batchJsonToUiMessageStream(stream)
+        const parsed =
+            this.negotiator.resolvedMode(stream) === "batch"
+                ? batchJsonToUiMessageStream(stream)
+                : super.processResponseStream(stream)
+        if (this.sharedResponses.has(stream)) return sharedAcceptanceStream(parsed)
+        if (this.negotiator.resolvedMode(stream) === "batch") return parsed
         // Deltas pass through untouched: typing cadence is paced at paint by `useTypewriter`.
         // The trace only timestamps them — see `streamTrace.ts` for why the cadence is measured.
         installStreamTraceHelper()
-        return traceStreamChunks(super.processResponseStream(stream))
+        return traceStreamChunks(parsed)
     }
 }

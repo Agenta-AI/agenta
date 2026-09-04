@@ -777,7 +777,7 @@ export const useAgentConversation = ({
         [adoptServerTranscript, revalidateSessionRecords, sessionId],
     )
 
-    const previewMessages = useSessionLivePreview({
+    const {messages: previewMessages} = useSessionLivePreview({
         sessionId,
         sharedReaderAdvertised: sharedReaderEnabled,
         runningElsewhere: !busy && remoteRunIsFresh,

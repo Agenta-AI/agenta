@@ -176,4 +176,59 @@ describe("AgentChatTransport", () => {
         expect(chunks[chunks.length - 1]).toMatchObject({type: "finish"})
         expect(chunks.filter((c) => c.type === "text-end")).toHaveLength(1)
     })
+
+    it("consumes a shared sender invoke as acceptance and errors, never rendered content", async () => {
+        const sseBody =
+            [
+                {type: "start", messageId: "acceptance-1", messageMetadata: {sessionId: "s1"}},
+                {type: "start-step"},
+                {
+                    type: "data-session-accepted",
+                    data: {turnId: "turn-1", executionId: "turn-1"},
+                },
+                {type: "text-start", id: "t1"},
+                {type: "text-delta", id: "t1", delta: "must render from the event route"},
+                {type: "text-end", id: "t1"},
+                {type: "error", errorText: "provider failed"},
+                {type: "finish-step"},
+                {type: "finish", messageMetadata: {traceId: "trace-1"}},
+            ]
+                .map((c) => `data: ${JSON.stringify(c)}\n\n`)
+                .join("") + "data: [DONE]\n\n"
+        const transport = new AgentChatTransport({
+            api: "/api/agent/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "x-ag-session-response": "shared",
+            },
+            fetch: vi.fn(async () =>
+                new Response(sseBody, {
+                    status: 200,
+                    headers: {"content-type": "text/event-stream"},
+                }),
+            ) as unknown as typeof fetch,
+        })
+
+        const chunks = await readAll(
+            await transport.sendMessages({
+                trigger: "submit-message",
+                chatId: "chat-1",
+                messageId: undefined,
+                messages: [userMessage("hi")],
+            }),
+        )
+
+        expect(chunks.map((chunk) => chunk.type)).toEqual([
+            "start",
+            "start-step",
+            "data-session-accepted",
+            "error",
+            "finish-step",
+            "finish",
+        ])
+        expect(chunks[0]).toMatchObject({messageMetadata: {sessionId: "s1", sharedSender: true}})
+        expect(chunks.at(-1)).toMatchObject({
+            messageMetadata: {traceId: "trace-1", sharedSender: true},
+        })
+    })
 })

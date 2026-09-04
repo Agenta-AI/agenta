@@ -150,6 +150,7 @@ export const useAgentChatSession = ({
     const mountedRef = useRef(false)
     const messagesRef = useRef(initialMessages)
     const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
+    const sharedSenderReadyRef = useRef(false)
 
     // Rebuilt every render and bound to the chat on every commit (below), so they always see the live
     // values — `entityId` included, which is why a run follows a revision switch or a self-commit
@@ -163,6 +164,7 @@ export const useAgentChatSession = ({
             const req = await buildRequestWithinDeadline(() =>
                 buildAgentRequest(entityId, messages, {
                     sessionId: id ?? sessionId,
+                    sharedResponse: sharedSenderReadyRef.current,
                 }),
             )
             captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
@@ -309,6 +311,7 @@ export const useAgentChatSession = ({
         persistMessages,
         intent,
         pendingResumeRef: liveGateInteractionRef,
+        sharedSenderReadyRef,
     })
     const stopping =
         isStoppingPhase(stopPhase) ||

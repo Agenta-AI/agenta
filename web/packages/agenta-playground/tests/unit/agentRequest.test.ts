@@ -697,6 +697,20 @@ describe("buildAgentRequest", () => {
         store.set(agentChannelModeAtomFamily("s1"), "stream")
     })
 
+    it("marks a shared sender request and keeps its acceptance channel streaming", async () => {
+        store.set(agentChannelModeAtomFamily("s1"), "batch")
+        seed(store, "e", {})
+        const req = await buildAgentRequest("e", [], {
+            sessionId: "s1",
+            sharedResponse: true,
+            store,
+        })
+        expect(req!.headers.Accept).toBe("text/event-stream")
+        expect(req!.headers["x-ag-session-response"]).toBe("shared")
+        expect(req!.requestBody).not.toHaveProperty("flags")
+        store.set(agentChannelModeAtomFamily("s1"), "stream")
+    })
+
     it("declares the Vercel message format via x-ag-messages-format", async () => {
         seed(store, "e", {})
         const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
