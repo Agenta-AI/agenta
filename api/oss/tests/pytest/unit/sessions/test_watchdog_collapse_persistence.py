@@ -131,7 +131,9 @@ class _FakeLock:
         if isinstance(cur, bytes):
             cur = cur.decode()
         if len(argv) > 1:
-            if cur is None or cur == v:
+            from oss.src.dbs.redis.sessions.contract import owner_replica_id
+
+            if cur is None or owner_replica_id(cur) == owner_replica_id(v):
                 self._s[k] = v.encode()
                 return v.encode()
             return cur.encode() if cur else None

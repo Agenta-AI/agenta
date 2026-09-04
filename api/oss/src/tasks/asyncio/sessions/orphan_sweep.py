@@ -60,7 +60,7 @@ from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterfa
 from oss.src.dbs.redis.sessions.contract import WATCH_LIFECYCLE_ENDED
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.locks import (
-    get_owner,
+    get_owner_value,
     release_watchdog_turn,
 )
 
@@ -493,7 +493,7 @@ async def run_orphan_sweep(
         for project_id, session_id, turn_id in sorted(
             owner_keys, key=lambda key: key[1]
         ):
-            observed_owners[(project_id, session_id, turn_id)] = await get_owner(
+            observed_owners[(project_id, session_id, turn_id)] = await get_owner_value(
                 lock_engine,
                 project_id=str(project_id),
                 session_id=session_id,
@@ -743,7 +743,7 @@ async def run_orphan_sweep(
                 project_id=str(project_uuid),
                 session_id=session_id,
                 turn_id=turn_id,
-                replica_id=observed_owners.get((project_uuid, session_id, turn_id)),
+                owner_value=observed_owners.get((project_uuid, session_id, turn_id)),
             )
             log.warning(
                 "watchdog: wrote the ending a stopped turn's runner never reported",
@@ -766,7 +766,7 @@ async def run_orphan_sweep(
                 project_id=str(project_uuid),
                 session_id=session_id,
                 turn_id=row_turn_id,
-                replica_id=(
+                owner_value=(
                     observed_owners.get((project_uuid, session_id, row_turn_id))
                     if row_turn_id is not None
                     else None

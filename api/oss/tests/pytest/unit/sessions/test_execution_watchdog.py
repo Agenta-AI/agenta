@@ -24,6 +24,7 @@ from oss.src.core.sessions.records.dtos import (
     SETTLED_BY_WATCHDOG,
     SessionRecordEvent,
 )
+from oss.src.dbs.redis.sessions.contract import make_owner_value, owner_replica_id
 from oss.src.dbs.redis.sessions.locks import claim_owner, is_turn_superseded
 from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     LOST_ERROR_CODE,
@@ -329,7 +330,7 @@ class _FakeRedis:
         if isinstance(current, bytes):
             current = current.decode()
         if len(argv) > 1:
-            if current is None or current == v:
+            if current is None or owner_replica_id(current) == owner_replica_id(v):
                 self._store[k] = v.encode()
                 return v.encode()
             return current.encode()
@@ -692,7 +693,9 @@ async def test_the_redis_nest_follows_the_settled_row(anyio_backend):
 
 
 @pytest.mark.anyio
-async def test_post_commit_cleanup_preserves_a_new_turn_generation(anyio_backend):
+async def test_cleanup_preserves_same_replica_owner_refresh_before_new_turn_locks(
+    anyio_backend,
+):
     stream = _stale_running_row(session_id="sess-cleanup-race", turn_id="turn-a")
     redis = _FakeRedis()
     project = str(stream.project_id)
@@ -701,23 +704,30 @@ async def test_post_commit_cleanup_preserves_a_new_turn_generation(anyio_backend
     owner_key = f"owner:{project}:session:{stream.session_id}"
     redis._store[alive_key] = b"turn-a"
     redis._store[running_key] = b"turn-a"
-    redis._store[owner_key] = b"replica-a"
+    redis._store[owner_key] = make_owner_value(
+        replica_id="replica-a", turn_id="turn-a"
+    ).encode()
 
-    def install_turn_b():
-        redis._store[alive_key] = b"turn-b"
-        redis._store[running_key] = b"turn-b"
-        redis._store[owner_key] = b"replica-b"
+    def refresh_turn_b_owner():
+        # Exact ABA gap: the same replica refreshed affinity for B, but has not installed B's
+        # alive/running keys yet. Cleanup must compare the owner generation, not the replica.
+        redis._store[owner_key] = make_owner_value(
+            replica_id="replica-a", turn_id="turn-b"
+        ).encode()
 
     await run_orphan_sweep(
-        _FakeTransactionsEngine([stream], after_commit=install_turn_b),
+        _FakeTransactionsEngine([stream], after_commit=refresh_turn_b_owner),
         redis,
         records_service=_FakeRecordsService(),
         publish=_Publisher(),
     )
 
-    assert redis._store[alive_key] == b"turn-b"
-    assert redis._store[running_key] == b"turn-b"
-    assert redis._store[owner_key] == b"replica-b"
+    assert alive_key not in redis._store
+    assert running_key not in redis._store
+    assert (
+        redis._store[owner_key]
+        == make_owner_value(replica_id="replica-a", turn_id="turn-b").encode()
+    )
     assert (
         redis._store[f"superseded:{project}:session:{stream.session_id}:turn:turn-a"]
         == b"1"

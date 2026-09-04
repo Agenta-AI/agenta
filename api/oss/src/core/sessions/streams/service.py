@@ -570,6 +570,7 @@ class SessionStreamsService:
             project_id=str(project_id),
             session_id=request.session_id,
             replica_id=request.replica_id,
+            turn_id=request.turn_id,
         )
         if owner == request.replica_id:
             log.info(
@@ -683,6 +684,7 @@ class SessionStreamsService:
             project_id=str(project_id),
             session_id=request.session_id,
             replica_id=request.replica_id,
+            turn_id=request.turn_id,
         )
         # A different replica holds affinity. That claim is worth honouring only while it
         # protects a turn, so before refusing, check whether it still protects one.
