@@ -75,10 +75,14 @@ class SessionInteractionsService:
         project_id: UUID,
         #
         interaction_id: UUID,
+        transaction: Optional[Any] = None,
+        for_update: bool = False,
     ) -> SessionInteraction:
         result = await self.interactions_dao.fetch_interaction(
             project_id=project_id,
             interaction_id=interaction_id,
+            transaction=transaction,
+            for_update=for_update,
         )
         if result is None:
             raise InteractionNotFound(f"Interaction {interaction_id} not found")
@@ -88,19 +92,23 @@ class SessionInteractionsService:
         self,
         *,
         transition: SessionInteractionTransition,
+        transaction: Optional[Any] = None,
+        publish: bool = True,
     ) -> Optional[SessionInteraction]:
         result = await self.interactions_dao.transition_interaction(
             transition=transition,
+            transaction=transaction,
         )
         if result is None:
             raise InteractionNotFound(
                 f"Interaction with token {transition.token!r} not found or already terminal"
             )
-        await self._publish_interaction(
-            project_id=transition.project_id,
-            session_id=transition.session_id,
-            status=WATCH_INTERACTION_RESOLVED,
-        )
+        if publish:
+            await self._publish_interaction(
+                project_id=transition.project_id,
+                session_id=transition.session_id,
+                status=WATCH_INTERACTION_RESOLVED,
+            )
         return result
 
     async def cancel_session_pending(
@@ -166,6 +174,15 @@ class SessionInteractionsService:
         return len(cancelled)
 
     async def publish_session_pending_cancelled(
+        self, *, project_id: UUID, session_id: str
+    ) -> None:
+        await self._publish_interaction(
+            project_id=project_id,
+            session_id=session_id,
+            status=WATCH_INTERACTION_RESOLVED,
+        )
+
+    async def publish_interaction_responded(
         self, *, project_id: UUID, session_id: str
     ) -> None:
         await self._publish_interaction(

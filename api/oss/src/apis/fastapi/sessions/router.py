@@ -82,6 +82,7 @@ from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.commands.types import (
     ExecutionExpectationFailed,
     SessionCommandIdempotencyConflict,
+    InteractionResponseConflict,
     SessionCommandNotClaimable,
     SessionCommandNotFound,
 )
@@ -147,6 +148,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionCommandSettlement,
     SessionControlOutcomeRequest,
     SessionControlOutcomeResponse,
+    SessionContinuationResumeResponse,
     SessionExecutionRef,
     # streams
     SessionDetachRequest,
@@ -166,6 +168,8 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionInteractionCreateRequest,
     SessionInteractionQueryRequest,
     SessionInteractionRespondRequest,
+    SessionInteractionContinuationExecution,
+    SessionInteractionContinuationResponse,
     SessionInteractionResolution,
     SessionInteractionResponse,
     SessionInteractionsResponse,
@@ -1024,11 +1028,13 @@ class InteractionsRouter:
         # import the tasks layer). When present, the no-worker respond fallback goes through
         # it so both paths share ONE answer-composition implementation.
         interactions_dispatcher: Optional[Any] = None,
+        commands_service: Optional[SessionCommandsService] = None,
     ) -> None:
         self.interactions_service = interactions_service
         self.workflows_service = workflows_service
         self.respond_task = respond_task
         self.interactions_dispatcher = interactions_dispatcher
+        self.commands_service = commands_service
 
         self.router = APIRouter()
 
@@ -1259,7 +1265,7 @@ class InteractionsRouter:
         request: Request,
         interaction_id: UUID,
         body: SessionInteractionRespondRequest,
-    ) -> SessionInteractionResponse:
+    ) -> Any:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
@@ -1270,6 +1276,80 @@ class InteractionsRouter:
         )
         if not authorized:
             raise FORBIDDEN_EXCEPTION
+
+        if env.agenta.sessions.durable_stop and self.commands_service is not None:
+            idempotency_key = (request.headers.get("Idempotency-Key") or "").strip()
+            if not idempotency_key:
+                return JSONResponse(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    content={
+                        "code": "validation_error",
+                        "message": "Idempotency-Key is required for a durable response.",
+                        "retryable": False,
+                        "details": {"field": "Idempotency-Key", "reason": "required"},
+                        "next_step": "Retry with a stable Idempotency-Key header.",
+                    },
+                )
+            if len(idempotency_key) > _MAX_IDEMPOTENCY_KEY_CHARACTERS:
+                return JSONResponse(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    content={
+                        "code": "validation_error",
+                        "message": "Idempotency-Key is too long.",
+                        "retryable": False,
+                        "details": {"field": "Idempotency-Key", "reason": "too_long"},
+                        "next_step": "Use an Idempotency-Key of at most 255 characters.",
+                    },
+                )
+            if body.answer is None:
+                return JSONResponse(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    content={
+                        "code": "validation_error",
+                        "message": "answer is required for a durable response.",
+                        "retryable": False,
+                        "details": {"field": "answer", "reason": "required"},
+                    },
+                )
+            try:
+                admission = await self.commands_service.respond_interaction(
+                    project_id=UUID(str(project_id)),
+                    user_id=UUID(str(user_id)),
+                    interaction_id=interaction_id,
+                    answer=body.answer,
+                    expected_execution_id=body.expected_execution_id,
+                    idempotency_key=idempotency_key,
+                )
+            except InteractionResponseConflict as error:
+                return JSONResponse(
+                    status_code=(
+                        status.HTTP_422_UNPROCESSABLE_ENTITY
+                        if error.code == "validation_error"
+                        else status.HTTP_409_CONFLICT
+                    ),
+                    content={
+                        "code": error.code,
+                        "message": error.message,
+                        "retryable": False,
+                        **({"details": error.details} if error.details else {}),
+                    },
+                )
+
+            response = SessionInteractionContinuationResponse(
+                interaction=admission.interaction,
+                command=SessionCommandRef(
+                    id=admission.command.id,
+                    state=admission.command.state.value,
+                ),
+                execution=SessionInteractionContinuationExecution(
+                    id=admission.execution_id,
+                    state=admission.execution_state.value,
+                ),
+            )
+            return JSONResponse(
+                status_code=status.HTTP_202_ACCEPTED,
+                content=response.model_dump(mode="json"),
+            )
 
         try:
             interaction = await self.interactions_service.fetch_interaction(
@@ -2208,6 +2288,16 @@ def _handle_command_exceptions():
                     status_code=status.HTTP_409_CONFLICT,
                     detail={"message": e.message, "state": e.state},
                 ) from e
+            except InteractionResponseConflict as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": e.code,
+                        "message": e.message,
+                        "retryable": False,
+                        **({"details": e.details} if e.details else {}),
+                    },
+                ) from e
 
         return wrapper
 
@@ -2241,6 +2331,13 @@ class SessionControlRouter:
             self.cancel_session_execution,
             methods=["POST"],
             operation_id="cancel_session_execution",
+            tags=["Sessions"],
+        )
+        self.router.add_api_route(
+            "/sessions/{session_id}/continuations/resume",
+            self.resume_session_continuation,
+            methods=["POST"],
+            operation_id="resume_session_continuation",
             tags=["Sessions"],
         )
         self.router.add_api_route(
@@ -2320,6 +2417,32 @@ class SessionControlRouter:
 
     @intercept_exceptions()
     @_handle_command_exceptions()
+    async def resume_session_continuation(
+        self,
+        request: Request,
+        session_id: str,
+    ) -> SessionContinuationResumeResponse:
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        has_permission = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        resumed = False
+        if env.agenta.sessions.durable_stop:
+            resumed = await self._service.resume_recoverable_continuation(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
+            )
+        return SessionContinuationResumeResponse(resumed=resumed)
+
+    @intercept_exceptions()
+    @_handle_command_exceptions()
     async def report_command_outcome(
         self,
         request: Request,
@@ -2328,7 +2451,7 @@ class SessionControlRouter:
     ) -> SessionControlOutcomeResponse:
         _assert_runner_token(request)
 
-        settled = await self._service.report_outcome(
+        report = await self._service.report_outcome(
             command_id=command_id,
             replica_id=payload.replica_id,
             result=payload.result,
@@ -2338,11 +2461,14 @@ class SessionControlRouter:
         )
         return SessionControlOutcomeResponse(
             command=SessionCommandSettlement(
-                id=settled.id,
-                state=settled.state.value,
-                outcome=settled.outcome.value if settled.outcome else "failed",
-                settled_at=settled.settled_at,
-            )
+                id=report.command.id,
+                state=report.command.state.value,
+                outcome=(
+                    report.command.outcome.value if report.command.outcome else "failed"
+                ),
+                settled_at=report.command.settled_at,
+            ),
+            admitted=report.admitted,
         )
 
 
@@ -2420,6 +2546,7 @@ class SessionsRouter:
             workflows_service=workflows_service,
             respond_task=respond_task,
             interactions_dispatcher=interactions_dispatcher,
+            commands_service=commands_service,
         )
         self.attachments = SessionAttachmentsRouter(
             attachments_service=attachments_service,

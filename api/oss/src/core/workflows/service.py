@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Optional, List, Union, TYPE_CHECKING
+from typing import Any, Awaitable, Callable, Dict, Optional, List, Union, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import httpx
@@ -277,6 +277,31 @@ class WorkflowsService:
         self.embeds_service = embeds_service
         self.static_catalog = static_catalog
         self._watch = watch_publisher
+        self._session_continuation_resumer: Optional[Callable[..., Awaitable[bool]]] = (
+            None
+        )
+
+    def set_session_continuation_resumer(
+        self, callback: Callable[..., Awaitable[bool]]
+    ) -> None:
+        self._session_continuation_resumer = callback
+
+    async def _resume_pending_session_continuation(
+        self, *, project_id: UUID, request: WorkflowServiceRequest
+    ) -> bool:
+        session_id = request.session_id
+        meta = request.meta or {}
+        if (
+            not env.agenta.sessions.durable_stop
+            or not session_id
+            or meta.get("control_command_id")
+            or self._session_continuation_resumer is None
+        ):
+            return False
+        return await self._session_continuation_resumer(
+            project_id=project_id,
+            session_id=session_id,
+        )
 
     @staticmethod
     def _artifact_cache_key(artifact_id: UUID) -> str:
@@ -777,11 +802,31 @@ class WorkflowsService:
                     # exiting the context closes the connection (run keeps going on the runner).
                     try:
                         record = json.loads(line)
-                    except json.JSONDecodeError:
-                        record = None
-                    record_run_id = (
-                        record.get("run_id") if isinstance(record, dict) else None
-                    )
+                    except json.JSONDecodeError as error:
+                        raise WorkflowDetachedStartFailed(
+                            "Workflow service emitted malformed NDJSON before detached start."
+                        ) from error
+                    if not isinstance(record, dict):
+                        raise WorkflowDetachedStartFailed(
+                            "Workflow service emitted a non-object record before detached start."
+                        )
+                    kind = record.get("kind")
+                    if kind == "result":
+                        result = record.get("result")
+                        if not isinstance(result, dict) or result.get("ok") is not True:
+                            detail = (
+                                result.get("error")
+                                if isinstance(result, dict)
+                                else "malformed result record"
+                            )
+                            raise WorkflowDetachedStartFailed(
+                                f"Workflow service rejected detached start: {detail}"
+                            )
+                    elif kind != "event":
+                        raise WorkflowDetachedStartFailed(
+                            "Workflow service emitted an unknown record before detached start."
+                        )
+                    record_run_id = record.get("run_id")
                     return WorkflowServiceDetachedResponse(
                         run_id=record_run_id or run_id,
                         accepted=True,
@@ -2875,6 +2920,19 @@ class WorkflowsService:
         WorkflowServiceBatchResponse,
         WorkflowServiceStreamResponse,
     ]:
+        if await self._resume_pending_session_continuation(
+            project_id=project_id, request=request
+        ):
+            return WorkflowServiceBatchResponse(
+                status=WorkflowServiceStatus(
+                    type="https://agenta.ai/docs/errors#continuation-resumed",
+                    code=409,
+                    message=(
+                        "A durable approval continuation already owns this session; "
+                        "it was redelivered instead of starting a competing turn."
+                    ),
+                )
+            )
         credentials, service_url = await self._prepare_invoke(
             project_id=project_id,
             user_id=user_id,

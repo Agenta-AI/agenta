@@ -37,6 +37,7 @@ from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     ORPHAN_THRESHOLD_SECONDS,
     run_orphan_sweep,
 )
+from oss.src.utils.env import env
 
 _PROJECT_ID = "proj-sweep-1"
 
@@ -267,6 +268,29 @@ class _OrderedCommandsService:
         return 0
 
 
+class _CompletedRecords:
+    async def settled_turns(self, *, project_id, keys):
+        return set(keys)
+
+    async def runner_completed_turns(self, *, project_id, keys):
+        return set(keys)
+
+
+class _CompletionLookupFailure(_CompletedRecords):
+    async def runner_completed_turns(self, *, project_id, keys):
+        raise RuntimeError("records database unavailable")
+
+
+class _CompletionCommands(_OrderedCommandsService):
+    def __init__(self, *, succeeds: bool) -> None:
+        super().__init__()
+        self.succeeds = succeeds
+
+    async def settle_execution_completed(self, **kwargs):
+        self.calls.append(("completed", kwargs["execution_id"]))
+        return self.succeeds
+
+
 @pytest.mark.anyio
 async def test_redis_repair_runs_after_the_sweeps_main_work(anyio_backend):
     commands = _OrderedCommandsService()
@@ -293,6 +317,77 @@ async def test_running_row_is_swept_at_the_short_threshold(anyio_backend):
     assert _swept(row), (
         "6 minutes of silence from a turn that beats every 30s means the runner died"
     )
+
+
+@pytest.mark.anyio
+async def test_persisted_done_is_terminalized_before_stale_ownership_is_cleared(
+    anyio_backend,
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    row = _FakeRow(
+        session_id="sess-completed-continuation",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="continuation-1",
+    )
+    commands = _CompletionCommands(succeeds=True)
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row]),
+        _FakeRedis(),
+        records_service=_CompletedRecords(),
+        commands_service=commands,
+    )
+
+    assert ("completed", "continuation-1") in commands.calls
+    assert _swept(row)
+
+
+@pytest.mark.anyio
+async def test_completion_settlement_failure_keeps_ownership_blocking_replay(
+    anyio_backend,
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    row = _FakeRow(
+        session_id="sess-completion-race",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="continuation-1",
+    )
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row]),
+        _FakeRedis(),
+        records_service=_CompletedRecords(),
+        commands_service=_CompletionCommands(succeeds=False),
+    )
+
+    assert not _swept(row)
+
+
+@pytest.mark.anyio
+async def test_completion_lookup_failure_keeps_ownership_blocking_replay(
+    anyio_backend,
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    row = _FakeRow(
+        session_id="sess-completion-lookup-race",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="continuation-1",
+    )
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row]),
+        _FakeRedis(),
+        records_service=_CompletionLookupFailure(),
+        commands_service=_CompletionCommands(succeeds=True),
+    )
+
+    assert not _swept(row)
 
 
 @pytest.mark.anyio

@@ -25,7 +25,10 @@ class SessionCommandDBE(Base, SessionCommandDBA):
             "idempotency_key",
             name="uq_session_commands_idempotency",
         ),
-        CheckConstraint("kind IN ('cancel')", name="ck_session_commands_kind"),
+        CheckConstraint(
+            "kind IN ('cancel', 'continue_interaction')",
+            name="ck_session_commands_kind",
+        ),
         CheckConstraint(
             "state IN ('pending', 'claimed', 'applied', 'obsolete')",
             name="ck_session_commands_state",

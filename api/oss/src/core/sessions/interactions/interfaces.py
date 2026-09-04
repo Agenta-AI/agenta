@@ -29,6 +29,8 @@ class SessionInteractionsDAOInterface(ABC):
         project_id: UUID,
         #
         interaction_id: UUID,
+        transaction: Optional[Any] = None,
+        for_update: bool = False,
     ) -> Optional[SessionInteraction]: ...
 
     @abstractmethod
@@ -36,6 +38,7 @@ class SessionInteractionsDAOInterface(ABC):
         self,
         *,
         transition: SessionInteractionTransition,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionInteraction]: ...
 
     @abstractmethod

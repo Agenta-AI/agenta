@@ -33,7 +33,7 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
 
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from oss.src.core.sessions.commands.dtos import (
     SessionCommand,
@@ -46,15 +46,24 @@ from oss.src.core.sessions.commands.dtos import (
 from oss.src.core.sessions.commands.interfaces import (
     CommandCreateResult,
     ControlDeliveryPort,
+    DeliveryReceipt,
     SessionCommandsDAOInterface,
 )
 from oss.src.core.sessions.commands.types import (
     ExecutionExpectationFailed,
     SessionCommandIdempotencyConflict,
+    IdempotencyKeyReused,
+    InteractionResponseConflict,
     SessionCommandNotClaimable,
     SessionCommandNotFound,
 )
+from oss.src.core.sessions.executions.dtos import SessionExecutionState
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
+from oss.src.core.sessions.interactions.dtos import (
+    SessionInteraction,
+    SessionInteractionStatus,
+    SessionInteractionTransition,
+)
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.streams.dtos import (
     SessionStreamCommandRequest,
@@ -79,6 +88,10 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
+class _ContinuationReopenLost(Exception):
+    """The durable command changed while a fresh recovery attempt was being created."""
+
+
 class CancelAdmission:
     """What admission decided, in the shape the route answers with."""
 
@@ -95,6 +108,27 @@ class CancelAdmission:
         # True when an execution was running or parked and the command is on its way. The route
         # answers 202 for it and 200 otherwise.
         self.accepted = accepted
+
+
+class InteractionContinuationAdmission:
+    def __init__(
+        self,
+        *,
+        interaction: SessionInteraction,
+        command: SessionCommand,
+        execution_id: str,
+        execution_state: SessionExecutionState = SessionExecutionState.pending_delivery,
+    ) -> None:
+        self.interaction = interaction
+        self.command = command
+        self.execution_id = execution_id
+        self.execution_state = execution_state
+
+
+class CommandOutcomeReport:
+    def __init__(self, *, command: SessionCommand, admitted: bool) -> None:
+        self.command = command
+        self.admitted = admitted
 
 
 class _SettlementRejected(Exception):
@@ -241,8 +275,6 @@ class SessionCommandsService:
             command = created.command
             return CancelAdmission(command=command, execution_id=None, accepted=False)
 
-        # Two Stops in a row are one intent. Collapse onto the open command for the same target
-        # BEFORE inserting, so this holds even when the caller sends a different idempotency key.
         open_command = await self._dao.fetch_open_command(
             project_id=project_id,
             session_id=session_id,
@@ -251,8 +283,6 @@ class SessionCommandsService:
         )
         if open_command is not None:
             if open_command.state == SessionCommandState.pending:
-                # Nobody has taken it. The first delivery may have failed, so try again; the
-                # runner deduplicates by command id, so a duplicate arrival aborts nothing twice.
                 await self._deliver(open_command)
             return CancelAdmission(
                 command=open_command,
@@ -260,26 +290,422 @@ class SessionCommandsService:
                 accepted=True,
             )
 
-        created = await self._insert(
-            project_id=project_id,
-            user_id=user_id,
-            session_id=session_id,
-            received_at=received_at,
-            target_turn_id=target_turn_id,
-            expected_turn_id=expected_execution_id,
-            idempotency_key=idempotency_key,
-            state=SessionCommandState.pending,
-            outcome=None,
-            stopping_turn_id=target_turn_id,
-        )
-        if not created.inserted:
-            return self._admission_for_existing(created.command)
-        command = created.command
+        if self._executions is None or not hasattr(
+            self._executions, "lock_for_control"
+        ):
+            created = await self._insert(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                received_at=received_at,
+                target_turn_id=target_turn_id,
+                expected_turn_id=expected_execution_id,
+                idempotency_key=idempotency_key,
+                state=SessionCommandState.pending,
+                outcome=None,
+                stopping_turn_id=target_turn_id,
+            )
+            if not created.inserted:
+                return self._admission_for_existing(created.command)
+            command = created.command
+        else:
+            cancelled_interactions = 0
+            async with self._dao.transaction() as transaction:
+                execution = await self._executions.lock_for_control(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=target_turn_id,
+                    transaction=transaction,
+                )
+                if execution.terminal_outcome is not None:
+                    raise ExecutionExpectationFailed(
+                        expected=expected_execution_id or target_turn_id,
+                        current=None,
+                    )
+                open_command = await self._dao.fetch_open_command(
+                    project_id=project_id,
+                    session_id=session_id,
+                    kind=SessionCommandKind.cancel,
+                    target_turn_id=target_turn_id,
+                    transaction=transaction,
+                )
+                if open_command is not None:
+                    command = open_command
+                else:
+                    await self._executions.set_state(
+                        project_id=project_id,
+                        session_id=session_id,
+                        execution_id=target_turn_id,
+                        state=SessionExecutionState.stopping,
+                        transaction=transaction,
+                    )
+                    created = await self._insert(
+                        project_id=project_id,
+                        user_id=user_id,
+                        session_id=session_id,
+                        received_at=received_at,
+                        target_turn_id=target_turn_id,
+                        expected_turn_id=expected_execution_id,
+                        idempotency_key=idempotency_key,
+                        state=SessionCommandState.pending,
+                        outcome=None,
+                        stopping_turn_id=target_turn_id,
+                        transaction=transaction,
+                    )
+                    command = created.command
+                    cancelled_interactions = (
+                        await self._interactions.cancel_session_pending(
+                            project_id=project_id,
+                            session_id=session_id,
+                            only_turn_id=target_turn_id,
+                            transaction=transaction,
+                            publish=False,
+                        )
+                    )
+            if cancelled_interactions:
+                await self._interactions.publish_session_pending_cancelled(
+                    project_id=project_id, session_id=session_id
+                )
         # The row is committed. Everything from here is promptness, not correctness.
-        await self._deliver(command)
+        if command.state == SessionCommandState.pending:
+            await self._deliver(command)
         return CancelAdmission(
             command=command, execution_id=target_turn_id, accepted=True
         )
+
+    async def respond_interaction(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        interaction_id: UUID,
+        answer: dict[str, Any],
+        expected_execution_id: Optional[str],
+        idempotency_key: str,
+    ) -> InteractionContinuationAdmission:
+        if self._executions is None:
+            raise RuntimeError(
+                "durable interaction responses require executions storage"
+            )
+
+        async with self._dao.transaction() as transaction:
+            interaction = await self._interactions.fetch_interaction(
+                project_id=project_id,
+                interaction_id=interaction_id,
+                transaction=transaction,
+            )
+            source_execution_id = interaction.turn_id
+            if source_execution_id is None:
+                raise InteractionResponseConflict(
+                    code="validation_error",
+                    message="The interaction is not linked to an execution.",
+                )
+            if (
+                expected_execution_id is not None
+                and expected_execution_id != source_execution_id
+            ):
+                raise InteractionResponseConflict(
+                    code="execution_mismatch",
+                    message="The interaction belongs to a different execution.",
+                    details={"current_execution_id": source_execution_id},
+                )
+
+            source = await self._executions.lock_for_control(
+                project_id=project_id,
+                session_id=interaction.session_id,
+                execution_id=source_execution_id,
+                transaction=transaction,
+            )
+            interaction = await self._interactions.fetch_interaction(
+                project_id=project_id,
+                interaction_id=interaction_id,
+                transaction=transaction,
+                for_update=True,
+            )
+            existing = await self._dao.fetch_by_idempotency_key(
+                project_id=project_id,
+                session_id=interaction.session_id,
+                idempotency_key=idempotency_key,
+                transaction=transaction,
+            )
+            if existing is not None:
+                same_request = (
+                    existing.kind == SessionCommandKind.continue_interaction
+                    and existing.expected_turn_id == source_execution_id
+                    and existing.data is not None
+                    and existing.data.get("interaction_id") == str(interaction_id)
+                    and interaction.data is not None
+                    and interaction.data.resolution == answer
+                )
+                if not same_request:
+                    raise IdempotencyKeyReused()
+                execution_id = str(existing.data["continuation_execution_id"])
+                admission = InteractionContinuationAdmission(
+                    interaction=interaction,
+                    command=existing,
+                    execution_id=execution_id,
+                )
+            else:
+                if interaction.status != SessionInteractionStatus.pending:
+                    raise InteractionResponseConflict(
+                        code="execution_terminal",
+                        message="The interaction is no longer pending.",
+                        details={
+                            "interaction_status": (
+                                interaction.status.value
+                                if interaction.status is not None
+                                else None
+                            )
+                        },
+                    )
+                if source.terminal_outcome is not None or source.state in (
+                    SessionExecutionState.stopping,
+                    SessionExecutionState.terminal,
+                ):
+                    raise InteractionResponseConflict(
+                        code="execution_terminal",
+                        message="The source execution can no longer be continued.",
+                        details={"execution_state": source.state.value},
+                    )
+
+                transitioned = await self._interactions.transition_interaction(
+                    transition=SessionInteractionTransition(
+                        project_id=project_id,
+                        session_id=interaction.session_id,
+                        token=interaction.token,
+                        status=SessionInteractionStatus.responded,
+                        resolution=answer,
+                    ),
+                    transaction=transaction,
+                    publish=False,
+                )
+                result = await self._executions.settle(
+                    project_id=project_id,
+                    session_id=interaction.session_id,
+                    execution_id=source_execution_id,
+                    terminal_outcome="continued",
+                    settled_by="interaction_response",
+                    transaction=transaction,
+                )
+                if not result.won:
+                    raise InteractionResponseConflict(
+                        code="execution_terminal",
+                        message="The source execution can no longer be continued.",
+                        details={
+                            "terminal_outcome": result.settlement.terminal_outcome
+                        },
+                    )
+
+                execution_id = str(uuid4())
+                await self._executions.create_continuation(
+                    project_id=project_id,
+                    session_id=interaction.session_id,
+                    execution_id=execution_id,
+                    parent_execution_id=source_execution_id,
+                    source_interaction_id=interaction_id,
+                    transaction=transaction,
+                )
+                command = await self._dao.create_command(
+                    user_id=user_id,
+                    command=SessionCommandCreate(
+                        project_id=project_id,
+                        session_id=interaction.session_id,
+                        kind=SessionCommandKind.continue_interaction,
+                        target_turn_id=execution_id,
+                        expected_turn_id=source_execution_id,
+                        data={
+                            "interaction_id": str(interaction_id),
+                            "continuation_execution_id": execution_id,
+                        },
+                        idempotency_key=idempotency_key,
+                    ),
+                    transaction=transaction,
+                )
+                if (
+                    command.kind != SessionCommandKind.continue_interaction
+                    or command.target_turn_id != execution_id
+                    or command.data is None
+                    or command.data.get("interaction_id") != str(interaction_id)
+                ):
+                    raise IdempotencyKeyReused()
+                admission = InteractionContinuationAdmission(
+                    interaction=transitioned,
+                    command=command,
+                    execution_id=execution_id,
+                )
+
+        try:
+            await self._interactions.publish_interaction_responded(
+                project_id=project_id,
+                session_id=admission.interaction.session_id,
+            )
+        except Exception as error:  # noqa: BLE001 - the durable transaction already committed
+            log.warning(
+                "interaction response watch publish failed interaction=%s: %s",
+                interaction_id,
+                error,
+            )
+        if admission.command.state == SessionCommandState.pending:
+            try:
+                receipt = await self._deliver(admission.command)
+            except Exception as error:  # noqa: BLE001 - admission remains accepted
+                log.warning(
+                    "continuation post-commit delivery failed command=%s: %s",
+                    admission.command.id,
+                    error,
+                )
+                receipt = None
+            if receipt is None or receipt.status != "accepted":
+                await self._mark_continuation_recoverable(admission)
+                admission.execution_state = SessionExecutionState.recoverable
+        return admission
+
+    async def _mark_continuation_recoverable(
+        self, admission: InteractionContinuationAdmission
+    ) -> None:
+        if self._executions is None:
+            return
+        try:
+            await self._executions.set_state(
+                project_id=admission.command.project_id,
+                session_id=admission.command.session_id,
+                execution_id=admission.execution_id,
+                state=SessionExecutionState.recoverable,
+                error={
+                    "code": "continuation_delivery_failed",
+                    "retryable": True,
+                    "message": "The continuation is durable and awaiting redelivery.",
+                },
+            )
+        except Exception as error:  # noqa: BLE001 - recovery projection is best effort
+            log.error(
+                "continuation recoverable projection failed command=%s execution=%s: %s",
+                admission.command.id,
+                admission.execution_id,
+                error,
+            )
+
+    async def resume_recoverable_continuation(
+        self, *, project_id: UUID, session_id: str
+    ) -> bool:
+        if not env.agenta.sessions.durable_stop:
+            return False
+        command = await self._dao.fetch_resumable_continuation(
+            project_id=project_id,
+            session_id=session_id,
+        )
+        if command is None:
+            return False
+        execution_id = command.target_turn_id
+        if execution_id is None or self._executions is None:
+            return True
+        execution = await self._executions.fetch_execution(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+        )
+        if execution is None:
+            return True
+        if execution.state == SessionExecutionState.running:
+            # A stale heartbeat is not a fencing token: a partitioned runner can still be
+            # executing the approved side effect. Only the watchdog may turn `running` into
+            # `recoverable`, after it has collapsed and tombstoned the old ownership. Until
+            # then this durable continuation still owns Send, but it is never redelivered.
+            return True
+        if command.state not in (
+            SessionCommandState.pending,
+            SessionCommandState.claimed,
+        ):
+            command = await self._reopen_continuation_attempt(
+                project_id=project_id,
+                session_id=session_id,
+                command=command,
+                execution=execution,
+            )
+            if command is None:
+                return True
+            execution_id = command.target_turn_id
+            if execution_id is None:
+                return True
+        admission = InteractionContinuationAdmission(
+            interaction=await self._interaction_for_command(command),
+            command=command,
+            execution_id=execution_id,
+            execution_state=SessionExecutionState.recoverable,
+        )
+        try:
+            receipt = await self._deliver(command)
+        except Exception as error:  # noqa: BLE001 - keep ownership with the durable continuation
+            log.warning(
+                "continuation resume delivery failed command=%s: %s", command.id, error
+            )
+            receipt = None
+        if receipt is None or receipt.status != "accepted":
+            await self._mark_continuation_recoverable(admission)
+        return True
+
+    async def _reopen_continuation_attempt(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        command: SessionCommand,
+        execution: Any,
+    ) -> Optional[SessionCommand]:
+        """Fence a tombstoned attempt and retarget its command in one transaction."""
+        if (
+            self._executions is None
+            or execution.state != SessionExecutionState.recoverable
+        ):
+            return None
+        data = command.data or {}
+        root_execution_id = data.get("continuation_execution_id")
+        if not isinstance(root_execution_id, str) or not root_execution_id:
+            return None
+        replacement_execution_id = str(uuid4())
+        try:
+            async with self._dao.transaction() as transaction:
+                stored = await self._executions.lock_for_control(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=execution.execution_id,
+                    transaction=transaction,
+                )
+                if (
+                    stored.state != SessionExecutionState.recoverable
+                    or stored.terminal_outcome is not None
+                ):
+                    return None
+                settled = await self._executions.settle(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=stored.execution_id,
+                    terminal_outcome=SessionCommandOutcome.lost.value,
+                    settled_by="watchdog",
+                    transaction=transaction,
+                )
+                if not settled.won:
+                    return None
+                await self._executions.create_continuation(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=replacement_execution_id,
+                    parent_execution_id=root_execution_id,
+                    source_interaction_id=None,
+                    transaction=transaction,
+                )
+                reopened = await self._dao.reopen_continuation(
+                    project_id=project_id,
+                    command_id=command.id,
+                    target_turn_id=stored.execution_id,
+                    replacement_turn_id=replacement_execution_id,
+                    transaction=transaction,
+                )
+                if reopened is None:
+                    raise _ContinuationReopenLost
+                return reopened
+        except _ContinuationReopenLost:
+            return None
 
     async def _resolve_target(
         self,
@@ -326,7 +752,27 @@ class SessionCommandsService:
         state: SessionCommandState,
         outcome: Optional[SessionCommandOutcome],
         stopping_turn_id: Optional[str] = None,
+        transaction: Optional[Any] = None,
     ) -> CommandCreateResult:
+        if transaction is not None:
+            command = await self._dao.create_command(
+                user_id=user_id,
+                command=SessionCommandCreate(
+                    project_id=project_id,
+                    session_id=session_id,
+                    kind=SessionCommandKind.cancel,
+                    target_turn_id=target_turn_id,
+                    expected_turn_id=expected_turn_id,
+                    state=state,
+                    outcome=outcome,
+                    settled_at=received_at if outcome is not None else None,
+                    idempotency_key=idempotency_key,
+                    created_at=received_at,
+                ),
+                stopping_turn_id=stopping_turn_id,
+                transaction=transaction,
+            )
+            return CommandCreateResult(command=command, inserted=True)
         return await self._dao.create_command_with_status(
             user_id=user_id,
             command=SessionCommandCreate(
@@ -355,19 +801,31 @@ class SessionCommandsService:
 
     # -- delivery ----------------------------------------------------------- #
 
-    async def _deliver(self, command: SessionCommand) -> None:
+    async def _deliver(self, command: SessionCommand) -> Optional[DeliveryReceipt]:
         """Hand the command to the transport, then record what the transport learned.
 
         Never raises. The user's request has already succeeded by the time this runs.
         """
-        command = await self._dao.record_delivery_attempt(
-            project_id=command.project_id,
-            command_id=command.id,
-            now=datetime.now(timezone.utc),
-            max_deliveries=env.agenta.sessions.commands.max_deliveries,
-        )
+        try:
+            command = await self._dao.record_delivery_attempt(
+                project_id=command.project_id,
+                command_id=command.id,
+                now=datetime.now(timezone.utc),
+                max_deliveries=env.agenta.sessions.commands.max_deliveries,
+            )
+        except Exception as error:  # noqa: BLE001 - delivery bookkeeping is post-commit
+            log.warning("control delivery reservation failed: %s", error)
+            return None
         if command is None:
-            return
+            return None
+
+        try:
+            command = await self._command_for_delivery(command)
+        except Exception as error:  # noqa: BLE001 - a later sweep or Send can retry
+            log.warning(
+                "control delivery hydration failed command=%s: %s", command.id, error
+            )
+            return DeliveryReceipt(status="unreachable", detail=str(error))
 
         try:
             receipt = await self._delivery.deliver(command=command)
@@ -378,28 +836,64 @@ class SessionCommandsService:
                 command.session_id,
                 e,
             )
-            return
+            return DeliveryReceipt(status="unreachable", detail=str(e))
 
         if receipt.status == "accepted":
             # Take the claim on the runner's behalf, so the outcome route's guard reads the same
             # way on every transport: only the holder of the claim writes the outcome.
-            await self._dao.claim_for_delivery(
-                project_id=command.project_id,
-                command_id=command.id,
-                replica_id=receipt.replica_id or "direct",
-                lease_seconds=env.agenta.sessions.commands.lease_seconds,
-            )
-            return
+            try:
+                await self._dao.claim_for_delivery(
+                    project_id=command.project_id,
+                    command_id=command.id,
+                    replica_id=receipt.replica_id or "direct",
+                    lease_seconds=env.agenta.sessions.commands.lease_seconds,
+                )
+            except Exception as error:  # noqa: BLE001 - runner outcome still owns settlement
+                log.warning(
+                    "control delivery claim projection failed command=%s: %s",
+                    command.id,
+                    error,
+                )
+            return receipt
 
         if receipt.status == "not_held":
+            if command.kind == SessionCommandKind.continue_interaction:
+                return receipt
             await self._settle_not_held(command)
-            return
+            return receipt
 
         log.warning(
             "control delivery unreachable for command=%s session=%s: %s",
             command.id,
             command.session_id,
             receipt.detail or "no detail",
+        )
+        return receipt
+
+    async def _interaction_for_command(
+        self, command: SessionCommand
+    ) -> SessionInteraction:
+        interaction_id = (command.data or {}).get("interaction_id")
+        if not isinstance(interaction_id, str):
+            raise ValueError("continuation command has no interaction id")
+        return await self._interactions.fetch_interaction(
+            project_id=command.project_id,
+            interaction_id=UUID(interaction_id),
+        )
+
+    async def _command_for_delivery(self, command: SessionCommand) -> SessionCommand:
+        if command.kind != SessionCommandKind.continue_interaction:
+            return command
+        interaction = await self._interaction_for_command(command)
+        if interaction.data is None or interaction.data.resolution is None:
+            raise ValueError("continuation interaction has no durable resolution")
+        return command.model_copy(
+            update={
+                "data": {
+                    **(command.data or {}),
+                    "answer": interaction.data.resolution,
+                }
+            }
         )
 
     async def _settle_not_held(self, command: SessionCommand) -> None:
@@ -483,6 +977,16 @@ class SessionCommandsService:
         )
         settled = 0
         for command in abandoned:
+            if command.kind == SessionCommandKind.continue_interaction:
+                if not env.agenta.sessions.durable_stop:
+                    continue
+                if command.claim_count < max_deliveries:
+                    await self._deliver(command)
+                    continue
+                result = await self._settle_exhausted_continuation(command)
+                if result:
+                    settled += 1
+                continue
             beating = await self._session_is_beating(
                 project_id=command.project_id,
                 session_id=command.session_id,
@@ -507,6 +1011,35 @@ class SessionCommandsService:
                 settled += 1
         return settled
 
+    async def _settle_exhausted_continuation(self, command: SessionCommand) -> bool:
+        transition = SessionCommandSettle(
+            project_id=command.project_id,
+            command_id=command.id,
+            state=SessionCommandState.obsolete,
+            outcome=SessionCommandOutcome.lost,
+            expected_states=[SessionCommandState.pending, SessionCommandState.claimed],
+        )
+        async with self._dao.transaction() as transaction:
+            settled = await self._dao.settle_command(
+                settle=transition, transaction=transaction
+            )
+            if settled is None:
+                return False
+            if self._executions is not None and command.target_turn_id is not None:
+                await self._executions.set_state(
+                    project_id=command.project_id,
+                    session_id=command.session_id,
+                    execution_id=command.target_turn_id,
+                    state=SessionExecutionState.recoverable,
+                    error={
+                        "code": "continuation_delivery_exhausted",
+                        "message": "Continuation delivery exhausted its automatic retry budget.",
+                        "retryable": True,
+                    },
+                    transaction=transaction,
+                )
+        return True
+
     # -- settlement --------------------------------------------------------- #
 
     async def settle_execution_lost(
@@ -520,6 +1053,40 @@ class SessionCommandsService:
     ) -> bool:
         if self._executions is None:
             return True
+        execution = await self._executions.fetch_execution(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+        )
+        if (
+            execution is not None
+            and (
+                execution.source_interaction_id is not None
+                or execution.parent_execution_id is not None
+            )
+            and execution.terminal_outcome is None
+        ):
+            recovered = await self._executions.set_state(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+                state=SessionExecutionState.recoverable,
+                error={
+                    "code": "continuation_execution_lost",
+                    "message": "The continuation runner disappeared before completion.",
+                    "retryable": True,
+                },
+                expected_states=[
+                    SessionExecutionState.pending_delivery,
+                    SessionExecutionState.running,
+                ],
+            )
+            if recovered is not None:
+                return False
+            # A recoverable continuation deliberately receives no watchdog terminal record.
+            # Its next delivery resumes the same logical execution. A concurrent terminal
+            # winner likewise already owns the ending, so neither race permits a lost record.
+            return False
         result = await self._executions.settle(
             project_id=project_id,
             session_id=session_id,
@@ -534,6 +1101,37 @@ class SessionCommandsService:
             winner.terminal_outcome == SessionCommandOutcome.lost.value
             and winner.settled_by == "watchdog"
         )
+
+    async def settle_execution_completed(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+    ) -> bool:
+        """Reconcile a persisted runner ending before stale ownership is collapsed."""
+        if self._executions is None:
+            return True
+        execution = await self._executions.fetch_execution(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+        )
+        if execution is None or (
+            execution.source_interaction_id is None
+            and execution.parent_execution_id is None
+        ):
+            return True
+        if execution.terminal_outcome is not None:
+            return True
+        result = await self._executions.settle(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+            terminal_outcome="completed",
+            settled_by="runner",
+        )
+        return result.won or result.settlement.terminal_outcome is not None
 
     async def repair_terminal_redis(self) -> int:
         if self._executions is None:
@@ -578,12 +1176,22 @@ class SessionCommandsService:
         execution_id: Optional[str],
         execution_state: str,
         error: Optional[str] = None,
-    ) -> SessionCommand:
+    ) -> CommandOutcomeReport:
         """The runner reporting what happened to the execution. Both adapters land here, so
         settlement has one path on every transport."""
         command = await self._dao.fetch_command(command_id=command_id)
         if command is None:
             raise SessionCommandNotFound(command_id=str(command_id))
+
+        if command.kind == SessionCommandKind.continue_interaction:
+            return await self._report_continuation_outcome(
+                command=command,
+                replica_id=replica_id,
+                result=result,
+                execution_id=execution_id,
+                execution_state=execution_state,
+                error=error,
+            )
 
         outcome = _OUTCOME_BY_EXECUTION_STATE.get(execution_state)
         if outcome is None:
@@ -625,7 +1233,135 @@ class SessionCommandsService:
                 command_id=str(command_id),
                 state=stored.state.value if stored else "unknown",
             )
-        return settled
+        return CommandOutcomeReport(command=settled, admitted=True)
+
+    async def _report_continuation_outcome(
+        self,
+        *,
+        command: SessionCommand,
+        replica_id: str,
+        result: str,
+        execution_id: Optional[str],
+        execution_state: str,
+        error: Optional[str],
+    ) -> CommandOutcomeReport:
+        target = execution_id or command.target_turn_id
+        if target is None or target != command.target_turn_id:
+            raise SessionCommandNotClaimable(
+                command_id=str(command.id), state="execution_mismatch"
+            )
+        if (
+            command.state == SessionCommandState.applied
+            and command.outcome == SessionCommandOutcome.started
+        ):
+            return await self._readmit_recoverable_continuation(
+                command=command,
+                replica_id=replica_id,
+                execution_id=target,
+            )
+        started = result == "applied" and execution_state == "started"
+        settle = SessionCommandSettle(
+            project_id=command.project_id,
+            command_id=command.id,
+            state=(
+                SessionCommandState.applied if started else SessionCommandState.obsolete
+            ),
+            outcome=(
+                SessionCommandOutcome.started
+                if started
+                else SessionCommandOutcome.failed
+            ),
+            expected_states=[SessionCommandState.pending, SessionCommandState.claimed],
+            replica_id=replica_id,
+        )
+        execution_blocked = False
+        async with self._dao.transaction() as transaction:
+            execution = await self._executions.lock_for_control(
+                project_id=command.project_id,
+                session_id=command.session_id,
+                execution_id=target,
+                transaction=transaction,
+            )
+            execution_blocked = (
+                execution.terminal_outcome is not None
+                or execution.state
+                not in (
+                    SessionExecutionState.pending_delivery,
+                    SessionExecutionState.recoverable,
+                )
+            )
+            stored = None
+            if not execution_blocked:
+                stored = await self._dao.settle_command(
+                    settle=settle, transaction=transaction
+                )
+            if stored is not None:
+                transitioned = await self._executions.set_state(
+                    project_id=command.project_id,
+                    session_id=command.session_id,
+                    execution_id=target,
+                    state=(
+                        SessionExecutionState.running
+                        if started
+                        else SessionExecutionState.recoverable
+                    ),
+                    error=(
+                        None
+                        if started
+                        else {
+                            "code": "continuation_start_failed",
+                            "message": error or "The runner rejected the continuation.",
+                            "retryable": True,
+                        }
+                    ),
+                    expected_states=[execution.state],
+                    transaction=transaction,
+                )
+                if transitioned is None:
+                    raise RuntimeError(
+                        "continuation execution changed while its control lock was held"
+                    )
+        if execution_blocked:
+            return CommandOutcomeReport(command=command, admitted=False)
+        if stored is None:
+            latest = await self._dao.fetch_command(command_id=command.id)
+            if (
+                latest is not None
+                and latest.state == SessionCommandState.applied
+                and latest.outcome == SessionCommandOutcome.started
+            ):
+                return await self._readmit_recoverable_continuation(
+                    command=latest,
+                    replica_id=replica_id,
+                    execution_id=target,
+                )
+            raise SessionCommandNotClaimable(
+                command_id=str(command.id),
+                state=latest.state.value if latest else command.state.value,
+            )
+        return CommandOutcomeReport(command=stored, admitted=True)
+
+    async def _readmit_recoverable_continuation(
+        self,
+        *,
+        command: SessionCommand,
+        replica_id: str,
+        execution_id: str,
+    ) -> CommandOutcomeReport:
+        if command.claimed_by != replica_id or self._executions is None:
+            return CommandOutcomeReport(command=command, admitted=False)
+        transitioned = await self._executions.set_state(
+            project_id=command.project_id,
+            session_id=command.session_id,
+            execution_id=execution_id,
+            state=SessionExecutionState.running,
+            error=None,
+            expected_states=[SessionExecutionState.recoverable],
+        )
+        return CommandOutcomeReport(
+            command=command,
+            admitted=transitioned is not None,
+        )
 
     async def settle(
         self,
@@ -659,6 +1395,7 @@ class SessionCommandsService:
                 return None
             terminal = outcome in (
                 SessionCommandOutcome.stopped,
+                SessionCommandOutcome.not_running,
                 SessionCommandOutcome.lost,
             )
             settled_by = (
@@ -793,5 +1530,6 @@ _OUTCOME_BY_EXECUTION_STATE = {
 
 __all__ = [
     "CancelAdmission",
+    "InteractionContinuationAdmission",
     "SessionCommandsService",
 ]

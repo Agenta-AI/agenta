@@ -350,6 +350,8 @@ class InteractionsDispatcher:
         #
         interaction_id: UUID,
         answer: Any,
+        control_command_id: Optional[UUID] = None,
+        continuation_execution_id: Optional[str] = None,
     ) -> None:
         interaction = await self.interactions_service.fetch_interaction(
             project_id=project_id,
@@ -384,14 +386,22 @@ class InteractionsDispatcher:
             data=WorkflowServiceRequestData(inputs=inputs, parameters=parameters),
             session_id=interaction.session_id,
         )
+        if control_command_id is not None:
+            invoke_request.meta = {
+                **(invoke_request.meta or {}),
+                "control_command_id": str(control_command_id),
+            }
 
         if self._dispatch_fn is not None:
             # Detached path: hand off to the runner, return immediately.
-            await self._dispatch_fn(
-                project_id=project_id,
-                user_id=user_id,
-                request=invoke_request,
-            )
+            kwargs = {
+                "project_id": project_id,
+                "user_id": user_id,
+                "request": invoke_request,
+            }
+            if continuation_execution_id is not None:
+                kwargs["run_id"] = continuation_execution_id
+            await self._dispatch_fn(**kwargs)
             return
 
         await self.workflows_service.invoke_workflow(

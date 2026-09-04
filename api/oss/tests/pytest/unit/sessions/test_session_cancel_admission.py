@@ -341,6 +341,9 @@ class _FakeExecutionsDAO:
         self.commands = None
         self.interactions = None
 
+    async def fetch_execution(self, *, project_id, session_id, execution_id):
+        return self.rows.get((session_id, execution_id))
+
     async def settle(
         self,
         *,

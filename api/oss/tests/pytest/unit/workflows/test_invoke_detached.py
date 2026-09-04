@@ -14,6 +14,7 @@ import pytest
 
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.types import WorkflowDetachedStartFailed
+from oss.src.utils.env import env
 
 
 class _FakeStreamResponse:
@@ -126,6 +127,42 @@ async def test_stream_service_started_raises_on_http_error():
             )
 
 
+@pytest.mark.parametrize(
+    "line",
+    [
+        "not-json",
+        "[]",
+        '{"kind": "result", "result": {"ok": false, "error": "rejected"}}',
+        '{"kind": "result"}',
+        '{"kind": "unknown"}',
+    ],
+)
+async def test_stream_service_started_rejects_failure_or_malformed_first_record(line):
+    response = _FakeStreamResponse(lines=[line])
+    with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
+        with pytest.raises(WorkflowDetachedStartFailed):
+            await _service()._stream_service_started(
+                url="http://svc/invoke",
+                credentials="Secret tok",
+                payload={},
+                run_id="run-x",
+            )
+
+
+async def test_stream_service_started_accepts_success_result_record():
+    response = _FakeStreamResponse(
+        lines=['{"kind": "result", "result": {"ok": true}}'],
+    )
+    with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
+        result = await _service()._stream_service_started(
+            url="http://svc/invoke",
+            credentials="Secret tok",
+            payload={},
+            run_id="run-x",
+        )
+    assert result.accepted is True
+
+
 async def test_invoke_workflow_detached_returns_run_id_and_threads_meta():
     svc = _service()
     project_id = uuid4()
@@ -192,6 +229,48 @@ async def test_invoke_workflow_batch_still_returns_400_when_no_service_url():
         request=WorkflowServiceRequest(),
     )
     assert result.status.code == 400
+
+
+async def test_ordinary_session_invoke_redelivers_recoverable_continuation(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    svc = _service()
+    resume = AsyncMock(return_value=True)
+    svc.set_session_continuation_resumer(resume)
+    svc._prepare_invoke = AsyncMock()
+
+    from agenta.sdk.decorators.running import WorkflowServiceRequest
+
+    project_id = uuid4()
+    result = await svc.invoke_workflow(
+        project_id=project_id,
+        user_id=uuid4(),
+        request=WorkflowServiceRequest(session_id="session-1"),
+    )
+
+    assert result.status.code == 409
+    resume.assert_awaited_once_with(project_id=project_id, session_id="session-1")
+    svc._prepare_invoke.assert_not_awaited()
+
+
+async def test_control_continuation_bypasses_ordinary_send_recovery_hook(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    svc = _service()
+    resume = AsyncMock(return_value=True)
+    svc.set_session_continuation_resumer(resume)
+    svc._prepare_invoke = AsyncMock(return_value=("Secret tok", None))
+
+    from agenta.sdk.decorators.running import WorkflowServiceRequest
+
+    result = await svc.invoke_workflow(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        request=WorkflowServiceRequest(
+            session_id="session-1", meta={"control_command_id": "command-1"}
+        ),
+    )
+
+    assert result.status.code == 400
+    resume.assert_not_awaited()
 
 
 def test_dispatch_fn_injected_into_both_consumers():

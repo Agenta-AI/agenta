@@ -77,24 +77,32 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
         project_id: UUID,
         #
         interaction_id: UUID,
+        transaction: Optional[Any] = None,
+        for_update: bool = False,
     ) -> Optional[SessionInteraction]:
-        async with self.engine.session() as session:
+        async def execute(session: Any) -> Optional[SessionInteraction]:
             stmt = select(SessionInteractionDBE).where(
                 SessionInteractionDBE.project_id == project_id,
                 SessionInteractionDBE.id == interaction_id,
             )
+            if for_update:
+                stmt = stmt.with_for_update()
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
-            if dbe is None:
-                return None
-            return map_interaction_dbe_to_dto(dbe)
+            return map_interaction_dbe_to_dto(dbe) if dbe is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def transition_interaction(
         self,
         *,
         transition: SessionInteractionTransition,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionInteraction]:
-        async with self.engine.session() as session:
+        async def execute(session: Any) -> Optional[SessionInteraction]:
             # Only non-terminal interactions transition: pending (responded|resolved|
             # cancelled) and responded (resolved, when the runner consumes an API-plane
             # answer). resolved/cancelled are terminal.
@@ -129,10 +137,14 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
             )
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
-            await session.commit()
             if dbe is None:
                 return None
             return map_interaction_dbe_to_dto(dbe)
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def cancel_session_pending(
         self,

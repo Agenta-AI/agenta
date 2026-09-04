@@ -258,6 +258,7 @@ class SessionInteractionRespondRequest(BaseModel):
     # message?: str} — the dispatcher composes the full resume conversation server-side
     # (interactions_dispatcher.compose_approval_messages). Other kinds pass through as-is.
     answer: Optional[Dict[str, Any]] = None
+    expected_execution_id: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -461,6 +462,17 @@ class SessionExecutionRef(BaseModel):
     state: Literal["stopping", "idle"]
 
 
+class SessionInteractionContinuationExecution(BaseModel):
+    id: str
+    state: Literal["pending_delivery", "recoverable", "running"]
+
+
+class SessionInteractionContinuationResponse(BaseModel):
+    interaction: SessionInteraction
+    command: SessionCommandRef
+    execution: SessionInteractionContinuationExecution
+
+
 class SessionCancelResponse(BaseModel):
     command: SessionCommandRef
     execution: SessionExecutionRef
@@ -474,7 +486,13 @@ class SessionExecutionOutcome(BaseModel):
     # stopped: cancelled as asked. not_running: no such execution on this runner.
     # superseded_by_newer_turn: the held execution started after the command arrived.
     # failed: the cancel itself failed.
-    state: Literal["stopped", "failed", "not_running", "superseded_by_newer_turn"]
+    state: Literal[
+        "stopped",
+        "failed",
+        "not_running",
+        "superseded_by_newer_turn",
+        "started",
+    ]
     # Short and human-readable, present only when `state` is "failed".
     error: Optional[str] = Field(default=None, max_length=2000)
 
@@ -493,10 +511,20 @@ class SessionCommandSettlement(BaseModel):
     id: UUID
     state: Literal["applied", "obsolete"]
     outcome: Literal[
-        "stopped", "not_running", "superseded_by_newer_turn", "failed", "lost"
+        "stopped",
+        "not_running",
+        "superseded_by_newer_turn",
+        "failed",
+        "lost",
+        "started",
     ]
     settled_at: Optional[datetime] = None
 
 
 class SessionControlOutcomeResponse(BaseModel):
     command: SessionCommandSettlement
+    admitted: bool = False
+
+
+class SessionContinuationResumeResponse(BaseModel):
+    resumed: bool
