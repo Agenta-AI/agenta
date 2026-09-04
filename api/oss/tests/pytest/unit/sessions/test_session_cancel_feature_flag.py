@@ -61,6 +61,7 @@ async def test_cancel_route_uses_legacy_path_when_durable_stop_is_off(monkeypatc
         "turn_id": "turn-1",
         "watcher_id": None,
         "detached": True,
+        "cancelled_turn_ids": [],
     }
 
 

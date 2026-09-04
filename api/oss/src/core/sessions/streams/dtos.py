@@ -166,6 +166,9 @@ class SessionStreamCommandResponse(BaseModel):
     turn_id: Optional[str] = None
     watcher_id: Optional[str] = None
     detached: bool = False
+    # Cancel only: every turn this cancel tombstoned. Usually one. It is a list because
+    # `alive` and `running` can be held by different turns during a handover, and both die.
+    cancelled_turn_ids: List[str] = Field(default_factory=list)
 
 
 class SessionHeartbeatRequest(BaseModel):
