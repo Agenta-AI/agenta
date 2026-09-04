@@ -20,6 +20,7 @@ export {
     setSessionHeader,
     fetchSessionStream,
     fetchSessionDurableApprovalsCapability,
+    invalidateSessionDurableApprovalsCapability,
     commandSessionStream,
     cancelSessionExecution,
     cancelSessionStream,

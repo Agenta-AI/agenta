@@ -172,6 +172,21 @@ export async function fetchSessionSnapshot({
     return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]")
 }
 
+const durableApprovalsCapabilityCache = new Map<string, Promise<boolean>>()
+
+const durableApprovalsCapabilityKey = ({projectId, sessionId}: SessionScopedParams): string =>
+    JSON.stringify([projectId, sessionId])
+
+export function invalidateSessionDurableApprovalsCapability(
+    params?: Pick<SessionScopedParams, "projectId" | "sessionId">,
+): void {
+    if (!params) {
+        durableApprovalsCapabilityCache.clear()
+        return
+    }
+    durableApprovalsCapabilityCache.delete(durableApprovalsCapabilityKey(params))
+}
+
 export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {
     /** Omit for a PROJECT-WIDE query — the backend treats `session_id` as optional, so one call
      * returns every matching interaction across the project (the pending-approvals badge
@@ -686,19 +701,33 @@ export async function fetchSessionDurableApprovalsCapability({
 }: SessionScopedParams): Promise<boolean> {
     if (!projectId || !sessionId) return false
 
-    const data = await callFern("[fetchSessionDurableApprovalsCapability]", () =>
-        getSessionsClient().fetchSessionStream(
-            {session_id: sessionId},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
-    )
-    if (!data) return false
-    const validated = safeParseWithLogging(
-        sessionStreamResponseSchema,
-        data,
-        "[fetchSessionDurableApprovalsCapability]",
-    )
-    return validated?.capabilities.durable_approvals ?? false
+    const key = durableApprovalsCapabilityKey({projectId, sessionId})
+    const cached = durableApprovalsCapabilityCache.get(key)
+    if (cached) return cached
+
+    let request: Promise<boolean> | undefined
+    request = (async () => {
+        const data = await callFern("[fetchSessionDurableApprovalsCapability]", () =>
+            getSessionsClient().fetchSessionStream(
+                {session_id: sessionId},
+                projectScopedRequest(projectId, appId, abortSignal),
+            ),
+        )
+        if (!data) {
+            if (durableApprovalsCapabilityCache.get(key) === request) {
+                durableApprovalsCapabilityCache.delete(key)
+            }
+            return false
+        }
+        const validated = safeParseWithLogging(
+            sessionStreamResponseSchema,
+            data,
+            "[fetchSessionDurableApprovalsCapability]",
+        )
+        return validated?.capabilities.durable_approvals ?? false
+    })()
+    durableApprovalsCapabilityCache.set(key, request)
+    return request
 }
 
 export interface CommandSessionStreamParams extends SessionScopedParams {

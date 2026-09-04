@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
 import {shouldRefreshLegacyObserverLiveness} from "@agenta/chat/model"
+import {invalidateSessionDurableApprovalsCapability} from "@agenta/entities/session"
 import {useQueryClient} from "@tanstack/react-query"
 
 import {tryRefreshSession} from "@/lib/auth"
@@ -120,6 +121,7 @@ export const useSessionWatch = ({
             // headers reach us before the server's Redis subscription is live, so a
             // change landing in that window would miss both this refetch and the stream.
             es.addEventListener("ready", () => {
+                invalidateSessionDurableApprovalsCapability({projectId, sessionId})
                 notifyOnConnect()
                 invalidateBadges()
             })

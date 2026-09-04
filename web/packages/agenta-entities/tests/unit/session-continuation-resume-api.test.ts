@@ -15,12 +15,14 @@ vi.mock("@agenta/sdk/resources", () => ({
 
 import {
     fetchSessionDurableApprovalsCapability,
+    invalidateSessionDurableApprovalsCapability,
     resumeSessionContinuation,
 } from "../../src/session/api/api"
 
 beforeEach(() => {
     resume.mockReset()
     fetchStream.mockReset()
+    invalidateSessionDurableApprovalsCapability()
 })
 
 describe("resumeSessionContinuation", () => {
@@ -76,6 +78,27 @@ describe("fetchSessionDurableApprovalsCapability", () => {
                 sessionId: "session-1",
             }),
         ).resolves.toBe(true)
+    })
+
+    it("shares one request per session until the session reconnects", async () => {
+        fetchStream.mockResolvedValue({
+            stream: null,
+            capabilities: {durable_approvals: true},
+        })
+        const scope = {projectId: "project-1", sessionId: "session-1"}
+
+        await Promise.all([
+            fetchSessionDurableApprovalsCapability(scope),
+            fetchSessionDurableApprovalsCapability(scope),
+        ])
+        await fetchSessionDurableApprovalsCapability(scope)
+
+        expect(fetchStream).toHaveBeenCalledTimes(1)
+
+        invalidateSessionDurableApprovalsCapability(scope)
+        await fetchSessionDurableApprovalsCapability(scope)
+
+        expect(fetchStream).toHaveBeenCalledTimes(2)
     })
 
     it.each([
