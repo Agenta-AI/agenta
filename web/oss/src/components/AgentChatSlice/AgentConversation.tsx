@@ -55,6 +55,7 @@ import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvid
 import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 
+import {answerThenSteer} from "./assets/answerThenSteer"
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
@@ -417,10 +418,13 @@ const AgentConversation = ({
             // (The model still reasons about the bare denial first — the "flail" — because the
             // harness owns the reject continuation and exposes no reject-with-feedback seam; killing
             // that flail needs an upstream ACP change, not an FE one.)
-            const steer = args.message?.trim()
-            return answerApproval(args.id, args.approved).then(() => {
-                // After the answer for the same reason the flip is: a steer starts its own turn.
-                if (!args.approved && steer) submit({text: steer})
+            // The outcome is RETURNED, not swallowed: the dock reads `recoverable` off it to show
+            // "Answer saved, retry needed" instead of "Answered, waiting for the agent".
+            return answerThenSteer({
+                approved: args.approved,
+                message: args.message,
+                answer: () => answerApproval(args.id, args.approved),
+                steer: (text) => submit({text}),
             })
         },
         [answerApproval, markLiveGate, submit],
