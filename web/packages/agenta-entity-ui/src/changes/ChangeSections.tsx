@@ -205,22 +205,26 @@ function ItemRow({
 }) {
     const clickable = it.kind === "edited" && !!onOpenTool
     return (
-        <Row
-            clickable={clickable}
-            onActivate={clickable ? () => onOpenTool?.(it.id) : undefined}
-            className={cn("flex w-full items-center gap-2.5 py-1.5 text-left", padX)}
-        >
-            <span style={kindStyle(it.kind)} className="flex w-4 shrink-0 justify-center">
-                {kindIcon(it.kind)}
-            </span>
-            <span className="min-w-0 flex-1 truncate text-xs">
-                {it.label}
-                {it.detail ? (
-                    <span className={cn("ml-1", textColors.tertiary)}>· {it.detail}</span>
-                ) : null}
-            </span>
-            {clickable ? <CaretRight className={textColors.tertiary} /> : null}
-        </Row>
+        <>
+            <Row
+                clickable={clickable}
+                onActivate={clickable ? () => onOpenTool?.(it.id) : undefined}
+                className={cn("flex w-full items-center gap-2.5 py-1.5 text-left", padX)}
+            >
+                <span style={kindStyle(it.kind)} className="flex w-4 shrink-0 justify-center">
+                    {kindIcon(it.kind)}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-xs">
+                    {it.label}
+                    {it.detail ? (
+                        <span className={cn("ml-1", textColors.tertiary)}>· {it.detail}</span>
+                    ) : null}
+                </span>
+                {clickable ? <CaretRight className={textColors.tertiary} /> : null}
+            </Row>
+            {/* A skill's body is prose, so it reads as a diff rather than as an "edited" mark. */}
+            {it.textDiff ? <HunkRows hunks={it.textDiff.hunks} padX={padX} /> : null}
+        </>
     )
 }
 

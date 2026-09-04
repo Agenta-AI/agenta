@@ -44,6 +44,8 @@ export interface ChangeItem {
     fieldChanges?: ToolFieldChange[]
     /** description before/after for an edited tool. */
     descriptionDiff?: {before: string; after: string}
+    /** Prose diff of the entry's own body — a skill's SKILL.md, rendered like Instructions. */
+    textDiff?: TextDiff
 }
 
 /** A scalar before→after change (model, temperature, …). */

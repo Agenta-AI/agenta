@@ -16,6 +16,7 @@ import type {
     ChangeSection,
     NormalizedTool,
     ScalarChange,
+    TextDiff,
     ToolFieldChange,
 } from "./types"
 
@@ -172,27 +173,36 @@ function toolsSection(
     }
 }
 
-function instructionsSection(
-    local: AgentConfigView,
-    remote: AgentConfigView,
-): ChangeSection | null {
-    if (local.instructions === remote.instructions) return null
-    const hunks = computeTextDiffLines(remote.instructions, local.instructions, {
-        enableFolding: true,
-    })
+/** Folded prose diff plus its line counts — the shape both Instructions and skills render. */
+function buildTextDiff(before: string, after: string): TextDiff {
+    const hunks = computeTextDiffLines(before, after, {enableFolding: true})
     let added = 0
     let removed = 0
     for (const line of hunks) {
         if (line.type === "added") added++
         else if (line.type === "removed") removed++
     }
-    const label = added + removed <= 2 ? "Edited" : `+${added} / −${removed}`
+    return {added, removed, before, after, hunks}
+}
+
+function instructionsSection(
+    local: AgentConfigView,
+    remote: AgentConfigView,
+): ChangeSection | null {
+    if (local.instructions === remote.instructions) return null
+    const textDiff = buildTextDiff(remote.instructions, local.instructions)
+    const total = textDiff.added + textDiff.removed
     return {
         id: "instructions",
         title: "Instructions",
-        tags: [{kind: "edited", label}],
+        tags: [
+            {
+                kind: "edited",
+                label: total <= 2 ? "Edited" : `+${textDiff.added} / −${textDiff.removed}`,
+            },
+        ],
         totalCount: 1,
-        textDiff: {added, removed, before: remote.instructions, after: local.instructions, hunks},
+        textDiff,
     }
 }
 
@@ -273,6 +283,31 @@ function advancedBucket(v: AgentConfigView): Record<string, unknown> {
     return out
 }
 
+const entryField = (entry: unknown, field: string): string => {
+    if (!isPlainObj(entry)) return ""
+    const value = entry[field]
+    return typeof value === "string" ? value : ""
+}
+
+/**
+ * What an edited list entry changed. A skill carries prose — its SKILL.md `body` — so it gets the
+ * same hunk view Instructions does rather than a bare "edited" mark.
+ */
+function entryEdit(before: unknown, after: unknown): Pick<ChangeItem, "detail" | "textDiff"> {
+    const parts: string[] = []
+    if (entryField(before, "description") !== entryField(after, "description")) {
+        parts.push("description")
+    }
+    const beforeBody = entryField(before, "body")
+    const afterBody = entryField(after, "body")
+    const bodyChanged = beforeBody !== afterBody
+    if (bodyChanged) parts.push("instructions")
+    return {
+        detail: parts.length ? `${parts.join(" & ")} changed` : undefined,
+        textDiff: bodyChanged ? buildTextDiff(beforeBody, afterBody) : undefined,
+    }
+}
+
 /** Humanize a list entry (mcp/skill) for its summary row. */
 function entryLabel(entry: unknown): string {
     if (!isPlainObj(entry)) return "item"
@@ -313,7 +348,12 @@ function listSection(
     if (total === 0) return null
 
     const rows = (pairs: [string, unknown][], kindTag: ChangeItem["kind"]) =>
-        pairs.map(([key, entry]) => ({id: key, label: entryLabel(entry), kind: kindTag}))
+        pairs.map(([key, entry]) => ({
+            id: key,
+            label: entryLabel(entry),
+            kind: kindTag,
+            ...(kindTag === "edited" ? entryEdit(rMap.get(key), entry) : {}),
+        }))
     const items = [...rows(added, "added"), ...rows(edited, "edited"), ...rows(removed, "removed")]
     const tags = []
     if (added.length) tags.push({kind: "added" as const, label: `${added.length} added`})

@@ -161,6 +161,41 @@ describe("subagents get their own section, named the way the config panel names 
     })
 })
 
+describe("an edited skill shows its prose, the way Instructions does", () => {
+    const skill = (over: Record<string, unknown>) => ({
+        name: "build-an-agent",
+        description: "Builds an agent",
+        body: "Step one.\nStep two.",
+        ...over,
+    })
+    const skillsFor = (local: unknown, remote: unknown) =>
+        classifyAgentChanges({agent: {skills: [local]}}, {agent: {skills: [remote]}})?.find(
+            (s) => s.id === "skills",
+        )?.items?.[0]
+
+    it("diffs the body into hunks instead of leaving a bare edited mark", () => {
+        const item = skillsFor(skill({body: "Step one.\nStep two, revised."}), skill({}))
+
+        expect(item?.kind).toBe("edited")
+        expect(item?.detail).toBe("instructions changed")
+        expect(item?.textDiff?.hunks.some((h) => h.type === "added")).toBe(true)
+        expect(item?.textDiff?.hunks.some((h) => h.type === "removed")).toBe(true)
+    })
+
+    it("names a description-only edit without inventing a body diff", () => {
+        const item = skillsFor(skill({description: "Builds agents faster"}), skill({}))
+
+        expect(item?.detail).toBe("description changed")
+        expect(item?.textDiff).toBeUndefined()
+    })
+
+    it("reports both when the description and the body move together", () => {
+        const item = skillsFor(skill({description: "New", body: "Different."}), skill({}))
+        expect(item?.detail).toBe("description & instructions changed")
+        expect(item?.textDiff).toBeDefined()
+    })
+})
+
 describe("permission rules read as rules, not as JSON", () => {
     // Regression: the row printed `Harness › permissions › allow  —  ["Bash"]`.
     const row = (local: Record<string, unknown>, remote: Record<string, unknown>) =>
