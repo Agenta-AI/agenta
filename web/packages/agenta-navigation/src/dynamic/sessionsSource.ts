@@ -113,20 +113,7 @@ const requestFilters = (filters: SidebarSessionFilters) => {
 /** Slow enough to be background noise, quick enough to notice a run you did not start. */
 const IDLE_POLL_MS = 60_000
 
-/**
- * Poll fast while something can still change, slowly the rest of the time.
- *
- * A row's dot is driven by `is_alive`/`is_running`, which the server flips when the stream ends —
- * with no request, the dot stays filled until you reload. Fast means RUNNING and not merely
- * alive: Stop and an ordinary turn end both leave `alive` set so the session can resume warm, so
- * an alive-keyed cadence would never idle down. The BASELINE matters just as much: a
- * turn started under another agent (a trigger, another browser) is invisible to this client, so a
- * rail that stopped polling when it looked quiet could never discover it, and only the session you
- * were driving yourself ever appeared to run.
- *
- * Both intervals are gated: the source only subscribes while the Sessions group is open and the
- * rail is expanded, and React Query holds the timer while the window is unfocused.
- */
+/** Poll fast for running work and keep a slow baseline for cross-client discovery. */
 export const livePollInterval = (rows: SessionStream[] | null | undefined) =>
     livenessPollInterval(rows, {idle: IDLE_POLL_MS})
 

@@ -97,19 +97,7 @@ const RUNNING_POLL_MS = 15_000
 /** Slow cadence: nothing runs, but a warm session can be resumed from another device. */
 const RESUMABLE_POLL_MS = 60_000
 
-/**
- * The cadence a liveness poll should use for the rows it last received.
- *
- * The discriminator is `is_running`, never "the alive set is non-empty". Stop ends the WORK and
- * leaves the session alive so it can resume warm, and an ordinary turn end does the same, so a
- * predicate keyed on `is_alive` holds every poll at the fast cadence for as long as `alive`
- * lives — half an hour after one Stop, in every open tab. Keyed on `is_running` the fast
- * cadence lasts exactly as long as the work does.
- *
- * `idle` is the floor for "nothing alive at all". Views that only ever render sessions they
- * already know are live leave it `false` and stop polling; a view that must also DISCOVER a run
- * it did not start (the sidebar rail) passes a slow period instead.
- */
+/** Poll `is_running` quickly; `is_alive` alone means warm and uses the slow cadence. */
 export function livenessPollInterval(
     rows: readonly (SessionStream | null | undefined)[] | null | undefined,
     options?: {idle?: LivenessPollInterval},

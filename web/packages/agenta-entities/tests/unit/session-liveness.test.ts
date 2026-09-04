@@ -94,8 +94,7 @@ describe("refineLifecycleWithSandbox", () => {
     })
 })
 
-// The cadence rule every liveness poll shares. It exists because "the alive set is non-empty" is
-// not the same question as "is anything running", and Stop is what makes the difference visible.
+// Every liveness poll shares the running-versus-warm cadence rule.
 describe("livenessPollInterval", () => {
     const rows = (...flags: Partial<NonNullable<SessionStream["flags"]>>[]) => flags.map(streamWith)
 
@@ -104,9 +103,7 @@ describe("livenessPollInterval", () => {
         expect(livenessPollInterval(rows({is_alive: true}, {is_running: true}))).toBe(15_000)
     })
 
-    // A stopped session, and equally an ordinary finished turn: both keep `alive` so the sandbox
-    // can resume warm. Keyed on `is_alive` this would stay at 15s for the whole hour that lock
-    // lives, in every open tab, for a session nobody is running.
+    // A stopped session stays alive for warm resume but no longer polls quickly.
     it("drops to the slow cadence for a session that is alive but not running", () => {
         expect(livenessPollInterval(rows({is_alive: true}))).toBe(60_000)
     })

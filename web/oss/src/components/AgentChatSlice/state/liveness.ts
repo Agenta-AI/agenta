@@ -15,20 +15,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-/**
- * Backend liveness for the project's sessions (cross-device truth). The tab dot reads this to
- * reflect a session still running on the backend even when THIS browser isn't streaming it (a
- * reopened chat, or a run started on another device).
- *
- * ONE project-scoped query (`is_alive=true`) backs every dot rather than one fetch per session, so
- * N idle tabs cost ONE request, not N — important on cold load (see the request-count budget). Only
- * alive streams come back, which is exactly what the dot needs (running/alive vs idle); a session
- * absent from the result is dormant/cold/dead/new and simply reads as idle. Kept out of the live
- * conversation's way: the fetch is LOW-PRIORITY, polls fast only WHILE something is RUNNING,
- * slowly while a session is merely alive (Stop and an ordinary turn end both leave `alive` set,
- * so an alive-keyed cadence never idles down), stops when nothing is alive, and re-checks on tab
- * refocus.
- */
+/** One low-priority project query supplies cross-device liveness for every tab dot. */
 const aliveStreamsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => {
     const projectId = get(projectIdAtom)
     return {

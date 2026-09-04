@@ -470,8 +470,7 @@ describe("localSessionRefsMatching", () => {
     })
 })
 
-// The baseline is the half that is easy to lose: without it the rail can only ever show the run
-// you started yourself, because a turn under another agent reaches this client through the poll.
+// The baseline discovers runs started by another client.
 describe("livePollInterval", () => {
     // Only `flags` is read; the rest of a SessionStream is irrelevant here.
     const rows = (...flags: {is_alive?: boolean; is_running?: boolean}[]) =>
@@ -483,9 +482,7 @@ describe("livePollInterval", () => {
         expect(livePollInterval(rows({}, {is_running: true}))).toBe(15_000)
     })
 
-    // The Stop case. Stop ends the work and leaves the session alive so it resumes warm, exactly
-    // as an ordinary turn end does, so a cadence keyed on `is_alive` would sit at 15s for the
-    // whole hour that lock lives — in every open tab, for one session nobody is running.
+    // Warm but idle sessions use the slow cadence.
     it("drops to the slow baseline for a session that is alive but not running", () => {
         expect(livePollInterval(rows({is_alive: true}))).toBe(60_000)
     })
