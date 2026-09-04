@@ -27,8 +27,7 @@ import {ArrowCounterClockwise, Info} from "@phosphor-icons/react"
 import {useChangedDetail, useChangedPath, useRevertPath} from "./ChangedPathsContext"
 import {useIsPathVisible} from "./FocusPathsContext"
 
-/** How a {@link RailField} lays its label out: the two-column rail rhythm, or label-above-control
- * for panels too narrow to spare the 116px column. Context, like the two filters RailField reads. */
+/** How a {@link RailField} lays its label out: two-column rail, or label above the control. */
 const FieldLayoutContext = createContext<"rail" | "stacked">("rail")
 
 export function FieldLayoutProvider({
