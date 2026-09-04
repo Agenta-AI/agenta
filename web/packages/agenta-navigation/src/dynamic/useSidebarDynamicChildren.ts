@@ -12,6 +12,66 @@ import type {SidebarEntity, SidebarEntityRef, SidebarEntitySource} from "./types
 
 const SHOW_ALL_LABEL = "Show all"
 
+/** What a cached row was built from — any change and the row is rebuilt. */
+interface RowInputs {
+    projectURL: string
+    dragZone?: string
+    wrapRow?: SidebarRowWrappers[string]
+    rowIcon?: SidebarRowIcons[string]
+}
+
+/**
+ * Last row built for a row key, reused while nothing about it changed.
+ *
+ * Keyed on the ROW KEY and a signature of the ref, not on the ref object: the source rebuilds
+ * every ref on every recompute, so identity is never stable and a WeakMap on it would miss every
+ * time. Without this the whole list remounts on each poll, which fights a user mid-scroll.
+ */
+interface EntityRowCache {
+    rows: Map<string, {signature: string; row: SidebarConfig}>
+    /** The chrome the cached rows closed over — closures, so they cannot go in a signature. */
+    chrome: {wrapRow?: RowInputs["wrapRow"]; rowIcon?: RowInputs["rowIcon"]}
+}
+
+/** Per ENTITY, not per parent key: two entities can share a key, and their rows differ. */
+const rowCaches = new WeakMap<SidebarEntity, EntityRowCache>()
+
+/** Bounded so a long run of filter changes cannot grow one entity's cache without limit. */
+const ROW_CACHE_MAX = 2_000
+
+const sameRowInputs = (a: RowInputs, b: RowInputs): boolean =>
+    a.projectURL === b.projectURL &&
+    a.dragZone === b.dragZone &&
+    a.wrapRow === b.wrapRow &&
+    a.rowIcon === b.rowIcon
+
+const cachedRow = (
+    entity: SidebarEntity,
+    ref: SidebarEntityRef,
+    inputs: RowInputs,
+    build: (ref: SidebarEntityRef, dragZone?: string) => SidebarConfig,
+): SidebarConfig => {
+    let cache = rowCaches.get(entity)
+    if (
+        !cache ||
+        cache.chrome.wrapRow !== inputs.wrapRow ||
+        cache.chrome.rowIcon !== inputs.rowIcon
+    ) {
+        cache = {rows: new Map(), chrome: {wrapRow: inputs.wrapRow, rowIcon: inputs.rowIcon}}
+        rowCaches.set(entity, cache)
+    }
+
+    const key = `${entity.parentKey}-${ref.id}`
+    const signature = JSON.stringify([ref, inputs.projectURL, inputs.dragZone])
+    const cached = cache.rows.get(key)
+    if (cached && cached.signature === signature) return cached.row
+
+    const row = build(ref, inputs.dragZone)
+    if (cache.rows.size >= ROW_CACHE_MAX) cache.rows.clear()
+    cache.rows.set(key, {signature, row})
+    return row
+}
+
 /**
  * Interleaves heading rows with the rows they cover. Headings follow the source's order, and one
  * with no rows left after the cap is dropped rather than left dangling over nothing.
@@ -156,7 +216,7 @@ export const resolveChildren = (
     // not quietly render more rows than an ungrouped one.
     const visibleRefs = refs.slice(0, entity.maxItems)
 
-    const toRow = (ref: SidebarEntityRef, dragZone?: string): SidebarConfig => ({
+    const buildRow = (ref: SidebarEntityRef, dragZone?: string): SidebarConfig => ({
         key: `${entity.parentKey}-${ref.id}`,
         dragItem: dragZone ? {kind: "row", id: ref.id, zone: dragZone} : undefined,
         title: entity.getLabel(ref),
@@ -175,6 +235,11 @@ export const resolveChildren = (
               ? (node) => entity.wrapRow!(ref, node)
               : undefined,
     })
+
+    // A ref whose identity survived the poll keeps its row object, so `React.memo` on the row
+    // components holds instead of re-rendering the whole list every 15s.
+    const toRow = (ref: SidebarEntityRef, dragZone?: string): SidebarConfig =>
+        cachedRow(entity, ref, {projectURL, dragZone, wrapRow, rowIcon}, buildRow)
 
     const children: SidebarConfig[] =
         entity.getGroupKey && source?.groups?.length
@@ -216,6 +281,19 @@ export const useSidebarDynamicChildren = ({
     const cachedChildrenRef = useRef<
         Record<string, {projectURL: string; children: SidebarConfig[]}>
     >({})
+    // Per-entity memo. `sidebarEntitySourcesAtom` is one object for all four entities, so any one
+    // source changing used to rebuild every entity's children.
+    const resolvedRef = useRef<
+        Record<
+            string,
+            {
+                source: SidebarEntitySource | undefined
+                inputs: RowInputs
+                idleFallback: SidebarConfig[] | undefined
+                children: SidebarConfig[]
+            }
+        >
+    >({})
 
     // Pure: only reads the cache (populated after commit by the effect below), so
     // Strict Mode's double render can't corrupt it.
@@ -236,7 +314,23 @@ export const useSidebarDynamicChildren = ({
             }
             const idleFallback =
                 cached?.projectURL === resolvedProjectURL ? cached.children : undefined
-            result[key] = resolveChildren(
+            const inputs: RowInputs = {
+                projectURL: resolvedProjectURL,
+                dragZone: entity.dragZone,
+                wrapRow: rowWrappers?.[key],
+                rowIcon: rowIcons?.[key],
+            }
+            const previous = resolvedRef.current[key]
+            if (
+                previous &&
+                previous.source === source &&
+                previous.idleFallback === idleFallback &&
+                sameRowInputs(previous.inputs, inputs)
+            ) {
+                result[key] = previous.children
+                continue
+            }
+            const children = resolveChildren(
                 entity,
                 source,
                 resolvedProjectURL,
@@ -245,6 +339,8 @@ export const useSidebarDynamicChildren = ({
                 rowWrappers?.[key],
                 rowIcons?.[key],
             )
+            resolvedRef.current[key] = {source, inputs, idleFallback, children}
+            result[key] = children
         }
         return result
     }, [sources, projectURL, kindIcon, rowWrappers, rowIcons, reordering])
