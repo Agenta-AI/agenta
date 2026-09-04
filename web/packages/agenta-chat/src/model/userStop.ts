@@ -1,7 +1,21 @@
-import {isHitlPending} from "@agenta/playground/agent-chat"
 import type {UIMessage} from "ai"
 
 type MessageWithStopMetadata = UIMessage & {metadata?: {runStopped?: boolean}}
+type InteractionPart = UIMessage["parts"][number] & {state?: string}
+
+const hasPendingInteraction = (messages: UIMessage[]): boolean =>
+    messages.some(
+        (message) =>
+            message.role === "assistant" &&
+            message.parts.some((part) => {
+                const state = (part as InteractionPart).state
+                return (
+                    state === "approval-requested" ||
+                    state === "input-available" ||
+                    state === "input-streaming"
+                )
+            }),
+    )
 
 /** True only for the durable marker written on a user-cancelled assistant turn. */
 export const lastTurnWasUserStopped = (messages: UIMessage[]): boolean => {
@@ -19,14 +33,7 @@ export type UserStoppedStateEvent =
           finishReason?: string
       }
 
-/**
- * One neutral stopped-state reducer for desktop and mobile.
- *
- * The Vercel adapter maps the runner's `cancelled` and `paused` terminal reasons to `other`.
- * A paused stream still has a live HITL gate, which distinguishes it from a cancelled one. Durable
- * replay is unambiguous because the transcript adapter preserves `stopReason: "cancelled"` as
- * `metadata.runStopped`.
- */
+/** A pending interaction distinguishes a paused `other` finish from cancellation. */
 export const reduceUserStoppedState = (stopped: boolean, event: UserStoppedStateEvent): boolean => {
     switch (event.type) {
         case "user-stop":
@@ -37,7 +44,8 @@ export const reduceUserStoppedState = (stopped: boolean, event: UserStoppedState
             return lastTurnWasUserStopped(event.messages) || stopped
         case "stream-terminal":
             if (lastTurnWasUserStopped(event.messages)) return true
-            if (event.finishReason === "other" && !isHitlPending(event.messages)) return true
+            if (event.finishReason === "other" && !hasPendingInteraction(event.messages))
+                return true
             return stopped
     }
 }

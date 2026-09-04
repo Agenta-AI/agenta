@@ -1,10 +1,3 @@
-/**
- * A Stop must report what the server said.
- *
- * `commandSessionStream` goes through `callFern`, which logs every non-abort failure and returns
- * null, so the desktop could not tell a refusal from a network error and showed "Stopped" for a run
- * that was still going. `cancelSessionStream` keeps cancelled, idle, stale, and failed apart.
- */
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const setSessionStream = vi.fn()
@@ -52,6 +45,24 @@ describe("cancelSessionStream", () => {
         })
 
         expect(await cancelSessionStream(params)).toEqual({status: "idle"})
+    })
+
+    it("reports failure when the response omits cancellation evidence", async () => {
+        setSessionStream.mockResolvedValue({mode: "cancel", session_id: "s1"})
+
+        expect(await cancelSessionStream(params)).toEqual({
+            status: "failed",
+            message: "Could not stop the run. It may still be running.",
+        })
+    })
+
+    it("reports failure when the response cannot be parsed", async () => {
+        setSessionStream.mockResolvedValue({unexpected: true})
+
+        expect(await cancelSessionStream(params)).toEqual({
+            status: "failed",
+            message: "Could not stop the run. It may still be running.",
+        })
     })
 
     it("sends the turn id as expected_execution_id when the client knows it", async () => {

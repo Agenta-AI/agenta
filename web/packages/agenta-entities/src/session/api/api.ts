@@ -622,17 +622,9 @@ export async function killSession({
     return data !== null
 }
 
-/**
- * The four answers a Stop can get. `commandSessionStream` collapses failures to `null`
- * (`callFern` logs and swallows), which is why the desktop Stop could report "Stopped" for a run
- * that was still going. A Stop is the one control call whose failure the user must see.
- */
+/** Stop keeps accepted, idle, stale, and failed outcomes distinct. */
 export interface CancelSessionStreamParams extends SessionScopedParams {
-    /**
-     * The turn this client believes it is stopping, read off the streaming message's metadata
-     * (`getSessionTurnId` in @agenta/chat). The server cancels that turn or nothing. Absent means
-     * this client never learned the id, which is every client until the runner emits the part.
-     */
+    /** The server cancels this observed execution or nothing. */
     expectedExecutionId?: string
 }
 
@@ -656,13 +648,7 @@ const cancelErrorMessage = (error: unknown, fallback: string): string => {
     return error instanceof Error && error.message ? error.message : fallback
 }
 
-/**
- * Stop the session's current turn, and say what happened.
- *
- * Separate from `commandSessionStream` rather than a flag on it: the other callers of that
- * function deliberately ignore the outcome, and widening its return type would break the null
- * check they use. Aborts propagate, as everywhere else.
- */
+/** Stop the current turn and preserve the server outcome for the caller. */
 export async function cancelSessionStream({
     sessionId,
     projectId,
@@ -676,9 +662,7 @@ export async function cancelSessionStream({
         const data = await getSessionsClient().setSessionStream(
             {
                 session_id: sessionId,
-                // Omitted, not sent as null, when this client never learned the turn id: the
-                // server then falls back to its own arrival-time check rather than matching a
-                // turn nothing can hold.
+                // Omission selects the server's arrival-time guard.
                 ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
             },
             projectScopedRequest(projectId, appId, abortSignal),
@@ -689,7 +673,10 @@ export async function cancelSessionStream({
                 data,
                 "[cancelSessionStream]",
             ) ?? null
-        if (response?.cancelled_turn_ids?.length === 0) return {status: "idle"}
+        if (!response || !response.cancelled_turn_ids) {
+            return {status: "failed", message: FAILED_CANCEL_FALLBACK}
+        }
+        if (response.cancelled_turn_ids.length === 0) return {status: "idle"}
         return {
             status: "cancelled",
             response,

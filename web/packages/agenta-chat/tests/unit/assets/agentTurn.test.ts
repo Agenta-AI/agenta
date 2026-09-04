@@ -73,4 +73,12 @@ describe("session turn ids", () => {
         clearSessionEphemera("s2")
         expect(getSessionTurnId("s2")).toBeUndefined()
     })
+
+    it("can be cleared before a replacement turn starts", () => {
+        setSessionTurnId("s4", "turn-old")
+
+        clearSessionTurnId("s4")
+
+        expect(getSessionTurnId("s4")).toBeUndefined()
+    })
 })

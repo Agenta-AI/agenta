@@ -107,6 +107,23 @@ describe("transcriptToMessages", () => {
         expect(messages?.[0].metadata).toEqual({runStopped: true})
     })
 
+    it("settles a paused approval as cancelled without interaction row state", () => {
+        const messages = transcriptToMessages([
+            record("r-call", {type: "tool_call", id: "tool-1", name: "bash", input: {}}),
+            record("r-request", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1"},
+            }),
+            record("r-paused", {type: "done", stopReason: "paused"}),
+            record("r-cancelled", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(messages?.[0]).toMatchObject({metadata: {runStopped: true}})
+        expect(messages?.[0].parts[0]).toMatchObject({state: "output-denied"})
+    })
+
     it("splits assistant turns on a `done` boundary into separate messages", () => {
         const messages = transcriptToMessages([
             record("r1", {type: "message", text: "first turn"}),

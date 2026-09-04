@@ -48,7 +48,11 @@ vi.mock("@agenta/entities/trace", () => ({
 }))
 
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
-import {markSessionFresh} from "../../../src/state/sessionEphemera"
+import {
+    getSessionTurnId,
+    markSessionFresh,
+    setSessionTurnId,
+} from "../../../src/state/sessionEphemera"
 import {sessionMessagesAtom, sessionStatusAtomFamily} from "../../../src/state/sessionMessages"
 
 const sseBody = (text: string, finishReason?: string): string => {
@@ -150,6 +154,26 @@ describe("useAgentConversation", () => {
         expect(store.get(sessionStatusAtomFamily(sessionId))).toBe("idle")
         expect(result.current.runStatus).toBe("idle")
         expect(result.current.isEmpty).toBe(false)
+    })
+
+    it("clears the previous execution guard before a second send", async () => {
+        fetchMock.mockImplementation(async () => streamResponse("answer"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "first"})
+        })
+        await waitFor(() => expect(result.current.status).toBe("ready"), {timeout: 5000})
+        setSessionTurnId(sessionId, "turn-old")
+
+        await act(async () => {
+            await result.current.send({text: "second"})
+        })
+
+        expect(getSessionTurnId(sessionId)).toBeUndefined()
     })
 
     it("survives a revision switch mid-stream instead of aborting the turn", async () => {

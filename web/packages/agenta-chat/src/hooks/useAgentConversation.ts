@@ -66,6 +66,7 @@ import {
 } from "../state/sessionChats"
 import {
     clearSessionFresh,
+    clearSessionTurnId,
     composerDraftBySession,
     isSessionFresh,
     setSessionTurnId,
@@ -203,9 +204,7 @@ export const useAgentConversation = ({
 
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
     const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
-    // Whether the LAST assistant turn was user-stopped. You can only cancel the in-flight (last)
-    // turn, so this is a single boolean gated on position at render time. Cleared on the next
-    // send/resend.
+    // Only the last assistant turn can carry the current stopped state.
     const [stopped, dispatchStopped] = useReducer(
         reduceUserStoppedState,
         initialMessages,
@@ -357,10 +356,7 @@ export const useAgentConversation = ({
         dispatchStopped({type: "transcript", messages})
     }, [messages])
 
-    // The runner names the turn it just started, in the streaming message's metadata. Remembering
-    // it is what lets Stop say WHICH turn to cancel instead of "whatever is running" (#6417).
-    // Only ids seen streaming in this page are kept: the store is in memory, so a reload starts
-    // empty and Stop falls back to sending no guard rather than naming a turn from a past session.
+    // Keep only the newest turn id observed from this session's live stream.
     useEffect(() => {
         const turnId = latestTurnId(messages)
         if (turnId) setSessionTurnId(sessionId, turnId)
@@ -493,8 +489,8 @@ export const useAgentConversation = ({
             // A real send means this session has run — drop the never-run marker so a later
             // cache-cleared reopen hydrates from the server.
             clearSessionFresh(sessionId)
-            // Any actual send supersedes a prior user-stop, so clear the marker here (covers the
-            // queue-release path; the manual path also clears it in `send`).
+            clearSessionTurnId(sessionId)
+            // Any actual send supersedes a prior user-stop.
             setStopped(false)
             sendMessage(
                 item.fileParts && item.fileParts.length
@@ -762,7 +758,7 @@ export const useAgentConversation = ({
                     files: encoded.rejections.map((r) => r.name),
                 })
             }
-            // Clear any prior "stopped" marker — it's resolved by asking again.
+            clearSessionTurnId(sessionId)
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the release gate.
             submit({text: trimmed, fileParts})
@@ -774,10 +770,11 @@ export const useAgentConversation = ({
 
     const regenerateTurn = useCallback(
         (id: string) => {
+            clearSessionTurnId(sessionId)
             setStopped(false)
             regenerate({messageId: id}).catch(ignoreStreamRejection)
         },
-        [regenerate],
+        [regenerate, sessionId],
     )
 
     // Rewind scan: pure side-effect detection + a deferred `confirm()`. The skin owns the
@@ -801,12 +798,13 @@ export const useAgentConversation = ({
                     if (at < 0) return
                     setMessages(current.slice(0, at))
                 } else {
+                    clearSessionTurnId(sessionId)
                     regenerate({messageId: message.id}).catch(ignoreStreamRejection)
                 }
             }
             return {sideEffects, restoreText: isUser ? messageText(message) : undefined, confirm}
         },
-        [regenerate, setMessages],
+        [regenerate, sessionId, setMessages],
     )
 
     // Per-mount executed-identity cache — the desktop's per-message toolSignature memo,

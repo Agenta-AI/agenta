@@ -582,13 +582,18 @@ export function transcriptToMessages(
                 continue
             }
             if (p.stopReason === "cancelled") {
-                // A Stop can land before the runner emitted any content. Keep a minimal assistant
-                // carrier so the neutral Stopped / Resend affordance still has a turn to attach to.
+                // Keep a carrier so a content-free cancellation can still render Stopped.
                 if (!current || current.role !== "assistant") {
                     current = newDraft(row.id, "assistant")
                     drafts.push(current)
                 }
                 current.runStopped = true
+                current.paused = false
+                for (const part of current.parts) {
+                    if (part.state === "approval-requested") part.state = "output-denied"
+                }
+                current = null
+                continue
             }
             // A resumed-then-completed turn is no longer paused.
             if (current?.paused) current.resumed = true
@@ -608,13 +613,7 @@ export function transcriptToMessages(
     // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
     applyInteractionRowStates(index, options?.interactionRowStates)
 
-    // A RESUMED turn's gate was answered by definition — the runner only emits post-pause records
-    // once the user responded (a deny settles its own part via `tool_result denied`). The durable
-    // log doesn't always persist the `interaction_response`, so settle whatever is left awaiting:
-    // otherwise a completed turn replays as still parked and the reload keeps the approval dock up.
-    // Runs AFTER the rows on purpose: this sweep knows only THAT a gate was answered, never how, so
-    // ahead of them it consumed the `approval-requested` state the row's verdict is applied to, and
-    // every denied gate replayed as approved.
+    // A resumed turn's remaining approval gate was answered even when its response row is absent.
     for (const d of drafts) {
         if (!d.resumed) continue
         for (const part of d.parts) {

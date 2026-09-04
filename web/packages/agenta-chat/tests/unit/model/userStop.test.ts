@@ -20,6 +20,19 @@ const approval = {
     ],
 } as UIMessage
 
+const clientInteraction = {
+    id: "a2",
+    role: "assistant" as const,
+    parts: [
+        {
+            type: "tool-request_input",
+            toolCallId: "call-2",
+            state: "input-available",
+            input: {},
+        },
+    ],
+} as UIMessage
+
 describe("user stopped state", () => {
     it("maps a stream-delivered cancelled ending to the neutral state", () => {
         expect(
@@ -37,6 +50,16 @@ describe("user stopped state", () => {
                 type: "stream-terminal",
                 finishReason: "other",
                 messages: [approval],
+            }),
+        ).toBe(false)
+    })
+
+    it("does not mistake a parked client interaction for a cancellation", () => {
+        expect(
+            reduceUserStoppedState(false, {
+                type: "stream-terminal",
+                finishReason: "other",
+                messages: [clientInteraction],
             }),
         ).toBe(false)
     })
