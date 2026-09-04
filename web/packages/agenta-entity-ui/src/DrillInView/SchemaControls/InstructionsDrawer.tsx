@@ -142,7 +142,9 @@ export function InstructionsDrawer({
                     )}
                 </div>
 
-                <div className="flex w-[240px] shrink-0 flex-col gap-3">
+                {/* The drawer is min(920, viewport), so below md this 240px column left the editor
+                    a few characters wide. The tips and scaffolds are aids, not the task. */}
+                <div className="hidden w-[240px] shrink-0 flex-col gap-3 md:flex">
                     {filename === "AGENTS.md" ? (
                         <div className="rounded-md bg-[var(--ag-rgba-051729-04,rgba(5,23,41,0.04))] p-3">
                             <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-[var(--ag-c-586673)]">
