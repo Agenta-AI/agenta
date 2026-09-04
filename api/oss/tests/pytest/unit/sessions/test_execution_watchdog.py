@@ -24,6 +24,7 @@ from oss.src.core.sessions.records.dtos import (
     SETTLED_BY_WATCHDOG,
     SessionRecordEvent,
 )
+from oss.src.dbs.redis.sessions.locks import claim_owner
 from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     LOST_ERROR_CODE,
     LOST_ERROR_MESSAGE,
@@ -179,14 +180,18 @@ class _FakeRedis:
     async def expire(self, key, ttl):
         return True
 
-    async def eval(self, script, numkeys, key, value):
-        # The one script the sweep runs is release-if-owner: delete the key when its value
-        # is the caller's turn id, answer 1, else 0. Keys arrive as bytes.
+    async def eval(self, script, numkeys, key, value, *args):
         k = key.decode() if isinstance(key, bytes) else key
         v = value.decode() if isinstance(value, bytes) else value
         current = self._store.get(k)
         if isinstance(current, bytes):
             current = current.decode()
+        if args:
+            if current is None or current == v:
+                self._store[k] = v.encode()
+                return v.encode()
+            return current.encode()
+        # The sweep's script is release-if-owner: delete only when the value matches.
         if current == v:
             self._store.pop(k, None)
             return 1
@@ -532,6 +537,15 @@ async def test_a_stopped_turn_whose_runner_died_still_gets_an_ending(anyio_backe
     # alive lock when the sweep runs; the SEND gate reads that lock.
     alive_key = f"alive:{row.project_id}:session:{row.session_id}"
     redis._store[alive_key] = b"turn-stopped"
+    assert (
+        await claim_owner(
+            redis,
+            project_id=str(row.project_id),
+            session_id=row.session_id,
+            replica_id="replica-dead",
+        )
+        == "replica-dead"
+    )
 
     await run_orphan_sweep(
         _FakeTransactionsEngine([row]),
@@ -547,6 +561,15 @@ async def test_a_stopped_turn_whose_runner_died_still_gets_an_ending(anyio_backe
     assert alive_key not in redis._store, (
         "the dead turn's alive lock must be released, or the next Send is refused for an hour"
     )
+    assert (
+        await claim_owner(
+            redis,
+            project_id=str(row.project_id),
+            session_id=row.session_id,
+            replica_id="replica-new",
+        )
+        == "replica-new"
+    ), "the next runner must claim affinity without waiting for the dead owner's TTL"
     assert row.flags["is_alive"] is True, "the stopped row itself is not collapsed"
 
 
@@ -561,6 +584,12 @@ async def test_a_stopped_turn_owned_by_a_newer_turn_keeps_that_lock(anyio_backen
     redis = _FakeRedis()
     alive_key = f"alive:{row.project_id}:session:{row.session_id}"
     redis._store[alive_key] = b"turn-newer"
+    await claim_owner(
+        redis,
+        project_id=str(row.project_id),
+        session_id=row.session_id,
+        replica_id="replica-newer",
+    )
 
     await run_orphan_sweep(
         _FakeTransactionsEngine([row]),
@@ -570,6 +599,15 @@ async def test_a_stopped_turn_owned_by_a_newer_turn_keeps_that_lock(anyio_backen
     )
 
     assert redis._store.get(alive_key) == b"turn-newer"
+    assert (
+        await claim_owner(
+            redis,
+            project_id=str(row.project_id),
+            session_id=row.session_id,
+            replica_id="replica-other",
+        )
+        == "replica-newer"
+    ), "settling an older turn must not clear a newer turn's affinity"
 
 
 @pytest.mark.anyio
