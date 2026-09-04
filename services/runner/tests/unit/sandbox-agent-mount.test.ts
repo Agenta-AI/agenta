@@ -245,6 +245,58 @@ function notMountedThenAlive(): (cwd: string) => Promise<boolean> {
 }
 
 describe("mountStorage", () => {
+  it("cancels a slow local mount promptly and stops a geesefs handle that arrives late", async () => {
+    const controller = new AbortController();
+    let mountStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      mountStarted = resolve;
+    });
+    let finishMount!: (attempt: { stop: () => Promise<void> }) => void;
+    const lateMount = new Promise<{ stop: () => Promise<void> }>((resolve) => {
+      finishMount = resolve;
+    });
+    let stopped = 0;
+    const mount = mountStorage("/work/cwd", CREDS, {
+      signal: controller.signal,
+      checkMounted: async () => false,
+      runGeesefs: async () => {
+        mountStarted();
+        return lateMount;
+      },
+      unmountDeps: {
+        runUnmount: async () => {},
+        checkMountpoint: async () => "gone",
+      },
+      log: SILENT,
+    });
+
+    await started;
+    controller.abort();
+    await assert.rejects(
+      () =>
+        Promise.race([
+          mount,
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("local mount did not cancel")),
+              4_000,
+            ),
+          ),
+        ]),
+      /acquisition was aborted/,
+    );
+
+    finishMount({
+      stop: async () => {
+        stopped += 1;
+      },
+    });
+    for (let i = 0; i < 10 && stopped === 0; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    assert.equal(stopped, 1, "the late geesefs process is stopped");
+  });
+
   it("builds the geesefs command with creds in env, not argv", async () => {
     let seenArgs: string[] = [];
     let seenEnv: Record<string, string> = {};
@@ -502,6 +554,44 @@ describe("discoverTunnelEndpoint (remote)", () => {
 });
 
 describe("mountStorageRemote", () => {
+  it("cancels a slow Daytona mount command promptly", async () => {
+    const controller = new AbortController();
+    let mountStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      mountStarted = resolve;
+    });
+    const sandbox = {
+      runProcess: async (opts: { args?: string[] }) => {
+        if ((opts.args?.[1] ?? "").includes("geesefs --log-file")) {
+          mountStarted();
+          return new Promise<{ exitCode: number }>(() => {});
+        }
+        return { exitCode: 0 };
+      },
+    };
+    const mount = mountStorageRemote(sandbox, "/home/sandbox/work", CREDS, {
+      endpoint: "https://abc.ngrok.io",
+      signal: controller.signal,
+      log: SILENT,
+    });
+
+    await started;
+    controller.abort();
+    await assert.rejects(
+      () =>
+        Promise.race([
+          mount,
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("remote mount did not cancel")),
+              4_000,
+            ),
+          ),
+        ]),
+      /acquisition was aborted/,
+    );
+  });
+
   it("detaches an existing mount before starting geesefs", async () => {
     const commands: string[] = [];
     const sandbox = {

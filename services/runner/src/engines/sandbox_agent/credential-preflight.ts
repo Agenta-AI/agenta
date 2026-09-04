@@ -58,6 +58,11 @@
  * unambiguous masked raw-placeholder echoes convict.
  */
 
+import {
+  throwIfAcquireAborted,
+  waitForAcquire,
+} from "../../environment/acquire-abort.ts";
+
 /**
  * Does this acquire deliver the run's MODEL credential as a Daytona Secret?
  *
@@ -123,6 +128,8 @@ export interface CredentialPreflightInput {
   /** Injectable clock/sleep for tests. */
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
+  /** The turn signal; a Stop must not wait for the probe budget. */
+  signal?: AbortSignal;
 }
 
 /** See the module doc: 10s, deliberately below Daytona's ~30s keep-or-recreate bound. */
@@ -156,6 +163,8 @@ const MASKED_PLACEHOLDER_ECHO =
 export async function awaitCredentialSubstitution(
   input: CredentialPreflightInput,
 ): Promise<CredentialPreflightVerdict> {
+  const signal = input.signal;
+  throwIfAcquireAborted(signal);
   const now = input.now ?? Date.now;
   const sleep =
     input.sleep ??
@@ -175,13 +184,18 @@ export async function awaitCredentialSubstitution(
   for (let attempt = 1; ; attempt++) {
     let body: string | undefined;
     try {
-      const result = await input.sandbox.runProcess({
-        command: "sh",
-        args: ["-c", script],
-        timeoutMs: (CURL_TIMEOUT_S + 4) * 1000,
-      });
+      const result = await waitForAcquire(
+        () =>
+          input.sandbox.runProcess({
+            command: "sh",
+            args: ["-c", script],
+            timeoutMs: (CURL_TIMEOUT_S + 4) * 1000,
+          }),
+        signal,
+      );
       body = result?.stdout;
     } catch (error) {
+      throwIfAcquireAborted(signal);
       // The exec channel itself failed (sandbox tearing down, daemon hiccup): fail open.
       input.log(
         `[credential-preflight] probe errored, proceeding: ${String(
@@ -221,6 +235,6 @@ export async function awaitCredentialSubstitution(
       `[credential-preflight] raw placeholder echoed (probe ${attempt}, ` +
         `+${(elapsedMs / 1000).toFixed(1)}s)`,
     );
-    await sleep(pollMs);
+    await waitForAcquire(() => sleep(pollMs), signal);
   }
 }
