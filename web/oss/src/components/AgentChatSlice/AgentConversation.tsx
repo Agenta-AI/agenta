@@ -153,6 +153,7 @@ const AgentConversation = ({
         handleClientToolOutput,
         markLiveGate,
         answerApproval,
+        answerApprovals,
         resumeOrphaned,
         isSeen,
         runningElsewhere: livenessRunningElsewhere,
@@ -423,6 +424,14 @@ const AgentConversation = ({
             })
         },
         [answerApproval, markLiveGate, submit],
+    )
+
+    const handleApprovalResponses = useCallback(
+        (ids: string[], approved: boolean) => {
+            markLiveGate({kind: "approval", id: ids[0]})
+            return answerApprovals(ids, approved)
+        },
+        [answerApprovals, markLiveGate],
     )
 
     const interactionAvailability = getInteractionAvailability({stopped, stopping, streaming: busy})
@@ -920,6 +929,7 @@ const AgentConversation = ({
                                         showTemplateStrip={showTemplateStrip}
                                         pendingApprovals={pendingApprovals}
                                         onApprovalResponse={handleApprovalResponse}
+                                        onApprovalResponses={handleApprovalResponses}
                                         connects={connects}
                                         elicits={elicits}
                                         onClientToolOutput={handleClientToolOutput}

@@ -13,6 +13,7 @@ from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
     build_wire_messages,
+    compose_approval_messages_many,
 )
 
 
@@ -224,6 +225,42 @@ async def test_respond_detached_calls_dispatch_fn_not_invoke():
 # ---------------------------------------------------------------------------
 # M2: approval answers compose the runner-visible resume conversation
 # ---------------------------------------------------------------------------
+
+
+def test_parallel_approval_answers_share_one_resume_conversation():
+    project_id = uuid4()
+    first = _make_interaction(
+        kind=SessionInteractionKind.user_approval,
+        request={"tool": "bash", "tool_call_id": "tc-1"},
+    )
+    second = _make_interaction(
+        kind=SessionInteractionKind.user_approval,
+        request={"tool": "write_file", "tool_call_id": "tc-2"},
+    )
+    second = second.model_copy(update={"token": "tok-def"})
+    records = [
+        *_approval_records(project_id),
+        *_approval_records(project_id, token="tok-def", tool_call_id="tc-2")[1:],
+    ]
+
+    messages = compose_approval_messages_many(
+        records,
+        [(first, {"approved": True}), (second, {"approved": False})],
+    )
+
+    results = [
+        block
+        for message in messages
+        if isinstance(message.get("content"), list)
+        for block in message["content"]
+        if block.get("type") == "tool_result"
+        and isinstance(block.get("output"), dict)
+        and block["output"].get("interactionToken") in {"tok-abc", "tok-def"}
+    ]
+    assert [(item["toolCallId"], item["output"]["approved"]) for item in results] == [
+        ("tc-1", True),
+        ("tc-2", False),
+    ]
 
 
 async def test_approval_respond_composes_resume_messages_from_records():

@@ -70,6 +70,7 @@ const AgentComposerDock = ({
     showTemplateStrip,
     pendingApprovals,
     onApprovalResponse,
+    onApprovalResponses,
     connects,
     elicits,
     onClientToolOutput,
@@ -112,6 +113,7 @@ const AgentComposerDock = ({
         approved: boolean
         message?: string
     }) => void | Promise<void>
+    onApprovalResponses: (ids: string[], approved: boolean) => void | Promise<void>
     connects: ConnectionDockState
     /** Parked question forms the run is blocked on (from `useElicitationDock`). */
     elicits: ElicitationDockState
@@ -329,6 +331,7 @@ const AgentComposerDock = ({
                     className={CHAT_COLUMN}
                     approvals={pendingApprovals}
                     onApprovalResponse={onApprovalResponse}
+                    onApprovalResponses={onApprovalResponses}
                     entityId={entityId}
                 />
                 {/* Parked client-tool interactions (connect): same placement contract as the

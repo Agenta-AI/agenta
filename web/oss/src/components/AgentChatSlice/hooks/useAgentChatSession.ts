@@ -45,6 +45,7 @@ import {
     killSession,
     recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
+    respondInteractionAnswersAtom,
     resumeSessionContinuationAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
@@ -149,6 +150,7 @@ export const useAgentChatSession = ({
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
     const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
+    const respondInteractionAnswers = useSetAtom(respondInteractionAnswersAtom)
     const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
     const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
@@ -406,6 +408,18 @@ export const useAgentChatSession = ({
             })
         },
         [respondInteractionAnswer, sessionId],
+    )
+
+    const answerApprovals = useCallback(
+        async (toolCallIds: string[], approved: boolean) => {
+            await submitServerOwnedApproval({
+                submit: () => respondInteractionAnswers({sessionId, toolCallIds, approved}),
+                retire: () => {
+                    liveGateInteractionRef.current = null
+                },
+            })
+        },
+        [respondInteractionAnswers, sessionId],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
@@ -794,6 +808,7 @@ export const useAgentChatSession = ({
         handleClientToolOutput,
         markLiveGate,
         answerApproval,
+        answerApprovals,
         resumeOrphaned,
         isSeen,
     }

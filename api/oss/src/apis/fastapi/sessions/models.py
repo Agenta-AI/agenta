@@ -253,12 +253,28 @@ class SessionInteractionsResponse(BaseModel):
     interactions: List[SessionInteraction] = Field(default_factory=list)
 
 
+class SessionInteractionAnswerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    interaction_id: UUID
+    answer: Dict[str, Any]
+
+
 class SessionInteractionRespondRequest(BaseModel):
     # For a user_approval interaction the answer is {approved: bool, tool_call_id?: str,
     # message?: str} — the dispatcher composes the full resume conversation server-side
     # (interactions_dispatcher.compose_approval_messages). Other kinds pass through as-is.
     answer: Optional[Dict[str, Any]] = None
+    answers: Optional[List[SessionInteractionAnswerRequest]] = Field(
+        default=None, min_length=1, max_length=100
+    )
     expected_execution_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_answer_shape(self) -> "SessionInteractionRespondRequest":
+        if self.answer is not None and self.answers is not None:
+            raise ValueError("answer and answers cannot be combined")
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -464,12 +480,14 @@ class SessionExecutionRef(BaseModel):
 
 class SessionInteractionContinuationExecution(BaseModel):
     id: str
-    state: Literal["pending_delivery", "recoverable", "running"]
+    state: Literal[
+        "awaiting_interactions", "pending_delivery", "recoverable", "running"
+    ]
 
 
 class SessionInteractionContinuationResponse(BaseModel):
     interaction: SessionInteraction
-    command: SessionCommandRef
+    command: Optional[SessionCommandRef] = None
     execution: SessionInteractionContinuationExecution
 
 

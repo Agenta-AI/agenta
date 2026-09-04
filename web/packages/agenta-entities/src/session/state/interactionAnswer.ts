@@ -85,6 +85,62 @@ export const respondInteractionAnswerAtom = atom(
     },
 )
 
+/** Submit every approval currently shown by Approve all as one durable transaction. */
+export const respondInteractionAnswersAtom = atom(
+    null,
+    async (
+        get,
+        set,
+        params: {
+            sessionId: string
+            toolCallIds: string[]
+            approved: boolean
+        },
+    ): Promise<{durable: boolean; recoverable: boolean}> => {
+        const {sessionId, toolCallIds, approved} = params
+        const projectId = get(projectIdAtom) ?? ""
+        if (!projectId || !sessionId) throw new Error("Approval has no project or session scope.")
+        if (toolCallIds.length === 0) throw new Error("No pending approvals were selected.")
+
+        const queryClient = get(queryClientAtom)
+        const rowsQueryKey = sessionInteractionRowsQueryKey(projectId, sessionId)
+        let states = await set(fetchSessionInteractionStatesAtom, sessionId)
+        let rows = toolCallIds.map((toolCallId) => rowForToolCall(states, toolCallId))
+        if (rows.some((row) => !row?.id)) {
+            await queryClient.invalidateQueries({queryKey: rowsQueryKey})
+            states = await set(fetchSessionInteractionStatesAtom, sessionId)
+            rows = toolCallIds.map((toolCallId) => rowForToolCall(states, toolCallId))
+        }
+        if (rows.some((row) => !row?.id)) {
+            throw new Error("One or more approvals are no longer pending. Refresh and retry.")
+        }
+
+        const resolvedRows = rows as NonNullable<(typeof rows)[number]>[]
+        const executionIds = new Set(resolvedRows.map((row) => row.turnId).filter(Boolean))
+        if (executionIds.size !== 1) {
+            throw new Error("Approve all can only answer approvals from one execution.")
+        }
+        const decision = approved ? "approve" : "deny"
+        const sortedIds = resolvedRows.map((row) => row.id as string).sort()
+        const result = await respondInteraction({
+            interactionId: sortedIds[0],
+            projectId,
+            answers: resolvedRows.map((row, index) => ({
+                interactionId: row.id as string,
+                answer: {approved, tool_call_id: toolCallIds[index]},
+            })),
+            expectedExecutionId: resolvedRows[0].turnId,
+            idempotencyKey: `approval-batch:${sortedIds[0]}:${sortedIds.length}:${decision}`,
+        })
+        if (!result) throw new Error("Approvals could not be submitted.")
+        await queryClient.invalidateQueries({queryKey: rowsQueryKey})
+        return {
+            durable: result.accepted,
+            recoverable: result.execution?.state === "recoverable",
+        }
+    },
+)
+
 /**
  * Best-effort by design: failures preserve today's in-band resume behavior.
  * It never blocks or rejects the client-tool resume path.

@@ -112,8 +112,8 @@ describe("durable response state", () => {
             />,
         )
 
-        expect(markup).toContain("Answered")
-        expect(markup).toContain("The agent is continuing")
+        expect(markup).toContain("Answered, waiting for the agent")
+        expect(markup).toContain("The answer is saved")
         // HeightCollapse keeps its child mounted for the leave animation, but removes it from
         // layout, accessibility, and interaction while the answered state is visible.
         expect(markup).toContain('aria-hidden="true" inert=""')

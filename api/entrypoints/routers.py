@@ -1151,11 +1151,13 @@ session_commands_service = SessionCommandsService(
     interactions_service=interactions_service,
     lock_engine=_lock_engine,
     delivery=DirectControlDelivery(
-        continue_interaction=lambda command: _interactions_dispatcher.respond(
+        continue_interaction=lambda command: _interactions_dispatcher.respond_many(
             project_id=command.project_id,
             user_id=command.created_by_id,
-            interaction_id=UUID(str(command.data["interaction_id"])),
-            answer=command.data["answer"],
+            interaction_answers=[
+                (UUID(item["interaction_id"]), item["answer"])
+                for item in command.data["answers"]
+            ],
             control_command_id=command.id,
             continuation_execution_id=command.target_turn_id,
         )

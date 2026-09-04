@@ -146,6 +146,7 @@ export {
 export {
     recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
+    respondInteractionAnswersAtom,
     resumeSessionContinuationAtom,
 } from "./state/interactionAnswer"
 export {

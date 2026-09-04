@@ -96,6 +96,35 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
         async with self.engine.session() as session:
             return await execute(session)
 
+    async def fetch_turn_interactions(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        transaction: Optional[Any] = None,
+        for_update: bool = False,
+    ) -> List[SessionInteraction]:
+        async def execute(session: Any) -> List[SessionInteraction]:
+            stmt = (
+                select(SessionInteractionDBE)
+                .where(
+                    SessionInteractionDBE.project_id == project_id,
+                    SessionInteractionDBE.session_id == session_id,
+                    SessionInteractionDBE.turn_id == turn_id,
+                )
+                .order_by(SessionInteractionDBE.id)
+            )
+            if for_update:
+                stmt = stmt.with_for_update()
+            rows = (await session.execute(stmt)).scalars().all()
+            return [map_interaction_dbe_to_dto(row) for row in rows]
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
+
     async def transition_interaction(
         self,
         *,

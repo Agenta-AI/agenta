@@ -807,6 +807,142 @@ async def test_full_service_stop_and_answer_have_one_postgres_winner(command_sco
     )
 
 
+async def test_full_service_stop_between_parallel_answers_cancels_the_remainder(
+    command_scope,
+):
+    first_id = await _insert_pending_interaction(command_scope, token="parallel-first")
+    second_id = await _insert_pending_interaction(
+        command_scope, token="parallel-second"
+    )
+    service = _commands_service(command_scope)
+
+    first = await service.respond_interaction(
+        project_id=command_scope["project_id"],
+        user_id=command_scope["user_id"],
+        interaction_id=first_id,
+        answer={"approved": True},
+        expected_execution_id="turn-A",
+        idempotency_key="parallel-answer-first",
+    )
+    assert first.command is None
+    assert first.waiting_for_interactions is True
+
+    stopped = await service.request_cancel(
+        project_id=command_scope["project_id"],
+        user_id=command_scope["user_id"],
+        session_id=command_scope["session_id"],
+        expected_execution_id="turn-A",
+        idempotency_key="parallel-stop",
+    )
+    assert stopped.accepted is True
+
+    with pytest.raises(InteractionResponseConflict):
+        await service.respond_interaction(
+            project_id=command_scope["project_id"],
+            user_id=command_scope["user_id"],
+            interaction_id=second_id,
+            answer={"approved": True},
+            expected_execution_id="turn-A",
+            idempotency_key="parallel-answer-second",
+        )
+
+    interactions = SessionInteractionsDAO(engine=command_scope["engine"])
+    first_row = await interactions.fetch_interaction(
+        project_id=command_scope["project_id"], interaction_id=first_id
+    )
+    second_row = await interactions.fetch_interaction(
+        project_id=command_scope["project_id"], interaction_id=second_id
+    )
+    assert first_row.status == SessionInteractionStatus.responded
+    assert second_row.status == SessionInteractionStatus.cancelled
+    async with command_scope["engine"].session() as session:
+        continuation_count = await session.scalar(
+            text(
+                "SELECT count(*) FROM session_executions "
+                "WHERE project_id = :project_id AND session_id = :session_id "
+                "AND parent_execution_id = 'turn-A'"
+            ),
+            {
+                "project_id": command_scope["project_id"],
+                "session_id": command_scope["session_id"],
+            },
+        )
+    assert continuation_count == 0
+
+
+async def test_full_service_parallel_answers_create_one_terminal_continuation(
+    command_scope,
+):
+    first_id = await _insert_pending_interaction(
+        command_scope, token="parallel-continue-first"
+    )
+    second_id = await _insert_pending_interaction(
+        command_scope, token="parallel-continue-second"
+    )
+    service = _commands_service(command_scope)
+
+    first = await service.respond_interaction(
+        project_id=command_scope["project_id"],
+        user_id=command_scope["user_id"],
+        interaction_id=first_id,
+        answer={"approved": True},
+        expected_execution_id="turn-A",
+        idempotency_key="parallel-continue-answer-first",
+    )
+    assert first.command is None
+
+    second = await service.respond_interaction(
+        project_id=command_scope["project_id"],
+        user_id=command_scope["user_id"],
+        interaction_id=second_id,
+        answer={"approved": False},
+        expected_execution_id="turn-A",
+        idempotency_key="parallel-continue-answer-second",
+    )
+    assert second.command is not None
+
+    async with command_scope["engine"].session() as session:
+        before = (
+            await session.execute(
+                text(
+                    "SELECT execution_id, terminal_outcome FROM session_executions "
+                    "WHERE project_id = :project_id AND session_id = :session_id "
+                    "AND parent_execution_id = 'turn-A'"
+                ),
+                {
+                    "project_id": command_scope["project_id"],
+                    "session_id": command_scope["session_id"],
+                },
+            )
+        ).all()
+    assert before == [(second.execution_id, None)]
+
+    assert await service.settle_execution_completed(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+        execution_id=second.execution_id,
+    )
+    async with command_scope["engine"].session() as session:
+        outcomes = (
+            (
+                await session.execute(
+                    text(
+                        "SELECT terminal_outcome FROM session_executions "
+                        "WHERE project_id = :project_id AND session_id = :session_id "
+                        "AND parent_execution_id = 'turn-A'"
+                    ),
+                    {
+                        "project_id": command_scope["project_id"],
+                        "session_id": command_scope["session_id"],
+                    },
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert outcomes == ["completed"]
+
+
 async def test_full_service_failure_rolls_back_answer_execution_and_command(
     command_scope,
 ):

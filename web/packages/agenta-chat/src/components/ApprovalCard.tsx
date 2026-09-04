@@ -201,7 +201,7 @@ export const ApprovalCard = ({
             <div className="flex items-center gap-1.5">
                 <ShieldCheck size={14} weight="fill" className="shrink-0 text-colorText" />
                 <span className="text-xs font-medium text-colorText">
-                    {answered ? "Answered" : "Needs your approval"}
+                    {answered ? "Answered, waiting for the agent" : "Needs your approval"}
                 </span>
             </div>
 
@@ -392,7 +392,7 @@ export const ApprovalCard = ({
 
             {answered ? (
                 <p role="status" aria-live="polite" className="m-0 text-xs text-colorTextSecondary">
-                    The agent is continuing. Waiting for the next update…
+                    The answer is saved. Waiting for the agent’s next update…
                 </p>
             ) : null}
             {errorText ? (

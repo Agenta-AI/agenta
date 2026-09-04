@@ -88,6 +88,23 @@ class SessionInteractionsService:
             raise InteractionNotFound(f"Interaction {interaction_id} not found")
         return result
 
+    async def fetch_turn_interactions(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        transaction: Optional[Any] = None,
+        for_update: bool = False,
+    ) -> List[SessionInteraction]:
+        return await self.interactions_dao.fetch_turn_interactions(
+            project_id=project_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            transaction=transaction,
+            for_update=for_update,
+        )
+
     async def transition_interaction(
         self,
         *,

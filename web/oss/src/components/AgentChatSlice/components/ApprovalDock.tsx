@@ -14,6 +14,7 @@ interface ApprovalDockProps {
         approved: boolean
         message?: string
     }) => void | Promise<void>
+    onApprovalResponses?: (ids: string[], approved: boolean) => void | Promise<void>
     /** Selected agent revision — enables the always-allow grant. */
     entityId?: string
     className?: string
@@ -26,7 +27,13 @@ interface ApprovalDockProps {
  * shape, for every user); this dock is the desktop adapter: it owns the open/close animation, the
  * multi-gate resolve latch, and how a response actually fires.
  */
-const ApprovalDock = ({approvals, onApprovalResponse, entityId, className}: ApprovalDockProps) => {
+const ApprovalDock = ({
+    approvals,
+    onApprovalResponse,
+    onApprovalResponses,
+    entityId,
+    className,
+}: ApprovalDockProps) => {
     const open = approvals.length > 0
     // "Approve all" / "Deny all" answer SEVERAL gates at once, and each response settles
     // asynchronously (the SDK's serial job queue), so the pending set shrinks across renders.
@@ -87,7 +94,11 @@ const ApprovalDock = ({approvals, onApprovalResponse, entityId, className}: Appr
         setResponding(true)
         setErrorText(null)
         setResolvingIds(ids)
-        void settle(ids.map((id) => onApprovalResponse({id, approved})))
+        void settle(
+            onApprovalResponses
+                ? [onApprovalResponses(ids, approved)]
+                : ids.map((id) => onApprovalResponse({id, approved})),
+        )
     }
 
     // Always mounted; enter + leave animate via the shared HeightCollapse. `inert` while closed

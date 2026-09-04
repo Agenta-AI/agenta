@@ -103,6 +103,24 @@ describe("useApprovalDock", () => {
         expect(result.current.open).toBe(false)
     })
 
+    it("approveAll uses one batch response when the host supports it", () => {
+        const respond = vi.fn()
+        const respondAll = vi.fn()
+        const {result} = renderHook(() =>
+            useApprovalDock({
+                messages: [userTurn, assistantWithGates("g1", "g2")],
+                respond,
+                respondAll,
+            }),
+        )
+
+        act(() => result.current.approveAll())
+
+        expect(respond).not.toHaveBeenCalled()
+        expect(respondAll).toHaveBeenCalledOnce()
+        expect(respondAll).toHaveBeenCalledWith({ids: ["g1", "g2"], approved: true})
+    })
+
     it("keeps the last card latched while closed so a leave transition has content", () => {
         const {result, rerender} = setup([userTurn, assistantWithGates("g1")])
         expect(result.current.current?.approvalId).toBe("g1")

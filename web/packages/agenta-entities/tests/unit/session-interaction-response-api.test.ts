@@ -64,6 +64,42 @@ describe("respondInteraction", () => {
         })
     })
 
+    it("sends a same-turn approval batch in one request", async () => {
+        respond.mockReturnValue(
+            response(202, {
+                interaction,
+                command: {id: "command-1", state: "pending"},
+                execution: {id: "turn-2", state: "recoverable"},
+            }),
+        )
+
+        const result = await respondInteraction({
+            interactionId: "interaction-1",
+            projectId: "project-1",
+            answers: [
+                {interactionId: "interaction-1", answer: {approved: true}},
+                {interactionId: "interaction-2", answer: {approved: true}},
+            ],
+            expectedExecutionId: "turn-1",
+            idempotencyKey: "approval-batch:interaction-1:2:approve",
+        })
+
+        expect(respond).toHaveBeenCalledWith(
+            {
+                interaction_id: "interaction-1",
+                answers: [
+                    {interaction_id: "interaction-1", answer: {approved: true}},
+                    {interaction_id: "interaction-2", answer: {approved: true}},
+                ],
+                expected_execution_id: "turn-1",
+            },
+            expect.objectContaining({
+                headers: {"Idempotency-Key": "approval-batch:interaction-1:2:approve"},
+            }),
+        )
+        expect(result?.execution?.state).toBe("recoverable")
+    })
+
     it("keeps the flag-off server dispatcher response distinguishable without local resume", async () => {
         respond.mockReturnValue(response(200, {interaction}))
 

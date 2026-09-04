@@ -115,26 +115,43 @@ class _Commands:
 
 
 @pytest.fixture(autouse=True)
-def _durable_stop_enabled(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+def _durable_approvals_enabled(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
 
 
 class _Interactions:
     def __init__(self, interaction):
-        self.interaction = interaction
+        self.interactions = [interaction]
 
-    async def fetch_interaction(self, **kwargs):
-        return self.interaction
+    @property
+    def interaction(self):
+        return self.interactions[0]
+
+    @interaction.setter
+    def interaction(self, value):
+        self.interactions[0] = value
+
+    async def fetch_interaction(self, *, interaction_id, **kwargs):
+        return next(item for item in self.interactions if item.id == interaction_id)
+
+    async def fetch_turn_interactions(self, **kwargs):
+        return self.interactions
 
     async def transition_interaction(self, *, transition, **kwargs):
-        data = self.interaction.data or SessionInteractionData()
-        self.interaction = self.interaction.model_copy(
+        index = next(
+            index
+            for index, item in enumerate(self.interactions)
+            if item.token == transition.token
+        )
+        interaction = self.interactions[index]
+        data = interaction.data or SessionInteractionData()
+        self.interactions[index] = interaction.model_copy(
             update={
                 "status": transition.status,
                 "data": data.model_copy(update={"resolution": transition.resolution}),
             }
         )
-        return self.interaction
+        return self.interactions[index]
 
     async def publish_interaction_responded(self, **kwargs):
         return None
@@ -274,6 +291,7 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
     assert admission.execution_state == SessionExecutionState.recoverable
     assert commands.command.data == {
         "interaction_id": str(interaction_id),
+        "interaction_ids": [str(interaction_id)],
         "continuation_execution_id": admission.execution_id,
     }
     assert delivery.delivered[0].data["answer"] == {"approved": True}
@@ -300,6 +318,143 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
             expected_execution_id="source-1",
             idempotency_key="response-1",
         )
+
+
+@pytest.mark.asyncio
+async def test_parallel_answers_wait_then_share_one_continuation():
+    project_id = uuid4()
+    first_id = uuid4()
+    second_id = uuid4()
+    interactions = _Interactions(
+        SessionInteraction(
+            id=first_id,
+            project_id=project_id,
+            session_id="session-1",
+            turn_id="source-1",
+            token="approval-1",
+            kind=SessionInteractionKind.user_approval,
+            status=SessionInteractionStatus.pending,
+        )
+    )
+    interactions.interactions.append(
+        SessionInteraction(
+            id=second_id,
+            project_id=project_id,
+            session_id="session-1",
+            turn_id="source-1",
+            token="approval-2",
+            kind=SessionInteractionKind.user_approval,
+            status=SessionInteractionStatus.pending,
+        )
+    )
+    commands = _Commands()
+    delivery = _Unreachable()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=delivery,
+        executions_dao=executions,
+    )
+
+    first = await service.respond_interaction(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=first_id,
+        answer={"approved": True},
+        expected_execution_id="source-1",
+        idempotency_key="response-1",
+    )
+
+    assert first.command is None
+    assert first.waiting_for_interactions is True
+    assert interactions.interactions[0].status == SessionInteractionStatus.responded
+    assert interactions.interactions[1].status == SessionInteractionStatus.pending
+    assert executions.source.terminal_outcome is None
+    assert delivery.delivered == []
+
+    second = await service.respond_interaction(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=second_id,
+        answer={"approved": False},
+        expected_execution_id="source-1",
+        idempotency_key="response-2",
+    )
+
+    assert second.command is not None
+    assert executions.source.terminal_outcome == "continued"
+    assert len(delivery.delivered) == 1
+    assert delivery.delivered[0].data["answers"] == [
+        {"interaction_id": str(first_id), "answer": {"approved": True}},
+        {"interaction_id": str(second_id), "answer": {"approved": False}},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_approve_all_commits_one_continuation_for_the_batch():
+    project_id = uuid4()
+    first_id = uuid4()
+    second_id = uuid4()
+    interactions = _Interactions(
+        SessionInteraction(
+            id=first_id,
+            project_id=project_id,
+            session_id="session-1",
+            turn_id="source-1",
+            token="approval-1",
+            kind=SessionInteractionKind.user_approval,
+            status=SessionInteractionStatus.pending,
+        )
+    )
+    interactions.interactions.append(
+        SessionInteraction(
+            id=second_id,
+            project_id=project_id,
+            session_id="session-1",
+            turn_id="source-1",
+            token="approval-2",
+            kind=SessionInteractionKind.user_approval,
+            status=SessionInteractionStatus.pending,
+        )
+    )
+    commands = _Commands()
+    delivery = _Unreachable()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=delivery,
+        executions_dao=executions,
+    )
+
+    admission = await service.respond_interactions(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_answers=[
+            (first_id, {"approved": True}),
+            (second_id, {"approved": True}),
+        ],
+        expected_execution_id="source-1",
+        idempotency_key="approve-all",
+    )
+
+    assert admission.command is not None
+    assert len(delivery.delivered) == 1
+    assert {
+        item["interaction_id"] for item in delivery.delivered[0].data["answers"]
+    } == {
+        str(first_id),
+        str(second_id),
+    }
 
 
 @pytest.mark.asyncio
@@ -758,6 +913,37 @@ async def test_watchdog_keeps_lost_continuation_recoverable():
 
 
 @pytest.mark.asyncio
+async def test_watchdog_does_not_recover_continuation_when_approvals_are_disabled(
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", False)
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    executions.continuation = executions.continuation.model_copy(
+        update={"state": SessionExecutionState.running}
+    )
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    assert await service.settle_execution_lost(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="continuation-1",
+        settled_at=datetime.now(timezone.utc),
+    )
+    assert executions.continuation.state == SessionExecutionState.terminal
+    assert executions.continuation.terminal_outcome == SessionCommandOutcome.lost.value
+
+
+@pytest.mark.asyncio
 async def test_persisted_completion_terminalizes_continuation_before_recovery():
     project_id = uuid4()
     executions = _Executions(
@@ -786,8 +972,8 @@ async def test_persisted_completion_terminalizes_continuation_before_recovery():
 
 
 @pytest.mark.asyncio
-async def test_recovery_hooks_are_disabled_with_durable_stop(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", False)
+async def test_recovery_hooks_are_disabled_with_durable_approvals(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", False)
     project_id = uuid4()
     interaction_id = uuid4()
     commands = _Commands()

@@ -249,7 +249,9 @@ export async function fetchInteraction({
 
 export interface RespondInteractionParams extends InteractionScopedParams {
     /** The answer payload (e.g. an approval decision). Shape is interaction-kind specific. */
-    answer: Record<string, unknown>
+    answer?: Record<string, unknown>
+    /** Atomic same-turn answers used by Approve all. */
+    answers?: {interactionId: string; answer: Record<string, unknown>}[]
     /** The execution the approval belongs to. Durable mode serializes this against Stop. */
     expectedExecutionId?: string
     /** Stable retry identity. Reusing it with a different answer is a conflict. */
@@ -331,6 +333,7 @@ export async function respondInteraction({
     appId,
     abortSignal,
     answer,
+    answers,
     expectedExecutionId,
     idempotencyKey,
 }: RespondInteractionParams): Promise<RespondInteractionResult | null> {
@@ -341,7 +344,14 @@ export async function respondInteraction({
     // also release the local AI SDK gate.
     const request = {
         interaction_id: interactionId,
-        answer,
+        ...(answers
+            ? {
+                  answers: answers.map((item) => ({
+                      interaction_id: item.interactionId,
+                      answer: item.answer,
+                  })),
+              }
+            : {answer}),
         ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
     }
     const {data, rawResponse} = await getSessionsClient()

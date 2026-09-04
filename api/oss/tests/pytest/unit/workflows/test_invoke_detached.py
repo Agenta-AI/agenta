@@ -232,7 +232,7 @@ async def test_invoke_workflow_batch_still_returns_400_when_no_service_url():
 
 
 async def test_ordinary_session_invoke_redelivers_recoverable_continuation(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     svc = _service()
     resume = AsyncMock(return_value=True)
     svc.set_session_continuation_resumer(resume)
@@ -253,7 +253,7 @@ async def test_ordinary_session_invoke_redelivers_recoverable_continuation(monke
 
 
 async def test_control_continuation_bypasses_ordinary_send_recovery_hook(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     svc = _service()
     resume = AsyncMock(return_value=True)
     svc.set_session_continuation_resumer(resume)

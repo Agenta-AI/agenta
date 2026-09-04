@@ -16,6 +16,8 @@ export interface UseApprovalDockArgs {
     messages: UIMessage[]
     /** Answer one gate — the host's approval-response path (which marks the resume live). */
     respond: (args: {id: string; approved: boolean}) => void | Promise<void>
+    /** Answer one paused turn's shown gates in a single server transaction. */
+    respondAll?: (args: {ids: string[]; approved: boolean}) => void | Promise<void>
 }
 
 export interface ApprovalDock {
@@ -45,6 +47,7 @@ export interface ApprovalDock {
 export const useApprovalDock = ({
     messages,
     respond: onRespond,
+    respondAll: onRespondAll,
 }: UseApprovalDockArgs): ApprovalDock => {
     const approvals = useMemo(() => getPendingApprovals(messages), [messages])
     const open = approvals.length > 0
@@ -121,8 +124,13 @@ export const useApprovalDock = ({
         // Freeze the card so the dock doesn't step through the batch as each response settles —
         // it holds "1 of N" and closes once all are answered (see `resolvingIds`).
         setResolvingIds(shown.map((a) => a.approvalId))
-        void settle(shown.map((a) => onRespond({id: a.approvalId, approved: true})))
-    }, [responding, shown, onRespond, settle])
+        const ids = shown.map((approval) => approval.approvalId)
+        void settle(
+            onRespondAll
+                ? [onRespondAll({ids, approved: true})]
+                : ids.map((id) => onRespond({id, approved: true})),
+        )
+    }, [responding, shown, onRespond, onRespondAll, settle])
 
     return {open, current, count, responding, answered, errorText, respond, approveAll}
 }

@@ -147,7 +147,8 @@ async def test_record_ingest_threads_turn_id_and_span_id():
 
 async def test_terminal_continuation_settles_core_before_stream_acceptance(monkeypatch):
     monkeypatch.setattr(
-        "oss.src.apis.fastapi.sessions.router.env.agenta.sessions.durable_stop", True
+        "oss.src.apis.fastapi.sessions.router.env.agenta.sessions.durable_approvals",
+        True,
     )
     records_service = AsyncMock()
     commands_service = AsyncMock()
@@ -197,7 +198,8 @@ async def test_terminal_publish_failure_is_retryable_after_core_settlement(monke
     from fastapi import HTTPException
 
     monkeypatch.setattr(
-        "oss.src.apis.fastapi.sessions.router.env.agenta.sessions.durable_stop", True
+        "oss.src.apis.fastapi.sessions.router.env.agenta.sessions.durable_approvals",
+        True,
     )
     commands_service = AsyncMock()
     router = RecordsRouter(

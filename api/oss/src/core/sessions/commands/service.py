@@ -115,14 +115,18 @@ class InteractionContinuationAdmission:
         self,
         *,
         interaction: SessionInteraction,
-        command: SessionCommand,
+        command: Optional[SessionCommand],
         execution_id: str,
         execution_state: SessionExecutionState = SessionExecutionState.pending_delivery,
+        interactions: Optional[List[SessionInteraction]] = None,
+        waiting_for_interactions: bool = False,
     ) -> None:
         self.interaction = interaction
+        self.interactions = interactions or [interaction]
         self.command = command
         self.execution_id = execution_id
         self.execution_state = execution_state
+        self.waiting_for_interactions = waiting_for_interactions
 
 
 class CommandOutcomeReport:
@@ -383,81 +387,107 @@ class SessionCommandsService:
         expected_execution_id: Optional[str],
         idempotency_key: str,
     ) -> InteractionContinuationAdmission:
+        return await self.respond_interactions(
+            project_id=project_id,
+            user_id=user_id,
+            interaction_answers=[(interaction_id, answer)],
+            expected_execution_id=expected_execution_id,
+            idempotency_key=idempotency_key,
+        )
+
+    async def respond_interactions(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        interaction_answers: List[Tuple[UUID, dict[str, Any]]],
+        expected_execution_id: Optional[str],
+        idempotency_key: str,
+    ) -> InteractionContinuationAdmission:
         if self._executions is None:
             raise RuntimeError(
                 "durable interaction responses require executions storage"
             )
+        requested = dict(interaction_answers)
+        if not requested or len(requested) != len(interaction_answers):
+            raise InteractionResponseConflict(
+                code="validation_error",
+                message="Each response must answer at least one distinct interaction.",
+            )
+
+        anchor_id = interaction_answers[0][0]
+        anchor = await self._interactions.fetch_interaction(
+            project_id=project_id,
+            interaction_id=anchor_id,
+        )
+        source_execution_id = anchor.turn_id
+        if source_execution_id is None:
+            raise InteractionResponseConflict(
+                code="validation_error",
+                message="The interaction is not linked to an execution.",
+            )
+        if (
+            expected_execution_id is not None
+            and expected_execution_id != source_execution_id
+        ):
+            raise InteractionResponseConflict(
+                code="execution_mismatch",
+                message="The interaction belongs to a different execution.",
+                details={"current_execution_id": source_execution_id},
+            )
 
         async with self._dao.transaction() as transaction:
-            interaction = await self._interactions.fetch_interaction(
-                project_id=project_id,
-                interaction_id=interaction_id,
-                transaction=transaction,
-            )
-            source_execution_id = interaction.turn_id
-            if source_execution_id is None:
-                raise InteractionResponseConflict(
-                    code="validation_error",
-                    message="The interaction is not linked to an execution.",
-                )
-            if (
-                expected_execution_id is not None
-                and expected_execution_id != source_execution_id
-            ):
-                raise InteractionResponseConflict(
-                    code="execution_mismatch",
-                    message="The interaction belongs to a different execution.",
-                    details={"current_execution_id": source_execution_id},
-                )
-
             source = await self._executions.lock_for_control(
                 project_id=project_id,
-                session_id=interaction.session_id,
+                session_id=anchor.session_id,
                 execution_id=source_execution_id,
                 transaction=transaction,
             )
-            interaction = await self._interactions.fetch_interaction(
+            turn_interactions = await self._interactions.fetch_turn_interactions(
                 project_id=project_id,
-                interaction_id=interaction_id,
+                session_id=anchor.session_id,
+                turn_id=source_execution_id,
                 transaction=transaction,
                 for_update=True,
             )
+            by_id = {interaction.id: interaction for interaction in turn_interactions}
+            if not requested.keys() <= by_id.keys():
+                raise InteractionResponseConflict(
+                    code="execution_mismatch",
+                    message="Every interaction must belong to the same execution.",
+                    details={"current_execution_id": source_execution_id},
+                )
             existing = await self._dao.fetch_by_idempotency_key(
                 project_id=project_id,
-                session_id=interaction.session_id,
+                session_id=anchor.session_id,
                 idempotency_key=idempotency_key,
                 transaction=transaction,
             )
             if existing is not None:
+                existing_ids = (existing.data or {}).get("interaction_ids")
+                if not isinstance(existing_ids, list):
+                    existing_id = (existing.data or {}).get("interaction_id")
+                    existing_ids = [existing_id] if isinstance(existing_id, str) else []
                 same_request = (
                     existing.kind == SessionCommandKind.continue_interaction
                     and existing.expected_turn_id == source_execution_id
-                    and existing.data is not None
-                    and existing.data.get("interaction_id") == str(interaction_id)
-                    and interaction.data is not None
-                    and interaction.data.resolution == answer
+                    and set(existing_ids) == {str(item) for item in requested}
+                    and all(
+                        by_id[item].data is not None
+                        and by_id[item].data.resolution == answer
+                        for item, answer in requested.items()
+                    )
                 )
                 if not same_request:
                     raise IdempotencyKeyReused()
                 execution_id = str(existing.data["continuation_execution_id"])
                 admission = InteractionContinuationAdmission(
-                    interaction=interaction,
+                    interaction=by_id[anchor_id],
                     command=existing,
                     execution_id=execution_id,
+                    interactions=[by_id[item] for item in requested],
                 )
             else:
-                if interaction.status != SessionInteractionStatus.pending:
-                    raise InteractionResponseConflict(
-                        code="execution_terminal",
-                        message="The interaction is no longer pending.",
-                        details={
-                            "interaction_status": (
-                                interaction.status.value
-                                if interaction.status is not None
-                                else None
-                            )
-                        },
-                    )
                 if source.terminal_outcome is not None or source.state in (
                     SessionExecutionState.stopping,
                     SessionExecutionState.terminal,
@@ -468,71 +498,125 @@ class SessionCommandsService:
                         details={"execution_state": source.state.value},
                     )
 
-                transitioned = await self._interactions.transition_interaction(
-                    transition=SessionInteractionTransition(
-                        project_id=project_id,
-                        session_id=interaction.session_id,
-                        token=interaction.token,
-                        status=SessionInteractionStatus.responded,
-                        resolution=answer,
-                    ),
-                    transaction=transaction,
-                    publish=False,
-                )
-                result = await self._executions.settle(
-                    project_id=project_id,
-                    session_id=interaction.session_id,
-                    execution_id=source_execution_id,
-                    terminal_outcome="continued",
-                    settled_by="interaction_response",
-                    transaction=transaction,
-                )
-                if not result.won:
-                    raise InteractionResponseConflict(
-                        code="execution_terminal",
-                        message="The source execution can no longer be continued.",
-                        details={
-                            "terminal_outcome": result.settlement.terminal_outcome
-                        },
+                transitioned: List[SessionInteraction] = []
+                for interaction_id, answer in interaction_answers:
+                    interaction = by_id[interaction_id]
+                    if interaction.status == SessionInteractionStatus.responded:
+                        if (
+                            interaction.data is None
+                            or interaction.data.resolution != answer
+                        ):
+                            raise InteractionResponseConflict(
+                                code="execution_terminal",
+                                message="The interaction was already answered differently.",
+                                details={"interaction_status": "responded"},
+                            )
+                        transitioned.append(interaction)
+                        continue
+                    if interaction.status != SessionInteractionStatus.pending:
+                        raise InteractionResponseConflict(
+                            code="execution_terminal",
+                            message="The interaction is no longer pending.",
+                            details={
+                                "interaction_status": (
+                                    interaction.status.value
+                                    if interaction.status is not None
+                                    else None
+                                )
+                            },
+                        )
+                    updated = await self._interactions.transition_interaction(
+                        transition=SessionInteractionTransition(
+                            project_id=project_id,
+                            session_id=interaction.session_id,
+                            token=interaction.token,
+                            status=SessionInteractionStatus.responded,
+                            resolution=answer,
+                        ),
+                        transaction=transaction,
+                        publish=False,
                     )
+                    by_id[interaction_id] = updated
+                    transitioned.append(updated)
 
-                execution_id = str(uuid4())
-                await self._executions.create_continuation(
-                    project_id=project_id,
-                    session_id=interaction.session_id,
-                    execution_id=execution_id,
-                    parent_execution_id=source_execution_id,
-                    source_interaction_id=interaction_id,
-                    transaction=transaction,
-                )
-                command = await self._dao.create_command(
-                    user_id=user_id,
-                    command=SessionCommandCreate(
-                        project_id=project_id,
-                        session_id=interaction.session_id,
-                        kind=SessionCommandKind.continue_interaction,
-                        target_turn_id=execution_id,
-                        expected_turn_id=source_execution_id,
-                        data={
-                            "interaction_id": str(interaction_id),
-                            "continuation_execution_id": execution_id,
-                        },
-                        idempotency_key=idempotency_key,
-                    ),
-                    transaction=transaction,
-                )
-                if (
-                    command.kind != SessionCommandKind.continue_interaction
-                    or command.target_turn_id != execution_id
-                    or command.data is None
-                    or command.data.get("interaction_id") != str(interaction_id)
+                if any(
+                    interaction.status == SessionInteractionStatus.pending
+                    for interaction in by_id.values()
                 ):
-                    raise IdempotencyKeyReused()
-                admission = InteractionContinuationAdmission(
-                    interaction=transitioned,
-                    command=command,
-                    execution_id=execution_id,
-                )
+                    admission = InteractionContinuationAdmission(
+                        interaction=by_id[anchor_id],
+                        command=None,
+                        execution_id=source_execution_id,
+                        execution_state=source.state,
+                        interactions=transitioned,
+                        waiting_for_interactions=True,
+                    )
+                else:
+                    answered = [
+                        interaction
+                        for interaction in by_id.values()
+                        if interaction.status == SessionInteractionStatus.responded
+                        and interaction.data is not None
+                        and interaction.data.resolution is not None
+                    ]
+                    result = await self._executions.settle(
+                        project_id=project_id,
+                        session_id=anchor.session_id,
+                        execution_id=source_execution_id,
+                        terminal_outcome="continued",
+                        settled_by="interaction_response",
+                        transaction=transaction,
+                    )
+                    if not result.won:
+                        raise InteractionResponseConflict(
+                            code="execution_terminal",
+                            message="The source execution can no longer be continued.",
+                            details={
+                                "terminal_outcome": result.settlement.terminal_outcome
+                            },
+                        )
+
+                    execution_id = str(uuid4())
+                    await self._executions.create_continuation(
+                        project_id=project_id,
+                        session_id=anchor.session_id,
+                        execution_id=execution_id,
+                        parent_execution_id=source_execution_id,
+                        source_interaction_id=anchor_id,
+                        transaction=transaction,
+                    )
+                    interaction_ids = [str(interaction.id) for interaction in answered]
+                    command = await self._dao.create_command(
+                        user_id=user_id,
+                        command=SessionCommandCreate(
+                            project_id=project_id,
+                            session_id=anchor.session_id,
+                            kind=SessionCommandKind.continue_interaction,
+                            target_turn_id=execution_id,
+                            expected_turn_id=source_execution_id,
+                            data={
+                                "interaction_id": str(anchor_id),
+                                "interaction_ids": interaction_ids,
+                                "continuation_execution_id": execution_id,
+                            },
+                            idempotency_key=idempotency_key,
+                        ),
+                        transaction=transaction,
+                    )
+                    if (
+                        command.kind != SessionCommandKind.continue_interaction
+                        or command.target_turn_id != execution_id
+                        or command.data is None
+                        or set(command.data.get("interaction_ids") or [])
+                        != set(interaction_ids)
+                    ):
+                        raise IdempotencyKeyReused()
+                    admission = InteractionContinuationAdmission(
+                        interaction=by_id[anchor_id],
+                        command=command,
+                        execution_id=execution_id,
+                        interactions=answered,
+                    )
 
         try:
             await self._interactions.publish_interaction_responded(
@@ -542,10 +626,13 @@ class SessionCommandsService:
         except Exception as error:  # noqa: BLE001 - the durable transaction already committed
             log.warning(
                 "interaction response watch publish failed interaction=%s: %s",
-                interaction_id,
+                anchor_id,
                 error,
             )
-        if admission.command.state == SessionCommandState.pending:
+        if (
+            admission.command is not None
+            and admission.command.state == SessionCommandState.pending
+        ):
             try:
                 receipt = await self._deliver(admission.command)
             except Exception as error:  # noqa: BLE001 - admission remains accepted
@@ -563,7 +650,7 @@ class SessionCommandsService:
     async def _mark_continuation_recoverable(
         self, admission: InteractionContinuationAdmission
     ) -> None:
-        if self._executions is None:
+        if self._executions is None or admission.command is None:
             return
         try:
             await self._executions.set_state(
@@ -588,7 +675,7 @@ class SessionCommandsService:
     async def resume_recoverable_continuation(
         self, *, project_id: UUID, session_id: str
     ) -> bool:
-        if not env.agenta.sessions.durable_stop:
+        if not env.agenta.sessions.durable_approvals:
             return False
         command = await self._dao.fetch_resumable_continuation(
             project_id=project_id,
@@ -870,28 +957,54 @@ class SessionCommandsService:
         )
         return receipt
 
+    async def _interactions_for_command(
+        self, command: SessionCommand
+    ) -> List[SessionInteraction]:
+        interaction_ids = (command.data or {}).get("interaction_ids")
+        if not isinstance(interaction_ids, list):
+            interaction_id = (command.data or {}).get("interaction_id")
+            interaction_ids = (
+                [interaction_id] if isinstance(interaction_id, str) else []
+            )
+        if not interaction_ids or not all(
+            isinstance(interaction_id, str) for interaction_id in interaction_ids
+        ):
+            raise ValueError("continuation command has no interaction ids")
+        return [
+            await self._interactions.fetch_interaction(
+                project_id=command.project_id,
+                interaction_id=UUID(interaction_id),
+            )
+            for interaction_id in interaction_ids
+        ]
+
     async def _interaction_for_command(
         self, command: SessionCommand
     ) -> SessionInteraction:
-        interaction_id = (command.data or {}).get("interaction_id")
-        if not isinstance(interaction_id, str):
-            raise ValueError("continuation command has no interaction id")
-        return await self._interactions.fetch_interaction(
-            project_id=command.project_id,
-            interaction_id=UUID(interaction_id),
-        )
+        return (await self._interactions_for_command(command))[0]
 
     async def _command_for_delivery(self, command: SessionCommand) -> SessionCommand:
         if command.kind != SessionCommandKind.continue_interaction:
             return command
-        interaction = await self._interaction_for_command(command)
-        if interaction.data is None or interaction.data.resolution is None:
+        interactions = await self._interactions_for_command(command)
+        if any(
+            interaction.data is None or interaction.data.resolution is None
+            for interaction in interactions
+        ):
             raise ValueError("continuation interaction has no durable resolution")
+        answers = [
+            {
+                "interaction_id": str(interaction.id),
+                "answer": interaction.data.resolution,
+            }
+            for interaction in interactions
+        ]
         return command.model_copy(
             update={
                 "data": {
                     **(command.data or {}),
-                    "answer": interaction.data.resolution,
+                    "answers": answers,
+                    **({"answer": answers[0]["answer"]} if len(answers) == 1 else {}),
                 }
             }
         )
@@ -978,7 +1091,7 @@ class SessionCommandsService:
         settled = 0
         for command in abandoned:
             if command.kind == SessionCommandKind.continue_interaction:
-                if not env.agenta.sessions.durable_stop:
+                if not env.agenta.sessions.durable_approvals:
                     continue
                 if command.claim_count < max_deliveries:
                     await self._deliver(command)
@@ -1060,6 +1173,7 @@ class SessionCommandsService:
         )
         if (
             execution is not None
+            and env.agenta.sessions.durable_approvals
             and (
                 execution.source_interaction_id is not None
                 or execution.parent_execution_id is not None

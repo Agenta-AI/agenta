@@ -208,6 +208,19 @@ _MAX_IDEMPOTENCY_KEY_CHARACTERS = 255
 _SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
 
 
+def _idempotency_key_too_long_response() -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "code": "validation_error",
+            "message": "Idempotency-Key is too long.",
+            "retryable": False,
+            "details": {"field": "Idempotency-Key", "reason": "too_long"},
+            "next_step": "Use an Idempotency-Key of at most 255 characters.",
+        },
+    )
+
+
 def _validate_session_id_http(session_id: str) -> None:
     if not _SESSION_ID_RE.match(session_id):
         raise HTTPException(
@@ -1007,7 +1020,7 @@ class RecordsRouter:
         # window where the watchdog could see no `done`, expose recovery, and replay work that
         # had already finished while the records worker was still settling core state.
         if (
-            env.agenta.sessions.durable_stop
+            env.agenta.sessions.durable_approvals
             and self.commands_service is not None
             and body.record_type == TERMINAL_RECORD_TYPE
             and body.turn_id
@@ -1305,7 +1318,7 @@ class InteractionsRouter:
         if not authorized:
             raise FORBIDDEN_EXCEPTION
 
-        if env.agenta.sessions.durable_stop and self.commands_service is not None:
+        if env.agenta.sessions.durable_approvals and self.commands_service is not None:
             idempotency_key = (request.headers.get("Idempotency-Key") or "").strip()
             if not idempotency_key:
                 return JSONResponse(
@@ -1319,17 +1332,8 @@ class InteractionsRouter:
                     },
                 )
             if len(idempotency_key) > _MAX_IDEMPOTENCY_KEY_CHARACTERS:
-                return JSONResponse(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    content={
-                        "code": "validation_error",
-                        "message": "Idempotency-Key is too long.",
-                        "retryable": False,
-                        "details": {"field": "Idempotency-Key", "reason": "too_long"},
-                        "next_step": "Use an Idempotency-Key of at most 255 characters.",
-                    },
-                )
-            if body.answer is None:
+                return _idempotency_key_too_long_response()
+            if body.answer is None and body.answers is None:
                 return JSONResponse(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     content={
@@ -1339,15 +1343,39 @@ class InteractionsRouter:
                         "details": {"field": "answer", "reason": "required"},
                     },
                 )
-            try:
-                admission = await self.commands_service.respond_interaction(
-                    project_id=UUID(str(project_id)),
-                    user_id=UUID(str(user_id)),
-                    interaction_id=interaction_id,
-                    answer=body.answer,
-                    expected_execution_id=body.expected_execution_id,
-                    idempotency_key=idempotency_key,
+            interaction_answers = (
+                [(item.interaction_id, item.answer) for item in body.answers]
+                if body.answers is not None
+                else [(interaction_id, body.answer)]
+            )
+            if interaction_id not in {item[0] for item in interaction_answers}:
+                return JSONResponse(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    content={
+                        "code": "validation_error",
+                        "message": "The path interaction must be included in answers.",
+                        "retryable": False,
+                        "details": {"field": "answers", "reason": "anchor_missing"},
+                    },
                 )
+            try:
+                if body.answers is not None:
+                    admission = await self.commands_service.respond_interactions(
+                        project_id=UUID(str(project_id)),
+                        user_id=UUID(str(user_id)),
+                        interaction_answers=interaction_answers,
+                        expected_execution_id=body.expected_execution_id,
+                        idempotency_key=idempotency_key,
+                    )
+                else:
+                    admission = await self.commands_service.respond_interaction(
+                        project_id=UUID(str(project_id)),
+                        user_id=UUID(str(user_id)),
+                        interaction_id=interaction_id,
+                        answer=body.answer,
+                        expected_execution_id=body.expected_execution_id,
+                        idempotency_key=idempotency_key,
+                    )
             except InteractionResponseConflict as error:
                 return JSONResponse(
                     status_code=(
@@ -1365,19 +1393,37 @@ class InteractionsRouter:
 
             response = SessionInteractionContinuationResponse(
                 interaction=admission.interaction,
-                command=SessionCommandRef(
-                    id=admission.command.id,
-                    state=admission.command.state.value,
+                command=(
+                    SessionCommandRef(
+                        id=admission.command.id,
+                        state=admission.command.state.value,
+                    )
+                    if admission.command is not None
+                    else None
                 ),
                 execution=SessionInteractionContinuationExecution(
                     id=admission.execution_id,
-                    state=admission.execution_state.value,
+                    state=(
+                        "awaiting_interactions"
+                        if getattr(admission, "waiting_for_interactions", False)
+                        else admission.execution_state.value
+                    ),
                 ),
             )
             return JSONResponse(
                 status_code=status.HTTP_202_ACCEPTED,
                 content=response.model_dump(mode="json"),
             )
+
+        if body.answers is not None:
+            responses = {}
+            for item in body.answers:
+                responses[item.interaction_id] = await self.respond_interaction(
+                    request=request,
+                    interaction_id=item.interaction_id,
+                    body=SessionInteractionRespondRequest(answer=item.answer),
+                )
+            return responses[interaction_id]
 
         try:
             interaction = await self.interactions_service.fetch_interaction(
@@ -2412,9 +2458,10 @@ class SessionControlRouter:
 
         idempotency_key = request.headers.get("Idempotency-Key")
         if idempotency_key is not None:
-            idempotency_key = (
-                idempotency_key.strip()[:_MAX_IDEMPOTENCY_KEY_CHARACTERS] or None
-            )
+            idempotency_key = idempotency_key.strip()
+            if len(idempotency_key) > _MAX_IDEMPOTENCY_KEY_CHARACTERS:
+                return _idempotency_key_too_long_response()
+            idempotency_key = idempotency_key or None
 
         admission = await self._service.request_cancel(
             project_id=UUID(str(project_id)),
@@ -2462,7 +2509,7 @@ class SessionControlRouter:
             raise FORBIDDEN_EXCEPTION
 
         resumed = False
-        if env.agenta.sessions.durable_stop:
+        if env.agenta.sessions.durable_approvals:
             resumed = await self._service.resume_recoverable_continuation(
                 project_id=UUID(str(project_id)),
                 session_id=session_id,

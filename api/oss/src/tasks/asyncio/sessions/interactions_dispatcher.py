@@ -224,6 +224,13 @@ def compose_approval_messages(
     interaction: SessionInteraction,
     answer: Dict[str, Any],
 ) -> List[Dict[str, Any]]:
+    return compose_approval_messages_many(records, [(interaction, answer)])
+
+
+def compose_approval_messages_many(
+    records: List[SessionRecord],
+    interaction_answers: List[tuple[SessionInteraction, Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
     """The full resume conversation: replayed history + the approval envelope.
 
     The envelope rides as a ``tool_result`` block on the LAST assistant message (never a
@@ -242,58 +249,57 @@ def compose_approval_messages(
     denial (#5444). The note is still persisted as a user record either way.
     """
     messages = build_wire_messages(records)
-    gated_id = resolve_gated_tool_call_id(records, interaction, answer)
+    notes: List[str] = []
+    for interaction, answer in interaction_answers:
+        gated_id = resolve_gated_tool_call_id(records, interaction, answer)
+        gated_call = next(
+            (
+                block
+                for message in messages
+                if isinstance(message.get("content"), list)
+                for block in message["content"]
+                if block.get("type") == "tool_call"
+                and block.get("toolCallId") == gated_id
+            ),
+            None,
+        )
+        shape = _gated_call_shape(records, interaction)
+        if gated_call is None:
+            # No durable tool_call record (e.g. records unavailable): synthesize the anchor the
+            # runner's call-shape index needs to bind the envelope to name+args.
+            gated_call = {"type": "tool_call", "toolCallId": gated_id}
+            if shape.get("name"):
+                gated_call["toolName"] = shape["name"]
+            if shape.get("args") is not None:
+                gated_call["input"] = shape["args"]
+            messages.append({"role": "assistant", "content": [gated_call]})
 
-    gated_call = next(
-        (
-            block
-            for message in messages
-            if isinstance(message.get("content"), list)
-            for block in message["content"]
-            if block.get("type") == "tool_call" and block.get("toolCallId") == gated_id
-        ),
-        None,
-    )
-    has_gated_call = gated_call is not None
-    shape = _gated_call_shape(records, interaction)
-    if not has_gated_call:
-        # No durable tool_call record (e.g. records unavailable): synthesize the anchor the
-        # runner's call-shape index needs to bind the envelope to name+args.
-        block = {"type": "tool_call", "toolCallId": gated_id}
-        if shape.get("name"):
-            block["toolName"] = shape["name"]
-        if shape.get("args") is not None:
-            block["input"] = shape["args"]
-        messages.append({"role": "assistant", "content": [block]})
+        envelope = {
+            "type": "tool_result",
+            "toolCallId": gated_id,
+            "output": {
+                "approved": bool(answer.get("approved")),
+                "interactionToken": interaction.token,
+            },
+        }
+        gated_name = gated_call.get("toolName") or shape.get("name")
+        if gated_name:
+            envelope["toolName"] = gated_name
+        tail = messages[-1] if messages else None
+        if (
+            tail is not None
+            and tail.get("role") == "assistant"
+            and isinstance(tail.get("content"), list)
+        ):
+            tail["content"].append(envelope)
+        else:
+            messages.append({"role": "assistant", "content": [envelope]})
 
-    envelope = {
-        "type": "tool_result",
-        "toolCallId": gated_id,
-        "output": {
-            "approved": bool(answer.get("approved")),
-            "interactionToken": interaction.token,
-        },
-    }
-    # The runner renders the resume nudge as "Call <toolName> again with the same arguments" and
-    # matches stale-vs-live approvals by name. An unnamed envelope renders the literal word
-    # "tool", which names nothing the model can call — it then narrates a fabricated execution
-    # instead of re-issuing the call.
-    gated_name = (gated_call or {}).get("toolName") or shape.get("name")
-    if gated_name:
-        envelope["toolName"] = gated_name
-    tail = messages[-1] if messages else None
-    if (
-        tail is not None
-        and tail.get("role") == "assistant"
-        and isinstance(tail.get("content"), list)
-    ):
-        tail["content"].append(envelope)
-    else:
-        messages.append({"role": "assistant", "content": [envelope]})
+        note = answer.get("message")
+        if isinstance(note, str) and note.strip():
+            notes.append(note)
 
-    note = answer.get("message")
-    if isinstance(note, str) and note.strip():
-        messages.append({"role": "user", "content": note})
+    messages.extend({"role": "user", "content": note} for note in notes)
 
     return messages
 
@@ -353,10 +359,34 @@ class InteractionsDispatcher:
         control_command_id: Optional[UUID] = None,
         continuation_execution_id: Optional[str] = None,
     ) -> None:
-        interaction = await self.interactions_service.fetch_interaction(
+        await self.respond_many(
             project_id=project_id,
-            interaction_id=interaction_id,
+            user_id=user_id,
+            interaction_answers=[(interaction_id, answer)],
+            control_command_id=control_command_id,
+            continuation_execution_id=continuation_execution_id,
         )
+
+    async def respond_many(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        interaction_answers: List[tuple[UUID, Any]],
+        control_command_id: Optional[UUID] = None,
+        continuation_execution_id: Optional[str] = None,
+    ) -> None:
+        resolved = [
+            (
+                await self.interactions_service.fetch_interaction(
+                    project_id=project_id,
+                    interaction_id=interaction_id,
+                ),
+                answer,
+            )
+            for interaction_id, answer in interaction_answers
+        ]
+        interaction, first_answer = resolved[0]
 
         data: Optional[SessionInteractionData] = interaction.data
         references = (
@@ -367,11 +397,31 @@ class InteractionsDispatcher:
         selector = (
             data.selector.model_dump(mode="json") if data and data.selector else None
         )
-        inputs = await self._compose_inputs(
-            project_id=project_id,
-            interaction=interaction,
-            answer=answer,
-        )
+        if all(
+            item.kind == SessionInteractionKind.user_approval
+            and isinstance(answer, dict)
+            and isinstance(answer.get("approved"), bool)
+            for item, answer in resolved
+        ):
+            records: List[SessionRecord] = []
+            if self.records_service is not None:
+                try:
+                    records = await self.records_service.get_records(
+                        project_id=project_id,
+                        session_id=interaction.session_id,
+                    )
+                except Exception as e:  # degrade to synthesized-anchor replay
+                    log.warning(
+                        "[interactions] records replay unavailable for "
+                        f"session={interaction.session_id}: {e}"
+                    )
+            inputs = {"messages": compose_approval_messages_many(records, resolved)}
+        else:
+            inputs = await self._compose_inputs(
+                project_id=project_id,
+                interaction=interaction,
+                answer=first_answer,
+            )
         # The effective config the gated turn ran under, when the runner stamped one. Sending it
         # INLINE is what makes the resume correct: the resolver decides hydration purely from
         # what the caller sent (`_caller_supplied_configuration`), so inline parameters suppress

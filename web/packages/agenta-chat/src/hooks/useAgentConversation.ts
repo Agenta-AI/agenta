@@ -21,6 +21,7 @@ import {
     invalidateSessionLivenessQueries,
     recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
+    respondInteractionAnswersAtom,
     resumeSessionContinuationAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
@@ -278,6 +279,7 @@ export const useAgentConversation = ({
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
     const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
+    const respondInteractionAnswers = useSetAtom(respondInteractionAnswersAtom)
     const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
 
     // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
@@ -654,6 +656,24 @@ export const useAgentConversation = ({
         [respondInteractionAnswer, sessionId],
     )
 
+    const handleApprovalResponses = useCallback(
+        async (args: {ids: string[]; approved: boolean}) => {
+            liveGateInteractionRef.current = {kind: "approval", id: args.ids[0]}
+            await submitServerOwnedApproval({
+                submit: () =>
+                    respondInteractionAnswers({
+                        sessionId,
+                        toolCallIds: args.ids,
+                        approved: args.approved,
+                    }),
+                retire: () => {
+                    liveGateInteractionRef.current = null
+                },
+            })
+        },
+        [respondInteractionAnswers, sessionId],
+    )
+
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
     // send is a fact, and never in the predicate, whose `true` the SDK can still refuse.
     const previousStatusRef = useRef(status)
@@ -672,7 +692,11 @@ export const useAgentConversation = ({
         [messages],
     )
 
-    const approvals = useApprovalDock({messages, respond: handleApprovalResponse})
+    const approvals = useApprovalDock({
+        messages,
+        respond: handleApprovalResponse,
+        respondAll: handleApprovalResponses,
+    })
 
     // Settle a parked client tool (#4920). A widget calls this with the structured reference;
     // `addToolOutput` matches the part by `toolCallId` on the last turn and the resume predicate

@@ -34,6 +34,17 @@ class SessionInteractionsDAOInterface(ABC):
     ) -> Optional[SessionInteraction]: ...
 
     @abstractmethod
+    async def fetch_turn_interactions(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        transaction: Optional[Any] = None,
+        for_update: bool = False,
+    ) -> List[SessionInteraction]: ...
+
+    @abstractmethod
     async def transition_interaction(
         self,
         *,

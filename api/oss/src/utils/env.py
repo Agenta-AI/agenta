@@ -697,6 +697,9 @@ class SessionsConfig(BaseModel):
     durable_stop: bool = (
         os.getenv("AGENTA_SESSIONS_DURABLE_STOP") or "false"
     ).lower() in _TRUTHY
+    durable_approvals: bool = (
+        os.getenv("AGENTA_SESSIONS_DURABLE_APPROVALS") or "false"
+    ).lower() in _TRUTHY
     late_output: Literal["quarantine", "reject"] = _parse_sessions_late_output()
     attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
     commands: SessionsCommandsConfig = SessionsCommandsConfig()

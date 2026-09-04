@@ -105,21 +105,30 @@ export const useApprovalActions = ({
                 submittedRef.current = targets
                     .map((row) => row.token)
                     .filter((token): token is string => typeof token === "string")
-                let answered = 0
-                for (const row of targets) {
-                    try {
-                        await respondInteraction({
-                            interactionId: row.id as string,
-                            projectId,
-                            answer: buildApprovalAnswer(approved, message),
-                            expectedExecutionId: row.turn_id ?? undefined,
-                            idempotencyKey: `approval:${row.id}:${approved ? "approve" : "deny"}`,
-                        })
-                        answered += 1
-                    } catch (err) {
-                        // Someone (desktop, another tab) already answered this gate — benign.
-                        if (!isInteractionConflict(err)) throw new Error(respondErrorText(err))
-                    }
+                let answered = targets.length
+                try {
+                    const ids = targets.map((row) => row.id as string).sort()
+                    await respondInteraction({
+                        interactionId: ids[0],
+                        projectId,
+                        ...(targets.length === 1
+                            ? {answer: buildApprovalAnswer(approved, message)}
+                            : {
+                                  answers: targets.map((row) => ({
+                                      interactionId: row.id as string,
+                                      answer: buildApprovalAnswer(approved, message),
+                                  })),
+                              }),
+                        expectedExecutionId: targets[0].turn_id ?? undefined,
+                        idempotencyKey:
+                            targets.length === 1
+                                ? `approval:${targets[0].id}:${approved ? "approve" : "deny"}`
+                                : `approval-batch:${ids[0]}:${ids.length}:${approved ? "approve" : "deny"}`,
+                    })
+                } catch (err) {
+                    // Someone (desktop, another tab) already answered this gate — benign.
+                    if (!isInteractionConflict(err)) throw new Error(respondErrorText(err))
+                    answered = 0
                 }
                 // Every target was already answered: nothing is resuming, so re-arm now
                 // instead of waiting out the 60s timeout.

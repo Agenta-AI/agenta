@@ -134,7 +134,7 @@ class RecordsService:
         best effort here because records and executions use different database engines; the
         watchdog repeats the reconciliation before it collapses stale ownership.
         """
-        if self.executions_dao is None or not env.agenta.sessions.durable_stop:
+        if self.executions_dao is None or not env.agenta.sessions.durable_approvals:
             return
 
         candidates = {
