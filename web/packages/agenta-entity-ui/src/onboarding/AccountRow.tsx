@@ -28,6 +28,12 @@ export interface AccountRowProps {
     account: DetectedAccount
     /** Report the live connection state up so the card can compute what is left. */
     onConnectedChange: (slug: string, connected: boolean) => void
+    /**
+     * A provider that already satisfies this need — the row's own, or one of its alternatives.
+     * Resolved by the card from the project's connections so a need the workspace already meets
+     * is settled on sight instead of asked for again.
+     */
+    satisfiedVia?: string
     /** Dismissed by the user. Only ever true for a suggested (non-required) account. */
     skipped?: boolean
     /** Omitted for a required account — there is nothing to skip. */
@@ -38,18 +44,21 @@ export interface AccountRowProps {
 const AccountRow = ({
     account,
     onConnectedChange,
+    satisfiedVia,
     skipped = false,
     onSkip,
     onUndoSkip,
 }: AccountRowProps) => {
     const {integration: detail} = useToolIntegrationDetail(account.slug)
     const {connections} = useToolIntegrationConnections(account.slug)
-    const connected = connections.some(isConnectionActive)
+    // An alternative already connected settles this need as surely as its own provider does.
+    const connected = connections.some(isConnectionActive) || !!satisfiedVia
     const [connectOpen, setConnectOpen] = useState(false)
 
     useEffect(() => {
-        onConnectedChange(account.slug, connected)
-    }, [connected, account.slug, onConnectedChange])
+        // Report the slug that actually satisfies it, so gating counts the alternative.
+        onConnectedChange(satisfiedVia ?? account.slug, connected)
+    }, [connected, satisfiedVia, account.slug, onConnectedChange])
 
     const name = detail?.name ?? account.label
     const logo = detail?.logo ?? account.logo

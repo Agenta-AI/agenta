@@ -502,13 +502,12 @@ export type {
 
 export {
     detectAccounts,
-    detectAccountGroupsFromTemplate,
     detectAccountsFromTemplate,
     detectAccountsFromText,
     requiredAccounts,
     suggestionAccounts,
 } from "./detectAccounts"
-export type {DetectedAccount, DetectedAccountGroup} from "./detectAccounts"
+export type {DetectedAccount} from "./detectAccounts"
 
 export {
     DEFAULT_PERMISSION,
@@ -516,6 +515,7 @@ export {
     appendSetupPreamble,
     buildSetupPreamble,
     canCreateAgent,
+    isAccountSatisfied,
     outstandingRequired,
     setupStatus,
 } from "./agentSetup"

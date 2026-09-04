@@ -21,6 +21,7 @@ import {
     type AgentSetupSelection,
     type DetectedAccount,
 } from "@agenta/entities/workflow"
+import {isConnectionActive, useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {Button, Segmented, Spinner} from "@agenta/ui/ui"
 import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -79,6 +80,23 @@ const AgentSetupCard = ({
         [connectedMap],
     )
 
+    // The project's connections, read once here rather than per row: a row can only query its own
+    // provider, so it could never see that an ALTERNATIVE was already connected.
+    const {connections} = useToolConnectionsQuery()
+    const workspaceSlugs = useMemo(
+        () =>
+            new Set(
+                connections
+                    .filter(isConnectionActive)
+                    .map((connection) => connection.integration_key)
+                    .filter(Boolean) as string[],
+            ),
+        [connections],
+    )
+    /** The provider already meeting this need — its own, or the first alternative that is live. */
+    const satisfiedVia = (account: DetectedAccount): string | undefined =>
+        [account.slug, ...(account.alternatives ?? [])].find((slug) => workspaceSlugs.has(slug))
+
     const status = setupStatus({accounts, connectedSlugs, skippedSlugs})
     const outstanding = outstandingRequired({accounts, connectedSlugs})
     const canCreate = canCreateAgent({accounts, connectedSlugs})
@@ -131,6 +149,7 @@ const AgentSetupCard = ({
                     <AccountRow
                         key={account.slug}
                         account={account}
+                        satisfiedVia={satisfiedVia(account)}
                         onConnectedChange={handleConnectedChange}
                         skipped={skipped.has(account.slug)}
                         onSkip={account.required ? undefined : onSkip}

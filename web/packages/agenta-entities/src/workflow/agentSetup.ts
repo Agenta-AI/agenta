@@ -45,12 +45,17 @@ export interface AgentSetupSelection {
  * Required accounts still missing a connection — the only thing allowed to block create.
  * A text-detected account is never `required`, so a keyword guess can't reach this list (D2).
  */
+/** Settled when its own provider is connected, or any provider that stands in for it. */
+export const isAccountSatisfied = (account: DetectedAccount, connected: Set<string>): boolean =>
+    connected.has(account.slug) ||
+    (account.alternatives?.some((slug) => connected.has(slug)) ?? false)
+
 export const outstandingRequired = ({
     accounts,
     connectedSlugs,
 }: Pick<AgentSetupSelection, "accounts" | "connectedSlugs">): DetectedAccount[] => {
     const connected = new Set(connectedSlugs)
-    return accounts.filter((account) => account.required && !connected.has(account.slug))
+    return accounts.filter((account) => account.required && !isAccountSatisfied(account, connected))
 }
 
 export const canCreateAgent = (
@@ -77,7 +82,7 @@ export const setupStatus = ({
     const connected = new Set(connectedSlugs)
     const skipped = new Set(skippedSlugs)
     const unresolved = accounts.filter(
-        (account) => !connected.has(account.slug) && !skipped.has(account.slug),
+        (account) => !isAccountSatisfied(account, connected) && !skipped.has(account.slug),
     )
     return unresolved.length === 0 && skipped.size === 0 ? "all-set" : "ready"
 }

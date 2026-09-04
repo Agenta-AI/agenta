@@ -20,6 +20,10 @@ vi.mock("@agenta/entities/gatewayTool", () => ({
     useToolIntegrationConnections: (slug: string) => ({
         connections: connectedSlugs.has(slug) ? [{id: slug}] : [],
     }),
+    // The card reads the whole workspace once so a row can see an ALTERNATIVE it cannot query.
+    useToolConnectionsQuery: () => ({
+        connections: [...connectedSlugs].map((slug) => ({integration_key: slug})),
+    }),
     useToolIntegrationDetail: () => ({integration: null, isLoading: false}),
     useToolsConnections: () => ({handleCreate: vi.fn(), invalidate: vi.fn()}),
 }))
@@ -93,6 +97,20 @@ describe("AgentSetupCard gating", () => {
         connectedSlugs.add("github")
         render({accounts: [account("github", true)]})
         expect(createButton().disabled).toBe(false)
+    })
+
+    it("counts an already-connected ALTERNATIVE as satisfying the requirement", () => {
+        // The playbook's "GitHub (or GitLab)". A workspace on GitLab was still shown GitHub as
+        // blocking, because a row can only query its own provider — the card reads the whole
+        // workspace so the stand-in is seen.
+        connectedSlugs.add("gitlab")
+        render({accounts: [{...account("github", true), alternatives: ["gitlab"]}]})
+        expect(createButton().disabled).toBe(false)
+    })
+
+    it("still blocks when neither the provider nor its alternative is connected", () => {
+        render({accounts: [{...account("github", true), alternatives: ["gitlab"]}]})
+        expect(createButton().disabled).toBe(true)
     })
 
     it("never disables create for a text-detected account", () => {
