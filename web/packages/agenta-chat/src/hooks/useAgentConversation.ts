@@ -82,6 +82,7 @@ import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
 import {useApprovalDock, type ApprovalDock} from "./useApprovalDock"
 import {useSessionChat} from "./useSessionChat"
+import {useSessionLivePreview} from "./useSessionLivePreview"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the stamped in-chat
  * error; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to a
@@ -119,6 +120,10 @@ export interface ToolOutputSettleInput {
 export interface UseAgentConversationArgs {
     entityId: string
     sessionId: string
+    /** Host-derived capability + remote-owner gate for the display-only live reader. */
+    sharedReaderEnabled?: boolean
+    /** Timestamp of the liveness snapshot behind `sharedReaderEnabled`. */
+    sharedReaderLivenessUpdatedAt?: number
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
      * silently folded every client tool into the plain "used N tools" group, leaving the run
@@ -190,6 +195,8 @@ export interface AgentConversation {
 export const useAgentConversation = ({
     entityId,
     sessionId,
+    sharedReaderEnabled = false,
+    sharedReaderLivenessUpdatedAt = 0,
     isClientToolPart,
 }: UseAgentConversationArgs): AgentConversation => {
     const store = useStore()
@@ -349,6 +356,13 @@ export const useAgentConversation = ({
     })
 
     const busy = isChatBusy(status)
+    // A stale liveness snapshot can stay `is_running=true` after our stream settles. Only a
+    // liveness read newer than that local settle can reclassify the run as remote.
+    const previousBusyForReaderRef = useRef(busy)
+    const localReaderSettleAtRef = useRef(0)
+    if (previousBusyForReaderRef.current && !busy) localReaderSettleAtRef.current = Date.now()
+    previousBusyForReaderRef.current = busy
+    const remoteRunIsFresh = sharedReaderLivenessUpdatedAt > localReaderSettleAtRef.current
     // `messages`/`busy` change every commit; consumers that must stay referentially stable
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
     messagesRef.current = messages
@@ -723,6 +737,16 @@ export const useAgentConversation = ({
         void loadSessionMessages(sessionId, adoptServerTranscript).then(adoptServerTranscript)
     }, [adoptServerTranscript, sessionId])
 
+    const previewMessages = useSessionLivePreview({
+        sessionId,
+        enabled: sharedReaderEnabled && !busy && remoteRunIsFresh,
+        onDisconnect: revalidate,
+    })
+    const displayMessages = useMemo(
+        () => (previewMessages.length ? [...messages, ...previewMessages] : messages),
+        [messages, previewMessages],
+    )
+
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const handleStop = useCallback(() => {
         const last = messagesRef.current[messagesRef.current.length - 1]
@@ -814,19 +838,19 @@ export const useAgentConversation = ({
     const [executedFor] = useState(() => createExecutedToolIdentityCache())
     const turns = useMemo(
         () =>
-            buildTurnViewModels(messages, {
-                busy,
+            buildTurnViewModels(displayMessages, {
+                busy: busy || previewMessages.length > 0,
                 executedFor,
                 isClientToolPart: (part, ctx) =>
                     (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
             }),
-        [messages, busy, executedFor, isClientToolPart, renderMap],
+        [displayMessages, busy, executedFor, isClientToolPart, previewMessages.length, renderMap],
     )
 
     const parsedError = useMemo(() => (error ? parseAgentRunError(error) : undefined), [error])
 
     return {
-        messages,
+        messages: displayMessages,
         status,
         runStatus,
         error: parsedError,
@@ -836,7 +860,7 @@ export const useAgentConversation = ({
         regenerate: regenerateTurn,
         rewind,
         isHydrating,
-        isEmpty: messages.length === 0,
+        isEmpty: displayMessages.length === 0,
         historyUnavailable,
         stopped,
         queued,

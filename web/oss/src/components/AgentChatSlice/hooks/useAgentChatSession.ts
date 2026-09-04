@@ -291,6 +291,7 @@ export const useAgentChatSession = ({
         stopStateLoading,
         sessionTurnId,
         stoppingTurnId,
+        previewMessages,
     } = useSessionHydration({
         sessionId,
         initialMessages,
@@ -702,6 +703,7 @@ export const useAgentChatSession = ({
         isHydrating,
         hydratedEmpty,
         runningElsewhere,
+        previewMessages,
         stopped,
         stopping,
         setStopped,

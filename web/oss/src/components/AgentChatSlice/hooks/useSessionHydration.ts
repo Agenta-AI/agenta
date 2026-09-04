@@ -1,6 +1,7 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
 import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
+import {useSessionLivePreview} from "@agenta/chat/hooks"
 import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
 import {
     fetchSessionRecordsAtom,
@@ -319,11 +320,10 @@ export const useSessionHydration = ({
     }, [sessionId, readLog])
 
     // ── Follow a run happening somewhere else (#5530) ──────────────────────────
-    // There is no push channel to browsers: the runner publishes every event to Redis, but the only
-    // consumer is the ingest worker that writes them to the DB. So a session driven from another tab
-    // or device is followed by re-reading the durable log on a timer, and the adoption guard above
-    // decides whether anything actually changed. `isRunning` also covers OUR stream, so the atom
-    // excludes every case where this browser is the one driving (#5844).
+    // Temporary frames now provide the immediate display path when the capability is advertised;
+    // this durable-log poll remains the convergence fallback and catches events outside that frame
+    // subset. The adoption guard above decides whether anything actually changed. `isRunning` also
+    // covers OUR stream, so the atom excludes every case where this browser drives the run (#5844).
     //
     // The settle stamp the derivation needs is written here rather than inside the package's
     // `setSessionStatusAtom`: this hook is mounted for the whole life of a session tab, which is
@@ -332,6 +332,7 @@ export const useSessionHydration = ({
     // `busy` stays as a second guard: it flips on the SEND commit, one commit before the status
     // atom the derivation reads, so it hides the strip a frame earlier when a local send takes over
     // a session that genuinely was running elsewhere.
+    const liveness = useAtomValue(sessionLivenessAtomFamily(sessionId))
     const runningElsewhere = useAtomValue(sessionRunningElsewhereAtomFamily(sessionId)) && !busy
 
     useEffect(() => {
@@ -398,7 +399,6 @@ export const useSessionHydration = ({
     // CONCLUSIVE: `records: []` is a confirmed-empty log and stamps; `records: null` is a failed
     // fetch and never stamps — it retries a bounded burst, then re-arms so a later dependency
     // change can try again instead of latching the recovery out for the rest of the mount.
-    const liveness = useAtomValue(sessionLivenessAtomFamily(sessionId))
     const strandedCheckRef = useRef<"idle" | "pending" | "done">("idle")
     useEffect(() => {
         if (strandedCheckRef.current !== "idle" || isHydrating || busy) return
@@ -483,6 +483,11 @@ export const useSessionHydration = ({
             adoptServerTranscriptRef.current(transcript, {armJump: false})
         })
     }, [sessionId, busyRef, pendingResumeRef, revalidateSessionRecords, readLog])
+    const previewMessages = useSessionLivePreview({
+        sessionId,
+        enabled: runningElsewhere && liveness.sharedReader,
+        onDisconnect: refreshFromRecords,
+    })
     // `ready` fires on every connect — each tab activation, each return to the foreground — so it
     // must not repeat a read the mount is already doing. A change that lands after the subscribe
     // arrives as `records-changed`, which is never skipped (#6296).
@@ -516,5 +521,6 @@ export const useSessionHydration = ({
         stopStateLoading: liveness.isLoading,
         sessionTurnId: liveness.turnId,
         stoppingTurnId: liveness.stoppingTurnId,
+        previewMessages,
     }
 }
