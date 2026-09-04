@@ -1,24 +1,5 @@
 import {useTypewriter} from "@agenta/chat/hooks"
-import {Streamdown, type Components} from "streamdown"
-
-/**
- * Streamdown ships `rehype-raw → rehype-sanitize (GitHub's default schema) → rehype-harden`
- * as its default rehype pipeline, so raw HTML in model output is parsed but stripped down to
- * the safe subset (no `<script>`/`<style>`/`<iframe>`, no `on*` handlers, no `javascript:`
- * URLs). We deliberately pass no `rehypePlugins` and no `allowedTags` so that default stands.
- */
-const markdownComponents: Components = {
-    // Streamdown's own anchor already sets target=_blank + rel=noreferrer; make the
-    // opener-severing explicit so the guarantee survives an upstream refresh.
-    a: ({node: _node, className, ...props}) => (
-        <a
-            {...props}
-            className={`text-primary font-medium underline ${className ?? ""}`}
-            rel="noopener noreferrer"
-            target="_blank"
-        />
-    ),
-}
+import ChatMarkdown from "@agenta/chat/markdown"
 
 /**
  * Streamdown's built-in classes assume a 14–30px type scale; the mobile app's base is 12px.
@@ -29,6 +10,7 @@ const markdownComponents: Components = {
  */
 const proseClassName = [
     "w-full min-w-0 space-y-2 overflow-hidden text-xs wrap-anywhere",
+    "[&_a]:text-primary [&_a]:font-medium [&_a]:underline",
     "[&_p]:text-foreground [&_p]:text-xs",
     "[&_:is(h1,h2,h3,h4,h5,h6)]:mt-3 [&_:is(h1,h2,h3,h4,h5,h6)]:mb-1",
     "[&_h1]:text-base [&_:is(h2,h3)]:text-sm [&_:is(h4,h5,h6)]:text-xs",
@@ -44,7 +26,8 @@ const proseClassName = [
 ].join(" ")
 
 /**
- * Assistant message text rendered as markdown (desktop parity). User text stays literal.
+ * Assistant message text rendered as markdown through the shared `ChatMarkdown` renderer, so
+ * mobile and desktop parse, highlight, and heal identically; only the token layer differs.
  *
  * Text is revealed on the frame clock, so incomplete-markdown repair has to outlive the last
  * delta — until the reveal drains, what is on screen is a truncated prefix.
@@ -60,18 +43,11 @@ export const AssistantMarkdown = ({
     urgent?: boolean
 }) => {
     const {text: revealed, settled} = useTypewriter(text, {urgent})
-    const healing = streaming || !settled
     return (
-        <Streamdown
-            animated={false}
-            className={proseClassName}
-            components={markdownComponents}
-            controls={{code: {copy: true, download: false}, mermaid: false, table: false}}
-            lineNumbers={false}
-            mode={healing ? "streaming" : "static"}
-            parseIncompleteMarkdown={healing}
-        >
-            {revealed}
-        </Streamdown>
+        <ChatMarkdown
+            baseClassName={proseClassName}
+            content={revealed}
+            streaming={streaming || !settled}
+        />
     )
 }

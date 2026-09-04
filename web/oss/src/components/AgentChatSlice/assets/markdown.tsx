@@ -1,10 +1,8 @@
-import {memo, type ReactNode} from "react"
+import {memo} from "react"
 
+import ChatMarkdown from "@agenta/chat/markdown"
 import {useDriveSessionId} from "@agenta/entity-ui/drive"
-import {code} from "@streamdown/code"
-import {math} from "@streamdown/math"
 import {useAtomValue} from "jotai"
-import {Streamdown, type Components, type ThemeInput} from "streamdown"
 
 import {chatFileLinkAtomFamily} from "../state/fileLinks"
 
@@ -100,132 +98,21 @@ export const MD_CLASS =
     "[&_[data-streamdown=code-block]_pre]:!m-0 [&_[data-streamdown=code-block]_pre]:!bg-transparent " +
     "[&_[data-streamdown=code-block]_pre]:!p-0 " +
     "[&_[data-streamdown=code-block]_code]:!bg-transparent [&_[data-streamdown=code-block]_code]:!p-0 " +
-    // Streamdown renders one <span> per Shiki line but only classes it when `lineNumbers` is on,
-    // and that class is what carries `block` — with numbers off every line ran together
-    // ("a = 1b = 2c = 3" on one row). Make the line spans blocks ourselves.
-    "[&_[data-streamdown=code-block]_pre_code>span]:!block " +
+    // The `display:block` fix for Shiki line spans lives in ChatMarkdown's structural class.
     // Trim the outer edges so the bubble padding isn't doubled by leading/trailing margins.
     "[&>:first-child]:!mt-0 [&>:last-child]:!mb-0 [&>:last-child>*]:!mb-0"
 
-/** Flatten a code element's children (string / text nodes) to the raw source. */
-const childrenToText = (children: ReactNode): string => {
-    if (typeof children === "string") return children
-    if (typeof children === "number") return String(children)
-    if (Array.isArray(children)) return children.map(childrenToText).join("")
-    if (children && typeof children === "object" && "props" in children) {
-        return childrenToText((children as {props?: {children?: ReactNode}}).props?.children)
-    }
-    return ""
+/** Resolve file mentions against THIS conversation's session, from the ambient drive context. */
+const useChatFileLink = () => {
+    const sessionId = useDriveSessionId()
+    return useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
 }
 
 /**
- * Inline code chip. When the active conversation has published a file-link resolver and this span's
- * text names a real drive file, it renders as a compact inline file reference (icon + name, opens
- * Quick Look) that flows within the sentence — the heavy block file card is reserved for the tool
- * step that wrote the file. Otherwise it's a plain code chip.
+ * Desktop markdown for the agent chat slice: the shared `ChatMarkdown` renderer wearing this app's
+ * antd token layer ({@link MD_CLASS}) and its drive file-link resolver. Used by message bubbles and
+ * the composer live preview, so both render identically.
  */
-const InlineCode = ({className, children}: {className?: string; children?: ReactNode}) => {
-    // Resolve against THIS conversation's session (from the ambient drive context), so a
-    // backgrounded pane's file mentions don't read another mounted session's resolver.
-    const sessionId = useDriveSessionId()
-    const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
-    const text = childrenToText(children).trim()
-    const fallback = <code className={className}>{children}</code>
-    // The Drives resolver decides link-vs-plain (async: records + on-demand single-file check) and
-    // owns the fallback; no resolver mounted → plain code.
-    if (link && text) return <>{link.renderCode(text, fallback)}</>
-    return fallback
-}
-
-/** A link target that must stay a plain external link: any `scheme:` URL (http, https, mailto, tel,
- * data, …), a protocol-relative `//host`, or an in-page `#fragment`. Everything else is a RELATIVE
- * path, which might name a file in this conversation's drive. */
-const isExternalHref = (href?: string): boolean =>
-    !href || /^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)
-
-/** Only real anchor attributes — Streamdown also passes renderer internals (`node`, …) that would
- * leak onto the DOM element, so we never spread the incoming props. */
-interface AnchorProps {
-    href?: string
-    title?: string
-    className?: string
-    children?: ReactNode
-}
-
-/** Plain link, opened in a new tab. Also the fallback whenever a relative href isn't a drive file. */
-const ExternalLink = ({href, title, className, children}: AnchorProps) => (
-    <a href={href} title={title} className={className} target="_blank" rel="noopener noreferrer">
-        {children}
-    </a>
-)
-
-/** A relative href may NAME a drive file — resolve it through the same resolver the inline-code path
- * uses ({@link InlineCode}), so a markdown link and a code-span mention of the same file behave
- * identically (issue #5481: nested / `NN-name/` paths get emitted as links and bypassed it). */
-const DriveLink = ({href, ...rest}: AnchorProps) => {
-    const sessionId = useDriveSessionId()
-    const link = useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
-    // A slash-prefixed href is a local sandbox path, not a browser-relative web URL. If the drive
-    // cannot prove it names a file, keep its label inert instead of navigating to
-    // `https://<agenta-host>/tmp/...` (#5983).
-    const fallback = href?.startsWith("/") ? (
-        <>{rest.children}</>
-    ) : (
-        <ExternalLink href={href} {...rest} />
-    )
-    if (link && href) return <>{link.renderCode(href, fallback)}</>
-    return fallback
-}
-
-/** Split so an ordinary URL costs nothing: only a relative href subscribes to the drive resolver. */
-const Anchor = ({href, title, className, children}: AnchorProps) =>
-    isExternalHref(href) ? (
-        <ExternalLink href={href} title={title} className={className}>
-            {children}
-        </ExternalLink>
-    ) : (
-        <DriveLink href={href} title={title} className={className}>
-            {children}
-        </DriveLink>
-    )
-
-/** Stable maps/configs: fresh object literals per render churn Streamdown's prop identity, and
- * this renderer re-renders on every throttled streaming token — so hoist them to module scope.
- * `inlineCode` is Streamdown's dedicated inline-span slot; fenced blocks stay with its own
- * Shiki CodeBlock (the `code` plugin), which replaces the old Prism overlay wholesale. */
-const MD_COMPONENTS: Components = {
-    // Inline arrows so the map's contextual typing applies; only the real DOM props are
-    // forwarded (Streamdown also passes renderer internals like `node`).
-    inlineCode: ({className, children}) => (
-        <InlineCode className={className}>{children}</InlineCode>
-    ),
-    a: ({href, title, className, children}) => (
-        <Anchor href={href} title={title} className={className}>
-            {children}
-        </Anchor>
-    ),
-}
-
-/** KaTeX math ($…$ / $$…$$) + Shiki-highlighted fences; both tree-shaken plugin packages. */
-const MD_PLUGINS = {math, code}
-
-/** Copy button on fences (the old renderer's overlay); no per-table/mermaid chrome. */
-const MD_CONTROLS = {code: {copy: true, download: false}, mermaid: false, table: false} as const
-
-/** Light/dark pair — Shiki dual themes track the app theme instead of the old always-dark Prism. */
-const SHIKI_THEMES: [ThemeInput, ThemeInput] = ["one-light", "one-dark-pro"]
-
-/** Shared markdown renderer for the slice — used by message bubbles and the composer live
- * preview, so both render identically. `className` appends to `MD_CLASS` so callers can tweak
- * size/color (e.g. the muted reasoning block) without forking the renderer.
- *
- * Sanitization: Streamdown's default rehype pipeline (`rehype-raw → rehype-sanitize (GitHub
- * schema) → rehype-harden`) replaces the old DOMPurify FORBID_TAGS config — document-affecting
- * tags, handlers, and javascript: URLs are stripped by default.
- *
- * Memoized on `content`/`className`: within the one message that re-renders per streamed token
- * (the streaming one), its already-settled parts — a reasoning block, text before a tool call —
- * keep the same `content` string, so this skips re-parsing + re-highlighting them each token. */
 const Markdown = ({
     content,
     className,
@@ -233,25 +120,16 @@ const Markdown = ({
 }: {
     content: string
     className?: string
-    /** Text is still growing OR still being revealed: keep incomplete-markdown healing on. The
-     * typing feel comes from `StreamingMarkdown` below; streamdown's own animator stays off (it
-     * is gated on an `isAnimating` prop we never pass, and its shared per-instance character
-     * counter re-animates settled blocks on paragraph splits). */
+    /** Text is still growing OR still being revealed: keep incomplete-markdown healing on. */
     streaming?: boolean
 }) => (
-    <Streamdown
-        className={className ? `${MD_CLASS} ${className}` : MD_CLASS}
-        components={MD_COMPONENTS}
-        plugins={MD_PLUGINS}
-        controls={MD_CONTROLS}
-        shikiTheme={SHIKI_THEMES}
-        lineNumbers={false}
-        mode={streaming ? "streaming" : "static"}
-        parseIncompleteMarkdown={streaming}
-        animated={false}
-    >
-        {content}
-    </Streamdown>
+    <ChatMarkdown
+        content={content}
+        baseClassName={MD_CLASS}
+        className={className}
+        streaming={streaming}
+        useLinkResolver={useChatFileLink}
+    />
 )
 
 export default memo(Markdown)
