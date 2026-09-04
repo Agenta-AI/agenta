@@ -10,6 +10,15 @@ the detail this file only summarizes.
 ## Before committing
 
 - Run `pnpm lint-fix` within the `web` folder.
+- A new user-facing feature adds or refreshes Storybook stories for its new components in
+  `web/storybook` (`stories/entity-ui/` for the data-connected `@agenta/entity-ui` surfaces).
+  Cover the states a reviewer cannot reach by clicking — empty, error, read-only, migration.
+  Nothing type-checks that package in CI, so run `pnpm --filter @agenta/storybook lint` and
+  build it once: a story whose component changed shape fails only at build time.
+- A change to any package `web/mobile` consumes (`chat`, `entities`, `entity-ui`,
+  `playground`, `playground-ui`, `shared`) gets a smoke check on `/m` before the PR is done.
+  Mobile is a separate host with its own providers and hydration, and it has broken silently
+  before — the desktop app looked fine while `/m` rendered nothing.
 - Theme colors have a single source of truth: `oss/src/styles/theme/palette.ts` (semantic
   roles with `{light, dark}` values). To change any color, edit `palette.ts`, run
   `pnpm generate:tailwind-tokens`, and commit the regenerated `theme-variables.css` +
@@ -284,6 +293,31 @@ appropriate `staleTime`. Examples: `web/oss/src/state/profile/selectors/user.ts`
 Do NOT use `useEffect` with manual state for data fetching. Use `atomWithQuery`.
 
 Legacy SWR + axios is present in older code but must not be used for new features.
+
+### The QueryClient host contract
+
+There is exactly ONE `QueryClient` per app, and it is `@agenta/shared/api`'s `queryClient`
+singleton. The rules are asymmetric:
+
+- **A host** (`web/oss` `_app`, `web/ee`, `web/mobile` `AppProviders`, a Storybook decorator,
+  a test harness) MUST pass that singleton to `<QueryClientProvider client={...}>` **and**
+  hydrate `queryClientAtom` with the same object. Never construct your own `new QueryClient()`;
+  to change defaults, merge onto the singleton with `setDefaultOptions` (it is a whole-object
+  write — spread the existing `queries` so package-set options like
+  `experimental_prefetchInRender` survive).
+- **Package code** (`web/packages/**`) MUST NOT import the singleton. Use
+  `getHostQueryClient()` from `@agenta/shared/api`, resolved **per call**, never cached at
+  module scope. This is lint-enforced in `web/packages/eslint.config.mjs`: the singleton is
+  banned as a named import from both `@agenta/shared/api` and the `@agenta/shared` root barrel,
+  and — since `no-restricted-imports` cannot see `await import(...)` — a `no-restricted-syntax`
+  rule bans dynamic imports of those two modules outright. Package code that needs the client
+  lazily dynamic-imports `@agenta/shared/api/hostQueryClient`, which cannot reach the singleton.
+
+Why: `/m` shipped its own client, so every package-layer `invalidateQueries` / `setQueryData` /
+`removeQueries` addressed an orphan cache — mutations returned success, toasts fired, and
+nothing refreshed until a reload, with no error anywhere. A dev-only console error now flags a
+mismatched host on first package-layer cache access. Full write-up:
+`docs/design/query-client-host-divergence/plan.md`.
 
 ### Single project scope
 

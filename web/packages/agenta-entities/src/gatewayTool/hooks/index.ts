@@ -20,7 +20,7 @@ export {
     useToolCatalogIntegrations,
 } from "./useToolCatalogIntegrations"
 export {toolCatalogCategoriesQueryAtom, useToolCatalogCategories} from "./useToolCatalogCategories"
-export {useToolConnectionActions} from "./useToolConnectionActions"
+export {invalidateToolConnections, useToolConnectionActions} from "./useToolConnectionActions"
 export {toolConnectionQueryAtomFamily, useToolConnectionQuery} from "./useToolConnectionQuery"
 export {toolConnectionsQueryAtom, useToolConnectionsQuery} from "./useToolConnectionsQuery"
 export {
@@ -31,4 +31,9 @@ export {
     toolIntegrationDetailQueryFamily,
     useToolIntegrationDetail,
 } from "./useToolIntegrationDetail"
+export {
+    toolIntegrationCatalogQueryFamily,
+    useToolIntegrationCatalog,
+} from "./useToolIntegrationCatalog"
 export {buildToolSlug, useToolExecution} from "./useToolExecution"
+export {useToolsConnections, type CreateConnectionInput} from "./useToolsConnections"

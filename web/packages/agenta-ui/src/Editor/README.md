@@ -69,61 +69,57 @@ Editor
 ### Basic Usage
 
 ```tsx
-import {Editor} from '@agenta/ui'
+import {Editor} from "@agenta/ui"
 
 function MyEditor() {
-  const [value, setValue] = useState('{"key": "value"}')
+    const [value, setValue] = useState('{"key": "value"}')
 
-  return (
-    <Editor
-      initialValue={value}
-      language="json"
-      codeOnly
-      onChange={({textContent}) => setValue(textContent)}
-    />
-  )
+    return (
+        <Editor
+            initialValue={value}
+            language="json"
+            codeOnly
+            onChange={({textContent}) => setValue(textContent)}
+        />
+    )
 }
 ```
 
 ### Rich Text Mode
 
 ```tsx
-import {Editor} from '@agenta/ui'
+import {Editor} from "@agenta/ui"
 
-<Editor
-  initialValue="# Hello World"
-  showToolbar
-  onChange={({textContent}) => console.log(textContent)}
+;<Editor
+    initialValue="# Hello World"
+    showToolbar
+    onChange={({textContent}) => console.log(textContent)}
 />
 ```
 
 ### With Token Support
 
 ```tsx
-import {Editor} from '@agenta/ui'
+import {Editor} from "@agenta/ui"
 
-<Editor
-  initialValue="Hello, {{name}}! Welcome to {{platform}}."
-  enableTokens
-  tokens={['name', 'platform', 'date']}
-  templateFormat="curly"
-  onChange={({textContent, tokens}) => {
-    console.log('Text:', textContent)
-    console.log('Tokens used:', tokens)
-  }}
+;<Editor
+    initialValue="Hello, {{name}}! Welcome to {{platform}}."
+    enableTokens
+    tokens={["name", "platform", "date"]}
+    templateFormat="curly"
+    onChange={({textContent, tokens}) => {
+        console.log("Text:", textContent)
+        console.log("Tokens used:", tokens)
+    }}
 />
 ```
 
 ### Diff View
 
 ```tsx
-import {DiffView} from '@agenta/ui'
+import {DiffView} from "@agenta/ui"
 
-<DiffView
-  language="json"
-  original='{"version": "1.0.0"}'
-  modified='{"version": "2.0.0"}'
-/>
+;<DiffView language="json" original='{"version": "1.0.0"}' modified='{"version": "2.0.0"}' />
 ```
 
 ## API Reference
@@ -134,44 +130,44 @@ import {DiffView} from '@agenta/ui'
 
 Main editor component.
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `id` | `string` | auto-generated | Unique identifier for the editor instance |
-| `initialValue` | `string` | `""` | Initial content |
-| `value` | `string` | - | Controlled value (for undo/redo support) |
-| `onChange` | `(result) => void` | - | Callback with `{textContent, tokens?, value?}` |
-| `placeholder` | `string` | `"Enter some text..."` | Placeholder text |
-| `language` | `"json" \| "yaml" \| "code"` | - | Code highlighting language |
-| `codeOnly` | `boolean` | `false` | Enable code-only mode (no rich text) |
-| `singleLine` | `boolean` | `false` | Restrict to single line |
-| `showToolbar` | `boolean` | `true` | Show formatting toolbar |
-| `enableTokens` | `boolean` | `false` | Enable token/variable support |
-| `tokens` | `string[]` | `[]` | Available token names for autocomplete |
-| `templateFormat` | `"curly" \| "fstring" \| "jinja2"` | - | Token syntax format |
-| `autoFocus` | `boolean` | `false` | Focus on mount |
-| `disabled` | `boolean` | `false` | Disable editing |
-| `debug` | `boolean` | `false` | Show debug panel |
-| `enableResize` | `boolean` | `true` | Allow resize handle |
-| `boundWidth` | `boolean` | `true` | Bound width to container |
-| `boundHeight` | `boolean` | - | Bound height to container |
-| `showBorder` | `boolean` | `true` | Show border around editor |
-| `showLineNumbers` | `boolean` | `true` | Show line numbers in code mode |
-| `validationSchema` | `unknown` | - | JSON Schema for validation |
-| `onPropertyClick` | `(path) => void` | - | Callback when Cmd+clicking a JSON property |
-| `disableLongText` | `boolean` | `false` | Disable long text truncation |
-| `additionalCodePlugins` | `ReactNode[]` | `[]` | Additional plugins for code mode |
+| Prop                    | Type                               | Default                | Description                                    |
+| ----------------------- | ---------------------------------- | ---------------------- | ---------------------------------------------- |
+| `id`                    | `string`                           | auto-generated         | Unique identifier for the editor instance      |
+| `initialValue`          | `string`                           | `""`                   | Initial content                                |
+| `value`                 | `string`                           | -                      | Controlled value (for undo/redo support)       |
+| `onChange`              | `(result) => void`                 | -                      | Callback with `{textContent, tokens?, value?}` |
+| `placeholder`           | `string`                           | `"Enter some text..."` | Placeholder text                               |
+| `language`              | `"json" \| "yaml" \| "code"`       | -                      | Code highlighting language                     |
+| `codeOnly`              | `boolean`                          | `false`                | Enable code-only mode (no rich text)           |
+| `singleLine`            | `boolean`                          | `false`                | Restrict to single line                        |
+| `showToolbar`           | `boolean`                          | `true`                 | Show formatting toolbar                        |
+| `enableTokens`          | `boolean`                          | `false`                | Enable token/variable support                  |
+| `tokens`                | `string[]`                         | `[]`                   | Available token names for autocomplete         |
+| `templateFormat`        | `"curly" \| "fstring" \| "jinja2"` | -                      | Token syntax format                            |
+| `autoFocus`             | `boolean`                          | `false`                | Focus on mount                                 |
+| `disabled`              | `boolean`                          | `false`                | Disable editing                                |
+| `debug`                 | `boolean`                          | `false`                | Show debug panel                               |
+| `enableResize`          | `boolean`                          | `true`                 | Allow resize handle                            |
+| `boundWidth`            | `boolean`                          | `true`                 | Bound width to container                       |
+| `boundHeight`           | `boolean`                          | -                      | Bound height to container                      |
+| `showBorder`            | `boolean`                          | `true`                 | Show border around editor                      |
+| `showLineNumbers`       | `boolean`                          | `true`                 | Show line numbers in code mode                 |
+| `validationSchema`      | `unknown`                          | -                      | JSON Schema for validation                     |
+| `onPropertyClick`       | `(path) => void`                   | -                      | Callback when Cmd+clicking a JSON property     |
+| `disableLongText`       | `boolean`                          | `false`                | Disable long text truncation                   |
+| `additionalCodePlugins` | `ReactNode[]`                      | `[]`                   | Additional plugins for code mode               |
 
 #### `DiffView`
 
 Component for comparing two values.
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `original` | `string \| object` | required | Original value |
-| `modified` | `string \| object` | required | Modified value |
-| `language` | `"json" \| "yaml"` | auto-detect | Content language |
-| `title` | `string` | - | Optional title |
-| `mode` | `"split" \| "unified"` | `"split"` | Diff display mode |
+| Prop       | Type                   | Default     | Description       |
+| ---------- | ---------------------- | ----------- | ----------------- |
+| `original` | `string \| object`     | required    | Original value    |
+| `modified` | `string \| object`     | required    | Modified value    |
+| `language` | `"json" \| "yaml"`     | auto-detect | Content language  |
+| `title`    | `string`               | -           | Optional title    |
+| `mode`     | `"split" \| "unified"` | `"split"`   | Diff display mode |
 
 ### Hooks
 
@@ -181,9 +177,9 @@ Get Lexical editor configuration.
 
 ```tsx
 const config = useEditorConfig({
-  codeOnly: true,
-  language: 'json',
-  enableTokens: false,
+    codeOnly: true,
+    language: "json",
+    enableTokens: false,
 })
 ```
 
@@ -193,8 +189,8 @@ Handle editor resizing.
 
 ```tsx
 const {setContainerElm, dimensions} = useEditorResize({
-  enableResize: true,
-  boundWidth: true,
+    enableResize: true,
+    boundWidth: true,
 })
 ```
 
@@ -209,7 +205,7 @@ Global editor state.
 Per-editor markdown view toggle state.
 
 ```tsx
-import {markdownViewAtom} from '@agenta/ui'
+import {markdownViewAtom} from "@agenta/ui"
 
 const isMarkdownView = useAtomValue(markdownViewAtom(editorId))
 ```
@@ -221,7 +217,7 @@ const isMarkdownView = useAtomValue(markdownViewAtom(editorId))
 Toggle between code and form view.
 
 ```tsx
-import {useLexicalComposerContext} from '@agenta/ui'
+import {useLexicalComposerContext} from "@agenta/ui"
 
 const [editor] = useLexicalComposerContext()
 editor.dispatchCommand(TOGGLE_FORM_VIEW, undefined)
@@ -236,7 +232,7 @@ Toggle markdown preview.
 Change syntax highlighting language.
 
 ```tsx
-editor.dispatchCommand(ON_CHANGE_LANGUAGE, {language: 'yaml'})
+editor.dispatchCommand(ON_CHANGE_LANGUAGE, {language: "yaml"})
 ```
 
 #### `DRILL_IN_TO_PATH`
@@ -244,7 +240,7 @@ editor.dispatchCommand(ON_CHANGE_LANGUAGE, {language: 'yaml'})
 Navigate to a specific path in form view.
 
 ```tsx
-editor.dispatchCommand(DRILL_IN_TO_PATH, {path: 'data.items[0]'})
+editor.dispatchCommand(DRILL_IN_TO_PATH, {path: "data.items[0]"})
 ```
 
 ### Utilities
@@ -254,7 +250,7 @@ editor.dispatchCommand(DRILL_IN_TO_PATH, {path: 'data.items[0]'})
 Parse JSON with JSON5 fallback and partial JSON recovery.
 
 ```tsx
-import {safeJson5Parse} from '@agenta/ui'
+import {safeJson5Parse} from "@agenta/ui"
 
 const parsed = safeJson5Parse('{"key": value}') // handles unquoted values
 ```
@@ -315,16 +311,16 @@ Editor/
 The Editor integrates with DrillInView for navigating into nested JSON:
 
 ```tsx
-import {Editor, DRILL_IN_TO_PATH} from '@agenta/ui'
+import {Editor, DRILL_IN_TO_PATH} from "@agenta/ui"
 
-<Editor
-  codeOnly
-  language="json"
-  initialValue={data}
-  onPropertyClick={(path) => {
-    // Handle navigation to nested path
-    setCurrentPath(path.split('.'))
-  }}
+;<Editor
+    codeOnly
+    language="json"
+    initialValue={data}
+    onPropertyClick={(path) => {
+        // Handle navigation to nested path
+        setCurrentPath(path.split("."))
+    }}
 />
 ```
 
@@ -377,19 +373,19 @@ const handleUndo = () => {
 
 ```json
 {
-  "@lexical/code": ">=0.38.0",
-  "@lexical/hashtag": ">=0.38.0",
-  "@lexical/link": ">=0.38.0",
-  "@lexical/list": ">=0.38.0",
-  "@lexical/markdown": ">=0.38.0",
-  "@lexical/react": ">=0.38.0",
-  "@lexical/rich-text": ">=0.38.0",
-  "@lexical/table": ">=0.38.0",
-  "@lexical/utils": ">=0.38.0",
-  "lexical": ">=0.38.0",
-  "js-yaml": ">=4.0.0",
-  "prismjs": ">=1.29.0",
-  "ajv": ">=8.0.0"
+    "@lexical/code": ">=0.38.0",
+    "@lexical/hashtag": ">=0.38.0",
+    "@lexical/link": ">=0.38.0",
+    "@lexical/list": ">=0.38.0",
+    "@lexical/markdown": ">=0.38.0",
+    "@lexical/react": ">=0.38.0",
+    "@lexical/rich-text": ">=0.38.0",
+    "@lexical/table": ">=0.38.0",
+    "@lexical/utils": ">=0.38.0",
+    "lexical": ">=0.38.0",
+    "js-yaml": ">=4.0.0",
+    "prismjs": ">=1.29.0",
+    "ajv": ">=8.0.0"
 }
 ```
 

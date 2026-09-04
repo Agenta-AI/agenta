@@ -13,8 +13,8 @@ import {
     setSessionStatusAtom,
 } from "../../../src/state/sessionMessages"
 
-const MESSAGES_KEY = "agenta:agent-chat:messages"
-const COUNTS_KEY = "agenta:agent-chat:record-counts"
+const MESSAGES_KEY = "agenta:agent-chat:messages:v2"
+const COUNTS_KEY = "agenta:agent-chat:record-counts:v2"
 
 const msg = (id: string, text: string): UIMessage =>
     ({id, role: "user", parts: [{type: "text", text}]}) as UIMessage

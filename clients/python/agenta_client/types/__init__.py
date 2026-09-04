@@ -177,6 +177,8 @@ if typing.TYPE_CHECKING:
     from .config_response_model import ConfigResponseModel
     from .connect_affordance import ConnectAffordance
     from .connection_requirement import ConnectionRequirement
+    from .credential_result import CredentialResult
+    from .credential_status import CredentialStatus
     from .custom_model_settings_dto import CustomModelSettingsDto
     from .custom_provider_dto import CustomProviderDto
     from .custom_provider_kind import CustomProviderKind
@@ -197,6 +199,8 @@ if typing.TYPE_CHECKING:
     from .discovered_trigger_alternative import DiscoveredTriggerAlternative
     from .discovered_trigger_event import DiscoveredTriggerEvent
     from .discovered_trigger_event_type import DiscoveredTriggerEventType
+    from .discovery_result import DiscoveryResult
+    from .discovery_status import DiscoveryStatus
     from .entity_ref import EntityRef
     from .environment import Environment
     from .environment_create import EnvironmentCreate
@@ -427,8 +431,13 @@ if typing.TYPE_CHECKING:
     from .organization_update import OrganizationUpdate
     from .permission import Permission
     from .playground_build_kit_context import PlaygroundBuildKitContext
+    from .probe_provider_response import ProbeProviderResponse
     from .projects_response import ProjectsResponse
+    from .provider_credentials import ProviderCredentials
     from .public_mount_create import PublicMountCreate
+    from .public_secret_management_dto import PublicSecretManagementDto
+    from .public_secret_response_dto import PublicSecretResponseDto
+    from .public_secret_response_dto_data import PublicSecretResponseDtoData
     from .queries_response import QueriesResponse
     from .query import Query
     from .query_create import QueryCreate
@@ -463,8 +472,8 @@ if typing.TYPE_CHECKING:
     from .secret_dto import SecretDto
     from .secret_dto_data import SecretDtoData
     from .secret_kind import SecretKind
-    from .secret_response_dto import SecretResponseDto
-    from .secret_response_dto_data import SecretResponseDtoData
+    from .secret_management_policy import SecretManagementPolicy
+    from .secret_value_status import SecretValueStatus
     from .selector import Selector
     from .session_attachment import SessionAttachment
     from .session_attachment_response import SessionAttachmentResponse
@@ -822,6 +831,8 @@ if typing.TYPE_CHECKING:
     from .trigger_subscription_query import TriggerSubscriptionQuery
     from .trigger_subscription_response import TriggerSubscriptionResponse
     from .trigger_subscriptions_response import TriggerSubscriptionsResponse
+    from .update_secret_payload_dto import UpdateSecretPayloadDto
+    from .update_secret_payload_dto_data import UpdateSecretPayloadDtoData
     from .user_ids_response import UserIdsResponse
     from .validation_error import ValidationError
     from .validation_error_loc_item import ValidationErrorLocItem
@@ -1037,6 +1048,8 @@ _dynamic_imports: typing.Dict[str, str] = {
     "ConfigResponseModel": ".config_response_model",
     "ConnectAffordance": ".connect_affordance",
     "ConnectionRequirement": ".connection_requirement",
+    "CredentialResult": ".credential_result",
+    "CredentialStatus": ".credential_status",
     "CustomModelSettingsDto": ".custom_model_settings_dto",
     "CustomProviderDto": ".custom_provider_dto",
     "CustomProviderKind": ".custom_provider_kind",
@@ -1055,6 +1068,8 @@ _dynamic_imports: typing.Dict[str, str] = {
     "DiscoveredTriggerAlternative": ".discovered_trigger_alternative",
     "DiscoveredTriggerEvent": ".discovered_trigger_event",
     "DiscoveredTriggerEventType": ".discovered_trigger_event_type",
+    "DiscoveryResult": ".discovery_result",
+    "DiscoveryStatus": ".discovery_status",
     "EntityRef": ".entity_ref",
     "Environment": ".environment",
     "EnvironmentCreate": ".environment_create",
@@ -1275,8 +1290,13 @@ _dynamic_imports: typing.Dict[str, str] = {
     "OrganizationUpdate": ".organization_update",
     "Permission": ".permission",
     "PlaygroundBuildKitContext": ".playground_build_kit_context",
+    "ProbeProviderResponse": ".probe_provider_response",
     "ProjectsResponse": ".projects_response",
+    "ProviderCredentials": ".provider_credentials",
     "PublicMountCreate": ".public_mount_create",
+    "PublicSecretManagementDto": ".public_secret_management_dto",
+    "PublicSecretResponseDto": ".public_secret_response_dto",
+    "PublicSecretResponseDtoData": ".public_secret_response_dto_data",
     "QueriesResponse": ".queries_response",
     "Query": ".query",
     "QueryCreate": ".query_create",
@@ -1311,8 +1331,8 @@ _dynamic_imports: typing.Dict[str, str] = {
     "SecretDto": ".secret_dto",
     "SecretDtoData": ".secret_dto_data",
     "SecretKind": ".secret_kind",
-    "SecretResponseDto": ".secret_response_dto",
-    "SecretResponseDtoData": ".secret_response_dto_data",
+    "SecretManagementPolicy": ".secret_management_policy",
+    "SecretValueStatus": ".secret_value_status",
     "Selector": ".selector",
     "SessionAttachment": ".session_attachment",
     "SessionAttachmentResponse": ".session_attachment_response",
@@ -1624,6 +1644,8 @@ _dynamic_imports: typing.Dict[str, str] = {
     "TriggerSubscriptionQuery": ".trigger_subscription_query",
     "TriggerSubscriptionResponse": ".trigger_subscription_response",
     "TriggerSubscriptionsResponse": ".trigger_subscriptions_response",
+    "UpdateSecretPayloadDto": ".update_secret_payload_dto",
+    "UpdateSecretPayloadDtoData": ".update_secret_payload_dto_data",
     "UserIdsResponse": ".user_ids_response",
     "ValidationError": ".validation_error",
     "ValidationErrorLocItem": ".validation_error_loc_item",
@@ -1861,6 +1883,8 @@ __all__ = [
     "ConfigResponseModel",
     "ConnectAffordance",
     "ConnectionRequirement",
+    "CredentialResult",
+    "CredentialStatus",
     "CustomModelSettingsDto",
     "CustomProviderDto",
     "CustomProviderKind",
@@ -1879,6 +1903,8 @@ __all__ = [
     "DiscoveredTriggerAlternative",
     "DiscoveredTriggerEvent",
     "DiscoveredTriggerEventType",
+    "DiscoveryResult",
+    "DiscoveryStatus",
     "EntityRef",
     "Environment",
     "EnvironmentCreate",
@@ -2099,8 +2125,13 @@ __all__ = [
     "OrganizationUpdate",
     "Permission",
     "PlaygroundBuildKitContext",
+    "ProbeProviderResponse",
     "ProjectsResponse",
+    "ProviderCredentials",
     "PublicMountCreate",
+    "PublicSecretManagementDto",
+    "PublicSecretResponseDto",
+    "PublicSecretResponseDtoData",
     "QueriesResponse",
     "Query",
     "QueryCreate",
@@ -2135,8 +2166,8 @@ __all__ = [
     "SecretDto",
     "SecretDtoData",
     "SecretKind",
-    "SecretResponseDto",
-    "SecretResponseDtoData",
+    "SecretManagementPolicy",
+    "SecretValueStatus",
     "Selector",
     "SessionAttachment",
     "SessionAttachmentResponse",
@@ -2448,6 +2479,8 @@ __all__ = [
     "TriggerSubscriptionQuery",
     "TriggerSubscriptionResponse",
     "TriggerSubscriptionsResponse",
+    "UpdateSecretPayloadDto",
+    "UpdateSecretPayloadDtoData",
     "UserIdsResponse",
     "ValidationError",
     "ValidationErrorLocItem",

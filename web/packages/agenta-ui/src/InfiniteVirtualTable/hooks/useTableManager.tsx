@@ -1,14 +1,14 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {Key, MouseEvent, ReactNode, RefObject} from "react"
 
-import {Grid} from "antd"
-import type {ColumnsType} from "antd/es/table"
 import type {WritableAtom} from "jotai"
 import {useAtom} from "jotai"
 import {atom} from "jotai"
 
 import {SearchInput} from "../../components/ui/input-composed"
+import {useIsNarrowScreen} from "../../hooks/useMediaQuery"
 import {cn} from "../../utils/styles"
+import type {ColumnDefs} from "../columnDef"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
 import type {
     TableScopeConfig,
@@ -17,6 +17,7 @@ import type {
     TableDeleteConfig,
     TableExportConfig,
 } from "../features/InfiniteVirtualTableFeatureShell"
+import {ANTD_SELECTOR} from "../tableDom"
 import type {
     InfiniteTableRowBase,
     InfiniteVirtualTableProps,
@@ -31,7 +32,7 @@ const dummySearchAtom = atom("")
 const INTERACTIVE_SELECTOR =
     "button, a, input, textarea, select, [role='button'], [role='menuitem'], [role='checkbox'], " +
     ".ant-btn, .ant-checkbox, .ant-checkbox-input, .ant-checkbox-inner, .ant-checkbox-wrapper, " +
-    ".ant-select, .ant-dropdown-trigger, .ant-table-selection-column, .ag-table-actions-cell"
+    ANTD_SELECTOR.interactiveCell
 
 /**
  * Returns true when the click originated from an interactive element (button, link,
@@ -158,7 +159,7 @@ export interface UseTableManagerReturn<T extends InfiniteTableRowBase> {
     rowExportingKey: string | null
 
     /** Ref to store current columns for export */
-    columnsRef: RefObject<ColumnsType<T> | null>
+    columnsRef: RefObject<ColumnDefs<T> | null>
 
     /** Search term value (only meaningful when search config is provided) */
     searchTerm: string
@@ -232,9 +233,7 @@ export function useTableManager<T extends InfiniteTableRowBase>({
     exportDisabledTooltip = "Select items to export",
     exportFilename = "table-export.csv",
 }: UseTableManagerConfig<T>): UseTableManagerReturn<T> {
-    // Responsive breakpoints
-    const screens = Grid.useBreakpoint()
-    const isNarrowScreen = !screens.lg
+    const isNarrowScreen = useIsNarrowScreen()
 
     // Normalize search config
     const searchConfig = search === true ? {} : search || undefined
@@ -281,7 +280,7 @@ export function useTableManager<T extends InfiniteTableRowBase>({
     // Export state
     const [rowExportingKey, setRowExportingKey] = useState<string | null>(null)
     const tableExport = useTableExport<T>()
-    const columnsRef = useRef<ColumnsType<T> | null>(null)
+    const columnsRef = useRef<ColumnDefs<T> | null>(null)
 
     // Auto-reset pagination when search dependencies change (skip initial mount)
     const searchDepsInitialized = useRef(false)

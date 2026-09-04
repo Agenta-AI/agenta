@@ -11,6 +11,7 @@ import {
 } from "@agenta/ui/ui"
 import {DotsThreeIcon, Note, PencilSimple, Rocket, Trash} from "@phosphor-icons/react"
 
+import {useAgentIconChrome} from "./agentIcon"
 import {Tip} from "./Tip"
 
 /** Deterministic so an agent keeps its colour across surfaces and reloads — index into a fixed
@@ -31,8 +32,9 @@ const AVATAR_COLORS = [
  * avatar exists to solve. */
 export const agentAvatar = (name: string, id: string) => {
     const words = name.trim().split(/\s+/).filter(Boolean)
+    // From the SPLIT words, never the raw name: " solo" would otherwise initial as " s".
     const initials =
-        (words.length > 1 ? `${words[0][0]}${words[1][0]}` : (words[0] ?? "").slice(0, 2)) || "?"
+        (words.length > 1 ? `${words[0][0]}${words[1][0]}` : words[0]?.slice(0, 2)) || "?"
     let hash = 0
     for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
     return {initials: initials.toUpperCase(), color: AVATAR_COLORS[hash % AVATAR_COLORS.length]}
@@ -58,9 +60,11 @@ export interface AgentCardProps {
     activity?: ReactNode
     owner?: ReactNode
     onOpenOverview: () => void
-    onOpenPlayground: () => void
-    onRename: () => void
-    onArchive: () => void
+    /** Omit any of these and its menu entry disappears — a surface that cannot do it must not
+     * offer it. With none of them the card opens the overview and carries no menu at all. */
+    onOpenPlayground?: () => void
+    onRename?: () => void
+    onArchive?: () => void
 }
 
 /**
@@ -83,20 +87,27 @@ export const AgentCard = ({
 }: AgentCardProps) => {
     const {initials, color} = agentAvatar(agent.name, agent.id)
     const isGrid = variant === "grid"
+    // Never `text-white` AND the icon's colour utility: equal specificity leaves the winner to
+    // stylesheet order, so the fallback owns the white and the custom icon owns its own.
+    const chrome = useAgentIconChrome(agent.id, {
+        size: 20,
+        fallbackGlyph: initials,
+        fallbackClassName: "text-white",
+    })
 
     const avatar = (
         <span
             aria-hidden
-            className={`flex shrink-0 items-center justify-center rounded-full font-semibold text-white ${
+            className={`flex shrink-0 items-center justify-center rounded-full font-semibold ${
                 isGrid
                     ? // Straddling the top edge, as in the design: it reads as the agent's mark on
                       // the card rather than as the first cell of a row.
                       "absolute -top-5 left-4 size-10 border-2 border-solid border-colorBgContainer text-sm"
                     : "size-10 text-sm"
-            }`}
-            style={{background: color}}
+            } ${chrome.className}`}
+            style={chrome.style ?? {background: color}}
         >
-            {initials}
+            {chrome.glyph}
         </span>
     )
 
@@ -131,6 +142,11 @@ export const AgentCard = ({
         </span>
     ) : null
 
+    // The card's default open affordance is the playground where there is one; otherwise the
+    // overview is the only thing this surface can open.
+    const open = isGrid ? onOpenOverview : (onOpenPlayground ?? onOpenOverview)
+    const hasMenu = Boolean(onOpenPlayground || onRename || onArchive)
+
     const menu = (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -149,19 +165,27 @@ export const AgentCard = ({
                     <Note size={16} />
                     Open overview
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onOpenPlayground}>
-                    <Rocket size={16} />
-                    Open in playground
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onRename}>
-                    <PencilSimple size={16} />
-                    Rename
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={onArchive}>
-                    <Trash size={16} />
-                    Archive
-                </DropdownMenuItem>
+                {onOpenPlayground ? (
+                    <DropdownMenuItem onSelect={onOpenPlayground}>
+                        <Rocket size={16} />
+                        Open in playground
+                    </DropdownMenuItem>
+                ) : null}
+                {onRename ? (
+                    <DropdownMenuItem onSelect={onRename}>
+                        <PencilSimple size={16} />
+                        Rename
+                    </DropdownMenuItem>
+                ) : null}
+                {onArchive ? (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem variant="destructive" onSelect={onArchive}>
+                            <Trash size={16} />
+                            Archive
+                        </DropdownMenuItem>
+                    </>
+                ) : null}
             </DropdownMenuContent>
         </DropdownMenu>
     )
@@ -170,15 +194,15 @@ export const AgentCard = ({
         <div
             role="button"
             tabIndex={0}
-            // Agents page opens the overview; the home rail keeps opening the playground.
-            onClick={isGrid ? onOpenOverview : onOpenPlayground}
+            // Agents page opens the overview; the home rail keeps opening the playground, and
+            // falls back to the overview on a surface that has no playground (mobile).
+            onClick={open}
             onKeyDown={(event) => {
                 // Only the card itself: the menu trigger is a child with its own Enter/Space.
                 if (event.target !== event.currentTarget) return
                 if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault()
-                    if (isGrid) onOpenOverview()
-                    else onOpenPlayground()
+                    open()
                 }
             }}
             className={`group box-border flex cursor-pointer flex-col transition-colors ${
@@ -197,7 +221,7 @@ export const AgentCard = ({
                 <>
                     <div className="flex items-start justify-between gap-2">
                         {title}
-                        {menu}
+                        {hasMenu ? menu : null}
                     </div>
                     {description}
                     {/* Footer: who made it and when it last ran. The design's integration badges
@@ -222,7 +246,7 @@ export const AgentCard = ({
                         {title}
                         {description}
                     </div>
-                    {menu}
+                    {hasMenu ? menu : null}
                 </div>
             )}
         </div>

@@ -11,3 +11,35 @@ queryClient.setDefaultOptions({
         experimental_prefetchInRender: true,
     },
 })
+
+let hostClientChecked = false
+
+/**
+ * Dev-only: flags a host whose <QueryClientProvider> client is not the one in `queryClientAtom`.
+ *
+ * Package writes follow the atom, so the two must be the same object. When they diverge the app
+ * runs on two caches — the provider serves one, package writes land in the other — and mutations
+ * read as successful while nothing refreshes. Pre-migration this was phrased as writes dying on
+ * the singleton; that is no longer the mechanism.
+ */
+export const assertHostQueryClient = (resolveHostClient: () => QueryClient) => {
+    if (hostClientChecked) return
+    if (process.env.NODE_ENV === "production") return
+    if (typeof window === "undefined") return
+    hostClientChecked = true
+    // Deferred, then re-checked, so a host that hydrates queryClientAtom late is not flagged.
+    const check = (retry: boolean) => {
+        if (resolveHostClient() === queryClient) return
+        if (retry) {
+            setTimeout(() => check(false), 1000)
+            return
+        }
+        console.error(
+            "[@agenta/shared] Host QueryClient mismatch: the client in `queryClientAtom` is not the " +
+                "`queryClient` singleton from '@agenta/shared/api'. Package-layer cache writes " +
+                "(invalidateQueries / setQueryData) address a different cache and do nothing. The host " +
+                "must pass that singleton to <QueryClientProvider> and hydrate `queryClientAtom` with it.",
+        )
+    }
+    setTimeout(() => check(true), 0)
+}

@@ -1,0 +1,100 @@
+import {useState} from "react"
+
+import {ALL_TEMPLATES_CATEGORY} from "@agenta/entities/workflow"
+import {TemplateGallery} from "@agenta/home-ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {useRouter} from "next/router"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {BROWSE_LAYOUT, BROWSE_RAIL_MODE} from "@/lib/browseLayout"
+
+import {useBindProjectContext} from "../context/useBindProjectContext"
+import {AppShell} from "../nav/AppShell"
+import {NavDrawer} from "../nav/NavDrawer"
+
+import {useNewAgentAction} from "./useNewAgentAction"
+
+/**
+ * The full template catalogue — where the New agent menu's "Browse all templates" lands.
+ *
+ * The SHARED gallery does the browsing (search, categories, sections, cards). In the toolbar
+ * layout it leaves identity to its host, so this screen carries the title and the drawer trigger;
+ * in the rail layout the gallery names the page itself and takes the trigger in `leading`.
+ *
+ * `ScreenScaffold fill` is the shape — the scaffold owns the viewport height and the insets, the
+ * gallery owns the scrolling inside it. Hand-rolling that column here would fork the screen shape.
+ *
+ * Picking a card creates from it, because there is no detail page here to send you to first — the
+ * same thing the menu's template entries do.
+ */
+export const AgentTemplatesScreen = ({
+    workspaceId,
+    projectId,
+}: {
+    workspaceId: string
+    projectId: string
+}) => {
+    useBindProjectContext(projectId)
+    const router = useRouter()
+    const base = `/w/${workspaceId}/p/${projectId}`
+    const newAgent = useNewAgentAction(base)
+    const [category, setCategory] = useState(ALL_TEMPLATES_CATEGORY)
+
+    return (
+        <>
+            <PageTitle title="Templates" />
+            <AppShell workspaceId={workspaceId} projectId={projectId}>
+                <ScreenScaffold
+                    fill
+                    // The identity row the toolbar layout leaves to its host (the rail carries its
+                    // own), plus the creating strip — which only appears while something happens.
+                    header={
+                        <>
+                            {BROWSE_RAIL_MODE ? null : (
+                                <div
+                                    className={`${pageContentWidthClass} flex shrink-0 items-center gap-2 px-4 pb-3 pt-2 lg:px-16 lg:pt-14`}
+                                >
+                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                    <h1 className="m-0 text-[24px] font-semibold leading-[1.3333333333333333]">
+                                        Templates
+                                    </h1>
+                                </div>
+                            )}
+                            {newAgent.creating || newAgent.error ? (
+                                <div className="border-border shrink-0 border-b px-4 py-2 text-xs">
+                                    {newAgent.error ? (
+                                        <span className="text-destructive">{newAgent.error}</span>
+                                    ) : (
+                                        <span className="text-muted-foreground">
+                                            Creating agent…
+                                        </span>
+                                    )}
+                                </div>
+                            ) : null}
+                        </>
+                    }
+                >
+                    <TemplateGallery
+                        // Toolbar by default (#5846): a rail here would be a second sidebar beside
+                        // the nav one, so identity moves to this screen's header above. With the
+                        // flag on, the rail returns and carries its own title and drawer trigger.
+                        layout={BROWSE_LAYOUT}
+                        leading={
+                            BROWSE_RAIL_MODE ? (
+                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                            ) : undefined
+                        }
+                        category={category}
+                        onCategoryChange={setCategory}
+                        // A card OPENS the template, as on the desktop: the detail page is where you
+                        // see what it needs before committing to it.
+                        onSelectTemplate={(template) =>
+                            void router.push(`${base}/templates/${template.key}`)
+                        }
+                    />
+                </ScreenScaffold>
+            </AppShell>
+        </>
+    )
+}

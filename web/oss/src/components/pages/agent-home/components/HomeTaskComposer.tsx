@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
+import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {RobotIcon} from "@phosphor-icons/react"
 import {Select} from "antd"
@@ -33,11 +34,16 @@ const HomeTaskComposer = () => {
     const [pickerOpen, setPickerOpen] = useState(false)
     const attachments = useSeedAttachments()
 
-    // Default to the most recently touched agent; a picked agent that left the roster
-    // (archived, deleted) falls back too, so send never fires with a dead id.
-    const pickedAgentId =
-        agentId && agents.some((agent) => agent.workflowId === agentId) ? agentId : null
-    const effectiveAgentId = pickedAgentId ?? agents[0]?.workflowId ?? null
+    // Default to the most recently touched agent — the one you're most likely to want next. A
+    // selection is only honoured while it is still in the roster: an agent archived or lost from
+    // under us must not keep Send enabled and hand `startSession` an id that no longer resolves.
+    const effectiveAgentId = useMemo(
+        () =>
+            (agentId && agents.some((agent) => agent.workflowId === agentId) ? agentId : null) ??
+            agents[0]?.workflowId ??
+            null,
+        [agentId, agents],
+    )
 
     const options = useMemo(
         () => agents.map((agent) => ({value: agent.workflowId, label: agent.name})),
@@ -77,7 +83,13 @@ const HomeTaskComposer = () => {
                         options={options}
                         labelRender={({label}) => (
                             <span className="inline-flex items-center gap-1.5">
-                                <RobotIcon size={14} className="text-colorTextTertiary" />
+                                <AgentGlyph
+                                    workflowId={effectiveAgentId}
+                                    size={14}
+                                    fallback={
+                                        <RobotIcon size={14} className="text-colorTextTertiary" />
+                                    }
+                                />
                                 {label}
                             </span>
                         )}

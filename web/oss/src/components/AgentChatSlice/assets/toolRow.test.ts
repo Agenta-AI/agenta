@@ -1,8 +1,13 @@
+import {
+    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
+    DEFERRED_NOT_EXECUTED_PREFIX,
+} from "@agenta/chat/assets"
 import type {ToolUIPart} from "ai"
 import {describe, expect, it} from "vitest"
 
 import {inSentence, resolveToolDisplay, type ToolDisplay} from "./toolDisplay"
 import {
+    approvalVerdictText,
     groupLabelText,
     hasFailed,
     hasLanded,
@@ -11,10 +16,6 @@ import {
     sizeOf,
     summarizeOutput,
 } from "./toolRow"
-import {
-    APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
-    DEFERRED_NOT_EXECUTED_PREFIX,
-} from "./transcriptToMessages"
 
 const part = (over: Record<string, unknown>): ToolUIPart =>
     ({type: "tool-test_run", toolCallId: "c1", ...over}) as unknown as ToolUIPart
@@ -206,6 +207,29 @@ describe("sizeOf", () => {
 
     it("strips a code fence before counting", () => {
         expect(sizeOf("```ts\na\nb\n```")).toBe("2 lines")
+    })
+})
+
+describe("approvalVerdictText", () => {
+    it("says denied when the user refused", () => {
+        expect(
+            approvalVerdictText(part({state: "approval-responded", approval: {approved: false}})),
+        ).toBe("denied")
+    })
+
+    it("says approved when the user agreed", () => {
+        expect(
+            approvalVerdictText(part({state: "approval-responded", approval: {approved: true}})),
+        ).toBe("approved")
+    })
+
+    it("says responded, not approved, when the verdict is unknown", () => {
+        // A permission surface must never claim an approval it cannot evidence. A replay can settle
+        // a gate knowing only THAT it was answered.
+        expect(approvalVerdictText(part({state: "approval-responded"}))).toBe("responded")
+        expect(approvalVerdictText(part({state: "approval-responded", approval: {}}))).toBe(
+            "responded",
+        )
     })
 })
 

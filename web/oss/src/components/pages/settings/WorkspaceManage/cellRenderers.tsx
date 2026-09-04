@@ -1,5 +1,7 @@
 import {useState} from "react"
 
+import type {WorkspaceMember} from "@agenta/entities/organization"
+import {assignWorkspaceRole, unAssignWorkspaceRole} from "@agenta/entities/organization"
 import type {User} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
 import {EditOutlined, SyncOutlined} from "@ant-design/icons"
@@ -7,8 +9,6 @@ import {Dropdown, Space, Tag, Tooltip, Typography} from "antd"
 
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
-import {WorkspaceMember} from "@/oss/lib/Types"
-import {assignWorkspaceRole, unAssignWorkspaceRole} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
 

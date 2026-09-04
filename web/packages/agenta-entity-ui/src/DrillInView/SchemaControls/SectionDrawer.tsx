@@ -57,8 +57,6 @@ export function SectionDrawer({
                 onClose={handleRequestClose}
                 placement="right"
                 width={width}
-                // Explicit Cancel/Save only — an outside click must not silently keep an edit.
-                closeOnLayoutClick={false}
                 destroyOnClose
                 title={
                     <div className="flex min-w-0 items-center gap-2">

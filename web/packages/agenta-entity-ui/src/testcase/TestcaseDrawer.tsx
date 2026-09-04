@@ -79,8 +79,6 @@ export interface TestcaseDrawerProps<TData = unknown> {
      *   "edited" badge, no session-restore on close. Used by the playground.
      */
     editMode?: "deferred" | "autoApply"
-    /** Close drawer when clicking on .ant-layout outside. Defaults to false. */
-    closeOnLayoutClick?: boolean
     /** Optional initial drawer width. When unset, falls back to size="large". */
     initialWidth?: number
     /**
@@ -127,7 +125,6 @@ function TestcaseDrawer<TData = unknown>({
     copyId,
     showExpandButton = true,
     editMode = "deferred",
-    closeOnLayoutClick = false,
     initialWidth,
     renderEvaluatorMetrics,
     enableRootViewMode = false,
@@ -426,7 +423,6 @@ function TestcaseDrawer<TData = unknown>({
             size="large"
             width={isDrawerExpanded ? EXPANDED_DRAWER_WIDTH : (initialWidth ?? undefined)}
             closeIcon={null}
-            closeOnLayoutClick={closeOnLayoutClick}
             afterOpenChange={afterOpenChange}
             destroyOnHidden
             styles={{

@@ -6,18 +6,18 @@ Unified hooks for building entity selection UIs. These hooks handle data fetchin
 
 The hooks are organized into three **mode-specific** hooks that power the `EntityPicker` variants:
 
-| Hook | Mode | Use Case |
-|------|------|----------|
-| `useCascadingMode` | Cascading | Multiple dropdowns side-by-side |
-| `useBreadcrumbMode` | Breadcrumb | Drill-down with back navigation |
+| Hook                 | Mode         | Use Case                        |
+| -------------------- | ------------ | ------------------------------- |
+| `useCascadingMode`   | Cascading    | Multiple dropdowns side-by-side |
+| `useBreadcrumbMode`  | Breadcrumb   | Drill-down with back navigation |
 | `useListPopoverMode` | List-Popover | Parent list with child popovers |
 
 Additionally, there's a unified entry point:
 
-| Hook | Purpose |
-|------|---------|
-| `useEntitySelection` | Auto-selects mode based on options |
-| `useEntitySelectionCore` | Low-level core hook (internal) |
+| Hook                     | Purpose                            |
+| ------------------------ | ---------------------------------- |
+| `useEntitySelection`     | Auto-selects mode based on options |
+| `useEntitySelectionCore` | Low-level core hook (internal)     |
 
 ## useCascadingMode
 
@@ -69,17 +69,17 @@ function CascadingSelector() {
 
 ```typescript
 interface UseCascadingModeOptions<TSelection> {
-  /** Adapter name or instance */
-  adapter: EntitySelectionAdapter<TSelection> | string
+    /** Adapter name or instance */
+    adapter: EntitySelectionAdapter<TSelection> | string
 
-  /** Unique ID for state isolation */
-  instanceId: string
+    /** Unique ID for state isolation */
+    instanceId: string
 
-  /** Callback when selection is complete */
-  onSelect?: (selection: TSelection) => void
+    /** Callback when selection is complete */
+    onSelect?: (selection: TSelection) => void
 
-  /** Override auto-select per level */
-  autoSelectByLevel?: (boolean | undefined)[]
+    /** Override auto-select per level */
+    autoSelectByLevel?: (boolean | undefined)[]
 }
 ```
 
@@ -89,15 +89,15 @@ Each level in the `levels` array contains:
 
 ```typescript
 interface CascadingLevelState {
-  config: HierarchyLevel         // Level configuration
-  items: unknown[]               // Available items
-  isLoading: boolean             // Loading state
-  error: Error | null            // Error state
-  selectedId: string | null      // Currently selected ID
-  selectedItem: unknown | null   // Currently selected item
-  setSelectedId: (id: string | null) => void
-  isAutoSelected: boolean        // Was auto-selected
-  isDisabled: boolean            // Level disabled (no parent selection)
+    config: HierarchyLevel // Level configuration
+    items: unknown[] // Available items
+    isLoading: boolean // Loading state
+    error: Error | null // Error state
+    selectedId: string | null // Currently selected ID
+    selectedItem: unknown | null // Currently selected item
+    setSelectedId: (id: string | null) => void
+    isAutoSelected: boolean // Was auto-selected
+    isDisabled: boolean // Level disabled (no parent selection)
 }
 ```
 
@@ -214,26 +214,26 @@ function BreadcrumbSelector() {
 
 ```typescript
 interface UseBreadcrumbModeOptions<TSelection> {
-  /** Adapter name or instance */
-  adapter: EntitySelectionAdapter<TSelection> | string
+    /** Adapter name or instance */
+    adapter: EntitySelectionAdapter<TSelection> | string
 
-  /** Unique ID for state isolation */
-  instanceId: string
+    /** Unique ID for state isolation */
+    instanceId: string
 
-  /** Callback when selection is made */
-  onSelect?: (selection: TSelection) => void
+    /** Callback when selection is made */
+    onSelect?: (selection: TSelection) => void
 
-  /** Override auto-select per level */
-  autoSelectByLevel?: (boolean | undefined)[]
+    /** Override auto-select per level */
+    autoSelectByLevel?: (boolean | undefined)[]
 
-  /** Auto-select when only one option */
-  autoSelectSingle?: boolean
+    /** Auto-select when only one option */
+    autoSelectSingle?: boolean
 
-  /** Enable pagination */
-  paginated?: boolean
+    /** Enable pagination */
+    paginated?: boolean
 
-  /** Page size for pagination */
-  pageSize?: number
+    /** Page size for pagination */
+    pageSize?: number
 }
 ```
 
@@ -325,35 +325,35 @@ function ListPopoverSelector() {
 
 ```typescript
 interface UseListPopoverModeOptions<TSelection> {
-  /** Adapter name or instance */
-  adapter: EntitySelectionAdapter<TSelection> | string
+    /** Adapter name or instance */
+    adapter: EntitySelectionAdapter<TSelection> | string
 
-  /** Unique ID for state isolation */
-  instanceId: string
+    /** Unique ID for state isolation */
+    instanceId: string
 
-  /** Callback when selection is made */
-  onSelect?: (selection: TSelection) => void
+    /** Callback when selection is made */
+    onSelect?: (selection: TSelection) => void
 
-  /** Currently selected parent ID */
-  selectedParentId?: string | null
+    /** Currently selected parent ID */
+    selectedParentId?: string | null
 
-  /** Currently selected child ID */
-  selectedChildId?: string | null
+    /** Currently selected child ID */
+    selectedChildId?: string | null
 
-  /** Auto-select first item on mount */
-  autoSelectFirst?: boolean
+    /** Auto-select first item on mount */
+    autoSelectFirst?: boolean
 
-  /** Auto-select latest item on mount */
-  autoSelectLatest?: boolean
+    /** Auto-select latest item on mount */
+    autoSelectLatest?: boolean
 
-  /** Select latest child when clicking parent */
-  selectLatestOnParentClick?: boolean
+    /** Select latest child when clicking parent */
+    selectLatestOnParentClick?: boolean
 
-  /** Disabled parent IDs */
-  disabledParentIds?: Set<string>
+    /** Disabled parent IDs */
+    disabledParentIds?: Set<string>
 
-  /** Disabled child IDs */
-  disabledChildIds?: Set<string>
+    /** Disabled child IDs */
+    disabledChildIds?: Set<string>
 }
 ```
 
@@ -363,13 +363,13 @@ Each parent in the `parents` array contains:
 
 ```typescript
 interface ListPopoverParentState {
-  id: string                     // Parent ID
-  label: string                  // Display label
-  labelNode?: ReactNode          // Optional rich label
-  entity: unknown                // Original entity
-  isSelected: boolean            // Is this parent selected
-  isDisabled: boolean            // Is this parent disabled
-  isPopoverOpen: boolean         // Is popover currently open
+    id: string // Parent ID
+    label: string // Display label
+    labelNode?: ReactNode // Optional rich label
+    entity: unknown // Original entity
+    isSelected: boolean // Is this parent selected
+    isDisabled: boolean // Is this parent disabled
+    isPopoverOpen: boolean // Is popover currently open
 }
 ```
 
@@ -380,18 +380,18 @@ Unified entry point that auto-selects the appropriate mode based on options.
 ### Usage
 
 ```typescript
-import { useEntitySelection } from '@agenta/entity-ui'
+import {useEntitySelection} from "@agenta/entity-ui"
 
 // Auto-detects mode based on options
 const result = useEntitySelection({
-  adapter: 'appRevision',
-  instanceId: 'my-selector',
-  onSelect: handleSelect,
+    adapter: "appRevision",
+    instanceId: "my-selector",
+    onSelect: handleSelect,
 
-  // Mode is inferred from options:
-  // - If autoSelectByLevel provided → cascading mode
-  // - If selectedParentId/selectedChildId provided → list-popover mode
-  // - Otherwise → breadcrumb mode
+    // Mode is inferred from options:
+    // - If autoSelectByLevel provided → cascading mode
+    // - If selectedParentId/selectedChildId provided → list-popover mode
+    // - Otherwise → breadcrumb mode
 })
 ```
 
@@ -402,11 +402,11 @@ const result = useEntitySelection({
 Fetches children data for a parent entity.
 
 ```typescript
-import { useChildrenData } from '@agenta/entity-ui'
+import {useChildrenData} from "@agenta/entity-ui"
 
-const { children, isLoading, error } = useChildrenData({
-  parentId: 'parent-123',
-  childLevelConfig: childLevel,
+const {children, isLoading, error} = useChildrenData({
+    parentId: "parent-123",
+    childLevelConfig: childLevel,
 })
 ```
 
@@ -415,13 +415,13 @@ const { children, isLoading, error } = useChildrenData({
 Handles auto-selection of the latest child when a parent is clicked.
 
 ```typescript
-import { useAutoSelectLatestChild } from '@agenta/entity-ui'
+import {useAutoSelectLatestChild} from "@agenta/entity-ui"
 
-const { isAutoSelecting, autoSelectLatest } = useAutoSelectLatestChild({
-  parentId: 'parent-123',
-  childLevelConfig: childLevel,
-  onSelect: handleChildSelect,
-  selectLatest: true,
+const {isAutoSelecting, autoSelectLatest} = useAutoSelectLatestChild({
+    parentId: "parent-123",
+    childLevelConfig: childLevel,
+    onSelect: handleChildSelect,
+    selectLatest: true,
 })
 ```
 
@@ -432,10 +432,10 @@ const { isAutoSelecting, autoSelectLatest } = useAutoSelectLatestChild({
 Get display strings for a hierarchy level.
 
 ```typescript
-import { getLevelLabel, getLevelPlaceholder } from '@agenta/entity-ui'
+import {getLevelLabel, getLevelPlaceholder} from "@agenta/entity-ui"
 
-const label = getLevelLabel(levelConfig)           // e.g., "Apps"
-const placeholder = getLevelPlaceholder(levelConfig)  // e.g., "Select app..."
+const label = getLevelLabel(levelConfig) // e.g., "Apps"
+const placeholder = getLevelPlaceholder(levelConfig) // e.g., "Select app..."
 ```
 
 ## State Isolation
@@ -445,13 +445,13 @@ All hooks use `instanceId` to isolate state between multiple instances:
 ```typescript
 // These two instances have completely separate state
 const picker1 = useBreadcrumbMode({
-  adapter: 'appRevision',
-  instanceId: 'picker-1',
+    adapter: "appRevision",
+    instanceId: "picker-1",
 })
 
 const picker2 = useBreadcrumbMode({
-  adapter: 'appRevision',
-  instanceId: 'picker-2',
+    adapter: "appRevision",
+    instanceId: "picker-2",
 })
 ```
 

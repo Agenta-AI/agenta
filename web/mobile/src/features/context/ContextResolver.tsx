@@ -5,36 +5,47 @@ import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {fetchProjects, readDesktopLastUsed, readLastContext, type LastContext} from "@/lib/context"
+import {
+    fetchProjects,
+    projectHomeUrl,
+    readDesktopLastUsed,
+    readLastContext,
+    type LastContext,
+} from "@/lib/context"
 
 import {selectContextTarget} from "./contextTarget"
-import {ProjectList} from "./ProjectList"
-import {SignedOutNotice} from "./states/SignedOutNotice"
 import {groupByWorkspace, type WorkspaceGroup} from "./workspaceGroups"
-import {WorkspaceSelector} from "./WorkspaceSelector"
 
-const sessionsUrl = ({workspaceId, projectId}: LastContext) =>
-    `/w/${workspaceId}/p/${projectId}/sessions`
+interface ContextResolverProps {
+    /**
+     * Confine resolution to the workspace the URL names (`/w/:workspace_id`, `/w/:id/p`), so
+     * a link into a workspace lands in THAT workspace rather than the remembered one. Omitted
+     * on `/m/` and `/m/w`, which resolve across the whole tree.
+     */
+    workspaceId?: string
+}
 
 /**
- * `/m/` root flow: last-context → auto-forward, else fetch projects and pick.
+ * `/m/` root flow: resolve a project (remembered → desktop continuity → first) and forward to
+ * its home. There is no picker page — switching lives in the drawer, exactly like the desktop
+ * rail. This route only ever shows "Loading", an error, or leaves.
  *
- * `?switch=1` suppresses every auto-forward so the picker is reachable from inside the app —
- * without it a stored context makes this route un-viewable and the workspace unswitchable.
+ * Also the body of every `/w/...` index gate — the desktop's `WorkspaceSelection` /
+ * `WorkspaceRedirect` / `WorkspaceProjectRedirect` trio, collapsed into one resolver because
+ * mobile answers all three questions from the same project list.
  */
-export const ContextResolver = () => {
+export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
     const router = useRouter()
     // useState initializer: read once, client-only (SSR renders the loading branch).
     const [stored] = useState<LastContext | null>(() =>
         typeof window === "undefined" ? null : readLastContext(),
     )
-    const switching = router.isReady && router.query.switch !== undefined
-    const shortcut = switching ? null : stored
 
+    // Always fetched (the shared key every screen uses): a stored pair still forwards on the
+    // first render, but once the tree answers we can tell a stale shortcut from a live one.
     const query = useQuery({
         queryKey: ["mobile", "projects"],
         queryFn: () => fetchProjects(),
-        enabled: !shortcut,
         staleTime: 30_000,
     })
     const result = query.data
@@ -43,49 +54,34 @@ export const ContextResolver = () => {
         () => (result?.kind === "ok" ? groupByWorkspace(result.projects) : []),
         [result],
     )
-    // Which workspace the header is scoped to. Falls back rather than syncing on every fetch:
-    // a refetch can drop the selected workspace entirely.
-    const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("")
-    const selectedGroup =
-        groups.find((group) => group.workspaceId === selectedWorkspaceId) ?? groups[0]
 
     const target = useMemo<LastContext | null>(
         () =>
             selectContextTarget({
                 ready: router.isReady,
-                switching,
-                shortcut,
+                shortcut: stored,
                 groups,
+                groupsLoaded: result?.kind === "ok",
                 desktopLastUsed: readDesktopLastUsed(),
+                workspaceId,
             }),
-        [router.isReady, switching, shortcut, groups],
+        [router.isReady, stored, groups, result, workspaceId],
     )
 
     useEffect(() => {
-        if (target) void router.replace(sessionsUrl(target))
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        if (!target?.projectId) return
+        const next = projectHomeUrl(target)
+        // A gate that forwards to itself would loop; nothing here ever resolves to its own
+        // path, but the guard keeps that true if a route is added under a project home.
+        if (router.asPath.split("?")[0] === next) return
+        void router.replace(next)
     }, [target])
 
+    // Signed out is not a screen on a phone — the auth page is, and AuthGate routes there
+    // from wherever the user landed (this page redirects away too fast to be that gate).
+
     let body
-    // Pinned above the scroller — only the picker branch earns a title.
-    let header
-    if (target || (!shortcut && query.isPending)) {
-        body = <p className="text-muted-foreground grow p-6 text-center text-xs">Loading…</p>
-    } else if (result?.kind === "unauthenticated") {
-        body = <SignedOutNotice />
-    } else if (result?.kind === "ok" && selectedGroup) {
-        header = (
-            <div className="border-border flex shrink-0 flex-col gap-2 border-b px-4 pt-3 pb-2">
-                <h1 className="text-xs font-semibold">Choose a project</h1>
-                <WorkspaceSelector
-                    groups={groups}
-                    selectedId={selectedGroup.workspaceId}
-                    onSelect={setSelectedWorkspaceId}
-                />
-            </div>
-        )
-        body = <ProjectList group={selectedGroup} />
-    } else {
+    if (result?.kind === "error" || (result?.kind === "ok" && groups.length === 0)) {
         body = (
             <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
                 <p className="text-muted-foreground text-xs">
@@ -100,12 +96,14 @@ export const ContextResolver = () => {
                 </button>
             </div>
         )
+    } else {
+        body = <p className="text-muted-foreground grow p-6 text-center text-xs">Loading…</p>
     }
 
     return (
         <>
-            <PageTitle parts={["Choose a project"]} />
-            <ScreenScaffold header={header}>{body}</ScreenScaffold>
+            <PageTitle />
+            <ScreenScaffold>{body}</ScreenScaffold>
         </>
     )
 }

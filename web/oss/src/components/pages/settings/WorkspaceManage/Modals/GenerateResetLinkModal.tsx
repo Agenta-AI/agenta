@@ -5,15 +5,10 @@ import AvatarWithLabel from "../assets/AvatarWithLabel"
 import {GenerateResetLinkModalProps} from "./assets/types"
 
 const GenerateResetLinkModal = ({username, ...props}: GenerateResetLinkModalProps) => {
-    const onGenerateLink = () => {
-        props.onOk?.({} as any)
-        props.onCancel?.({} as any)
-    }
     return (
         <Modal
             title="Are you sure you want to generate reset password link?"
             okText="Generate Link"
-            onOk={onGenerateLink}
             destroyOnHidden
             centered
             {...props}

@@ -1,23 +1,23 @@
-import {stringStorage} from "@agenta/shared/state"
+import {activeUserIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
-import {atomFamily, atomWithStorage} from "jotai/utils"
+import {atomWithStorage} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {CurrentStepState} from "./types"
 
 // Storage keys
 const STORAGE_KEYS = {
-    ACTIVE_USER_ID: "agenta:onboarding:active-user-id",
     IS_NEW_USER: "is-new-user",
     NAV_SIMPLIFIED: "nav-simplified",
     NAV_SIMPLIFIED_OVERRIDE: "nav-simplified-override",
     SEEN_TOURS: "seen-tours",
 } as const
 
-export const onboardingStorageUserIdAtom = atomWithStorage<string | null>(
-    STORAGE_KEYS.ACTIVE_USER_ID,
-    null,
-    stringStorage,
-)
+/**
+ * Onboarding's name for the shared active-user atom — the SAME atom `@agenta/shared/state`
+ * exports, so onboarding and every per-user preference scope off one value and one key.
+ */
+export const onboardingStorageUserIdAtom = activeUserIdAtom
 
 const createScopedStorageKey = (userId: string, key: string) => `agenta:onboarding:${userId}:${key}`
 

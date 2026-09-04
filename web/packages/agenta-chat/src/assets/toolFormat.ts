@@ -1,9 +1,4 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/toolFormat.ts (2026-07-25);
-// the OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it.
-// Keep byte-parity if either side changes.
-// Adaptations: this is the canonical copy of `stripFence` for the package — src/model/toolSummary.ts
-// (copied earlier from ToolActivity.tsx, which itself imports stripFence from this file in OSS) now
-// re-exports it from here instead of holding a second definition.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 /**
  * Shared formatting for tool input/output display (inline step log + Turn Inspector), so both
  * render a payload identically.

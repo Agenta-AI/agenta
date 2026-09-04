@@ -7,6 +7,7 @@ import {
 } from "@agenta/entities/environment"
 import {useUserDisplayName} from "@agenta/entities/shared/user"
 import {projectIdAtom} from "@agenta/shared/state"
+import {formatDay} from "@agenta/shared/utils/dateTime"
 import {message} from "@agenta/ui/app-message"
 import {CloseOutlined, MoreOutlined, SwapOutlined} from "@ant-design/icons"
 import {ClockCounterClockwise, GearSix} from "@phosphor-icons/react"
@@ -15,7 +16,6 @@ import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 import DeploymentRevertModal from "./DeploymentRevertModal"
 import HistoryConfig from "./HistoryConfig"

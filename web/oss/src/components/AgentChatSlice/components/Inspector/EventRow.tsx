@@ -6,8 +6,8 @@
 import {useState} from "react"
 
 import {CopyButton} from "@agenta/ui/components/presentational"
+import {Tag} from "@agenta/ui/components/presentational"
 import {CaretRight} from "@phosphor-icons/react"
-import {Tag} from "antd"
 
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 
@@ -103,11 +103,10 @@ export function EventRow({
                     {eventLabel(event)}
                 </span>
                 <Tag
-                    className="m-0 shrink-0 border-0 font-mono !text-[12px] leading-[16px]"
+                    label={chipText}
+                    className="m-0 shrink-0 border-0 font-mono text-[12px] leading-[16px]"
                     style={{background: "var(--ag-colorFillTertiary)", color: dotColor}}
-                >
-                    {chipText}
-                </Tag>
+                />
                 {durationLabel ? (
                     <span className="shrink-0 font-mono text-[12px] text-colorTextQuaternary">
                         {durationLabel}

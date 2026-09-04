@@ -66,6 +66,8 @@ class SessionQueryLifecycle(BaseModel):
 
     include_ended: bool = False
     include_archived: bool = False
+    # The archived VIEW: only archived rows. Wins over `include_archived`.
+    archived_only: bool = False
 
 
 class SessionQueryOptions(BaseModel):

@@ -16,6 +16,7 @@ import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import isEqual from "fast-deep-equal"
 import {atom, type Getter} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -154,6 +155,48 @@ export function primeWorkflowRevisionDetailCacheImperative(
     try {
         const qc = store.get(queryClientAtom)
         primeWorkflowRevisionDetailCache(qc, projectId, workflow)
+    } catch {
+        // queryClientAtom may not be initialized yet (rare)
+    }
+}
+
+/**
+ * Put a just-committed revision into the ref lists the revision pickers read, so it appears at
+ * once instead of after the invalidation's refetch lands.
+ *
+ * Both lists are thin `{count, refs}` caches keyed differently — the desktop picker lists by
+ * VARIANT, the mobile top bar by WORKFLOW — so a commit has to seed both or one of them shows a
+ * dropdown whose newest entry is the revision before the one the header names.
+ */
+export function primeCommittedRevisionRefLists(
+    workflow: Workflow | null | undefined,
+    options?: StoreOptions,
+): void {
+    if (!workflow?.id) return
+    const store = getStore(options)
+    const projectId = store.get(workflowProjectIdAtom)
+    if (!projectId) return
+
+    const ref: WorkflowRevisionRef = {
+        id: workflow.id,
+        version: workflow.version ?? null,
+        created_at: workflow.created_at ?? null,
+    }
+
+    const seed = (queryKey: (string | null | undefined)[]) => {
+        const qc = store.get(queryClientAtom)
+        const existing = qc.getQueryData<WorkflowRevisionRefsByVariantResponse>(queryKey)
+        // No cache yet means nothing is rendering this list; the query will fetch it whole.
+        if (!existing) return
+        const refs = [ref, ...existing.refs.filter((r) => r.id !== ref.id)]
+        qc.setQueryData(queryKey, {count: refs.length, refs})
+    }
+
+    try {
+        const variantId = workflow.workflow_variant_id ?? workflow.variant_id
+        if (variantId) seed(["workflows", "revisions", variantId, projectId])
+        const workflowId = workflow.workflow_id
+        if (workflowId) seed(["workflows", "revisionsByWorkflow", workflowId, projectId])
     } catch {
         // queryClientAtom may not be initialized yet (rare)
     }
@@ -422,6 +465,7 @@ export const appWorkflowsListQueryAtom = atomWithQuery((get) => {
             const response = await queryWorkflows({
                 projectId,
                 flags: {is_evaluator: false},
+                // Keep UNPAGED: the rail reads "absent from this list" as "archived" (#6457).
                 lowPriority: true,
             })
             const workflows = response.workflows ?? []
@@ -892,8 +936,10 @@ export const promptWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>(
 export const agentWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
     const appQuery = get(appWorkflowsListQueryAtom)
     const agentFlagsQuery = get(appWorkflowsWithAgentFlagsQueryAtom)
+    // `deleted_at` too, like the prompts list above: an archived agent kept listing in the rail
+    // and in the session filter's agent facet, where picking it emptied a list it could not fill.
     const data = (agentFlagsQuery.data ?? []).filter(
-        (workflow) => workflow.flags?.is_agent === true,
+        (workflow) => !workflow.deleted_at && workflow.flags?.is_agent === true,
     )
     return {
         data,
@@ -1412,8 +1458,79 @@ export const workflowAgentTemplateOverlayAtomFamily = atomFamily((revisionId: st
     }),
 )
 
-export const workflowBuildKitEnabledAtomFamily = atomFamily((_revisionId: string) =>
-    atom<boolean>(true),
+/** The build kit's UI state: the master on/off plus the platform ops the user switched off. */
+export interface BuildKitUiState {
+    enabled: boolean
+    disabledOps: string[]
+}
+
+const DEFAULT_BUILD_KIT_UI_STATE: BuildKitUiState = {enabled: true, disabledOps: []}
+
+/**
+ * The build-kit UI state per revision, persisted so an individually switched-off tool (or the
+ * master off) survives a page reload (#6493). One localStorage record keyed by revision id, the
+ * scoped-persistence pattern; the two atom families below expose per-revision read/write access.
+ */
+const buildKitUiStateByRevisionAtom = atomWithStorage<Record<string, BuildKitUiState>>(
+    "agenta:playground:build-kit",
+    {},
+    undefined,
+    {getOnInit: true},
+)
+
+/**
+ * Read one revision's UI state, normalizing whatever localStorage held. jotai already falls back to
+ * the default record on invalid JSON, but valid-JSON-of-the-wrong-shape (tampering, a future shape
+ * change) still passes through, so guard each field: a non-array `disabledOps` would otherwise throw
+ * in the switches' `.filter`.
+ */
+const readBuildKitUiState = (get: Getter, revisionId: string): BuildKitUiState => {
+    const entry: unknown = get(buildKitUiStateByRevisionAtom)[revisionId]
+    if (!entry || typeof entry !== "object") return DEFAULT_BUILD_KIT_UI_STATE
+    const {enabled, disabledOps} = entry as Partial<BuildKitUiState>
+    return {
+        enabled: typeof enabled === "boolean" ? enabled : true,
+        disabledOps: Array.isArray(disabledOps)
+            ? disabledOps.filter((op): op is string => typeof op === "string")
+            : [],
+    }
+}
+
+const writeBuildKitUiState = (
+    get: Getter,
+    set: (next: Record<string, BuildKitUiState>) => void,
+    revisionId: string,
+    patch: Partial<BuildKitUiState>,
+) => {
+    const all = get(buildKitUiStateByRevisionAtom)
+    set({...all, [revisionId]: {...readBuildKitUiState(get, revisionId), ...patch}})
+}
+
+export const workflowBuildKitEnabledAtomFamily = atomFamily((revisionId: string) =>
+    atom(
+        (get) => readBuildKitUiState(get, revisionId).enabled,
+        (get, set, next: boolean) =>
+            writeBuildKitUiState(
+                get,
+                (value) => set(buildKitUiStateByRevisionAtom, value),
+                revisionId,
+                {enabled: next},
+            ),
+    ),
+)
+
+/** Platform ops switched off individually, by `op`. Empty = all on. Persisted like the master flag. */
+export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((revisionId: string) =>
+    atom(
+        (get) => readBuildKitUiState(get, revisionId).disabledOps,
+        (get, set, next: string[]) =>
+            writeBuildKitUiState(
+                get,
+                (value) => set(buildKitUiStateByRevisionAtom, value),
+                revisionId,
+                {disabledOps: next},
+            ),
+    ),
 )
 
 /**
@@ -2267,6 +2384,28 @@ export const workflowIsEphemeralAtomFamily = atomFamily((workflowId: string) =>
 // MUTATIONS (Write Atoms)
 // ============================================================================
 
+/** Reactions to a draft write. Single-slot, like {@link registerWorkflowCommitCallbacks}. */
+export interface WorkflowDraftCallbacks {
+    /** Fires after a write that actually changed the draft. Never for a hydrating restore. */
+    onDraftChange?: (workflowId: string) => void
+}
+
+let _draftCallbacks: WorkflowDraftCallbacks = {}
+
+export function registerWorkflowDraftCallbacks(callbacks: WorkflowDraftCallbacks): void {
+    _draftCallbacks = {..._draftCallbacks, ...callbacks}
+}
+
+export function clearWorkflowDraftCallbacks(): void {
+    _draftCallbacks = {}
+}
+
+export interface UpdateWorkflowDraftOptions {
+    /** Replaying a stored draft, not editing. Suppresses `onDraftChange` so a reopened tab
+     * cannot read as a fresh edit and commit itself. */
+    hydrating?: boolean
+}
+
 /**
  * Update workflow draft state.
  * Deep-merges the `data` field so nested properties (parameters, schemas, etc.)
@@ -2274,7 +2413,13 @@ export const workflowIsEphemeralAtomFamily = atomFamily((workflowId: string) =>
  */
 export const updateWorkflowDraftAtom = atom(
     null,
-    (_get, set, workflowId: string, updates: Partial<Workflow>) => {
+    (
+        _get,
+        set,
+        workflowId: string,
+        updates: Partial<Workflow>,
+        options?: UpdateWorkflowDraftOptions,
+    ) => {
         const current = _get(workflowDraftAtomFamily(workflowId))
         const serverData = _get(workflowServerDataSelectorFamily(workflowId))
         // Accept both workflow payload shape (`{data: {parameters}}`) and
@@ -2367,6 +2512,10 @@ export const updateWorkflowDraftAtom = atom(
             ...restUpdates,
             ...(mergedData !== undefined ? {data: mergedData} : {}),
         })
+
+        // Every early return above is a write that did NOT happen, so notifying here (and only
+        // here) means a listener hears about real edits and nothing else.
+        if (!options?.hydrating) _draftCallbacks.onDraftChange?.(workflowId)
     },
 )
 
@@ -2860,6 +3009,11 @@ export function invalidateAgentCommittedRevisionCache(options?: StoreOptions) {
         const qc = store.get(queryClientAtom)
         qc.invalidateQueries({queryKey: ["workflows", "latestRevision"], exact: false})
         qc.invalidateQueries({queryKey: ["workflows", "inspect"], exact: false})
+        // The version SELECTOR reads the revisions list, not the latest-revision tag, so leaving
+        // it out left the freshly committed version missing from the picker until a reload
+        // (#6380) — the config had already moved on to a version you could not name.
+        qc.invalidateQueries({queryKey: ["workflows", "revisionsByWorkflow"], exact: false})
+        qc.invalidateQueries({queryKey: ["workflows", "revisions"], exact: false})
     } catch {
         // queryClientAtom may not be initialized yet
     }

@@ -12,7 +12,7 @@ import {useSWRConfig} from "swr"
 
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
 import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
-import {useObservability} from "@/oss/state/newObservability"
+import {useObservability} from "@/oss/state/observability"
 
 import {AnnotateDrawerSteps} from "../enum"
 import {useEvaluatorSchemas} from "../hooks/useEvaluatorSchemas"

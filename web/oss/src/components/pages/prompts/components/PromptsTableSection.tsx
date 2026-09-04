@@ -7,10 +7,11 @@ import type {
     TableFeaturePagination,
     TableScopeConfig,
 } from "@agenta/ui/table"
+import type {ColumnDefs} from "@agenta/ui/table"
 import {FolderIcon, PlusIcon, SquaresFourIcon, TrashIcon} from "@phosphor-icons/react"
 import {Button, Dropdown, Input, Space} from "antd"
 import type {MenuProps} from "antd"
-import type {ColumnsType, TableProps} from "antd/es/table"
+import type {TableProps} from "antd/es/table"
 
 import {getAppTypeIcon} from "../assets/iconHelpers"
 import type {FolderTreeItem} from "../assets/utils"
@@ -19,7 +20,7 @@ import type {PromptsTableRow} from "../types"
 import SetupWorkflowIcon from "./SetupWorkflowIcon"
 
 interface PromptsTableSectionProps {
-    columns: ColumnsType<PromptsTableRow>
+    columns: ColumnDefs<PromptsTableRow>
     tableRows: PromptsTableRow[]
     tableScope: TableScopeConfig
     tablePagination: TableFeaturePagination<PromptsTableRow>
@@ -189,7 +190,7 @@ export const PromptsTableSection = ({
 
     return (
         <InfiniteVirtualTableFeatureShell<PromptsTableRow>
-            className="grow min-h-0 [&_.ant-table-cell]:!align-middle [&_.ant-table-container]:!border-b"
+            className="grow min-h-0 [&_.avt-cell]:!align-middle [&_.avt-container]:!border-b"
             tableScope={tableScope}
             columns={columns}
             rowKey={(record) => record.key}

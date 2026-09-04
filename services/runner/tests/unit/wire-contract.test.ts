@@ -49,6 +49,8 @@ const KNOWN_REQUEST_KEYS = [
   "mcpServers",
   "toolCallback",
   "permissions",
+  "gatewayPolicy",
+  "gatewayGuidance",
   "systemPrompt",
   "appendSystemPrompt",
   "skills",
@@ -65,12 +67,34 @@ const _requestKeysExistOnType: readonly (keyof AgentRunRequest)[] =
   KNOWN_REQUEST_KEYS;
 void _requestKeysExistOnType;
 
+// qa.md case C27: the TS declaration must accept exactly the object the Python producer
+// emits, `readOnly: null` included. Declaring `boolean | undefined` instead of
+// `boolean | null` stops `tsc` on this assignment, which is the drift the case exists to
+// catch. The runtime half is `gateway connection request` below, which asserts the real
+// Python golden deep-equals this fixture, so the two languages cannot drift apart silently:
+// the type says what TS accepts, and the fixture says what Python actually sent.
+const GATEWAY_POLICY: NonNullable<AgentRunRequest["gatewayPolicy"]> = {
+  integrations: {
+    github: {
+      provider: "composio",
+      connection: "github-work",
+      toolkitVersion: "20250827_00",
+      tools: {
+        GET_ISSUE: { permission: "allow", readOnly: true },
+        CREATE_ISSUE: { permission: "ask", readOnly: false },
+        RUN_WORKFLOW: { permission: "deny", readOnly: null },
+      },
+    },
+  },
+};
+
 describe("wire contract: requests (vs Python golden)", () => {
   for (const name of [
     "run_request.pi_core.json",
     "run_request.claude.json",
     "run_request.codex.json",
     "run_request.attachment.json",
+    "run_request.gateway_connection.json",
   ]) {
     it(`${name}: every top-level key is known to AgentRunRequest`, () => {
       const req = loadGolden(name) as Record<string, unknown>;
@@ -261,6 +285,34 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(
       resolveRunSessionId(req, "runner-ephemeral"),
       "runner-ephemeral",
+    );
+  });
+
+  it("gateway connection request: the private policy arrives exactly as Python sent it", () => {
+    const req = loadGolden(
+      "run_request.gateway_connection.json",
+    ) as AgentRunRequest;
+    // The real Python payload against the type-checked TS fixture. A rename, a dropped
+    // `readOnly`, or a permission the TS union does not list fails here or at `tsc`.
+    assert.deepEqual(req.gatewayPolicy, GATEWAY_POLICY);
+    // `readOnly` is tri-state: null is a REAL value (the catalog carries no hint) and must
+    // not arrive as an absent key. `deepEqual` treats the two alike, so check it directly.
+    const tools = req.gatewayPolicy!.integrations.github.tools;
+    assert.ok(
+      "readOnly" in tools.RUN_WORKFLOW,
+      "an unknown read-only hint must ride the wire as an explicit null, not a dropped key",
+    );
+    assert.equal(tools.RUN_WORKFLOW.readOnly, null);
+    // The two derived tools ride the ordinary custom-tool seam; only the policy is new.
+    assert.deepEqual(
+      req.customTools!.map((tool) => tool.callRef),
+      ["gateway.search", "gateway.run"],
+    );
+    // Both carry the coarse `allow` that only opens the harness gate. The authorization
+    // boundary is the semantic gate on `gateway.run`, which reads the policy above.
+    assert.deepEqual(
+      req.customTools!.map((tool) => tool.permission),
+      ["allow", "allow"],
     );
   });
 

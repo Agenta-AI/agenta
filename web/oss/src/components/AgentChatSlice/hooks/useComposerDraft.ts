@@ -1,8 +1,7 @@
 import {type RefObject, useCallback, useEffect, useRef, useState} from "react"
 
+import {composerDraftBySession, isSessionFresh} from "@agenta/chat/state"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-
-import {composerDraftBySession, isSessionFresh} from "../state/sessionEphemera"
 
 /**
  * The composer's per-session unsent draft and its mount-time entrance flags. Markdown is read off

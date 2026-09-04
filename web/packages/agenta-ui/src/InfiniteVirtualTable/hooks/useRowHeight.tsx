@@ -1,9 +1,10 @@
 import {useMemo} from "react"
 
 import {Rows} from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
 import {atom, useAtom, useAtomValue} from "jotai"
 import {atomWithStorage} from "jotai/utils"
+
+import type {TableMenuItem} from "../tableMenu"
 
 /**
  * Row height size options
@@ -99,7 +100,7 @@ export interface UseRowHeightResult {
     /** Max lines to show in cells */
     maxLines: number
     /** Menu items for the settings dropdown */
-    menuItems: MenuProps["items"]
+    menuItems: TableMenuItem[]
 }
 
 /**
@@ -137,7 +138,7 @@ export function useRowHeight(
     const heightPx = useMemo(() => config.sizes[size].height, [config.sizes, size])
     const maxLines = useMemo(() => config.sizes[size].maxLines ?? 10, [config.sizes, size])
 
-    const menuItems = useMemo<MenuProps["items"]>(() => {
+    const menuItems = useMemo<TableMenuItem[]>(() => {
         const sizes: RowHeightSize[] = ["small", "medium", "large"]
         return [
             {
@@ -146,9 +147,13 @@ export function useRowHeight(
                 icon: <Rows size={16} />,
                 children: sizes.map((s) => ({
                     key: `row-height-${s}`,
-                    label: config.sizes[s].label,
+                    // The selected size reads as bold, the way antd's inline style did.
+                    label: (
+                        <span className={size === s ? "font-semibold" : undefined}>
+                            {config.sizes[s].label}
+                        </span>
+                    ),
                     onClick: () => setSize(s),
-                    style: size === s ? {fontWeight: 600} : undefined,
                 })),
             },
         ]

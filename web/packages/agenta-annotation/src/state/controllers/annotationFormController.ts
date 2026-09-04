@@ -58,12 +58,12 @@ import {
     workflowQueryAtomFamily,
     type Workflow,
 } from "@agenta/entities/workflow"
-import {axios, getAgentaApiUrl, queryClient} from "@agenta/shared/api"
+import {axios, getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import deepEqual from "fast-deep-equal"
 import {atom, type Getter} from "jotai"
-import {atomFamily} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
+import {atomFamily} from "jotai-family"
 
 import {mergeTestcaseAnnotationTags, selectQueueScopedAnnotation} from "../testsetSync"
 import type {
@@ -1606,6 +1606,7 @@ const submitAnnotationsAtom = atom(null, async (get, set, payload: SubmitAnnotat
             invalidateSimpleQueuesListCache()
             set(simpleQueuePaginatedStore.refreshAtom)
         }
+        const queryClient = getHostQueryClient()
         await Promise.allSettled([
             queryClient.invalidateQueries({queryKey: ["annotations"], exact: false}),
             queryClient.invalidateQueries({queryKey: ["trace-drawer-annotations"], exact: false}),

@@ -16,7 +16,8 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
-            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-false}
+            - AGENTA_SERVICES_INTERNAL_KEY=
+            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -30,9 +31,9 @@ services:
 
     web-mobile:
         # === ACTIVATION =========================================== #
-        # Opt-in while the mobile app is pre-GA (run.sh --with-mobile).
-        profiles:
-            - with-web-mobile
+        # No profile: the mobile app (/m) starts with the stack, like api and web.
+        # Opt out with `run.sh --no-mobile`, or with `--scale web-mobile=0` on a
+        # hand-rolled `docker compose up`.
         # === IMAGE ================================================ #
         # build:
         #     context: ../../../web
@@ -44,7 +45,9 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
-            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-false}
+            - AGENTA_SERVICES_INTERNAL_KEY=
+            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-true}
+            - AGENTA_MOBILE_REVERSE_GATE=${AGENTA_MOBILE_REVERSE_GATE:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -84,6 +87,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
+            - AGENTA_SERVICES_INTERNAL_KEY=${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
             - SCRIPT_NAME=/api
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
             # kill's direct runner hop (W7.3, sandbox teardown) — same address + shared
@@ -145,6 +149,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
+            - AGENTA_SERVICES_INTERNAL_KEY=
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
             # empty ⇒ all stream loops; see docs/designs/workers-sprawl/specs.md
             - AGENTA_WORKER_STREAMS=
@@ -191,6 +196,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
+            - AGENTA_SERVICES_INTERNAL_KEY=
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
             # empty ⇒ all queue loops; see docs/designs/workers-sprawl/specs.md
             - AGENTA_WORKER_QUEUES=
@@ -231,6 +237,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
+            - AGENTA_SERVICES_INTERNAL_KEY=
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
@@ -255,6 +262,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -289,6 +298,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
+            - AGENTA_SERVICES_INTERNAL_KEY=${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
             - SCRIPT_NAME=/services
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
             - AGENTA_RUNNER_INTERNAL_URL=${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
@@ -333,6 +343,7 @@ services:
             # a random id would orphan them for the owner TTL. A fixed default is safe because
             # compose runs a single runner. Override only if you scale to multiple runners.
             AGENTA_RUNNER_REPLICA_ID: ${AGENTA_RUNNER_REPLICA_ID:-local-runner-1}
+            AGENTA_API_URL: ${AGENTA_API_URL:-}
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
@@ -407,6 +418,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             POSTGRES_USER: ${POSTGRES_USER:-username}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
         # === NETWORK ============================================== #
@@ -510,6 +522,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             # The entrypoint bakes these into s3.json/iam.json via raw shell expansion, so they must
             # be present in this service's env (defaults here are for the bundled store, the same way
             # supertokens carries its own connection URI). Keys come from the env file — secrets never
@@ -568,6 +581,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -589,6 +604,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
@@ -608,6 +625,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS}
         # === NETWORK ============================================== #
         networks:
@@ -646,6 +664,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             AGENTA_INGRESS_URL: http://api:8000/triggers/composio/events/
             PYTHONUNBUFFERED: "1"
         # === NETWORK ============================================== #

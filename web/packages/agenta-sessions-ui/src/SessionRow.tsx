@@ -1,6 +1,6 @@
 import {memo, type ReactNode} from "react"
 
-import {type SessionRowVm} from "@agenta/sessions/row"
+import {pendingGateLabel, type SessionRowVm} from "@agenta/sessions/row"
 import {timeAgo} from "@agenta/shared/utils"
 import {
     Button,
@@ -13,11 +13,13 @@ import {
 import {DotsThreeIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 
+import InlineRenameInput from "./InlineRenameInput"
 import {isMenuDivider, type SessionMenuEntry} from "./menu"
 import {SessionAgentName} from "./SessionAgentName"
 import {SessionAutomationKind} from "./SessionAutomationKind"
 import {SessionPinButton} from "./SessionPinButton"
 import {SessionStatusIcon} from "./SessionStatusIcon"
+import type {InlineRename} from "./useInlineRename"
 
 export interface SessionRowProps {
     row: SessionRowVm
@@ -33,6 +35,11 @@ export interface SessionRowProps {
     /** The app's verbs for this row, in the neutral shape. No items → no kebab. */
     menuItems?: SessionMenuEntry[]
     onMenuSelect?: (key: string) => void
+    /**
+     * The row's rename-in-place state, owned by the caller so the kebab and the right-click menu
+     * that wraps the row drive the same edit. Absent, the title is never editable.
+     */
+    rename?: InlineRename
     onOpen?: () => void
     onTogglePin?: (sessionId: string) => void
 }
@@ -44,6 +51,7 @@ const SessionRowImpl = ({
     renderAgent,
     menuItems,
     onMenuSelect,
+    rename,
     onOpen,
     onTogglePin,
 }: SessionRowProps) => {
@@ -78,13 +86,35 @@ const SessionRowImpl = ({
                 )}
             >
                 <span className="flex w-full min-w-0 items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm text-colorText">
-                        {row.title}
-                    </span>
+                    {rename?.renaming ? (
+                        <span
+                            className="min-w-0 flex-1"
+                            // The title is inside the row's open button; a press on the input
+                            // must edit, not open the session.
+                            onClick={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                            }}
+                        >
+                            <InlineRenameInput
+                                rename={rename}
+                                className="h-5 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-sm leading-5 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+                            />
+                        </span>
+                    ) : (
+                        <span className="min-w-0 flex-1 truncate text-sm text-colorText">
+                            {row.title}
+                        </span>
+                    )}
                     {row.automation ? <SessionAutomationKind kind={row.automation.kind} /> : null}
                 </span>
+                {/* `leading-4` on the subtitle is load-bearing: an arbitrary `text-[13px]` emits a
+                    font-size and NO line-height, so the line box fell through to whatever the host
+                    app's base layer left on this button — `normal` (~15.7px) where preflight is off,
+                    19.5px where it is on. That rendered the same row at two different heights in the
+                    two apps. 16px states it once, and matches the height oss already renders. */}
                 {row.subtitle ? (
-                    <span className="w-full truncate text-[13px] text-colorTextTertiary">
+                    <span className="w-full truncate text-[13px] leading-4 text-colorTextTertiary">
                         {row.subtitle}
                     </span>
                 ) : null}
@@ -100,12 +130,19 @@ const SessionRowImpl = ({
                             row.status.chipClassName,
                         )}
                     >
-                        {row.status.chipLabel}
+                        {pendingGateLabel(row.pending?.kinds)}
                     </span>
                 ) : null}
 
+                {/* Hidden below `sm`. These two reserved 160+96px out of a ~360px phone row, and
+                    the title is the only flexible thing in it, so it absorbed the whole deficit
+                    and rendered at ZERO width: every session with the same agent became an
+                    identical "Test agent · 7m ago" row. The title is the row's identity, so on a
+                    phone it gets the width and the agent column stands down; the timestamp keeps
+                    its slot but sizes to content. Fixed widths return at `sm`, where they buy the
+                    column alignment they exist for. */}
                 {showAgent ? (
-                    <span className="w-40 shrink-0 truncate">
+                    <span className="hidden shrink-0 truncate sm:inline sm:w-40">
                         {renderAgent ? (
                             renderAgent(row.agentId)
                         ) : (
@@ -114,7 +151,7 @@ const SessionRowImpl = ({
                     </span>
                 ) : null}
 
-                <span className="w-24 shrink-0 text-xs text-colorTextTertiary text-right">
+                <span className="shrink-0 text-right text-xs text-colorTextTertiary sm:w-24">
                     {row.activityAt ? timeAgo(Date.parse(row.activityAt)) : "—"}
                 </span>
 
@@ -156,6 +193,11 @@ const SessionRowImpl = ({
                                             onMenuSelect?.(entry.key)
                                         }}
                                     >
+                                        {entry.icon ? (
+                                            <span className="flex shrink-0 items-center">
+                                                {entry.icon}
+                                            </span>
+                                        ) : null}
                                         {entry.label}
                                     </DropdownMenuItem>
                                 ),

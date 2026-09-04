@@ -1,9 +1,8 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/state/expandState.ts (2026-07-25);
-// the OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it.
-// Keep byte-parity if either side changes.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import type {UIMessage} from "ai"
 import {atom} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 /**
  * Persisted expand/collapse state for in-message widgets (thoughts, tool rows, tool groups, long
@@ -20,6 +19,8 @@ import {atomFamily, selectAtom} from "jotai/utils"
 export const reasoningKey = (messageId: string, partIndex: number) =>
     `${messageId}::reason::${partIndex}`
 export const errorKey = (messageId: string) => `${messageId}::error`
+/** A long message body clamped behind "Show more" (see `CollapsibleMessageBody`). */
+export const messageBodyKey = (messageId: string) => `${messageId}::body`
 export const toolRowKey = (toolCallId: string) => `tool::row::${toolCallId}`
 export const toolGroupKey = (toolCallId: string) => `tool::group::${toolCallId}`
 
@@ -47,6 +48,7 @@ export const expandedKeysForMessages = (messages: UIMessage[]): Set<string> => {
     const keys = new Set<string>()
     for (const m of messages) {
         keys.add(errorKey(m.id))
+        keys.add(messageBodyKey(m.id))
         m.parts.forEach((p, i) => {
             const type = (p as {type?: string}).type
             if (type === "reasoning") keys.add(reasoningKey(m.id, i))

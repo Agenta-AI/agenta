@@ -31,7 +31,7 @@ const LOGO: Record<string, string> = {
 type Harness = { name: string; logo: string | null; soon?: boolean };
 const HARNESSES: Harness[] = [
   { name: "Claude Code", logo: "/logos/tools/anthropic.svg" },
-  { name: "Codex", logo: "/logos/tools/openai.svg", soon: true },
+  { name: "Codex", logo: "/logos/tools/openai.svg", soon: false },
   { name: "pi.dev", logo: "/logos/tools/pidev.svg" },
 ];
 
@@ -153,11 +153,13 @@ function Logo({ src, size }: { src: string | null; size: number }) {
   );
 }
 
+// Theme vars (--tplx-*) are defined on .ag-tplx in TemplateSection.astro:
+// light per the light-theme spec, dark = the original literals.
 const eyebrow: CSSProperties = {
   font: "var(--text-caption)",
   letterSpacing: "0.06em",
   textTransform: "uppercase",
-  color: "rgba(255,255,255,0.36)",
+  color: "var(--tplx-eyebrow)",
 };
 
 // Small "Soon" tag shown in front of a not-yet-available harness option.
@@ -165,8 +167,8 @@ const soonBadge: CSSProperties = {
   font: "500 9px/1 var(--font-sans)",
   letterSpacing: "0.05em",
   textTransform: "uppercase",
-  color: "rgba(255,255,255,0.55)",
-  background: "rgba(255,255,255,0.08)",
+  color: "var(--tplx-soon-text)",
+  background: "var(--tplx-soon-bg)",
   padding: "3px 5px",
   borderRadius: 4,
 };
@@ -181,6 +183,7 @@ export default function TemplateExplorer() {
 
   return (
     <div
+      className="ag-tplx"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -199,8 +202,8 @@ export default function TemplateExplorer() {
           gap: 4,
           padding: 4,
           borderRadius: 12,
-          background: "rgba(255,255,255,0.04)",
-          boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
+          background: "var(--tplx-tabs-bg)",
+          border: "1px solid var(--tplx-tabs-border)",
           maxWidth: "calc(100% - 32px)",
         }}
       >
@@ -219,19 +222,20 @@ export default function TemplateExplorer() {
               alignItems: "center",
               height: 36,
               padding: "0 16px",
-              borderRadius: 9,
-              border: "none",
+              borderRadius: 8,
+              border: "1px solid transparent",
               background: "transparent",
               cursor: "pointer",
               font: "var(--text-label)",
               whiteSpace: "nowrap",
               ...(i === sel
                 ? {
-                    background: "rgba(242,242,92,0.12)",
-                    boxShadow: "inset 0 0 0 1px rgba(242,242,92,0.3)",
-                    color: "#F7F6F4",
+                    background: "var(--tplx-tab-on-bg)",
+                    borderColor: "var(--tplx-tab-on-border)",
+                    boxShadow: "var(--tplx-tab-on-shadow)",
+                    color: "var(--tplx-tab-on-text)",
                   }
-                : { color: "rgba(255,255,255,0.55)" }),
+                : { color: "var(--tplx-tab-text)" }),
             }}
           >
             {t.area}
@@ -245,9 +249,8 @@ export default function TemplateExplorer() {
         style={{
           width: "min(1016px,100%)",
           borderRadius: 12,
-          background: "var(--ag-d-bg-2)",
-          boxShadow:
-            "0 24px 70px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.07)",
+          background: "var(--tplx-panel-bg)",
+          boxShadow: "var(--tplx-panel-shadow)",
           display: "grid",
           gridTemplateColumns: "1fr 430px",
           overflow: "hidden",
@@ -266,19 +269,23 @@ export default function TemplateExplorer() {
           }}
         >
           <span style={eyebrow}>{current.area}</span>
-          <span
+          {/* The selected template's name is an <h3> under TemplateSection's
+              <h2>. marginBottom:0 pins the UA heading margin the inline styles
+              would otherwise leave in place; marginTop stays as designed. */}
+          <h3
             style={{
               font: "300 32px/1.15 var(--font-display,'GT Alpina',serif)",
-              color: "#F7F6F4",
+              color: "var(--tplx-title)",
               marginTop: 12,
+              marginBottom: 0,
             }}
           >
             {current.title}
-          </span>
+          </h3>
           <span
             style={{
               font: "var(--text-body-md)",
-              color: "rgba(255,255,255,0.55)",
+              color: "var(--tplx-tagline)",
               marginTop: 8,
             }}
           >
@@ -294,7 +301,7 @@ export default function TemplateExplorer() {
               rowGap: 0,
               alignItems: "center",
               marginTop: 24,
-              borderTop: "1px solid rgba(255,255,255,0.07)",
+              borderTop: "1px solid var(--tplx-rule)",
             }}
           >
             {/* Trigger */}
@@ -308,10 +315,10 @@ export default function TemplateExplorer() {
                   height: 32,
                   padding: "0 13px",
                   borderRadius: 8,
-                  background: "rgba(242,242,92,0.1)",
-                  boxShadow: "inset 0 0 0 1px rgba(242,242,92,0.25)",
+                  background: "var(--tplx-trig-bg)",
+                  boxShadow: "inset 0 0 0 1px var(--tplx-trig-ring)",
                   font: "var(--text-label)",
-                  color: "#F7F6F4",
+                  color: "var(--tplx-trig-text)",
                 }}
               >
                 <span
@@ -319,8 +326,8 @@ export default function TemplateExplorer() {
                     width: 7,
                     height: 7,
                     borderRadius: "50%",
-                    background: "var(--yellow-400)",
-                    boxShadow: "0 0 8px rgba(242,242,92,0.7)",
+                    background: "var(--tplx-trig-dot)",
+                    boxShadow: "var(--tplx-trig-dot-glow)",
                   }}
                 />
                 <Logo src={current.trigLogo} size={15} />
@@ -333,7 +340,7 @@ export default function TemplateExplorer() {
               style={{
                 ...eyebrow,
                 padding: "14px 0",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--tplx-rule-soft)",
               }}
             >
               Harness
@@ -345,7 +352,7 @@ export default function TemplateExplorer() {
                 gap: 10,
                 flexWrap: "wrap",
                 padding: "10px 0",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--tplx-rule-soft)",
               }}
             >
               <div
@@ -357,8 +364,8 @@ export default function TemplateExplorer() {
                   gap: 3,
                   padding: 3,
                   borderRadius: 9,
-                  background: "rgba(255,255,255,0.04)",
-                  boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.08)",
+                  background: "var(--tplx-seg-bg)",
+                  boxShadow: "inset 0 0 0 1px var(--tplx-seg-ring)",
                 }}
               >
                 {HARNESSES.map((h, i) => (
@@ -381,11 +388,11 @@ export default function TemplateExplorer() {
                       whiteSpace: "nowrap",
                       ...(i === hActive
                         ? {
-                            background: "rgba(255,255,255,0.09)",
-                            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.14)",
-                            color: "#F7F6F4",
+                            background: "var(--tplx-seg-on-bg)",
+                            boxShadow: "var(--tplx-seg-on-shadow)",
+                            color: "var(--tplx-seg-on-text)",
                           }
-                        : { color: "rgba(255,255,255,0.5)" }),
+                        : { color: "var(--tplx-seg-text)" }),
                     }}
                   >
                     {h.soon && <span style={soonBadge}>Soon</span>}
@@ -401,7 +408,7 @@ export default function TemplateExplorer() {
               style={{
                 ...eyebrow,
                 padding: "14px 0",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--tplx-rule-soft)",
               }}
             >
               Models
@@ -413,7 +420,7 @@ export default function TemplateExplorer() {
                 flexWrap: "wrap",
                 alignItems: "center",
                 padding: "10px 0",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--tplx-rule-soft)",
               }}
             >
               {MODELS.map((m) => (
@@ -429,8 +436,8 @@ export default function TemplateExplorer() {
                     width: 36,
                     height: 28,
                     borderRadius: 8,
-                    background: "rgba(255,255,255,0.05)",
-                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.1)",
+                    background: "var(--tplx-chip-bg)",
+                    boxShadow: "var(--tplx-chip-shadow)",
                   }}
                 >
                   <Logo src={m.logo} size={16} />
@@ -443,10 +450,10 @@ export default function TemplateExplorer() {
                   height: 28,
                   padding: "0 11px",
                   borderRadius: 8,
-                  background: "rgba(255,255,255,0.05)",
-                  boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.1)",
+                  background: "var(--tplx-chip-bg)",
+                  boxShadow: "var(--tplx-chip-shadow)",
                   font: "var(--text-label)",
-                  color: "rgba(255,255,255,0.82)",
+                  color: "var(--tplx-chip-text)",
                 }}
               >
                 Self-hosted
@@ -458,7 +465,7 @@ export default function TemplateExplorer() {
               style={{
                 ...eyebrow,
                 padding: "14px 0",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--tplx-rule-soft)",
               }}
             >
               Skills
@@ -469,7 +476,7 @@ export default function TemplateExplorer() {
                 gap: 8,
                 flexWrap: "wrap",
                 padding: "10px 0",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--tplx-rule-soft)",
               }}
             >
               {current.skills.map((sk) => (
@@ -481,10 +488,10 @@ export default function TemplateExplorer() {
                     height: 28,
                     padding: "0 11px",
                     borderRadius: 8,
-                    background: "rgba(217,119,87,0.1)",
-                    boxShadow: "inset 0 0 0 1px rgba(217,119,87,0.28)",
+                    background: "var(--tplx-skill-bg)",
+                    boxShadow: "inset 0 0 0 1px var(--tplx-skill-ring)",
                     font: "var(--app-text-mono)",
-                    color: "rgba(255,255,255,0.85)",
+                    color: "var(--tplx-skill-text)",
                   }}
                 >
                   {sk}
@@ -497,7 +504,7 @@ export default function TemplateExplorer() {
               style={{
                 ...eyebrow,
                 padding: "14px 0",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--tplx-rule-soft)",
               }}
             >
               Tools
@@ -508,7 +515,7 @@ export default function TemplateExplorer() {
                 gap: 8,
                 flexWrap: "wrap",
                 padding: "10px 0",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--tplx-rule-soft)",
               }}
             >
               {current.tools.map((tl) => (
@@ -521,10 +528,10 @@ export default function TemplateExplorer() {
                     height: 28,
                     padding: "0 11px",
                     borderRadius: 8,
-                    background: "rgba(255,255,255,0.05)",
-                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.1)",
+                    background: "var(--tplx-chip-bg)",
+                    boxShadow: "var(--tplx-chip-shadow)",
                     font: "var(--text-label)",
-                    color: "rgba(255,255,255,0.82)",
+                    color: "var(--tplx-chip-text)",
                   }}
                 >
                   <Logo src={LOGO[tl] ?? null} size={14} />
@@ -544,23 +551,10 @@ export default function TemplateExplorer() {
             }}
           >
             <a
+              className="ag-btn ag-btn--primary"
               href={`${CLOUD_URL}?template=${current.key}`}
               target="_blank"
               rel="noopener"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 7,
-                height: 38,
-                padding: "0 18px",
-                borderRadius: 8,
-                background: "var(--grad-btn-primary)",
-                boxShadow: "var(--shadow-btn-primary)",
-                color: "var(--ink-900)",
-                font: "var(--text-label)",
-                cursor: "pointer",
-                textDecoration: "none",
-              }}
             >
               Use this template
               <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
@@ -580,8 +574,8 @@ export default function TemplateExplorer() {
         <div
           className="ag-tpl-md"
           style={{
-            background: "rgba(0,0,0,0.34)",
-            borderLeft: "1px solid rgba(255,255,255,0.07)",
+            background: "var(--tplx-md-bg)",
+            borderLeft: "1px solid var(--tplx-md-border)",
             display: "flex",
             flexDirection: "column",
           }}
@@ -592,7 +586,7 @@ export default function TemplateExplorer() {
               alignItems: "center",
               gap: 8,
               padding: "12px 16px",
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
+              borderBottom: "1px solid var(--tplx-md-hdr-border)",
             }}
           >
             <span
@@ -600,14 +594,14 @@ export default function TemplateExplorer() {
                 width: 8,
                 height: 8,
                 borderRadius: "50%",
-                background: "rgba(255,255,255,0.14)",
+                background: "var(--tplx-md-dot)",
               }}
             />
             <span
               style={{
                 font: "var(--app-text-mono)",
                 fontSize: 11,
-                color: "rgba(255,255,255,0.5)",
+                color: "var(--tplx-md-name)",
               }}
             >
               AGENTS.md
@@ -622,7 +616,7 @@ export default function TemplateExplorer() {
                 margin: 0,
                 padding: "20px 22px",
                 font: "var(--app-text-mono)",
-                color: "rgba(255,255,255,0.7)",
+                color: "var(--tplx-md-text)",
                 whiteSpace: "pre-wrap",
                 lineHeight: 1.75,
                 overflow: "auto",
@@ -638,8 +632,7 @@ export default function TemplateExplorer() {
                 right: 0,
                 bottom: 0,
                 height: 44,
-                background:
-                  "linear-gradient(to bottom, rgba(18,17,19,0), rgba(15,14,16,0.9))",
+                background: "var(--tplx-md-fade)",
                 pointerEvents: "none",
               }}
             />
