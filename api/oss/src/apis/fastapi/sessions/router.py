@@ -86,7 +86,11 @@ from oss.src.core.sessions.commands.types import (
     SessionCommandNotFound,
 )
 from oss.src.core.sessions.records.service import RecordsService
-from oss.src.core.sessions.records.dtos import SessionLiveFrame, SessionRecordEvent
+from oss.src.core.sessions.records.dtos import (
+    MAX_LIVE_FRAME_BYTES,
+    SessionLiveFrame,
+    SessionRecordEvent,
+)
 from oss.src.core.sessions.records.streaming import publish_live_frame, publish_record
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionCreate,
@@ -878,6 +882,27 @@ class RecordsRouter:
 
         if body.kind == "frame":
             _validate_session_id_http(body.session_id)
+            content_length = request.headers.get("content-length")
+            if content_length is not None:
+                try:
+                    request_size = int(content_length)
+                except ValueError as error:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Content-Length must be an integer.",
+                    ) from error
+                if request_size < 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Content-Length cannot be negative.",
+                    )
+                if request_size > MAX_LIVE_FRAME_BYTES:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                        detail=(
+                            f"Live frame request exceeds {MAX_LIVE_FRAME_BYTES} bytes."
+                        ),
+                    )
             current_execution_id = await get_running_owner(
                 get_lock_engine(),
                 project_id=str(project_id),

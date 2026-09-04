@@ -11,7 +11,11 @@ try:
 except ImportError:
     AsyncpgUUID = None
 
-from oss.src.core.sessions.records.dtos import SessionLiveFrame, SessionRecordEvent
+from oss.src.core.sessions.records.dtos import (
+    MAX_LIVE_FRAME_BYTES,
+    SessionLiveFrame,
+    SessionRecordEvent,
+)
 from oss.src.dbs.redis.shared.engine import get_streams_engine
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -137,6 +141,15 @@ async def publish_live_frame(
         return False
 
     try:
+        frame_bytes = dumps(frame.model_dump(mode="json"), default=_orjson_default)
+        if len(frame_bytes) > MAX_LIVE_FRAME_BYTES:
+            log.warning(
+                "[RECORDS] Live frame exceeds size limit",
+                session_id=frame.session_id,
+                execution_id=frame.execution_id,
+                frame_index=frame.frame_index,
+            )
+            return False
         message = {
             "organization_id": str(organization_id) if organization_id else None,
             "project_id": str(project_id),

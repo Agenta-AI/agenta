@@ -4,9 +4,10 @@ from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI, HTTPException, Request
+from pydantic import ValidationError
 from oss.src.apis.fastapi.sessions.models import SessionRecordIngestRequest
 from oss.src.apis.fastapi.sessions.router import RecordsRouter
-from oss.src.core.sessions.records.dtos import SessionLiveFrame
+from oss.src.core.sessions.records.dtos import MAX_LIVE_FRAME_BYTES, SessionLiveFrame
 from oss.src.core.sessions.records.streaming import (
     LIVE_FRAME_STREAM_NAME,
     RECORD_STREAM_NAME,
@@ -17,13 +18,18 @@ from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
 from oss.src.utils.env import env
 
 
-def _request(project_id, user_id, organization_id) -> Request:
+def _request(
+    project_id, user_id, organization_id, *, content_length: int | None = None
+) -> Request:
+    headers = []
+    if content_length is not None:
+        headers.append((b"content-length", str(content_length).encode()))
     request = Request(
         {
             "type": "http",
             "method": "POST",
             "path": "/sessions/records/ingest",
-            "headers": [],
+            "headers": headers,
             "app": FastAPI(),
         }
     )
@@ -33,7 +39,11 @@ def _request(project_id, user_id, organization_id) -> Request:
     return request
 
 
-def _frame(session_id: str = "session-1", execution_id: str = "execution-1"):
+def _frame(
+    session_id: str = "session-1",
+    execution_id: str = "execution-1",
+    payload: dict | None = None,
+):
     return SessionRecordIngestRequest(
         version=1,
         kind="frame",
@@ -43,7 +53,7 @@ def _frame(session_id: str = "session-1", execution_id: str = "execution-1"):
         frame_index=0,
         entity_id="message-1",
         type="text-delta",
-        payload={"id": "message-1", "delta": "hello"},
+        payload=payload or {"id": "message-1", "delta": "hello"},
         created_at=datetime.now(timezone.utc),
     )
 
@@ -109,6 +119,70 @@ async def test_frame_ingest_rejects_a_stale_execution():
 
     assert exc_info.value.status_code == 403
     publish.assert_not_awaited()
+
+
+def test_frame_request_rejects_oversized_serialized_payload():
+    with pytest.raises(ValidationError, match="serialized live frame exceeds"):
+        _frame(payload={"delta": "x" * MAX_LIVE_FRAME_BYTES})
+
+
+async def test_frame_ingest_rejects_oversized_content_length():
+    router = RecordsRouter(records_service=AsyncMock())
+    owner = AsyncMock()
+    publish = AsyncMock()
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.get_running_owner",
+            owner,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_live_frame",
+            publish,
+        ),
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await router.ingest_record_event(
+                request=_request(
+                    uuid4(),
+                    uuid4(),
+                    uuid4(),
+                    content_length=MAX_LIVE_FRAME_BYTES + 1,
+                ),
+                body=_frame(),
+            )
+
+    assert exc_info.value.status_code == 413
+    owner.assert_not_awaited()
+    publish.assert_not_awaited()
+
+
+async def test_publish_frame_rejects_oversized_mutated_payload():
+    redis = AsyncMock()
+    frame = SessionLiveFrame(
+        version=1,
+        kind="frame",
+        session_id="session-1",
+        execution_id="execution-1",
+        frame_or_event_id="execution-1:0",
+        frame_index=0,
+        entity_id="message-1",
+        type="text-delta",
+        payload={"delta": "hello"},
+        created_at=datetime.now(timezone.utc),
+    )
+    frame.payload = {"delta": "x" * MAX_LIVE_FRAME_BYTES}
+
+    with patch(
+        "oss.src.core.sessions.records.streaming._get_redis", return_value=redis
+    ):
+        assert not await publish_live_frame(project_id=uuid4(), frame=frame)
+
+    redis.xadd.assert_not_awaited()
 
 
 async def test_publish_frame_uses_dedicated_bounded_stream():

@@ -13,7 +13,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStream,
     SessionStreamQueryFlags,
 )
-from oss.src.core.sessions.records.dtos import SessionRecord
+from oss.src.core.sessions.records.dtos import SessionLiveFrame, SessionRecord
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionData,
@@ -373,6 +373,18 @@ class SessionRecordIngestRequest(BaseModel):
         missing = [name for name in required if getattr(self, name) is None]
         if missing:
             raise ValueError(f"frame fields missing: {', '.join(missing)}")
+        SessionLiveFrame(
+            version=self.version,
+            kind="frame",
+            session_id=self.session_id,
+            execution_id=self.execution_id,
+            frame_or_event_id=self.frame_or_event_id,
+            frame_index=self.frame_index,
+            entity_id=self.entity_id,
+            type=self.type,
+            payload=self.payload,
+            created_at=self.created_at,
+        )
         return self
 
 
