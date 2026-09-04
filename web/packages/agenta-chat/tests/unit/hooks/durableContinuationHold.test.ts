@@ -77,6 +77,48 @@ afterEach(() => {
 })
 
 describe("a held message must outlive the durable continuation", () => {
+    it("keeps continuation ownership only in the tab that received the respond execution id", () => {
+        const answering = renderQueue({
+            messages: messagesAfter(AFTER_SOURCE_PAUSED_DONE),
+            continuationExecutionId: CONTINUATION_EXECUTION_ID,
+        })
+        const observer = renderQueue({
+            messages: messagesAfter(AFTER_SOURCE_PAUSED_DONE),
+            continuationExecutionId: null,
+        })
+
+        expect(answering.result.current.ownsContinuation).toBe(true)
+        expect(observer.result.current.ownsContinuation).toBe(false)
+
+        for (const count of [
+            AFTER_CONTINUATION_FIRST_THOUGHT,
+            AFTER_CONTINUATION_TOOL_CALL,
+            AFTER_CONTINUATION_INTERACTION_RESPONSE,
+        ]) {
+            const messages = messagesAfter(count)
+            answering.rerender({
+                messages,
+                continuationExecutionId: CONTINUATION_EXECUTION_ID,
+            })
+            observer.rerender({messages, continuationExecutionId: null})
+
+            expect(
+                answering.result.current.ownsContinuation,
+                `answering tab lost ownership after record ${count}`,
+            ).toBe(true)
+            expect(
+                observer.result.current.ownsContinuation,
+                `observer claimed ownership after record ${count}`,
+            ).toBe(false)
+        }
+
+        answering.rerender({
+            messages: messagesAfter(AFTER_CONTINUATION_DONE),
+            continuationExecutionId: CONTINUATION_EXECUTION_ID,
+        })
+        expect(answering.result.current.ownsContinuation).toBe(false)
+    })
+
     it("holds through every continuation record and releases on its terminal one", () => {
         const {rerender, result, sendQueued} = renderQueue({
             messages: messagesAfter(AFTER_SOURCE_PAUSED_DONE),
@@ -151,7 +193,7 @@ describe("a held message must outlive the durable continuation", () => {
 
     it("keeps holding past the ceiling while the transcript still shows the continuation running", () => {
         vi.useFakeTimers()
-        const {rerender, sendQueued} = renderQueue({
+        const {rerender, result, sendQueued} = renderQueue({
             messages: messagesAfter(AFTER_CONTINUATION_FIRST_THOUGHT),
             continuationExecutionId: CONTINUATION_EXECUTION_ID,
         })
@@ -159,11 +201,13 @@ describe("a held message must outlive the durable continuation", () => {
             vi.advanceTimersByTime(CONTINUATION_HOLD_MAX_MS + 1)
         })
         expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.ownsContinuation).toBe(true)
 
         rerender({
             messages: messagesAfter(AFTER_CONTINUATION_DONE),
             continuationExecutionId: CONTINUATION_EXECUTION_ID,
         })
         expect(sendQueued).toHaveBeenCalledOnce()
+        expect(result.current.ownsContinuation).toBe(false)
     })
 })

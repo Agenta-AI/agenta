@@ -402,6 +402,7 @@ const AgentConversation = ({
         queued,
         submit,
         removeQueued,
+        ownsContinuation,
         hitlPending,
         editingId,
         beginEdit,
@@ -557,11 +558,19 @@ const AgentConversation = ({
             ? "error"
             : hitlPending || anyPendingInteraction
               ? "awaiting"
-              : busy
+              : busy || ownsContinuation
                 ? "running"
                 : "idle"
         setSessionStatus({id: sessionId, status})
-    }, [error, hitlPending, anyPendingInteraction, busy, sessionId, setSessionStatus])
+    }, [
+        error,
+        hitlPending,
+        anyPendingInteraction,
+        busy,
+        ownsContinuation,
+        sessionId,
+        setSessionStatus,
+    ])
     // On unmount, retire the dot ONLY if the run went with us. A chat preserved past this mount
     // (route change with the tab still open) is still this browser's run to report, so it keeps its
     // status until it settles — `useAgentChatSession`'s `onFinish` retires it then. The session hook

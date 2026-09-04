@@ -147,6 +147,14 @@ export const useAgentChatQueue = ({
     // A user stop cancels the continuation too, so it outranks the hold exactly as it outranks
     // every other gate here.
     const continuationHold = !stopped && (idHold || hasRunningApprovalContinuation(messages))
+    // Ownership is scoped by the respond body's execution id, so an observer rendering the same
+    // continuation records never claims it. Keep ownership past the gap ceiling once that exact
+    // execution is visibly running; the ceiling only protects a continuation that wrote nothing.
+    const ownsContinuation =
+        idHold ||
+        (!!continuationExecutionId &&
+            hasRunningApprovalContinuation(messages) &&
+            !approvalContinuationSettled(messages, continuationExecutionId))
 
     // Releasable now: the normal gate, OR a settled turn whose hold was voided — by a user stop,
     // or by an orphaned restored resume shape that nothing in this mount can ever fire.
@@ -314,6 +322,8 @@ export const useAgentChatQueue = ({
         queued,
         submit,
         removeQueued,
+        /** This tab received the durable respond body for this still-running execution. */
+        ownsContinuation,
         /** The conversation is paused on a HITL approval — typed messages should queue, not send. */
         hitlPending,
         /** Id of the held message the composer is currently editing, or null. */

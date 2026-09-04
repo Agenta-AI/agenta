@@ -650,6 +650,7 @@ export const useAgentConversation = ({
         queued,
         submit,
         removeQueued,
+        ownsContinuation,
         hitlPending,
         editingId,
         beginEdit,
@@ -837,7 +838,7 @@ export const useAgentConversation = ({
     const runStatus = deriveSessionRunStatus({
         error: !!errorBoundary.runError,
         hitlPending,
-        busy: busy || acceptedRunPending,
+        busy: busy || acceptedRunPending || ownsContinuation,
     })
     useEffect(() => {
         setSessionStatus({id: sessionId, status: runStatus})
