@@ -26,6 +26,7 @@ export const sessionRecordSchema = z
         record_source: z.string().nullish(),
         record_type: z.string().nullish(),
         attributes: z.record(z.string(), z.unknown()).nullish(),
+        turn_id: z.string().nullish(),
         timestamp: z.string().nullish(),
         created_at: z.string().nullish(),
     })
@@ -38,6 +39,7 @@ export const sessionRecordSchema = z
         sender: r.record_source ?? null,
         session_update: r.record_type ?? null,
         payload: r.attributes ?? null,
+        turn_id: r.turn_id ?? null,
         created_at: r.created_at ?? r.timestamp ?? null,
     }))
 

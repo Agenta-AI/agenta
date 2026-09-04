@@ -68,6 +68,14 @@ interface DraftMessage {
     resumed?: boolean
     /** A non-paused durable `done` closed this turn. */
     recordTerminal?: boolean
+    /** The durable approval resumed under a separate execution; queue release follows this one. */
+    approvalContinuation?: {
+        sourceExecutionId: string
+        executionId: string
+        state: "running" | "done" | "error"
+    }
+    /** Execution id of the paused approval turn, kept internal while replay associates its resume. */
+    pausedExecutionId?: string
     /** The turn's persisted `error` event — replayed through the same `metadata.runError` channel
      *  the live stream stamps, so a failure renders as the error bubble, not as body text. */
     runError?: string
@@ -590,6 +598,11 @@ export function transcriptToMessages(
 ): UIMessage[] | null {
     const drafts: DraftMessage[] = []
     let current: DraftMessage | null = null
+    let latestPaused: DraftMessage | null = null
+    const draftsByExecution = new Map<
+        string,
+        {user?: DraftMessage; assistant?: DraftMessage; hasUser: boolean}
+    >()
     // Paused resumes close the draft, but later answers and results still target its tool part.
     const index: TranscriptIndex = {tools: new Map(), approvals: new Map()}
 
@@ -597,6 +610,7 @@ export function transcriptToMessages(
         const payload = row.payload
         if (!payload || typeof payload !== "object") continue
         const p = payload as Record<string, unknown>
+        const executionId = row.turn_id ?? undefined
         // Speculative trace link (no-op until the backend stamps one) — the id can ride the `done`
         // row too, so read it before the turn closes.
         const traceId = extractTraceId(row, p)
@@ -604,18 +618,22 @@ export function transcriptToMessages(
         // this every turn folds into one assistant bubble; closing the draft here starts a
         // fresh message per turn.
         if (row.session_update === "done" || p.type === "done") {
+            const target: DraftMessage | null =
+                (executionId ? draftsByExecution.get(executionId)?.assistant : undefined) ?? current
             // Last-wins: a paused turn folds into its resume (below), and that turn has two `done`s
             // with two traceIds — prefer the RESUME trace, where the approved tool actually executed.
             // A normal turn has a single `done`, so this is unchanged for it.
-            if (current && traceId) current.traceId = traceId
-            if (current && p.stopReason === "paused") {
+            if (target && traceId) target.traceId = traceId
+            if (target && p.stopReason === "paused") {
                 // Paused mid-approval: the resume turn's records (the re-emitted call, its result,
                 // the follow-up text) belong to the SAME assistant turn the user saw live, so keep
                 // the draft OPEN and let them fold into it instead of splitting into a dangling
                 // "awaiting approval" bubble + a resumed bubble. A paused turn blocks the session,
                 // so it's always followed by its own resume or is the last (abandoned) turn. Mark it
                 // paused for the adoption heuristic; the normal `done` below clears it on resume.
-                current.paused = true
+                target.paused = true
+                target.pausedExecutionId = executionId
+                latestPaused = target
                 continue
             }
             if (p.stopReason === "cancelled") {
@@ -633,21 +651,62 @@ export function transcriptToMessages(
                 continue
             }
             // A resumed-then-completed turn is no longer paused.
-            if (current?.paused) current.resumed = true
-            if (current) {
-                current.paused = false
-                current.recordTerminal = true
+            if (
+                target?.approvalContinuation &&
+                target.approvalContinuation.executionId === executionId
+            ) {
+                target.approvalContinuation.state = "done"
             }
-            current = null
+            if (target?.paused) target.resumed = true
+            if (target) {
+                target.paused = false
+                target.recordTerminal = true
+            }
+            if (latestPaused === target) latestPaused = null
+            if (current === target) current = null
             continue
         }
         const role = roleOf(row.sender)
-        if (!current || current.role !== role) {
+        if (executionId) {
+            let execution = draftsByExecution.get(executionId)
+            if (!execution) {
+                execution = {hasUser: false}
+                draftsByExecution.set(executionId, execution)
+            }
+            if (role === "user") execution.hasUser = true
+            current = execution[role] ?? null
+            if (!current && role === "assistant" && latestPaused && !execution.hasUser) {
+                current = latestPaused
+                execution.assistant = current
+                if (
+                    latestPaused.pausedExecutionId &&
+                    latestPaused.pausedExecutionId !== executionId
+                ) {
+                    latestPaused.approvalContinuation = {
+                        sourceExecutionId: latestPaused.pausedExecutionId,
+                        executionId,
+                        state: "running",
+                    }
+                }
+            }
+            if (!current) {
+                current = newDraft(row.id, role)
+                execution[role] = current
+                drafts.push(current)
+            }
+        } else if (!current || current.role !== role) {
             current = newDraft(row.id, role)
             drafts.push(current)
         }
         if (traceId && !current.traceId) current.traceId = traceId
         applyEvent(current, p, index, row.session_id)
+        if (
+            p.type === "error" &&
+            current.approvalContinuation &&
+            current.approvalContinuation.executionId === executionId
+        ) {
+            current.approvalContinuation.state = "error"
+        }
     }
 
     // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
@@ -674,6 +733,7 @@ export function transcriptToMessages(
             if (d.paused) metadata.paused = true
             if (d.runStopped) metadata.runStopped = true
             if (d.recordTerminal) metadata.recordTerminal = true
+            if (d.approvalContinuation) metadata.approvalContinuation = d.approvalContinuation
             if (d.runError && !d.runStopped)
                 metadata.runError = {
                     message: d.runError,

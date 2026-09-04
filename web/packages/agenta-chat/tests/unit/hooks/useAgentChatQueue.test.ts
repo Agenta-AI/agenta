@@ -32,10 +32,20 @@ const assistantAwaitingApproval = (id: string): UIMessage =>
         ],
     }) as unknown as UIMessage
 
-const assistantTerminalAfterApproval = (id: string): UIMessage =>
+const assistantContinuation = (
+    id: string,
+    state: "running" | "done" | "error",
+): UIMessage =>
     ({
         ...assistantAwaitingApproval(id),
-        metadata: {recordTerminal: true},
+        metadata: {
+            ...(state === "done" ? {recordTerminal: true} : {}),
+            approvalContinuation: {
+                sourceExecutionId: `${id}-source-execution`,
+                executionId: `${id}-continuation-execution`,
+                state,
+            },
+        },
         parts: [
             {
                 type: "tool-send_email",
@@ -195,7 +205,7 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued).toHaveLength(0)
     })
 
-    it("drains a held message after the continuation terminal record", () => {
+    it("holds through a different continuation execution and drains once after its terminal", () => {
         const paused: HarnessProps = {
             status: "ready",
             messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
@@ -206,12 +216,25 @@ describe("useAgentChatQueue", () => {
 
         rerender({
             ...paused,
-            messages: [userTurn("u1", "go"), assistantTerminalAfterApproval("a1")],
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "running")],
+        })
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued).toHaveLength(1)
+
+        rerender({
+            ...paused,
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "done")],
         })
 
         expect(sendQueued).toHaveBeenCalledOnce()
         expect(sendQueued.mock.calls[0][0]).toMatchObject({text: "after continuation"})
         expect(result.current.queued).toHaveLength(0)
+
+        rerender({
+            ...paused,
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "done")],
+        })
+        expect(sendQueued).toHaveBeenCalledOnce()
     })
 
     it("a user stop voids the HITL hold: settled sends go immediately and hitlPending clears", () => {

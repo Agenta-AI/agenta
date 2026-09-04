@@ -28,6 +28,22 @@ interface MessageLike {
     metadata?: unknown
 }
 
+type ApprovalContinuationState = "running" | "done" | "error"
+
+const latestApprovalContinuationState = (
+    messages: MessageLike[],
+): ApprovalContinuationState | undefined => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const state = (
+            messages[i]?.metadata as
+                | {approvalContinuation?: {state?: ApprovalContinuationState}}
+                | undefined
+        )?.approvalContinuation?.state
+        if (state) return state
+    }
+    return undefined
+}
+
 const isToolPart = (part: ToolPartLike): boolean => {
     const type = part?.type
     return typeof type === "string" && (type.startsWith("tool-") || type === "dynamic-tool")
@@ -77,7 +93,12 @@ export function messageHasPendingHitl(message: MessageLike): boolean {
  * freeze the queue permanently. `isHitlPending` still holds — its dock IS the unblock UI.
  */
 export function canReleaseQueuedMessage(status: string, messages: MessageLike[]): boolean {
+    const continuationState = latestApprovalContinuationState(messages)
+    if (continuationState === "running") return false
     if (status === "error") return !isHitlPending(messages)
+    if (status === "ready" && (continuationState === "done" || continuationState === "error")) {
+        return !isHitlPending(messages)
+    }
     const lastAssistant = messages.findLast((message) => message.role === "assistant")
     const recordTerminal = (lastAssistant?.metadata as {recordTerminal?: unknown} | undefined)
         ?.recordTerminal

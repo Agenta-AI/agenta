@@ -26,6 +26,7 @@ const record = (id: string, payload: Record<string, unknown>, sender = "agent"):
     sender,
     session_update: String(payload.type),
     payload,
+    turn_id: null,
     created_at: null,
 })
 
