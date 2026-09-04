@@ -55,7 +55,9 @@ interface Beat {
 }
 
 /** The fake platform API. `admit` decides what its heartbeat answers for each beat. */
-async function startFakeApi(admit: (beat: Beat) => boolean): Promise<{
+async function startFakeApi(
+  admit: (beat: Beat) => boolean | Promise<boolean>,
+): Promise<{
   url: string;
   beats: Beat[];
   paths: string[];
@@ -66,7 +68,7 @@ async function startFakeApi(admit: (beat: Beat) => boolean): Promise<{
   const server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on("data", (c) => chunks.push(c as Buffer));
-    req.on("end", () => {
+    req.on("end", async () => {
       const path = (req.url ?? "").split("?")[0];
       paths.push(path);
       let body: Record<string, unknown> = {};
@@ -87,7 +89,8 @@ async function startFakeApi(admit: (beat: Beat) => boolean): Promise<{
             stream: { id: "11111111-1111-1111-1111-111111111111" },
             replica_id: body.replica_id ?? null,
             // A turn-end beat (`is_running: false`) is never an admission question.
-            is_current_turn: beat.is_running === false ? true : admit(beat),
+            is_current_turn:
+              beat.is_running === false ? true : await admit(beat),
           }),
         );
         return;
@@ -347,6 +350,108 @@ describe("runner admission: an admitted turn proceeds", () => {
       const terminal = records.find((r) => r.kind === "result");
       assert.equal(terminal!.result!.ok, true);
     } finally {
+      await runner.close();
+      await api.close();
+    }
+  });
+
+  it("a refused second turn cannot replace the admitted turn's Stop handle", async () => {
+    let releaseSecondAdmission!: () => void;
+    const secondAdmissionMayFinish = new Promise<void>((resolve) => {
+      releaseSecondAdmission = resolve;
+    });
+    let markSecondAdmissionWaiting!: () => void;
+    const secondAdmissionWaiting = new Promise<void>((resolve) => {
+      markSecondAdmissionWaiting = resolve;
+    });
+    const api = await startFakeApi(async (beat) => {
+      if (beat.turn_id !== "turn-B") return true;
+      markSecondAdmissionWaiting();
+      await secondAdmissionMayFinish;
+      return false;
+    });
+    process.env[INTERNAL_ENV] = api.url;
+
+    let markFirstRunning!: () => void;
+    const firstRunning = new Promise<void>((resolve) => {
+      markFirstRunning = resolve;
+    });
+    let markFirstAborted!: () => void;
+    const firstAborted = new Promise<void>((resolve) => {
+      markFirstAborted = resolve;
+    });
+    let finishFirstForCleanup!: () => void;
+    const firstMayFinishForCleanup = new Promise<void>((resolve) => {
+      finishFirstForCleanup = resolve;
+    });
+    const runCalls: string[] = [];
+    const runner = await startRunner(
+      async (request, _emit, signal): Promise<AgentRunResult> => {
+        runCalls.push(request.turnId ?? "missing");
+        assert.equal(request.turnId, "turn-A", "the refused turn never reaches run()");
+        markFirstRunning();
+        await Promise.race([
+          new Promise<void>((resolve) => {
+            if (signal?.aborted) resolve();
+            else signal?.addEventListener("abort", () => resolve(), { once: true });
+          }),
+          firstMayFinishForCleanup,
+        ]);
+        if (signal?.aborted) markFirstAborted();
+        return {
+          ok: true,
+          output: "",
+          events: [],
+          ...(signal?.aborted ? { stopReason: "cancelled" as const } : {}),
+        };
+      },
+    );
+
+    const firstRequest = postRun(
+      runner.url,
+      sessionRequest({ turnId: "turn-A" }),
+    );
+    let secondRequest: ReturnType<typeof postRun> | undefined;
+    try {
+      await firstRunning;
+      secondRequest = postRun(
+        runner.url,
+        sessionRequest({ turnId: "turn-B" }),
+      );
+      await secondAdmissionWaiting;
+
+      const cancel = await fetch(`${runner.url}/cancel`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...AUTH },
+        body: JSON.stringify({
+          commandId: "command-stop-A",
+          projectId: "project-1",
+          sessionId: "session-admission-1",
+          targetTurnId: "turn-A",
+          createdAt: new Date().toISOString(),
+        }),
+      });
+
+      assert.equal(cancel.status, 202, "the runner still holds admitted turn A");
+      await firstAborted;
+      releaseSecondAdmission();
+      const [first, second] = await Promise.all([firstRequest, secondRequest]);
+      assert.equal(
+        first.records.find((record) => record.kind === "result")?.result?.ok,
+        true,
+      );
+      assert.equal(
+        second.records.find((record) => record.kind === "result")?.result?.error,
+        SESSION_TURN_IN_USE_MESSAGE,
+      );
+      assert.deepEqual(runCalls, ["turn-A"]);
+    } finally {
+      releaseSecondAdmission();
+      finishFirstForCleanup();
+      await Promise.allSettled([
+        firstRequest,
+        ...(secondRequest ? [secondRequest] : []),
+      ]);
       await runner.close();
       await api.close();
     }

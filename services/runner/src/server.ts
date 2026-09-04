@@ -516,18 +516,6 @@ async function runAndStreamWithApiBaseResolved(
     return;
   }
 
-  // Register only a request that passed synchronous admission validation.
-  if (sessionOwned) {
-    registerExecution({
-      // The coordinator fills in project scope once it has verified the signed mount.
-      projectId: projectScopeFor(request, undefined)?.id,
-      sessionId,
-      turnId,
-      startedAt: Date.now(),
-      abort: () => controller.abort(USER_STOP_ABORT_REASON),
-    });
-  }
-
   // For session-owned runs: wrap the live emitter so every event is also persisted
   // producer-side, independent of whether the client is still connected.
   let emitFn: EmitEvent = liveEmit;
@@ -613,6 +601,15 @@ async function runAndStreamWithApiBaseResolved(
         res.end();
         return;
       }
+
+      // A refused contender must never replace the admitted execution's Stop handle.
+      registerExecution({
+        projectId: projectScopeFor(request, undefined)?.id,
+        sessionId,
+        turnId,
+        startedAt: Date.now(),
+        abort: () => controller.abort(USER_STOP_ABORT_REASON),
+      });
 
       // Admitted. Tell the client which execution it is watching, before anything else streams.
       //
