@@ -23,6 +23,9 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandState,
 )
 from oss.src.core.sessions.commands.interfaces import SessionScope
+from oss.src.core.sessions.commands.service import SessionCommandsService
+from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
 from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
@@ -621,6 +624,31 @@ async def test_runner_and_watchdog_have_one_terminal_winner(command_scope):
     assert runner.settlement == watchdog.settlement
 
 
+async def test_repeating_the_same_execution_settlement_reports_only_the_insert_as_winner(
+    command_scope,
+):
+    dao = SessionExecutionsDAO(engine=command_scope["engine"])
+
+    first = await dao.settle(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+        execution_id="turn-A",
+        terminal_outcome="lost",
+        settled_by="watchdog",
+    )
+    repeated = await dao.settle(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+        execution_id="turn-A",
+        terminal_outcome="lost",
+        settled_by="watchdog",
+    )
+
+    assert first.won is True
+    assert repeated.won is False
+    assert repeated.settlement == first.settlement
+
+
 async def test_execution_ending_marker_is_one_way(command_scope):
     dao = SessionExecutionsDAO(engine=command_scope["engine"])
     await dao.settle(
@@ -771,3 +799,63 @@ async def test_terminal_core_facts_commit_in_one_transaction(command_scope):
         "cancelled",
         "stopped",
     )
+
+
+async def test_execution_conflict_rolls_back_the_command_transition(command_scope):
+    commands = SessionCommandsDAO(engine=command_scope["engine"])
+    executions = SessionExecutionsDAO(engine=command_scope["engine"])
+    streams = SessionStreamsDAO(engine=command_scope["engine"])
+    interactions = SessionInteractionsDAO(engine=command_scope["engine"])
+    command = await commands.create_command(
+        user_id=command_scope["user_id"],
+        command=_create(command_scope),
+        stopping_turn_id="turn-A",
+    )
+    await commands.record_delivery_attempt(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        now=datetime.now(timezone.utc),
+        max_deliveries=3,
+    )
+    await commands.claim_for_delivery(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        replica_id="runner-1",
+        lease_seconds=90,
+    )
+    await executions.settle(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+        execution_id="turn-A",
+        terminal_outcome="lost",
+        settled_by="watchdog",
+    )
+
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=SessionStreamsService(
+            streams_dao=streams,
+            lock_engine=None,
+        ),
+        interactions_service=SessionInteractionsService(
+            interactions_dao=interactions,
+        ),
+        lock_engine=None,
+        delivery=None,
+        executions_dao=executions,
+    )
+    settled = await service.settle(
+        command_id=command.id,
+        project_id=command_scope["project_id"],
+        replica_id="runner-1",
+        expected_states=[SessionCommandState.claimed],
+        state=SessionCommandState.applied,
+        outcome=SessionCommandOutcome.stopped,
+        execution_id="turn-A",
+    )
+
+    assert settled is None
+    stored = await commands.fetch_command(command_id=command.id)
+    assert stored is not None
+    assert stored.state == SessionCommandState.claimed
+    assert stored.outcome is None

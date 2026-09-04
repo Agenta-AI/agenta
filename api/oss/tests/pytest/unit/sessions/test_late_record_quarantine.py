@@ -182,10 +182,16 @@ def _quarantined(dao: _StubDAO) -> List[SessionRecordEvent]:
 # --------------------------------------------------------------------------- #
 
 
-async def test_a_thawed_runners_tail_is_quarantined_not_appended_as_history():
+async def test_a_thawed_runners_tail_is_quarantined_with_durable_stop_off(
+    monkeypatch,
+):
     """The live defect, in one test: four records land after the watchdog's ending."""
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", False)
     dao = _StubDAO(watchdog_settled={(_SESSION, _TURN)})
-    service = RecordsService(records_dao=dao)
+    service = RecordsService(
+        records_dao=dao,
+        executions_dao=_ExecutionSettlements(),
+    )
 
     tail = [
         _event("tool_call"),

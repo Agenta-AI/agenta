@@ -31,6 +31,7 @@ from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     ORPHAN_THRESHOLD_SECONDS,
     IDLE_THRESHOLD_SECONDS,
     SWEEP_BATCH_SIZE,
+    _unsettled_turns,
     run_orphan_sweep,
 )
 
@@ -282,6 +283,37 @@ class _FakeRecordsService:
     async def settled_turns(self, *, project_id, keys):
         self.queries.append(list(keys))
         return {key for key in keys if key in self.settled}
+
+
+@pytest.mark.anyio
+async def test_terminal_record_checks_are_batched_once_per_project(anyio_backend):
+    other_project = UUID("00000000-0000-4000-8000-000000000002")
+
+    class _RecordingRecords:
+        def __init__(self):
+            self.queries = []
+
+        async def settled_turns(self, *, project_id, keys):
+            self.queries.append((project_id, list(keys)))
+            return set()
+
+    records = _RecordingRecords()
+    first_project = [
+        (_PROJECT_ID, f"session-{index}", f"turn-{index}") for index in range(100)
+    ]
+    second_project = [(other_project, "session-other", "turn-other")]
+
+    unsettled, ended = await _unsettled_turns(
+        records_service=records,
+        candidates=[*first_project, *second_project],
+    )
+
+    assert ended == set()
+    assert unsettled == set(first_project + second_project)
+    assert [(project_id, len(keys)) for project_id, keys in records.queries] == [
+        (_PROJECT_ID, 100),
+        (other_project, 1),
+    ]
 
 
 class _FakeWatchPublisher:
