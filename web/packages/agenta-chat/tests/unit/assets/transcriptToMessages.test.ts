@@ -1058,10 +1058,7 @@ describe("transcriptToMessages run-error code", () => {
 })
 
 describe("transcriptToMessages user-Stop terminal record", () => {
-    // The runner now stamps `stopReason: "cancelled"` on a stopped turn's terminal `done`, so a
-    // reader can tell a Stop from a completion. Reconstruction reads only `"paused"`, so a
-    // cancelled `done` falls through to the ordinary terminator. These pin that this is what
-    // happens, because "the new value is inert here" is a claim worth a test, not a comment.
+    // A cancelled `done` is an ordinary turn terminator during reconstruction.
     it("closes a stopped turn like a completed one", () => {
         const messages = transcriptToMessages([
             record("r-user", {type: "message", text: "run something long"}, "user"),
