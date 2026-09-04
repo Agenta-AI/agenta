@@ -1,4 +1,5 @@
-import {beforeEach, describe, expect, it, vi} from "vitest"
+import type {SessionCapabilities, SessionStreamResponse} from "@agentaai/api-client"
+import {beforeEach, describe, expect, expectTypeOf, it, vi} from "vitest"
 
 const {resume, fetchStream} = vi.hoisted(() => ({resume: vi.fn(), fetchStream: vi.fn()}))
 
@@ -57,6 +58,12 @@ describe("resumeSessionContinuation", () => {
 })
 
 describe("fetchSessionDurableApprovalsCapability", () => {
+    it("uses the generated named capability model", () => {
+        expectTypeOf<
+            NonNullable<SessionStreamResponse["capabilities"]>
+        >().toEqualTypeOf<SessionCapabilities>()
+    })
+
     it("uses the authenticated session response as the capability source", async () => {
         fetchStream.mockResolvedValue({
             stream: null,
