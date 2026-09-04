@@ -40,4 +40,17 @@ describe("assertNoResumedSessionContinuation", () => {
         ).rejects.toThrow("continuation_resumed")
         expect(prepare).not.toHaveBeenCalled()
     })
+
+    it("still builds a request when the additive preflight transport fails", async () => {
+        const prepare = vi.fn().mockResolvedValue({body: "ordinary send"})
+
+        await expect(
+            prepareAfterContinuationPreflight(
+                vi.fn().mockRejectedValue(new Error("older API")),
+                "session-1",
+                prepare,
+            ),
+        ).resolves.toEqual({body: "ordinary send"})
+        expect(prepare).toHaveBeenCalledOnce()
+    })
 })

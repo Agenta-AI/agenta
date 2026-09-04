@@ -155,6 +155,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionDetachRequest,
     SessionStreamQueryRequest,
     SessionStreamResponse,
+    SessionCapabilities,
     SessionStreamsResponse,
     # records
     SessionRecordIngestBody,
@@ -516,7 +517,12 @@ class SessionStreamsRouter:
             project_id=UUID(str(project_id)),
             session_id=session_id,
         )
-        return SessionStreamResponse(stream=sanitize_session_stream(stream))
+        return SessionStreamResponse(
+            stream=sanitize_session_stream(stream),
+            capabilities=SessionCapabilities(
+                durable_approvals=env.agenta.sessions.durable_approvals
+            ),
+        )
 
     @intercept_exceptions()
     @_handle_session_exceptions()

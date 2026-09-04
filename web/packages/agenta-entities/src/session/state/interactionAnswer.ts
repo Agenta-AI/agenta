@@ -2,7 +2,12 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-import {respondInteraction, resumeSessionContinuation, transitionInteraction} from "../api/api"
+import {
+    fetchSessionDurableApprovalsCapability,
+    respondInteraction,
+    resumeSessionContinuation,
+    transitionInteraction,
+} from "../api/api"
 
 import {
     fetchSessionInteractionStatesAtom,
@@ -37,6 +42,9 @@ export const resumeSessionContinuationAtom = atom(
     null,
     async (get, _set, sessionId: string): Promise<boolean> => {
         const projectId = get(projectIdAtom) ?? ""
+        if (!(await fetchSessionDurableApprovalsCapability({projectId, sessionId}))) {
+            return false
+        }
         return resumeSessionContinuation({projectId, sessionId})
     },
 )

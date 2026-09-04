@@ -272,6 +272,12 @@ export const sessionsQueryResponseSchema = z.object({
 
 export const sessionStreamResponseSchema = z.object({
     stream: sessionStreamSchema.nullish(),
+    capabilities: z
+        .object({
+            durable_approvals: z.boolean().optional().default(false),
+        })
+        .optional()
+        .default({durable_approvals: false}),
 })
 
 /** Control-call result for the prompt × force command matrix. */

@@ -7,6 +7,7 @@ from oss.src.apis.fastapi.sessions import router as router_module
 from oss.src.apis.fastapi.sessions.models import SessionInteractionRespondRequest
 from oss.src.apis.fastapi.sessions.router import InteractionsRouter
 from oss.src.apis.fastapi.sessions.router import SessionControlRouter
+from oss.src.apis.fastapi.sessions.router import SessionStreamsRouter
 from oss.src.core.sessions.commands.dtos import SessionCommandState
 from oss.src.core.sessions.commands.types import IdempotencyKeyReused
 from oss.src.core.sessions.executions.dtos import SessionExecutionState
@@ -302,3 +303,25 @@ async def test_feature_off_batch_without_path_anchor_returns_422(monkeypatch):
         "reason": "anchor_missing",
     }
     interactions.fetch_interaction.assert_not_awaited()
+
+
+async def test_session_stream_response_advertises_durable_approvals(monkeypatch):
+    project_id = uuid4()
+    service = SimpleNamespace(fetch=AsyncMock(return_value=None))
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    router = SessionStreamsRouter(
+        service=service,
+        interactions_service=AsyncMock(),
+    )
+
+    response = await router.fetch_session_stream(
+        request=SimpleNamespace(
+            state=SimpleNamespace(project_id=project_id, user_id=uuid4())
+        ),
+        session_id="session-1",
+    )
+
+    assert response.capabilities.durable_approvals is True

@@ -677,6 +677,30 @@ export async function fetchSessionStream({
     return validated?.stream ?? null
 }
 
+/** Server-owned feature capability. Missing/failed responses mean legacy behavior. */
+export async function fetchSessionDurableApprovalsCapability({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const data = await callFern("[fetchSessionDurableApprovalsCapability]", () =>
+        getSessionsClient().fetchSessionStream(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return false
+    const validated = safeParseWithLogging(
+        sessionStreamResponseSchema,
+        data,
+        "[fetchSessionDurableApprovalsCapability]",
+    )
+    return validated?.capabilities.durable_approvals ?? false
+}
+
 export interface CommandSessionStreamParams extends SessionScopedParams {
     /** Steal the run lock from whoever holds it. */
     force?: boolean
@@ -1159,8 +1183,8 @@ export interface ResumeSessionContinuationParams extends SessionScopedParams {}
 /**
  * Ask the API to redeliver an already-durable approval continuation before a direct invoke.
  *
- * This mutation deliberately throws on transport or malformed-response failures: if ownership
- * is uncertain, allowing the caller to start a fresh turn could race the saved continuation.
+ * This mutation fails open: continuation recovery is an additive capability and can never make
+ * an ordinary Send depend on a new route being available.
  */
 export async function resumeSessionContinuation({
     sessionId,
@@ -1168,19 +1192,23 @@ export async function resumeSessionContinuation({
     appId,
     abortSignal,
 }: ResumeSessionContinuationParams): Promise<boolean> {
-    if (!projectId || !sessionId) {
-        throw new Error("Continuation preflight has no project or session scope.")
-    }
+    if (!projectId || !sessionId) return false
 
-    const data = await getSessionsClient().resumeSessionContinuation(
-        {session_id: sessionId},
-        projectScopedRequest(projectId, appId, abortSignal),
-    )
-    const parsed = z.object({resumed: z.boolean()}).safeParse(data)
-    if (!parsed.success) {
-        throw new Error("Continuation preflight returned an invalid response.")
+    try {
+        const data = await getSessionsClient().resumeSessionContinuation(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        )
+        const parsed = z.object({resumed: z.boolean()}).safeParse(data)
+        if (!parsed.success) {
+            console.warn("[resumeSessionContinuation] invalid response; continuing Send")
+            return false
+        }
+        return parsed.data.resumed
+    } catch (error) {
+        console.warn("[resumeSessionContinuation] preflight failed; continuing Send", error)
+        return false
     }
-    return parsed.data.resumed
 }
 
 /** Cancel current work through Fern while keeping the session warm. */

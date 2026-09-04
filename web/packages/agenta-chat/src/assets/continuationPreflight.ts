@@ -8,7 +8,14 @@ export async function assertNoResumedSessionContinuation(
     resume: ResumeSessionContinuation,
     sessionId: string,
 ): Promise<void> {
-    if (!(await resume(sessionId))) return
+    let resumed = false
+    try {
+        resumed = await resume(sessionId)
+    } catch (error) {
+        console.warn("[continuationPreflight] unavailable; continuing Send", error)
+        return
+    }
+    if (!resumed) return
     throw new Error(
         JSON.stringify({
             status: {

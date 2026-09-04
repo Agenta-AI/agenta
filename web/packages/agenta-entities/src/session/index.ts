@@ -19,6 +19,7 @@ export {
     querySessions,
     setSessionHeader,
     fetchSessionStream,
+    fetchSessionDurableApprovalsCapability,
     commandSessionStream,
     cancelSessionExecution,
     cancelSessionStream,

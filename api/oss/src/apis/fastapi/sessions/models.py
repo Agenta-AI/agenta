@@ -138,8 +138,13 @@ class SessionStreamQueryRequest(BaseModel):
     is_running: Optional[bool] = None
 
 
+class SessionCapabilities(BaseModel):
+    durable_approvals: bool = False
+
+
 class SessionStreamResponse(BaseModel):
     stream: Optional[SessionStream] = None
+    capabilities: SessionCapabilities = Field(default_factory=SessionCapabilities)
 
 
 class SessionStreamsResponse(BaseModel):
