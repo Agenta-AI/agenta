@@ -22,6 +22,24 @@ export interface RequiredIntegration {
 }
 
 /**
+ * One connection SLOT, named by what the template needs it for and satisfied by any ONE of its
+ * options. This is the shape the playbooks already describe in prose — "GitHub (or GitLab) to
+ * read the diff", "Slack or Discord are optional" — which a flat required/logo split could not
+ * express: it could say GitLab existed, never that it stood in for GitHub.
+ *
+ * Every provider mark on a card is derived from these options, so the logos cannot drift from
+ * the connections the way a separately-kept list did.
+ */
+export interface TemplateConnection {
+    /** What the slot is for, in the playbook's words: "read the diff and post review comments". */
+    role: string
+    /** False for a slot the playbook calls optional — it never gates Create. */
+    required: boolean
+    /** Interchangeable providers; `[0]` is the primary, and its tools front the Tools preview. */
+    options: RequiredIntegration[]
+}
+
+/**
  * An illustrative run, authored alongside the template.
  *
  * Shaped so it can later be POPULATED rather than written: every field is something a real
@@ -85,6 +103,11 @@ export interface AgentStarterTemplate {
      */
     logoSlugs?: string[]
     /**
+     * The connection slots, replacing `logoSlugs` + `requiredIntegrations`. Present on migrated
+     * templates; the two legacy fields are derived from it until every entry has moved over.
+     */
+    connections?: TemplateConnection[]
+    /**
      * Exactly the connections the template's playbook hard-requires — drive the "Required to run"
      * connect rows. Alternatives (the "X or Y" of a pick-one source/destination) and optional
      * extensions are display-only `logoSlugs`, never listed here; only the primary/SOLID one of an
@@ -122,12 +145,35 @@ export const PROVIDERS: Record<string, {label: string; logo: string}> = {
     posthog: {label: "PostHog", logo: composioLogo("posthog")},
 }
 
+/**
+ * The template's connection slots. A migrated template states them; one that has not moved over
+ * yet is read as one required, single-option slot per `requiredIntegrations` entry — which is
+ * exactly what it meant before, minus any notion of an alternative.
+ */
+export function templateConnections(template: AgentStarterTemplate): TemplateConnection[] {
+    if (template.connections) return template.connections
+    return template.requiredIntegrations.map((integration) => ({
+        role: integration.scope,
+        required: true,
+        options: [integration],
+    }))
+}
+
 /** Integration slugs a template touches (card provider marks). Prefers display logos; falls
  * back to the required-to-run slugs so a template without `logoSlugs` still renders marks. */
-export const templateProviderSlugs = (template: AgentStarterTemplate): string[] =>
-    template.logoSlugs?.length
+export const templateProviderSlugs = (template: AgentStarterTemplate): string[] => {
+    // Migrated templates derive their marks from the slots, so a logo cannot advertise a provider
+    // no slot accepts (or omit one it does). Unmigrated entries keep the hand-kept list.
+    if (template.connections) {
+        const slugs = templateConnections(template).flatMap((connection) =>
+            connection.options.map((option) => option.slug),
+        )
+        return [...new Set(slugs)]
+    }
+    return template.logoSlugs?.length
         ? template.logoSlugs
         : template.requiredIntegrations.map((integration) => integration.slug)
+}
 
 /** Total tool count across a template's integrations (drawer Tools count). */
 export const templateToolCount = (template: AgentStarterTemplate): number =>
@@ -220,7 +266,51 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         builderMessage:
             "Build a PR reviewer that comments inline on risky changes and flags missing tests.",
         model: DEFAULT_MODEL,
-        logoSlugs: ["github", "gitlab"],
+        // Playbook: "GitHub (or GitLab) to read the diff and post review comments."
+        connections: [
+            {
+                role: "Read the diff and post review comments",
+                required: true,
+                options: [
+                    {
+                        slug: "github",
+                        scope: "Read PRs, post reviews & comments",
+                        tools: [
+                            {
+                                name: "Get pull request",
+                                description: "Read a PR's diff, changed files, and metadata.",
+                            },
+                            {
+                                name: "Create review comment",
+                                description: "Comment inline on specific lines of the diff.",
+                            },
+                            {
+                                name: "Create issue comment",
+                                description: "Post the plain-English summary on the PR.",
+                            },
+                        ],
+                    },
+                    {
+                        slug: "gitlab",
+                        scope: "Read MRs, post review comments",
+                        tools: [
+                            {
+                                name: "Get merge request",
+                                description: "Read an MR's diff, changed files, and metadata.",
+                            },
+                            {
+                                name: "Create merge request note",
+                                description: "Comment inline on specific lines of the diff.",
+                            },
+                            {
+                                name: "Create issue note",
+                                description: "Post the plain-English summary on the MR.",
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
         requiredIntegrations: [
             {
                 slug: "github",
