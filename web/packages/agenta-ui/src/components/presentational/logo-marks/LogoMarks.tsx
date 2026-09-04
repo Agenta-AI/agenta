@@ -35,18 +35,13 @@ function Mark({item, size}: {item: LogoMark; size: number}) {
             >
                 {item.logo ? (
                     // Plain img, not next/image: remote brand CDNs would need a host list per app.
-                    // On a light tile, as the strip's badges already do: a brand mark is drawn for
-                    // the brand's own background, so a dark glyph (GitHub's) vanished into a dark
-                    // card and left the card reading as whichever provider happened to be colourful.
-                    <span className="flex size-full items-center justify-center rounded-[3px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorWhite)]">
-                        <img
-                            src={item.logo}
-                            alt={label}
-                            width={Math.round(size * 0.75)}
-                            height={Math.round(size * 0.75)}
-                            className="shrink-0 object-contain"
-                        />
-                    </span>
+                    <img
+                        src={item.logo}
+                        alt={label}
+                        width={size}
+                        height={size}
+                        className="shrink-0 rounded-[3px] object-contain"
+                    />
                 ) : (
                     // No mark to draw: a neutral tile keeps the run aligned and still names itself.
                     <span
