@@ -184,16 +184,14 @@ describe("readKeepaliveConfig", () => {
     }
   });
 
-  it("defaults: on, 60s idle, 10m approval, cap 8", () => {
-    // The approval window is the pending-interaction park: 10 minutes so a phone-latency
-    // answer warm-resumes instead of cold-replaying (mobile approvals plan §4b-4).
+  it("defaults: on, 60s idle, 10m approval and stopped, cap 8", () => {
+    // Both human-response windows last 10 minutes so the next action warm-resumes instead of
+    // cold-replaying (mobile approvals plan §4b-4 and Mahmoud's 2026-09-05 Stop decision).
     assert.deepEqual(readKeepaliveConfig("local"), {
       enabled: true,
       ttlMs: 60_000,
       approvalTtlMs: 600_000,
-      // Defaults to the idle window, so the stopped-session field changes no timing on its own.
-      // The open recommendation is to move it to the approval window; Mahmoud picks.
-      stoppedTtlMs: 60_000,
+      stoppedTtlMs: 600_000,
       poolMax: 8,
     });
   });
@@ -232,8 +230,8 @@ describe("readKeepaliveConfig", () => {
     assert.deepEqual(readKeepaliveConfig("daytona"), {
       enabled: true,
       ttlMs: 120_000,
-      // Daytona keeps its billed idle window for a stopped session unless an operator opts in.
-      stoppedTtlMs: 120_000,
+      // The stopped sandbox remains billed for this ten-minute human-response window.
+      stoppedTtlMs: 600_000,
       approvalTtlMs: 120_000,
       poolMax: 20,
     });
@@ -244,7 +242,7 @@ describe("readKeepaliveConfig", () => {
       enabled: false,
       ttlMs: 0,
       approvalTtlMs: 0,
-      stoppedTtlMs: 0,
+      stoppedTtlMs: 600_000,
       poolMax: 20,
     });
     process.env.AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS = "45000";
@@ -252,7 +250,7 @@ describe("readKeepaliveConfig", () => {
       enabled: true,
       ttlMs: 45_000,
       approvalTtlMs: 45_000,
-      stoppedTtlMs: 45_000,
+      stoppedTtlMs: 600_000,
       poolMax: 20,
     });
     process.env.AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM = "7";

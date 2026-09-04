@@ -1297,11 +1297,19 @@ export async function runTurn(
       const openAllowedExecutions = openToolCallIds().filter(
         (id) => pause.isAllowedExecution(id) && !pause.isPausedToolCall(id),
       );
+      // NOT scoped to a resume. Pi batches on the FIRST turn too, and the first turn is where a
+      // user meets it: the model asks for a Read and a Bash together, the Read answers `allow`
+      // and the Bash parks, and the allowed Read then never closes because Pi will not execute
+      // any call in the batch while a sibling gate is open. With `opts.resume` in this predicate
+      // that turn took the wait below and sat on the 30-minute per-tool-call bound. It never
+      // parked, never emitted `done`, and its alive watchdog kept beating `running=true`, so
+      // every durable continuation aimed at the next turn was refused for want of ownership.
+      // (Browser pass 2026-09-04, sessions d66e2920 at 17:32Z and 6d06f624 at 17:57Z. A healthy
+      // gated turn shows the Read's `tool_result` BEFORE the Bash gate — sequential, so nothing
+      // is open at pause time. The two failures show the two gates back to back with no result
+      // between them, which is the parallel batch.)
       const piBatchBlockedByApproval = Boolean(
-        opts.resume &&
-        plan.isPi &&
-        opts.approvalParkMode &&
-        env.parkedApprovals.size > 0,
+        plan.isPi && opts.approvalParkMode && env.parkedApprovals.size > 0,
       );
       if (piBatchBlockedByApproval) {
         // Pi prepares every call in a parallel batch before it executes any of them. While a

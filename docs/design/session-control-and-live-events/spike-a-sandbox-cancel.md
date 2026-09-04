@@ -258,9 +258,9 @@ Two deliberate non-changes:
 A Stop asks a different question from an ordinary idle park. The ordinary window asks how long a
 conversation might keep going by itself. A Stop is a button the user just pressed, so the answer is
 known: they are about to type. On the 60 second local idle window the sandbox can be thrown away
-while they are still writing, which is the cold start this whole change exists to remove. That is
-an argument for a longer window, not a decision this spike should make on its own, so the window is
-now its own named setting and the value is unchanged.
+while they are still writing, which is the cold start this change exists to remove. Mahmoud decided
+on 2026-09-05 that a settled Stop uses the same 600 second window as an approval card on both
+providers. A stopped Daytona sandbox can therefore remain billed for up to ten minutes.
 
 Current windows, all from `services/runner/src/engines/sandbox_agent/session-identity.ts`:
 
@@ -268,17 +268,11 @@ Current windows, all from `services/runner/src/engines/sandbox_agent/session-ide
 | --- | --- | --- | --- |
 | Idle (a clean finished turn) | 60 s | 120 s | `AGENTA_RUNNER_SESSION_TTL_MS`, `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` |
 | Awaiting approval | 600 s | 120 s | `AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS` |
-| Stopped by the user (new) | 60 s, recommended 600 s | 120 s | `AGENTA_RUNNER_SESSION_STOPPED_TTL_MS` |
+| Stopped by the user (new) | 600 s | 600 s | `AGENTA_RUNNER_SESSION_STOPPED_TTL_MS` |
 
-**The stopped window ships defaulting to the ordinary idle window, so this change alters no timing
-on its own.** It exists so the value is one named field with one env var when somebody decides to
-move it.
-
-**The recommendation, which is Mahmoud's call: make it the approval window on the local provider,
-600 seconds.** The approval window already encodes "a human is about to act", which is the same
-situation. Daytona should not follow: a parked Daytona sandbox is billed compute, and its 120 second
-idle window is already that decision. Try it with `AGENTA_RUNNER_SESSION_STOPPED_TTL_MS`, which was
-exercised live at 600 s and logged `park-cancelled key=... ttl=600000ms`.
+The stopped window has its own environment override so operators can choose a different retention
+and billing trade-off without changing the ordinary idle or approval windows. The 600 second value
+was exercised live and logged `park-cancelled key=... ttl=600000ms`.
 
 ## The settlement timeout (RFC D-016)
 
@@ -410,21 +404,18 @@ scenario must log `settled=false` and `no-park:cancelled`. That proves the guard
 ## Open questions for Mahmoud
 
 1. **A stopped Codex turn leaves its shell command running in the parked sandbox. Ship anyway, or
-   hold Codex back?** Recommendation: ship, and fix the bridge next. The orphan dies when the idle
-   window closes, the window is 120 s on Daytona where the compute is billed, and holding Codex back
-   means Codex users keep paying a cold start on every Stop. The alternative, an env flag that
-   excludes one harness from parking, is machinery for a decision we would reverse within the week.
-2. **Move the local stopped-session window from 60 s to 600 s?** It ships on 60 s, the ordinary
-   idle window, so nothing changed yet. Recommendation: move it. It would match the approval
-   window, which already encodes "a human is about to act", and the local provider is host memory
-   rather than billed compute. Daytona should keep its 120 s either way.
-3. **Ten seconds for the settle budget?** Recommendation: yes, ship it. The measured cost is
+   hold Codex back?** Recommendation: ship, and fix the bridge next. The orphan dies when the stopped
+   window closes. The stopped window is 600 s on Daytona, where the compute is billed, and holding
+   Codex back means Codex users keep paying a cold start on every Stop. The alternative, an env flag
+   that excludes one harness from parking, is machinery for a decision we would reverse within the
+   week.
+2. **Ten seconds for the settle budget?** Recommendation: yes, ship it. The measured cost is
    14 to 31 ms, so the budget is not a latency cost in the normal case, and it only ever delays a
    Stop that is already going badly.
-4. **Should the Stop also settle the turn ledger row, rather than leaving the turn incomplete?**
+3. **Should the Stop also settle the turn ledger row, rather than leaving the turn incomplete?**
    Recommendation: yes, in work package C. The terminal record now says `cancelled`, so a reader can
    tell a Stop from a completion, but the ledger row still looks like a turn that never finished.
-5. **Do we test Claude and Daytona before the RFC is accepted, or at the release gate?**
+4. **Do we test Claude and Daytona before the RFC is accepted, or at the release gate?**
    Recommendation: at the release gate, with the cell above. Blocking the design on an Anthropic key
    tonight buys little, because the cancel is one protocol request shared by every harness, and the
    Codex result shows the interesting variation is in what the harness does with it, not whether it

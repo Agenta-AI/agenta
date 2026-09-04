@@ -27,6 +27,7 @@ import {
   type KeepaliveEngine,
 } from "../../src/server.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
+import { USER_STOP_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
 import {
   configFingerprint,
   mountExpiryMs,
@@ -776,6 +777,75 @@ describe("runWithKeepalive: never-park rules", () => {
       "the disconnected client's session is destroyed, not parked",
     );
     assert.equal(ctx.pool.size(), 0);
+  });
+
+  it("a durable Stop re-parks the warm session even though the browser dropped its stream", async () => {
+    // The regression this file exists to prevent, replayed end to end at the dispatch seam.
+    //
+    // Increment 6, 2026-09-04: a warm Daytona session was Stopped from the browser and the next
+    // message came back cold on a NEW sandbox. The runner log read `[control] aborted` ->
+    // `harness_cancel sent=true settled=true` -> `prompt stopReason=cancelled` ->
+    // `[keepalive] evict reason=no-park:cancelled`. Every ingredient of a warm park was present
+    // and the sandbox was deleted anyway, because `handleStop` aborts the chat stream in the same
+    // tick it sends the durable cancel, and the park predicate read the disconnect first.
+    //
+    // So this test asserts BOTH halves land together: the client is gone AND the run signal
+    // carries the user-Stop label. Drop either one and it stops describing the product.
+    let gone = false;
+    const controller = new AbortController();
+    const { engine, calls } = makeEngine({
+      turnResults: [
+        { ok: true, output: "hi", stopReason: "complete" },
+        // What `run-turn.ts` returns for a Stop the harness confirmed.
+        {
+          ok: true,
+          output: "partial",
+          stopReason: "cancelled",
+          cancelSettled: true,
+        },
+      ],
+    });
+    const ctx = makeCtx(engine, {}, () => gone);
+    const key = "proj-1:stop-warm";
+
+    // Turn 1: an ordinary turn, parked warm for the next message.
+    await runWithKeepalive(
+      turn1("stop-warm"),
+      undefined,
+      controller.signal,
+      ctx,
+    );
+    await flush();
+    assert.equal(ctx.pool.get(key)?.state, "idle", "turn 1 parked warm");
+    const warmEnv = calls.acquiredEnvs[0];
+
+    // Turn 2: continues on the SAME environment, and the user presses Stop mid-turn.
+    const origRunTurn = engine.runTurn.bind(engine);
+    engine.runTurn = async (env, request, emit, signal, opts) => {
+      gone = true; // the browser aborted its own chat stream
+      controller.abort(USER_STOP_ABORT_REASON); // the durable command reached this run
+      return origRunTurn(env, request, emit, signal, opts);
+    };
+    const stopped = await runWithKeepalive(
+      turn2("stop-warm"),
+      undefined,
+      controller.signal,
+      ctx,
+    );
+    await flush();
+
+    assert.equal(stopped.stopReason, "cancelled");
+    assert.equal(calls.acquire, 1, "the Stop ran on the warm environment");
+    assert.equal(
+      warmEnv.destroyed,
+      0,
+      "a settled user Stop never destroys the sandbox",
+    );
+    assert.equal(
+      ctx.pool.get(key)?.state,
+      "idle",
+      "re-parked warm, so the next message resumes instead of replaying cold",
+    );
   });
 });
 
