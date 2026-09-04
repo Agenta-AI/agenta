@@ -40,13 +40,33 @@ const PATH_LABELS: Record<string, string> = {
     // Execution sections. The panel labels the runner policy "Policy" inside its Permissions
     // group; standalone in a diff row that says too little, so it names the subject too.
     "runner.permissions.default": "Tool permissions",
-    "harness.permissions.default_mode": "Harness permissions",
+    "harness.permissions.default_mode": "Permission mode",
     // The Claude permissions control's own field labels.
     "harness.permissions.allow": "Allow rules",
     "harness.permissions.ask": "Ask rules",
     "harness.permissions.deny": "Deny rules",
     "sandbox.kind": "Sandbox",
     "sandbox.permissions": "Sandbox permissions",
+    // The sandbox control's own field labels.
+    "sandbox.permissions.network.mode": "Network egress",
+    "sandbox.permissions.filesystem": "Filesystem",
+    "sandbox.permissions.enforcement": "Enforcement",
+}
+
+/** Enum vocabularies lifted from the controls that author them. */
+const ENUM_LABELS: Record<string, Record<string, string>> = {
+    "harness.permissions.default_mode": {
+        default: "Default",
+        acceptEdits: "Accept edits",
+        plan: "Plan",
+        bypassPermissions: "Bypass",
+    },
+    "sandbox.permissions.network.mode": {
+        on: "Allow all egress",
+        off: "Block all egress",
+        allowlist: "Allowlist",
+    },
+    "sandbox.permissions.filesystem": {on: "Read / write", readonly: "Read-only", off: "No access"},
 }
 
 /** An integration's permission vocabulary, as the tool form spells it. */
@@ -61,16 +81,32 @@ const GATEWAY_PERMISSION_LABELS: Record<string, string> = {
 export const gatewayPermissionLabel = (value: string | undefined): string =>
     (value && GATEWAY_PERMISSION_LABELS[value]) ?? "Inherit"
 
-/** Per-path value vocabulary — the stored enum is not what the control calls it. */
-const VALUE_LABELS: Record<string, (value: string) => string | undefined> = {
-    "runner.permissions.default": permissionPolicyLabel,
-}
-
 /** Segments a humanized path should not lowercase. */
 const ACRONYMS: Record<string, string> = {llm: "LLM", api: "API", url: "URL", id: "ID"}
 
 const humanizeSegment = (segment: string): string =>
     ACRONYMS[segment.toLowerCase()] ?? segment.replace(/[_-]+/g, " ").trim().toLowerCase()
+
+/** Per-path value vocabulary — the stored enum is not what the control calls it. */
+const VALUE_LABELS: Record<string, (value: string) => string | undefined> = {
+    "runner.permissions.default": permissionPolicyLabel,
+    ...Object.fromEntries(
+        Object.entries(ENUM_LABELS).map(([path, map]) => [path, (v: string) => map[v]]),
+    ),
+}
+
+/** `{max_attempts: 3, backoff: "exponential"}` reads as prose; its JSON does not. */
+const objectLabel = (raw: Record<string, unknown>): string | undefined => {
+    const entries = Object.entries(raw)
+    if (!entries.length) return "None"
+    return entries
+        .map(([key, value]) => {
+            const shown =
+                value !== null && typeof value === "object" ? JSON.stringify(value) : String(value)
+            return `${humanizeSegment(key)}: ${shown}`
+        })
+        .join(", ")
+}
 
 /**
  * `sandbox.permissions.network` → "Sandbox › network". Keeps the parent, because a bare leaf
@@ -107,5 +143,6 @@ export const scalarValueLabel = (
     if (typeof raw === "boolean") return raw ? "On" : "Off"
     // A rule list is prose, not JSON: `["Bash"]` is punctuation a reader has to decode.
     if (Array.isArray(raw)) return raw.length ? raw.map(String).join(", ") : "None"
+    if (raw !== null && typeof raw === "object") return objectLabel(raw as Record<string, unknown>)
     return value
 }

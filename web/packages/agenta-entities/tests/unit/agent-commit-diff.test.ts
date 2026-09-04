@@ -271,6 +271,63 @@ describe("renaming a skill in place is an edit, not a swap", () => {
     })
 })
 
+describe("a sweep of every change kind — the rows that carried no information", () => {
+    const base = {
+        instructions: {agents_md: "Hello."},
+        llm: {model: "gpt-5"},
+        tools: [],
+        mcps: [],
+        skills: [],
+        harness: {kind: "claude"},
+        runner: {permissions: {default: "allow_reads"}},
+        sandbox: {kind: "local"},
+    }
+    const advanced = (over: Record<string, unknown>) =>
+        classifyAgentChanges({agent: {...base, ...over}}, {agent: base})?.find(
+            (s) => s.id === "params",
+        )?.scalarChanges
+
+    it("reports a key the classifier was never taught, rather than dropping it", () => {
+        // The worst failure mode: an unmapped key changed and the diff said nothing at all.
+        const changes = advanced({telemetry: {enabled: true}})
+        expect(changes?.[0].label).toBe("Telemetry › enabled")
+        expect(changes?.[0].afterLabel).toBe("On")
+    })
+
+    it("reads an object setting as prose instead of its JSON", () => {
+        expect(
+            advanced({retry_policy: {max_attempts: 3, backoff: "exponential"}})?.[0].afterLabel,
+        ).toBe("max attempts: 3, backoff: exponential")
+    })
+
+    it("names the sandbox fields and their modes the way the control does", () => {
+        const changes = advanced({
+            sandbox: {kind: "local", permissions: {network: {mode: "off"}, filesystem: "readonly"}},
+        })
+        expect(changes?.map((c) => `${c.label}: ${c.afterLabel}`)).toEqual([
+            "Filesystem: Read-only",
+            "Network egress: Block all egress",
+        ])
+    })
+
+    it("spells out the harness permission mode", () => {
+        const changes = advanced({
+            harness: {kind: "claude", permissions: {default_mode: "acceptEdits"}},
+        })
+        expect(changes?.[0].label).toBe("Permission mode")
+        expect(changes?.[0].afterLabel).toBe("Accept edits")
+    })
+
+    it("names the field an MCP server changed — it has no prose to diff", () => {
+        const mcp = (url: string) => ({name: "linear", url})
+        const item = classifyAgentChanges(
+            {agent: {...base, mcps: [mcp("https://other")]}},
+            {agent: {...base, mcps: [mcp("https://mcp.linear.app")]}},
+        )?.find((s) => s.id === "mcps")?.items?.[0]
+        expect(item?.detail).toBe("url changed")
+    })
+})
+
 describe("permission rules read as rules, not as JSON", () => {
     // Regression: the row printed `Harness › permissions › allow  —  ["Bash"]`.
     const row = (local: Record<string, unknown>, remote: Record<string, unknown>) =>

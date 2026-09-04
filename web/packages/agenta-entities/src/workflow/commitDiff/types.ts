@@ -126,4 +126,6 @@ export interface AgentConfigView {
     harness: Record<string, unknown> | undefined
     runner: Record<string, unknown> | undefined
     sandbox: Record<string, unknown> | undefined
+    /** Template keys no section claims, so an untaught key still reports as a change. */
+    extra: Record<string, unknown>
 }

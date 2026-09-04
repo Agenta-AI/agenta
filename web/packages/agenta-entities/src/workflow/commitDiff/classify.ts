@@ -322,6 +322,9 @@ function advancedBucket(v: AgentConfigView): Record<string, unknown> {
         const {kind: _kind, ...rest} = v.harness
         Object.assign(out, prefixed("harness", rest))
     }
+    // Only for an agent template: on a prompt shape the unclaimed rest is another schema's
+    // plumbing, not settings a reader authored.
+    if (v.isAgentTemplate) Object.assign(out, flattenScalars(v.extra))
     return out
 }
 
@@ -335,6 +338,9 @@ const entryField = (entry: unknown, field: string): string => {
  * What an edited list entry changed. A skill carries prose — its SKILL.md `body` — so it gets the
  * same hunk view Instructions does rather than a bare "edited" mark.
  */
+/** The prose fields an entry names itself by; everything else is reported as a plain field. */
+const NAMED_ENTRY_FIELDS = new Set(["name", "description", "body"])
+
 function entryEdit(before: unknown, after: unknown): Pick<ChangeItem, "detail" | "textDiff"> {
     const parts: string[] = []
     if (entryField(before, "name") !== entryField(after, "name")) parts.push("name")
@@ -345,6 +351,19 @@ function entryEdit(before: unknown, after: unknown): Pick<ChangeItem, "detail" |
     const afterBody = entryField(after, "body")
     const bodyChanged = beforeBody !== afterBody
     if (bodyChanged) parts.push("instructions")
+
+    // An MCP server has no prose at all — its edit is a url or a command, and naming the field is
+    // the difference between "edited" and knowing what to look at.
+    const beforeRest = isPlainObj(before) ? flattenScalars(before) : {}
+    const afterRest = isPlainObj(after) ? flattenScalars(after) : {}
+    for (const key of [
+        ...new Set([...Object.keys(beforeRest), ...Object.keys(afterRest)]),
+    ].sort()) {
+        if (NAMED_ENTRY_FIELDS.has(key.split(".")[0])) continue
+        if (stableStringify(beforeRest[key]) === stableStringify(afterRest[key])) continue
+        parts.push(scalarKeyLabel(key).toLowerCase())
+    }
+
     return {
         detail: parts.length ? `${parts.join(" & ")} changed` : undefined,
         textDiff: bodyChanged ? buildTextDiff(beforeBody, afterBody) : undefined,

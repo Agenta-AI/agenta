@@ -28,6 +28,23 @@ export const PARAM_KEYS = [
     "retry_policy",
 ] as const
 
+/** Template keys another section already reports, so `extra` holds only the unclaimed rest. */
+const CLAIMED_KEYS = new Set<string>([
+    "instructions",
+    "llm",
+    "llms",
+    "tools",
+    "mcps",
+    "skills",
+    "harness",
+    "runner",
+    "sandbox",
+    "messages",
+    "prompt",
+    "agent",
+    ...PARAM_KEYS,
+])
+
 function isObj(v: unknown): v is Record<string, unknown> {
     return typeof v === "object" && v !== null && !Array.isArray(v)
 }
@@ -282,6 +299,16 @@ export function readAgentConfig(parameters: unknown): AgentConfigView {
     const mcps = firstArray(agent?.mcps, p.mcps)
     const skills = firstArray(agent?.skills, p.skills)
 
+    // Whatever the template carries that no section above claims. Without this a key the
+    // classifier has not been taught is dropped SILENTLY — the diff reports nothing changed.
+    const template = agent ?? p
+    const extra: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(template)) {
+        if (CLAIMED_KEYS.has(key)) continue
+        if (key.startsWith("@") || key.startsWith("$")) continue
+        extra[key] = value
+    }
+
     return {
         // The prompt playground shares this classifier but not the agent panel's vocabulary.
         isAgentTemplate:
@@ -299,5 +326,6 @@ export function readAgentConfig(parameters: unknown): AgentConfigView {
         harness: section("harness"),
         runner: section("runner"),
         sandbox: section("sandbox"),
+        extra,
     }
 }
