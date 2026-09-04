@@ -385,13 +385,12 @@ export function useModelHarness({
 
     // Playground-only "build kit" overlay (read-only) shown at the top of Advanced. It also flags
     // sandbox-permission keys the overlay overrides for the user's own permission control below.
-    const {hasBuildKitOverlay, buildKitEnabled, buildKitSection, permissionOverrideHint} =
-        useBuildKit({
-            revisionId: revisionId ?? null,
-            sandboxPermissions: (sandbox.permissions as Record<string, unknown> | null) ?? null,
-            disabled,
-            stateOverride: buildKitOverride,
-        })
+    const {hasBuildKitOverlay, buildKitSection, permissionOverrideHint} = useBuildKit({
+        revisionId: revisionId ?? null,
+        sandboxPermissions: (sandbox.permissions as Record<string, unknown> | null) ?? null,
+        disabled,
+        stateOverride: buildKitOverride,
+    })
 
     // Which Advanced sub-sections own an uncommitted change (see `ChangedPathsProvider`). Drives
     // `defaultOpen` so a drawer opened from a "something changed" indicator lands with the changed
@@ -798,13 +797,10 @@ export function useModelHarness({
                 body: executionBody,
             },
             hasBuildKitOverlay && {
-                // Amber while the kit is on, for the same reason the group carried "Removed on commit":
-                // what this panel adds is playground-only and never reaches the committed agent.
                 item: {
                     value: "build-kit",
                     label: "Build kit",
                     icon: <Wrench size={14} />,
-                    status: buildKitEnabled ? ("warning" as const) : undefined,
                 },
                 // The block carries its own title + enable switch, so it needs no panel header.
                 body: buildKitSection,
@@ -846,6 +842,8 @@ export function useModelHarness({
         advancedPanels.length > 1 ? (
             <SectionRail
                 fill
+                // The drawer body is the rail's only host, so the divider runs its full height.
+                bleed
                 // Wider than the default rail: these labels carry an icon as well.
                 railWidth="w-[132px]"
                 items={advancedPanels.map((panel) => panel.item)}

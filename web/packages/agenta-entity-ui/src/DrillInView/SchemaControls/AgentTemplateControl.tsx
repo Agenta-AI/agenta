@@ -1217,7 +1217,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             <SectionDrawer
                 open={openSection === "advanced"}
                 title="Advanced"
-                icon={<SlidersHorizontal size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
                 disabled={disabled || !sectionDirty}

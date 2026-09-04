@@ -40,6 +40,12 @@ export interface SectionRailProps {
      * internally-scrolling child. @default false (content-flow, natural height — the drawer case).
      */
     fill?: boolean
+    /**
+     * Run the divider past the host's 16px top/bottom body padding so it meets the drawer's header
+     * and footer rules instead of floating between them. The padding is restored inside the panel,
+     * so the content sits where it did. @default false
+     */
+    bleed?: boolean
     /** Right-hand content panel; separated from the rail by a left border. */
     children: ReactNode
 }
@@ -51,10 +57,11 @@ export function SectionRail({
     railWidth = "w-[116px]",
     disabled = false,
     fill = false,
+    bleed = false,
     children,
 }: SectionRailProps) {
     return (
-        <div className={clsx("flex gap-3", fill && "min-h-0 flex-1")}>
+        <div className={clsx("flex gap-2", fill && "min-h-0 flex-1")}>
             <div className={`flex ${railWidth} shrink-0 flex-col gap-0.5`}>
                 {items.map((item) => {
                     const active = item.value === value
@@ -64,7 +71,7 @@ export function SectionRail({
                             variant="ghost"
                             disabled={disabled}
                             onClick={() => onChange(item.value)}
-                            className={`h-8 w-full rounded-md px-2.5 text-xs transition-colors ${
+                            className={`h-8 w-full rounded-md px-2 text-xs transition-colors ${
                                 item.count != null || item.status
                                     ? "flex items-center justify-between"
                                     : "justify-start"
@@ -99,7 +106,12 @@ export function SectionRail({
                     )
                 })}
             </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorder)] pl-4">
+            <div
+                className={clsx(
+                    "flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorder)] pl-4",
+                    bleed && "-my-4 py-4",
+                )}
+            >
                 {children}
             </div>
         </div>
