@@ -58,6 +58,7 @@ const renderQueue = (initial: {messages: UIMessage[]; continuationExecutionId?: 
                 messages: props.messages,
                 stopped: false,
                 resumeOrphaned: true,
+                markRunOwned: vi.fn(),
                 sendQueued,
                 ...(props.continuationExecutionId !== undefined
                     ? {continuationExecutionId: props.continuationExecutionId}

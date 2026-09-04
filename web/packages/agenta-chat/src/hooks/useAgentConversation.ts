@@ -629,6 +629,10 @@ export const useAgentConversation = ({
         },
         [sendMessage, sessionId],
     )
+    const markRunOwned = useCallback(
+        () => setSessionStatus({id: sessionId, status: "running"}),
+        [sessionId, setSessionStatus],
+    )
 
     // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this
     // mount never streamed it) shaped like "auto-resume imminent", and no gate was settled live
@@ -660,6 +664,7 @@ export const useAgentConversation = ({
         recoverable: recoverableContinuation,
         retryContinuation: retryRecoverableContinuation,
         continuationExecutionId,
+        markRunOwned,
         sendQueued,
         sessionId,
     })

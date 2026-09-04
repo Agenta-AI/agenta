@@ -389,6 +389,10 @@ const AgentConversation = ({
         },
         [sendMessage, sessionId],
     )
+    const markRunOwned = useCallback(
+        () => setSessionStatus({id: sessionId, status: "running"}),
+        [sessionId, setSessionStatus],
+    )
 
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
     // one-by-one once the turn truly settles (never mid-approval). A user stop is the exception —
@@ -413,6 +417,7 @@ const AgentConversation = ({
         recoverable: recoverableContinuation,
         retryContinuation: retryRecoverableContinuation,
         continuationExecutionId,
+        markRunOwned,
         sendQueued,
         sessionId,
     })

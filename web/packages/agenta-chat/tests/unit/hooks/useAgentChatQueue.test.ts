@@ -32,10 +32,7 @@ const assistantAwaitingApproval = (id: string): UIMessage =>
         ],
     }) as unknown as UIMessage
 
-const assistantContinuation = (
-    id: string,
-    state: "running" | "done" | "error",
-): UIMessage =>
+const assistantContinuation = (id: string, state: "running" | "done" | "error"): UIMessage =>
     ({
         ...assistantAwaitingApproval(id),
         metadata: {
@@ -70,13 +67,14 @@ interface HarnessProps {
 
 const setup = (initial: HarnessProps) => {
     const sendQueued = vi.fn()
+    const markRunOwned = vi.fn()
     const retryContinuation = vi.fn(() => Promise.resolve(true))
     const view = renderHook(
         (props: HarnessProps) =>
-            useAgentChatQueue({...props, sendQueued, retryContinuation}),
+            useAgentChatQueue({...props, markRunOwned, sendQueued, retryContinuation}),
         {initialProps: initial},
     )
-    return {sendQueued, retryContinuation, ...view}
+    return {markRunOwned, sendQueued, retryContinuation, ...view}
 }
 
 const settledEmpty: HarnessProps = {status: "ready", messages: [], stopped: false}
@@ -204,6 +202,24 @@ describe("useAgentChatQueue", () => {
         expect(sendQueued).toHaveBeenCalledTimes(1)
         expect(sendQueued.mock.calls[0][0]).toMatchObject({text: "held"})
         expect(result.current.queued).toHaveLength(0)
+    })
+
+    it("marks a released send as locally owned before dispatching it", () => {
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+        }
+        const {result, rerender, markRunOwned, sendQueued} = setup(paused)
+        act(() => result.current.submit({text: "held during the continuation"}))
+
+        rerender({...paused, messages: [userTurn("u1", "go"), assistantText("a2", "done")]})
+
+        expect(markRunOwned).toHaveBeenCalledOnce()
+        expect(sendQueued).toHaveBeenCalledOnce()
+        expect(markRunOwned.mock.invocationCallOrder[0]).toBeLessThan(
+            sendQueued.mock.invocationCallOrder[0],
+        )
     })
 
     it("holds through a different continuation execution and drains once after its terminal", () => {

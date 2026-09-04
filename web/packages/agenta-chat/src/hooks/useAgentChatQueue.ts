@@ -52,6 +52,8 @@ interface UseAgentChatQueueArgs {
      * reads as settled.
      */
     continuationExecutionId?: string | null
+    /** Mark this tab as the next run's owner before a released send reaches the transport. */
+    markRunOwned: () => void
     /** Send one released message into the conversation (wraps `useChat`'s `sendMessage`). Must be
      * referentially stable so the release effect doesn't churn on every streamed token. */
     sendQueued: (item: QueuedMessage) => void
@@ -95,6 +97,7 @@ export const useAgentChatQueue = ({
     recoverable = false,
     retryContinuation,
     continuationExecutionId = null,
+    markRunOwned,
     sendQueued,
     sessionId,
 }: UseAgentChatQueueArgs) => {
@@ -200,12 +203,13 @@ export const useAgentChatQueue = ({
             if (!releasingRef.current && queuedRef.current.length === 0 && canReleaseNow) {
                 releasingRef.current = true
                 lastSentRef.current = message
+                markRunOwned()
                 sendQueued(message)
             } else {
                 setQueued((q) => [...q, message])
             }
         },
-        [canReleaseNow, recoverable, retryContinuation, sendQueued],
+        [canReleaseNow, recoverable, retryContinuation, markRunOwned, sendQueued],
     )
 
     const removeQueued = useCallback((id: string) => {
@@ -302,8 +306,9 @@ export const useAgentChatQueue = ({
         setQueued(rest)
         // A released head also needs refusal recovery because it has left the queue.
         lastSentRef.current = head
+        markRunOwned()
         sendQueued(head)
-    }, [settled, canReleaseNow, queued, sendQueued])
+    }, [settled, canReleaseNow, queued, markRunOwned, sendQueued])
 
     return {
         queued,

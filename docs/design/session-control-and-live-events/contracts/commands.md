@@ -54,14 +54,17 @@ durable terminal events.
 
 ## Continuation admission
 
-A continuation command owns the next Send only while its execution is `pending_delivery` or
-`recoverable`. An `applied/started` continuation whose execution is `running` may be parked on a
-later interaction; it is therefore steerable, just like an initial execution parked for human
-input. Send preflight does not claim that state. If the watchdog later moves the execution to
-`recoverable`, preflight may reopen and redeliver it before accepting a new message.
+A continuation command owns the next Send while its execution is `pending_delivery` or
+`recoverable`. Once it is `applied/started`, Send admission depends on the continuation phase:
 
-This makes the command query and the public router share one state rule: `running` is live and
-steerable; `recoverable` owns continuation recovery.
+- **EXECUTING:** the client holds a Send and delivers it after the continuation ends. If a client
+  sends it anyway, the server refuses it so it cannot supersede the executing continuation.
+- **PARKED:** the server accepts a Send as a steer, just as it does for an initial execution parked
+  for human input.
+
+If the watchdog moves the execution to `recoverable`, preflight may reopen and redeliver it before
+accepting a new message. The client hold is an ordering guarantee; the server refusal is the race
+backstop for stale or non-conforming clients.
 
 ## Recovery rules
 
