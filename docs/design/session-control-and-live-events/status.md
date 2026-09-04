@@ -38,12 +38,12 @@
 - Kept the public Stop execution guard optional.
 - Added possible future user-operated runners as a control-transport consideration, not a
   requirement.
-- Recorded long polling as the current control-transport preference behind a replaceable adapter.
+- Implemented direct control delivery behind a replaceable adapter for version one.
 - Recorded warm sandbox and harness resume as the required Stop outcome.
 - Confirmed the minimal internal command lifecycle and its separation from public execution state.
 - Left the Stop settlement timeout for the sandbox cancellation spike.
 - Confirmed that the first version keeps current Redis execution ownership.
-- Kept durable commands and long polling in scope; deferred Postgres ownership and full fencing.
+- Kept durable commands and direct delivery in scope; deferred long polling and full fencing.
 
 ## Branch
 
@@ -56,7 +56,7 @@ Start with **Stop and ownership**:
 
 1. Start the sandbox-agent capability investigation.
 2. Confirm the user-visible Stop requirements and latency target.
-3. Specify the runner-initiated long-poll claim and acknowledgement contract.
+3. Validate the direct runner-control transport and its failure behavior.
 4. Define terminal settlement and watchdog responsibility.
 5. Decide which current issues this track is expected to close.
 

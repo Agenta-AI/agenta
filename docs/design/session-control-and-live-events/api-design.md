@@ -2,18 +2,18 @@
 
 > AGENT-GENERATED, low weight. Draft for discussion. Mahmoud makes final decisions.
 
-This file holds only the route contracts that version one of the durable-command work adds. It
-covers one public route and three internal ones. Everything else in the RFC's public interface
-section, including Send, the session snapshot, the event stream, pending inputs and the busy-message
-policies, is out of scope here and stays in [the RFC](rfc.md).
+This file holds the route contracts considered for the durable-command work. Version one adds the
+public Cancel route, the internal outcome route, and the runner's direct Cancel route; the
+long-poll claim contract is explicitly deferred. Everything else in the RFC's public interface
+section stays in [the RFC](rfc.md).
 
 The design behind these routes is in
 [the durable command design](spike-b-durable-commands-design.md). Read that first for the state
 machine, the lease, the settlement rule and the failure cases.
 
-Two of the internal routes belong to the long-poll adapter and one to the direct-call adapter.
-Version one ships **one** adapter, chosen with `AGENTA_SESSIONS_CONTROL_ADAPTER`. Both are specified
-here because the choice is Mahmoud's and neither changes the public contract.
+Version one ships the direct-call adapter behind the replaceable control-delivery port. The two
+long-poll routes remain future contracts; selecting `long_poll` currently fails startup rather
+than silently choosing an unimplemented transport.
 
 Conventions taken from the existing code, not invented here:
 
@@ -209,7 +209,7 @@ class ExecutionExpectationFailed(SessionCommandError):
 
 ---
 
-## 3. Internal: claim commands (long-poll adapter)
+## 3. Deferred: claim commands (future long-poll adapter)
 
 ```http
 POST /sessions/control/commands/claim

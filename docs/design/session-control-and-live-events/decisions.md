@@ -148,10 +148,10 @@ It does not add Postgres execution authority, ownership generations, or full sta
 Those changes have low current value because Agenta operates one runner and does not plan near-term
 runner scaling.
 
-Durable commands and runner-initiated long polling remain in scope. Stop delivery no longer depends
-on deleting ownership and waiting for a heartbeat. The current execution keeps its Redis ownership
-while stopping and releases it after cancellation settles. Heartbeat command discovery remains a
-fallback if long polling is unavailable.
+Durable commands and direct API-to-runner delivery are in scope. Stop no longer depends on deleting
+ownership and waiting for a heartbeat. The current execution keeps its Redis ownership while
+stopping and releases it after cancellation settles. Long polling is deferred behind the same
+control-delivery port.
 
 ### D-018: Use runner-initiated HTTP long polling for immediate control
 
@@ -234,6 +234,14 @@ Before immutable event insertion is implemented, inventory every runner and back
 reuses a `record_id`. Separate exact delivery retries from progressive updates and resume
 re-emissions. Add regression tests for the final state of tools, interactions, terminal events,
 and harness reconstruction.
+
+### O-006: Immediate runner control
+
+**Status:** Resolved for version one on 2026-09-03.
+
+Use a direct API-to-runner HTTP call through the replaceable control-delivery port. Durable storage
+precedes the call, so transport failure costs promptness rather than command correctness. Defer
+runner-initiated long polling until multi-runner or user-operated routing requires it.
 
 ### O-007: Command boundary
 
