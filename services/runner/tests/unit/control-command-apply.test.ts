@@ -297,6 +297,141 @@ describe("applyCommand", () => {
     assert.equal(env.sessionDestroyRequested, true);
   });
 
+  it("reparks a parked approval warm when the sandbox client has no cancelSession", async () => {
+    // The local provider's sandbox client can lack `cancelSession` (an older runtime), so the
+    // runner cannot send the ACP session/cancel and `cancelHarnessTurn` answers
+    // `sent=false reason=client-has-no-cancelSession`. A parked approval runs no turn, and the
+    // reject below is still the stop signal, so the environment must repark WARM and the Stop must
+    // report `stopped` — never tear the sandbox down and report a failed cancel.
+    const journal: string[] = [];
+    const gate: ParkedApproval = {
+      gateType: "claude-acp-permission",
+      permissionId: "perm-a",
+      toolCallId: "tool-a",
+      toolName: "commit",
+      args: {},
+      interactionToken: "interaction-a",
+      // A prompt that never settles: without a cancelSession the runner never waits on it, so a
+      // pending prompt must not block or fail the repark.
+      promptPromise: new Promise(() => {}),
+    };
+    const env = {
+      // No `cancelSession` on the sandbox client. This is the local-runtime case.
+      sandbox: {},
+      session: {
+        id: "harness-session",
+        respondPermission: async () => journal.push("reject"),
+      },
+      logger: () => {},
+      parkedApprovals: new Map([[gate.toolCallId, gate]]),
+      parkedApproval: gate,
+      parkedApprovedExecutions: new Map([["approved", {}]]),
+      approvalGateCount: 1,
+      nonParkablePauseCount: 0,
+      commitAuthorization: {},
+      sessionDestroyRequested: false,
+      clearTurn: () => journal.push("clear"),
+    } as unknown as SessionEnvironment;
+    let tornDown = 0;
+
+    await stopParkedApprovalSession({
+      environment: env,
+      repark: async () => {
+        journal.push("repark");
+        return true;
+      },
+      teardown: async () => {
+        tornDown += 1;
+      },
+      cancelSettleMs: 1,
+      wait: async () => {},
+    });
+
+    // No cancel was sent, so the environment is reparked straight from the reject and never
+    // tears down.
+    assert.deepEqual(journal, ["reject", "clear", "repark"]);
+    assert.equal(tornDown, 0, "a Stop must never evict the warm sandbox");
+    assert.equal(env.parkedApprovals.size, 0);
+    assert.equal(env.parkedApproval, undefined);
+    // No cancel notification left the runner, so no destroy was ever requested for the session.
+    assert.equal(env.sessionDestroyRequested, false);
+  });
+
+  it("stops a local parked approval, staying warm, and reports it stopped end to end", async () => {
+    // The same case as above, but through `applyCommand`, which is what the /cancel route calls.
+    // It proves the OUTCOME the API settles on: `applied` / `stopped`, which is what writes the
+    // one terminal `session_executions` row. Before the fix this answered `applied` / `failed`,
+    // which the API never records as a terminal execution.
+    const { reported, report } = collector();
+    const parked = { state: "awaiting_approval" as "awaiting_approval" | "idle" };
+    let reparked = false;
+    let tornDown = false;
+
+    const env = {
+      sandbox: {}, // no cancelSession
+      session: {
+        id: "harness-session",
+        respondPermission: async () => {},
+      },
+      logger: () => {},
+      parkedApprovals: new Map([
+        [
+          "tool-a",
+          {
+            gateType: "claude-acp-permission",
+            permissionId: "perm-a",
+            toolCallId: "tool-a",
+            toolName: "commit",
+            args: {},
+            interactionToken: "interaction-a",
+            promptPromise: new Promise(() => {}),
+          } as ParkedApproval,
+        ],
+      ]),
+      parkedApproval: undefined,
+      parkedApprovedExecutions: new Map(),
+      approvalGateCount: 1,
+      nonParkablePauseCount: 0,
+      commitAuthorization: {},
+      sessionDestroyRequested: false,
+      clearTurn: () => {},
+    } as unknown as SessionEnvironment;
+
+    const outcome = await applyCommand(command(), {
+      findLive: () => undefined,
+      isParked: (projectId, sessionId) =>
+        projectId === PROJECT &&
+        sessionId === SESSION &&
+        parked.state === "awaiting_approval"
+          ? {
+              stop: () =>
+                stopParkedApprovalSession({
+                  environment: env,
+                  repark: async () => {
+                    reparked = true;
+                    parked.state = "idle";
+                    return true;
+                  },
+                  teardown: async () => {
+                    tornDown = true;
+                  },
+                  cancelSettleMs: 1,
+                  wait: async () => {},
+                }),
+            }
+          : undefined,
+      report,
+    });
+
+    assert.equal(outcome.result, "applied");
+    assert.equal(outcome.execution.state, "stopped");
+    assert.equal(outcome.execution.id, TURN);
+    assert.equal(reparked, true, "the warm sandbox returns to the pool");
+    assert.equal(tornDown, false, "and is never evicted");
+    assert.equal(parked.state, "idle");
+    assert.deepEqual(reported, [outcome]);
+  });
+
   it("refuses to abort an execution that started AFTER the command was created", async () => {
     const { execution, aborts } = liveRun({
       turnId: "turn-B",

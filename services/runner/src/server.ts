@@ -979,8 +979,20 @@ export async function stopParkedApprovalSession(
       wait: input.wait,
     });
     if (cancel.requested) env.sessionDestroyRequested = true;
-    if (!cancel.settled) {
+    if (!cancel.settled && cancel.requested) {
+      // The ACP cancel WAS sent but the harness did not confirm it inside the budget. The prompt
+      // may still be open, so fail closed rather than present a possibly-running turn as idle.
       throw new Error("parked approval harness cancel did not settle");
+    }
+    if (!cancel.settled) {
+      // No ACP cancel could be SENT: a local runtime whose sandbox client has no `cancelSession`
+      // (`stage=harness_cancel sent=false reason=client-has-no-cancelSession`). The reject above
+      // is still the stop signal for a parked approval, which runs no turn, and a Stop must NEVER
+      // evict the warm sandbox. So repark it warm, exactly as the reject-then-repark path did
+      // before the ACP cancel was added, instead of tearing it down and reporting a failed Stop.
+      env.logger(
+        "stage=parked_stop reject-only (client has no cancelSession); reparking warm",
+      );
     }
 
     env.parkedApprovals.clear();
