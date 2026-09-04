@@ -4,6 +4,8 @@ import math
 from contextlib import suppress
 from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
+from oss.src.core.sessions.records.dtos import SessionDurableEvent
+
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -35,6 +37,10 @@ def format_live_frame(raw: Any) -> Optional[str]:
     return f"data: {json.dumps(payload)}\n\n"
 
 
+def format_durable_event(event: SessionDurableEvent) -> str:
+    return f"data: {event.model_dump_json()}\n\n"
+
+
 async def live_event_stream(
     *,
     channel: str,
@@ -44,10 +50,16 @@ async def live_event_stream(
     heartbeat_seconds: float,
     retry_milliseconds: int,
     buffer_limit: int,
+    after: int = 0,
+    replay_query: Optional[
+        Callable[[int], Awaitable[list[SessionDurableEvent]]]
+    ] = None,
 ) -> AsyncIterator[str]:
     queue: asyncio.Queue[str] = asyncio.Queue(maxsize=max(1, buffer_limit))
     stopped = asyncio.Event()
     pubsub = pubsub_factory()
+    cursor = after
+    seen_event_ids: set[str] = set()
 
     def force_close(*, reason: str, reconnect: bool) -> None:
         while not queue.empty():
@@ -62,10 +74,25 @@ async def live_event_stream(
         except asyncio.QueueFull:
             force_close(reason="slow_reader", reconnect=True)
 
+    async def replay() -> None:
+        nonlocal cursor
+        if replay_query is None:
+            return
+        for event in await replay_query(cursor):
+            if event.frame_or_event_id in seen_event_ids:
+                continue
+            if event.sequence is not None and event.sequence <= cursor:
+                continue
+            seen_event_ids.add(event.frame_or_event_id)
+            enqueue(format_durable_event(event))
+            if event.sequence is not None:
+                cursor = event.sequence
+
     async def pump() -> None:
         try:
             await pubsub.subscribe(channel)
             await queue.put(retry_frame(retry_milliseconds))
+            await replay()
             await queue.put(ready_frame())
             loop = asyncio.get_running_loop()
             last_authorization_check = loop.time()
@@ -103,6 +130,17 @@ async def live_event_stream(
                     continue
                 idle_polls = 0
                 if message.get("type") != "message":
+                    continue
+                try:
+                    payload = json.loads(message.get("data"))
+                except (ValueError, TypeError):
+                    continue
+                if (
+                    replay_query is not None
+                    and isinstance(payload, dict)
+                    and payload.get("kind") == "event"
+                ):
+                    await replay()
                     continue
                 frame = format_live_frame(message.get("data"))
                 if frame is not None:

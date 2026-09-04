@@ -11,6 +11,7 @@ from orjson import dumps
 
 from oss.src.apis.fastapi.sessions.live_events import live_event_stream
 from oss.src.apis.fastapi.sessions.router import SessionStreamsRouter
+from oss.src.core.sessions.records.dtos import MessageCompletedEvent
 from oss.src.core.sessions.records.streaming import LIVE_FRAME_STREAM_NAME
 from oss.src.tasks.asyncio.sessions.live_relay_worker import LiveRelayWorker
 from oss.src.utils.env import env
@@ -141,6 +142,45 @@ async def test_live_stream_forwards_durable_event_envelopes():
     event = json.loads((await anext(stream)).split("data: ", 1)[1])
     assert event["kind"] == "event"
     assert event["sequence"] == 1
+    await stream.aclose()
+
+
+async def test_live_stream_subscribes_before_replay_and_dedupes_notification():
+    subscribed = False
+    event = MessageCompletedEvent.model_validate(_event(sequence=3))
+
+    class OrderingPubSub(FakePubSub):
+        async def subscribe(self, channel):
+            nonlocal subscribed
+            subscribed = True
+            await super().subscribe(channel)
+
+    pubsub = OrderingPubSub([{"type": "message", "data": dumps(_event(sequence=3))}])
+    replay_calls = []
+
+    async def replay(after):
+        assert subscribed is True
+        replay_calls.append(after)
+        return [event] if after < 3 else []
+
+    stream = live_event_stream(
+        channel="events:project-1:session:session-1",
+        pubsub_factory=lambda: pubsub,
+        authorization_check=AsyncMock(return_value=True),
+        authorization_recheck_seconds=60,
+        heartbeat_seconds=60,
+        retry_milliseconds=5000,
+        buffer_limit=4,
+        after=2,
+        replay_query=replay,
+    )
+
+    assert (await anext(stream)).startswith("retry:")
+    replayed = json.loads((await anext(stream)).split("data: ", 1)[1])
+    assert replayed["sequence"] == 3
+    assert (await anext(stream)).startswith("event: ready")
+    await asyncio.sleep(0.01)
+    assert replay_calls == [2, 3]
     await stream.aclose()
 
 
@@ -282,6 +322,7 @@ async def test_events_route_disables_authenticated_response_storage():
     router = SessionStreamsRouter(
         service=AsyncMock(),
         interactions_service=AsyncMock(),
+        records_service=AsyncMock(),
     )
     request = Request(
         {

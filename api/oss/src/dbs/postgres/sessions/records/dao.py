@@ -348,6 +348,37 @@ class RecordsDAO(RecordsDAOInterface):
             history_complete=history_complete,
         )
 
+    async def get_records_after(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        after: int,
+    ) -> List[SessionRecord]:
+        sequence_filter = (
+            or_(RecordDBE.sequence.is_(None), RecordDBE.sequence > 0)
+            if after == 0
+            else RecordDBE.sequence > after
+        )
+        async with self.engine.session() as session:
+            rows = list(
+                (
+                    await session.execute(
+                        select(RecordDBE)
+                        .where(
+                            RecordDBE.project_id == project_id,
+                            RecordDBE.session_id == session_id,
+                            RecordDBE.deleted_at.is_(None),
+                            sequence_filter,
+                        )
+                        .order_by(*self._transcript_order())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return [map_record_dbe_to_dto(dbe=row) for row in rows]
+
     async def latest_message_per_session(
         self,
         *,

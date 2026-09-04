@@ -53,6 +53,15 @@ class RecordsDAOInterface:
     ) -> SessionRecordsReadState:
         raise NotImplementedError
 
+    async def get_records_after(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        after: int,
+    ) -> List[SessionRecord]:
+        raise NotImplementedError
+
     async def get_event(
         self,
         *,

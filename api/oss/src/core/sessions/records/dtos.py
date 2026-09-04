@@ -123,7 +123,7 @@ class SessionDurableEventBase(BaseModel):
     execution_id: str
     frame_or_event_id: str
     entity_id: str
-    sequence: int = Field(ge=1)
+    sequence: Optional[int] = Field(default=None, ge=1)
     created_at: datetime
 
 

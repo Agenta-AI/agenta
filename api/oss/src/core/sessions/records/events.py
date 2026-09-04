@@ -14,10 +14,19 @@ from oss.src.core.sessions.records.dtos import (
 _EVENT_ADAPTER = TypeAdapter(SessionDurableEvent)
 
 
-def _event_base(record: SessionRecord, *, entity_id: str) -> Optional[Dict[str, Any]]:
+def _event_base(
+    record: SessionRecord,
+    *,
+    entity_id: str,
+    include_legacy: bool,
+) -> Optional[Dict[str, Any]]:
     created_at = record.timestamp or record.created_at
     execution_id = record.turn_id or (record.attributes or {}).get("execution_id")
-    if record.sequence is None or created_at is None or not execution_id:
+    if (
+        (record.sequence is None and not include_legacy)
+        or created_at is None
+        or not execution_id
+    ):
         return None
     return {
         "version": 1,
@@ -31,7 +40,9 @@ def _event_base(record: SessionRecord, *, entity_id: str) -> Optional[Dict[str, 
     }
 
 
-def _direct_event(record: SessionRecord) -> Optional[SessionDurableEvent]:
+def _direct_event(
+    record: SessionRecord, *, include_legacy: bool
+) -> Optional[SessionDurableEvent]:
     if record.record_type not in SESSION_DURABLE_EVENT_TYPES:
         return None
     attributes = dict(record.attributes or {})
@@ -46,7 +57,11 @@ def _direct_event(record: SessionRecord) -> Optional[SessionDurableEvent]:
         or record.turn_id
         or attributes.get("execution_id")
     )
-    base = _event_base(record, entity_id=str(entity_id or record.record_id))
+    base = _event_base(
+        record,
+        entity_id=str(entity_id or record.record_id),
+        include_legacy=include_legacy,
+    )
     if base is None:
         return None
     try:
@@ -59,13 +74,15 @@ def _direct_event(record: SessionRecord) -> Optional[SessionDurableEvent]:
 
 def durable_events_from_records(
     records: List[SessionRecord],
+    *,
+    include_legacy: bool = False,
 ) -> List[SessionDurableEvent]:
     events: List[SessionDurableEvent] = []
     tool_calls: Dict[tuple[str, str], Dict[str, Any]] = {}
 
     for record in records:
         attributes = record.attributes or {}
-        direct = _direct_event(record)
+        direct = _direct_event(record, include_legacy=include_legacy)
         if direct is not None:
             events.append(direct)
             continue
@@ -76,7 +93,11 @@ def durable_events_from_records(
             or attributes.get("id")
             or record.record_id
         )
-        base = _event_base(record, entity_id=entity_id)
+        base = _event_base(
+            record,
+            entity_id=entity_id,
+            include_legacy=include_legacy,
+        )
         if base is None:
             continue
 

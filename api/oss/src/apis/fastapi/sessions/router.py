@@ -331,9 +331,11 @@ class SessionStreamsRouter:
         *,
         service: SessionStreamsService,
         interactions_service: SessionInteractionsService,
+        records_service: Optional[RecordsService] = None,
     ) -> None:
         self._service = service
         self._interactions_service = interactions_service
+        self._records_service = records_service
         self.router = APIRouter()
 
         # Unified collection surface on /sessions/streams/, keyed by ?session_id=.
@@ -712,6 +714,7 @@ class SessionStreamsRouter:
         self,
         request: Request,
         session_id: str,
+        after: int = Query(default=0, ge=0),
     ) -> StreamingResponse:
         if not env.sessions.shared_reader:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
@@ -729,6 +732,15 @@ class SessionStreamsRouter:
 
         if not await authorized():
             raise FORBIDDEN_EXCEPTION
+        if self._records_service is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        async def replay(cursor: int):
+            return await self._records_service.get_events_after(
+                project_id=UUID(project_id),
+                session_id=session_id,
+                after=cursor,
+            )
 
         stream = live_event_stream(
             channel=live_events_channel(project_id, session_id),
@@ -738,6 +750,8 @@ class SessionStreamsRouter:
             heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
             retry_milliseconds=env.sessions.watch_retry_milliseconds,
             buffer_limit=env.sessions.live_reader_buffer_limit,
+            after=after,
+            replay_query=replay,
         )
         return StreamingResponse(
             stream,
@@ -2376,6 +2390,7 @@ class SessionsRouter:
         self.streams = SessionStreamsRouter(
             service=streams_service,
             interactions_service=interactions_service,
+            records_service=records_service,
         )
         self.records = RecordsRouter(records_service=records_service)
         self.interactions = InteractionsRouter(
