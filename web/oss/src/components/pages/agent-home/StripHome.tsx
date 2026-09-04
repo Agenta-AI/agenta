@@ -34,7 +34,7 @@ import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTem
 import useURL from "@/oss/hooks/useURL"
 
 import {agentNameFromTask} from "./assets/agentName"
-import {CONNECT_STEP_MODE, HERO, RETURNING_HERO} from "./assets/constants"
+import {CONNECT_STEP_MODE, HERO, RETURNING_HERO, TEMPLATE_HERO} from "./assets/constants"
 import HomeTaskComposer from "./components/HomeTaskComposer"
 import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
@@ -159,6 +159,10 @@ const StripHome: React.FC = () => {
 
     // Seed once PER TEMPLATE KEY: a boolean guard blocked every template after the first,
     // because this surface stays mounted across ?template= navigations.
+    // The template this surface was opened for, if any — the hero speaks about it by name.
+    const pickedTemplate = templateParam
+        ? AGENT_TEMPLATES.find((entry) => entry.key === templateParam)
+        : undefined
     const seededTemplate = useRef<string | null>(null)
     useEffect(() => {
         if (!templateParam) {
@@ -292,23 +296,27 @@ const StripHome: React.FC = () => {
                             </Link>
                         ) : null}
                         {/* First run centres: one column, nothing else on the page, and the
-                            centred axis is the page's own. */}
-                        <div className="flex flex-col items-center gap-4 text-center">
+                            centred axis is the page's own. A template pick has already answered
+                            "what do you want to build?", so it names what it is setting up and
+                            asks the one thing still open. */}
+                        <div className="flex flex-col items-center gap-3 text-center">
                             <Typography.Title
                                 level={2}
                                 className="!m-0 !leading-tight !text-[30px]"
                             >
-                                {HERO.title}
+                                {pickedTemplate
+                                    ? TEMPLATE_HERO.title(pickedTemplate.name)
+                                    : HERO.title}
                             </Typography.Title>
                             <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
-                                {HERO.subtitle}
+                                {pickedTemplate ? TEMPLATE_HERO.subtitle : HERO.subtitle}
                             </Typography.Text>
                         </div>
 
                         {/* Chip docks into this gap (bottom-full), so it can only tighten so far.
                             The 2px nudge + z-10 overlap and paint above the composer's top border
                             so the chip reads as one shape, not a seam. */}
-                        <div className="relative mt-11 flex flex-col items-stretch">
+                        <div className="relative mt-8 flex flex-col items-stretch">
                             {/* The chip docks onto the composer's top edge, so it has nothing to
                                 sit on once the step replaces the composer — and the step names the
                                 template on its own line just below. */}
@@ -321,8 +329,8 @@ const StripHome: React.FC = () => {
                                 // The step is open: what they asked for settles into a line above
                                 // the card, still editable, so the description stays on screen
                                 // rather than being replaced by a form.
-                                <div className="flex items-start gap-3 text-left">
-                                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                <div className="flex items-start gap-3 px-1 text-left">
+                                    <div className="flex min-w-0 flex-1 flex-col gap-1">
                                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                                             Building
                                         </span>
@@ -355,7 +363,7 @@ const StripHome: React.FC = () => {
 
                         {setup.draft ? (
                             <AgentSetupCard
-                                className="mt-4 text-left"
+                                className="mt-3 text-left"
                                 accounts={setup.accounts}
                                 suggestions={setup.suggestions}
                                 skippedSlugs={setup.skippedSlugs}

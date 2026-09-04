@@ -64,6 +64,13 @@ export const HERO = {
     placeholder: STRIP_COPY.describeAgentPlaceholder,
 } as const
 
+/** A template already says what is being built and why, so the page asks the one thing still
+ * open — what it needs connected — instead of repeating the question the pick answered. */
+export const TEMPLATE_HERO = {
+    title: (name: string) => `Set up ${name}`,
+    subtitle: "Connect what it needs, then we'll build it and open the playground.",
+} as const
+
 export const COMPOSER = {
     tabUi: "Build in the UI",
     tabIde: "Continue in IDE",
