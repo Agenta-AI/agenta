@@ -31,6 +31,10 @@ interface UseAgentChatQueueArgs {
      * mount can fire the auto-resume. Holding for it would freeze the queue forever with no
      * dock and no stop (AGE-3937), so it voids the hold exactly like a user stop. */
     resumeOrphaned?: boolean
+    /** The approval answer is durable but its continuation was not delivered. A composer Send
+     * keeps the message held and uses the click to retry that continuation first. */
+    recoverable?: boolean
+    retryContinuation?: () => Promise<boolean>
     /** Send one released message into the conversation (wraps `useChat`'s `sendMessage`). Must be
      * referentially stable so the release effect doesn't churn on every streamed token. */
     sendQueued: (item: QueuedMessage) => void
@@ -59,6 +63,8 @@ export const useAgentChatQueue = ({
     acceptedRunPending = false,
     stopped,
     resumeOrphaned = false,
+    recoverable = false,
+    retryContinuation,
     sendQueued,
     sessionId,
 }: UseAgentChatQueueArgs) => {
@@ -88,6 +94,7 @@ export const useAgentChatQueue = ({
 
     // One latch shared by both send paths caps releases to one per settle and preserves FIFO.
     const releasingRef = useRef(false)
+    const retryingContinuationRef = useRef(false)
     const queuedRef = useRef(queued)
     useEffect(() => {
         queuedRef.current = queued
@@ -113,6 +120,18 @@ export const useAgentChatQueue = ({
     const submit = useCallback(
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const message: QueuedMessage = {...item, id: generateId()}
+            if (recoverable && retryContinuation) {
+                setQueued((q) => [...q, message])
+                if (!retryingContinuationRef.current) {
+                    retryingContinuationRef.current = true
+                    void retryContinuation()
+                        .catch(() => false)
+                        .finally(() => {
+                            retryingContinuationRef.current = false
+                        })
+                }
+                return
+            }
             if (!releasingRef.current && queuedRef.current.length === 0 && canReleaseNow) {
                 releasingRef.current = true
                 lastSentRef.current = message
@@ -121,7 +140,7 @@ export const useAgentChatQueue = ({
                 setQueued((q) => [...q, message])
             }
         },
-        [canReleaseNow, sendQueued],
+        [canReleaseNow, recoverable, retryContinuation, sendQueued],
     )
 
     const removeQueued = useCallback((id: string) => {

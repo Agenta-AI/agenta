@@ -38,15 +38,19 @@ interface HarnessProps {
     stopped: boolean
     acceptedRunPending?: boolean
     resumeOrphaned?: boolean
+    recoverable?: boolean
     sessionId?: string
 }
 
 const setup = (initial: HarnessProps) => {
     const sendQueued = vi.fn()
-    const view = renderHook((props: HarnessProps) => useAgentChatQueue({...props, sendQueued}), {
-        initialProps: initial,
-    })
-    return {sendQueued, ...view}
+    const retryContinuation = vi.fn(() => Promise.resolve(true))
+    const view = renderHook(
+        (props: HarnessProps) =>
+            useAgentChatQueue({...props, sendQueued, retryContinuation}),
+        {initialProps: initial},
+    )
+    return {sendQueued, retryContinuation, ...view}
 }
 
 const settledEmpty: HarnessProps = {status: "ready", messages: [], stopped: false}
@@ -138,6 +142,24 @@ describe("useAgentChatQueue", () => {
         })
         expect(sendQueued).not.toHaveBeenCalled()
         expect(result.current.queued.map((m) => m.text)).toEqual(["while paused"])
+    })
+
+    it("keeps a recoverable Send visible and retries the saved continuation", () => {
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+            recoverable: true,
+        }
+        const {result, sendQueued, retryContinuation} = setup(paused)
+
+        act(() => result.current.submit({text: "send after the approval"}))
+
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(retryContinuation).toHaveBeenCalledOnce()
+        expect(result.current.queued.map((message) => message.text)).toEqual([
+            "send after the approval",
+        ])
     })
 
     it("releases a held message once the approval gate resolves", () => {

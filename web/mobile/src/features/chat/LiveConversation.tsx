@@ -430,9 +430,6 @@ export const LiveConversation = ({
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
-    // Any blocking dock on screen. The queue card yields to all of them rather than stacking,
-    // mid-edit included — the composer keeps the edit, so Enter still rewrites the held row.
-    const gateDockOpen = pendingApprovals.length > 0 || elicits.open || connects.open
     // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
     // surface has no question-form dock yet, so only approvals and connect cards can gate it.
     const gateOpen = jumpGateOpen({
@@ -566,10 +563,9 @@ export const LiveConversation = ({
                             className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
                             style={BOTTOM_FADE_OVERLAY_STYLE}
                         />
-                        {/* What you have lined up. Yields to the gate docks entirely: those are
-                        blocked runs wanting an answer, and stacking a second card above one
-                        buries the composer. It comes back when the gate clears. */}
-                        {conversation.queued.length > 0 && !gateDockOpen ? (
+                        {/* What you have lined up stays visible while a gate is open: the queued
+                        message is the acknowledgement that the user's Send was not lost. */}
+                        {conversation.queued.length > 0 ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                                 <ContentRail>
                                     <QueuedMessagesDock

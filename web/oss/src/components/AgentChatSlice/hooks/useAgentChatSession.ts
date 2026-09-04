@@ -183,6 +183,10 @@ export const useAgentChatSession = ({
     const setSharedSenderReady = useCallback((ready: boolean) => {
         sharedSenderReadyRef.current = ready
     }, [])
+    const retryContinuation = useCallback(
+        () => resumeSessionContinuation(sessionId),
+        [resumeSessionContinuation, sessionId],
+    )
 
     // Rebuilt every render and bound to the chat on every commit (below), so they always see the live
     // values — `entityId` included, which is why a run follows a revision switch or a self-commit
@@ -845,6 +849,7 @@ export const useAgentChatSession = ({
         markLiveGate,
         answerApproval,
         answerApprovals,
+        retryContinuation,
         resumeOrphaned,
         isSeen,
     }

@@ -284,6 +284,12 @@ export const useAgentConversation = ({
     const respondInteractionAnswers = useSetAtom(respondInteractionAnswersAtom)
     const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
     const supportsDurableApprovals = useSetAtom(sessionDurableApprovalsCapabilityAtom)
+    const [recoverableContinuation, setRecoverableContinuation] = useState(false)
+    const retryRecoverableContinuation = useCallback(async () => {
+        const resumed = await resumeSessionContinuation(sessionId)
+        if (resumed) setRecoverableContinuation(false)
+        return resumed
+    }, [resumeSessionContinuation, sessionId])
 
     // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
     // `onData` and never the transcript — this is the only place the answer survives. A stream that
@@ -636,6 +642,8 @@ export const useAgentConversation = ({
         acceptedRunPending,
         stopped,
         resumeOrphaned,
+        recoverable: recoverableContinuation,
+        retryContinuation: retryRecoverableContinuation,
         sendQueued,
         sessionId,
     })
@@ -645,7 +653,7 @@ export const useAgentConversation = ({
     const handleApprovalResponse = useCallback(
         async (args: {id: string; approved: boolean}) => {
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
-            return submitApprovalForCapability({
+            const outcome = await submitApprovalForCapability({
                 durableApprovals: await supportsDurableApprovals(sessionId),
                 submitDurable: () =>
                     respondInteractionAnswer({
@@ -664,6 +672,8 @@ export const useAgentConversation = ({
                     }),
                 releaseLegacy: () => addToolApprovalResponse(args),
             })
+            setRecoverableContinuation(outcome.recoverable)
+            return outcome
         },
         [
             addToolApprovalResponse,
@@ -677,7 +687,7 @@ export const useAgentConversation = ({
     const handleApprovalResponses = useCallback(
         async (args: {ids: string[]; approved: boolean}) => {
             liveGateInteractionRef.current = {kind: "approval", id: args.ids[0]}
-            return submitApprovalForCapability({
+            const outcome = await submitApprovalForCapability({
                 durableApprovals: await supportsDurableApprovals(sessionId),
                 submitDurable: () =>
                     respondInteractionAnswers({
@@ -704,6 +714,8 @@ export const useAgentConversation = ({
                     }
                 },
             })
+            setRecoverableContinuation(outcome.recoverable)
+            return outcome
         },
         [
             addToolApprovalResponse,

@@ -155,6 +155,7 @@ const AgentConversation = ({
         markLiveGate,
         answerApproval,
         answerApprovals,
+        retryContinuation,
         resumeOrphaned,
         isSeen,
         runningElsewhere: livenessRunningElsewhere,
@@ -251,6 +252,12 @@ const AgentConversation = ({
     // composer until connected — see `gateActive` on `useAgentModelKeyStatus` for the full chain.
     const modelKey = useAgentModelKeyStatus(entityId)
     const modelBlocked = modelKey.gateActive
+    const [recoverableContinuation, setRecoverableContinuation] = useState(false)
+    const retryRecoverableContinuation = useCallback(async () => {
+        const resumed = await retryContinuation()
+        if (resumed) setRecoverableContinuation(false)
+        return resumed
+    }, [retryContinuation])
 
     // Context-window denominator for the token-budget indicator: the SDK model catalog's own
     // `context_window`, delivered on the (global) harness-capabilities document — never hardcoded.
@@ -397,6 +404,8 @@ const AgentConversation = ({
         acceptedRunPending,
         stopped,
         resumeOrphaned,
+        recoverable: recoverableContinuation,
+        retryContinuation: retryRecoverableContinuation,
         sendQueued,
         sessionId,
     })
@@ -405,7 +414,7 @@ const AgentConversation = ({
     // in THIS mount marks the resume as live — a restored approval-requested tail the user answers
     // after a reload genuinely auto-resumes, so the queue's pre-resume hold must apply to it.
     const handleApprovalResponse = useCallback(
-        (args: {id: string; approved: boolean; message?: string}) => {
+        async (args: {id: string; approved: boolean; message?: string}) => {
             markLiveGate({kind: "approval", id: args.id})
             // `answerApproval` owns the whole ordered click: the row first, then the part flip that
             // lets the SDK resume. Never flip here — an early flip lets the resume's stale sweep
@@ -420,20 +429,24 @@ const AgentConversation = ({
             // that flail needs an upstream ACP change, not an FE one.)
             // The outcome is RETURNED, not swallowed: the dock reads `recoverable` off it to show
             // "Answer saved, retry needed" instead of "Answered, waiting for the agent".
-            return answerThenSteer({
+            const outcome = await answerThenSteer({
                 approved: args.approved,
                 message: args.message,
                 answer: () => answerApproval(args.id, args.approved),
                 steer: (text) => submit({text}),
             })
+            setRecoverableContinuation(outcome?.recoverable === true)
+            return outcome
         },
         [answerApproval, markLiveGate, submit],
     )
 
     const handleApprovalResponses = useCallback(
-        (ids: string[], approved: boolean) => {
+        async (ids: string[], approved: boolean) => {
             markLiveGate({kind: "approval", id: ids[0]})
-            return answerApprovals(ids, approved)
+            const outcome = await answerApprovals(ids, approved)
+            setRecoverableContinuation(outcome?.recoverable === true)
+            return outcome
         },
         [answerApprovals, markLiveGate],
     )

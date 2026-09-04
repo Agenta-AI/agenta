@@ -260,10 +260,6 @@ const AgentComposerDock = ({
     // Permission rules live in the Advanced accordion's Permissions group.
     const openPermissionsConfig = useCallback(() => openConfigFor("advanced"), [openConfigFor])
 
-    // Any blocking dock on screen. The queue card yields to all of them rather than stacking,
-    // mid-edit included — the composer keeps the edit, so Enter still rewrites the held row.
-    const gateDockOpen = pendingApprovals.length > 0 || elicits.open || connects.open
-
     // Editing borrows the composer: the row's text goes in, the draft it displaces is stashed.
     const {beginEdit, cancelEdit} = queue
     const editQueued = useCallback(
@@ -308,12 +304,11 @@ const AgentComposerDock = ({
                         />
                     </div>
                 ) : null}
-                {/* Above the gate docks, and hidden entirely while one is up: those are blocked
-                    runs wanting an answer, and a second card stacked above one buries the composer.
-                    Inside the `Reveal` so it shares the composer's `px-3` gutter and column. */}
+                {/* Above the gate docks so a held message remains visible while the run waits for
+                    an answer. Inside the `Reveal` so it shares the composer's gutter and column. */}
                 <QueuedMessagesDock
                     className={CHAT_COLUMN}
-                    queued={gateDockOpen ? [] : queue.queued}
+                    queued={queue.queued}
                     held={hitlPending}
                     onRemove={queue.removeQueued}
                     onEdit={editQueued}
