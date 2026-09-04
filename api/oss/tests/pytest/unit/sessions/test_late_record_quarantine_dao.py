@@ -172,7 +172,7 @@ async def test_a_redelivery_keeps_the_first_quarantine_instant():
     )
     rows = await dao.append_many(events=[later])
 
-    assert rows[0].quarantined_at == first_mark
+    assert rows.records[0].quarantined_at == first_mark
 
 
 async def test_an_unmarked_redelivery_cannot_resurrect_a_quarantined_record():
