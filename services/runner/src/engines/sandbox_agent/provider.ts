@@ -23,6 +23,35 @@ import {
   type DaytonaSecretPlan,
 } from "./daytona-secret-plan.ts";
 
+/** The port the Daytona provider passes to `sandbox-agent server`. */
+export const DAYTONA_SANDBOX_AGENT_PORT = 3_000;
+
+/**
+ * Recover the daemon port from the public sandbox handle id.
+ *
+ * Local ids are the daemon's `host:port`; Daytona ids are opaque, so use the explicit port this
+ * module gives that provider. Unknown providers stay undefined rather than borrowing a port.
+ */
+export function sandboxAgentServerPort(
+  sandboxId: string | undefined,
+): number | undefined {
+  if (!sandboxId) return undefined;
+  const separator = sandboxId.indexOf("/");
+  if (separator <= 0) return undefined;
+  const provider = sandboxId.slice(0, separator);
+  if (provider === "daytona") return DAYTONA_SANDBOX_AGENT_PORT;
+  if (provider !== "local") return undefined;
+
+  try {
+    const port = Number(new URL(`http://${sandboxId.slice(separator + 1)}`).port);
+    return Number.isInteger(port) && port > 0 && port <= 65_535
+      ? port
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Translate the Layer 2 network policy into Daytona create fields. Daytona enforces egress
  * at the sandbox boundary: `networkBlockAll` blocks all outbound, `networkAllowList` is a
@@ -179,6 +208,7 @@ export function buildSandboxProvider(
       daytonaWithLifecycle(
         {
           ...(image ? { image } : {}),
+          agentPort: DAYTONA_SANDBOX_AGENT_PORT,
           create: {
             ...createFields,
             ...(Object.keys(secretAttachments).length > 0

@@ -70,6 +70,7 @@ import {
 import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
 import { cancelHarnessTurn } from "./cancel-turn.ts";
 import { reapLeakedExecChildren } from "./reap-exec.ts";
+import { sandboxAgentServerPort } from "./provider.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import {
   capturePiTranscriptCursor,
@@ -1358,6 +1359,7 @@ export async function runTurn(
       if (cancel.settled && plan.acpAgent === "codex") {
         await reapLeakedExecChildren({
           sandbox: env.sandbox,
+          sandboxAgentPort: sandboxAgentServerPort(env.sandbox?.sandboxId),
           turnElapsedMs: Date.now() - promptStartedAtMs,
           log: logger,
         }).catch(() => undefined);
