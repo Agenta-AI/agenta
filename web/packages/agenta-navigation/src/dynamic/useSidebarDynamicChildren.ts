@@ -23,18 +23,36 @@ interface RowInputs {
 /**
  * Last row built for a row key, reused while nothing about it changed.
  *
- * Keyed on the ROW KEY and a signature of the ref, not on the ref object: the source rebuilds
- * every ref on every recompute, so identity is never stable and a WeakMap on it would miss every
- * time. Without this the whole list remounts on each poll, which fights a user mid-scroll.
+ * Keyed on the ROW KEY and the ref's FIELDS, not the ref object: the source rebuilds every ref on
+ * every recompute, so identity is never stable and a WeakMap on it would miss every time. Without
+ * this the whole list remounts on each poll, which fights a user mid-scroll.
+ *
+ * `resolveChildren` is therefore memoized, not pure — same rows in, same row OBJECTS out. It is
+ * keyed per entity so two entities sharing a parent key cannot serve each other's rows, and
+ * `resetSidebarRowCache` exists so tests can assert on a cold cache.
  */
 interface EntityRowCache {
-    rows: Map<string, {signature: string; row: SidebarConfig}>
-    /** The chrome the cached rows closed over — closures, so they cannot go in a signature. */
+    rows: Map<string, {ref: SidebarEntityRef; inputs: RowInputs; row: SidebarConfig}>
+    /** The chrome the cached rows closed over — closures, so they cannot go in a comparison. */
     chrome: {wrapRow?: RowInputs["wrapRow"]; rowIcon?: RowInputs["rowIcon"]}
 }
 
+/** Shallow field comparison — refs are flat records, so this settles it without serializing. */
+const sameRef = (a: SidebarEntityRef, b: SidebarEntityRef): boolean => {
+    const aKeys = Object.keys(a)
+    if (aKeys.length !== Object.keys(b).length) return false
+    const left = a as unknown as Record<string, unknown>
+    const right = b as unknown as Record<string, unknown>
+    return aKeys.every((key) => left[key] === right[key])
+}
+
 /** Per ENTITY, not per parent key: two entities can share a key, and their rows differ. */
-const rowCaches = new WeakMap<SidebarEntity, EntityRowCache>()
+let rowCaches = new WeakMap<SidebarEntity, EntityRowCache>()
+
+/** Drops every memoized row. For tests that assert on freshly built rows. */
+export const resetSidebarRowCache = (): void => {
+    rowCaches = new WeakMap<SidebarEntity, EntityRowCache>()
+}
 
 /** Bounded so a long run of filter changes cannot grow one entity's cache without limit. */
 const ROW_CACHE_MAX = 2_000
@@ -62,13 +80,13 @@ const cachedRow = (
     }
 
     const key = `${entity.parentKey}-${ref.id}`
-    const signature = JSON.stringify([ref, inputs.projectURL, inputs.dragZone])
     const cached = cache.rows.get(key)
-    if (cached && cached.signature === signature) return cached.row
+    if (cached && sameRowInputs(cached.inputs, inputs) && sameRef(cached.ref, ref))
+        return cached.row
 
     const row = build(ref, inputs.dragZone)
     if (cache.rows.size >= ROW_CACHE_MAX) cache.rows.clear()
-    cache.rows.set(key, {signature, row})
+    cache.rows.set(key, {ref, inputs, row})
     return row
 }
 

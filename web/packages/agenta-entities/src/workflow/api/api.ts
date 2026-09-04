@@ -1357,6 +1357,10 @@ export async function fetchWorkflowsBatch(
  *
  * Endpoint: `POST /workflows/revisions/query`
  *
+ * Raw axios rather than the Fern client this file's newer functions prefer: `latest_per_artifact`
+ * ships in the same change as this call, so the generated client does not carry it until the
+ * OpenAPI spec is regenerated. Migrate with the rest of this file once it does.
+ *
  * @param projectId - Project ID
  * @param workflowIds - Workflow IDs to classify
  * @returns Map of workflow ID → whether its latest revision is an agent

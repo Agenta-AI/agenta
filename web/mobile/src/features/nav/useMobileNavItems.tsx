@@ -13,6 +13,7 @@ import {
     sidebarSessionToggledGroupsAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
+    loadMoreSidebarSessionsAtomFamily,
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
     withEntityGroups,
@@ -23,7 +24,7 @@ import {
 } from "@agenta/navigation"
 import {SessionFilterMenu} from "@agenta/navigation-ui"
 import {SessionRowActions, useSessionActions, useSessionRowChrome} from "@agenta/sessions-ui"
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 import {
     Activity,
@@ -129,6 +130,7 @@ const mobileAgentsEntity = defineSidebarEntity(MOBILE_NAV_SCOPE_ID, AGENTS_SIDEB
  */
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const rawSource = useAtomValue(mobileSessionsEntity.activeSourceAtom)
+    const loadMoreSessions = useSetAtom(loadMoreSidebarSessionsAtomFamily(MOBILE_NAV_SCOPE_ID))
     const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
     // MEMOIZED, and load-bearing: `withEntityGroups` spreads into a new object, so an unmemoized
     // call changes identity on every render — which busts the memo below, re-buckets every row,
@@ -185,6 +187,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 // The rail does not scroll; THIS group does. Sessions is the only list that grows
                 // without bound, so Observability (and whatever lands after it) stays on screen.
                 scrollChildren: true,
+                onReachEnd: loadMoreSessions,
                 groupAction: createElement(SessionFilterMenu, {
                     scopeId: MOBILE_NAV_SCOPE_ID,
                 }),
@@ -204,7 +207,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 link: `${projectURL}/observability`,
             },
         ],
-        [agentsSource, source, projectURL, wrapSessionRow],
+        [agentsSource, loadMoreSessions, source, projectURL, wrapSessionRow],
     )
 }
 

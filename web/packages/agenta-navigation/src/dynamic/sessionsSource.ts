@@ -85,10 +85,6 @@ const SCOPE_SESSION_LIMIT: Record<string, number> = {
 
 const scopeLimit = (scopeId: string) => SCOPE_SESSION_LIMIT[scopeId] ?? SIDEBAR_SESSION_LIMIT
 
-/** The size of ONE fetched page. The rail renders every page it has loaded, so this no longer
- * doubles as a render cap — see `SIDEBAR_UNBOUNDED`. */
-export const sidebarSessionPageSize = scopeLimit
-
 /** Scopes whose rail groups and filters. Everything below is gated on this so a scope that does
  * neither issues exactly the request, and takes exactly the subscriptions, it always did. */
 const GROUPED_SCOPES = new Set(["mobile-main", MAIN_SIDEBAR_SCOPE_ID])
@@ -267,7 +263,7 @@ const filtersKey = (filters: SidebarSessionFilters) =>
     [filters.agentIds.join(","), filters.status, filters.activity, filters.type].join("|")
 
 const sessionPageCountStateAtomFamily = atomFamily((_scopeId: string) =>
-    atom<{key: string; pages: number}>({key: "", pages: 0}),
+    atom<{key: string; pages: number; boundary?: string}>({key: "", pages: 0}),
 )
 
 /**
@@ -284,11 +280,26 @@ export const sidebarSessionPageCountAtomFamily = atomFamily((scopeId: string) =>
             const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)))
             return state.key === key ? state.pages : 0
         },
-        (get, set, next: number) => {
+        (get, set, next: {pages: number; boundary?: string}) => {
             const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)))
-            set(sessionPageCountStateAtomFamily(scopeId), {key, pages: next})
+            set(sessionPageCountStateAtomFamily(scopeId), {key, ...next})
         },
     ),
+)
+
+/**
+ * Where the tail starts, frozen when the first page is asked for.
+ *
+ * NOT re-read from the head: the head polls, so any new session shifts its oldest row, and a
+ * boundary taken live would re-key the tail query and refetch every loaded page on that tick.
+ * Frozen, the tail is fetched once per page and the head's churn stays the head's problem.
+ */
+const sidebarSessionBoundaryAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => {
+        const state = get(sessionPageCountStateAtomFamily(scopeId))
+        const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)))
+        return state.key === key ? state.boundary : undefined
+    }),
 )
 
 /** Oldest activity in the head window — where the next page starts. */
@@ -317,14 +328,14 @@ const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
         const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
         const {agentIds, flags, includeArchived, origin, excludeOrigin, oldest} =
             requestFilters(filters)
-        const head = get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? null
-        // The head's oldest row is the boundary; without it there is nothing to page past yet.
-        const boundary = head ? oldestActivity(head) : undefined
+        const boundary = get(sidebarSessionBoundaryAtomFamily(scopeId))
         return {
+            // `projectId` stays at index 1: `keepPreviousDataWithinProject` reads that slot to
+            // tell a facet change from a project switch.
             queryKey: [
                 "sidebar-sessions",
-                "older",
                 projectId,
+                "older",
                 filters.agentIds,
                 filters.status,
                 filters.activity,
@@ -388,10 +399,14 @@ export const loadMoreSidebarSessionsAtomFamily = atomFamily((scopeId: string) =>
         if (get(sidebarReorderActiveAtom)) return
         const paging = get(sidebarSessionPagingAtomFamily(scopeId))
         if (!paging.hasMore || paging.isLoadingMore) return
-        set(
-            sidebarSessionPageCountAtomFamily(scopeId),
-            get(sidebarSessionPageCountAtomFamily(scopeId)) + 1,
-        )
+        const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
+        // The first page fixes the boundary off the head as it stands right now; later pages keep
+        // it, so the tail is not re-fetched every time the head polls.
+        const boundary =
+            get(sidebarSessionBoundaryAtomFamily(scopeId)) ??
+            oldestActivity(get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? [])
+        if (!boundary) return
+        set(sidebarSessionPageCountAtomFamily(scopeId), {pages: pages + 1, boundary})
     }),
 )
 
