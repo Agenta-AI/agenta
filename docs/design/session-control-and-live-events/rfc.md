@@ -61,7 +61,9 @@ POST /sessions/{session_id}/cancel
 The browser learns `execution-12` from the session snapshot or the `execution.started` event. The
 person pressing Stop never enters it. This field prevents a delayed Stop request from cancelling
 new work that started after the button was pressed. The field is optional. Without it, the API
-cancels whichever execution is active when the request is applied.
+uses Redis arrival and turn-start timestamps and refuses the request if the active execution began
+after the request arrived. A client that needs unconditional session-scoped cancellation must use
+a future command contract.
 
 Respond to an interaction through a resource-specific public endpoint:
 

@@ -139,6 +139,12 @@ Accepting Stop durably saves the command and moves the matching execution from `
 watchdog settles an execution whose runner disappears, but its timeout remains open until the
 sandbox cancellation spike.
 
+Postgres is the admission-state store for both the durable command row and the execution
+projection. The API inserts the command and updates the matching execution in one Postgres
+transaction. Redis ownership is not part of that transaction. A crash before commit accepts
+nothing. A crash after commit leaves a retryable `pending` command that long polling or heartbeat
+discovery can deliver until the runner applies it.
+
 ### D-017: Keep current Redis execution ownership for the first version
 
 **Status:** Confirmed by Mahmoud on 2026-09-02.
@@ -160,6 +166,9 @@ control-delivery port.
 The runner uses HTTP long polling behind a control-delivery port. Durable commands remain
 recoverable across disconnection, and the Stop path does not depend on Redis, WebSockets, or direct
 runner routing. Heartbeat command discovery remains the fallback delivery path.
+
+Redis remains an execution lease and routing hint. Postgres command and execution rows are the
+durable recovery source after process or Redis failure.
 
 ## Proposed design decisions
 

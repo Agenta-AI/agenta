@@ -179,7 +179,7 @@ Three rules the code holds to, each because the wrong id refuses a Stop that is 
   device never saw its metadata, and naming a turn it watched earlier would refuse a correct Stop.
 
 **The typed client was regenerated**, against this stack's own OpenAPI
-(`clients/scripts/generate.sh --language typescript --url http://144.76.237.122:8980/api/openapi.json`).
+(`clients/scripts/generate.sh --language typescript --url <deployment-url>/api/openapi.json`).
 The diff is two fields and nothing else: `expected_execution_id` on the request and
 `cancelled_turn_ids` on the response. The checked-in client was otherwise already in sync.
 
@@ -219,23 +219,9 @@ RFC and it is not in this slice. It is open question 2 below.
 
 ## Live verification
 
-Stack: `http://144.76.237.122:8980`, project `agenta-ee-dev-session-stopguard`, EE, dev images, local
-sandbox provider. Left running. Teardown:
-
-```bash
-cd /home/mahmoud/code/agenta-2-worktrees/slice-stop-guard
-bash ./hosting/docker-compose/run.sh --license ee --dev --env-file .env.ee.dev.stopguard --no-tunnel --down
-```
-
-One operational note for whoever takes the stack over. Running `pnpm install` on the host inside a
-worktree that a dev-mode web container bind-mounts breaks that container: the host user owns the
-resulting `node_modules` and `dist` directories, the container runs as uid 10001, and its own
-`pnpm install` fails with EACCES on every restart. The web page serves 502 until the tree is made
-group-writable (`chmod -R a+rwX web`). The API is unaffected.
-
-Every scenario below was driven by curl against the public API, with Redis read through
-`docker exec agenta-ee-dev-session-stopguard-redis-volatile-1 redis-cli`. The project id in the keys
-is `01a063e7-865b-7883-aecc-43cd6ae9a4d9`.
+The scenarios ran against an access-controlled EE development deployment with a local sandbox
+provider. Endpoint, project, container, and host-path identifiers are omitted from the repository.
+The raw transcript is retained in the restricted test record.
 
 ### (a) A Stop naming a turn that has ended is refused, and the new turn keeps running
 
@@ -243,14 +229,13 @@ Turn one took the session, a steer replaced it with turn two, then a Stop named 
 
 ```
 --- STALE STOP: expected_execution_id = T1 ---
-{"detail":{"message":"Session 'qa-stopguard-1788382545' is running turn '01a063e8-0890-7473-b31e-5e5bd7367dcb',
- not the expected turn '01a063e8-0722-73d0-b023-0f88dab03245'. Nothing was cancelled.",
- "expected_execution_id":"01a063e8-0722-73d0-b023-0f88dab03245",
- "actual_execution_id":"01a063e8-0890-7473-b31e-5e5bd7367dcb"}}
+{"detail":{"message":"Session '<session-id>' is running turn '<T2>', not the expected turn '<T1>'. Nothing was cancelled.",
+ "expected_execution_id":"<T1>",
+ "actual_execution_id":"<T2>"}}
 HTTP=409
 --- state after the refused stop ---
-alive   -> 01a063e8-0890-7473-b31e-5e5bd7367dcb
-running -> 01a063e8-0890-7473-b31e-5e5bd7367dcb
+alive   -> <T2>
+running -> <T2>
 tombstone(T2) exists -> 0
 tombstone(T1) exists -> 1
 ```
@@ -263,14 +248,14 @@ Constructed, because the timing cannot be forced from outside the process. One t
 normally, its recorded start was moved five seconds into the future, and a Stop with no id was sent.
 
 ```
-forced start -> 1788382688429  (5s after now)
+forced start -> <redis-time-plus-5s>
 --- Stop with NO expected_execution_id ---
-{"detail":{"message":"Session 'qa-future-1788382683' started turn '01a063ea-20b4-71b0-a5b7-6b5b82a29ec5'
+{"detail":{"message":"Session '<session-id>' started turn '<T2>'
  after this cancel arrived, so the cancel is stale. Nothing was cancelled.
  Send `expected_execution_id` to cancel a specific turn.", ...}}
 HTTP=409
-alive          -> 01a063ea-20b4-71b0-a5b7-6b5b82a29ec5
-running        -> 01a063ea-20b4-71b0-a5b7-6b5b82a29ec5
+alive          -> <T2>
+running        -> <T2>
 tombstone(T2)  -> 0
 ```
 
@@ -282,10 +267,10 @@ The gate was created through `POST /sessions/interactions/`, the endpoint and bo
 with the same `turn_id` as the running turn.
 
 ```
-status before Stop = pending   turn_id = 01a063ea-bf70-7f82-b0df-bfb2b783ad46
+status before Stop = pending   turn_id = <T1>
 === STOP ===
-{"mode":"cancel","session_id":"qa-gate-1788382723","turn_id":"01a063ea-bf70-7f82-b0df-bfb2b783ad46",
- "detached":true,"cancelled_turn_ids":["01a063ea-bf70-7f82-b0df-bfb2b783ad46"]}
+{"mode":"cancel","session_id":"<session-id>","turn_id":"<T1>",
+ "detached":true,"cancelled_turn_ids":["<T1>"]}
 HTTP=200
 status after Stop = cancelled
 === late answer ===
@@ -315,7 +300,7 @@ the setting removed. The stack is back on the default.
 === a second SEND is refused ===         HTTP=429
   {"detail":"Concurrency limit of 1 concurrent runs reached for this project."}
 === STOP on the running session ===      HTTP=200
-  {"mode":"cancel", ... "cancelled_turn_ids":["01a06424-5758-7ac3-a4ea-fc03ff4e267c"]}
+  {"mode":"cancel", ... "cancelled_turn_ids":["<T1>"]}
 === the freed slot lets the next SEND through === HTTP=200
 ```
 
