@@ -74,6 +74,58 @@ def test_verdict_shape_helpers():
         assert set(v) == {"pass", "skip", "why"}
 
 
+def _stop_approval_evidence(*, durable_stop: str, late_status: int) -> dict:
+    return {
+        "stop": {"status": 200},
+        "command_settled": {"settled": True, "why": None},
+        "durable_stop": durable_stop,
+        "late_answer": {"status": late_status},
+        "resume_recalled_marker": True,
+    }
+
+
+def test_stop_approval_durable_path_requires_late_answer_refusal():
+    accepted = _stop_approval_evidence(durable_stop="on", late_status=200)
+    refused = _stop_approval_evidence(durable_stop="on", late_status=409)
+
+    assert sc._judge_stop_approval(accepted, pending_found=True)["pass"] is False
+    verdict = sc._judge_stop_approval(refused, pending_found=True)
+    assert verdict["pass"] is True
+    assert "late answer was refused" in verdict["why"]
+
+
+def test_stop_approval_legacy_path_requires_and_records_late_answer_acceptance():
+    accepted = _stop_approval_evidence(durable_stop="off", late_status=200)
+    refused = _stop_approval_evidence(durable_stop="off", late_status=409)
+
+    verdict = sc._judge_stop_approval(accepted, pending_found=True)
+    assert verdict == {
+        "pass": True,
+        "skip": False,
+        "why": "late answer accepted: legacy path",
+    }
+    assert accepted["late_answer"]["note"] == "late answer accepted: legacy path"
+    assert sc._judge_stop_approval(refused, pending_found=True)["pass"] is False
+
+
+def test_durable_stop_auto_detection_uses_cancel_response_shape():
+    durable = {"command": {"id": "cmd-1"}, "execution": {"id": "exec-1"}}
+    legacy = {
+        "mode": "cancelled",
+        "session_id": "session-1",
+        "turn_id": "turn-1",
+        "watcher_id": None,
+        "detached": False,
+        "cancelled_turn_ids": ["turn-1"],
+    }
+
+    assert sc._resolve_durable_stop("auto", durable) == "on"
+    assert sc._resolve_durable_stop("auto", legacy) == "off"
+    assert sc._resolve_durable_stop("auto", {"detail": "not found"}) is None
+    assert sc._resolve_durable_stop("off", durable) == "off"
+    assert sc._resolve_durable_stop("on", legacy) == "on"
+
+
 def test_hooks_only_cells_skip_without_project(monkeypatch):
     """Every cell marked needs_hooks=True must SKIP (not crash, not run) when --project is
     absent, per qa-audit-2026-09-03.md section 4 change 2."""
