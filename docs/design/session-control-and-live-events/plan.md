@@ -16,6 +16,17 @@ durable, warm, and recoverable.
 
 **Increment:** One ordered release step with an activation and rollback rule.
 
+## Milestones
+
+Milestone 1 contains increments 1 to 3. The history producer is already closed, so it is not part
+of the remaining work. Reliable Stop and shared history make milestone 1 a complete stopping point.
+
+Milestone 2 contains increments 4 and 5.
+
+Milestone 3 contains increments 6 and 7. Increment 7 releases Queue, then Steer. Milestone 3 is
+optional. Start it only when there is a concrete need to submit work while a turn runs. The
+trade-off is no multi-message queueing and no atomic save-and-interrupt.
+
 ## Increments
 
 | Increment | User or system result | Required package | Flag and rollback |
@@ -65,7 +76,8 @@ admission without enabling a new client path.
 ### Stop and recovery checkpoint
 
 Deploy #6496 on main, #6503 on #6496, #6501 on #6503, and #6504 on #6503 after the pure fixes.
-Run control, failure, provider, harness, retry, settlement, and rollback rows in `qa.md`.
+Run control, failure, provider, harness, retry, settlement, and rollback rows in `qa.md`. A stopped
+session parks warm for 600 seconds. The product owner settled this duration on 5 September 2026.
 
 ### Durable history checkpoint
 
@@ -86,12 +98,15 @@ mobile parity, and rollback rows.
 ### Durable approvals checkpoint
 
 Deploy atomic answer acceptance and continuation command creation. Run delivery failure, Stop race,
-duplicate response, and rollback rows.
+duplicate response, and rollback rows. If a user sends a message while a continuation runs, the
+client holds it and sends it after the continuation ends. The server refuses the message if it
+arrives during the continuation. The product owner settled this behavior on 5 September 2026.
 
 ### Queue and Steer checkpoint
 
 Deploy visible pending input and Queue first. Keep busy default `reject` until enabled clients show
-the queue. Add Steer only after save-before-stop and priority-promotion races pass.
+the queue. Add Steer only after save-before-stop and priority-promotion races pass. Run this optional
+checkpoint only after the product gate in the Milestones section passes.
 
 ## Pull request rules
 

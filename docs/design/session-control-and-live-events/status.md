@@ -7,6 +7,15 @@
 The current RFC head is the contract-baseline candidate. This status does not approve an
 implementation package or claim release proof on a future code commit.
 
+Milestone 1 contains increments 1 to 3. The history producer is closed and is not part of the
+remaining work. Reliable Stop and shared history make this milestone a complete stopping point.
+Milestone 2 contains increments 4 and 5.
+
+Milestone 3 contains increments 6 and 7. Increment 7 releases Queue, then Steer. This milestone is
+optional. It starts only after a concrete need exists to submit work while a turn runs. If work
+stops before this milestone, the trade-off is no multi-message queueing and no atomic
+save-and-interrupt.
+
 ## Settled contracts
 
 - Send stays on the existing invoke operation with `on_busy` and `Idempotency-Key`.
@@ -38,11 +47,15 @@ implementation package or claim release proof on a future code commit.
 - Each increment uses one global environment switch.
 - Late output is quarantined and excluded from canonical reads.
 - The runner shutdown grace period is 30 seconds.
+- A stopped session parks warm for 600 seconds.
 - The Codex reap ships now. The Codex pin bump uses a separate pull request.
 - Stop after teardown returns `not_running`.
 - Durable approvals ship before Queue and Steer.
+- If a user sends a message while an approval continuation runs, the client holds it until the
+  continuation ends. The server refuses the message if it arrives during the continuation.
 
 Mahmoud settled all seven open choices on 2026-09-04. No open design questions remain.
+The product owner settled the warm park duration and continuation message behavior on 2026-09-05.
 
 ## Review record
 
@@ -99,18 +112,20 @@ needs that fix re-merged.
 | #6505 | Overnight reports | Evidence only |
 | #6506 | Combined integration branch | Evidence only, never a merge source |
 
-## Implementation progress (2026-09-04)
+## Implementation progress (2026-09-05)
 
 - Increments 1 to 3 (pure fixes, the Stop package, the history producer) are on PRs #6496, #6503,
   #6501, #6517, #6504, and #6518. A merged head of these lanes runs on an integration stack. The
-  final live matrix runs on it. Run 1 (Pi, local provider, last-message client shape, hook cells)
-  passed 12 cells. It found two product defects: a Stop during a tool approval evicted the warm
-  sandbox and reported failed when the harness cancel could not be sent (fix reviewed on #6501),
-  and the watchdog did not complete a pass on that head (root cause in progress).
+  history producer work is closed. The final live matrix runs on the remaining work. Run 1 (Pi,
+  local provider, last-message client shape, hook cells) passed 12 cells. It found two product
+  defects: a Stop during a tool approval evicted the warm sandbox and reported failed when the
+  harness cancel could not be sent (fix reviewed on #6501), and the watchdog did not complete a
+  pass on that head (root cause in progress).
 - Increment 4 (live relay, #6522) and increment 4b (durable reconnect, #6524) are reviewed and
   proven live: two readers, mobile, late joiner, reconnect, slow reader, flag off, snapshot then
   replay with sparse sequences, legacy session, and concurrent writes.
-- Increments 5, 6, and 7 are in review rounds (#6531, #6530) or in build (queue then steer).
+- Increments 5 and 6 are in review rounds (#6531, #6530). Increment 7, Queue then Steer, is being
+  built as a separate draft pull request. It remains optional and must pass the product gate above.
 
 ## Work before implementation
 
