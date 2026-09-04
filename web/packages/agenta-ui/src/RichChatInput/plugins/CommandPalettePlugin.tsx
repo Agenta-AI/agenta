@@ -201,18 +201,24 @@ export function CommandPalettePlugin({palettes, anchorRef, disabled}: CommandPal
                 )
                 const hit = matcher ? readRun(full.slice(0, caret), matcher.pattern) : null
                 const start = hit ? hit.start : caret
+                const tail = full.slice(caret)
+                // One separator, never two: a run replaced mid-sentence already has whitespace
+                // after it.
+                const pad = text !== "" && !/^\s/.test(tail)
                 if (as === "text") {
-                    const upToCaret = full.slice(0, start) + text
-                    node.setTextContent(upToCaret + full.slice(caret))
+                    const upToCaret = full.slice(0, start) + text + (pad ? " " : "")
+                    node.setTextContent(upToCaret + tail)
                     node.select(upToCaret.length, upToCaret.length)
                     return
                 }
-                node.setTextContent(full.slice(0, start) + full.slice(caret))
+                // The spacer is not optional here: it is what keeps the caret out of the code span,
+                // so a run that already has whitespace after it gives up that one character instead
+                // of ending with two.
+                node.setTextContent(full.slice(0, start) + (pad ? tail : tail.slice(1)))
                 const code = $createTextNode(text)
                 code.setFormat("code")
-                // A separate unformatted node, or the caret stays inside the code span and the next
-                // word typed joins it — as would a second reference inserted after it. Spliced by
-                // hand rather than through `insertNodes`, which folds the spacer into the span.
+                // Spliced by hand rather than through `insertNodes`, which folds the spacer into
+                // the span.
                 const spacer = $createTextNode(" ")
                 if (start === 0) node.insertBefore(code)
                 else if (start >= node.getTextContentSize()) node.insertAfter(code)
@@ -233,9 +239,7 @@ export function CommandPalettePlugin({palettes, anchorRef, disabled}: CommandPal
             }
             const as = item.kind === "insert" ? (item.insertAs ?? "text") : "text"
             const text = item.kind === "insert" ? (item.insertText ?? item.label) : ""
-            // `code` gets its trailing space from the spacer node instead, or the space lands
-            // inside the span and ships as part of the path.
-            replaceRun(as === "code" || !text ? text : `${text} `, as)
+            replaceRun(text, as)
             close()
             if (item.kind !== "insert") item.onSelect?.()
         },

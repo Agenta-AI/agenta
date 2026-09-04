@@ -101,10 +101,10 @@ export function recentRows(
 ): PaletteFileRow[] {
     const rows: PaletteFileRow[] = []
     for (const file of recents) {
+        if (rows.length >= limit) break
         const rel = cleanPath(file.path)
         if (!isListableDrivePath(rel) || file.is_folder) continue
         rows.push({...rowFor(file, rel, false), touchedAt: file.touchedAt})
-        if (rows.length === limit) break
     }
     return rows
 }
