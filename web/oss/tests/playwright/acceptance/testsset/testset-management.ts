@@ -209,8 +209,10 @@ const testsetTests = () => {
                     })
 
                     // Click a data row cell to open the TestcaseEditDrawer
+                    // `.avt-cell`, the table package's stable hook — `.ant-table-cell` matches
+                    // nothing since the antd Table branch was removed (AVT in tableDom.ts).
                     const cell = page
-                        .locator(".ant-table-cell")
+                        .locator(".avt-cell, .ant-table-cell")
                         .filter({hasText: "original value"})
                         .first()
                     await expect(cell).toBeVisible({timeout: 10000})
@@ -308,9 +310,14 @@ const testsetTests = () => {
                     await expect(page.locator("th").filter({hasText: "input"}).first()).toBeVisible(
                         {timeout: 10000},
                     )
-                    await expect(page.locator(".ant-table-tbody")).toContainText("existing row", {
-                        timeout: 10000,
-                    })
+                    // `.avt-body` is the table package's stable hook; `.ant-table-tbody` matches
+                    // nothing since the antd Table branch was removed (see AVT in tableDom.ts).
+                    await expect(page.locator(".avt-body, .ant-table-tbody")).toContainText(
+                        "existing row",
+                        {
+                            timeout: 10000,
+                        },
+                    )
 
                     // Add a new row (auto-opens the edit drawer for the new row)
                     await page.getByRole("button", {name: "Add row"}).click()
@@ -339,11 +346,12 @@ const testsetTests = () => {
                         page.locator("[data-row-key]").filter({hasText: "new-row-value"}).first(),
                     ).toBeVisible({timeout: 5000})
 
-                    // Add a new column — the button has a PlusOutlined (anticon-plus) icon and
-                    // sits in the table header before the column-visibility gear button.
-                    // ant-table-cell-fix-right may not be applied without horizontal scroll,
-                    // so locate by the AntD icon class which is unique in the thead.
-                    await page.locator(".ant-table-thead .anticon-plus").click()
+                    // Add a new column — a PlusOutlined button in the table header. The icon is
+                    // still antd (`anticon-plus`), but the header is the virtual table's
+                    // `.avt-thead`; `.ant-table-thead` no longer matches.
+                    await page
+                        .locator(".avt-thead .anticon-plus, .ant-table-thead .anticon-plus")
+                        .click()
 
                     const addColumnModal = page
                         .locator(".ant-modal")

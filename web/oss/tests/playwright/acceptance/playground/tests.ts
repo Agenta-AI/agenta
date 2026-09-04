@@ -349,11 +349,13 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                     throw new Error("variantName must be provided when type is 'variant'")
                 }
 
-                // 1. Click on the save button
-                const commitButton = page
-                    .locator("button.ant-btn-primary")
-                    .filter({hasText: "Commit"})
-                    .first()
+                // 1. Click on the save button. Located by role, not `.ant-btn-primary`: the
+                // button renders through EnhancedButton, now a facade over the Radix
+                // @agenta/ui Button, which emits no antd classes.
+                const commitButton = page.getByRole("button", {name: "Commit"}).first()
+                // Assert visibility first — `isDisabled()` on a locator that matches nothing
+                // hangs until the test timeout instead of reporting what is missing.
+                await expect(commitButton).toBeVisible({timeout: 15000})
                 const isCommitButtonDisabled = await commitButton.isDisabled()
 
                 if (!isCommitButtonDisabled) {

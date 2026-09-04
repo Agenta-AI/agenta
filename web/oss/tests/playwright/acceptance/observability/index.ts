@@ -315,9 +315,9 @@ const observabilityTests = () => {
                 const treeSearchInput = drawer.getByPlaceholder("Search in tree")
                 await expect(treeSearchInput).toBeVisible({timeout: 10000})
 
-                // Each span in the tree renders a square avatar (AvatarTreeContent → antd Avatar
-                // shape="square"). At least one confirms the tree has nodes.
-                const spanAvatar = drawer.locator(".ant-avatar-square").first()
+                // Each span in the tree renders a span-type glyph (AvatarTreeContent, a plain div
+                // since the antd Avatar was dropped). At least one confirms the tree has nodes.
+                const spanAvatar = drawer.getByTestId("span-type-avatar").first()
                 await expect(spanAvatar).toBeVisible({timeout: 10000})
             },
         )
@@ -337,32 +337,27 @@ const observabilityTests = () => {
             )
 
             // The three trace-type tabs are AntD Radio.Buttons: Root | LLM | All
-            const rootTab = page
-                .locator(".ant-radio-button-wrapper")
-                .filter({hasText: "Root"})
-                .first()
-            const llmTab = page
-                .locator(".ant-radio-button-wrapper")
-                .filter({hasText: "LLM"})
-                .first()
-            const allTab = page
-                .locator(".ant-radio-button-wrapper")
-                .filter({hasText: "All"})
-                .first()
+            // The projection control is the shared `Segmented` (role=radiogroup of role=radio
+            // buttons), not an antd Radio.Group — so no `.ant-radio-button-wrapper` and no
+            // `-checked` class; selection is `aria-checked`.
+            const tabs = page.getByRole("radiogroup", {name: "Trace projection"})
+            const rootTab = tabs.getByRole("radio", {name: "Root", exact: true})
+            const llmTab = tabs.getByRole("radio", {name: "LLM", exact: true})
+            const allTab = tabs.getByRole("radio", {name: "All", exact: true})
 
             await expect(rootTab).toBeVisible({timeout: 10000})
 
             // Switch to LLM
             await llmTab.click()
-            await expect(llmTab).toHaveClass(/ant-radio-button-wrapper-checked/, {timeout: 5000})
+            await expect(llmTab).toBeChecked({timeout: 5000})
 
             // Switch to All
             await allTab.click()
-            await expect(allTab).toHaveClass(/ant-radio-button-wrapper-checked/, {timeout: 5000})
+            await expect(allTab).toBeChecked({timeout: 5000})
 
             // Switch back to Root
             await rootTab.click()
-            await expect(rootTab).toHaveClass(/ant-radio-button-wrapper-checked/, {timeout: 5000})
+            await expect(rootTab).toBeChecked({timeout: 5000})
         },
     )
 
