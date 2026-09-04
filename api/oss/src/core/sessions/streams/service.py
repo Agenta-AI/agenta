@@ -339,6 +339,7 @@ class SessionStreamsService:
                 entity="session",
                 id=session_id,
             )
+
         except Exception:
             log.warning(
                 "[WATCH] session change publish failed",

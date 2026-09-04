@@ -9,7 +9,7 @@ session refuses a new message until a threshold far away expires.
 This pass closes that hole. It scans `session_streams` for rows whose mirror still says
 `is_alive` but whose heartbeat (`updated_at`) is stale, and for each one it:
 
-1. writes the terminal records the dead runner owed, marked `execution_lost`;
+1. writes the terminal records the dead runner owed, preserving stopped vs lost;
 2. collapses the row's flags so the session reads as ended;
 3. clears the Redis nest and tombstones the turn, so a late beat cannot re-nest it;
 4. publishes the watch notification, so an open browser refreshes without a reload.
@@ -42,11 +42,13 @@ from uuid import UUID, uuid5, NAMESPACE_URL
 
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
+from oss.src.dbs.postgres.sessions.executions.dbes import SessionExecutionDBE
 from oss.src.dbs.postgres.shared.engine import TransactionsEngine
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.core.sessions.records.dtos import (
     RECORD_SETTLED_BY_ATTRIBUTE,
     SETTLED_BY_WATCHDOG,
+    TERMINAL_RECORD_TYPE,
     SessionRecordEvent,
 )
 from oss.src.core.sessions.records.service import RecordsService
@@ -65,7 +67,7 @@ from oss.src.dbs.redis.sessions.locks import (
     release_alive,
 )
 
-from sqlalchemy import and_, func, not_, or_, select
+from sqlalchemy import and_, func, not_, or_, select, tuple_, update as sa_update
 
 log = get_module_logger(__name__)
 
@@ -200,12 +202,39 @@ def _lost_turn_records(
     ]
 
 
+def _stopped_turn_records(
+    *,
+    project_id: UUID,
+    session_id: str,
+    turn_id: str,
+    now: datetime,
+) -> List[SessionRecordEvent]:
+    return [
+        SessionRecordEvent(
+            project_id=project_id,
+            session_id=session_id,
+            record_id=_watchdog_record_id(
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=turn_id,
+                suffix="done",
+            ),
+            timestamp=now,
+            record_index=0,
+            record_type=TERMINAL_RECORD_TYPE,
+            record_source=RECORD_SOURCE_AGENT,
+            attributes={"type": "done", "stopReason": "cancelled", **SETTLED_BY},
+            turn_id=turn_id,
+        )
+    ]
+
+
 async def _unsettled_turns(
     *,
     records_service: Optional[RecordsService],
     candidates: Sequence[Tuple[UUID, str, str]],
-) -> Set[Tuple[UUID, str, str]]:
-    """Of these `(project_id, session_id, turn_id)` triples, the ones with no terminal record.
+) -> Tuple[Set[Tuple[UUID, str, str]], Set[Tuple[UUID, str, str]]]:
+    """Partition candidates into turns without and with a terminal record.
 
     A runner can die AFTER writing its outcome but BEFORE its final `is_running=false`
     heartbeat lands — the last beat is best-effort and untimed. Such a turn is already
@@ -213,17 +242,18 @@ async def _unsettled_turns(
     would corrupt the transcript. One query per project, never one per candidate.
     """
     if not candidates:
-        return set()
+        return set(), set()
 
     if records_service is None:
         # No records plane wired (minimal test compositions): settle the row, write nothing.
-        return set()
+        return set(), set()
 
     by_project: Dict[UUID, List[Tuple[str, str]]] = {}
     for project_id, session_id, turn_id in candidates:
         by_project.setdefault(project_id, []).append((session_id, turn_id))
 
     unsettled: Set[Tuple[UUID, str, str]] = set()
+    ended: Set[Tuple[UUID, str, str]] = set()
     for project_id, keys in by_project.items():
         try:
             settled = await records_service.settled_turns(
@@ -240,10 +270,35 @@ async def _unsettled_turns(
             continue
 
         for session_id, turn_id in keys:
-            if (session_id, turn_id) not in settled:
-                unsettled.add((project_id, session_id, turn_id))
+            key = (project_id, session_id, turn_id)
+            if (session_id, turn_id) in settled:
+                ended.add(key)
+            else:
+                unsettled.add(key)
 
-    return unsettled
+    return unsettled, ended
+
+
+async def _mark_endings_written(
+    *,
+    session: Any,
+    keys: Set[Tuple[UUID, str, str]],
+    written_at: datetime,
+) -> None:
+    if not keys:
+        return
+    await session.execute(
+        sa_update(SessionExecutionDBE)
+        .where(
+            tuple_(
+                SessionExecutionDBE.project_id,
+                SessionExecutionDBE.session_id,
+                SessionExecutionDBE.execution_id,
+            ).in_(keys),
+            SessionExecutionDBE.ending_written_at.is_(None),
+        )
+        .values(ending_written_at=written_at)
+    )
 
 
 async def _settle_abandoned_commands(
@@ -316,21 +371,8 @@ async def run_orphan_sweep(
         result = await session.execute(stmt)
         orphans = result.scalars().all()
 
-        # A SECOND selection, for the ending only. The rule above reads "not running, so its
-        # last turn already ended", and a durable Stop broke that premise: settlement clears
-        # `is_running` on the row the moment it releases the Redis key, so the tab that pressed
-        # Stop is not left spinning. The runner then owes its own terminal record — and if it
-        # dies in that window, the row is already not-running, the rule above skips it, and the
-        # 30-minute idle branch collapses the row without ever writing an ending. Observed live
-        # on the integration stack: a Stop settled `stopped` at 13:09:19, the runner was killed
-        # a moment later, and turn 295351c3 still carried nothing but the user's own message
-        # five minutes on. So the premise is now CHECKED rather than assumed: any stale row
-        # that names a turn is a candidate, and `_unsettled_turns` writes an ending only for a
-        # turn that carries none. A row between turns, or parked on an approval, has its own
-        # terminal record and is filtered out there, at the cost of one lookup per project.
-        #
-        # These rows are NOT collapsed. Collapsing keeps its own, much longer idle grace: a
-        # parked approval lives for thirty minutes and must not be reclaimed at ninety seconds.
+        # Current stopped turns get their missing ending on the short clock without collapsing
+        # a parked session, whose reclamation stays on the longer idle grace.
         ending_stmt = (
             select(SessionStreamDBE)
             .where(
@@ -344,6 +386,22 @@ async def run_orphan_sweep(
         )
         ending_only = (await session.execute(ending_stmt)).scalars().all()
 
+        # A stream row names only its current turn. Older terminal executions must remain
+        # visible after that row advances, or their missing transcript ending is permanent.
+        terminal_executions = []
+        if records_service is not None:
+            terminal_stmt = (
+                select(SessionExecutionDBE)
+                .where(
+                    SessionExecutionDBE.terminal_outcome.in_(("stopped", "lost")),
+                    SessionExecutionDBE.ending_written_at.is_(None),
+                    SessionExecutionDBE.settled_at < threshold,
+                )
+                .order_by(SessionExecutionDBE.settled_at.desc())
+                .limit(SWEEP_BATCH_SIZE)
+            )
+            terminal_executions = (await session.execute(terminal_stmt)).scalars().all()
+
         # A row that claimed a RUNNING turn owes that turn an ending. So does a stopped row
         # whose runner never wrote one; see the note above.
         seen: Set[Tuple[UUID, str, str]] = set()
@@ -356,8 +414,28 @@ async def run_orphan_sweep(
                 continue
             seen.add(key)
             claimed.append(key)
-        unsettled = await _unsettled_turns(
+        current_turns = set(claimed)
+        terminal_turns: Set[Tuple[UUID, str, str]] = set()
+        terminal_outcomes: Dict[Tuple[UUID, str, str], str] = {}
+        for execution in terminal_executions:
+            key = (
+                execution.project_id,
+                execution.session_id,
+                execution.execution_id,
+            )
+            terminal_turns.add(key)
+            terminal_outcomes[key] = execution.terminal_outcome
+            if key in seen:
+                continue
+            seen.add(key)
+            claimed.append(key)
+        unsettled, ended = await _unsettled_turns(
             records_service=records_service, candidates=claimed
+        )
+        await _mark_endings_written(
+            session=session,
+            keys=ended & terminal_turns,
+            written_at=now_utc,
         )
 
         if not orphans and not unsettled:
@@ -371,9 +449,12 @@ async def run_orphan_sweep(
         # next pass, which re-reads the record it just wrote and does not write a second.
         now = datetime.now(timezone.utc)
         terminal_winners: Set[Tuple[UUID, str, str]] = set()
+        endings_written: Set[Tuple[UUID, str, str]] = set()
         for project_id, session_id, turn_id in sorted(unsettled, key=lambda t: t[1]):
+            key = (project_id, session_id, turn_id)
             if (
-                env.agenta.sessions.durable_stop
+                key not in terminal_turns
+                and env.agenta.sessions.durable_stop
                 and commands_service is not None
                 and not await commands_service.settle_execution_lost(
                     project_id=project_id,
@@ -383,15 +464,28 @@ async def run_orphan_sweep(
                 )
             ):
                 continue
-            terminal_winners.add((project_id, session_id, turn_id))
-            for record_event in _lost_turn_records(
-                project_id=project_id,
-                session_id=session_id,
-                turn_id=turn_id,
-                now=now,
-            ):
+            terminal_winners.add(key)
+            record_events = (
+                _stopped_turn_records(
+                    project_id=project_id,
+                    session_id=session_id,
+                    turn_id=turn_id,
+                    now=now,
+                )
+                if terminal_outcomes.get(key) == "stopped"
+                else _lost_turn_records(
+                    project_id=project_id,
+                    session_id=session_id,
+                    turn_id=turn_id,
+                    now=now,
+                )
+            )
+            for record_event in record_events:
+                published = False
                 try:
-                    await publish(project_id=project_id, record_event=record_event)
+                    published = await publish(
+                        project_id=project_id, record_event=record_event
+                    )
                 except Exception:
                     log.warning(
                         "watchdog: failed to publish a terminal record",
@@ -400,6 +494,14 @@ async def run_orphan_sweep(
                         turn_id=turn_id,
                         exc_info=True,
                     )
+                if published and record_event.record_type == TERMINAL_RECORD_TYPE:
+                    endings_written.add(key)
+
+        await _mark_endings_written(
+            session=session,
+            keys=endings_written,
+            written_at=now,
+        )
 
         unsettled = terminal_winners
 
@@ -412,7 +514,7 @@ async def run_orphan_sweep(
         # ending landed at 96.7 s and the next message was still refused.
         collapsing = {(r.project_id, r.session_id, str(r.turn_id)) for r in orphans}
         for project_id, session_id, turn_id in sorted(
-            unsettled - collapsing, key=lambda t: t[1]
+            (unsettled - collapsing) & current_turns, key=lambda t: t[1]
         ):
             released = await release_alive(
                 lock_engine,
@@ -420,6 +522,14 @@ async def run_orphan_sweep(
                 session_id=session_id,
                 turn_id=turn_id,
             )
+            # Clearing affinity is safe only when this turn still owned `alive`; otherwise a
+            # newer turn may already have claimed the session and its owner lease must survive.
+            if released:
+                await force_clear_owner(
+                    lock_engine,
+                    project_id=str(project_id),
+                    session_id=session_id,
+                )
             await mark_turn_superseded(
                 lock_engine,
                 project_id=str(project_id),

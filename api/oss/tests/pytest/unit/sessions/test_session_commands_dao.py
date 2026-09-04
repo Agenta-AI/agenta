@@ -159,7 +159,6 @@ async def test_the_command_and_the_stopping_marker_are_written_together(command_
         command=_create(command_scope),
         stopping_turn_id="turn-A",
     )
-
     assert command.state == SessionCommandState.pending
     # A session that renders as plainly running while a command exists to stop it is a session
     # nothing later reconciles, so the two writes share one transaction.
@@ -619,6 +618,37 @@ async def test_runner_and_watchdog_have_one_terminal_winner(command_scope):
 
     assert sum(result.won for result in (runner, watchdog)) == 1
     assert runner.settlement == watchdog.settlement
+
+
+async def test_execution_ending_marker_is_one_way(command_scope):
+    dao = SessionExecutionsDAO(engine=command_scope["engine"])
+    await dao.settle(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+        execution_id="turn-A",
+        terminal_outcome="stopped",
+        settled_by="runner",
+    )
+    written_at = datetime.now(timezone.utc)
+
+    await dao.mark_endings_written(
+        project_id=command_scope["project_id"],
+        keys=[(command_scope["session_id"], "turn-A")],
+        written_at=written_at,
+    )
+    await dao.mark_endings_written(
+        project_id=command_scope["project_id"],
+        keys=[(command_scope["session_id"], "turn-A")],
+        written_at=written_at + timedelta(seconds=1),
+    )
+
+    stored = await dao.query_settled(
+        project_id=command_scope["project_id"],
+        keys=[(command_scope["session_id"], "turn-A")],
+    )
+    assert (
+        stored[(command_scope["session_id"], "turn-A")].ending_written_at == written_at
+    )
 
 
 async def test_terminal_core_facts_commit_in_one_transaction(command_scope):

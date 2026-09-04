@@ -31,7 +31,10 @@ from oss.src.core.sessions.commands.dtos import (
 from oss.src.core.sessions.commands.interfaces import DeliveryReceipt
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.commands import service as commands_service_module
-from oss.src.core.sessions.commands.types import ExecutionExpectationFailed
+from oss.src.core.sessions.commands.types import (
+    ExecutionExpectationFailed,
+    SessionCommandNotClaimable,
+)
 from oss.src.core.sessions.executions.dtos import (
     SessionExecutionSettlement,
     SessionExecutionSettlementResult,
@@ -1186,6 +1189,7 @@ async def test_runner_outcome_settles_the_execution_authority(lock_engine):
     winner = executions.rows[(_SESSION, "turn-A")]
     assert winner.terminal_outcome == "stopped"
     assert winner.settled_by == "runner"
+    assert interactions.command_ids == [admission.command.id]
     assert interactions.published_cancelled == [_SESSION]
 
 
@@ -1351,6 +1355,7 @@ async def test_a_pending_command_is_settled_lost_when_the_runner_is_gone(lock_en
     dao.rows = [command]
     dao.abandoned = [command]
     delivery = _RecordingDelivery()
+    executions = _FakeExecutionsDAO()
     svc = _service(
         lock_engine,
         dao=dao,
@@ -1363,6 +1368,7 @@ async def test_a_pending_command_is_settled_lost_when_the_runner_is_gone(lock_en
             )
         ),
         delivery=delivery,
+        executions=executions,
     )
 
     settled = await svc.settle_abandoned_commands(now=datetime.now(timezone.utc))
@@ -1371,6 +1377,22 @@ async def test_a_pending_command_is_settled_lost_when_the_runner_is_gone(lock_en
     assert delivery.delivered == []
     assert dao.rows[0].state == SessionCommandState.obsolete
     assert dao.rows[0].outcome == SessionCommandOutcome.lost
+    winner = executions.rows[(_SESSION, "turn-A")]
+    assert winner.terminal_outcome == "lost"
+    assert winner.settled_by == "watchdog"
+
+    with pytest.raises(SessionCommandNotClaimable):
+        await svc.report_outcome(
+            command_id=command.id,
+            replica_id="runner-1",
+            result="applied",
+            execution_id="turn-A",
+            execution_state="stopped",
+        )
+
+    assert dao.rows[0].state == SessionCommandState.obsolete
+    assert dao.rows[0].outcome == SessionCommandOutcome.lost
+    assert executions.rows[(_SESSION, "turn-A")] == winner
 
 
 @pytest.mark.asyncio

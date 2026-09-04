@@ -75,7 +75,42 @@ class RecordsService:
             return []
 
         guarded = await self._handle_late_events(events=events)
-        return await self.records_dao.append_many(events=guarded)
+        appended = await self.records_dao.append_many(events=guarded)
+        await self._mark_endings_written(events=guarded)
+        return appended
+
+    async def _mark_endings_written(
+        self,
+        *,
+        events: List[SessionRecordEvent],
+    ) -> None:
+        if self.executions_dao is None or not env.agenta.sessions.durable_stop:
+            return
+
+        endings: Dict[UUID, Set[Tuple[str, str]]] = {}
+        for event in events:
+            if (
+                event.record_type != TERMINAL_RECORD_TYPE
+                or not event.turn_id
+                or event.quarantined_at is not None
+            ):
+                continue
+            endings.setdefault(event.project_id, set()).add(
+                (event.session_id, event.turn_id)
+            )
+
+        for project_id, keys in endings.items():
+            try:
+                await self.executions_dao.mark_endings_written(
+                    project_id=project_id,
+                    keys=sorted(keys),
+                )
+            except Exception:
+                log.warning(
+                    "[RECORDS] Execution ending marker update failed; record remains appended",
+                    project_id=str(project_id),
+                    exc_info=True,
+                )
 
     async def _handle_late_events(
         self,
