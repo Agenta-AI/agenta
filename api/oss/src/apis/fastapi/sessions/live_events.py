@@ -89,7 +89,8 @@ async def live_event_stream(
             if event.sequence is not None and event.sequence <= cursor:
                 continue
             seen_event_ids.add(event.frame_or_event_id)
-            enqueue(format_durable_event(event))
+            # Replay is finite and must backpressure; only live producers may outrun readers.
+            await queue.put(format_durable_event(event))
             if event.sequence is not None:
                 cursor = event.sequence
         cursor = max(cursor, result.watermark)

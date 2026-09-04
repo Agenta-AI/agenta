@@ -216,6 +216,34 @@ async def test_replay_ready_reports_watermark_without_typed_events():
     await stream.aclose()
 
 
+async def test_replay_larger_than_buffer_backpressures_without_closing_reader():
+    events = [
+        MessageCompletedEvent.model_validate(_event(sequence))
+        for sequence in range(1, 6)
+    ]
+    pubsub = FakePubSub([])
+
+    async def replay(_after):
+        return SessionDurableEventsReplay(events=events, watermark=5)
+
+    stream = live_event_stream(
+        channel="events:project-1:session:session-1",
+        pubsub_factory=lambda: pubsub,
+        authorization_check=AsyncMock(return_value=True),
+        authorization_recheck_seconds=60,
+        heartbeat_seconds=60,
+        retry_milliseconds=5000,
+        buffer_limit=2,
+        replay_query=replay,
+    )
+
+    assert (await anext(stream)).startswith("retry:")
+    replayed = [json.loads((await anext(stream)).split("data: ", 1)[1]) for _ in events]
+    assert [event["sequence"] for event in replayed] == [1, 2, 3, 4, 5]
+    assert await anext(stream) == 'event: ready\ndata: {"watermark": 5}\n\n'
+    await stream.aclose()
+
+
 async def test_relay_worker_publishes_and_deletes_frames():
     project_id = uuid4()
     redis = AsyncMock()
