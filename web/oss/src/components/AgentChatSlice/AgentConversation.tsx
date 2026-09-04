@@ -28,7 +28,7 @@ import {
     isSessionBusyRefusal,
     isVisiblePart,
 } from "@agenta/chat/model"
-import {getPendingApprovals} from "@agenta/chat/model"
+import {getInteractionAvailability, getLivePendingApprovals} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
 import {
@@ -137,6 +137,7 @@ const AgentConversation = ({
         isHydrating,
         hydratedEmpty,
         stopped,
+        stopping,
         setStopped,
         handleStop,
         handleClientToolOutput,
@@ -380,9 +381,11 @@ const AgentConversation = ({
         [answerApproval, markLiveGate, submit],
     )
 
-    // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
-    // composer (not inline in the transcript, so a paused run can't scroll out of reach).
-    const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
+    const interactionAvailability = getInteractionAvailability({stopped, stopping, streaming: busy})
+    const pendingApprovals = useMemo(
+        () => getLivePendingApprovals(messages, {stopped: !interactionAvailability.approvals}),
+        [messages, interactionAvailability.approvals],
+    )
     // Parked connect interactions on the paused turn → the connect dock owns their actions (the
     // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
     // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
@@ -391,13 +394,13 @@ const AgentConversation = ({
     // is already false by the time the dock should open.
     const elicits = useElicitationDock({
         messages,
-        enabled: !busy && !stopped,
+        enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         onOutput: handleClientToolOutput,
     })
     const connects = useConnectionDock({
         messages,
-        enabled: !busy && !stopped,
+        enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
@@ -859,6 +862,7 @@ const AgentConversation = ({
                                         onClientToolOutput={handleClientToolOutput}
                                         onSubmit={handleSubmit}
                                         onStop={handleStop}
+                                        stopping={stopping}
                                         richInputRef={richInputRef}
                                         composer={composer}
                                         attachments={attachments}

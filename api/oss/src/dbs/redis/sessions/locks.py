@@ -6,17 +6,21 @@ every key name, TTL, and wire shape.
 """
 
 import json
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
     ALIVE_TTL_SECONDS,
+    ACQUIRE_ALIVE_WITH_START_LUA,
     ATTACHED_TTL_SECONDS,
     CLAIM_OWNER_LUA,
+    DISPLACE_TURNS_LUA,
     OWNER_TTL_SECONDS,
+    RECONCILE_STOPPED_TURN_LUA,
     RELEASE_IF_OWNER_LUA,
     RUNNING_TTL_SECONDS,
     SUPERSEDED_TTL_SECONDS,
+    TURN_STARTED_TTL_SECONDS,
     WATCHDOG_RELEASE_TURN_LUA,
     alive_key,
     attached_key,
@@ -27,6 +31,7 @@ from oss.src.dbs.redis.sessions.contract import (
     owner_key,
     running_key,
     superseded_key,
+    turn_started_key,
     validate_session_id,  # noqa: F401 — re-exported for callers that import from locks
 )
 
@@ -55,6 +60,26 @@ async def acquire_alive(
         ex=ALIVE_TTL_SECONDS,
     )
     return result is not None
+
+
+async def acquire_alive_with_start(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> bool:
+    """Atomically acquire `alive` and record its first start on the Redis clock."""
+    result = await engine.eval(
+        ACQUIRE_ALIVE_WITH_START_LUA,
+        2,
+        alive_key(project_id, session_id).encode(),
+        turn_started_key(project_id, session_id, turn_id).encode(),
+        turn_id.encode(),
+        ALIVE_TTL_SECONDS,
+        TURN_STARTED_TTL_SECONDS,
+    )
+    return result == 1
 
 
 async def refresh_alive(
@@ -178,6 +203,132 @@ async def release_watchdog_turn(
         SUPERSEDED_TTL_SECONDS,
     )
     return bool(int(result[0])), bool(int(result[1])), bool(int(result[2]))
+
+
+# ---------------------------------------------------------------------------
+# Turn start times — "when did this turn first take the session?"
+#
+# A cancel that is applied after the turn it meant has ended tombstones whichever turn holds
+# the nest, which can be the NEXT turn (the stop-then-send race behind #6417). Refusing that
+# needs one thing the coordination plane never recorded: when the holding turn started. It
+# cannot be derived. `session_turns.start_time` is written by the runner after the fact, and a
+# browser turn's id is a runner-minted uuid4, so it carries no time.
+# ---------------------------------------------------------------------------
+
+
+async def record_turn_start(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+    started_at_ms: Optional[int] = None,
+) -> int:
+    """Record this turn's start once, then keep the record alive for as long as `alive` is.
+
+    Write-once (nx): a turn that re-takes its own lock after a raced beat keeps its FIRST
+    start time, which is the one the guard must compare against. Returns the recorded start,
+    which is the stored one when a record already exists.
+    """
+    key = turn_started_key(project_id, session_id, turn_id)
+    now_ms = await redis_time_ms(engine) if started_at_ms is None else started_at_ms
+    written = await engine.set(
+        key,
+        str(now_ms).encode(),
+        nx=True,
+        ex=TURN_STARTED_TTL_SECONDS,
+    )
+    if written is not None:
+        return now_ms
+    current = await engine.get(key)
+    await engine.expire(key, TURN_STARTED_TTL_SECONDS)
+    try:
+        return int(current.decode()) if current else now_ms
+    except ValueError:
+        return now_ms
+
+
+async def redis_time_ms(engine: LockEngine) -> int:
+    """Read the shared Redis clock in epoch milliseconds."""
+    seconds, microseconds = await engine.time()
+    return int(seconds) * 1000 + int(microseconds) // 1000
+
+
+async def displace_turns(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    expected_turn_id: Optional[str] = None,
+    arrived_at_ms: Optional[int] = None,
+    running_only: bool = False,
+) -> Tuple[bool, Optional[str], List[str]]:
+    """Atomically validate, tombstone, and clear the alive/running owners."""
+    result = await engine.eval(
+        DISPLACE_TURNS_LUA,
+        2,
+        alive_key(project_id, session_id).encode(),
+        running_key(project_id, session_id).encode(),
+        (expected_turn_id or "").encode(),
+        "" if arrived_at_ms is None else str(arrived_at_ms),
+        superseded_key(project_id, session_id, "").encode(),
+        turn_started_key(project_id, session_id, "").encode(),
+        SUPERSEDED_TTL_SECONDS,
+        "1" if running_only else "0",
+    )
+
+    def _decode(value) -> str:
+        return value.decode() if isinstance(value, (bytes, bytearray)) else str(value)
+
+    accepted = bool(result) and int(result[0]) == 1
+    if not accepted:
+        return False, _decode(result[1]) if len(result) > 1 else None, []
+    turn_ids = list(
+        dict.fromkeys(_decode(value) for value in result[1:] if _decode(value))
+    )
+    return True, None, turn_ids
+
+
+async def reconcile_stopped_turn(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> bool:
+    """Atomically tombstone a stopped turn and release only its `running` generation."""
+    result = await engine.eval(
+        RECONCILE_STOPPED_TURN_LUA,
+        2,
+        running_key(project_id, session_id).encode(),
+        superseded_key(project_id, session_id, turn_id).encode(),
+        turn_id.encode(),
+        SUPERSEDED_TTL_SECONDS,
+    )
+    return result == 1
+
+
+async def get_turn_start(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> Optional[int]:
+    """This turn's start in epoch milliseconds, or None when nothing recorded one.
+
+    None means "unknown", never "old". Every caller must treat it as unknown and fall back to
+    the behavior it had before this key existed: a turn from before this code shipped, or one
+    whose record outlived its TTL, must not become uncancellable.
+    """
+    key = turn_started_key(project_id, session_id, turn_id)
+    current = await engine.get(key)
+    if current is None:
+        return None
+    try:
+        return int(current.decode())
+    except ValueError:
+        return None
 
 
 # ---------------------------------------------------------------------------

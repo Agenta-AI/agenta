@@ -1337,8 +1337,8 @@ async def test_next_sweep_repairs_a_post_commit_redis_failure(lock_engine, monke
     admission = await svc.request_cancel(
         project_id=_PROJECT, user_id=_USER, session_id=_SESSION
     )
-    supersede = AsyncMock(side_effect=RuntimeError("injected after commit"))
-    monkeypatch.setattr(commands_service_module, "mark_turn_superseded", supersede)
+    reconcile = AsyncMock(side_effect=RuntimeError("injected after commit"))
+    monkeypatch.setattr(commands_service_module, "reconcile_stopped_turn", reconcile)
 
     with pytest.raises(RuntimeError, match="injected after commit"):
         await svc.report_outcome(
@@ -1352,7 +1352,7 @@ async def test_next_sweep_repairs_a_post_commit_redis_failure(lock_engine, monke
     assert dao.rows[0].state == SessionCommandState.applied
     assert executions.rows[(_SESSION, "turn-A")].redis_reconciled_at is None
 
-    supersede.side_effect = None
+    reconcile.side_effect = None
     repaired = await _repair_terminal_redis(svc)
 
     assert repaired == 1

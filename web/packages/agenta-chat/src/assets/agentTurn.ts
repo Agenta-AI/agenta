@@ -6,7 +6,7 @@ export const getMessageTurnId = (message: UIMessage | undefined): string | null 
     return typeof turnId === "string" && turnId.trim() ? turnId : null
 }
 
-/** Read the newest assistant turn id without crossing the latest user-turn boundary. */
+/** Read only the newest assistant turn id; older ids are unsafe Stop guards. */
 export const latestTurnId = (messages: UIMessage[]): string | null => {
     for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index]

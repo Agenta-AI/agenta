@@ -15,6 +15,9 @@ Key namespace — every key is project-scoped:
                                                — tombstone: this turn lost the nest and is
                                                  dead forever (API-side only; the runner
                                                  learns it through `is_current_turn`)
+  started:<project_id>:session:<session_id>:turn:<turn_id>
+                                               — when this turn first took `alive`, in epoch
+                                                 milliseconds (API-side only; see below)
 
 `session_id` is caller-supplied and Postgres uniqueness is (project_id, session_id), so two
 projects may legitimately hold the same one. The `project_id` segment is the tenant boundary:
@@ -59,6 +62,11 @@ def owner_replica_id(owner_value: str) -> str:
     return owner_value.split(OWNER_VALUE_SEPARATOR, 1)[0]
 
 
+# The turn-start key lives exactly as long as `alive` can: it answers "did this turn start
+# before that cancel arrived?", and a turn with no `alive` cannot be cancelled. Reusing
+# ALIVE_TTL keeps the two in step without a new setting.
+TURN_STARTED_TTL_SECONDS: int = ALIVE_TTL_SECONDS
+
 # ---------------------------------------------------------------------------
 # Key builders
 # ---------------------------------------------------------------------------
@@ -82,6 +90,18 @@ def owner_key(project_id: str, session_id: str) -> str:
 
 def superseded_key(project_id: str, session_id: str, turn_id: str) -> str:
     return f"superseded:{project_id}:session:{session_id}:turn:{turn_id}"
+
+
+def turn_started_key(project_id: str, session_id: str, turn_id: str) -> str:
+    """When this turn first took the alive lock, in epoch milliseconds.
+
+    API-side only, like the tombstone above: the runner never reads it, so it stays out of
+    the shared golden fixture. It exists because nothing else records a turn's start early
+    enough to be useful. `session_turns.start_time` is written by the runner some time after
+    the turn begins, and a browser turn's id is a runner-minted uuid4
+    (`services/runner/src/server.ts:188`), so no timestamp can be read out of the id either.
+    """
+    return f"started:{project_id}:session:{session_id}:turn:{turn_id}"
 
 
 def displaced_channel(project_id: str, session_id: str) -> str:
@@ -154,7 +174,7 @@ def make_watch_entity_changed_payload(*, entity: str, id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Release-if-owner Lua scripts
+# Coordination Lua scripts
 # These are the canonical scripts; both Python and TS implementations must
 # use the same logic (same key/argv layout; different runtime bindings).
 #
@@ -207,6 +227,92 @@ if expected_turn ~= '' then
 end
 
 return {released_alive, released_running, released_owner}
+""".strip()
+
+ACQUIRE_ALIVE_WITH_START_LUA = """
+-- AGENTA_ACQUIRE_ALIVE_WITH_START
+if redis.call('GET', KEYS[1]) then
+    return 0
+end
+local now = redis.call('TIME')
+local now_ms = (tonumber(now[1]) * 1000) + math.floor(tonumber(now[2]) / 1000)
+redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
+if redis.call('SET', KEYS[2], tostring(now_ms), 'NX', 'EX', ARGV[3]) == false then
+    redis.call('EXPIRE', KEYS[2], ARGV[3])
+end
+return 1
+""".strip()
+
+DISPLACE_TURNS_LUA = """
+-- AGENTA_DISPLACE_TURNS
+local alive = redis.call('GET', KEYS[1]) or ''
+local running = redis.call('GET', KEYS[2]) or ''
+local expected = ARGV[1]
+local arrived_at_ms = tonumber(ARGV[2])
+local superseded_prefix = ARGV[3]
+local started_prefix = ARGV[4]
+local superseded_ttl = tonumber(ARGV[5])
+local running_only = ARGV[6] == '1'
+
+local function is_mismatch(owner)
+    if owner == '' then
+        return false
+    end
+    if expected ~= '' then
+        return owner ~= expected
+    end
+    if arrived_at_ms then
+        local started_at_ms = tonumber(redis.call('GET', started_prefix .. owner))
+        return started_at_ms and started_at_ms > arrived_at_ms
+    end
+    return false
+end
+
+if not running_only and is_mismatch(alive) then
+    return {0, alive}
+end
+if (running_only or running ~= alive) and is_mismatch(running) then
+    return {0, running}
+end
+
+local seen = {}
+local function supersede(turn_id)
+    if turn_id ~= '' and not seen[turn_id] then
+        redis.call('SET', superseded_prefix .. turn_id, '1', 'EX', superseded_ttl)
+        seen[turn_id] = true
+    end
+end
+
+if not running_only then
+    supersede(alive)
+end
+supersede(running)
+supersede(expected)
+if running_only then
+    if alive == running and running ~= '' then
+        redis.call('DEL', KEYS[1])
+    end
+    redis.call('DEL', KEYS[2])
+else
+    redis.call('DEL', KEYS[1], KEYS[2])
+end
+local returned_alive = alive
+if running_only then
+    returned_alive = ''
+end
+return {1, returned_alive, running, expected}
+""".strip()
+
+# Atomically tombstone a durably stopped execution and release `running` only if that exact
+# generation still owns it. `alive` deliberately survives so the native harness stays warm.
+RECONCILE_STOPPED_TURN_LUA = """
+-- AGENTA_RECONCILE_STOPPED_TURN
+local expected = ARGV[1]
+redis.call('SET', KEYS[2], '1', 'EX', tonumber(ARGV[2]))
+if redis.call('GET', KEYS[1]) == expected then
+    return redis.call('DEL', KEYS[1])
+end
+return 0
 """.strip()
 
 # Atomic claim-or-read: take ownership iff the key is absent or already belongs to this replica,

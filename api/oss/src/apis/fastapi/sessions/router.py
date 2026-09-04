@@ -51,6 +51,7 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 # Core domain imports — new paths
 from oss.src.core.sessions.streams.dtos import (
+    CommandMode,
     SessionHeartbeatRequest,
     SessionHeartbeatResult,
     SessionStreamCommandRequest,
@@ -63,10 +64,14 @@ from oss.src.core.sessions.streams.types import (
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
     SessionTurnInUse,
+    SessionTurnMismatch,
     SessionStreamAlreadyExists,
     SessionStreamNotFound,
 )
-from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sessions.streams.service import (
+    SessionStreamsService,
+    derive_command_mode,
+)
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.commands.types import (
     ExecutionExpectationFailed,
@@ -210,6 +215,15 @@ def _handle_session_exceptions():
                     detail={
                         "message": e.message,
                         "liveness": e.liveness,
+                    },
+                ) from e
+            except SessionTurnMismatch as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": e.message,
+                        "expected_execution_id": e.expected_turn_id,
+                        "actual_execution_id": e.actual_turn_id,
                     },
                 ) from e
             except ConcurrencyLimitExceeded as e:
@@ -386,6 +400,9 @@ class SessionStreamsRouter:
         request: Request,
         payload: SessionStreamCommandRequest,
     ) -> SessionStreamCommandResponse:
+        # Use Redis time before database waits can reorder cancellation against a new turn.
+        arrived_at_ms = await self._service.clock_ms()
+
         project_id = request.state.project_id
         user_id = request.state.user_id
 
@@ -397,13 +414,44 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        await self._service.check_runner_concurrency_limit(project_id=project_id)
+        mode = derive_command_mode(payload)
 
-        return await self._service.command(
+        # A cancel starts nothing, so the per-project concurrency limit must not gate it. Before
+        # this, a project at its limit could not stop the very runs that held the limit — the one
+        # request that frees capacity was the one refused with 429.
+        if mode != CommandMode.cancel:
+            await self._service.check_runner_concurrency_limit(project_id=project_id)
+
+        response = await self._service.command(
+            arrived_at_ms=arrived_at_ms,
             project_id=project_id,
             user_id=user_id,
             request=payload,
         )
+
+        if mode == CommandMode.cancel:
+            # Close only the displaced turns' gates; the service publishes their watch events.
+            try:
+                for turn_id in response.cancelled_turn_ids:
+                    await self._interactions_service.cancel_session_pending(
+                        project_id=UUID(str(project_id)),
+                        session_id=response.session_id,
+                        only_turn_id=turn_id,
+                    )
+                if not response.cancelled_turn_ids:
+                    await self._interactions_service.cancel_session_pending(
+                        project_id=UUID(str(project_id)),
+                        session_id=response.session_id,
+                    )
+            except Exception:
+                log.error(
+                    "[SESSIONS] accepted Stop interaction cleanup failed",
+                    exc_info=True,
+                    project_id=str(project_id),
+                    session_id=response.session_id,
+                )
+
+        return response
 
     @intercept_exceptions()
     @_handle_session_exceptions()

@@ -622,6 +622,81 @@ export async function killSession({
     return data !== null
 }
 
+/** Stop keeps accepted, idle, stale, and failed outcomes distinct. */
+export interface CancelSessionStreamParams extends SessionScopedParams {
+    /** The server cancels this observed execution or nothing. */
+    expectedExecutionId?: string
+}
+
+export type CancelSessionOutcome =
+    | {status: "cancelled"; response: SessionStreamCommandResponse | null}
+    | {status: "idle"}
+    /** The server refused: another turn holds the session, or the Stop arrived too late. */
+    | {status: "stale"; message: string}
+    | {status: "failed"; message: string}
+
+const STALE_CANCEL_FALLBACK =
+    "That run had already finished. The session is running something else now."
+const FAILED_CANCEL_FALLBACK = "Could not stop the run. It may still be running."
+
+/** The response envelope's error message, when it is there. */
+const cancelErrorMessage = (error: unknown, fallback: string): string => {
+    const detail = (error as {body?: {detail?: unknown}} | null)?.body?.detail
+    if (typeof detail === "string") return detail
+    const message = (detail as {message?: unknown} | null)?.message
+    if (typeof message === "string") return message
+    return error instanceof Error && error.message ? error.message : fallback
+}
+
+/** Stop the current turn and preserve the server outcome for the caller. */
+export async function cancelSessionStream({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    expectedExecutionId,
+}: CancelSessionStreamParams): Promise<CancelSessionOutcome> {
+    if (!projectId || !sessionId) return {status: "failed", message: FAILED_CANCEL_FALLBACK}
+
+    try {
+        const data = await getSessionsClient().setSessionStream(
+            {
+                session_id: sessionId,
+                // Omission selects the server's arrival-time guard.
+                ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
+            },
+            projectScopedRequest(projectId, appId, abortSignal),
+        )
+        const response =
+            safeParseWithLogging(
+                sessionStreamCommandResponseSchema,
+                data,
+                "[cancelSessionStream]",
+            ) ?? null
+        if (!response || !response.cancelled_turn_ids) {
+            return {status: "failed", message: FAILED_CANCEL_FALLBACK}
+        }
+        if (response.cancelled_turn_ids.length === 0) return {status: "idle"}
+        return {
+            status: "cancelled",
+            response,
+        }
+    } catch (error) {
+        if (isAbortError(error)) throw error
+        if (isInteractionConflict(error)) {
+            return {
+                status: "stale",
+                message: cancelErrorMessage(error, STALE_CANCEL_FALLBACK),
+            }
+        }
+        console.error(
+            "[cancelSessionStream] failed:",
+            error instanceof Error ? error.message : String(error),
+        )
+        return {status: "failed", message: cancelErrorMessage(error, FAILED_CANCEL_FALLBACK)}
+    }
+}
+
 /**
  * DELETE — permanently remove a session (root hard-delete fan-out across turns/streams/
  * interactions/mounts). Distinct from `killSession` (a soft end that stays resumable). Propagates

@@ -77,9 +77,8 @@ export const ChatScreen = ({
     // Only a FIRST load has nothing to hold — that is the one time a spinner is honest.
     const showLoading = resolving && !heldEntityId
     const liveness = useLivenessPoll(projectId)
-    const running = Boolean(
-        liveness.data?.find((s) => s.session_id === sessionId)?.flags?.is_running,
-    )
+    const stream = liveness.data?.find((s) => s.session_id === sessionId)
+    const running = Boolean(stream?.flags?.is_running)
     // The conversation is ALWAYS mounted — the mode only decides what sits beside it (and, on a
     // narrow frame, which of the two is on screen). Unmounting it on a mode flip would drop a
     // streaming turn.
@@ -99,6 +98,9 @@ export const ChatScreen = ({
             projectId={projectId}
             workspaceId={workspaceId}
             running={running}
+            stopStateLoading={liveness.isLoading}
+            sessionTurnId={stream?.turn_id}
+            stoppingTurnId={stream?.stopping_turn_id}
             agentId={resolvedAgentId}
         />
     ) : (

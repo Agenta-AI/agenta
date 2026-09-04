@@ -10,14 +10,17 @@
 - Keep `expected_execution_id` optional on public Stop.
 - Keep the Redis ownership lock until Stop settles.
 - Keep durable storage and settlement independent of the delivery transport.
-- Require Stop followed by warm resume of the same sandbox and native harness session. Run this
-  release-gate cell for every supported harness and sandbox-provider pair.
+- Use heartbeat command discovery as delivery fallback.
+- Require same-sandbox and native-session resume only for harnesses and environments that expose
+  resumable cancellation. Run this release-gate cell for every supported harness and
+  sandbox-provider pair; record an explicit cold-start result where resume is unavailable.
 - Keep live-frame work independent from Stop work.
 - Park the repaired-records versus separate-event-table decision for review.
 
 ## Work package A: sandbox cancellation spike
 
-**Goal:** Prove how to cancel current work while preserving warm resume.
+**Goal:** Identify which cancellation paths preserve warm resume and qualify the requirement by
+capability.
 
 Answer:
 
@@ -29,8 +32,8 @@ Answer:
 6. Does Daytona need a rebuilt snapshot?
 
 Deliver a code-traced report, a characterization test, the smallest patch proposal, and a live test
-plan for start, Stop, and resume in the same sandbox and native session. Do not redesign ownership,
-commands, or public endpoints.
+plan for start, Stop, and resume. Require the same sandbox and native session only where the harness
+and environment report that capability. Do not redesign ownership, commands, or public endpoints.
 
 ## Work package B: durable command and direct-delivery design
 

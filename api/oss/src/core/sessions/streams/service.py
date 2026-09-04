@@ -28,14 +28,13 @@ from oss.src.dbs.redis.sessions.contract import (
 )
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.dbs.redis.sessions.locks import (
-    acquire_alive,
+    acquire_alive_with_start,
     acquire_running,
     claim_owner,
     claim_owner_value,
     clear_owner,
-    clear_running,
+    displace_turns,
     release_running,
-    force_cancel_alive,
     force_clear_owner,
     get_alive_owner,
     get_owner,
@@ -43,6 +42,8 @@ from oss.src.dbs.redis.sessions.locks import (
     get_session_liveness,
     is_turn_superseded,
     mark_turn_superseded,
+    record_turn_start,
+    redis_time_ms,
     refresh_alive,
     refresh_running,
     release_alive,
@@ -141,6 +142,24 @@ def derive_session_name(inputs: Optional[Dict[str, Any]]) -> Optional[str]:
     return normalize_session_name(_first_user_message_text(messages))
 
 
+def derive_command_mode(request: SessionStreamCommandRequest) -> CommandMode:
+    """The inputs x force matrix, as one function.
+
+    Module-level because the route needs the mode BEFORE the service runs: a cancel must not be
+    refused by the per-project concurrency limit, and that check happens at the route. Keeping the
+    derivation in one place is what stops the two from disagreeing about what a cancel is.
+    """
+    has_inputs = bool(request.data and request.data.inputs)
+
+    if has_inputs and not request.force:
+        return CommandMode.send
+    if has_inputs and request.force:
+        return CommandMode.steer
+    if not has_inputs and not request.force:
+        return CommandMode.cancel
+    return CommandMode.attach
+
+
 class SessionStreamsService:
     def __init__(
         self,
@@ -177,93 +196,28 @@ class SessionStreamsService:
         project_id: UUID,
         session_id: str,
         expected_turn_id: Optional[str] = None,
+        arrived_at_ms: Optional[int] = None,
         running_only: bool = False,
     ) -> List[str]:
-        """Tombstone and release the selected turn owners.
-
-        The order is the point. Clearing first leaves a window in which the turn being
-        displaced heartbeats, finds `alive` free and nx-acquires it straight back - a
-        cancelled session then reads as alive for a whole ALIVE_TTL. Tombstoning first makes
-        that beat refuse itself. Broad displacement re-reads the keys after clearing them;
-        running-only cancellation uses owner-checked releases so it cannot touch another turn.
-        """
-        alive_owner = await get_alive_owner(
+        """Atomically guard, tombstone, and clear the alive/running owners."""
+        accepted, actual_turn_id, displaced = await displace_turns(
             self._lock,
             project_id=str(project_id),
             session_id=session_id,
+            expected_turn_id=expected_turn_id,
+            arrived_at_ms=arrived_at_ms,
+            running_only=running_only,
         )
-        running_owner = await get_running_owner(
-            self._lock,
-            project_id=str(project_id),
-            session_id=session_id,
-        )
-        if running_only:
-            if running_owner is None:
-                return []
-            await self._supersede_turns(
-                project_id=project_id,
-                session_id=session_id,
-                turn_ids=(running_owner,),
+        if not accepted:
+            raise SessionTurnMismatch(
+                session_id,
+                actual_turn_id=actual_turn_id,
+                expected_turn_id=expected_turn_id,
             )
-            await release_alive(
-                self._lock,
-                project_id=str(project_id),
-                session_id=session_id,
-                turn_id=running_owner,
-            )
-            await release_running(
-                self._lock,
-                project_id=str(project_id),
-                session_id=session_id,
-                turn_id=running_owner,
-            )
-            return [running_owner]
+        return displaced
 
-        if expected_turn_id is not None:
-            actual = next(
-                (
-                    owner
-                    for owner in (running_owner, alive_owner)
-                    if owner is not None and owner != expected_turn_id
-                ),
-                None,
-            )
-            if actual is not None:
-                raise SessionTurnMismatch(
-                    session_id,
-                    expected_turn_id=expected_turn_id,
-                    actual_turn_id=actual,
-                )
-
-        await self._supersede_turns(
-            project_id=project_id,
-            session_id=session_id,
-            turn_ids=(alive_owner, running_owner, expected_turn_id),
-        )
-        displaced_alive = await force_cancel_alive(
-            self._lock, project_id=str(project_id), session_id=session_id
-        )
-        displaced_running = await clear_running(
-            self._lock, project_id=str(project_id), session_id=session_id
-        )
-        await self._supersede_turns(
-            project_id=project_id,
-            session_id=session_id,
-            turn_ids=(displaced_alive, displaced_running),
-        )
-        return list(
-            dict.fromkeys(
-                turn_id
-                for turn_id in (
-                    alive_owner,
-                    running_owner,
-                    expected_turn_id,
-                    displaced_alive,
-                    displaced_running,
-                )
-                if turn_id is not None
-            )
-        )
+    async def clock_ms(self) -> int:
+        return await redis_time_ms(self._lock)
 
     async def _publish_lifecycle(
         self, *, project_id: UUID, session_id: str, state: str
@@ -329,19 +283,18 @@ class SessionStreamsService:
         project_id: UUID,
         user_id: UUID,
         request: SessionStreamCommandRequest,
+        arrived_at_ms: Optional[int] = None,
     ) -> SessionStreamCommandResponse:
         _validate_session_id(request.session_id)
 
-        has_inputs = bool(request.data and request.data.inputs)
+        # When the request reached the process, for the stale-cancel guard. The router stamps it
+        # before its permission and concurrency checks, which are database round trips; stamping
+        # here instead would leave the guard almost no window. Defaulted so a caller that does not
+        # stamp still gets a check, just a narrower one.
+        if arrived_at_ms is None:
+            arrived_at_ms = await self.clock_ms()
 
-        if has_inputs and not request.force:
-            mode = CommandMode.send
-        elif has_inputs and request.force:
-            mode = CommandMode.steer
-        elif not has_inputs and not request.force:
-            mode = CommandMode.cancel
-        else:
-            mode = CommandMode.attach
+        mode = derive_command_mode(request)
 
         session_id = request.session_id
         proposed_name = derive_session_name(
@@ -387,6 +340,7 @@ class SessionStreamsService:
                 project_id=project_id,
                 session_id=session_id,
                 expected_turn_id=request.expected_execution_id,
+                arrived_at_ms=arrived_at_ms,
                 running_only=request.expected_execution_id is None,
             )
             if cancelled_turn_ids:
@@ -403,6 +357,10 @@ class SessionStreamsService:
             return SessionStreamCommandResponse(
                 mode=mode,
                 session_id=session_id,
+                # The turn this cancel actually ended. The caller (the router) needs it to
+                # cancel that turn's pending gates, and it is the id a client should echo back
+                # as `expected_execution_id` on a retry.
+                turn_id=cancelled_turn_ids[0] if cancelled_turn_ids else None,
                 detached=True,
                 cancelled_turn_ids=cancelled_turn_ids,
             )
@@ -749,7 +707,7 @@ class SessionStreamsService:
                 session_id=request.session_id,
                 turn_id=request.turn_id,
             ):
-                acquired = await acquire_alive(
+                acquired = await acquire_alive_with_start(
                     self._lock,
                     project_id=str(project_id),
                     session_id=request.session_id,
@@ -797,7 +755,7 @@ class SessionStreamsService:
                                     session_id=request.session_id,
                                     turn_id=displaced,
                                 )
-                            acquired = await acquire_alive(
+                            acquired = await acquire_alive_with_start(
                                 self._lock,
                                 project_id=str(project_id),
                                 session_id=request.session_id,
@@ -805,6 +763,13 @@ class SessionStreamsService:
                             )
                 if not acquired or turn_was_established:
                     is_current_turn = False
+            if is_current_turn:
+                await record_turn_start(
+                    self._lock,
+                    project_id=str(project_id),
+                    session_id=request.session_id,
+                    turn_id=request.turn_id,
+                )
             if not await refresh_running(
                 self._lock,
                 project_id=str(project_id),
@@ -1197,7 +1162,7 @@ class SessionStreamsService:
         name: Optional[str] = None,
     ) -> str:
         turn_id = str(uuid.uuid7())
-        acquired = await acquire_alive(
+        acquired = await acquire_alive_with_start(
             self._lock,
             project_id=str(project_id),
             session_id=session_id,

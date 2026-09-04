@@ -152,6 +152,7 @@ export const sessionStreamSchema = z.object({
     name: z.string().nullish(),
     description: z.string().nullish(),
     turn_id: z.string().nullish(),
+    stopping_turn_id: z.string().nullish(),
     // User-visible tags; attribution has dedicated typed fields below.
     tags: z.record(z.string(), z.unknown()).nullish(),
     status: z.object({code: z.string().nullish(), message: z.string().nullish()}).nullish(),

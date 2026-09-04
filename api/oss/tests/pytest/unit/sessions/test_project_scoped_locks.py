@@ -24,12 +24,16 @@ from oss.src.dbs.redis.sessions.contract import (
 )
 from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
+    acquire_running,
     claim_owner,
     force_cancel_alive,
     force_clear_owner,
     get_alive_owner,
     get_owner,
+    get_running_owner,
     get_session_liveness,
+    is_turn_superseded,
+    reconcile_stopped_turn,
 )
 
 
@@ -44,6 +48,7 @@ class _FakeRedis:
     def __init__(self):
         self._values: dict[str, bytes] = {}
         self._ttl: dict[str, int] = {}
+        self.now_ms = 1_000_000
 
     @staticmethod
     def _norm(key) -> str:
@@ -82,12 +87,74 @@ class _FakeRedis:
     async def ttl(self, key):
         return self._ttl.get(self._norm(key), -2)
 
+    async def time(self):
+        return divmod(self.now_ms * 1000, 1_000_000)
+
     async def publish(self, channel, payload):
         return 0
 
     async def eval(self, script, numkeys, *keys_and_args):
-        key = self._norm(keys_and_args[0])
+        keys = [self._norm(key) for key in keys_and_args[:numkeys]]
         argv = [self._norm(a) for a in keys_and_args[numkeys:]]
+        if "AGENTA_ACQUIRE_ALIVE_WITH_START" in script:
+            if keys[0] in self._values:
+                return 0
+            self._values[keys[0]] = argv[0].encode()
+            self._ttl[keys[0]] = int(argv[1])
+            if keys[1] not in self._values:
+                self._values[keys[1]] = str(self.now_ms).encode()
+            self._ttl[keys[1]] = int(argv[2])
+            return 1
+        if "AGENTA_DISPLACE_TURNS" in script:
+            alive = self._values.get(keys[0], b"").decode()
+            running = self._values.get(keys[1], b"").decode()
+            expected = argv[0]
+            arrived_at_ms = int(argv[1]) if argv[1] else None
+            running_only = argv[5] == "1"
+
+            def mismatches(owner: str) -> bool:
+                if not owner:
+                    return False
+                if expected:
+                    return owner != expected
+                started = self._values.get(f"{argv[3]}{owner}")
+                return bool(
+                    arrived_at_ms is not None
+                    and started is not None
+                    and int(started.decode()) > arrived_at_ms
+                )
+
+            if not running_only and mismatches(alive):
+                return [0, alive.encode()]
+            if (running_only or running != alive) and mismatches(running):
+                return [0, running.encode()]
+            seen = set()
+            displaced = (
+                (running, expected) if running_only else (alive, running, expected)
+            )
+            for turn_id in displaced:
+                if turn_id and turn_id not in seen:
+                    key = f"{argv[2]}{turn_id}"
+                    self._values[key] = b"1"
+                    self._ttl[key] = int(argv[4])
+                    seen.add(turn_id)
+            if not running_only or (alive and alive == running):
+                self._values.pop(keys[0], None)
+                self._ttl.pop(keys[0], None)
+            self._values.pop(keys[1], None)
+            self._ttl.pop(keys[1], None)
+            returned_alive = "" if running_only else alive
+            return [1, returned_alive.encode(), running.encode(), expected.encode()]
+        if "AGENTA_RECONCILE_STOPPED_TURN" in script:
+            self._values[keys[1]] = b"1"
+            self._ttl[keys[1]] = int(argv[1])
+            if self._values.get(keys[0], b"").decode() == argv[0]:
+                self._values.pop(keys[0], None)
+                self._ttl.pop(keys[0], None)
+                return 1
+            return 0
+
+        key = keys[0]
         current = self._values.get(key)
         current_s = current.decode() if current else None
         if "DEL" in script:  # RELEASE_IF_OWNER_LUA
@@ -195,6 +262,36 @@ async def test_tenant_cannot_clear_another_tenants_owner(engine):
     assert (
         await get_owner(engine, project_id=_TENANT_B, session_id=_SESSION)
     ) == "replica-b"
+
+
+@pytest.mark.asyncio
+async def test_durable_stop_reconciliation_preserves_alive_and_a_new_running_turn(
+    engine,
+):
+    await acquire_alive(
+        engine, project_id=_TENANT_A, session_id=_SESSION, turn_id="turn-old"
+    )
+    await acquire_running(
+        engine, project_id=_TENANT_A, session_id=_SESSION, turn_id="turn-new"
+    )
+
+    released = await reconcile_stopped_turn(
+        engine,
+        project_id=_TENANT_A,
+        session_id=_SESSION,
+        turn_id="turn-old",
+    )
+
+    assert released is False
+    assert (
+        await get_alive_owner(engine, project_id=_TENANT_A, session_id=_SESSION)
+    ) == "turn-old"
+    assert (
+        await get_running_owner(engine, project_id=_TENANT_A, session_id=_SESSION)
+    ) == "turn-new"
+    assert await is_turn_superseded(
+        engine, project_id=_TENANT_A, session_id=_SESSION, turn_id="turn-old"
+    )
 
 
 # --------------------------------------------------------------------------- #
