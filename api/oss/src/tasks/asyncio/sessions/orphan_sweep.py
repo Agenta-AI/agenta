@@ -234,7 +234,11 @@ async def _unsettled_turns(
     *,
     records_service: Optional[RecordsService],
     candidates: Sequence[Tuple[UUID, str, str]],
-) -> Tuple[Set[Tuple[UUID, str, str]], Set[Tuple[UUID, str, str]]]:
+) -> Tuple[
+    Set[Tuple[UUID, str, str]],
+    Set[Tuple[UUID, str, str]],
+    Set[Tuple[UUID, str, str]],
+]:
     """Partition candidates into turns without and with a terminal record.
 
     A runner can die AFTER writing its outcome but BEFORE its final `is_running=false`
@@ -243,11 +247,11 @@ async def _unsettled_turns(
     would corrupt the transcript. One query per project, never one per candidate.
     """
     if not candidates:
-        return set(), set()
+        return set(), set(), set()
 
     if records_service is None:
         # No records plane wired (minimal test compositions): settle the row, write nothing.
-        return set(), set()
+        return set(), set(), set()
 
     by_project: Dict[UUID, List[Tuple[str, str]]] = {}
     for project_id, session_id, turn_id in candidates:
@@ -255,18 +259,20 @@ async def _unsettled_turns(
 
     unsettled: Set[Tuple[UUID, str, str]] = set()
     ended: Set[Tuple[UUID, str, str]] = set()
+    deferred: Set[Tuple[UUID, str, str]] = set()
     for project_id, keys in by_project.items():
         try:
             settled = await records_service.settled_turns(
                 project_id=project_id, keys=keys
             )
         except Exception:
-            # A failed lookup must not produce a duplicate ending. Skip the write; the row
-            # is still collapsed below, and the next pass will not see it again.
             log.warning(
-                "watchdog: terminal-record lookup failed; skipping record write",
+                "watchdog: terminal-record lookup failed; deferring project candidates",
                 project_id=str(project_id),
                 exc_info=True,
+            )
+            deferred.update(
+                (project_id, session_id, turn_id) for session_id, turn_id in keys
             )
             continue
 
@@ -277,7 +283,7 @@ async def _unsettled_turns(
             else:
                 unsettled.add(key)
 
-    return unsettled, ended
+    return unsettled, ended, deferred
 
 
 async def _mark_endings_written(
@@ -450,20 +456,27 @@ async def run_orphan_sweep(
                 continue
             seen.add(key)
             claimed.append(key)
-        unsettled, ended = await _unsettled_turns(
+        unsettled, ended, deferred = await _unsettled_turns(
             records_service=records_service, candidates=claimed
         )
+        if deferred:
+            orphan_rows = [
+                row
+                for row in orphan_rows
+                if row[3] is None or (row[1], row[2], row[3]) not in deferred
+            ]
         await _mark_endings_written(
             session=session,
             keys=ended & terminal_turns,
             written_at=now_utc,
         )
 
-        if not orphans and not unsettled:
+        if not orphan_rows and not unsettled:
             # No stale row and nothing owed an ending, but a command can still be abandoned:
             # its execution may have ended normally between the claim and the report.
-            await _settle_abandoned_commands(commands_service, now_utc)
-            await _repair_terminal_redis(commands_service)
+            if not deferred:
+                await _settle_abandoned_commands(commands_service, now_utc)
+                await _repair_terminal_redis(commands_service)
             return
 
         # Durable ending FIRST. A crash after this point leaves the row a candidate for the
@@ -828,10 +841,12 @@ async def run_orphan_sweep(
         # AFTER the rows above are collapsed, on purpose. A command is only abandoned when its
         # session has stopped beating, and the collapse just made that true for every row in
         # this batch. Running it first would leave the runner-gone case waiting a second pass.
-        commands_settled = await _settle_abandoned_commands(
-            commands_service, datetime.now(timezone.utc)
-        )
-        await _repair_terminal_redis(commands_service)
+        commands_settled = 0
+        if not deferred:
+            commands_settled = await _settle_abandoned_commands(
+                commands_service, datetime.now(timezone.utc)
+            )
+            await _repair_terminal_redis(commands_service)
 
         log.info(
             "watchdog: settled %d sessions (%d turns marked lost, %d commands lost)",

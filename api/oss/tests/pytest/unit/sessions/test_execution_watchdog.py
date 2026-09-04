@@ -337,12 +337,13 @@ async def test_terminal_record_checks_are_batched_once_per_project(anyio_backend
     ]
     second_project = [(other_project, "session-other", "turn-other")]
 
-    unsettled, ended = await _unsettled_turns(
+    unsettled, ended, deferred = await _unsettled_turns(
         records_service=records,
         candidates=[*first_project, *second_project],
     )
 
     assert ended == set()
+    assert deferred == set()
     assert unsettled == set(first_project + second_project)
     assert [(project_id, len(keys)) for project_id, keys in records.queries] == [
         (_PROJECT_ID, 100),
@@ -632,24 +633,52 @@ async def test_the_redis_nest_follows_the_settled_row(anyio_backend):
 @pytest.mark.anyio
 async def test_a_failed_lookup_never_invents_an_ending(anyio_backend):
     """If we cannot tell whether the turn already ended, say nothing rather than risk a
-    second, contradictory ending. The row is still settled."""
+    second, contradictory ending. Preserve the row and Redis ownership so the next pass retries."""
 
-    class _BrokenRecords(_FakeRecordsService):
+    class _FlakyRecords(_FakeRecordsService):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
         async def settled_turns(self, *, project_id, keys):
-            raise RuntimeError("tracing db unreachable")
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("tracing db unreachable")
+            return set()
 
     row = _stale_running_row()
     publisher = _Publisher()
+    records = _FlakyRecords()
+    redis = _FakeRedis()
+    project = str(row.project_id)
+    alive_key = f"alive:{project}:session:{row.session_id}"
+    running_key = f"running:{project}:session:{row.session_id}"
+    redis._store[alive_key] = b"turn-1"
+    redis._store[running_key] = b"turn-1"
 
     await run_orphan_sweep(
         _FakeTransactionsEngine([row]),
-        _FakeRedis(),
-        records_service=_BrokenRecords(),
+        redis,
+        records_service=records,
         publish=publisher,
     )
 
     assert publisher.published == []
+    assert not _collapsed(row)
+    assert redis._store[alive_key] == b"turn-1"
+    assert redis._store[running_key] == b"turn-1"
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row]),
+        redis,
+        records_service=records,
+        publish=publisher,
+    )
+
     assert _collapsed(row)
+    assert alive_key not in redis._store
+    assert running_key not in redis._store
+    assert [event.record_type for event in publisher.published] == ["error", "done"]
 
 
 @pytest.mark.anyio
