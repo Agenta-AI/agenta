@@ -540,7 +540,12 @@ async def run_orphan_sweep(
         # the session stays resumable. Guarded on turn_id: a row that advanced to a newer turn
         # is left alone. Observed live on the integration stack: the execution was settled lost
         # but the stream row kept `is_running: true`, and the next Send was refused.
-        running_rows_cleared: List[SessionStreamDBE] = []
+        # Captured as plain values, and written by a Core UPDATE further down, for the same
+        # reason the collapse is: the Redis calls that follow this block, and anything a future
+        # edit puts between the load and the write, can open a nested `engine.session()`, whose
+        # `finally` closes the shared task-scoped session and detaches these rows. A mutation on
+        # a detached row is tracked by no session and is dropped at commit with no error.
+        running_rows_cleared: List[Tuple[UUID, UUID, str, Dict[str, Any]]] = []
         if newly_lost:
             rows_to_clear = (
                 (
@@ -562,9 +567,9 @@ async def run_orphan_sweep(
             for row in rows_to_clear:
                 flags = dict(row.flags or {})
                 flags["is_running"] = False
-                row.flags = flags
-                row.updated_at = now
-                running_rows_cleared.append(row)
+                running_rows_cleared.append(
+                    (row.id, row.project_id, row.session_id, flags)
+                )
 
         for project_id, session_id, turn_id in newly_lost:
             released = await release_alive(
@@ -605,11 +610,22 @@ async def run_orphan_sweep(
                 },
             )
 
-        # Collapse the orphan rows through ONE Core UPDATE keyed by their ids, NOT by mutating
-        # the ORM objects: those objects were detached by the nested `engine.session()` calls
-        # above, so a `row.flags = ...` write would never be flushed (finding 7). A Core UPDATE
-        # is not tied to ORM instance state and always lands. `synchronize_session=False`
-        # because nothing after this reads these rows back through the ORM identity map.
+        # Both writes to `session_streams` happen HERE, from the values captured above, and both
+        # go through a Core UPDATE. No ORM attribute write on this table survives anywhere in
+        # this pass, on purpose: the rows were loaded before nested `engine.session()` calls that
+        # detach them, and a detached row's mutation is dropped at commit with no error.
+        # Every lost turn's row first, keeping `is_alive` so the session stays resumable.
+        for row_id, _p, _s, cleared_flags in running_rows_cleared:
+            await session.execute(
+                sa_update(SessionStreamDBE)
+                .where(SessionStreamDBE.id == row_id)
+                .values(flags=cleared_flags, updated_at=now)
+                .execution_options(synchronize_session=False)
+            )
+
+        # Then the orphan rows, through ONE Core UPDATE keyed by their ids (finding 7).
+        # `synchronize_session=False` because nothing after this reads these rows back through
+        # the ORM identity map.
         collapsed_flags = SessionStreamFlags(
             is_alive=False, is_running=False, is_attached=False
         ).model_dump(mode="json")
@@ -693,17 +709,17 @@ async def run_orphan_sweep(
 
             # A row whose `is_running` was cleared (but not collapsed) also needs the mirror
             # update, or a browser sitting on it keeps the turn drawn as running until a reload.
-            for row in running_rows_cleared:
+            for _row_id, project_uuid, session_id, _flags in running_rows_cleared:
                 try:
                     await watch_publisher.changed(
-                        project_id=str(row.project_id),
+                        project_id=str(project_uuid),
                         entity="session",
-                        id=row.session_id,
+                        id=session_id,
                     )
                 except Exception:
                     log.warning(
                         "watchdog: watch publish failed",
-                        session_id=row.session_id,
+                        session_id=session_id,
                         exc_info=True,
                     )
 

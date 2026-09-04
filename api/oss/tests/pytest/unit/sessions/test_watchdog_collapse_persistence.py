@@ -173,32 +173,36 @@ async def wd_engine(monkeypatch):
         await admin.close()
 
 
-async def _seed_scenario(engine, *, session_id, turn_id):
+async def _seed_tenant(s):
+    """One user, organization, workspace and project. Returns the project id."""
     project_id = uuid.uuid4()
+    uid, org, ws = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    await s.execute(
+        text("INSERT INTO users (id, uid, username, email) VALUES (:i,:u,:n,:e)"),
+        {"i": uid, "u": str(uid), "n": "wd", "e": f"wd-{uid.hex[:8]}@e.com"},
+    )
+    await s.execute(
+        text("INSERT INTO organizations (id, name, owner_id) VALUES (:i,:n,:o)"),
+        {"i": org, "n": "wd", "o": uid},
+    )
+    await s.execute(
+        text("INSERT INTO workspaces (id, name, organization_id) VALUES (:i,:n,:o)"),
+        {"i": ws, "n": "wd", "o": org},
+    )
+    await s.execute(
+        text(
+            "INSERT INTO projects (id, project_name, organization_id, workspace_id) "
+            "VALUES (:i,:n,:o,:w)"
+        ),
+        {"i": project_id, "n": "wd", "o": org, "w": ws},
+    )
+    return project_id
+
+
+async def _seed_scenario(engine, *, session_id, turn_id):
     stale = datetime.now(timezone.utc) - timedelta(hours=1)
     async with engine.session() as s:
-        uid, org, ws = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
-        await s.execute(
-            text("INSERT INTO users (id, uid, username, email) VALUES (:i,:u,:n,:e)"),
-            {"i": uid, "u": str(uid), "n": "wd", "e": f"wd-{uid.hex[:8]}@e.com"},
-        )
-        await s.execute(
-            text("INSERT INTO organizations (id, name, owner_id) VALUES (:i,:n,:o)"),
-            {"i": org, "n": "wd", "o": uid},
-        )
-        await s.execute(
-            text(
-                "INSERT INTO workspaces (id, name, organization_id) VALUES (:i,:n,:o)"
-            ),
-            {"i": ws, "n": "wd", "o": org},
-        )
-        await s.execute(
-            text(
-                "INSERT INTO projects (id, project_name, organization_id, workspace_id) "
-                "VALUES (:i,:n,:o,:w)"
-            ),
-            {"i": project_id, "n": "wd", "o": org, "w": ws},
-        )
+        project_id = await _seed_tenant(s)
         await s.execute(
             text(
                 "INSERT INTO session_streams "
@@ -229,6 +233,45 @@ async def _seed_scenario(engine, *, session_id, turn_id):
                 "t": turn_id,
                 "c": stale,
             },
+        )
+        await s.commit()
+    return project_id
+
+
+async def _seed_lost_execution_scenario(engine, *, session_id, turn_id):
+    """A row the ORPHAN query never returns, whose turn is owed an ending.
+
+    The stream row beats normally (a fresh `updated_at`), so it is not stale and is not
+    collapsed. Its turn is already settled `lost` with no ending written, which is what puts it
+    in `newly_lost`: the branch that clears `is_running` and keeps `is_alive`.
+    """
+    fresh = datetime.now(timezone.utc)
+    stale = fresh - timedelta(hours=1)
+    async with engine.session() as s:
+        project_id = await _seed_tenant(s)
+        await s.execute(
+            text(
+                "INSERT INTO session_streams "
+                "(id, project_id, session_id, turn_id, flags, created_at, updated_at) "
+                "VALUES (:i,:p,:s,:t, CAST(:f AS JSONB), :c, :u)"
+            ),
+            {
+                "i": uuid.uuid4(),
+                "p": project_id,
+                "s": session_id,
+                "t": turn_id,
+                "f": '{"is_alive": true, "is_running": true, "is_attached": true}',
+                "c": fresh,
+                "u": fresh,
+            },
+        )
+        await s.execute(
+            text(
+                "INSERT INTO session_executions "
+                "(project_id, session_id, execution_id, terminal_outcome, settled_by, settled_at) "
+                "VALUES (:p,:s,:t,'lost','watchdog',:a)"
+            ),
+            {"p": project_id, "s": session_id, "t": turn_id, "a": stale},
         )
         await s.commit()
     return project_id
@@ -316,3 +359,67 @@ async def test_a_lost_pass_persists_the_collapse_against_real_postgres(
     # The Stop command was settled, not left pending.
     assert cmd[0] == "obsolete"
     assert cmd[1] == "lost"
+
+
+@pytest.mark.anyio
+async def test_b_lost_turn_clear_persists_across_a_nested_session(
+    anyio_backend, wd_engine, monkeypatch
+):
+    """The `newly_lost` is_running clear survives a nested session between load and write.
+
+    Same failure mode as finding 7, one branch up. The sweep loads the row that still names the
+    lost turn, runs its Redis releases, then writes. If any step between the load and the write
+    opens an `engine.session()`, its `finally` closes the shared task-scoped session and
+    detaches the loaded row, and an ORM attribute write on that row is then dropped at commit
+    with no error. `release_alive` is patched here to open exactly such a nested session, which
+    is what a future edit could easily introduce for real.
+
+    This never failed in production: before the fix the write sat immediately after the load,
+    with nothing nested in between. The test pins the property rather than a past bug. Make the
+    write an ORM attribute assignment again and it fails on `is_running` still true.
+    """
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+
+    session_id = "wd-" + uuid.uuid4().hex[:12]
+    turn_id = str(uuid.uuid4())
+    await _seed_lost_execution_scenario(
+        wd_engine, session_id=session_id, turn_id=turn_id
+    )
+
+    real_release_alive = orphan_sweep.release_alive
+    nested_sessions = []
+
+    async def _release_alive_through_a_nested_session(*args, **kwargs):
+        # Open and close the shared task-scoped session, exactly as a DAO call would.
+        async with wd_engine.session():
+            nested_sessions.append(1)
+        return await real_release_alive(*args, **kwargs)
+
+    monkeypatch.setattr(
+        orphan_sweep, "release_alive", _release_alive_through_a_nested_session
+    )
+
+    lock, records_service, commands_service = _build_services(wd_engine)
+    await orphan_sweep.run_orphan_sweep(
+        wd_engine,
+        lock,
+        records_service=records_service,
+        watch_publisher=None,
+        commands_service=commands_service,
+        publish=_noop_publish,
+    )
+
+    # The pass must actually have reached the branch under test.
+    assert nested_sessions, "the lost-turn branch never ran, so nothing was proven"
+
+    async with wd_engine.session() as s:
+        flags = (
+            await s.execute(
+                text("SELECT flags FROM session_streams WHERE session_id=:s"),
+                {"s": session_id},
+            )
+        ).scalar_one()
+
+    # is_running cleared and PERSISTED; is_alive kept, so the session stays resumable.
+    assert flags["is_running"] is False
+    assert flags["is_alive"] is True
