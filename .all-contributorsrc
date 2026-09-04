@@ -798,6 +798,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "tomatotomata",
+      "name": "tomatotomata",
+      "avatar_url": "https://avatars.githubusercontent.com/u/170848582?v=4",
+      "profile": "https://github.com/tomatotomata",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
