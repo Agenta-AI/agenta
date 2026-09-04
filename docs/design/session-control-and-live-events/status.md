@@ -99,6 +99,19 @@ needs that fix re-merged.
 | #6505 | Overnight reports | Evidence only |
 | #6506 | Combined integration branch | Evidence only, never a merge source |
 
+## Implementation progress (2026-09-04)
+
+- Increments 1 to 3 (pure fixes, the Stop package, the history producer) are on PRs #6496, #6503,
+  #6501, #6517, #6504, and #6518. A merged head of these lanes runs on an integration stack. The
+  final live matrix runs on it. Run 1 (Pi, local provider, last-message client shape, hook cells)
+  passed 12 cells. It found two product defects: a Stop during a tool approval evicted the warm
+  sandbox and reported failed when the harness cancel could not be sent (fix reviewed on #6501),
+  and the watchdog did not complete a pass on that head (root cause in progress).
+- Increment 4 (live relay, #6522) and increment 4b (durable reconnect, #6524) are reviewed and
+  proven live: two readers, mobile, late joiner, reconnect, slow reader, flag off, snapshot then
+  replay with sparse sequences, legacy session, and concurrent writes.
+- Increments 5, 6, and 7 are in review rounds (#6531, #6530) or in build (queue then steer).
+
 ## Work before implementation
 
 1. Add the exact Linear security issue URL for Claude Code shell permission behavior.
