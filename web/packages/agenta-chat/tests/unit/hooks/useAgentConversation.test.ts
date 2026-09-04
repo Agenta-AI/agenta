@@ -51,7 +51,7 @@ import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
 import {markSessionFresh} from "../../../src/state/sessionEphemera"
 import {sessionMessagesAtom, sessionStatusAtomFamily} from "../../../src/state/sessionMessages"
 
-const sseBody = (text: string): string => {
+const sseBody = (text: string, finishReason?: string): string => {
     const chunks = [
         {type: "start", messageId: `assist-${Math.random().toString(36).slice(2)}`},
         {type: "start-step"},
@@ -59,7 +59,7 @@ const sseBody = (text: string): string => {
         {type: "text-delta", id: "t1", delta: text},
         {type: "text-end", id: "t1"},
         {type: "finish-step"},
-        {type: "finish"},
+        {type: "finish", ...(finishReason ? {finishReason} : {})},
     ]
     return chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n"
 }
@@ -351,5 +351,27 @@ describe("useAgentConversation", () => {
             expect(last.status.errorText).toBe("boom")
             expect(last.status.isError).toBe(true)
         })
+    })
+
+    it("maps a stream-delivered user Stop to the neutral stopped state", async () => {
+        fetchMock.mockResolvedValue(
+            new Response(sseBody("partial answer", "other"), {
+                status: 200,
+                headers: {"content-type": "text/event-stream"},
+            }),
+        )
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "start"})
+        })
+        await waitFor(() => expect(result.current.status).toBe("ready"), {timeout: 5000})
+
+        expect(result.current.stopped).toBe(true)
+        expect(result.current.error).toBeUndefined()
+        expect(result.current.runStatus).toBe("idle")
     })
 })

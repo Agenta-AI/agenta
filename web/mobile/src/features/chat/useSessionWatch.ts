@@ -33,15 +33,19 @@ export const useSessionWatch = ({
     sessionId,
     projectId,
     onRecordsChanged,
+    onInteractionChanged,
 }: {
     sessionId: string
     projectId: string
     onRecordsChanged: () => void
+    onInteractionChanged?: () => void
 }): {connected: boolean} => {
     const [connected, setConnected] = useState(false)
     const queryClient = useQueryClient()
     const onRecordsChangedRef = useRef(onRecordsChanged)
     onRecordsChangedRef.current = onRecordsChanged
+    const onInteractionChangedRef = useRef(onInteractionChanged)
+    onInteractionChangedRef.current = onInteractionChanged
 
     useEffect(() => {
         if (!sessionId || !projectId) return
@@ -112,7 +116,10 @@ export const useSessionWatch = ({
             })
             es.addEventListener("records-changed", () => onRecordsChangedRef.current())
             es.addEventListener("lifecycle", invalidateBadges)
-            es.addEventListener("interaction", invalidateBadges)
+            es.addEventListener("interaction", () => {
+                invalidateBadges()
+                onInteractionChangedRef.current?.()
+            })
             es.onerror = () => {
                 setConnected(false)
                 // CONNECTING = built-in auto-reconnect; only a fatal CLOSED needs us.
