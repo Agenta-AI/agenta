@@ -28,7 +28,7 @@ import {
     isSessionBusyRefusal,
     isVisiblePart,
 } from "@agenta/chat/model"
-import {getLivePendingApprovals} from "@agenta/chat/model"
+import {getInteractionAvailability, getLivePendingApprovals} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
 import {
@@ -381,10 +381,10 @@ const AgentConversation = ({
         [answerApproval, markLiveGate, submit],
     )
 
-    // A stopped turn has no live approval actions.
+    const interactionAvailability = getInteractionAvailability({stopped, stopping, streaming: busy})
     const pendingApprovals = useMemo(
-        () => getLivePendingApprovals(messages, {stopped}),
-        [messages, stopped],
+        () => getLivePendingApprovals(messages, {stopped: !interactionAvailability.approvals}),
+        [messages, interactionAvailability.approvals],
     )
     // Parked connect interactions on the paused turn → the connect dock owns their actions (the
     // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
@@ -394,13 +394,13 @@ const AgentConversation = ({
     // is already false by the time the dock should open.
     const elicits = useElicitationDock({
         messages,
-        enabled: !busy && !stopped,
+        enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         onOutput: handleClientToolOutput,
     })
     const connects = useConnectionDock({
         messages,
-        enabled: !busy && !stopped,
+        enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })

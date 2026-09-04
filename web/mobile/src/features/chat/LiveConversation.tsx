@@ -21,7 +21,11 @@ import {
     useConnectionDock,
     useElicitationDock,
 } from "@agenta/chat/hooks"
-import {getLivePendingApprovals, type TurnViewModel} from "@agenta/chat/model"
+import {
+    getInteractionAvailability,
+    getLivePendingApprovals,
+    type TurnViewModel,
+} from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
 import {cancelSessionStream} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
@@ -318,10 +322,17 @@ export const LiveConversation = ({
             })
     }, [projectId, sessionId, stop, stoppingHere, conversation.hitlPending, settleParkedStop])
 
-    // A stopped turn has no live approval actions.
+    const interactionAvailability = getInteractionAvailability({
+        stopped: conversation.stopped,
+        stopping: stoppingHere,
+        streaming: streamingHere,
+    })
     const pendingApprovals = useMemo(
-        () => getLivePendingApprovals(conversation.messages, {stopped: conversation.stopped}),
-        [conversation.messages, conversation.stopped],
+        () =>
+            getLivePendingApprovals(conversation.messages, {
+                stopped: !interactionAvailability.approvals,
+            }),
+        [conversation.messages, interactionAvailability.approvals],
     )
     // Steer keeps the detached resume dispatcher; plain approve/deny go through the engine.
     const steerActions = useApprovalActions({
@@ -363,13 +374,13 @@ export const LiveConversation = ({
     // rows are passive markers.
     const elicits = useElicitationDock({
         messages: conversation.messages,
-        enabled: !streamingHere && !conversation.stopped,
+        enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         onOutput: conversation.sendToolOutput,
     })
     const connects = useConnectionDock({
         messages: conversation.messages,
-        enabled: !streamingHere && !conversation.stopped,
+        enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
