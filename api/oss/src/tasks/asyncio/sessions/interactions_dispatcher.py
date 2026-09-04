@@ -17,6 +17,14 @@ The resume also carries the gated turn's own config when the runner stamped one 
 so the run continues under the config the gate was raised against rather than the referenced
 variant's HEAD revision. A row written before that field existed has none, and the body is
 byte-identical to the references-only one this dispatcher has always sent.
+
+``references`` are not decoration on this request: they are how the invoke finds a service to
+call at all (``WorkflowsService._ensure_request_revision`` resolves them into
+``data.revision``, and ``_get_service_url`` reads the URL off it). A gate row whose
+``data.references`` is empty therefore produces an invoke with no service URL, which fails
+``Workflow revision has no runnable service URL.`` on every redelivery. The same identity is
+also recorded on the session's turn and stream rows, so this dispatcher falls back to those
+before giving up.
 """
 
 from typing import Any, Callable, Dict, List, Optional
@@ -30,6 +38,10 @@ from oss.src.core.sessions.interactions.dtos import (
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sessions.turns.dtos import SessionTurnQuery
+from oss.src.core.sessions.turns.service import SessionTurnsService
+from oss.src.core.sessions.types import SessionReference
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
@@ -39,6 +51,48 @@ from oss.src.utils.logging import get_module_logger
 
 
 log = get_module_logger(__name__)
+
+
+# The reference keys `WorkflowsService._validate_execution_reference_families` accepts. A stored
+# session reference list is untyped on purpose (a turn append is fire-and-forget, so rejecting an
+# unknown family would drop the whole turn), which is why anything else is dropped here instead
+# of being sent into a 400.
+_EXECUTION_REFERENCE_KEYS = frozenset(
+    {
+        "workflow",
+        "workflow_variant",
+        "workflow_revision",
+        "application",
+        "application_variant",
+        "application_revision",
+        "evaluator",
+        "evaluator_variant",
+        "evaluator_revision",
+    }
+)
+
+
+def keyed_references(
+    elements: Optional[List[SessionReference]],
+) -> Optional[Dict[str, Any]]:
+    """Fold a stored flat reference list back into the keyed map an invoke carries.
+
+    Sessions persist references as a flat list whose family lives in each element's ``key``
+    (``session_turns.references``, ``session_streams.references``). An invoke carries the same
+    identity as a map keyed by family, so the fold is the whole conversion.
+    """
+    if not elements:
+        return None
+    keyed: Dict[str, Any] = {}
+    for element in elements:
+        key = getattr(element, "key", None)
+        if key not in _EXECUTION_REFERENCE_KEYS or key in keyed:
+            continue
+        reference = element.model_dump(mode="json", exclude_none=True)
+        reference.pop("key", None)
+        if reference:
+            keyed[key] = reference
+    return keyed or None
 
 
 def _user_attachment_blocks(attributes: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -313,12 +367,71 @@ class InteractionsDispatcher:
         workflows_service: WorkflowsService,
         interactions_service: SessionInteractionsService,
         records_service: Optional[RecordsService] = None,
+        turns_service: Optional[SessionTurnsService] = None,
+        streams_service: Optional[SessionStreamsService] = None,
         dispatch_fn: Optional[Callable] = None,
     ) -> None:
         self.workflows_service = workflows_service
         self.interactions_service = interactions_service
         self.records_service = records_service
+        # Read-only, for the resume's reference fallback: the identity a session recorded on its
+        # turn and stream rows when the gate row carries none.
+        self.turns_service = turns_service
+        self.streams_service = streams_service
         self._dispatch_fn = dispatch_fn
+
+    async def _session_references(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """The session's own workflow identity, for a gate row that carries none.
+
+        WHY THIS EXISTS. A resume is a server-side invoke, and the invoke resolves its service
+        URL from the request's references (`WorkflowsService._ensure_request_revision` ->
+        `_get_service_url`). A gate row written before `data.references` existed, or by a turn
+        whose run context had no workflow identity yet, leaves the resume with nothing to
+        resolve and the continuation fails `Workflow revision has no runnable service URL.`
+        forever. The turn and stream rows of the SAME session carry the identity the platform
+        resolved for that run, so read it from there rather than failing.
+
+        Best effort by design: the resume is already durable, and a read that fails here must
+        not turn into a failed continuation. A session that recorded no identity anywhere still
+        cannot be resumed server-side; that case is the caller's to report.
+        """
+        if self.turns_service is not None:
+            try:
+                turns = await self.turns_service.query_turns(
+                    project_id=project_id,
+                    query=SessionTurnQuery(session_id=session_id),
+                )
+            except Exception as e:  # noqa: BLE001 - fallback read is best effort
+                log.warning(
+                    f"[interactions] turn references unavailable for session={session_id}: {e}"
+                )
+                turns = []
+            for turn in turns or []:
+                references = keyed_references(turn.references)
+                if references:
+                    return references
+
+        if self.streams_service is not None:
+            try:
+                stream = await self.streams_service.fetch_header(
+                    project_id=project_id,
+                    session_id=session_id,
+                )
+            except Exception as e:  # noqa: BLE001 - fallback read is best effort
+                log.warning(
+                    f"[interactions] stream references unavailable for "
+                    f"session={session_id}: {e}"
+                )
+                stream = None
+            if stream is not None:
+                return keyed_references(stream.references)
+
+        return None
 
     async def _compose_inputs(
         self,
@@ -392,7 +505,10 @@ class InteractionsDispatcher:
         references = (
             {k: v.model_dump(mode="json") for k, v in data.references.items()}
             if data and data.references
-            else None
+            else await self._session_references(
+                project_id=project_id,
+                session_id=interaction.session_id,
+            )
         )
         selector = (
             data.selector.model_dump(mode="json") if data and data.selector else None

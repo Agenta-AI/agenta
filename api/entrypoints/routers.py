@@ -893,6 +893,10 @@ _interactions_dispatcher = InteractionsDispatcher(
     workflows_service=workflows_service,
     interactions_service=interactions_service,
     records_service=records_service,
+    # Read-only: the resume's reference fallback, for a gate row whose own `data.references` is
+    # empty. Without it the invoke has nothing to resolve a service URL from.
+    turns_service=session_turns_service,
+    streams_service=session_streams_service,
     dispatch_fn=_dispatch_detached_run,
 )
 
