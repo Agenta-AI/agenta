@@ -1,87 +1,115 @@
-import {describe, expect, it, vi} from "vitest"
+import {act, createElement, useCallback} from "react"
 
-import {createStopPendingGate} from "./stopWhileResolvingExecution"
+import {clearSessionTurnId, getSessionTurnId, setSessionTurnId} from "@agenta/chat/state"
+import {createRoot} from "react-dom/client"
+import {afterAll, afterEach, beforeAll, describe, expect, it, vi} from "vitest"
 
-describe("createStopPendingGate", () => {
-    it("starts the local abort while the execution snapshot is still loading", async () => {
-        const gate = createStopPendingGate()
-        let resolveSnapshot!: (executionId: string) => void
-        const snapshot = new Promise<string>((resolve) => {
-            resolveSnapshot = resolve
-        })
+import {stopPinnedExecution} from "./stopWhileResolvingExecution"
+
+const sessionId = "session-1"
+
+const deferred = () => {
+    let resolve!: () => void
+    const promise = new Promise<void>((done) => {
+        resolve = done
+    })
+    return {promise, resolve}
+}
+
+beforeAll(() => vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true))
+afterAll(() => vi.unstubAllGlobals())
+afterEach(() => clearSessionTurnId(sessionId))
+
+describe("stopPinnedExecution", () => {
+    it("starts the local abort while cancellation is still pending", async () => {
+        const held = deferred()
         const events: string[] = []
         const stop = vi.fn(() => events.push("stop"))
         const cancelExecution = vi.fn(async (executionId: string | undefined) => {
             events.push(`cancel:${executionId}`)
+            await held.promise
         })
 
-        const stopping = gate.stopWhileResolvingExecution({
+        const stopping = stopPinnedExecution({
             stop,
-            resolveExecutionId: () => {
-                events.push("snapshot:start")
-                return snapshot
-            },
+            expectedExecutionId: "turn-A",
             cancelExecution,
         })
 
-        expect(events).toEqual(["snapshot:start", "stop"])
-        expect(cancelExecution).not.toHaveBeenCalled()
+        expect(events).toEqual(["stop", "cancel:turn-A"])
 
-        resolveSnapshot("turn-A")
+        held.resolve()
         await stopping
-
-        expect(events).toEqual(["snapshot:start", "stop", "cancel:turn-A"])
         expect(cancelExecution).toHaveBeenCalledWith("turn-A")
     })
 
-    it("holds turn B until the snapshot pins cancellation to turn A", async () => {
-        const gate = createStopPendingGate()
-        let releaseSnapshot!: () => void
-        const snapshotHeld = new Promise<void>((resolve) => {
-            releaseSnapshot = resolve
-        })
-        let finishCancel!: () => void
-        const cancelHeld = new Promise<void>((resolve) => {
-            finishCancel = resolve
-        })
-        let currentExecutionId = "turn-A"
-        const events: string[] = []
+    it("keeps turn A pinned when turn B is admitted while cancellation is held", async () => {
+        const held = deferred()
+        const cancelled: (string | undefined)[] = []
+        setSessionTurnId(sessionId, "turn-A")
 
-        const stopping = gate.stopWhileResolvingExecution({
-            stop: () => events.push("stop"),
-            resolveExecutionId: async () => {
-                events.push("snapshot:start")
-                await snapshotHeld
-                events.push(`snapshot:${currentExecutionId}`)
-                return currentExecutionId
-            },
+        const stopping = stopPinnedExecution({
+            stop: vi.fn(),
+            expectedExecutionId: getSessionTurnId(sessionId),
             cancelExecution: async (executionId) => {
-                events.push(`cancel:${executionId}`)
-                await cancelHeld
+                await held.promise
+                cancelled.push(executionId)
             },
         })
-        const admittingTurnB = gate.runAfterPendingStop(async () => {
-            currentExecutionId = "turn-B"
-            events.push("admit:turn-B")
-        })
 
-        await Promise.resolve()
-        expect(currentExecutionId).toBe("turn-A")
-        expect(events).toEqual(["snapshot:start", "stop"])
+        clearSessionTurnId(sessionId)
+        setSessionTurnId(sessionId, "turn-B")
+        expect(getSessionTurnId(sessionId)).toBe("turn-B")
 
-        releaseSnapshot()
-        await admittingTurnB
-
-        expect(events).toEqual([
-            "snapshot:start",
-            "stop",
-            "snapshot:turn-A",
-            "cancel:turn-A",
-            "admit:turn-B",
-        ])
-        expect(currentExecutionId).toBe("turn-B")
-
-        finishCancel()
+        held.resolve()
         await stopping
+        expect(cancelled).toEqual(["turn-A"])
+    })
+
+    it("keeps turn A pinned after the hook remounts and admits turn B", async () => {
+        const held = deferred()
+        const cancelled: (string | undefined)[] = []
+        const cancelExecution = async (executionId: string | undefined) => {
+            await held.promise
+            cancelled.push(executionId)
+        }
+        let stopFromMount!: () => Promise<void>
+        const Harness = () => {
+            stopFromMount = useCallback(
+                () =>
+                    stopPinnedExecution({
+                        stop: vi.fn(),
+                        expectedExecutionId: getSessionTurnId(sessionId),
+                        cancelExecution,
+                    }),
+                [],
+            )
+            return null
+        }
+
+        const mount = () => {
+            const host = document.createElement("div")
+            const root = createRoot(host)
+            act(() => root.render(createElement(Harness)))
+            return root
+        }
+
+        setSessionTurnId(sessionId, "turn-A")
+        const firstMount = mount()
+        let stopping!: Promise<void>
+        act(() => {
+            stopping = stopFromMount()
+        })
+        act(() => firstMount.unmount())
+
+        clearSessionTurnId(sessionId)
+        setSessionTurnId(sessionId, "turn-B")
+        const secondMount = mount()
+        expect(getSessionTurnId(sessionId)).toBe("turn-B")
+
+        held.resolve()
+        await stopping
+        expect(cancelled).toEqual(["turn-A"])
+        act(() => secondMount.unmount())
     })
 })

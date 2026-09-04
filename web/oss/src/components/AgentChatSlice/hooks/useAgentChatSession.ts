@@ -3,6 +3,7 @@ import {useCallback, useEffect, useRef, useState} from "react"
 import {
     buildRequestWithinDeadline,
     getMessageTraceId,
+    latestTurnId,
     startupLabelFromDataPart,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
@@ -15,16 +16,18 @@ import {
 } from "@agenta/chat/state"
 import {expandedKeysForMessages, pruneExpandedAtom} from "@agenta/chat/state"
 import {
+    clearSessionTurnId,
+    getSessionTurnId,
     isChatBusy,
     persistSessionMessagesAtom,
     sessionMessagesAtom,
     sessionRecordCountsReadAtom,
     setSessionStatusAtom,
+    setSessionTurnId,
     type SessionChatHooks,
 } from "@agenta/chat/state"
 import {
     cancelSessionExecution,
-    fetchSessionStream,
     invalidateSessionListQueries,
     killSession,
     recordInteractionAnswerAtom,
@@ -53,7 +56,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {doesAgentChatStopKillSession} from "../assets/constants"
-import {createStopPendingGate} from "../assets/stopWhileResolvingExecution"
+import {stopPinnedExecution} from "../assets/stopWhileResolvingExecution"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {useChatScopeKey} from "../state/scope"
 import {openSessionIdsAtomFamily} from "../state/sessions"
@@ -111,9 +114,6 @@ export const useAgentChatSession = ({
     // can be missing/duplicated in restore/error paths and would otherwise smear the tag onto every
     // turn). Cleared on the next send/resend.
     const [stopped, setStopped] = useState(false)
-    const stopPendingGateRef = useRef<ReturnType<typeof createStopPendingGate> | null>(null)
-    if (!stopPendingGateRef.current) stopPendingGateRef.current = createStopPendingGate()
-    const stopPendingGate = stopPendingGateRef.current
 
     const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
@@ -135,6 +135,7 @@ export const useAgentChatSession = ({
     // instead of sticking to the revision this session first mounted on.
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
+            clearSessionTurnId(sessionId)
             // Bounded: retries while the invocation URL is still loading and rejects if the build
             // hangs, so a failed send surfaces as an error bubble instead of an eternal spinner
             // (#6042). The helper owns the not-ready / timed-out errors.
@@ -236,14 +237,18 @@ export const useAgentChatSession = ({
     busyRef.current = busy
 
     const sendMessage = useCallback(
-        (...args: Parameters<typeof sendChatMessage>) =>
-            stopPendingGate.runAfterPendingStop(() => sendChatMessage(...args)),
-        [sendChatMessage, stopPendingGate],
+        (...args: Parameters<typeof sendChatMessage>) => {
+            clearSessionTurnId(sessionId)
+            return sendChatMessage(...args)
+        },
+        [sendChatMessage, sessionId],
     )
     const regenerate = useCallback(
-        (...args: Parameters<typeof regenerateChatMessage>) =>
-            stopPendingGate.runAfterPendingStop(() => regenerateChatMessage(...args)),
-        [regenerateChatMessage, stopPendingGate],
+        (...args: Parameters<typeof regenerateChatMessage>) => {
+            clearSessionTurnId(sessionId)
+            return regenerateChatMessage(...args)
+        },
+        [regenerateChatMessage, sessionId],
     )
 
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
@@ -361,6 +366,11 @@ export const useAgentChatSession = ({
         !!lastMessage &&
         restoredIdsRef.current.has(lastMessage.id) &&
         agentShouldResumeAfterApproval({messages})
+
+    useEffect(() => {
+        const turnId = latestTurnId(messages)
+        if (turnId) setSessionTurnId(sessionId, turnId)
+    }, [messages, sessionId])
 
     // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
     // it renders as a red error bubble with the real reason (and persists with the session via the
@@ -493,27 +503,27 @@ export const useAgentChatSession = ({
 
     const projectId = useAtomValue(projectIdAtom)
 
-    /** Capture the current execution before client stop unlocks the next send. */
+    /** Pin the visible execution before client stop unlocks the next send. */
     const stopCurrentExecution = useCallback(async () => {
+        const expectedExecutionId = getSessionTurnId(sessionId)
         if (!projectId || !sessionId) {
             stop()
             return
         }
-        await stopPendingGate.stopWhileResolvingExecution({
+        await stopPinnedExecution({
             stop,
-            resolveExecutionId: async () =>
-                (await fetchSessionStream({sessionId, projectId}))?.turn_id ?? undefined,
-            cancelExecution: (expectedExecutionId) =>
+            expectedExecutionId,
+            cancelExecution: (pinnedExecutionId) =>
                 cancelSessionExecution({
                     sessionId,
                     projectId,
-                    expectedExecutionId,
+                    expectedExecutionId: pinnedExecutionId,
                 }),
         })
         // Refresh even on conflict because the session state is authoritative.
         void invalidateSessionInspector(queryClient, sessionId)
         void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
-    }, [projectId, sessionId, queryClient, stop, stopPendingGate])
+    }, [projectId, sessionId, queryClient, stop])
 
     const handleStop = useCallback(() => {
         markStopped()

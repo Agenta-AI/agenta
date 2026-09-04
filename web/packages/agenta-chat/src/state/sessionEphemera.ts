@@ -30,6 +30,20 @@ export const composerDraftBySession = new Map<string, string>()
 /** Pending (not yet sent) attachments per session — same lifetime as the drafts. */
 export const attachmentsBySession = new Map<string, StagedUpload<unknown>[]>()
 
+/** In-memory turn guards survive pane remounts but are never restored across page loads. */
+export const turnIdBySession = new Map<string, string>()
+
+export const setSessionTurnId = (sessionId: string, turnId: string) => {
+    turnIdBySession.set(sessionId, turnId)
+}
+
+export const getSessionTurnId = (sessionId: string): string | undefined =>
+    turnIdBySession.get(sessionId)
+
+export const clearSessionTurnId = (sessionId: string) => {
+    turnIdBySession.delete(sessionId)
+}
+
 // The fresh-session registry moved to @agenta/entities/session — the drive needs the same
 // predicate, and this package sits ABOVE entity-ui so it cannot be imported from there.
 export {freshSessionIds}
@@ -39,5 +53,6 @@ export {clearSessionFresh, isSessionFresh, markSessionFresh} from "@agenta/entit
 export const clearSessionEphemera = (sessionId: string) => {
     composerDraftBySession.delete(sessionId)
     attachmentsBySession.delete(sessionId)
+    turnIdBySession.delete(sessionId)
     freshSessionIds.delete(sessionId)
 }
