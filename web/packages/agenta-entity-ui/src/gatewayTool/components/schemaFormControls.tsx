@@ -7,7 +7,7 @@
  * Every control takes plain `value`/`onChange`/`disabled` so it works both under antd
  * `Form.Item` cloning and as an explicitly controlled leaf.
  */
-import {useId, useRef, useState} from "react"
+import {useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {dayjs} from "@agenta/shared/utils"
 import {
@@ -19,6 +19,9 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
     Input,
+    Popover,
+    PopoverAnchor,
+    PopoverContent,
     Switch,
     Select,
     SelectContent,
@@ -234,8 +237,14 @@ export function MultiSelect({
 }
 
 /**
- * Free chip input (antd `Select mode="tags"` with `open={false}`): type + Enter adds a
- * chip, Backspace on an empty input removes the last one.
+ * Free chip input (antd `Select mode="tags"`): type + Enter adds a chip, Backspace on an empty
+ * input removes the last one.
+ *
+ * `options` are SUGGESTIONS, not a closed set — the field still takes any typed value. They used
+ * to ride on a native `<datalist>`, which renders an unstyled OS popup, opens only on some
+ * gestures and can't be keyboard-driven from our own markup. So the suggestion list is built here
+ * on the same Popover + `role=listbox` + `aria-activedescendant` pattern as `Combobox`, and looks
+ * like every other dropdown in the form.
  */
 export function ChipsInput({
     value,
@@ -250,16 +259,50 @@ export function ChipsInput({
     placeholder?: string
     disabled?: boolean
     id?: string
-    /** Suggested values, offered as native datalist completions (antd tags-mode `options`). */
+    /** Suggested values, offered in a dropdown. Typing a value not in the list still works. */
     options?: string[]
 }) {
     const [draft, setDraft] = useState("")
-    const listId = useId()
+    const [open, setOpen] = useState(false)
+    const [activeIndex, setActiveIndex] = useState(0)
+    const boxRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
+    const listRef = useRef<HTMLDivElement>(null)
     const selected = value ?? []
 
-    const commit = () => {
-        const trimmed = draft.trim()
+    // Stable ids so the input's aria-controls/aria-activedescendant can point at the listbox and
+    // the active row (WAI-ARIA combobox), the way `Combobox` does.
+    const rid = useId()
+    const listId = `${rid}-listbox`
+    const optionId = (index: number) => `${rid}-opt-${index}`
+
+    // What's left to suggest: never a value already chipped, narrowed by what's typed so far.
+    const matches = useMemo(() => {
+        const taken = value ?? []
+        const q = draft.trim().toLowerCase()
+        return (options ?? []).filter(
+            (o) => !taken.includes(o) && (!q || o.toLowerCase().includes(q)),
+        )
+    }, [options, value, draft])
+
+    const hasSuggestions = Boolean(options?.length)
+    const showList = open && !disabled && matches.length > 0
+
+    /** Did this dismiss attempt come from the field itself (the anchor), rather than off it? */
+    const fromBox = (e: {detail: {originalEvent: Event}}) => {
+        const target = e.detail.originalEvent.target
+        return target instanceof Node && Boolean(boxRef.current?.contains(target))
+    }
+
+    // A fresh query re-aims at the first row; the old index could point past the new list.
+    useEffect(() => setActiveIndex(0), [draft, open])
+    useEffect(() => {
+        if (showList)
+            listRef.current?.querySelector("[data-active=true]")?.scrollIntoView({block: "nearest"})
+    }, [activeIndex, showList])
+
+    const add = (raw: string) => {
+        const trimmed = raw.trim()
         setDraft("")
         if (!trimmed || selected.includes(trimmed)) return
         onChange?.([...selected, trimmed])
@@ -269,13 +312,26 @@ export function ChipsInput({
         onChange?.(next.length ? next : undefined)
     }
 
-    return (
+    const box = (
         <div
+            ref={boxRef}
             data-slot="chips-input"
-            onClick={() => inputRef.current?.focus()}
+            onMouseDown={(e) => {
+                if (disabled) return
+                // Focus by hand off the box chrome (Combobox does the same): letting the browser
+                // do it mid-gesture opens the list on a `focus` the rest of the click then
+                // reads as an interaction outside, and the list shuts again on mouseup.
+                if (e.target !== inputRef.current) {
+                    e.preventDefault()
+                    inputRef.current?.focus()
+                }
+                if (hasSuggestions) setOpen(true)
+            }}
             className={cn(
                 selectTriggerVariants({variant: "default", size: "default"}),
                 MULTI_BOX_CLS,
+                // The right inset only exists to clear the caret; without suggestions there is none.
+                !hasSuggestions && "pr-1",
                 "cursor-text",
                 disabled &&
                     "cursor-not-allowed bg-disabled-bg text-disabled border-disabled-border",
@@ -296,33 +352,101 @@ export function ChipsInput({
                 variant="ghost"
                 disabled={disabled}
                 aria-label={placeholder}
+                role={hasSuggestions ? "combobox" : undefined}
+                aria-expanded={hasSuggestions ? showList : undefined}
+                aria-controls={hasSuggestions ? listId : undefined}
+                aria-autocomplete={hasSuggestions ? "list" : undefined}
+                aria-activedescendant={showList ? optionId(activeIndex) : undefined}
                 placeholder={selected.length === 0 ? placeholder : undefined}
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => {
+                    setDraft(e.target.value)
+                    if (hasSuggestions) setOpen(true)
+                }}
+                onFocus={() => hasSuggestions && setOpen(true)}
                 onKeyDown={(e) => {
-                    if (e.key === "Enter") {
+                    if (hasSuggestions && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
                         e.preventDefault()
-                        commit()
+                        if (!showList) return setOpen(true)
+                        const dir = e.key === "ArrowDown" ? 1 : -1
+                        setActiveIndex((i) => (i + dir + matches.length) % matches.length)
+                    } else if (e.key === "Enter") {
+                        e.preventDefault()
+                        add(showList ? (matches[activeIndex] ?? draft) : draft)
+                        setOpen(false)
+                    } else if (e.key === "Escape" && showList) {
+                        // Swallowed, or the drawer hosting the field would close along with the list.
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setOpen(false)
                     } else if (e.key === "Backspace" && draft === "" && selected.length > 0) {
                         removeAt(selected[selected.length - 1])
                     }
                 }}
-                onBlur={commit}
-                list={options?.length ? listId : undefined}
+                onBlur={() => {
+                    add(draft)
+                    setOpen(false)
+                }}
                 // antd's tags-mode search input is width-auto; an 80px floor pushed the caret
                 // onto a second line as soon as the chips filled the row.
                 className="h-6 min-w-[4px] flex-1 px-1"
             />
-            {options?.length ? (
-                <datalist id={listId}>
-                    {options
-                        .filter((o) => !selected.includes(o))
-                        .map((o) => (
-                            <option key={o} value={o} />
-                        ))}
-                </datalist>
-            ) : null}
+            {hasSuggestions && (
+                <CaretDown
+                    size={12}
+                    className="absolute right-[11px] top-1/2 -translate-y-1/2 text-placeholder"
+                />
+            )}
         </div>
+    )
+
+    if (!hasSuggestions) return box
+
+    return (
+        <Popover open={showList} onOpenChange={setOpen}>
+            <PopoverAnchor asChild>{box}</PopoverAnchor>
+            <PopoverContent
+                align="start"
+                aria-label="Suggestions"
+                // Focus stays in the input — the list is driven by aria-activedescendant.
+                onOpenAutoFocus={(e) => e.preventDefault()}
+                onCloseAutoFocus={(e) => e.preventDefault()}
+                // The input lives in the ANCHOR, so every click and focus inside the field reads
+                // as "outside the layer" to Radix and would dismiss the list the moment it opened.
+                onPointerDownOutside={(e) => fromBox(e) && e.preventDefault()}
+                onFocusOutside={(e) => fromBox(e) && e.preventDefault()}
+                className="w-[var(--radix-popover-trigger-width)] p-1 font-portal"
+            >
+                <div
+                    id={listId}
+                    ref={listRef}
+                    role="listbox"
+                    aria-label="Suggestions"
+                    className="max-h-[300px] overflow-y-auto"
+                >
+                    {matches.map((o, index) => (
+                        <div
+                            key={o}
+                            id={optionId(index)}
+                            role="option"
+                            aria-selected={index === activeIndex}
+                            data-active={index === activeIndex}
+                            onMouseEnter={() => setActiveIndex(index)}
+                            // Keeps the input focused, so `onBlur` doesn't chip the draft first.
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                                add(o)
+                                setOpen(false)
+                                inputRef.current?.focus()
+                            }}
+                            className="box-border flex min-h-control w-full cursor-pointer select-none items-center rounded-control-sm px-3 py-1 text-field-md data-[active=true]:bg-muted"
+                        >
+                            {o}
+                        </div>
+                    ))}
+                </div>
+            </PopoverContent>
+        </Popover>
     )
 }
 
