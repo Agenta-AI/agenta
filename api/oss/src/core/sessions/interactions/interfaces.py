@@ -47,7 +47,7 @@ class SessionInteractionsDAOInterface(ABC):
         except_turn_id: Optional[str] = None,
         except_tokens: Optional[List[str]] = None,
         only_turn_id: Optional[str] = None,
-    ) -> int: ...
+    ) -> List[SessionInteraction]: ...
 
     @abstractmethod
     async def query_interactions(

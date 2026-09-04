@@ -566,6 +566,7 @@ class SessionCommandsService:
                     project_id=project_id,
                     session_id=session_id,
                     only_turn_id=target,
+                    command_id=command_id,
                 )
             await self._streams.publish_session_ended(
                 project_id=project_id,
