@@ -118,7 +118,8 @@ export function PalettePanel({
     )
 }
 
-const SHIMMER_WIDTHS = ["52%", "38%", "61%"]
+// Uneven widths so the placeholder reads as a list of names, not a progress bar.
+const SHIMMER_WIDTHS = ["w-1/2", "w-1/3", "w-3/5"]
 
 function ShimmerRows({rows = 3}: {rows?: number}) {
     return (
@@ -127,8 +128,10 @@ function ShimmerRows({rows = 3}: {rows?: number}) {
                 <div key={width} className="flex items-center gap-2.5 px-[15px] py-[7px]">
                     <span className="h-3.5 w-3.5 shrink-0 animate-pulse rounded bg-[var(--ag-colorFillSecondary)]" />
                     <span
-                        className="h-2.5 animate-pulse rounded bg-[var(--ag-colorFillSecondary)]"
-                        style={{width}}
+                        className={clsx(
+                            "h-2.5 animate-pulse rounded bg-[var(--ag-colorFillSecondary)]",
+                            width,
+                        )}
                     />
                 </div>
             ))}
@@ -167,6 +170,7 @@ function PaletteRow({
             onMouseEnter={onHover}
             // mousedown, not click: the editor must not lose the caret before the selection runs.
             onMouseDown={(e) => {
+                if (e.button !== 0) return
                 e.preventDefault()
                 onSelect()
             }}
@@ -224,8 +228,13 @@ function PaletteRow({
                 <button
                     type="button"
                     aria-label={`Open ${item.label}`}
+                    // mousedown only guards the caret and the row beneath; the action hangs off
+                    // click, which a pointer and the keyboard both raise.
                     onMouseDown={(e) => {
                         e.preventDefault()
+                        e.stopPropagation()
+                    }}
+                    onClick={(e) => {
                         e.stopPropagation()
                         onDrillIn()
                     }}

@@ -89,6 +89,10 @@ describe("recentRows", () => {
             "README.md",
         ])
     })
+
+    it("returns nothing for a zero limit", () => {
+        expect(recentRows([file("README.md", {touchedAt: 1})], 0)).toEqual([])
+    })
 })
 
 describe("parentPath", () => {

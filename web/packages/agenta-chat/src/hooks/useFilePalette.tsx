@@ -50,7 +50,7 @@ export interface FilePalette {
     subscribers: ReactNode
 }
 
-export function useFilePalette({enabled = true}: {enabled?: boolean} = {}): FilePalette {
+export function useFilePalette({enabled = false}: {enabled?: boolean} = {}): FilePalette {
     const sessionId = useDriveSessionId() ?? ""
     const artifactId = useDriveArtifactId() ?? undefined
     const active = enabled && Boolean(sessionId)
