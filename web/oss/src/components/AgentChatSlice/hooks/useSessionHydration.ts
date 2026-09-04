@@ -77,12 +77,18 @@ export const hasStrandedTail = (messages: UIMessage[]): boolean =>
  * Protect local interaction state only when the pending server row already has an actionable card
  * on screen. A pending row by itself is not enough: the browser may have cached the transcript
  * before the interaction_request record arrived. Treating that stale copy as user-owned state
- * prevents hydration from ever delivering the missing approval or form.
+ * prevents hydration from ever delivering the missing approval or form. The server transcript
+ * participates too: once its terminal records have retired the gate, that durable completion must
+ * replace an answered desktop card even if the separately cached row query still says pending.
  */
 export const shouldProtectRenderedInteraction = (
     messages: UIMessage[],
     interactionRows: SessionInteractionRowStates | undefined,
-): boolean => hasWaitingInteraction(interactionRows) && isHitlPending(messages)
+    serverMessages: UIMessage[] = messages,
+): boolean =>
+    hasWaitingInteraction(interactionRows) &&
+    isHitlPending(messages) &&
+    isHitlPending(serverMessages)
 
 /** Same carrier shape `useAgentChatSession`'s error effect uses, so the stamp renders through the
  * existing red error bubble. */
@@ -193,6 +199,7 @@ export const useSessionHydration = ({
                 awaitingUser: shouldProtectRenderedInteraction(
                     messagesRef.current,
                     interactionRows,
+                    serverMsgs,
                 ),
             })
             if (!adopt) return false
