@@ -5,6 +5,7 @@ import {
     getMessageTraceId,
     latestTurnId,
     startupLabelFromDataPart,
+    submitServerOwnedApproval,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
@@ -42,6 +43,7 @@ import {
     invalidateSessionListQueries,
     killSession,
     recordInteractionAnswerAtom,
+    respondInteractionAnswerAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
 } from "@agenta/entities/session"
@@ -49,7 +51,6 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
     agentShouldResumeAfterApproval,
-    approvalResolution,
     buildAgentRequest,
     buildTurnCapture,
     isHitlPending,
@@ -145,6 +146,7 @@ export const useAgentChatSession = ({
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
+    const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
     const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     // `null` means "no live gate" — voided by a stop, or spent once a resume really went out;
@@ -377,26 +379,24 @@ export const useAgentChatSession = ({
         liveGateInteractionRef.current = interaction
     }, [])
 
-    /**
-     * Answer an approval: record the decision on the row the runner parked, THEN flip the part.
-     *
-     * Ordered, not raced. This hook dispatches no resume of its own — the park stream ends with a
-     * clean finish, so the SDK's `sendAutomaticallyWhen` sends it — but the flip is what lets the
-     * SDK dispatch, and that resume's stale sweep cancels rows still `pending`, this one included.
-     * Released early, the sweep reached the API first and cancelled the row being answered.
-     */
+    /** Submit an approval to the server-owned dispatcher. Durable mode returns 202 after recording
+     * the command; flag-off mode returns 200 after enqueueing the existing detached resume. */
     const answerApproval = useCallback(
-        (approvalId: string, approved: boolean) =>
-            recordAnswerThenRelease({
-                record: () =>
-                    recordInteractionAnswer({
+        async (approvalId: string, approved: boolean) => {
+            await submitServerOwnedApproval({
+                submit: () =>
+                    respondInteractionAnswer({
                         sessionId,
                         toolCallId: approvalId,
-                        resolution: approvalResolution(approvalId, approved),
+                        approved,
                     }),
-                release: () => addToolApprovalResponse({id: approvalId, approved}),
-            }),
-        [addToolApprovalResponse, recordInteractionAnswer, sessionId],
+                retire: () => {
+                    // A lost HTTP response may still follow a committed continuation.
+                    liveGateInteractionRef.current = null
+                },
+            })
+        },
+        [respondInteractionAnswer, sessionId],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a

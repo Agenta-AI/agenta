@@ -26,7 +26,9 @@ const sessionInteractionRowsQueryOptions = (projectId: string, sessionId: string
 })
 
 export interface SessionInteractionRowState {
+    id?: string
     token: string
+    turnId?: string
     status: SessionInteractionStatusCode
     kind: SessionInteractionKind
     resolution?: Record<string, unknown>
@@ -42,11 +44,13 @@ function interactionStatesFromRows(rows: SessionInteraction[]): SessionInteracti
 
         const toolCallId = row.data?.request?.tool_call_id
         states.set(row.token, {
+            id: row.id ?? row.token,
             token: row.token,
             status: row.status as SessionInteractionStatusCode,
             kind: row.kind as SessionInteractionKind,
             ...(row.data?.resolution ? {resolution: row.data.resolution} : {}),
             ...(typeof toolCallId === "string" && toolCallId ? {toolCallId} : {}),
+            ...(typeof row.turn_id === "string" && row.turn_id ? {turnId: row.turn_id} : {}),
         })
     }
     return states

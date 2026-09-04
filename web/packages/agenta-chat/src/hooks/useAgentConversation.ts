@@ -20,6 +20,7 @@ import {
     invalidateSessionListQueries,
     invalidateSessionLivenessQueries,
     recordInteractionAnswerAtom,
+    respondInteractionAnswerAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
     shouldAdoptServerTranscript,
@@ -28,7 +29,6 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {buildRenderMap} from "@agenta/playground"
 import {
     agentShouldResumeAfterApproval,
-    approvalResolution,
     buildAgentRequest,
     isResumeSend,
     recordAnswerThenRelease,
@@ -48,6 +48,7 @@ import {
     type SessionTranscript,
 } from "../assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
+import {submitServerOwnedApproval} from "../assets/serverOwnedApproval"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
@@ -274,6 +275,7 @@ export const useAgentConversation = ({
     // `undefined` means "no live marker", which falls back to the predicate's tail heuristics.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
+    const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
 
     // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
     // `onData` and never the transcript — this is the only place the answer survives. A stream that
@@ -400,7 +402,6 @@ export const useAgentConversation = ({
         stop,
         regenerate,
         setMessages,
-        addToolApprovalResponse,
         addToolOutput,
         error,
         clearError,
@@ -626,27 +627,24 @@ export const useAgentConversation = ({
         sessionId,
     })
 
-    // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision
-    // made in THIS mount marks the resume as live — a restored approval-requested tail the user
-    // answers after a reload genuinely auto-resumes, so the queue's pre-resume hold applies.
+    // Approval responses flow through the server-owned dispatcher. Retire the local marker even
+    // on an ambiguous transport error: the server may already have committed the continuation.
     const handleApprovalResponse = useCallback(
-        (args: {id: string; approved: boolean}) => {
+        async (args: {id: string; approved: boolean}) => {
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
-            // Ordered, not raced: the DECISION lands on the interaction row first, and only then
-            // does the part flip that lets the SDK dispatch its resume. Flipped first, that
-            // resume's stale sweep cancelled the row being answered. No resume from here either —
-            // the park stream finishes cleanly, so the SDK is the only sender.
-            void recordAnswerThenRelease({
-                record: () =>
-                    recordInteractionAnswer({
+            await submitServerOwnedApproval({
+                submit: () =>
+                    respondInteractionAnswer({
                         sessionId,
                         toolCallId: args.id,
-                        resolution: approvalResolution(args.id, args.approved),
+                        approved: args.approved,
                     }),
-                release: () => addToolApprovalResponse(args),
+                retire: () => {
+                    liveGateInteractionRef.current = null
+                },
             })
         },
-        [addToolApprovalResponse, recordInteractionAnswer, sessionId],
+        [respondInteractionAnswer, sessionId],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a

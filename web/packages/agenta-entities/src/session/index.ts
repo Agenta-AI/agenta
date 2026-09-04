@@ -141,7 +141,7 @@ export {
     type SessionInteractionRowState,
     type SessionInteractionRowStates,
 } from "./state/interactionStatus"
-export {recordInteractionAnswerAtom} from "./state/interactionAnswer"
+export {recordInteractionAnswerAtom, respondInteractionAnswerAtom} from "./state/interactionAnswer"
 export {
     sessionMountsQueryFamily,
     mountFilesQueryFamily,

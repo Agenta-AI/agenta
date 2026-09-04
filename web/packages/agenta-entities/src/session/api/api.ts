@@ -250,12 +250,25 @@ export async function fetchInteraction({
 export interface RespondInteractionParams extends InteractionScopedParams {
     /** The answer payload (e.g. an approval decision). Shape is interaction-kind specific. */
     answer: Record<string, unknown>
+    /** The execution the approval belongs to. Durable mode serializes this against Stop. */
+    expectedExecutionId?: string
+    /** Stable retry identity. Reusing it with a different answer is a conflict. */
+    idempotencyKey?: string
+}
+
+export interface RespondInteractionResult {
+    interaction: SessionInteraction | null
+    /** True only when the durable continuation transaction was accepted with HTTP 202. */
+    accepted: boolean
+    command?: {id?: string; state?: string}
+    execution?: {id?: string; state?: string}
 }
 
 /** True for the backend's `409 Interaction is no longer pending` (someone already answered).
  * Fern stashes the HTTP status on the thrown `AgentaApiError` as `statusCode`. */
 export const isInteractionConflict = (error: unknown): boolean =>
-    (error as {statusCode?: number} | null)?.statusCode === 409
+    (error as {statusCode?: number; response?: {status?: number}} | null)?.statusCode === 409 ||
+    (error as {response?: {status?: number}} | null)?.response?.status === 409
 
 /** True for the backend's `404 No such file or folder`. */
 const isNotFound = (error: unknown): boolean =>
@@ -318,20 +331,42 @@ export async function respondInteraction({
     appId,
     abortSignal,
     answer,
-}: RespondInteractionParams): Promise<SessionInteraction | null> {
+    expectedExecutionId,
+    idempotencyKey,
+}: RespondInteractionParams): Promise<RespondInteractionResult | null> {
     if (!projectId || !interactionId) return null
 
-    const data = await getSessionsClient().respondInteraction(
-        {interaction_id: interactionId, answer},
-        projectScopedRequest(projectId, appId, abortSignal),
-    )
+    // Fern preserves the status through `withRawResponse`: 200 is the flag-off dispatcher and
+    // 202 is durable command acceptance. Both are server-owned continuations; callers must never
+    // also release the local AI SDK gate.
+    const request = {
+        interaction_id: interactionId,
+        answer,
+        ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
+    }
+    const {data, rawResponse} = await getSessionsClient()
+        .respondInteraction(request, {
+            ...projectScopedRequest(projectId, appId, abortSignal),
+            headers: idempotencyKey ? {"Idempotency-Key": idempotencyKey} : undefined,
+        })
+        .withRawResponse()
 
+    const responseData = data as {
+        interaction?: unknown
+        command?: {id?: string; state?: string}
+        execution?: {id?: string; state?: string}
+    }
     const validated = safeParseWithLogging(
         sessionInteractionResponseSchema,
-        data,
+        responseData,
         "[respondInteraction]",
     )
-    return validated?.interaction ?? null
+    return {
+        interaction: validated?.interaction ?? null,
+        accepted: rawResponse.status === 202,
+        ...(responseData.command ? {command: responseData.command} : {}),
+        ...(responseData.execution ? {execution: responseData.execution} : {}),
+    }
 }
 
 /**

@@ -417,7 +417,7 @@ const AgentConversation = ({
             // harness owns the reject continuation and exposes no reject-with-feedback seam; killing
             // that flail needs an upstream ACP change, not an FE one.)
             const steer = args.message?.trim()
-            void answerApproval(args.id, args.approved).then(() => {
+            return answerApproval(args.id, args.approved).then(() => {
                 // After the answer for the same reason the flip is: a steer starts its own turn.
                 if (!args.approved && steer) submit({text: steer})
             })

@@ -111,4 +111,40 @@ describe("useApprovalDock", () => {
         // The latched gate is still available for the closing animation frame.
         expect(result.current.current?.approvalId).toBe("g1")
     })
+
+    it("moves from sending to answered only after the response promise resolves", async () => {
+        let accept: (() => void) | undefined
+        const respond = vi.fn(
+            () =>
+                new Promise<void>((resolve) => {
+                    accept = resolve
+                }),
+        )
+        const {result} = renderHook(() =>
+            useApprovalDock({messages: [assistantWithGates("g1")], respond}),
+        )
+
+        act(() => result.current.respond(true))
+        expect(result.current.responding).toBe(true)
+        expect(result.current.answered).toBe(false)
+
+        await act(async () => accept?.())
+        expect(result.current.answered).toBe(true)
+        expect(result.current.errorText).toBeNull()
+    })
+
+    it("re-arms the pending decision and shows an error when submission fails", async () => {
+        const respond = vi.fn(() => Promise.reject(new Error("Network unavailable")))
+        const {result} = renderHook(() =>
+            useApprovalDock({messages: [assistantWithGates("g1")], respond}),
+        )
+
+        await act(async () => result.current.respond(false))
+
+        expect(result.current.responding).toBe(false)
+        expect(result.current.answered).toBe(false)
+        expect(result.current.errorText).toBe("Network unavailable")
+        act(() => result.current.respond(false))
+        expect(respond).toHaveBeenCalledTimes(2)
+    })
 })

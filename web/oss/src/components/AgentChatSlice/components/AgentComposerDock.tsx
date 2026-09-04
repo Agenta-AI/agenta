@@ -107,7 +107,11 @@ const AgentComposerDock = ({
     /** The agent empty-chat template strip is on (owned by AgentConversation — see its comment). */
     showTemplateStrip: boolean
     pendingApprovals: ReturnType<typeof getPendingApprovals>
-    onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
+    onApprovalResponse: (args: {
+        id: string
+        approved: boolean
+        message?: string
+    }) => void | Promise<void>
     connects: ConnectionDockState
     /** Parked question forms the run is blocked on (from `useElicitationDock`). */
     elicits: ElicitationDockState

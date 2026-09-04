@@ -30,6 +30,7 @@ export const ApprovalDock = ({
     bottomMost?: boolean
 }) => {
     const busy = actions.phase === "resuming"
+    const answered = actions.phase === "answered"
 
     if (approvals.length === 0) return null
     return (
@@ -44,6 +45,7 @@ export const ApprovalDock = ({
                 <ApprovalCard
                     approvals={approvals}
                     responding={busy}
+                    answered={answered}
                     entityId={entityId}
                     steerEnabled={isSteerEnabled()}
                     touch

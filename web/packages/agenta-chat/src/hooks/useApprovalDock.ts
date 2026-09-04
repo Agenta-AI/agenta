@@ -15,7 +15,7 @@ import {getPendingApprovals, type PendingApproval} from "../model/approvals"
 export interface UseApprovalDockArgs {
     messages: UIMessage[]
     /** Answer one gate — the host's approval-response path (which marks the resume live). */
-    respond: (args: {id: string; approved: boolean}) => void
+    respond: (args: {id: string; approved: boolean}) => void | Promise<void>
 }
 
 export interface ApprovalDock {
@@ -27,6 +27,9 @@ export interface ApprovalDock {
     count: number
     /** A fired decision hasn't settled yet — disable the action buttons. */
     responding: boolean
+    /** The server accepted the durable response; wait for records to replace the parked gate. */
+    answered: boolean
+    errorText: string | null
     /** Answer the current gate. */
     respond: (approved: boolean) => void
     /** Approve every pending gate in one step (the shown set is frozen while they settle). */
@@ -64,12 +67,34 @@ export const useApprovalDock = ({
     const count = shown.length
 
     const [responding, setResponding] = useState(false)
+    const [answered, setAnswered] = useState(false)
+    const [errorText, setErrorText] = useState<string | null>(null)
 
     // The current gate changed (we answered one, the next slid in) — re-enable. Held during a
     // resolve (current is frozen), so it fires only on a real step or a new batch.
     useEffect(() => {
         setResponding(false)
+        setAnswered(false)
+        setErrorText(null)
     }, [current?.approvalId])
+
+    const settle = useCallback(async (responses: (void | Promise<void>)[]) => {
+        const results = await Promise.allSettled(responses)
+        const failed = results.find(
+            (result): result is PromiseRejectedResult => result.status === "rejected",
+        )
+        if (!failed) {
+            setAnswered(true)
+            return
+        }
+        setResponding(false)
+        setResolvingIds(null)
+        setErrorText(
+            failed.reason instanceof Error
+                ? failed.reason.message
+                : "Approval failed. Please try again.",
+        )
+    }, [])
 
     // Once every gate we fired has settled (left the pending set), drop the latch — the dock then
     // closes if nothing remains, or re-latches onto the uncovered gates (a mixed batch).
@@ -83,19 +108,21 @@ export const useApprovalDock = ({
         (approved: boolean) => {
             if (responding || !current) return
             setResponding(true)
-            onRespond({id: current.approvalId, approved})
+            setErrorText(null)
+            void settle([onRespond({id: current.approvalId, approved})])
         },
-        [responding, current, onRespond],
+        [responding, current, onRespond, settle],
     )
 
     const approveAll = useCallback(() => {
         if (responding || shown.length === 0) return
         setResponding(true)
+        setErrorText(null)
         // Freeze the card so the dock doesn't step through the batch as each response settles —
         // it holds "1 of N" and closes once all are answered (see `resolvingIds`).
         setResolvingIds(shown.map((a) => a.approvalId))
-        shown.forEach((a) => onRespond({id: a.approvalId, approved: true}))
-    }, [responding, shown, onRespond])
+        void settle(shown.map((a) => onRespond({id: a.approvalId, approved: true})))
+    }, [responding, shown, onRespond, settle])
 
-    return {open, current, count, responding, respond, approveAll}
+    return {open, current, count, responding, answered, errorText, respond, approveAll}
 }

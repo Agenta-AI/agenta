@@ -9,7 +9,7 @@ import {
 import {hasSettledResume, selectApprovalTargets, type ApprovalTarget} from "./approvalTargets"
 import {buildApprovalAnswer} from "./steer"
 
-export type ResumePhase = "idle" | "resuming" | "error"
+export type ResumePhase = "idle" | "resuming" | "answered" | "error"
 
 /** Fern's `AgentaApiError` message is transport jargon — show the status instead. */
 const respondErrorText = (error: unknown): string => {
@@ -67,13 +67,13 @@ export const useApprovalActions = ({
     useEffect(() => {
         const pending = pendingKey ? pendingKey.split(" ") : []
         if (!hasSettledResume(submittedRef.current, pending)) return
-        setPhase((current) => (current === "resuming" ? "idle" : current))
+        setPhase((current) => (current === "resuming" || current === "answered" ? "idle" : current))
     }, [pendingKey])
 
     // Failure-path re-arm: if the respond was accepted but the run dies before the gate
     // resolves, the poll never settles us — drop back to idle so the buttons re-arm.
     useEffect(() => {
-        if (phase !== "resuming") return
+        if (phase !== "resuming" && phase !== "answered") return
         const handle = setTimeout(() => setPhase("idle"), 60_000)
         return () => clearTimeout(handle)
     }, [phase])
@@ -112,6 +112,8 @@ export const useApprovalActions = ({
                             interactionId: row.id as string,
                             projectId,
                             answer: buildApprovalAnswer(approved, message),
+                            expectedExecutionId: row.turn_id ?? undefined,
+                            idempotencyKey: `approval:${row.id}:${approved ? "approve" : "deny"}`,
                         })
                         answered += 1
                     } catch (err) {
@@ -124,6 +126,8 @@ export const useApprovalActions = ({
                 if (answered === 0) {
                     submittedRef.current = []
                     setPhase("idle")
+                } else {
+                    setPhase("answered")
                 }
             } catch (err) {
                 submittedRef.current = []

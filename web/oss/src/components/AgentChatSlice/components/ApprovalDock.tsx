@@ -9,7 +9,11 @@ import {isAgentChatSteerEnabled} from "../assets/constants"
 interface ApprovalDockProps {
     /** Pending gates for the paused turn (index 0 is acted on first). */
     approvals: PendingApproval[]
-    onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
+    onApprovalResponse: (args: {
+        id: string
+        approved: boolean
+        message?: string
+    }) => void | Promise<void>
     /** Selected agent revision — enables the always-allow grant. */
     entityId?: string
     className?: string
@@ -38,6 +42,8 @@ const ApprovalDock = ({approvals, onApprovalResponse, entityId, className}: Appr
     const current = shown[0]
 
     const [responding, setResponding] = useState(false)
+    const [answered, setAnswered] = useState(false)
+    const [errorText, setErrorText] = useState<string | null>(null)
     // Feature flag: the "Redirect" (steer) control is OFF by default. The UI is complete, but the
     // redirect runs as a follow-up turn — the model reasons about the bare denial before it lands —
     // so we hide the entry point until the runner-level reject-and-redirect lands.
@@ -46,6 +52,8 @@ const ApprovalDock = ({approvals, onApprovalResponse, entityId, className}: Appr
     // The current gate changed (we answered one, the next slid in) — re-enable.
     useEffect(() => {
         setResponding(false)
+        setAnswered(false)
+        setErrorText(null)
     }, [current?.approvalId])
 
     // Once every gate we fired has settled, drop the latch — the dock then closes if nothing
@@ -56,11 +64,30 @@ const ApprovalDock = ({approvals, onApprovalResponse, entityId, className}: Appr
         }
     }, [approvals, resolvingIds])
 
+    const settle = async (responses: (Promise<void> | void)[]) => {
+        const results = await Promise.allSettled(responses)
+        const failed = results.find(
+            (result): result is PromiseRejectedResult => result.status === "rejected",
+        )
+        if (!failed) {
+            setAnswered(true)
+            return
+        }
+        setResponding(false)
+        setResolvingIds(null)
+        setErrorText(
+            failed.reason instanceof Error
+                ? failed.reason.message
+                : "Approval failed. Please try again.",
+        )
+    }
+
     const respondMany = (ids: string[], approved: boolean) => {
         if (responding) return
         setResponding(true)
+        setErrorText(null)
         setResolvingIds(ids)
-        ids.forEach((id) => onApprovalResponse({id, approved}))
+        void settle(ids.map((id) => onApprovalResponse({id, approved})))
     }
 
     // Always mounted; enter + leave animate via the shared HeightCollapse. `inert` while closed
@@ -72,17 +99,22 @@ const ApprovalDock = ({approvals, onApprovalResponse, entityId, className}: Appr
                     <ApprovalCard
                         approvals={shown}
                         responding={responding}
+                        answered={answered}
+                        errorText={errorText}
                         entityId={entityId}
                         steerEnabled={steerEnabled}
                         className="ag-surface-chat mb-2 gap-2.5 p-3.5"
                         onRespond={({approvalId, approved, message}) => {
                             if (responding) return
                             setResponding(true)
-                            onApprovalResponse({
-                                id: approvalId,
-                                approved,
-                                ...(message?.trim() ? {message: message.trim()} : {}),
-                            })
+                            setErrorText(null)
+                            void settle([
+                                onApprovalResponse({
+                                    id: approvalId,
+                                    approved,
+                                    ...(message?.trim() ? {message: message.trim()} : {}),
+                                }),
+                            ])
                         }}
                         onApproveAll={(ids) => respondMany(ids, true)}
                         onDenyAll={(ids) => respondMany(ids, false)}
