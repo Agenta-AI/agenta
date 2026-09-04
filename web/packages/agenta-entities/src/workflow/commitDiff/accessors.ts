@@ -112,6 +112,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
     if (!isObj(raw)) return null
     const key = agentItemIdentity("tool", raw, index)
     const fingerprint = stableStringify(raw)
+    const entry = raw
     // Function tool: either the wrapped `{function:{name,...}}` shape or the flat legacy
     // `{name, description, parameters}` shape (guarded so reference/builtin tools, which carry a
     // non-function `type`, don't get misread as flat function tools).
@@ -139,6 +140,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
                 fingerprint,
                 isFunction: false,
                 policy: readConnectionPolicy(raw),
+                raw: entry,
             }
         }
     }
@@ -158,6 +160,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
                 paramsJson: "{}",
                 fingerprint,
                 isFunction: false,
+                raw: entry,
             }
         }
     }
@@ -183,6 +186,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
             paramsJson: stableStringify(params),
             fingerprint,
             isFunction: true,
+            raw: entry,
         }
     }
 
@@ -201,6 +205,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
             fingerprint,
             isFunction: false,
             isSubagent: true,
+            raw: entry,
         }
     }
 
@@ -216,6 +221,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
             paramsJson: "{}",
             fingerprint,
             isFunction: false,
+            raw: entry,
         }
     }
 
@@ -228,6 +234,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
         paramsJson: "{}",
         fingerprint,
         isFunction: false,
+        raw: entry,
     }
 }
 

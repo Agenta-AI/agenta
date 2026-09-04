@@ -106,6 +106,8 @@ export interface NormalizedTool {
     isFunction: boolean
     /** A `gateway_connection`'s authored policy: the integration default plus per-tool overrides. */
     policy?: {default: string; tools: Record<string, string>}
+    /** The entry as authored, so a field no other check inspects can still be named. */
+    raw?: Record<string, unknown>
     /** A `{type:"reference"}` entry — another agent, sectioned apart from the real tools. */
     isSubagent?: boolean
 }

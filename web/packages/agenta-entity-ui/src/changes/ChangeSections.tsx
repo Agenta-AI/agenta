@@ -372,7 +372,11 @@ export function SectionCard({
                     <span className={cn("flex-1 leading-none", small ? "text-xs" : "text-[13px]")}>
                         {section.title}
                     </span>
-                    <StatusTags tags={section.tags} small={small} />
+                    {/* A scalar section's rows ARE the list of changes, so "N changed" only
+                        counts what is already visible. Lists earn their added/removed counts. */}
+                    {section.scalarChanges ? null : (
+                        <StatusTags tags={section.tags} small={small} />
+                    )}
                     <span
                         className={cn(
                             "inline-flex shrink-0 items-center leading-none",

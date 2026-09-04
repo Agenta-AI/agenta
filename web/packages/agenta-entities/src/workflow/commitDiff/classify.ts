@@ -80,6 +80,30 @@ function diffPolicyFields(before: NormalizedTool, after: NormalizedTool): ToolFi
     return changes
 }
 
+/** Roots another check already reports, so the raw sweep does not double-count them. */
+const COVERED_TOOL_ROOTS = new Set(["description", "function", "policy", "parameters", "name"])
+
+/**
+ * Whatever moved that nothing above inspects — a builtin's option, a reference's version. Without
+ * this the row falls back to a bare "changed" and the reader has no idea where to look.
+ */
+function diffRawToolFields(before: NormalizedTool, after: NormalizedTool): ToolFieldChange[] {
+    if (!before.raw || !after.raw) return []
+    const b = flattenScalars(before.raw)
+    const a = flattenScalars(after.raw)
+    const changes: ToolFieldChange[] = []
+    for (const key of [...new Set([...Object.keys(b), ...Object.keys(a)])].sort()) {
+        if (COVERED_TOOL_ROOTS.has(key.split(".")[0])) continue
+        if (stableStringify(b[key]) === stableStringify(a[key])) continue
+        changes.push({
+            field: key,
+            kind: !(key in b) ? "added" : !(key in a) ? "removed" : "changed",
+            detail: `${scalarKeyLabel(key).toLowerCase()} changed`,
+        })
+    }
+    return changes
+}
+
 function diffToolFields(before: NormalizedTool, after: NormalizedTool): ToolFieldChange[] {
     const changes: ToolFieldChange[] = [...diffPolicyFields(before, after)]
     if (before.description !== after.description) {
@@ -103,19 +127,20 @@ function diffToolFields(before: NormalizedTool, after: NormalizedTool): ToolFiel
             changes.push({field: key, kind: "changed", detail: "changed"})
         }
     }
-    return changes
+    return [...changes, ...diffRawToolFields(before, after)]
 }
 
 function toolRowDetail(fields: ToolFieldChange[]): string | undefined {
     const permissionDefault = fields.find((f) => f.field === PERMISSION_DEFAULT)
     const perTool = fields.filter((f) => f.field.startsWith(PERMISSION_TOOL_PREFIX))
     const descChanged = fields.some((f) => f.field === "description")
-    const paramCount = fields.filter(
+    const others = fields.filter(
         (f) =>
             f.field !== "description" &&
             f.field !== PERMISSION_DEFAULT &&
             !f.field.startsWith(PERMISSION_TOOL_PREFIX),
-    ).length
+    )
+    const paramCount = others.length
 
     // A lone policy change is worth spelling out — "permission Ask → Allow" says what a count cannot.
     if (permissionDefault && !perTool.length && !descChanged && !paramCount) {
@@ -124,7 +149,9 @@ function toolRowDetail(fields: ToolFieldChange[]): string | undefined {
     const parts: string[] = []
     if (permissionDefault || perTool.length) parts.push("permissions")
     if (descChanged) parts.push("description")
-    if (paramCount) parts.push(paramCount === 1 ? "1 parameter" : `${paramCount} parameters`)
+    // One field is worth naming; several are only worth counting.
+    if (paramCount === 1) parts.push(others[0].field)
+    else if (paramCount) parts.push(`${paramCount} parameters`)
     // Fingerprint-based edit detection can flag a change in a field diffToolFields doesn't inspect
     // (or a nameless reference/builtin tool with no fields) — fall back to a generic label so the
     // "edited" badge is never left unexplained.

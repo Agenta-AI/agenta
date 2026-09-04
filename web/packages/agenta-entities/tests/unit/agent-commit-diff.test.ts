@@ -196,6 +196,47 @@ describe("an edited skill shows its prose, the way Instructions does", () => {
     })
 })
 
+describe('an edited tool names what moved, never a bare "changed"', () => {
+    const fn = (over: Record<string, unknown>) => ({
+        function: {name: "send_email", description: "Sends mail", parameters: {}, ...over},
+    })
+    const row = (local: unknown, remote: unknown) =>
+        classifyAgentChanges({agent: {tools: [local]}}, {agent: {tools: [remote]}})?.find(
+            (s) => s.id === "tools",
+        )?.items?.[0]
+
+    it("names a single changed parameter instead of counting it", () => {
+        const item = row(
+            fn({parameters: {properties: {to: {type: "string"}}}}),
+            fn({parameters: {properties: {}}}),
+        )
+        expect(item?.detail).toBe("to changed")
+    })
+
+    it("still counts once there are several", () => {
+        const item = row(
+            fn({parameters: {properties: {to: {type: "string"}, cc: {type: "string"}}}}),
+            fn({parameters: {properties: {}}}),
+        )
+        expect(item?.detail).toBe("2 parameters changed")
+    })
+
+    it("names a field on a builtin tool, which has no parameters at all", () => {
+        // Regression: only the whole-entry fingerprint caught these, so the row said "changed".
+        const item = row({type: "web_search", max_uses: 5}, {type: "web_search", max_uses: 2})
+        // The stored key verbatim: it is what the tool form shows, and parameters read the same way.
+        expect(item?.detail).toBe("max_uses changed")
+    })
+
+    it("names a subagent's version, not just that something moved", () => {
+        const item = classifyAgentChanges(
+            {agent: {tools: [{type: "reference", slug: "writer", version: "2"}]}},
+            {agent: {tools: [{type: "reference", slug: "writer", version: "1"}]}},
+        )?.find((s) => s.id === "subagents")?.items?.[0]
+        expect(item?.detail).toBe("version changed")
+    })
+})
+
 describe("an integration's permission change says what it became", () => {
     // Regression: the row read "Composio search · changed" for every policy edit — the fingerprint
     // caught it, but nothing described it, so the diff carried no information.
