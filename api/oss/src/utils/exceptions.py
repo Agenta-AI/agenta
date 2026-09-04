@@ -157,7 +157,7 @@ def intercept_exceptions(
                 # request_body = None
 
                 with suppress(verbose=False):
-                    request = kwargs.pop("request", None)
+                    request = kwargs.get("request", None)
                     request = request if isinstance(request, Request) else None
                     state = request.state if request else None
                     user_id = state.user_id if state else None
