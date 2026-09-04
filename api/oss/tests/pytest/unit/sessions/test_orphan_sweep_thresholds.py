@@ -156,6 +156,29 @@ class _FakePgSession:
         self._rows = rows
 
     async def execute(self, stmt):
+        text = str(stmt)
+        if text.startswith("UPDATE") and "session_streams" in text:
+            # The collapse is a Core UPDATE keyed by row id; apply it to the in-memory rows.
+            params = stmt.compile().params
+            flags_val = next(
+                (v for v in params.values() if isinstance(v, dict) and "is_alive" in v),
+                None,
+            )
+            id_list = next(
+                (
+                    list(v)
+                    for v in params.values()
+                    if isinstance(v, (list, set, tuple))
+                    and v
+                    and all(not isinstance(x, tuple) for x in v)
+                ),
+                None,
+            )
+            if flags_val is not None and id_list is not None:
+                for row in self._rows:
+                    if row.id in id_list:
+                        row.flags = dict(flags_val)
+            return _FakeResult([])
         matched = [
             row for row in self._rows if _evaluate(stmt.whereclause, row) is True
         ]

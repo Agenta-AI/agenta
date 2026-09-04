@@ -144,6 +144,32 @@ class _FakePgSession:
                 )[:SWEEP_BATCH_SIZE]
             )
 
+        # The collapse: a Core UPDATE of session_streams flags/updated_at keyed by row id.
+        # Apply it to the in-memory rows so a test can see the collapse the way Postgres would,
+        # since the sweep no longer mutates the ORM row objects (finding 7).
+        if text.startswith("UPDATE") and "session_streams" in text:
+            params = stmt.compile().params
+            flags_val = next(
+                (v for v in params.values() if isinstance(v, dict) and "is_alive" in v),
+                None,
+            )
+            id_list = next(
+                (
+                    list(v)
+                    for v in params.values()
+                    if isinstance(v, (list, set, tuple))
+                    and v
+                    and all(not isinstance(x, tuple) for x in v)
+                ),
+                None,
+            )
+            if flags_val is not None and id_list is not None:
+                for r in self._rows:
+                    if r.id in id_list:
+                        r.flags = dict(flags_val)
+                        r.updated_at = now
+            return _FakeResult([])
+
         # The lost-turn is_running clear: a session_streams SELECT keyed by a list of
         # (project_id, session_id, turn_id) tuples. Return the rows those keys name that still
         # read is_running true, so the sweep can clear the flag on them.
