@@ -537,11 +537,21 @@ class SessionsRecordsConfig(BaseModel):
 
     # How long a record message the worker failed to write sits unacknowledged before the
     # worker claims it back and tries again.
-    reclaim_idle_ms: int = int(os.getenv("AGENTA_RECORDS_RECLAIM_IDLE_MS") or 30_000)
+    reclaim_idle_ms: int = Field(
+        default_factory=lambda: int(
+            os.getenv("AGENTA_RECORDS_RECLAIM_IDLE_MS") or 30_000
+        ),
+        ge=0,
+        validate_default=True,
+    )
 
     # Deliveries after which a record message is dropped instead of retried forever. A message
     # Postgres never accepts would otherwise hold every later message in the group.
-    max_deliveries: int = int(os.getenv("AGENTA_RECORDS_MAX_DELIVERIES") or 5)
+    max_deliveries: int = Field(
+        default_factory=lambda: int(os.getenv("AGENTA_RECORDS_MAX_DELIVERIES") or 5),
+        ge=1,
+        validate_default=True,
+    )
 
     model_config = ConfigDict(extra="ignore")
 
