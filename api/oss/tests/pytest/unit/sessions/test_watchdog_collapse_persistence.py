@@ -420,16 +420,20 @@ async def test_b_lost_turn_clear_persists_after_a_nested_session_close(
         wd_engine, session_id=session_id, turn_id=turn_id
     )
 
-    real_get_owner = orphan_sweep.get_owner
+    real_get_owner_value = orphan_sweep.get_owner_value
     nested_sessions = []
 
-    async def _get_owner_through_a_nested_session(*args, **kwargs):
+    async def _get_owner_value_through_a_nested_session(*args, **kwargs):
         # Open and close the shared task-scoped session, exactly as a DAO call would.
         async with wd_engine.session():
             nested_sessions.append(1)
-        return await real_get_owner(*args, **kwargs)
+        return await real_get_owner_value(*args, **kwargs)
 
-    monkeypatch.setattr(orphan_sweep, "get_owner", _get_owner_through_a_nested_session)
+    monkeypatch.setattr(
+        orphan_sweep,
+        "get_owner_value",
+        _get_owner_value_through_a_nested_session,
+    )
 
     lock, records_service, commands_service = _build_services(wd_engine)
     await orphan_sweep.run_orphan_sweep(
