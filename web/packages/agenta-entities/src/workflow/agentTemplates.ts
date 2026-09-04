@@ -604,15 +604,6 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
                 alternatives: ["discord"],
             },
-            {
-                role: "Read tickets",
-                required: false,
-                primary: {
-                    slug: "intercom",
-                    scope: "Read tickets",
-                },
-                alternatives: ["zendesk"],
-            },
         ],
     },
     {
@@ -676,14 +667,6 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
                 alternatives: ["confluence", "googledrive"],
             },
-            {
-                role: "Review the drafts",
-                required: false,
-                primary: {
-                    slug: "slack",
-                    scope: "Review the drafts",
-                },
-            },
         ],
     },
     {
@@ -723,7 +706,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                         },
                     ],
                 },
-                alternatives: ["intercom", "zendesk"],
+                alternatives: ["intercom"],
             },
             {
                 role: "File the bug",
@@ -853,14 +836,6 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 primary: {
                     slug: "gmail",
                     scope: "Read inbound email leads",
-                },
-            },
-            {
-                role: "Notify the owner",
-                required: false,
-                primary: {
-                    slug: "slack",
-                    scope: "Notify the owner",
                 },
             },
         ],
@@ -1436,7 +1411,6 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                         },
                     ],
                 },
-                alternatives: ["confluence", "googledrive"],
             },
             {
                 role: "Reply to the asker",
@@ -1838,7 +1812,6 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                         },
                     ],
                 },
-                alternatives: ["linear"],
             },
             {
                 role: "Publish the report",
