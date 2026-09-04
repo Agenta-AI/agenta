@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, type RefObject} from "react"
 
-import {CHAT_COLUMN} from "@agenta/chat/assets"
+import {CHAT_COLUMN, shouldShowStopControl} from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {
     ChatComposer,
@@ -437,7 +437,7 @@ const AgentComposerDock = ({
                         initialMarkdown={composer.initialDraft}
                         slashCommands={slash.sections}
                         onChange={composer.handleComposerChange}
-                        streaming={busy}
+                        streaming={shouldShowStopControl({busy, hitlPending})}
                         stopping={stopping}
                         onStop={onStop}
                         attachments={attachments}
