@@ -1,5 +1,6 @@
-import {useMemo, useState} from "react"
+import {useCallback, useMemo} from "react"
 
+import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {
     AgentActionsMenu,
@@ -8,27 +9,29 @@ import {
     useAgentIconChrome,
 } from "@agenta/entity-ui/agent"
 import {UsageCard} from "@agenta/home-ui"
+import {sessionRouteModes} from "@agenta/sessions/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {Skeleton} from "@/components/ui/skeleton"
-import {FOCUS_RING} from "@/lib/interactive"
 
+import {useStartBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
+import {SessionAutomationDrawers} from "../sessions/SessionAutomationDrawers"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {AgentComposer} from "./AgentComposer"
-import {AgentIconSheet} from "./AgentIconSheet"
+import {AgentIconPopover} from "./AgentIconPopover"
 
 /**
  * One agent's overview — the mobile face of the desktop agent overview page: this agent's
- * sessions and automation runs from the same shared card hooks, and the shared read-only
- * configuration card in place of the desktop's rail. Read-only host: configuration is edited
- * in the desktop playground, so the card gets no `onEdit`.
+ * sessions and automation runs from the same shared card hooks, and the shared configuration
+ * card in place of the desktop's rail. "Edit configuration" opens the session workspace's config
+ * pane — this app's answer to the desktop's playground.
  */
 export const AgentOverviewScreen = ({
     workspaceId,
@@ -58,7 +61,18 @@ export const AgentOverviewScreen = ({
     )
 
     const sessionMenu = useSessionRowMenu(base)
-    const [iconSheetOpen, setIconSheetOpen] = useState(false)
+
+    // Configuration is edited in the session workspace here, so this lands on a blank session
+    // with this agent and puts the config pane on screen. BOTH panel flags are written because
+    // either one alone leaves the pane hidden — the pair `resolveSessionPanes` reads.
+    const startBlank = useStartBlankSession(base)
+    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
+    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const onEditConfig = useCallback(() => {
+        setChatMaximized(false)
+        setConfigCollapsed(false)
+        startBlank(agentId)
+    }, [agentId, setChatMaximized, setConfigCollapsed, startBlank])
 
     return (
         <>
@@ -85,15 +99,15 @@ export const AgentOverviewScreen = ({
                                 {/* The one place the icon is editable. /m is a read-only host for
                                     agent CONFIG, but the icon is a local display preference, not
                                     configuration. */}
-                                <button
-                                    type="button"
-                                    aria-label="Change agent icon"
-                                    onClick={() => setIconSheetOpen(true)}
-                                    className={`flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 p-0 text-[11px] font-semibold ${FOCUS_RING} ${chrome.className}`}
-                                    style={chrome.style ?? {backgroundColor: avatar.color}}
-                                >
-                                    {chrome.glyph}
-                                </button>
+                                {/* The same popover the session top bar anchors. */}
+                                <AgentIconPopover workflowId={agentId}>
+                                    <span
+                                        className={`flex size-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold ${chrome.className}`}
+                                        style={chrome.style ?? {backgroundColor: avatar.color}}
+                                    >
+                                        {chrome.glyph}
+                                    </span>
+                                </AgentIconPopover>
                                 {/* No `flex-1`: the title sizes to its text so the kebab sits
                                     beside it, as on the desktop, instead of being pushed to the
                                     far edge. `min-w-0` still lets a long name truncate. */}
@@ -127,8 +141,7 @@ export const AgentOverviewScreen = ({
                     }
                 >
                     {/* THE shared overview body — the same cards, order and chrome the desktop
-                        page renders. Read-only host: configuration is edited in the desktop
-                        playground, so no `onEditConfig`. */}
+                        page renders. */}
                     {/* The shared page column (`pageContentWidthClass`), same as Sessions and
                         Agents: this page used to opt out of the cap at `lg` and stretched ~300px
                         wider than every other screen, which also inflated the body's right rail
@@ -151,18 +164,18 @@ export const AgentOverviewScreen = ({
                             agentNames={agentNames}
                             usage={<UsageCard appId={agentId} />}
                             sessionsHref={`${base}/sessions`}
+                            automationSessionsHref={`${base}/sessions?mode=${sessionRouteModes.automation}`}
+                            onEditConfig={onEditConfig}
                             onOpenRow={sessionMenu.open}
                             menuFor={sessionMenu.menuFor}
                             onMenuSelect={sessionMenu.onMenuSelect}
+                            onRenameRow={sessionMenu.onRenameRow}
                         />
                     </div>
                 </ScreenScaffold>
             </AppShell>
-            <AgentIconSheet
-                workflowId={agentId}
-                open={iconSheetOpen}
-                onClose={() => setIconSheetOpen(false)}
-            />
+            {/* Mounted at screen level so a drawer survives its row unmounting underneath it. */}
+            <SessionAutomationDrawers base={base} />
         </>
     )
 }
