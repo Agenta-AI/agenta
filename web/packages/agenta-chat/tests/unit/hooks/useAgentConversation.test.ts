@@ -74,6 +74,22 @@ const streamResponse = (text: string): Response =>
         headers: {"content-type": "text/event-stream"},
     })
 
+const approvalResponse = (): Response => {
+    const chunks = [
+        {type: "start", messageId: "approval-assistant"},
+        {type: "start-step"},
+        {type: "tool-input-start", toolCallId: "call-1", toolName: "shell"},
+        {type: "tool-input-available", toolCallId: "call-1", toolName: "shell", input: {}},
+        {type: "tool-approval-request", approvalId: "approval-1", toolCallId: "call-1"},
+        {type: "finish-step"},
+        {type: "finish", finishReason: "tool-calls"},
+    ]
+    return new Response(
+        chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("") + "data: [DONE]\n\n",
+        {status: 200, headers: {"content-type": "text/event-stream"}},
+    )
+}
+
 const errorResponse = (): Response =>
     new Response(JSON.stringify({status: {code: 500, message: "boom"}}), {
         status: 500,
@@ -173,6 +189,27 @@ describe("useAgentConversation", () => {
             await result.current.send({text: "second"})
         })
 
+        expect(getSessionTurnId(sessionId)).toBeUndefined()
+    })
+
+    it("clears the parked turn guard when an approval automatically resumes", async () => {
+        fetchMock
+            .mockResolvedValueOnce(approvalResponse())
+            .mockResolvedValueOnce(streamResponse("done"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "needs approval"})
+        })
+        await waitFor(() => expect(result.current.approvals.open).toBe(true), {timeout: 5000})
+        setSessionTurnId(sessionId, "parked-turn")
+
+        act(() => result.current.approvals.respond(true))
+
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2), {timeout: 5000})
         expect(getSessionTurnId(sessionId)).toBeUndefined()
     })
 

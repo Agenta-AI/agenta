@@ -250,6 +250,21 @@ export const useAgentChatSession = ({
         experimental_throttle: 50,
     })
 
+    const sendMessageWithFreshGuard: typeof sendMessage = useCallback(
+        (...args: Parameters<typeof sendMessage>) => {
+            clearSessionTurnId(sessionId)
+            return sendMessage(...args)
+        },
+        [sendMessage, sessionId],
+    )
+    const regenerateWithFreshGuard: typeof regenerate = useCallback(
+        (...args: Parameters<typeof regenerate>) => {
+            clearSessionTurnId(sessionId)
+            return regenerate(...args)
+        },
+        [regenerate, sessionId],
+    )
+
     const busy = isChatBusy(status)
     // `messages`/`busy` change every token; consumers that must stay referentially stable
     // (`handleRewind`, the hydration/SWR adoption guards) read them through refs instead.
@@ -678,8 +693,8 @@ export const useAgentChatSession = ({
         status,
         busy,
         error,
-        sendMessage,
-        regenerate,
+        sendMessage: sendMessageWithFreshGuard,
+        regenerate: regenerateWithFreshGuard,
         setMessages,
         addToolApprovalResponse,
         messagesRef,

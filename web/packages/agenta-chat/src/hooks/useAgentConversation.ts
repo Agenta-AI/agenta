@@ -250,6 +250,7 @@ export const useAgentConversation = ({
 
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
+            clearSessionTurnId(sessionId)
             // Bounded, not instant. A null build means the workflow entity has not loaded its
             // invocation URL YET — the first send to a freshly created agent races that fetch, and
             // failing on the first null made a new user's first message fail (#6042 on the desktop;
