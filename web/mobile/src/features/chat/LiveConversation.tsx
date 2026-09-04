@@ -5,6 +5,7 @@ import {
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
     jumpGateOpen,
+    shouldShowStopControl,
 } from "@agenta/chat/assets"
 import {
     ConnectionDock,
@@ -581,7 +582,10 @@ export const LiveConversation = ({
                                 modelBlocked ? "Connect a model to start chatting…" : undefined
                             }
                             waitingOnUser={conversation.hitlPending}
-                            streaming={streamingHere}
+                            streaming={shouldShowStopControl({
+                                busy: streamingHere,
+                                hitlPending: conversation.hitlPending,
+                            })}
                             stopping={stoppingHere}
                             onStop={stopHere}
                             inputRef={composerRef}
