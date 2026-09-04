@@ -1003,17 +1003,27 @@ class MountsService:
             subdir_prefixes: List[str] = []
             for level_files, level_subdirs in listings:
                 for obj in level_files:
-                    kept.append(obj)
                     rel = (
                         obj.key[len(mount_base) :]
                         if obj.key.startswith(mount_base)
                         else obj.key
                     )
+                    # Read BEFORE the prune below: `.gitignore` is itself a hidden file.
                     if rel == ".gitignore" or rel.endswith("/.gitignore"):
                         dir_rel = (
                             "" if rel == ".gitignore" else rel[: -len("/.gitignore")]
                         )
                         gitignore_reads.append((dir_rel, obj.key))
+                    # Charge `cap` only for files the caller can actually count, so a root full of
+                    # dotfiles can't report "N+" over an exactly countable drive. Gitignored files
+                    # still pass here; their specs are not in scope until the level is read.
+                    if (
+                        _is_git_plumbing(rel)
+                        or _is_internal_mount_path(rel)
+                        or _is_hidden_path(rel)
+                    ):
+                        continue
+                    kept.append(obj)
                 subdir_prefixes.extend(level_subdirs)
 
             # Bounded COUNT: enough to know it's "more than the cap" — stop before descending further.

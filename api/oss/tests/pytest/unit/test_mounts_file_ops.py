@@ -702,6 +702,53 @@ class TestMountFileOpsRoundtrip:
         assert listing.total == 2
         assert listing.total_capped is False
 
+    async def test_root_dotfiles_do_not_spend_the_count_budget(self, monkeypatch):
+        # The directory prune cannot reach a hidden file sitting at a KEPT directory's root, so the
+        # level scan has to skip it too. Otherwise five root dotfiles exhaust the budget and the
+        # drive reports "1+" for a count it could state exactly.
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 5)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in [
+            ".env",
+            ".dockerignore",
+            ".coderabbit.yaml",
+            ".prettierrc",
+            ".npmrc",
+            "a.txt",
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total == 1
+        assert listing.total_capped is False
+
+    async def test_gitignore_still_applies_when_it_is_pruned_from_the_count(self):
+        # `.gitignore` is a hidden file, so the level scan skips it — but its RULES must still be
+        # read first, or the files it ignores would start counting.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path, body in [
+            (".gitignore", b"ignored.txt\n"),
+            ("ignored.txt", b"x"),
+            ("kept.txt", b"x"),
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=body
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, order="path", limit=100, git_aware=True
+        )
+
+        assert {f.path for f in listing.files} == {"kept.txt"}
+        assert listing.total == 1
+
     async def test_internal_tree_does_not_spend_the_count_budget(self, monkeypatch):
         # Same rule for the runner-owned `agents/` namespace, which can hold a whole transcript
         # workspace: pruned during the walk, so it never crowds out the real files.

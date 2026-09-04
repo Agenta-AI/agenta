@@ -84,6 +84,11 @@ export const isListableDrivePath = (path: string, opts?: {fromAgentMount?: boole
     return opts?.fromAgentMount === true || rel !== AGENT_FILES_DIR
 }
 
+/** {@link isListableDrivePath} minus hidden paths: the summary counts user content, not plumbing
+ * (#6027). The browse explorer asks the wider question, so it still lists them. */
+export const isSummaryDrivePath = (path: string, opts?: {fromAgentMount?: boolean}): boolean =>
+    isListableDrivePath(path, opts) && !isHiddenPath(path)
+
 /** True when a listing holds BOTH agent and session files — the only time the origin tags/filter
  * carry information (a single-origin drive doesn't need them). */
 export const driveHasMixedOrigins = (files: {path: string}[]): boolean => {
@@ -385,9 +390,7 @@ const SUMMARY_LATEST_LIMIT = 5
  *  - The COUNT is a BOUNDED `limit=0` scan per mount (`total`/`total_capped`): the backend stops
  *    after a cap and reports "N+", so the "N files" badge never blocks on enumerating a huge tree.
  *
- * Neither the count nor the lists include hidden (dot-prefixed) paths — this chrome is about user
- * content, not plumbing (#6027). The browse explorer still lists them, behind its "show hidden"
- * toggle; nothing about storage or what the agent can reach changes.
+ * Counts and lists exclude hidden paths (see {@link isSummaryDrivePath}).
  *
  * Returns the same {@link SessionDriveData} shape so consumers are unchanged.
  */
@@ -409,10 +412,10 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     const recordRecency = useAtomValue(sessionRecordFileRecencyAtomFamily(sessionId))
 
     // The record log's tool paths AS DRIVE PATHS: sandbox workspace root stripped, mount origin
-    // tagged, anything naming no drive file dropped (see `drivePathFromToolPath`). Filtered by
-    // `isSummaryDrivePath` on the mount-relative path, before the fold prefix, exactly as the root
-    // listing below filters its own. ONE derivation, shared with the gate below, so the gate can't
-    // withhold the root-listing fallback over a row the list then drops.
+    // tagged, anything naming no drive file dropped (see `drivePathFromToolPath`). Filtered on the
+    // mount-relative path, before the fold prefix, exactly as the root listing filters its own.
+    // ONE derivation, shared with the gate below, so the gate can't withhold the root-listing
+    // fallback over a row the list then drops.
     const recordFiles = useMemo(
         () =>
             [...recordRecency.entries()]
