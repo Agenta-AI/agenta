@@ -17,7 +17,7 @@ export const QuoteCard = ({
     const Icon = quote.source.kind === "file" ? FileText : Quotes
     return (
         <div
-            className={`flex items-start gap-2 rounded-[10px] border-0 border-l-2 border-solid border-colorPrimary bg-colorFillQuaternary px-2.5 py-2 ${className}`}
+            className={`flex items-start gap-2 rounded-[10px] border-0 bg-colorFillQuaternary px-2.5 py-2 ${className}`}
         >
             <Icon size={14} className="mt-0.5 shrink-0 text-colorTextTertiary" />
             <span className="line-clamp-2 min-w-0 flex-1 break-words text-xs text-colorText">

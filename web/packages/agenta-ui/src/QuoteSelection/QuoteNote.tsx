@@ -72,7 +72,7 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: Quo
             }}
         >
             <QuoteCard quote={quote} onRemove={onCancel} />
-            <div className="flex items-end gap-2">
+            <div className="relative">
                 <textarea
                     ref={inputRef}
                     value={note}
@@ -85,17 +85,19 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: Quo
                     }}
                     rows={touch ? 3 : 2}
                     placeholder="What should change about this part?"
-                    className="min-h-0 flex-1 resize-none rounded-md border border-solid border-colorBorder bg-colorBgContainer px-2 py-1.5 font-[inherit] text-xs text-colorText outline-none placeholder:text-colorTextPlaceholder focus:border-colorPrimary"
+                    className={`min-h-0 w-full resize-none rounded-md border border-solid border-colorBorder bg-colorBgContainer py-1.5 pl-2 font-[inherit] text-xs text-colorText outline-none placeholder:text-colorTextPlaceholder focus:border-colorPrimary ${
+                        touch ? "pr-10" : "pr-9"
+                    }`}
                 />
                 <button
                     type="button"
                     aria-label="Attach this quote"
                     onClick={() => onStage(note)}
-                    className={`flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-colorPrimary text-white hover:opacity-90 ${
-                        touch ? "h-9 w-9" : "h-7 w-7"
+                    className={`absolute bottom-1.5 right-1.5 flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-colorPrimary text-white hover:opacity-90 ${
+                        touch ? "h-7 w-7" : "h-6 w-6"
                     }`}
                 >
-                    <ArrowUp size={touch ? 16 : 14} weight="bold" />
+                    <ArrowUp size={touch ? 14 : 12} weight="bold" />
                 </button>
             </div>
         </div>
