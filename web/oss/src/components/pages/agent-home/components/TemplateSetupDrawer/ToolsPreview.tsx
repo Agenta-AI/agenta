@@ -16,9 +16,7 @@ import {CollapsibleProviderGroup, SubSectionHeader} from "@agenta/entity-ui/draw
 const ToolsPreview = ({template}: {template: AgentStarterTemplate}) => {
     // The primary option per slot: an alternative does the same job elsewhere, so listing it
     // here would double the apparent tool count.
-    const integrations = templateConnections(template)
-        .map((slot) => slot.options[0])
-        .filter(Boolean)
+    const integrations = templateConnections(template).map((slot) => slot.primary)
     const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
         Object.fromEntries(integrations.map((i, idx) => [i.slug, idx === 0])),
     )

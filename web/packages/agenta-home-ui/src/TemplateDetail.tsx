@@ -18,11 +18,7 @@
  */
 import type {ReactNode} from "react"
 
-import {
-    PROVIDERS,
-    templateConnections,
-    type AgentStarterTemplate,
-} from "@agenta/entities/workflow"
+import {PROVIDERS, templateConnections, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {pageContentWidthClass, pageGutterClass} from "@agenta/ui/components/page-width"
 import {EnhancedButton, FilterRailLayout, Tag} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
@@ -95,7 +91,7 @@ export const TemplateDetail = ({
     // The primary option fronts the Tools list: an alternative's tools are the same job done
     // elsewhere, and listing both would read as twice the work.
     const tools = slots.flatMap((slot) =>
-        (slot.options[0]?.tools ?? []).map((tool) => ({...tool, provider: slot.options[0].slug})),
+        slot.primary.tools.map((tool) => ({...tool, provider: slot.primary.slug})),
     )
 
     const backLink = (
@@ -141,6 +137,11 @@ export const TemplateDetail = ({
         </EnhancedButton>
     )
 
+    const providerLabel = (slug: string) => PROVIDERS[slug]?.label ?? slug
+    /** "GitHub or GitLab" — the slot named by everything that satisfies it. */
+    const slotLabel = (slot: (typeof slots)[number]) =>
+        [slot.primary.slug, ...(slot.alternatives ?? [])].map(providerLabel).join(" or ")
+
     const requiredSlots = slots.filter((slot) => slot.required)
     const optionalSlots = slots.filter((slot) => !slot.required)
 
@@ -151,13 +152,11 @@ export const TemplateDetail = ({
                     <SectionLabel>Connections it uses</SectionLabel>
                     {requiredSlots.map((slot) => (
                         <DetailRow
-                            key={slot.options.map((option) => option.slug).join("-")}
+                            key={slot.primary.slug}
                             // "GitHub or GitLab" — a slot names every provider that satisfies it,
                             // so an alternative can no longer vanish between card and detail.
-                            label={slot.options
-                                .map((option) => PROVIDERS[option.slug]?.label ?? option.slug)
-                                .join(" or ")}
-                            detail={slot.options[0]?.scope ?? slot.role}
+                            label={slotLabel(slot)}
+                            detail={slot.primary.scope}
                         />
                     ))}
                 </section>
@@ -168,10 +167,8 @@ export const TemplateDetail = ({
                     <SectionLabel>Optional connections</SectionLabel>
                     {optionalSlots.map((slot) => (
                         <DetailRow
-                            key={slot.options.map((option) => option.slug).join("-")}
-                            label={slot.options
-                                .map((option) => PROVIDERS[option.slug]?.label ?? option.slug)
-                                .join(" or ")}
+                            key={slot.primary.slug}
+                            label={slotLabel(slot)}
                             detail={slot.role}
                         />
                     ))}

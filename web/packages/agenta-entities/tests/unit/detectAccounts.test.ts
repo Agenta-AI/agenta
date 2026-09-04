@@ -92,7 +92,7 @@ describe("detectAccountsFromTemplate", () => {
         const accounts = detectAccountsFromTemplate(template as AgentStarterTemplate)
         expect(accounts).toHaveLength(slots.length)
         for (const [index, account] of accounts.entries()) {
-            const primary = slots[index].options[0]
+            const primary = slots[index].primary
             expect(account.required).toBe(slots[index].required)
             expect(account.origin).toBe("template")
             expect(account.slug).toBe(primary.slug)
@@ -120,7 +120,7 @@ describe("detectAccounts", () => {
             {
                 role: "Read issues and comment",
                 required: true,
-                options: [{slug: "github", scope: "Read issues and comment", tools: []}],
+                primary: {slug: "github", scope: "Read issues and comment", tools: []},
             },
         ],
         requiredIntegrations: undefined,

@@ -31,9 +31,10 @@ describe("AGENT_TEMPLATES", () => {
         for (const template of AGENT_TEMPLATES) {
             if (!template.connections) continue
             const fromSlots = new Set(
-                templateConnections(template).flatMap((connection) =>
-                    connection.options.map((option) => option.slug),
-                ),
+                templateConnections(template).flatMap((connection) => [
+                    connection.primary.slug,
+                    ...(connection.alternatives ?? []),
+                ]),
             )
             expect(new Set(templateProviderSlugs(template))).toEqual(fromSlots)
         }
@@ -43,8 +44,8 @@ describe("AGENT_TEMPLATES", () => {
         const legacy = AGENT_TEMPLATES.find((template) => !template.connections)
         if (!legacy) return
         const slots = templateConnections(legacy)
-        expect(slots).toHaveLength(legacy.requiredIntegrations.length)
-        expect(slots.every((slot) => slot.required && slot.options.length === 1)).toBe(true)
+        expect(slots).toHaveLength(legacy.requiredIntegrations?.length ?? 0)
+        expect(slots.every((slot) => slot.required && !slot.alternatives)).toBe(true)
     })
 
     it("leads with the preferred provider, so a truncated card keeps it", () => {
@@ -53,7 +54,7 @@ describe("AGENT_TEMPLATES", () => {
         for (const template of AGENT_TEMPLATES) {
             const slots = templateConnections(template)
             if (!slots.length) continue
-            expect(templatePrimaryProvider(template)).toBe(slots[0].options[0].slug)
+            expect(templatePrimaryProvider(template)).toBe(slots[0].primary.slug)
             expect(templateProviderSlugs(template)[0]).toBe(templatePrimaryProvider(template))
         }
     })
@@ -64,7 +65,8 @@ describe("AGENT_TEMPLATES", () => {
         const prReviewer = AGENT_TEMPLATES.find((template) => template.key === "pr-reviewer")
         const slot = templateConnections(prReviewer!)[0]
         expect(slot.required).toBe(true)
-        expect(slot.options.map((option) => option.slug)).toEqual(["github", "gitlab"])
+        expect(slot.primary.slug).toBe("github")
+        expect(slot.alternatives).toEqual(["gitlab"])
     })
 
     it("every logoSlugs and requiredIntegrations slug exists in PROVIDERS", () => {
@@ -73,7 +75,7 @@ describe("AGENT_TEMPLATES", () => {
                 expect(PROVIDERS[slug], `${template.key}: logo slug "${slug}"`).toBeDefined()
             }
             for (const integration of (template.requiredIntegrations ?? []).concat(
-                templateConnections(template).flatMap((slot) => slot.options),
+                templateConnections(template).map((slot) => slot.primary),
             )) {
                 expect(
                     PROVIDERS[integration.slug],

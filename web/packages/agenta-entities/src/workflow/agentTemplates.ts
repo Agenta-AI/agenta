@@ -36,11 +36,16 @@ export interface TemplateConnection {
     /** False for a slot the playbook calls optional — it never gates Create. */
     required: boolean
     /**
-     * Interchangeable providers, PREFERRED FIRST. The order is load-bearing, not cosmetic: the
-     * primary fronts the Tools preview, labels the row, and is the mark a truncated or overlapped
-     * card must keep — `templatePrimaryProvider` is the single reader of that rule.
+     * The provider this template is written against: the one with a scope line and a tool list,
+     * the one the Tools preview shows, and the mark a truncated card keeps.
      */
-    options: RequiredIntegration[]
+    primary: RequiredIntegration
+    /**
+     * Providers that satisfy the slot instead. Slug only, deliberately: a playbook says "or
+     * GitLab" and never names GitLab's tools, so anything richer here would be invented rather
+     * than mirrored.
+     */
+    alternatives?: string[]
 }
 
 /**
@@ -159,7 +164,7 @@ export function templateConnections(template: AgentStarterTemplate): TemplateCon
     return (template.requiredIntegrations ?? []).map((integration) => ({
         role: integration.scope,
         required: true,
-        options: [integration],
+        primary: integration,
     }))
 }
 
@@ -169,9 +174,10 @@ export const templateProviderSlugs = (template: AgentStarterTemplate): string[] 
     // Migrated templates derive their marks from the slots, so a logo cannot advertise a provider
     // no slot accepts (or omit one it does). Unmigrated entries keep the hand-kept list.
     if (template.connections) {
-        const slugs = templateConnections(template).flatMap((connection) =>
-            connection.options.map((option) => option.slug),
-        )
+        const slugs = templateConnections(template).flatMap((connection) => [
+            connection.primary.slug,
+            ...(connection.alternatives ?? []),
+        ])
         return [...new Set(slugs)]
     }
     const declared = template.logoSlugs?.length
@@ -189,11 +195,11 @@ export const templateProviderSlugs = (template: AgentStarterTemplate): string[] 
  * shows fewer marks than the template has, this is the one that must survive.
  */
 export const templatePrimaryProvider = (template: AgentStarterTemplate): string | undefined =>
-    templateConnections(template)[0]?.options[0]?.slug
+    templateConnections(template)[0]?.primary.slug
 
 /** Total tool count across a template's integrations (drawer Tools count). */
 export const templateToolCount = (template: AgentStarterTemplate): number =>
-    templateConnections(template).reduce((n, slot) => n + (slot.options[0]?.tools.length ?? 0), 0)
+    templateConnections(template).reduce((n, slot) => n + slot.primary.tools.length, 0)
 
 /**
  * The initial instruction message for the agent-builder flow (Mahmoud's template mode): it seeds a
@@ -287,44 +293,25 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
             {
                 role: "Read the diff and post review comments",
                 required: true,
-                options: [
-                    {
-                        slug: "github",
-                        scope: "Read PRs, post reviews & comments",
-                        tools: [
-                            {
-                                name: "Get pull request",
-                                description: "Read a PR's diff, changed files, and metadata.",
-                            },
-                            {
-                                name: "Create review comment",
-                                description: "Comment inline on specific lines of the diff.",
-                            },
-                            {
-                                name: "Create issue comment",
-                                description: "Post the plain-English summary on the PR.",
-                            },
-                        ],
-                    },
-                    {
-                        slug: "gitlab",
-                        scope: "Read MRs, post review comments",
-                        tools: [
-                            {
-                                name: "Get merge request",
-                                description: "Read an MR's diff, changed files, and metadata.",
-                            },
-                            {
-                                name: "Create merge request note",
-                                description: "Comment inline on specific lines of the diff.",
-                            },
-                            {
-                                name: "Create issue note",
-                                description: "Post the plain-English summary on the MR.",
-                            },
-                        ],
-                    },
-                ],
+                primary: {
+                    slug: "github",
+                    scope: "Read PRs, post reviews & comments",
+                    tools: [
+                        {
+                            name: "Get pull request",
+                            description: "Read a PR's diff, changed files, and metadata.",
+                        },
+                        {
+                            name: "Create review comment",
+                            description: "Comment inline on specific lines of the diff.",
+                        },
+                        {
+                            name: "Create issue comment",
+                            description: "Post the plain-English summary on the PR.",
+                        },
+                    ],
+                },
+                alternatives: ["gitlab"],
             },
         ],
     },

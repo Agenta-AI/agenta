@@ -172,16 +172,10 @@ const toAccount = (
  * "or" read as two things to connect, which is the opposite of what a choice means.
  */
 export function detectAccountsFromTemplate(template: AgentStarterTemplate): DetectedAccount[] {
-    return templateConnections(template).flatMap((slot) => {
-        const [primary, ...rest] = slot.options
-        if (!primary) return []
-        return [
-            {
-                ...toAccount(primary, slot.required),
-                ...(rest.length ? {alternatives: rest.map((option) => option.slug)} : {}),
-            },
-        ]
-    })
+    return templateConnections(template).map((slot) => ({
+        ...toAccount(slot.primary, slot.required),
+        ...(slot.alternatives?.length ? {alternatives: slot.alternatives} : {}),
+    }))
 }
 
 /**

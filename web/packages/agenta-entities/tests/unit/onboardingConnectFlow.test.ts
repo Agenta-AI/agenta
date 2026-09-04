@@ -93,7 +93,7 @@ describe("template onboarding", () => {
         (entry) => templateConnections(entry).length > 0,
     ) as AgentStarterTemplate
     // The primary option of each slot — what detection offers, and so what gating sees.
-    const declared = templateConnections(template).map((slot) => slot.options[0].slug)
+    const declared = templateConnections(template).map((slot) => slot.primary.slug)
 
     it("blocks create until every declared integration is connected", () => {
         expect(runStep({template}).canCreate).toBe(false)
