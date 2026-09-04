@@ -61,6 +61,12 @@ ANTHROPIC_KEY = ""
 # local sandbox needs, so every wait that assumes "local" gets this much extra slack.
 SANDBOX_STARTUP_SLACK_S = 0.0
 
+# Set in main() from --client-shape. "full" (default) replays the whole transcript on every
+# send, like this driver always has, so existing results stay comparable. "last-message"
+# reshapes every outbound `messages` list the way the desktop client does — see
+# _client_shape_messages() below.
+CLIENT_SHAPE = "full"
+
 RUNS = pathlib.Path(
     os.environ.get(
         "AGENTA_QA_RUNS_DIR", str(pathlib.Path.home() / "agenta-qa-evidence")
@@ -579,6 +585,48 @@ def user_msg(text: str) -> dict:
     }
 
 
+def _is_answer_part(part: dict) -> bool:
+    """Mirrors `isAnswerPart` in agentRequest.ts (web/packages/agenta-playground/src/state/
+    execution/agentRequest.ts): a non-empty text part, a tool part (`tool-*`), a
+    `dynamic-tool` part, or a `file` part."""
+    t = part.get("type") if isinstance(part, dict) else None
+    if not isinstance(t, str):
+        return False
+    if t == "text":
+        text = part.get("text")
+        return isinstance(text, str) and text.strip() != ""
+    return t.startswith("tool-") or t in ("dynamic-tool", "file")
+
+
+def _has_answer(message: dict) -> bool:
+    """Mirrors `hasAnswer` in agentRequest.ts: a user (non-assistant) message always counts;
+    an assistant message counts only if at least one of its parts is an answer part. Strips an
+    answer-less assistant turn so it cannot cascade into every later turn failing."""
+    if message.get("role") != "assistant":
+        return True
+    parts = message.get("parts")
+    return isinstance(parts, list) and any(_is_answer_part(p) for p in parts)
+
+
+def _client_shape_messages(messages: list) -> list:
+    """Shape the outbound `messages` list the way the desktop client does (agentRequest.ts),
+    when `--client-shape last-message` is selected. A no-op under the default `full`.
+
+    Strip answer-less assistant turns, then send only the trailing message when it is a fresh
+    user turn — the runner rebuilds prior turns from the durable record log. A resume whose
+    trailing turn carries a settled HITL answer (not a user turn) keeps the full history so the
+    answer still binds to its tool call.
+    """
+    if CLIENT_SHAPE != "last-message":
+        return messages
+    history = [m for m in messages if _has_answer(m)]
+    if not history:
+        return history
+    if history[-1].get("role") == "user":
+        return [history[-1]]
+    return history
+
+
 def invoke(
     session_id: str,
     messages: list,
@@ -591,7 +639,10 @@ def invoke(
     body = {
         "session_id": session_id,
         "references": references,
-        "data": {"inputs": {"messages": messages}, "parameters": {"agent": cfg}},
+        "data": {
+            "inputs": {"messages": _client_shape_messages(messages)},
+            "parameters": {"agent": cfg},
+        },
     }
     headers = {
         "Authorization": STATE["credentials"],
@@ -2026,6 +2077,17 @@ def main() -> int:
     )
     ap.add_argument("--sandbox", default="local", choices=["local", "daytona"])
     ap.add_argument(
+        "--client-shape",
+        default="full",
+        choices=["full", "last-message"],
+        help=(
+            "full (default) replays the whole transcript on every send, keeping results "
+            "comparable with prior runs. last-message sends only the new user message on "
+            "every resume and follow-up, the way the desktop client does (agentRequest.ts) — "
+            "use it to catch continuity bugs the full transcript masks."
+        ),
+    )
+    ap.add_argument(
         "--resume",
         default=None,
         help="path to a prior run's results.json; cells already recorded there are loaded, not re-run",
@@ -2048,6 +2110,8 @@ def main() -> int:
     if args.sandbox == "daytona":
         global SANDBOX_STARTUP_SLACK_S
         SANDBOX_STARTUP_SLACK_S = 25.0
+    global CLIENT_SHAPE
+    CLIENT_SHAPE = args.client_shape
 
     prior: dict = {}
     if args.resume:
@@ -2087,6 +2151,7 @@ def main() -> int:
         "project_id": STATE["project_id"],
         "harness": args.harness,
         "sandbox": args.sandbox,
+        "client_shape": args.client_shape,
         "cells": {},
     }
     for name in wanted:

@@ -341,6 +341,65 @@ def test_resolve_env_populates_globals(monkeypatch):
     assert sc.OPENAI_KEY == "sk-test"
 
 
+def test_client_shape_messages_full_is_a_noop():
+    """--client-shape full (the default) must not touch the outbound messages at all."""
+    assert sc.CLIENT_SHAPE == "full"
+    messages = [
+        sc.user_msg("first"),
+        {"role": "assistant", "parts": [{"type": "text", "text": "ok"}]},
+        sc.user_msg("last"),
+    ]
+    assert sc._client_shape_messages(messages) == messages
+
+
+def test_client_shape_messages_last_message_produces_exactly_one_message_for_a_user_turn():
+    """The literal contract: under last-message, the outbound messages a fresh user turn
+    produces has exactly one entry, and it is the new user message — not a copy or a rebuild
+    of it."""
+    sc.CLIENT_SHAPE = "last-message"
+    try:
+        first = sc.user_msg("first")
+        reply = {"role": "assistant", "parts": [{"type": "text", "text": "ok"}]}
+        last = sc.user_msg("last")
+        shaped = sc._client_shape_messages([first, reply, last])
+    finally:
+        sc.CLIENT_SHAPE = "full"
+    assert len(shaped) == 1
+    assert shaped[0] is last
+
+
+def test_client_shape_messages_keeps_full_history_for_a_hitl_resume():
+    """A resume whose trailing turn carries a settled HITL answer (an assistant message, not a
+    fresh user turn) must NOT be truncated: the answer has to stay bound to its tool call, the
+    same guard agentRequest.ts applies (`lastMessage?.role === "user"`)."""
+    sc.CLIENT_SHAPE = "last-message"
+    try:
+        first = sc.user_msg("first")
+        settled = {
+            "role": "assistant",
+            "parts": [{"type": "tool-shell", "state": "output-denied"}],
+        }
+        shaped = sc._client_shape_messages([first, settled])
+    finally:
+        sc.CLIENT_SHAPE = "full"
+    assert shaped == [first, settled]
+
+
+def test_client_shape_messages_strips_answerless_assistant_turns_first():
+    """An assistant turn with no answer part (no text, no tool, no dynamic-tool, no file) is
+    stripped before the trailing-user-turn check, mirroring `hasAnswer` in agentRequest.ts."""
+    sc.CLIENT_SHAPE = "last-message"
+    try:
+        first = sc.user_msg("first")
+        empty_assistant = {"role": "assistant", "parts": []}
+        last = sc.user_msg("last")
+        shaped = sc._client_shape_messages([first, empty_assistant, last])
+    finally:
+        sc.CLIENT_SHAPE = "full"
+    assert len(shaped) == 1
+    assert shaped[0] is last
+
+
 if __name__ == "__main__":
     import inspect
 
