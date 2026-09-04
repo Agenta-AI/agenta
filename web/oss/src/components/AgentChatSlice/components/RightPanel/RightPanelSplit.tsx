@@ -1,14 +1,8 @@
 import {useEffect, useState, type ReactNode} from "react"
 
+import {CHAT_MIN, RIGHT_PANEL_MAX, RIGHT_PANEL_MIN, rightPanelWidthAtom} from "@agenta/chat/state"
 import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
 import {useAtom, type WritableAtom} from "jotai"
-
-import {
-    CHAT_MIN,
-    RIGHT_PANEL_MAX,
-    RIGHT_PANEL_MIN,
-    rightPanelWidthAtom,
-} from "../../state/rightPanel"
 
 /** Clamp the panel width to [min, max] AND never let the chat fall below its floor. */
 const clampWidth = (w: number, total: number, min: number, max: number) =>

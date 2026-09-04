@@ -1,11 +1,20 @@
 import {useEffect, useState, type ReactNode} from "react"
 
-import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {
+    chatPanelMaximizedAtom,
+    configPanelCollapsedAtom,
+    FILES_PANE_MAX,
+    FILES_PANE_MIN,
+    filesPaneWidthAtom,
+    RIGHT_PANEL_MAX,
+    RIGHT_PANEL_MIN,
+    rightPanelWidthAtom,
+} from "@agenta/chat/state"
 import {DriveSessionProvider, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {AppShell} from "../nav/AppShell"
@@ -34,9 +43,8 @@ const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane
  * node rendered in two containers mounts twice even when one is CSS-hidden, which ran two chat
  * engines at once.
  *
- * Pane geometry is the desktop's: 440 default and max, 300 min, controlled px so a drag persists
- * for the mount. Below `md` there is no room for two panes (300 pane + 420 fill), so the split
- * collapses to one visible pane and the mode picks which.
+ * Pane geometry is the desktop's, shared from `@agenta/chat/state`. Below `md` there is no room
+ * for two panes, so the split collapses to one visible pane and the mode picks which.
  */
 export const SessionWorkspace = ({
     entityId,
@@ -94,13 +102,15 @@ export const SessionWorkspace = ({
         twoPane,
         hasEntity: Boolean(entityId),
     })
-    // Controlled px, as on the desktop: the dragged width persists for the mount; 440 is the
-    // config panel's cap and its default.
-    const [paneSize, setPaneSize] = useState(440)
-    // The files pane needs its own width, for the same reason the config pane does: a hardcoded
-    // `paneSize` means a drag has nowhere to write, so the divider moves under the pointer and the
-    // pane snaps straight back. 380 is its default, within the 320/560 bounds below.
-    const [filesPaneSize, setFilesPaneSize] = useState(380)
+    // Live px during a drag, mirrored from the shared persisted width — which is written at
+    // pointer-up, not per frame, so a drag does not hammer localStorage.
+    const [storedPaneWidth, setStoredPaneWidth] = useAtom(rightPanelWidthAtom)
+    const [paneSize, setPaneSize] = useState(storedPaneWidth)
+    useEffect(() => setPaneSize(storedPaneWidth), [storedPaneWidth])
+    // The files pane keeps its own persisted width — the two panes are dragged independently.
+    const [storedFilesWidth, setStoredFilesWidth] = useAtom(filesPaneWidthAtom)
+    const [filesPaneSize, setFilesPaneSize] = useState(storedFilesWidth)
+    useEffect(() => setFilesPaneSize(storedFilesWidth), [storedFilesWidth])
 
     // Both panes slide rather than snap, on the same shared mechanism the desktop uses. Without
     // it the pane's width flipped in one frame and its content unmounted before the flip, so
@@ -140,8 +150,10 @@ export const SessionWorkspace = ({
                         <SplitPane
                             paneSide="start"
                             paneSize={twoPane && showPane ? paneSize : 0}
-                            paneMin={300}
-                            paneMax={440}
+                            paneMin={RIGHT_PANEL_MIN}
+                            paneMax={RIGHT_PANEL_MAX}
+                            // Not the desktop's 460 chat floor: `md` is 768, and 768-460 leaves
+                            // the pane under its own min.
                             fillMin={420}
                             // Phone: no divider, no drag, and the visible half takes the full width.
                             animate={configSlide.animate}
@@ -153,15 +165,17 @@ export const SessionWorkspace = ({
                             // Controlled width: the drag must write through per tick, or the pane only
                             // snaps at pointer-up.
                             onResize={(size) => setPaneSize(size)}
-                            onResizeEnd={(size) => setPaneSize(size)}
+                            onResizeEnd={(size) => setStoredPaneWidth(size)}
                             className="h-full"
                             pane={configSlide.keepMounted ? pane : null}
                             fill={
                                 <SplitPane
                                     paneSide="end"
                                     paneSize={twoPane && filesOpen ? filesPaneSize : 0}
-                                    paneMin={320}
-                                    paneMax={560}
+                                    paneMin={FILES_PANE_MIN}
+                                    paneMax={FILES_PANE_MAX}
+                                    // Lower than the desktop's chat floor for the same reason the
+                                    // config split's is.
                                     fillMin={360}
                                     animate={filesSlide.animate}
                                     barHidden={!twoPane || !filesOpen}
@@ -169,7 +183,7 @@ export const SessionWorkspace = ({
                                     // Controlled width, so the drag must write through per tick or the
                                     // pane only moves at pointer-up.
                                     onResize={(size) => setFilesPaneSize(size)}
-                                    onResizeEnd={(size) => setFilesPaneSize(size)}
+                                    onResizeEnd={(size) => setStoredFilesWidth(size)}
                                     className="h-full"
                                     pane={
                                         filesSlide.keepMounted ? (

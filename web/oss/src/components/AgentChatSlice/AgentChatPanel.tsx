@@ -13,6 +13,9 @@ import {
 import {
     chatPanelMaximizedAtom,
     configPanelCollapsedAtom,
+    FILES_PANE_MAX,
+    FILES_PANE_MIN,
+    filesPaneWidthAtom,
     sessionStatusAtomFamily,
 } from "@agenta/chat/state"
 import {commandSessionStream} from "@agenta/entities/session"
@@ -45,12 +48,7 @@ import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import ShowConfigPanelButton from "./components/ShowConfigPanelButton"
 import {useSessionActions} from "./hooks/useSessionActions"
 import {useReconcileServerSessions} from "./state/projectSessions"
-import {
-    FILES_PANE_MAX,
-    FILES_PANE_MIN,
-    filesPaneWidthAtom,
-    PANES_COEXIST_MIN_WINDOW,
-} from "./state/rightPanel"
+import {PANES_COEXIST_MIN_WINDOW} from "./state/rightPanel"
 import {isDrawerScopeKey, useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
