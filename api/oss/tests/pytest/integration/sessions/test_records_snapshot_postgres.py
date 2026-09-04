@@ -1,6 +1,7 @@
 import uuid
 
 import pytest
+import pytest_asyncio
 from sqlalchemy import delete
 
 import oss.src.dbs.postgres.shared.engine as engine_module
@@ -17,7 +18,7 @@ from oss.src.utils.env import env
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
-@pytest.fixture(autouse=True)
+@pytest_asyncio.fixture(autouse=True)
 async def _fresh_analytics_engine(monkeypatch):
     monkeypatch.setattr(env.sessions, "sequence_writes", True)
     engine_module._analytics_engine = None
