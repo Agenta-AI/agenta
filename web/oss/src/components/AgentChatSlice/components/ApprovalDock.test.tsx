@@ -73,6 +73,35 @@ describe("no pending gate", () => {
 })
 
 describe("interaction-scoped response state", () => {
+    it("does not carry a settled recoverable card from interaction X to later interaction Y", async () => {
+        const onApprovalResponse = () => Promise.resolve({durable: true, recoverable: true})
+        const host = document.createElement("div")
+        document.body.appendChild(host)
+        const root = createRoot(host)
+        const renderGate = (id: string) => (
+            <ApprovalDock
+                approvals={[gate(id, "bash", {command: "ls"})]}
+                onApprovalResponse={onApprovalResponse}
+                entityId="rev-1"
+            />
+        )
+
+        await act(async () => root.render(renderGate("interaction-x")))
+        const approveButton = [...host.querySelectorAll("button")].find((button) =>
+            button.textContent?.includes("Approve"),
+        ) as HTMLButtonElement
+        await act(async () => approveButton.click())
+        expect(host.textContent).toContain("Answer saved, retry needed")
+
+        await act(async () => root.render(renderGate("interaction-y")))
+
+        expect(host.textContent).toContain("Needs your approval")
+        expect(host.textContent).not.toContain("Answer saved, retry needed")
+
+        await act(async () => root.unmount())
+        host.remove()
+    })
+
     it("does not leak a late recoverable result onto the next desktop gate", async () => {
         let resolveFirst: ((value: {durable: boolean; recoverable: boolean}) => void) | undefined
         const onApprovalResponse = () =>
