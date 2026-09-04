@@ -39,3 +39,14 @@ export {
     type SubscriptionPairCardSaveState,
 } from "./SubscriptionPairCard"
 export {default as ScrollScrim, type ScrollScrimProps} from "./ScrollScrim"
+
+/**
+ * The "Configure provider" drawer and the drill-in `llmProviderConfig` bridge that opens it —
+ * host-neutral, so the desktop playground and `/m` share one model-picker footer and one vault
+ * provider group builder.
+ */
+export {
+    default as ConfigureProviderDrawer,
+    type ConfigureProviderDrawerProps,
+} from "./ConfigureProviderDrawer"
+export {useLLMProviderConfig, type LLMProviderConfig} from "./useLLMProviderConfig"
