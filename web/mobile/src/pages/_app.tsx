@@ -1,3 +1,4 @@
+import {DEFAULT_PAGE_TITLE} from "@agenta/shared/utils"
 import AppMessageContext from "@agenta/ui/app-message"
 import {useVisualViewportHeight} from "@agenta/ui/hooks"
 import type {AppProps} from "next/app"
@@ -31,6 +32,8 @@ export default function App({Component, pageProps}: AppProps) {
                     name="viewport"
                     content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
                 />
+                {/* App-wide default: a route that names no title shows this, not the URL. */}
+                <title>{DEFAULT_PAGE_TITLE}</title>
             </Head>
             <AppProviders>
                 <Component {...pageProps} />

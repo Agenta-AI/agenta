@@ -1,5 +1,4 @@
-import Head from "next/head"
-
+import {PageTitle} from "@/components/PageTitle"
 import {SignInScreen} from "@/features/auth/SignInScreen"
 
 // Thin shell: every sign-in method this deployment enables (password or
@@ -7,9 +6,7 @@ import {SignInScreen} from "@/features/auth/SignInScreen"
 export default function Auth() {
     return (
         <>
-            <Head>
-                <title>Sign in · Agenta</title>
-            </Head>
+            <PageTitle title="Sign in" />
             <SignInScreen />
         </>
     )
