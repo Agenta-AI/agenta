@@ -521,6 +521,7 @@ describe("harness-session unit: the seam", () => {
   });
 
   it("verifies a load only after observing native prior-message events", async () => {
+    let reads = 0;
     const result = await openHarnessSession({
       sandbox: {
         resumeSession: async () => ({ id: "local", agentSessionId: "native-1" }),
@@ -528,19 +529,25 @@ describe("harness-session unit: the seam", () => {
       },
       persist: {
         updateSession: async () => {},
-        listEvents: async () => ({
-          items: [
-            {
-              sender: "agent",
-              payload: {
-                method: "session/update",
-                params: {
-                  update: { sessionUpdate: "user_message_chunk" },
-                },
-              },
-            },
-          ],
-        }),
+        listEvents: async () => {
+          reads += 1;
+          return {
+            items:
+              reads === 1
+                ? []
+                : [
+                    {
+                      sender: "agent",
+                      payload: {
+                        method: "session/update",
+                        params: {
+                          update: { sessionUpdate: "user_message_chunk" },
+                        },
+                      },
+                    },
+                  ],
+          };
+        },
       },
       acpAgent: "pi",
       harness: "pi_core",
@@ -557,6 +564,42 @@ describe("harness-session unit: the seam", () => {
     assert.equal(result.mode, "load");
     assert.equal(result.loadedFromContinuity, true);
     assert.equal(result.nativeHistoryVerified, true);
+  });
+
+  it("does not treat prior prompt events as proof for the current load", async () => {
+    const priorEvent = {
+      sender: "agent",
+      payload: {
+        method: "session/update",
+        params: {
+          update: { sessionUpdate: "user_message_chunk" },
+        },
+      },
+    };
+    const result = await openHarnessSession({
+      sandbox: {
+        resumeSession: async () => ({ id: "local", agentSessionId: "native-1" }),
+        createSession: async () => ({ id: "must-not-create" }),
+      },
+      persist: {
+        updateSession: async () => {},
+        listEvents: async () => ({ items: [priorEvent] }),
+      },
+      acpAgent: "pi",
+      harness: "pi_core",
+      cwd: "/tmp/session",
+      sessionInit: {},
+      priorAgentSessionId: "native-1",
+      nativeHistoryDurable: true,
+      localSessionId: "session-1:pi_core",
+      continuitySessionKey: "session-1",
+      log: () => {},
+      timingLog: () => {},
+    });
+
+    assert.equal(result.mode, "load");
+    assert.equal(result.loadedFromContinuity, true);
+    assert.equal(result.nativeHistoryVerified, false);
   });
 
   it("the composer delegates both stages", () => {

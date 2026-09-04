@@ -63,8 +63,9 @@ export interface OpenSessionInput {
     updateSession: (record: never) => Promise<unknown>;
     listEvents?: (request: {
       sessionId: string;
+      cursor?: string;
       limit?: number;
-    }) => Promise<{ items: unknown[] }>;
+    }) => Promise<{ items: unknown[]; nextCursor?: string }>;
   };
   acpAgent: string;
   harness: string;
@@ -116,10 +117,21 @@ const HISTORY_SESSION_UPDATES = new Set([
 async function loadedHistoryWasObserved(
   persist: OpenSessionInput["persist"],
   localSessionId: string,
+  eventCountBeforeLoad: number,
 ): Promise<boolean> {
   if (!persist.listEvents) return false;
-  const page = await persist.listEvents({ sessionId: localSessionId, limit: 100 });
-  return page.items.some((item) => {
+  const items: unknown[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await persist.listEvents({
+      sessionId: localSessionId,
+      cursor,
+      limit: 100,
+    });
+    items.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor);
+  return items.slice(eventCountBeforeLoad).some((item) => {
     const event = item as {
       sender?: unknown;
       payload?: { method?: unknown; params?: { update?: { sessionUpdate?: unknown } } };
@@ -159,14 +171,43 @@ export async function openSession(
     } as never);
     const createSessionStartedAt = Date.now();
     try {
+      let eventCountBeforeLoad: number | undefined;
+      if (input.nativeHistoryDurable && input.persist.listEvents) {
+        try {
+          const page = await input.persist.listEvents({
+            sessionId: input.localSessionId,
+            limit: 100,
+          });
+          eventCountBeforeLoad = page.items.length;
+          let cursor = page.nextCursor;
+          while (cursor) {
+            const next = await input.persist.listEvents({
+              sessionId: input.localSessionId,
+              cursor,
+              limit: 100,
+            });
+            eventCountBeforeLoad += next.items.length;
+            cursor = next.nextCursor;
+          }
+        } catch (err) {
+          input.log(
+            `[continuity] native history baseline failed: ${conciseError(err, input.harness)}`,
+          );
+        }
+      }
       session = await input.sandbox.resumeSession(input.localSessionId);
       loadedFromContinuity =
         session.agentSessionId === input.priorAgentSessionId;
-      if (loadedFromContinuity && input.nativeHistoryDurable) {
+      if (
+        loadedFromContinuity &&
+        input.nativeHistoryDurable &&
+        eventCountBeforeLoad !== undefined
+      ) {
         try {
           nativeHistoryVerified = await loadedHistoryWasObserved(
             input.persist,
             input.localSessionId,
+            eventCountBeforeLoad,
           );
         } catch (err) {
           input.log(
