@@ -658,20 +658,22 @@ async function runAndStreamWithApiBaseResolved(
     // `runTurn` normally emits `done` itself. Acquisition can fail before `runTurn` starts,
     // though, and a cooperative Stop during a cold sandbox create reaches exactly that path.
     // Close any failed run that emitted no terminal record; preserve the Stop marker when the
-    // labelled control-plane abort caused it. `persistTerminal` uses the same ordered chain as
-    // runTurn's emitter but stays off the live stream, whose result envelope is unchanged.
+    // labelled control-plane abort caused it. A genuine acquire failure never reached runTurn's
+    // error emitter, so preserve its error before the done backstop instead of making the empty
+    // turn look successful. Both records use the same ordered persistence chain as runTurn's
+    // emitter but stay off the live stream, whose result envelope is unchanged.
     if (
       !terminalRecordEmitted &&
       persistTerminal &&
       (!result.ok || isUserStopAbort(controller.signal))
     ) {
-      persistTerminal(
-        isUserStopAbort(controller.signal) ? "cancelled" : undefined,
-      );
+      const userStopped = isUserStopAbort(controller.signal);
+      if (!userStopped && !result.ok && persistError) {
+        persistError(result.error ?? "Agent run failed.");
+      }
+      persistTerminal(userStopped ? "cancelled" : undefined);
     }
-    // A failed engine run ({ok:false}) already emitted its own error EVENT through the
-    // persisting emitter, so no extra error persist here (it would duplicate the record). Drain
-    // the terminal backstop and all prior persists before the sandbox tears down.
+    // Drain the terminal backstop and all prior persists before the sandbox tears down.
     if (flushPersist) await flushPersist();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
