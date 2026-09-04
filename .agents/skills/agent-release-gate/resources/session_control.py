@@ -39,6 +39,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import threading
@@ -112,6 +113,69 @@ class HooksUnavailable(Exception):
     """Raised by a NullHooks method. Caught at the cell boundary and turned into a SKIP."""
 
 
+class WrongSandboxTarget(Exception):
+    """The sandbox-gone cell could not map the tested session to exactly one sandbox-agent
+    daemon it is safe to kill. Raised INSTEAD of killing a guess. Two sessions can share one
+    mount key, and the keep-alive pool keeps other sessions' parked daemons alive in the same
+    runner container, so a blind `ps | grep sandbox-agent` kill hits the wrong process. The cell
+    turns this into a `wrong target` failure rather than a false negative against the product."""
+
+
+# A local sandbox id from the turn ledger is `local/<host>:<port>`; a Daytona id is `daytona/<uuid>`.
+_LOCAL_SANDBOX_ID_RE = re.compile(r"^local/[^:\s]+:(\d+)$")
+
+
+# The runner log line that names the port a session's local sandbox daemon bound to, e.g.
+# `[sandbox-agent] [timing] stage=prepare_workspace ms=0 sandbox=local/127.0.0.1:44831 session=<id>`.
+def _prepare_workspace_port_re(session_id: str) -> re.Pattern[str]:
+    return re.compile(
+        r"stage=prepare_workspace\b.*\bsandbox=local/[^:\s]+:(\d+)\b.*\bsession="
+        + re.escape(session_id)
+    )
+
+
+def _parse_local_sandbox_port(sandbox_id: str | None) -> int | None:
+    """The port from a local ledger sandbox id, or None for a Daytona/empty/foreign id."""
+    if not sandbox_id:
+        return None
+    m = _LOCAL_SANDBOX_ID_RE.match(sandbox_id.strip())
+    return int(m.group(1)) if m else None
+
+
+def _parse_ss_listener_pid(ss_output: str, port: int) -> str | None:
+    """The owning pid of the LISTEN socket on `port`, parsed from `ss -ltnHp` output.
+
+    A line looks like:
+      LISTEN 0 511 127.0.0.1:44831 0.0.0.0:* users:(("node",pid=2170,fd=23))
+    The peer column on a listener is always `0.0.0.0:*`/`[::]:*`, so an exact `:<port>` field
+    match cannot collide with the peer, and `rsplit` guards against a substring port match."""
+    for line in ss_output.splitlines():
+        fields = line.split()
+        if not any(f.rsplit(":", 1)[-1] == str(port) for f in fields if ":" in f):
+            continue
+        m = re.search(r"\bpid=(\d+)", line)
+        if m:
+            return m.group(1)
+    return None
+
+
+# Fallback for a container without `ss`: read the LISTEN socket's inode from /proc/net/tcp{,6},
+# then find the pid whose fd points at that socket. `$1` is the decimal port.
+_PROC_PID_ON_PORT_SH = r"""
+port="$1"
+hp=$(printf '%04X' "$port" 2>/dev/null) || exit 0
+inode=$(awk -v hp="$hp" 'NR>1 && $4=="0A" { split($2,a,":"); if (a[2]==hp) { print $10; exit } }' /proc/net/tcp /proc/net/tcp6 2>/dev/null)
+[ -z "$inode" ] && exit 0
+for fd in /proc/[0-9]*/fd/*; do
+  link=$(readlink "$fd" 2>/dev/null) || continue
+  if [ "$link" = "socket:[$inode]" ]; then
+    echo "$fd" | awk -F/ '{print $3}'
+    exit 0
+  fi
+done
+"""
+
+
 class OperatorHooks:
     """Interface the cells call through. `available` gates whether shell-only cells can run."""
 
@@ -166,6 +230,14 @@ class OperatorHooks:
         raise HooksUnavailable
 
     def kill_sandbox(self, sandbox_id: str | None = None) -> list[str]:
+        raise HooksUnavailable
+
+    def kill_sandbox_for_session(
+        self,
+        session_id: str | None = None,
+        sandbox_id: str | None = None,
+        since: float | None = None,
+    ) -> dict:
         raise HooksUnavailable
 
 
@@ -404,6 +476,119 @@ class DockerComposeHooks(OperatorHooks):
             )
         return pids
 
+    def local_sandbox_port(
+        self,
+        session_id: str,
+        sandbox_id: str | None = None,
+        since: float | None = None,
+    ) -> int | None:
+        """The TCP port THIS session's own local sandbox daemon bound to.
+
+        The source of truth is the runner log's `prepare_workspace` line for this exact session
+        id; the turn ledger's `local/<host>:<port>` sandbox id is a fallback and a cross-check.
+        Two sessions can share one mount key, so a global `ps | grep` cannot tell them apart —
+        this is per-session by construction. When both sources disagree the target is ambiguous
+        and this refuses (raises), rather than guessing which daemon to kill."""
+        log_port = None
+        pat = _prepare_workspace_port_re(session_id)
+        for line in self.runner_log(since if since is not None else time.time() - 600):
+            m = pat.search(line)
+            if m:
+                log_port = int(
+                    m.group(1)
+                )  # last match wins: a rebuild uses a fresh port
+        ledger_port = _parse_local_sandbox_port(sandbox_id)
+        if log_port is not None and ledger_port is not None and log_port != ledger_port:
+            raise WrongSandboxTarget(
+                f"the runner log names port {log_port} for session {session_id} but the turn "
+                f"ledger names {ledger_port}; refusing to kill an ambiguous target"
+            )
+        return log_port if log_port is not None else ledger_port
+
+    def pid_listening_on_port(self, port: int) -> str | None:
+        """The pid of the process listening on `port` inside the runner container.
+
+        Prefers `ss -ltnHp` (the pid is inline); falls back to reading the socket inode from
+        /proc/net/tcp and matching it against /proc/*/fd when the image ships no `ss`."""
+        ss_out = self.dc(
+            "exec",
+            f"{self.project}-runner-1",
+            "sh",
+            "-c",
+            "ss -ltnHp 2>/dev/null || true",
+        )
+        pid = _parse_ss_listener_pid(ss_out, port)
+        if pid:
+            return pid
+        proc_out = self.dc(
+            "exec",
+            f"{self.project}-runner-1",
+            "sh",
+            "-c",
+            _PROC_PID_ON_PORT_SH,
+            "pid-on-port",
+            str(port),
+        )
+        proc_out = proc_out.strip()
+        return proc_out or None
+
+    def process_cmdline(self, pid: str) -> str:
+        """The argv of `pid` inside the runner container, space-joined (nul-separated on disk)."""
+        return self.dc(
+            "exec",
+            f"{self.project}-runner-1",
+            "sh",
+            "-c",
+            f"tr '\\0' ' ' < /proc/{pid}/cmdline 2>/dev/null",
+        ).strip()
+
+    def kill_sandbox_for_session(
+        self,
+        session_id: str | None = None,
+        sandbox_id: str | None = None,
+        since: float | None = None,
+    ) -> dict:
+        """Kill ONLY the local sandbox daemon that belongs to `session_id`.
+
+        Maps the session to its own port, resolves the listening pid, and asserts the pid is a
+        sandbox-agent daemon before killing it. Any gap in that chain raises `WrongSandboxTarget`
+        so the cell fails as `wrong target` instead of killing an unrelated session's parked
+        sandbox (the historical false negative). Returns the port, pid, cmdline, and killed pids
+        as evidence."""
+        if not session_id:
+            raise WrongSandboxTarget("no session id given; refusing to kill a guess")
+        port = self.local_sandbox_port(session_id, sandbox_id=sandbox_id, since=since)
+        if port is None:
+            raise WrongSandboxTarget(
+                f"could not find this session's local sandbox port for {session_id} in the "
+                f"runner log or the turn ledger (ledger id={sandbox_id!r}); refusing to kill a guess"
+            )
+        pid = self.pid_listening_on_port(port)
+        if not pid:
+            raise WrongSandboxTarget(
+                f"nothing is listening on port {port} inside the runner container for session "
+                f"{session_id}; the named sandbox is not here — refusing to kill a guess"
+            )
+        cmdline = self.process_cmdline(pid)
+        if "sandbox-agent" not in cmdline:
+            raise WrongSandboxTarget(
+                f"pid {pid} on port {port} is not a sandbox-agent daemon "
+                f"(cmdline={cmdline[:120]!r}); refusing to kill it"
+            )
+        self.dc(
+            "exec",
+            f"{self.project}-runner-1",
+            "sh",
+            "-c",
+            f"kill -9 -{pid} || kill -9 {pid}",
+        )
+        return {
+            "port": port,
+            "pid": pid,
+            "cmdline": cmdline[:200],
+            "killed": [pid],
+        }
+
 
 class DaytonaAwareHooks(DockerComposeHooks):
     """`DockerComposeHooks` plus a Daytona-provider-aware `kill_sandbox` and `sandbox_procs`.
@@ -484,6 +669,34 @@ class DaytonaAwareHooks(DockerComposeHooks):
             )
             return []
         return [bare]
+
+    def kill_sandbox_for_session(
+        self,
+        session_id: str | None = None,
+        sandbox_id: str | None = None,
+        since: float | None = None,
+    ) -> dict:
+        """Delete THIS session's remote sandbox by the one id its turn ledger observed.
+
+        A Daytona sandbox is a remote machine, addressed by its own uuid, so this path is already
+        per-session targeted and never had the shared-runner ambiguity the local path did. An
+        absent id means there is nothing to end — that is a `wrong target` refusal, not a kill."""
+        if not sandbox_id:
+            raise WrongSandboxTarget(
+                f"no sandbox id observed for session {session_id}; nothing to end"
+            )
+        killed = self.kill_sandbox(sandbox_id=sandbox_id)
+        if not killed:
+            raise WrongSandboxTarget(
+                f"the Daytona delete for sandbox {sandbox_id} did not confirm; refusing to "
+                "claim a kill that did not land"
+            )
+        return {
+            "port": None,
+            "pid": None,
+            "cmdline": None,
+            "killed": killed,
+        }
 
     def sandbox_procs(self, marker: str, sandbox_id: str | None = None) -> list[dict]:
         if not sandbox_id:
@@ -605,6 +818,30 @@ DEFAULT_STREAM_TIMEOUT_S = 600.0
 def stream_timeout_s(cfg: dict) -> float:
     kind = (cfg.get("harness") or {}).get("kind")
     return STREAM_TIMEOUT_S.get(kind, DEFAULT_STREAM_TIMEOUT_S)
+
+
+# The "sandbox-gone" cell runs one slow shell command, kills the tested session's OWN sandbox
+# daemon under it, and expects the runner to end the turn with a terminal record. The settle
+# budget is derived from the runner's sandbox-liveness probe defaults
+# (services/runner/src/engines/sandbox_agent/sandbox-liveness.ts): PROBE_FAILURES consecutive
+# probe failures at PROBE_INTERVAL_S each, after which the turn ends with an error record. The
+# cell waits that budget plus slack, and never less than the slow command itself — so a healthy
+# turn that outlives a mis-targeted kill can never be misread as "still running" before it would
+# even have finished. The command duration is a constant the cell prints in its evidence.
+SANDBOX_GONE_COMMAND_S = 240
+SANDBOX_LIVENESS_PROBE_INTERVAL_S = 30.0
+SANDBOX_LIVENESS_PROBE_FAILURES = 3
+SANDBOX_GONE_SETTLE_SLACK_S = 60.0
+
+
+def sandbox_gone_settle_budget_s() -> float:
+    """Seconds to wait for the runner to end the turn after the sandbox is killed: the probe's
+    three-strikes budget plus slack plus any sandbox-startup slack the run declared."""
+    return (
+        SANDBOX_LIVENESS_PROBE_INTERVAL_S * SANDBOX_LIVENESS_PROBE_FAILURES
+        + SANDBOX_GONE_SETTLE_SLACK_S
+        + SANDBOX_STARTUP_SLACK_S
+    )
 
 
 def api(method: str, path: str, *, timeout: float = 120.0, **kw) -> httpx.Response:
@@ -1501,29 +1738,57 @@ def cell_sandbox_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
         )
     session_id = str(uuid.uuid4())
     marker = f"OLIVE{uuid.uuid4().hex[:6].upper()}"
-    msgs = [user_msg(sleep_prompt(marker, 240))]
+    # `since` bounds the runner-log window used to map THIS session to its own sandbox port.
+    since = time.time()
+    msgs = [user_msg(sleep_prompt(marker, SANDBOX_GONE_COMMAND_S))]
     handle = invoke_async(session_id, msgs, cfg, references, "sandbox-turn1")
     turn = wait_for_turn(session_id)
     time.sleep(12)
-    # The sandbox id this session's own turn ledger observed. On daytona this is the ONE sandbox
-    # `kill_sandbox` is allowed to touch (DaytonaAwareHooks); on local it is unused (a local
-    # sandbox is a subprocess of the runner container, found by ps regardless of id).
+    # The sandbox id this session's own turn ledger observed (`local/<host>:<port>` on local, the
+    # remote uuid on Daytona). Used to derive the port on local and to address the remote sandbox
+    # on Daytona; never a shared `ps | grep`, which cannot tell two sessions apart.
     observed_ids = sandbox_ids(session_id)
     target_sandbox_id = observed_ids[-1] if observed_ids else None
-    killed = hooks.kill_sandbox(sandbox_id=target_sandbox_id)
-    handle["thread"].join(timeout=300)
-    t1 = handle["out"] or {}
-    time.sleep(5)
+    settle_budget = sandbox_gone_settle_budget_s()
     evidence = {
         "session_id": session_id,
         "turn_id": turn,
+        "command_seconds": SANDBOX_GONE_COMMAND_S,
+        "settle_budget_seconds": round(settle_budget, 1),
         "target_sandbox_id": target_sandbox_id,
-        "killed_pids": killed,
-        "turn1_errors": t1.get("errors"),
-        "terminal_records": terminal_records(session_id, turn),
-        "stream_after": session_stream(session_id),
     }
-    if not killed:
+    # Target the tested session's OWN sandbox, assert it is a sandbox-agent daemon, and refuse
+    # (never kill a guess) when the mapping cannot be made.
+    try:
+        target = hooks.kill_sandbox_for_session(
+            session_id, sandbox_id=target_sandbox_id, since=since
+        )
+    except WrongSandboxTarget as exc:
+        evidence["wrong_target"] = str(exc)
+        return evidence, _fail(f"wrong target, refused to kill a guess: {exc}")
+    evidence.update(
+        {
+            "killed_port": target.get("port"),
+            "killed_pid": target.get("pid"),
+            "killed_cmdline": target.get("cmdline"),
+            "killed_pids": target.get("killed"),
+        }
+    )
+    # Wait for the runner to end the turn: the probe's three-strikes budget, and never shorter
+    # than the slow command, so a mis-target could not read as "still running" prematurely. The
+    # thread returns as soon as the stream closes, so a healthy kill settles well inside this.
+    wait_s = max(settle_budget, float(SANDBOX_GONE_COMMAND_S)) + SANDBOX_STARTUP_SLACK_S
+    handle["thread"].join(timeout=wait_s)
+    t1 = handle["out"] or {}
+    time.sleep(5)
+    evidence.update(
+        {
+            "turn1_errors": t1.get("errors"),
+            "terminal_records": terminal_records(session_id, turn),
+            "stream_after": session_stream(session_id),
+        }
+    )
+    if not target.get("killed"):
         return evidence, _fail("no sandbox-agent process was found to kill")
     flags = (evidence["stream_after"] or {}).get("flags") or {}
     if flags.get("is_running"):
@@ -1535,7 +1800,7 @@ def cell_sandbox_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
             "no terminal record was written after the sandbox process was killed"
         )
     return evidence, _pass(
-        "killing the sandbox process ended the turn and wrote a terminal record"
+        "killing the tested session's own sandbox ended the turn and wrote a terminal record"
     )
 
 

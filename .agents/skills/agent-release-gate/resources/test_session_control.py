@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -51,6 +52,7 @@ def test_null_hooks_raises_on_every_method():
         "stop_postgres",
         "start_postgres",
         "kill_sandbox",
+        "kill_sandbox_for_session",
     ):
         try:
             getattr(hooks, method)()
@@ -791,6 +793,221 @@ def test_select_hooks_returns_daytona_aware_hooks_for_daytona_sandbox():
         assert isinstance(hooks, sc.DaytonaAwareHooks)
     finally:
         _restore_env(saved)
+
+
+# --------------------------------------------------------------------------- #
+# sandbox-gone: per-session sandbox targeting (the driver defect this PR fixes).
+# --------------------------------------------------------------------------- #
+
+
+def test_parse_local_sandbox_port_reads_the_port_from_a_local_ledger_id():
+    assert sc._parse_local_sandbox_port("local/127.0.0.1:44831") == 44831
+    assert sc._parse_local_sandbox_port("local/0.0.0.0:5") == 5
+
+
+def test_parse_local_sandbox_port_ignores_daytona_and_empty_ids():
+    assert sc._parse_local_sandbox_port("daytona/abc-123") is None
+    assert sc._parse_local_sandbox_port(None) is None
+    assert sc._parse_local_sandbox_port("") is None
+
+
+def test_parse_ss_listener_pid_matches_the_exact_port():
+    out = (
+        'LISTEN 0 511 127.0.0.1:44831 0.0.0.0:* users:(("node",pid=2170,fd=23))\n'
+        'LISTEN 0 511 127.0.0.1:34013 0.0.0.0:* users:(("node",pid=1999,fd=23))\n'
+    )
+    assert sc._parse_ss_listener_pid(out, 44831) == "2170"
+    assert sc._parse_ss_listener_pid(out, 34013) == "1999"
+
+
+def test_parse_ss_listener_pid_does_not_match_a_substring_port():
+    out = 'LISTEN 0 511 127.0.0.1:44831 0.0.0.0:* users:(("node",pid=2170,fd=23))\n'
+    assert sc._parse_ss_listener_pid(out, 4483) is None
+    assert sc._parse_ss_listener_pid(out, 831) is None
+
+
+def test_parse_ss_listener_pid_returns_none_when_absent():
+    assert sc._parse_ss_listener_pid("", 44831) is None
+
+
+class _FakeLocalHooks(sc.DockerComposeHooks):
+    """DockerComposeHooks with the container round-trips (`dc`, `runner_log`) scripted, so the
+    port-to-pid mapping and the wrong-target refusals are tested without Docker."""
+
+    def __init__(self, *, log_lines=None, ss="", proc_pid="", cmdlines=None):
+        super().__init__("fake-project")
+        self._log_lines = log_lines or []
+        self._ss = ss
+        self._proc_pid = proc_pid
+        self._cmdlines = cmdlines or {}
+        self.killed: list[str] = []
+
+    def runner_log(self, since: float) -> list[str]:
+        return list(self._log_lines)
+
+    def dc(self, *args: str, timeout: float = 60.0) -> str:
+        joined = " ".join(str(a) for a in args)
+        if "ss -ltnHp" in joined:
+            return self._ss
+        if "socket:[" in joined:  # the /proc/net/tcp fallback resolver script
+            return self._proc_pid
+        if "/cmdline" in joined:
+            m = re.search(r"/proc/(\d+)/cmdline", joined)
+            return self._cmdlines.get(m.group(1) if m else "", "")
+        if "kill -9" in joined:
+            self.killed.append(joined)
+            return ""
+        raise AssertionError(f"unexpected dc call: {args}")
+
+
+def test_local_kill_targets_only_the_tested_sessions_sandbox():
+    """The tested session's port maps to its own pid; the other session's parked daemon on a
+    different port is never touched — the exact defect that produced the false negative."""
+    sid = "sess-under-test"
+    hooks = _FakeLocalHooks(
+        log_lines=[
+            f"12:29 [sandbox-agent] [timing] stage=prepare_workspace ms=0 "
+            f"sandbox=local/127.0.0.1:44831 session={sid}",
+            "12:28 [sandbox-agent] [timing] stage=prepare_workspace ms=0 "
+            "sandbox=local/127.0.0.1:34013 session=other-session",
+        ],
+        ss=(
+            'LISTEN 0 511 127.0.0.1:44831 0.0.0.0:* users:(("node",pid=2170,fd=23))\n'
+            'LISTEN 0 511 127.0.0.1:34013 0.0.0.0:* users:(("node",pid=1999,fd=23))\n'
+        ),
+        cmdlines={
+            "2170": "node /app/node_modules/.bin/sandbox-agent server --port 44831",
+        },
+    )
+    result = hooks.kill_sandbox_for_session(
+        sid, sandbox_id="local/127.0.0.1:44831", since=0.0
+    )
+    assert result["port"] == 44831
+    assert result["pid"] == "2170"
+    assert result["killed"] == ["2170"]
+    assert any("2170" in k for k in hooks.killed)
+    assert not any("1999" in k for k in hooks.killed)
+
+
+def test_local_kill_refuses_when_the_port_cannot_be_mapped():
+    hooks = _FakeLocalHooks(log_lines=[])
+    try:
+        hooks.kill_sandbox_for_session("sess", sandbox_id=None, since=0.0)
+    except sc.WrongSandboxTarget:
+        assert hooks.killed == []
+        return
+    raise AssertionError("expected WrongSandboxTarget")
+
+
+def test_local_kill_refuses_when_nothing_listens_on_the_port():
+    hooks = _FakeLocalHooks(ss="", proc_pid="")
+    try:
+        hooks.kill_sandbox_for_session(
+            "sess", sandbox_id="local/127.0.0.1:44831", since=0.0
+        )
+    except sc.WrongSandboxTarget:
+        assert hooks.killed == []
+        return
+    raise AssertionError("expected WrongSandboxTarget")
+
+
+def test_local_kill_refuses_when_the_pid_is_not_a_sandbox_agent():
+    hooks = _FakeLocalHooks(
+        ss='LISTEN 0 511 127.0.0.1:44831 0.0.0.0:* users:(("postgres",pid=42,fd=7))\n',
+        cmdlines={"42": "postgres: primary process"},
+    )
+    try:
+        hooks.kill_sandbox_for_session(
+            "sess", sandbox_id="local/127.0.0.1:44831", since=0.0
+        )
+    except sc.WrongSandboxTarget:
+        assert hooks.killed == []
+        return
+    raise AssertionError("expected WrongSandboxTarget")
+
+
+def test_local_kill_refuses_when_log_and_ledger_ports_disagree():
+    sid = "sess"
+    hooks = _FakeLocalHooks(
+        log_lines=[
+            f"12:29 [sandbox-agent] [timing] stage=prepare_workspace ms=0 "
+            f"sandbox=local/127.0.0.1:34013 session={sid}",
+        ],
+    )
+    try:
+        hooks.kill_sandbox_for_session(
+            sid, sandbox_id="local/127.0.0.1:44831", since=0.0
+        )
+    except sc.WrongSandboxTarget:
+        assert hooks.killed == []
+        return
+    raise AssertionError("expected WrongSandboxTarget")
+
+
+def test_local_kill_falls_back_to_proc_when_ss_is_absent():
+    """A distroless runner has no `ss`; the /proc resolver supplies the pid instead."""
+    sid = "sess"
+    hooks = _FakeLocalHooks(
+        log_lines=[
+            f"12:29 [sandbox-agent] [timing] stage=prepare_workspace ms=0 "
+            f"sandbox=local/127.0.0.1:44831 session={sid}",
+        ],
+        ss="",
+        proc_pid="2170\n",
+        cmdlines={"2170": "node .../sandbox-agent server"},
+    )
+    result = hooks.kill_sandbox_for_session(
+        sid, sandbox_id="local/127.0.0.1:44831", since=0.0
+    )
+    assert result["pid"] == "2170"
+    assert result["killed"] == ["2170"]
+
+
+def test_daytona_kill_for_session_delegates_to_the_remote_delete():
+    saved = _set_daytona_env()
+    try:
+        hooks = sc.DaytonaAwareHooks("fake-project")
+        hooks._daytona_delete = lambda path: _FakeResponse(200)
+        result = hooks.kill_sandbox_for_session(
+            "sess", sandbox_id="daytona/abc-123", since=0.0
+        )
+        assert result["killed"] == ["abc-123"]
+        assert result["port"] is None
+    finally:
+        _restore_env(saved)
+
+
+def test_daytona_kill_for_session_refuses_without_a_sandbox_id():
+    saved = _set_daytona_env()
+    try:
+        hooks = sc.DaytonaAwareHooks("fake-project")
+
+        def boom(*a, **k):
+            raise AssertionError("must not call the network without a sandbox id")
+
+        hooks._daytona_delete = boom
+        try:
+            hooks.kill_sandbox_for_session("sess", sandbox_id=None, since=0.0)
+        except sc.WrongSandboxTarget:
+            return
+        raise AssertionError("expected WrongSandboxTarget")
+    finally:
+        _restore_env(saved)
+
+
+def test_sandbox_gone_settle_budget_derives_from_probe_defaults():
+    saved = sc.SANDBOX_STARTUP_SLACK_S
+    sc.SANDBOX_STARTUP_SLACK_S = 0.0
+    try:
+        expected = (
+            sc.SANDBOX_LIVENESS_PROBE_INTERVAL_S * sc.SANDBOX_LIVENESS_PROBE_FAILURES
+            + sc.SANDBOX_GONE_SETTLE_SLACK_S
+        )
+        assert sc.sandbox_gone_settle_budget_s() == expected
+        # Never shorter than the slow command's own duration would leave it, per the wait rule.
+        assert sc.SANDBOX_GONE_COMMAND_S > 0
+    finally:
+        sc.SANDBOX_STARTUP_SLACK_S = saved
 
 
 if __name__ == "__main__":
