@@ -400,6 +400,193 @@ def test_client_shape_messages_strips_answerless_assistant_turns_first():
     assert shaped[0] is last
 
 
+class _FakeResponse:
+    """Minimal stand-in for an `httpx.Response` the DaytonaAwareHooks code path reads."""
+
+    def __init__(self, status_code: int, payload=None, text: str = ""):
+        self.status_code = status_code
+        self._payload = payload
+        self.text = text
+
+    def json(self):
+        return self._payload
+
+
+def _set_daytona_env():
+    """Dummy, non-secret env values so `DaytonaAwareHooks.__init__` does not raise. Never a real
+    key — these tests must never touch the network."""
+    import os
+
+    saved = {
+        k: os.environ.get(k)
+        for k in ("AGENTA_RUNNER_DAYTONA_API_KEY", "AGENTA_RUNNER_DAYTONA_API_URL")
+    }
+    os.environ["AGENTA_RUNNER_DAYTONA_API_KEY"] = "test-key-not-real"
+    os.environ["AGENTA_RUNNER_DAYTONA_API_URL"] = "https://daytona.example/api"
+    return saved
+
+
+def _restore_env(saved: dict):
+    import os
+
+    for k, v in saved.items():
+        if v is None:
+            os.environ.pop(k, None)
+        else:
+            os.environ[k] = v
+
+
+def test_daytona_aware_hooks_requires_daytona_env_vars():
+    """Constructing without AGENTA_RUNNER_DAYTONA_API_KEY/URL must fail loudly and by name, the
+    same discipline `resolve_env` uses for the three top-level env vars — never a silent no-op
+    that later fails deep inside an HTTP call."""
+    import os
+
+    saved = {
+        k: os.environ.get(k)
+        for k in ("AGENTA_RUNNER_DAYTONA_API_KEY", "AGENTA_RUNNER_DAYTONA_API_URL")
+    }
+    os.environ.pop("AGENTA_RUNNER_DAYTONA_API_KEY", None)
+    os.environ.pop("AGENTA_RUNNER_DAYTONA_API_URL", None)
+    try:
+        try:
+            sc.DaytonaAwareHooks("fake-project")
+        except SystemExit as exc:
+            assert "AGENTA_RUNNER_DAYTONA_API_KEY" in str(exc)
+            assert "AGENTA_RUNNER_DAYTONA_API_URL" in str(exc)
+        else:
+            raise AssertionError("expected SystemExit without the Daytona env vars")
+    finally:
+        _restore_env(saved)
+
+
+def test_daytona_aware_hooks_kill_sandbox_noop_without_sandbox_id():
+    """No observed sandbox id means nothing to end — must not call the Daytona API at all."""
+    saved = _set_daytona_env()
+    try:
+        hooks = sc.DaytonaAwareHooks("fake-project")
+
+        def boom(*a, **k):
+            raise AssertionError("must not call the network without a sandbox id")
+
+        hooks._daytona_delete = boom
+        assert hooks.kill_sandbox(sandbox_id=None) == []
+    finally:
+        _restore_env(saved)
+
+
+def test_daytona_aware_hooks_kill_sandbox_deletes_only_the_observed_sandbox():
+    """Ends the ONE sandbox id the cell observed, by its bare uuid (the `daytona/` prefix is a
+    driver-internal convention, not part of the Daytona API path)."""
+    saved = _set_daytona_env()
+    try:
+        hooks = sc.DaytonaAwareHooks("fake-project")
+        calls = []
+
+        def fake_delete(path):
+            calls.append(path)
+            return _FakeResponse(200)
+
+        hooks._daytona_delete = fake_delete
+        result = hooks.kill_sandbox(sandbox_id="daytona/abc-123")
+        assert calls == ["/sandbox/abc-123"]
+        assert result == ["abc-123"]
+    finally:
+        _restore_env(saved)
+
+
+def test_daytona_aware_hooks_kill_sandbox_treats_404_as_already_gone():
+    saved = _set_daytona_env()
+    try:
+        hooks = sc.DaytonaAwareHooks("fake-project")
+        hooks._daytona_delete = lambda path: _FakeResponse(404)
+        assert hooks.kill_sandbox(sandbox_id="daytona/abc-123") == ["abc-123"]
+    finally:
+        _restore_env(saved)
+
+
+def test_daytona_aware_hooks_sandbox_procs_noop_without_sandbox_id():
+    saved = _set_daytona_env()
+    try:
+        hooks = sc.DaytonaAwareHooks("fake-project")
+
+        def boom(*a, **k):
+            raise AssertionError("must not call the network without a sandbox id")
+
+        hooks._daytona_get = boom
+        assert hooks.sandbox_procs("marker", sandbox_id=None) == []
+    finally:
+        _restore_env(saved)
+
+
+def test_daytona_aware_hooks_sandbox_procs_matches_the_marker_and_filters_self():
+    """The full happy path: fetch the toolbox proxy URL for the ONE observed sandbox, run the
+    same `ps -eo pid=,ppid=,etimes=,args=` reap-exec.ts uses, and keep only the row matching the
+    driver's own marker — never the `ps` invocation itself or an unrelated process."""
+    saved = _set_daytona_env()
+    try:
+        hooks = sc.DaytonaAwareHooks("fake-project")
+        get_calls = []
+        post_calls = []
+
+        hooks._daytona_get = lambda path: (
+            get_calls.append(path),
+            _FakeResponse(200, {"url": "https://proxy.example/tb/abc-123"}),
+        )[1]
+
+        ps_output = (
+            "  501     1    120 /sbin/init\n"
+            "  777   501     30 sleep 300.123456\n"
+            "  778   777      0 ps -eo pid=,ppid=,etimes=,args=\n"
+        )
+
+        class _FakePost:
+            def __call__(self, url, json=None, timeout=None):
+                post_calls.append((url, json))
+                return _FakeResponse(200, {"result": ps_output, "exitCode": 0})
+
+        import httpx as real_httpx
+
+        saved_post = real_httpx.post
+        real_httpx.post = _FakePost()
+        try:
+            hits = hooks.sandbox_procs("sleep 300.123456", sandbox_id="daytona/abc-123")
+        finally:
+            real_httpx.post = saved_post
+
+        assert get_calls == ["/sandbox/abc-123/toolbox-proxy-url"]
+        assert len(post_calls) == 1
+        url, body = post_calls[0]
+        assert url == "https://proxy.example/tb/abc-123/process/execute"
+        assert body["command"] == "ps -eo pid=,ppid=,etimes=,args="
+        assert len(hits) == 1
+        assert hits[0]["pid"] == "777"
+        assert "sleep 300.123456" in hits[0]["args"]
+    finally:
+        _restore_env(saved)
+
+
+def test_select_hooks_returns_null_hooks_without_project():
+    hooks = sc.select_hooks(None, "local")
+    assert isinstance(hooks, sc.NullHooks)
+    hooks = sc.select_hooks(None, "daytona")
+    assert isinstance(hooks, sc.NullHooks)
+
+
+def test_select_hooks_returns_docker_compose_hooks_for_local_sandbox():
+    hooks = sc.select_hooks("fake-project", "local")
+    assert type(hooks) is sc.DockerComposeHooks  # noqa: E721 -- exact class, not the daytona subclass
+
+
+def test_select_hooks_returns_daytona_aware_hooks_for_daytona_sandbox():
+    saved = _set_daytona_env()
+    try:
+        hooks = sc.select_hooks("fake-project", "daytona")
+        assert isinstance(hooks, sc.DaytonaAwareHooks)
+    finally:
+        _restore_env(saved)
+
+
 if __name__ == "__main__":
     import inspect
 

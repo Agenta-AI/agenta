@@ -126,7 +126,7 @@ class OperatorHooks:
     def runner_log(self, since: float) -> list[str]:
         raise HooksUnavailable
 
-    def sandbox_procs(self, marker: str) -> list[dict]:
+    def sandbox_procs(self, marker: str, sandbox_id: str | None = None) -> list[dict]:
         raise HooksUnavailable
 
     def stream_row(self, session_id: str) -> dict:
@@ -162,7 +162,7 @@ class OperatorHooks:
     def start_postgres(self) -> None:
         raise HooksUnavailable
 
-    def kill_sandbox(self) -> list[str]:
+    def kill_sandbox(self, sandbox_id: str | None = None) -> list[str]:
         raise HooksUnavailable
 
 
@@ -219,7 +219,11 @@ class DockerComposeHooks(OperatorHooks):
         except Exception as exc:  # noqa: BLE001
             return [f"<docker logs failed: {exc}>"]
 
-    def sandbox_procs(self, marker: str) -> list[dict]:
+    def sandbox_procs(self, marker: str, sandbox_id: str | None = None) -> list[dict]:
+        # A local sandbox IS a subprocess of the runner container, so `ps` inside the runner
+        # sees it regardless of which session owns it. `sandbox_id` is accepted for interface
+        # parity with the Daytona-aware hook (which needs it to pick a remote sandbox) and
+        # ignored here.
         raw = self.dc(
             "exec", f"{self.project}-runner-1", "ps", "-eo", "pid,ppid,etimes,args"
         )
@@ -357,7 +361,10 @@ class DockerComposeHooks(OperatorHooks):
     def start_postgres(self) -> None:
         self.dc("start", f"{self.project}-postgres-1")
 
-    def kill_sandbox(self) -> list[str]:
+    def kill_sandbox(self, sandbox_id: str | None = None) -> list[str]:
+        # A local sandbox is a subprocess of the runner container: there is only ever one
+        # `sandbox-agent server` process family running there per cell, so `sandbox_id` (accepted
+        # for interface parity with the Daytona-aware hook) is not needed to target it.
         ps = self.dc(
             "exec",
             f"{self.project}-runner-1",
@@ -375,6 +382,158 @@ class DockerComposeHooks(OperatorHooks):
                 f"kill -9 -{pid} || kill -9 {pid}",
             )
         return pids
+
+
+class DaytonaAwareHooks(DockerComposeHooks):
+    """`DockerComposeHooks` plus a Daytona-provider-aware `kill_sandbox` and `sandbox_procs`.
+
+    A local sandbox is a subprocess of the runner container, so the base class's `docker exec ps`
+    sees it. A Daytona sandbox is a remote machine: `docker exec` into the runner container never
+    sees the sandbox's process table, and killing a local process cannot end a remote sandbox. So
+    for `--sandbox daytona` this hook ends the sandbox and lists its processes through the same
+    Daytona REST API the runner itself uses (`services/runner/src/engines/sandbox_agent/
+    daytona-provider.ts`'s `sandbox.delete()`, and the vendored `sandbox-agent/daytona` provider's
+    `runProcess`, which `reap-exec.ts` drives with the identical `ps -eo pid=,ppid=,etimes=,args=`
+    used below).
+
+    Every call is scoped to the ONE sandbox id the cell observed for its own session
+    (`sandbox_ids(session_id)` in the driver, threaded in by the caller) — never a list, never a
+    wildcard. Credentials come from `AGENTA_RUNNER_DAYTONA_API_KEY` / `AGENTA_RUNNER_DAYTONA_API_URL`
+    (export only; never logged, never put in an exception message).
+    """
+
+    def __init__(self, project: str) -> None:
+        super().__init__(project)
+        missing = [
+            name
+            for name in (
+                "AGENTA_RUNNER_DAYTONA_API_KEY",
+                "AGENTA_RUNNER_DAYTONA_API_URL",
+            )
+            if not os.environ.get(name)
+        ]
+        if missing:
+            raise SystemExit(
+                "--sandbox daytona needs " + ", ".join(missing) + " exported (from the "
+                "integration env file's AGENTA_RUNNER_DAYTONA_* block) so sandbox-gone and "
+                "codex-child can reach the Daytona API directly."
+            )
+        self._daytona_api_url = os.environ["AGENTA_RUNNER_DAYTONA_API_URL"].rstrip("/")
+        self._daytona_api_key = os.environ["AGENTA_RUNNER_DAYTONA_API_KEY"]
+
+    @staticmethod
+    def _bare_id(sandbox_id: str) -> str:
+        """`sandbox_ids()` returns ids like `daytona/<uuid>`; the Daytona API wants the bare uuid."""
+        return sandbox_id.split("/", 1)[1] if "/" in sandbox_id else sandbox_id
+
+    def _daytona_get(self, path: str) -> httpx.Response:
+        return httpx.get(
+            f"{self._daytona_api_url}{path}",
+            headers={"Authorization": f"Bearer {self._daytona_api_key}"},
+            timeout=30.0,
+        )
+
+    def _daytona_delete(self, path: str) -> httpx.Response:
+        return httpx.delete(
+            f"{self._daytona_api_url}{path}",
+            headers={"Authorization": f"Bearer {self._daytona_api_key}"},
+            timeout=30.0,
+        )
+
+    def kill_sandbox(self, sandbox_id: str | None = None) -> list[str]:
+        if not sandbox_id:
+            return []
+        bare = self._bare_id(sandbox_id)
+        try:
+            resp = self._daytona_delete(f"/sandbox/{bare}")
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"[daytona] delete sandbox={bare} failed: {exc}",
+                file=sys.stderr,
+            )
+            return []
+        # DELETE /sandbox/{id} is what `sandbox.delete()` calls on this same SDK/API version
+        # (Sandbox.js -> SandboxApi.deleteSandbox); a 404 means it is already gone, also success
+        # for "the sandbox is gone" purposes.
+        if resp.status_code not in (200, 202, 204, 404):
+            print(
+                f"[daytona] delete sandbox={bare} returned {resp.status_code}: "
+                f"{resp.text[:200]}",
+                file=sys.stderr,
+            )
+            return []
+        return [bare]
+
+    def sandbox_procs(self, marker: str, sandbox_id: str | None = None) -> list[dict]:
+        if not sandbox_id:
+            return []
+        bare = self._bare_id(sandbox_id)
+        try:
+            proxy = self._daytona_get(f"/sandbox/{bare}/toolbox-proxy-url")
+            if proxy.status_code != 200:
+                print(
+                    f"[daytona] toolbox-proxy-url sandbox={bare} returned "
+                    f"{proxy.status_code}: {proxy.text[:200]}",
+                    file=sys.stderr,
+                )
+                return []
+            proxy_url = (proxy.json() or {}).get("url")
+            if not proxy_url:
+                print(
+                    f"[daytona] toolbox-proxy-url sandbox={bare} returned no url",
+                    file=sys.stderr,
+                )
+                return []
+            # Same shape as `reap-exec.ts`'s `PS_ARGS` (`-eo pid=,ppid=,etimes=,args=`): the `=`
+            # suffixes drop the header line, so every returned line is a data row.
+            exec_resp = httpx.post(
+                f"{proxy_url.rstrip('/')}/process/execute",
+                json={"command": "ps -eo pid=,ppid=,etimes=,args=", "timeout": 10},
+                timeout=20.0,
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"[daytona] process listing sandbox={bare} failed: {exc}",
+                file=sys.stderr,
+            )
+            return []
+        if exec_resp.status_code != 200:
+            print(
+                f"[daytona] process/execute sandbox={bare} returned "
+                f"{exec_resp.status_code}: {exec_resp.text[:200]}",
+                file=sys.stderr,
+            )
+            return []
+        raw = (exec_resp.json() or {}).get("result", "") or ""
+        hits = []
+        for line in raw.splitlines():
+            parts = line.split(None, 3)
+            if len(parts) < 4 or marker not in parts[3]:
+                continue
+            if "ps -eo" in parts[3] or parts[3].startswith("grep"):
+                continue
+            hits.append(
+                {
+                    "pid": parts[0],
+                    "ppid": parts[1],
+                    "etimes": parts[2],
+                    "args": parts[3][:120],
+                }
+            )
+        return hits
+
+
+def select_hooks(project: str | None, sandbox: str) -> OperatorHooks:
+    """The provider switch: no `--project` is NullHooks regardless of `--sandbox`; with a
+    project, `--sandbox daytona` needs the Daytona-aware hook (docker exec cannot see or touch a
+    remote sandbox), everything else gets the plain docker-compose hook. Pulled out of `main()` so
+    it is unit-testable without a live stack.
+    """
+    if not project:
+        return NullHooks()
+    if sandbox == "daytona":
+        return DaytonaAwareHooks(project)
+    return DockerComposeHooks(project)
 
 
 # --------------------------------------------------------------------------- #
@@ -1221,13 +1380,19 @@ def cell_sandbox_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
     handle = invoke_async(session_id, msgs, cfg, references, "sandbox-turn1")
     turn = wait_for_turn(session_id)
     time.sleep(12)
-    killed = hooks.kill_sandbox()
+    # The sandbox id this session's own turn ledger observed. On daytona this is the ONE sandbox
+    # `kill_sandbox` is allowed to touch (DaytonaAwareHooks); on local it is unused (a local
+    # sandbox is a subprocess of the runner container, found by ps regardless of id).
+    observed_ids = sandbox_ids(session_id)
+    target_sandbox_id = observed_ids[-1] if observed_ids else None
+    killed = hooks.kill_sandbox(sandbox_id=target_sandbox_id)
     handle["thread"].join(timeout=300)
     t1 = handle["out"] or {}
     time.sleep(5)
     evidence = {
         "session_id": session_id,
         "turn_id": turn,
+        "target_sandbox_id": target_sandbox_id,
         "killed_pids": killed,
         "turn1_errors": t1.get("errors"),
         "terminal_records": terminal_records(session_id, turn),
@@ -1676,19 +1841,27 @@ def cell_codex_child(cfg, references, args, hooks: OperatorHooks) -> Cell:
     ]
     handle = invoke_async(session_id, msgs, cfg, references, "codex-turn1")
     turn = wait_for_turn(session_id, timeout=90)
+    # The sandbox id this session's turn ledger observed. On daytona, `sandbox_procs` needs this
+    # to know which remote sandbox to list processes on (DaytonaAwareHooks); on local it is
+    # unused (docker exec into the runner container sees every local sandbox subprocess).
+    observed_ids = sandbox_ids(session_id)
+    target_sandbox_id = observed_ids[-1] if observed_ids else None
     child_before = []
     deadline = time.time() + 120
     while time.time() < deadline:
-        child_before = hooks.sandbox_procs(marker)
+        child_before = hooks.sandbox_procs(marker, sandbox_id=target_sandbox_id)
         if child_before:
             break
+        if not target_sandbox_id:
+            observed_ids = sandbox_ids(session_id)
+            target_sandbox_id = observed_ids[-1] if observed_ids else None
         time.sleep(1)
     stop = cancel(session_id, expected=turn, label="stop-codex")
     handle["thread"].join(timeout=180)
     gone_at = None
     deadline = time.time() + 45
     while time.time() < deadline:
-        alive = hooks.sandbox_procs(marker)
+        alive = hooks.sandbox_procs(marker, sandbox_id=target_sandbox_id)
         if not alive:
             gone_at = round(time.time() - stop["sent_at"], 1)
             break
@@ -1704,6 +1877,7 @@ def cell_codex_child(cfg, references, args, hooks: OperatorHooks) -> Cell:
     evidence = {
         "session_id": session_id,
         "turn_id": turn,
+        "target_sandbox_id": target_sandbox_id,
         "child_before_stop": child_before,
         "stop": stop,
         "seconds_until_child_gone": gone_at,
@@ -2104,9 +2278,7 @@ def main() -> int:
         raise SystemExit(f"unknown cells: {unknown}; known: {sorted(CELLS)}")
 
     resolve_env()
-    hooks: OperatorHooks = (
-        DockerComposeHooks(args.project) if args.project else NullHooks()
-    )
+    hooks = select_hooks(args.project, args.sandbox)
     if args.sandbox == "daytona":
         global SANDBOX_STARTUP_SLACK_S
         SANDBOX_STARTUP_SLACK_S = 25.0
