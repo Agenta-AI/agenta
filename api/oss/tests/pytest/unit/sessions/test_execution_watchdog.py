@@ -24,7 +24,7 @@ from oss.src.core.sessions.records.dtos import (
     SETTLED_BY_WATCHDOG,
     SessionRecordEvent,
 )
-from oss.src.dbs.redis.sessions.locks import claim_owner
+from oss.src.dbs.redis.sessions.locks import claim_owner, is_turn_superseded
 from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     LOST_ERROR_CODE,
     LOST_ERROR_MESSAGE,
@@ -878,3 +878,31 @@ async def test_a_lost_execution_leaves_a_newer_running_turn_running(anyio_backen
     # The newer running turn is untouched: its flag stands and its lock survives.
     assert stream.flags["is_running"] is True
     assert redis._store[running_key] == b"turn-new"
+
+
+@pytest.mark.anyio
+async def test_a_swept_turn_is_tombstoned_even_when_it_holds_no_redis_keys(
+    anyio_backend,
+):
+    # A prior Stop settlement can clear the alive/running keys before the sweep runs, so the
+    # collapse finds nothing to displace. The turn is still dead: tombstone it anyway, or a
+    # returning runner's beat for that turn is admitted and re-sets is_running on the row the
+    # sweep just collapsed (observed live: run 1e, a beat 3.5 s after the settle).
+    stream = _stale_running_row(session_id="sess-returning-runner", turn_id="turn-gone")
+    redis = _FakeRedis()  # deliberately empty: no alive/running keys to displace
+    publisher = _Publisher()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([stream], []),
+        redis,
+        records_service=_FakeRecordsService(),
+        publish=publisher,
+    )
+
+    assert _collapsed(stream)
+    assert await is_turn_superseded(
+        redis,
+        project_id=str(stream.project_id),
+        session_id=stream.session_id,
+        turn_id="turn-gone",
+    )

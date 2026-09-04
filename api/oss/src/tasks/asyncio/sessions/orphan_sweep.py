@@ -613,8 +613,16 @@ async def run_orphan_sweep(
                 lock_engine, project_id=project_id, session_id=row.session_id
             )
             # A swept turn is declared dead; tombstone it so a late beat from it cannot
-            # re-nest the session it was just evicted from.
-            for turn_id in {t for t in (displaced_alive, displaced_running) if t}:
+            # re-nest the session it was just evicted from. Tombstone the row's OWN turn too,
+            # not only whoever still held the Redis keys: a turn whose alive/running keys a
+            # prior Stop settlement already cleared holds nothing here, yet its runner can
+            # still return and beat that turn_id. The heartbeat path refuses a superseded
+            # turn, so without this tombstone a returning runner re-set is_running on the row
+            # after the sweep had just cleared it (observed live: run 1e, turn e49c060b).
+            doomed_turns = {t for t in (displaced_alive, displaced_running) if t}
+            if row.turn_id:
+                doomed_turns.add(str(row.turn_id))
+            for turn_id in doomed_turns:
                 await mark_turn_superseded(
                     lock_engine,
                     project_id=project_id,
