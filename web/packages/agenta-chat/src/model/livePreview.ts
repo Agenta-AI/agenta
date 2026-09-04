@@ -93,8 +93,15 @@ export const reduceSessionLivePreview = (
     state: SessionLivePreviewState,
     frame: SessionLiveFrame,
 ): SessionLivePreviewState => {
+    if (state.gapDetected) return state
+
     const current = state.byExecution[frame.execution_id]
     if (current && frame.frame_index <= current.lastFrameIndex) return state
+
+    const expectedFrameIndex = current ? current.lastFrameIndex + 1 : 0
+    if (frame.frame_index !== expectedFrameIndex) {
+        return {...createSessionLivePreviewState(), gapDetected: true}
+    }
 
     const previousPart = current?.byEntity[frame.entity_id]?.part
     const nextPart = applyFrame(previousPart, frame)
@@ -108,6 +115,7 @@ export const reduceSessionLivePreview = (
         executionOrder: current
             ? state.executionOrder
             : [...state.executionOrder, frame.execution_id],
+        gapDetected: false,
         byExecution: {
             ...state.byExecution,
             [frame.execution_id]: {

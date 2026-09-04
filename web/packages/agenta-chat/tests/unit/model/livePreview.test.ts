@@ -51,14 +51,42 @@ describe("session live preview reducer", () => {
     })
 
     it("ignores a stale frame index without retaining a dedupe history", () => {
-        const current = reduceSessionLivePreview(
+        const first = reduceSessionLivePreview(
             createSessionLivePreviewState(),
-            frame(2, "text-delta", {delta: "new"}),
+            frame(0, "text-delta", {delta: "new"}),
         )
-        const stale = reduceSessionLivePreview(current, frame(1, "text-delta", {delta: "old"}))
+        const current = reduceSessionLivePreview(first, frame(1, "text-delta", {delta: "er"}))
+        const stale = reduceSessionLivePreview(current, frame(0, "text-delta", {delta: "old"}))
 
         expect(stale).toBe(current)
-        expect(sessionLivePreviewMessages(stale)[0].parts).toEqual([{type: "text", text: "new"}])
+        expect(sessionLivePreviewMessages(stale)[0].parts).toEqual([{type: "text", text: "newer"}])
+    })
+
+    it("suppresses a late join whose first frame index is above zero", () => {
+        const gapped = reduceSessionLivePreview(
+            createSessionLivePreviewState(),
+            frame(2, "text-delta", {delta: "tail"}),
+        )
+        const later = reduceSessionLivePreview(gapped, frame(3, "text-delta", {delta: "later"}))
+
+        expect(gapped.gapDetected).toBe(true)
+        expect(gapped.executionOrder).toEqual([])
+        expect(sessionLivePreviewMessages(gapped)).toEqual([])
+        expect(later).toBe(gapped)
+    })
+
+    it("clears and suppresses a preview after an internal frame gap", () => {
+        const first = reduceSessionLivePreview(
+            createSessionLivePreviewState(),
+            frame(0, "text-delta", {delta: "hello"}),
+        )
+        const gapped = reduceSessionLivePreview(first, frame(2, "text-delta", {delta: " tail"}))
+        const missing = reduceSessionLivePreview(gapped, frame(1, "text-delta", {delta: " world"}))
+
+        expect(gapped.gapDetected).toBe(true)
+        expect(gapped.executionOrder).toEqual([])
+        expect(sessionLivePreviewMessages(gapped)).toEqual([])
+        expect(missing).toBe(gapped)
     })
 
     it("updates one tool part by entity id through input and output", () => {

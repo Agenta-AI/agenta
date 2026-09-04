@@ -19,11 +19,13 @@ export interface SessionLivePreviewExecution {
 export interface SessionLivePreviewState {
     executionOrder: string[]
     byExecution: Record<string, SessionLivePreviewExecution>
+    gapDetected: boolean
 }
 
 export const createSessionLivePreviewState = (): SessionLivePreviewState => ({
     executionOrder: [],
     byExecution: {},
+    gapDetected: false,
 })
 
 export const sessionLivePreviewAtomFamily = atomFamily((_sessionId: string) =>

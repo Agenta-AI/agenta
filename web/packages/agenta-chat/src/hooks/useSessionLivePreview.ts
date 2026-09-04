@@ -88,5 +88,9 @@ export const useSessionLivePreview = ({
         }
     }, [clearPreview, enabled, sessionId, setPreview])
 
+    useEffect(() => {
+        if (preview.gapDetected) onDisconnectRef.current()
+    }, [preview.gapDetected])
+
     return useMemo(() => sessionLivePreviewMessages(preview), [preview])
 }
