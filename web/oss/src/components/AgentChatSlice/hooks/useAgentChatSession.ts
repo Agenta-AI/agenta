@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useReducer, useRef, useState} from "react"
+import {useCallback, useEffect, useReducer, useRef} from "react"
 
 import {
     buildRequestWithinDeadline,
@@ -8,7 +8,13 @@ import {
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
-import {ignoreStreamRejection, parseAgentRunError} from "@agenta/chat/model"
+import {
+    ignoreStreamRejection,
+    isUserStopError,
+    lastTurnWasUserStopped,
+    parseAgentRunError,
+    reduceUserStoppedState,
+} from "@agenta/chat/model"
 import {
     clearTurnClockAtom,
     stampMessagesCreatedAtAtom,
@@ -114,7 +120,15 @@ export const useAgentChatSession = ({
     // so this is a single boolean gated on position at render time — independent of message ids (which
     // can be missing/duplicated in restore/error paths and would otherwise smear the tag onto every
     // turn). Cleared on the next send/resend.
-    const [stopped, setStopped] = useState(false)
+    const [stopped, dispatchStopped] = useReducer(
+        reduceUserStoppedState,
+        initialMessages,
+        lastTurnWasUserStopped,
+    )
+    const setStopped = useCallback(
+        (next: boolean) => dispatchStopped({type: next ? "user-stop" : "reset"}),
+        [],
+    )
     const [stopPhase, dispatchStop] = useReducer(reduceStopPhase, "idle")
     const stopping = isStoppingPhase(stopPhase)
 
@@ -131,6 +145,7 @@ export const useAgentChatSession = ({
     // Whether this mount is still on screen. The chat outlives it, so its callbacks need to tell
     // "still mine to report" from "running on in the background".
     const mountedRef = useRef(false)
+    const messagesRef = useRef(initialMessages)
     const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
 
     // Rebuilt every render and bound to the chat on every commit (below), so they always see the live
@@ -175,7 +190,12 @@ export const useAgentChatSession = ({
         // `is_running: true` outlived the answer by up to 15s (#5844). Safe to refetch immediately —
         // the runner awaits its `is_running: false` heartbeat BEFORE closing this stream
         // (services/runner/src/server.ts `aliveWatchdog.release()`), so the flag is already cleared.
-        onFinish: ({message}) => {
+        onFinish: ({message, messages: finishedMessages, finishReason}) => {
+            dispatchStopped({
+                type: "stream-terminal",
+                messages: finishedMessages,
+                finishReason,
+            })
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
@@ -189,7 +209,12 @@ export const useAgentChatSession = ({
             // (with error/awaiting precedence) from `busy`, so writing here would only flicker it.
             if (!mountedRef.current) setSessionStatus({id: sessionId, status: "idle"})
         },
-        onError: () => {
+        onError: (streamError) => {
+            dispatchStopped({
+                type: "stream-terminal",
+                messages: messagesRef.current,
+                error: streamError,
+            })
             // Clear the marker but do NOT void the resume. A gateway approval is answered while the
             // stream is still open, so the SDK skips its own dispatch and only re-evaluates when the
             // stream ends — often by erroring, right here. `null` made that last evaluation return
@@ -231,10 +256,10 @@ export const useAgentChatSession = ({
     })
 
     const busy = isChatBusy(status)
+    const userStopError = isUserStopError(error)
 
     // `messages`/`busy` change every token; consumers that must stay referentially stable
     // (`handleRewind`, the hydration/SWR adoption guards) read them through refs instead.
-    const messagesRef = useRef(messages)
     messagesRef.current = messages
     const busyRef = useRef(busy)
     busyRef.current = busy
@@ -253,6 +278,10 @@ export const useAgentChatSession = ({
         },
         [regenerateChatMessage, sessionId],
     )
+
+    useEffect(() => {
+        dispatchStopped({type: "transcript", messages})
+    }, [messages])
 
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
@@ -384,7 +413,7 @@ export const useAgentChatSession = ({
     // effect below), instead of a transient top banner + a generic "no response". FE-only — it
     // uses the error useChat already has; the backend doesn't need to attach it to the trace.
     useEffect(() => {
-        if (!error) return
+        if (!error || userStopError) return
         const parsed = parseAgentRunError(error)
         setMessages((prev) => {
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
@@ -410,7 +439,7 @@ export const useAgentChatSession = ({
                 } as (typeof prev)[number],
             ]
         })
-    }, [error, setMessages])
+    }, [error, setMessages, userStopError])
 
     // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
     // records the runner logged for it — so drop the watermark and let the next open re-sync from
@@ -656,7 +685,7 @@ export const useAgentChatSession = ({
         messages,
         status,
         busy,
-        error,
+        error: userStopError ? undefined : error,
         sendMessage,
         regenerate,
         setMessages,
