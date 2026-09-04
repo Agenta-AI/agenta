@@ -475,9 +475,7 @@ def test_driver_fails_for_a_failed_session_control_result(monkeypatch, tmp_path)
     result_path = tmp_path / "session-control-results.json"
     result_path.write_text(json.dumps(payload))
     monkeypatch.setattr(qa, "RUNS", tmp_path / "runs")
-    monkeypatch.setitem(
-        qa.JOURNEYS, "chat", lambda _cell: {"pass": True, "why": "ok"}
-    )
+    monkeypatch.setitem(qa.JOURNEYS, "chat", lambda _cell: {"pass": True, "why": "ok"})
     monkeypatch.setattr(
         sys,
         "argv",
