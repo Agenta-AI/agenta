@@ -128,6 +128,16 @@ class SessionStreamsDAOInterface(ABC):
         ...
 
     @abstractmethod
+    async def mark_history_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+    ) -> int:
+        """Permanently mark session histories that lost acknowledged records."""
+        ...
+
+    @abstractmethod
     async def delete_by_session_id(
         self,
         *,

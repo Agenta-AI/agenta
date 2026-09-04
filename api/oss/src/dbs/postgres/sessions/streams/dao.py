@@ -666,6 +666,29 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             await session.refresh(dbe)
         return map_stream_dbe_to_dto(stream_dbe=dbe)
 
+    async def mark_history_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+    ) -> int:
+        if not session_ids:
+            return 0
+
+        async with self.engine.session() as session:
+            stmt = (
+                sa_update(SessionStreamDBE)
+                .where(
+                    SessionStreamDBE.project_id == project_id,
+                    SessionStreamDBE.session_id.in_(session_ids),
+                    SessionStreamDBE.history_incomplete.is_not(True),
+                )
+                .values(history_incomplete=True)
+            )
+            result = await session.execute(stmt)
+            await session.commit()
+        return int(result.rowcount)
+
     async def delete_by_session_id(
         self,
         *,

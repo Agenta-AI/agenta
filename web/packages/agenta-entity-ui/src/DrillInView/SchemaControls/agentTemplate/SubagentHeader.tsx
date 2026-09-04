@@ -1,6 +1,6 @@
-/** The subagent drawer header's two resolved parts. Both take the bridge as a required prop and
- *  mount only when the host supplies one, so neither calls a hook conditionally. */
-import {agentIconAtomFamily} from "@agenta/entities/workflow"
+/** The subagent drawer header's resolved parts. Each takes the bridge as a required prop and
+ *  mounts only when the host supplies one, so none of them calls a hook conditionally. */
+import {agentIconAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {agentIconChrome} from "@agenta/ui/agent-icon"
 import type {WorkflowReferenceBridge} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
@@ -30,6 +30,21 @@ export function SubagentHeaderIcon({
             {chrome.glyph}
         </span>
     )
+}
+
+/** The agent's CURRENT name, off its artifact. `fallback` covers the moment before it resolves. */
+export function SubagentHeaderTitle({
+    bridge,
+    slug,
+    fallback,
+}: {
+    bridge: WorkflowReferenceBridge
+    slug: string
+    fallback: string
+}) {
+    const {detail} = bridge.useSubagentDetail(slug)
+    const name = useAtomValue(workflowMolecule.selectors.artifactName(detail?.workflowId ?? ""))
+    return <>{name || fallback}</>
 }
 
 export function SubagentOpenAgentButton({

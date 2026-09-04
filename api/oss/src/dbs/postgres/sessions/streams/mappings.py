@@ -166,6 +166,7 @@ def map_stream_dbe_to_dto(
         stopping_turn_id=stream_dbe.stopping_turn_id,
         references=references_from_json(stream_dbe.references),
         archived_at=stream_dbe.archived_at,
+        history_incomplete=stream_dbe.history_incomplete,
         flags=SessionStreamFlags.model_validate(stream_dbe.flags)
         if stream_dbe.flags
         else SessionStreamFlags(),

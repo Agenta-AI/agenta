@@ -81,6 +81,7 @@ from oss.src.core.sessions.commands.types import (
 )
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.dtos import SessionRecordEvent
+from oss.src.core.sessions.records.types import RecordContentConflict
 from oss.src.core.sessions.records.streaming import publish_record
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionCreate,
@@ -820,22 +821,29 @@ class RecordsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        await publish_record(
-            organization_id=UUID(request.state.organization_id),
-            project_id=UUID(project_id),
-            record_event=SessionRecordEvent(
+        try:
+            await publish_record(
+                organization_id=UUID(request.state.organization_id),
                 project_id=UUID(project_id),
-                session_id=body.session_id,
-                record_id=body.record_id,
-                record_index=body.record_index,
-                timestamp=body.timestamp,
-                record_type=body.record_type,
-                record_source=body.record_source,
-                attributes=body.attributes,
-                turn_id=body.turn_id,
-                span_id=body.span_id,
-            ),
-        )
+                record_event=SessionRecordEvent(
+                    project_id=UUID(project_id),
+                    session_id=body.session_id,
+                    record_id=body.record_id,
+                    producer_id=body.producer_id,
+                    record_index=body.record_index,
+                    timestamp=body.timestamp,
+                    record_type=body.record_type,
+                    record_source=body.record_source,
+                    attributes=body.attributes,
+                    turn_id=body.turn_id,
+                    span_id=body.span_id,
+                ),
+            )
+        except RecordContentConflict as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=exc.to_detail(),
+            ) from exc
         return {"ok": True}
 
 

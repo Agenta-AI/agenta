@@ -53,6 +53,8 @@ describe("buildPersistingEmitter", () => {
     assert.equal(body["record_type"], "message");
     assert.equal(body["record_index"], 0);
     assert.equal(body["record_source"], "agent");
+    assert.equal("record_id" in body, false);
+    assert.ok(typeof body["producer_id"] === "string");
   });
 
   it("forwards transient status data without persisting it", async () => {
@@ -184,12 +186,11 @@ describe("buildPersistingEmitter", () => {
     await second.flush();
 
     const bodies = postedBodies as Array<Record<string, unknown>>;
-    assert.equal(bodies.length, 3);
-    assert.equal(bodies[0]["record_id"], bodies[1]["record_id"]);
-    assert.notEqual(bodies[0]["record_id"], bodies[2]["record_id"]);
+    assert.equal(bodies.length, 2);
+    assert.notEqual(bodies[0]["record_id"], bodies[1]["record_id"]);
     assert.deepEqual(
       bodies.map((body) => body["turn_id"]),
-      ["turn-a", "turn-a", "turn-b"],
+      ["turn-a", "turn-b"],
     );
   });
 
@@ -284,7 +285,7 @@ describe("buildPersistingEmitter", () => {
     assert.notEqual(bodies[0]["record_id"], bodies[1]["record_id"]);
   });
 
-  it("a different tool id flushes the previous open call", async () => {
+  it("keeps one open slot per tool id until a complete checkpoint", async () => {
     const { emit, flush } = buildPersistingEmitter(
       "sess-tc2",
       () => "Secret t",
@@ -302,16 +303,18 @@ describe("buildPersistingEmitter", () => {
       name: "read",
       input: { path: "/y" },
     });
+    assert.equal(postedBodies.length, 0);
+    emit({ type: "message", text: "both reads completed" });
     await flush();
 
     const bodies = postedBodies as Array<Record<string, unknown>>;
-    const inputs = bodies.map(
+    const inputs = bodies.slice(0, 2).map(
       (b) => (b["attributes"] as Record<string, unknown>)["input"],
     );
     assert.deepEqual(inputs, [{ path: "/x" }, { path: "/y" }]);
     assert.deepEqual(
       bodies.map((b) => b["record_index"]),
-      [0, 1],
+      [0, 1, 2],
     );
   });
 
@@ -338,7 +341,39 @@ describe("buildPersistingEmitter", () => {
     );
   });
 
-  it("flushes an open tool_call when the idle TTL fires", async () => {
+  it("checkpoints a completed tool call before the turn-end flush", async () => {
+    const { emit, flush } = buildPersistingEmitter(
+      "sess-mid-turn",
+      () => "Secret t",
+    );
+
+    emit({
+      type: "tool_call",
+      id: "call-complete",
+      name: "bash",
+      input: { command: "pwd" },
+    });
+    emit({ type: "tool_result", id: "call-complete", output: "/workspace" });
+    await drainPersist("sess-mid-turn");
+
+    assert.deepEqual(
+      (postedBodies as Array<Record<string, unknown>>).map(
+        (body) => (body["attributes"] as Record<string, unknown>)["type"],
+      ),
+      ["tool_call"],
+    );
+
+    emit({ type: "message", text: "The workspace is ready." });
+    await flush();
+    assert.deepEqual(
+      (postedBodies as Array<Record<string, unknown>>).map(
+        (body) => (body["attributes"] as Record<string, unknown>)["type"],
+      ),
+      ["tool_call", "tool_result", "message"],
+    );
+  });
+
+  it("keeps an open tool_call temporary until the complete checkpoint", async () => {
     vi.useFakeTimers();
     try {
       const { emit, flush } = buildPersistingEmitter(
@@ -352,9 +387,11 @@ describe("buildPersistingEmitter", () => {
         name: "bash",
         input: { command: "x" },
       });
-      // Nothing follows; only the TTL can close it.
+      // Time alone is not a complete checkpoint, so partial arguments remain temporary.
       assert.equal(postedBodies.length, 0);
       await vi.advanceTimersByTimeAsync(3000);
+      assert.equal(postedBodies.length, 0);
+      await flush();
       assert.equal(postedBodies.length, 1);
       assert.equal(
         (
@@ -365,10 +402,31 @@ describe("buildPersistingEmitter", () => {
         )["type"],
         "tool_call",
       );
-      await flush();
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("keeps progressive tool results temporary until the complete checkpoint", async () => {
+    const { emit, flush } = buildPersistingEmitter(
+      "sess-tool-result",
+      () => "Secret t",
+      undefined,
+      undefined,
+      "turn-1",
+    );
+
+    emit({ type: "tool_result", id: "call-1", output: "" });
+    emit({ type: "tool_result", id: "call-1", output: "complete" });
+    assert.equal(postedBodies.length, 0);
+    await flush();
+
+    assert.equal(postedBodies.length, 1);
+    const body = postedBodies[0] as Record<string, unknown>;
+    assert.equal(
+      (body["attributes"] as Record<string, unknown>)["output"],
+      "complete",
+    );
   });
 });
 
@@ -492,6 +550,12 @@ describe("buildPersistingEmitter API contract", () => {
       assert.equal(accepted.length, 3);
       for (const body of accepted)
         assert.match(String(body.span_id), OTEL_SPAN_ID);
+      for (const body of accepted)
+        assert.match(
+          String(body.producer_id),
+          /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+        );
+      for (const body of accepted) assert.equal("record_id" in body, false);
     } finally {
       globalThis.fetch = prior;
     }
@@ -597,6 +661,38 @@ describe("durable records (AGENTA_RECORDS_DURABLE)", () => {
 
     assert.equal(postedBodies.length, 1); // landed
     assert.equal(takePersistFailures("sess-recover"), 0);
+  });
+
+  it("retries the exact same stable record body", async () => {
+    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
+    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2");
+    const attempts: string[] = [];
+    const prior = globalThis.fetch;
+    globalThis.fetch = vi.fn(
+      async (_input: string | URL | Request, init?: RequestInit) => {
+        attempts.push(String(init?.body));
+        return attempts.length === 1
+          ? new Response("retry", { status: 500 })
+          : new Response(JSON.stringify({ ok: true }), { status: 200 });
+      },
+    );
+    try {
+      const { emit, flush } = buildPersistingEmitter(
+        "sess-stable-retry",
+        () => "Secret t",
+        undefined,
+        undefined,
+        "turn-1",
+      );
+      emit({ type: "message", text: "one durable fact" });
+      await flush();
+    } finally {
+      globalThis.fetch = prior;
+    }
+
+    assert.equal(attempts.length, 2);
+    assert.equal(attempts[0], attempts[1]);
+    assert.ok(JSON.parse(attempts[0]).producer_id);
   });
 });
 

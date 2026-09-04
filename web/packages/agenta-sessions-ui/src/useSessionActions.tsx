@@ -6,12 +6,15 @@ import {
     setSessionHeader,
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
+import {shareUrl} from "@agenta/sessions/link"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
+import {copyToClipboard} from "@agenta/ui/utils"
 import {
     ArchiveIcon,
     ArrowSquareOutIcon,
+    LinkSimpleIcon,
     PencilSimpleIcon,
     PushPinIcon,
     PushPinSlashIcon,
@@ -52,6 +55,15 @@ export interface SessionLocalCache {
 export interface UseSessionActionsOptions {
     /** Omit on a surface with no local tab cache — every action then goes straight to the server. */
     localCache?: SessionLocalCache
+    /**
+     * The path a session is linked at, or "" where this app cannot address one. Supplying it adds
+     * "Copy share link" to the menu; an app whose sessions have no URL of their own omits it and
+     * the entry never appears.
+     *
+     * A path, not a URL, because the menu asks on every render whether a session can be linked.
+     * Keeping that answer pure means it never reads `window` outside the click.
+     */
+    sharePathFor?: (target: SessionActionTarget) => string
 }
 
 /**
@@ -61,7 +73,7 @@ export interface UseSessionActionsOptions {
  * mobile lists — and they must not drift into offering different verbs, or the same verb with
  * different effects.
  */
-export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) => {
+export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsOptions = {}) => {
     const queryClient = useQueryClient()
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
@@ -166,6 +178,19 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
         [isCached, localCache, projectId, revalidate],
     )
 
+    const copyShareLink = useCallback(
+        async (target: SessionActionTarget) => {
+            const link = shareUrl(sharePathFor?.(target) ?? "")
+            if (!link) {
+                message.error("This session has no link yet")
+                return
+            }
+            if (await copyToClipboard(link)) message.success("Share link copied")
+            else message.error("Couldn't copy the link")
+        },
+        [sharePathFor],
+    )
+
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
 
     /** The one menu every surface renders. `onOpen` is omitted where the session is already open. */
@@ -203,6 +228,16 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
                               <PushPinIcon size={14} />
                           ),
                       },
+                      ...(sharePathFor
+                          ? [
+                                {
+                                    key: "copy-link",
+                                    label: "Copy share link",
+                                    icon: <LinkSimpleIcon size={14} />,
+                                    disabled: !sharePathFor(target),
+                                },
+                            ]
+                          : []),
                       {type: "divider" as const},
                   ]),
             {
@@ -212,7 +247,7 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
             },
             {key: "delete", label: "Delete", icon: <TrashIcon size={14} />, danger: true},
         ],
-        [pinnedSet],
+        [pinnedSet, sharePathFor],
     )
 
     const onMenuClick = useCallback(
@@ -220,11 +255,21 @@ export const useSessionActions = ({localCache}: UseSessionActionsOptions = {}) =
             ({key}: {key: string}) => {
                 if (key === "open") options?.onOpen?.()
                 if (key === "pin") togglePin(target.sessionId)
+                if (key === "copy-link") void copyShareLink(target)
                 if (key === "archive") void setArchived(target)
                 if (key === "delete") remove(target)
             },
-        [remove, setArchived, togglePin],
+        [copyShareLink, remove, setArchived, togglePin],
     )
 
-    return {commitRename, setArchived, remove, togglePin, menuItems, onMenuClick, pinnedSet}
+    return {
+        commitRename,
+        setArchived,
+        remove,
+        togglePin,
+        copyShareLink,
+        menuItems,
+        onMenuClick,
+        pinnedSet,
+    }
 }

@@ -67,6 +67,8 @@ export const Composer = ({
         // is still in flight; a second pass would re-send the same staged tray.
         if (sending.current) return
         sending.current = true
+        // The message is written; anything still coming in belongs to no draft.
+        voice.endDictation()
         // Close the on-screen keyboard. It covered the transcript while you typed, and the reply
         // to the message you just sent is the thing you want to see next. The helper defers the
         // blur past the editor's own clear, whose reconcile would otherwise re-focus the input and
@@ -113,6 +115,7 @@ export const Composer = ({
         voiceRecorder,
         voiceWillSend,
         startVoiceMessage,
+        dictationStopRef,
         dictating,
         setDictating,
         setDictationError,
@@ -191,6 +194,7 @@ export const Composer = ({
                                 attachmentsFull={attachments.atMax}
                                 onDictationError={setDictationError}
                                 onDictatingChange={setDictating}
+                                stopRef={dictationStopRef}
                                 disabled={disabled}
                             />
                         }

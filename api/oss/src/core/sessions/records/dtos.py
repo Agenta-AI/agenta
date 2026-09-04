@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -31,6 +31,9 @@ class SessionRecordEvent(BaseModel):
     session_id: str
 
     record_id: Optional[UUID] = None
+    # Retry-stable id for this emitted record. Older APIs ignore this additive field;
+    # immutable-history mode uses it when no legacy logical record_id is present.
+    producer_id: Optional[UUID] = None
     record_index: Optional[int] = None
     timestamp: Optional[datetime] = None
     record_type: Optional[str] = None
@@ -67,6 +70,11 @@ class SessionRecord(Lifecycle):
     # transcript filter these out at the DAO; the column is exposed so support and billing can
     # still see the work the agent did after the platform closed the turn.
     quarantined_at: Optional[datetime] = None
+
+
+class SessionRecordsAppendResult(BaseModel):
+    records: List[SessionRecord] = Field(default_factory=list)
+    conflicting_record_ids: List[UUID] = Field(default_factory=list)
 
 
 class SessionMessagePreview(BaseModel):

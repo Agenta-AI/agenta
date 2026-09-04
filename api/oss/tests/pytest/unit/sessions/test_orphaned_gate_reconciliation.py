@@ -27,7 +27,7 @@ from uuid import uuid4
 import pytest
 from orjson import dumps
 
-from oss.src.core.sessions.records.dtos import SessionRecord
+from oss.src.core.sessions.records.dtos import SessionRecord, SessionRecordsAppendResult
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.tasks.asyncio.sessions.records_worker import (
     RecordsWorker,
@@ -206,10 +206,12 @@ async def test_process_batch_reconciles_after_the_append():
 
     async def _append_many(*, events):
         journal.append("append")
-        return [
-            SessionRecord(record_id=uuid4(), session_id=SESSION, project_id=PROJECT)
-            for _ in events
-        ]
+        return SessionRecordsAppendResult(
+            records=[
+                SessionRecord(record_id=uuid4(), session_id=SESSION, project_id=PROJECT)
+                for _ in events
+            ]
+        )
 
     records_dao.append_many = AsyncMock(side_effect=_append_many)
 

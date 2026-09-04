@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    Boolean,
     Column,
     ForeignKeyConstraint,
     Index,
@@ -80,6 +81,10 @@ class SessionStreamDBE(
     # running turn may have no row. Stamped only when the id actually changes, so the repeated
     # heartbeats that restamp the same id never move it.
     turn_started_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
+    # Null/false means no loss has been observed; true is permanent because an
+    # acknowledged record gap cannot be repaired from this table.
+    history_incomplete = Column(Boolean, nullable=True)
 
     __table_args__ = (
         ForeignKeyConstraint(

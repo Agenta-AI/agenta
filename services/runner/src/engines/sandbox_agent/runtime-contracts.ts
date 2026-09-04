@@ -426,8 +426,10 @@ export type AcquireEnvironmentResult =
       /**
        * The preflight proved this sandbox never got its Secret substitution wiring (the fault
        * is binary per sandbox and permanent — see credential-preflight.ts). The environment is
-       * already destroyed; the acquire wrapper retries once with a fresh sandbox, because a new
-       * sandbox on the same Secret works.
+       * already destroyed; the acquire wrapper rebuilds a fresh sandbox on the SAME Secret,
+       * which is the case Daytona support confirmed works. The Secret lease that makes the
+       * rebuild possible never reaches this type: it is internal to the acquire loop, which
+       * owns it for the whole run and releases it before returning. See `AcquireAttemptResult`.
        */
       stuckSubstitution?: boolean;
     };

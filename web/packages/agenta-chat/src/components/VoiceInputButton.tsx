@@ -69,6 +69,7 @@ const VoiceInputButton = ({
     attachmentsFull,
     onDictationError,
     onDictatingChange,
+    stopRef,
     disabled,
 }: {
     inputRef: RefObject<RichChatInputHandle | null>
@@ -79,6 +80,8 @@ const VoiceInputButton = ({
     onDictationError: (message: string | null) => void
     /** Dictation locks the editor while it runs, which the composer owns. */
     onDictatingChange: (active: boolean) => void
+    /** Where the composer picks up the stopper, so a send can close the mic it opened. */
+    stopRef?: RefObject<() => void>
     /** Tray is at its file limit. A voice message attaches like any file, so recording one now
      * would be rejected on attach — i.e. the take would be destroyed after the fact. */
     attachmentsFull: boolean
@@ -95,6 +98,7 @@ const VoiceInputButton = ({
     // hear. With no explicit choice, lead with whichever the model can actually use.
     const mode: VoiceMode = chosenMode ?? (audioPerceivable === false ? "transcribe" : "audio")
     const transcribe = useVoiceInput()
+    if (stopRef) stopRef.current = transcribe.stop
 
     useEffect(() => {
         onDictationError(transcribe.error)
@@ -120,8 +124,13 @@ const VoiceInputButton = ({
             inputRef.current?.focus()
         }
         wasActive.current = transcribe.active
-        onDictatingChange(transcribe.active)
-    }, [transcribe.active, inputRef, onDictatingChange])
+    }, [transcribe.active, inputRef])
+
+    // Intent, not `active`: the browser's teardown takes seconds, and the editor must not stay
+    // locked across it once the person has released the chord to type or send.
+    useEffect(() => {
+        onDictatingChange(transcribe.recording)
+    }, [transcribe.recording, onDictatingChange])
 
     // Primary action first: a voice message is the default; dictation is the alternative.
     const modes: {key: VoiceMode; supported: boolean}[] = [
@@ -151,8 +160,10 @@ const VoiceInputButton = ({
     useEffect(() => setHoldLabel(pushToTalkLabel()), [])
 
     // Hold ⌃⌥ / Ctrl+Alt to dictate. Same start/stop the button's own click drives.
+    const rootRef = useRef<HTMLDivElement>(null)
     usePushToTalk({
         enabled: effective === "transcribe" && !disabled && !audioPending,
+        rootRef,
         onStart: startDictation,
         onStop: transcribe.stop,
     })
@@ -206,7 +217,7 @@ const VoiceInputButton = ({
     const highlighted = dictating || audioPending
 
     return (
-        <div className="flex items-center">
+        <div ref={rootRef} className="flex items-center">
             <SimpleTooltip title={title}>
                 <Button
                     variant="ghost"

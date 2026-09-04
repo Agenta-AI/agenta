@@ -1,12 +1,4 @@
-"""EE records DAO (retention).
-
-Walks ``projects ⋈ subscriptions`` to find projects on a given plan, then
-deletes record rows older than the retention cutoff. Lives in EE because
-the project-to-plan join goes through the EE ``SubscriptionDBE`` table.
-
-The OSS counterpart (``oss.src.dbs.postgres.sessions.records.dao.RecordsDAO``)
-owns append/query and never imports EE types.
-"""
+"""EE session-record retention DAO."""
 
 from datetime import datetime
 from typing import List, Optional
@@ -28,9 +20,6 @@ from oss.src.dbs.postgres.shared.engine import (
 )
 from oss.src.dbs.postgres.sessions.records.dbes import RecordDBE
 
-from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
-
-
 log = get_module_logger(__name__)
 
 
@@ -49,25 +38,15 @@ class RecordsRetentionDAO:
         self.transactions_engine = transactions_engine
         self.analytics_engine = analytics_engine
 
-    async def fetch_projects_with_plan(
+    async def fetch_projects(
         self,
         *,
-        plan: str,
         project_id: UUID | None,
         max_projects: int,
     ) -> List[UUID]:
-        """Page through projects whose org subscribes to the given plan."""
+        """Page through projects independently of tracing-plan retention."""
         async with self.transactions_engine.session() as session:
-            stmt = (
-                select(ProjectDB.id)
-                .select_from(
-                    ProjectDB.__table__.join(
-                        SubscriptionDBE.__table__,
-                        SubscriptionDBE.organization_id == ProjectDB.organization_id,
-                    )
-                )
-                .where(SubscriptionDBE.plan == plan)
-            )
+            stmt = select(ProjectDB.id)
 
             if project_id:
                 stmt = stmt.where(ProjectDB.id > project_id)

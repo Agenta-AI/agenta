@@ -32,6 +32,7 @@ from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
+from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
@@ -83,7 +84,10 @@ async def _build_spans_worker(redis_client: Redis) -> StreamConsumer:
 async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
     watch_publisher = SessionsWatchPublisher(redis_client=redis_client)
     return RecordsWorker(
-        service=RecordsService(records_dao=RecordsDAO()),
+        service=RecordsService(
+            records_dao=RecordsDAO(),
+            streams_dao=SessionStreamsDAO(),
+        ),
         redis_client=redis_client,
         stream_name="streams:records",
         consumer_group="worker-records",

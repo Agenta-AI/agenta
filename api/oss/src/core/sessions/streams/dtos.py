@@ -52,6 +52,7 @@ class SessionStream(Identifier, Header, Lifecycle):
     references: Optional[List[SessionReference]] = None
     # Set = archived (hidden but restorable); distinct from `deleted_at` (killed, still listed).
     archived_at: Optional[datetime] = None
+    history_incomplete: Optional[bool] = None
     origin: Optional[SessionOrigin] = None
     trigger: Optional[SessionTrigger] = None
     delivery: Optional[SessionDelivery] = None

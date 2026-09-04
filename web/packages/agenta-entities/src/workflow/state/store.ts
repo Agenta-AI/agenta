@@ -464,6 +464,7 @@ export const appWorkflowsListQueryAtom = atomWithQuery((get) => {
             const response = await queryWorkflows({
                 projectId,
                 flags: {is_evaluator: false},
+                // Keep UNPAGED: the rail reads "absent from this list" as "archived" (#6457).
                 lowPriority: true,
             })
             const workflows = response.workflows ?? []
@@ -2947,6 +2948,11 @@ export function invalidateAgentCommittedRevisionCache(options?: StoreOptions) {
         const qc = store.get(queryClientAtom)
         qc.invalidateQueries({queryKey: ["workflows", "latestRevision"], exact: false})
         qc.invalidateQueries({queryKey: ["workflows", "inspect"], exact: false})
+        // The version SELECTOR reads the revisions list, not the latest-revision tag, so leaving
+        // it out left the freshly committed version missing from the picker until a reload
+        // (#6380) — the config had already moved on to a version you could not name.
+        qc.invalidateQueries({queryKey: ["workflows", "revisionsByWorkflow"], exact: false})
+        qc.invalidateQueries({queryKey: ["workflows", "revisions"], exact: false})
     } catch {
         // queryClientAtom may not be initialized yet
     }

@@ -49,3 +49,15 @@ export function stableRecordId(
     RECORD_NAMESPACE,
   );
 }
+
+/** Stable id for a record without its own logical correlation id. */
+export function stableRecordIdForIndex(
+  sessionId: string,
+  recordIndex: number,
+  recordScope: string,
+): string {
+  return uuid5(
+    `${sessionId}:${recordScope}:record-index:${recordIndex}`,
+    RECORD_NAMESPACE,
+  );
+}

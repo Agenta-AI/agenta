@@ -3,6 +3,7 @@ import {memo, useEffect, useMemo, useState} from "react"
 import {
     getMessageRunError,
     getMessageRunErrorCode,
+    isMessageRunErrorTransport,
     getMessageTraceId,
     getMessageUsage,
 } from "@agenta/chat/assets"
@@ -182,13 +183,16 @@ export const RunErrorBody = ({
     text,
     stateKey,
     code,
+    transport,
     onRetry,
 }: {
     text: string
     stateKey: string
     /** The runner's failure class, when the turn carried one (`data-agent-error`'s `code`). */
     code?: string
-    /** Re-run the failed turn; offered only for the transient classes in RETRYABLE_CODES. */
+    /** The request never reached Agenta — retryable, and it has no code to match on. */
+    transport?: boolean
+    /** Re-run the failed turn; offered for transport failures and the classes in RETRYABLE_CODES. */
     onRetry?: () => void
 }) => {
     const stored = useAtomValue(expandedValueAtomFamily(stateKey))
@@ -198,7 +202,8 @@ export const RunErrorBody = ({
     const big = isBigError(text)
     const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
     const notSent = !!code && NOT_SENT_CODES.has(code)
-    const offerRetry = !notSent && !!onRetry && !!code && RETRYABLE_CODES.has(code)
+    const offerRetry =
+        !notSent && !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
 
     return (
         <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
@@ -381,6 +386,7 @@ const AgentMessage = ({
     // we know whether the turn produced an answer.
     const runError = getMessageRunError(message)
     const runErrorCode = getMessageRunErrorCode(message)
+    const runErrorTransport = isMessageRunErrorTransport(message)
     const fullText = message.parts
         .filter((p) => p.type === "text")
         .map((p) => (p as {text: string}).text)
@@ -620,6 +626,7 @@ const AgentMessage = ({
             text={errorText || "The agent run failed."}
             stateKey={errorKey(message.id)}
             code={runErrorCode}
+            transport={runErrorTransport}
             onRetry={onRetry ? () => onRetry(message.id) : undefined}
         />
     )
