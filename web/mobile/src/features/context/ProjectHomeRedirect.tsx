@@ -2,7 +2,6 @@ import {useEffect} from "react"
 
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {projectHomeUrl} from "@/lib/context"
 
@@ -23,11 +22,8 @@ export const ProjectHomeRedirect = () => {
     }, [router.isReady, workspaceId, projectId])
 
     return (
-        <>
-            <PageTitle />
-            <ScreenScaffold>
-                <p className="text-muted-foreground grow p-6 text-center text-xs">Loading…</p>
-            </ScreenScaffold>
-        </>
+        <ScreenScaffold>
+            <p className="text-muted-foreground grow p-6 text-center text-xs">Loading…</p>
+        </ScreenScaffold>
     )
 }

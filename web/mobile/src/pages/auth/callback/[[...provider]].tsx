@@ -1,5 +1,4 @@
-import Head from "next/head"
-
+import {PageTitle} from "@/components/PageTitle"
 import {OidcCallbackScreen} from "@/features/auth/OidcCallbackScreen"
 
 // Thin shell: /m/auth/callback/<providerId> — the device gate forwards the
@@ -7,9 +6,7 @@ import {OidcCallbackScreen} from "@/features/auth/OidcCallbackScreen"
 export default function AuthCallback() {
     return (
         <>
-            <Head>
-                <title>Signing in · Agenta</title>
-            </Head>
+            <PageTitle title="Signing in" />
             <OidcCallbackScreen />
         </>
     )
