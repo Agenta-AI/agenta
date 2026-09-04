@@ -65,12 +65,18 @@ it does not define the browser stream.
 - Keep temporary frames in the existing bounded records ingest stream.
 - Give frames a producer `frame_index` and durable events a database `sequence`.
 - Use repaired records as durable history only after retention separates from tracing policy.
-- Allocate new durable sequences in the records domain. The exact database choice remains open.
+- Allocate new durable sequences from a records-domain cursor table on the analytics database.
+- Quarantine late output and exclude it from canonical reads.
+- Ship the runner-side Codex reap now. Test the Codex pin bump in a separate pull request.
+- Use one global environment switch per increment.
+- Keep `POST /sessions/{session_id}/cancel` as the public Stop route.
+- Give the runner a 30-second shutdown grace period.
+- Return `not_running` when Stop reaches the runner after teardown.
 - Reload a snapshot after disconnect, then follow from its sequence.
 - Pause queued input after manual Stop. Steer saves input before it interrupts current work.
 
-Late output disposition remains open. The current code quarantines it behind the history flag until
-Mahmoud chooses quarantine or rejection. Both choices exclude late output from canonical reads.
+The record write boundary quarantines late output for every terminal cause. Canonical readers
+exclude it.
 
 ## Delivery increments
 
@@ -101,8 +107,9 @@ values with `os.getenv`.
 | 3 | `AGENTA_SESSIONS_HISTORY_WRITES` | Flip off. Nullable fields remain and old record writes stay mounted. |
 | 4 and 5 | `AGENTA_SESSIONS_SHARED_READER` | Flip off. Clients return to invoke or watch-and-refetch. |
 
-Project allowlists and capability advertisement are an open rollout choice. Durable approvals,
-Queue, and Steer must name their switches and rollback paths before implementation starts.
+Version one uses one global environment switch per increment. It does not add project allowlists or
+capability advertisement. Durable approvals, Queue, and Steer must name their switches and rollback
+paths before implementation starts.
 
 ## Compatibility
 
@@ -120,17 +127,17 @@ and permanent token storage.
 
 The release exports counters for commands admitted, delivered, applied, obsolete, and lost. It
 also exports a Stop delivery latency histogram, harness cancel latency, watchdog settlements,
-quarantined or rejected late records, and sweep pass duration. Metrics do not use session or
+quarantined late records, and sweep pass duration. Metrics do not use session or
 execution IDs as labels.
 
 Normal Stop alerts at five seconds. Current runs measured less than 300 milliseconds. A release
 that exceeds one second needs a written reason in its release notes. An abandoned execution must
 settle within 150 seconds, based on a 90-second stale threshold and a 60-second sweep interval.
 
-## What remains to decide
+## Open questions
 
-[`open-questions.md`](open-questions.md) presents seven choices: sequence storage, late output,
-Codex child cleanup, rollout granularity, Stop spelling, shutdown grace, and teardown semantics.
+No open design questions remain. [`decisions.md`](decisions.md) records the seven choices settled
+on 2026-09-04.
 
 ## Release rule
 

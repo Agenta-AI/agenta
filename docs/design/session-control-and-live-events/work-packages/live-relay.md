@@ -45,6 +45,11 @@ package.
 4, only secondary readers honor it. In increment 5, the sender opts in after secondary proof. Off
 returns secondary clients to watch-and-refetch and the sender to invoke.
 
+## Dependencies
+
+The analytics cursor decision unblocks snapshot and replay work. The live relay uses the snapshot
+watermark and replays durable records by the sequence allocated with each record insert.
+
 ## Implementation sequence
 
 1. Freeze fixtures for frames, the six durable events, duplicates, gaps, unknown types, and preview

@@ -1,7 +1,7 @@
 # Decisions
 
 > **AGENT-GENERATED, LOW WEIGHT, DRAFT.** Confirmed items record the contract-baseline direction
-> after the 2026-09-03 reviews. Mahmoud still owns the choices in `open-questions.md`.
+> after the 2026-09-03 reviews and Mahmoud's decisions on 2026-09-04.
 
 ## Current constraints
 
@@ -14,9 +14,14 @@ hard gate for durable session history.
 
 ## Public operations stay separate from private commands
 
+**Settled:** 2026-09-04.
+
 Version one keeps Send on the existing invoke operation and adds `on_busy` plus
 `Idempotency-Key`. It keeps `POST /sessions/{session_id}/cancel` as the public Stop route. The
 generic `POST /sessions/{session_id}/commands` route does not ship in version one.
+
+Keeping `/cancel` preserves the shipped contract and avoids a duplicate route and client
+migration.
 
 The durable command table remains private. Queue and Steer receive a public route only when their
 package defines the pending-input transaction and clients can display that state.
@@ -57,6 +62,14 @@ The runner normally writes the ending, clears `running`, and parks the sandbox. 
 cannot settle, the watchdog writes the ending, clears `running`, releases `alive`, and updates the
 mirror. Each watchdog pass has a time bound and logs timeouts.
 
+## Stop after teardown returns `not_running`
+
+**Settled:** 2026-09-04.
+
+A Stop that reaches the runner after teardown returns `not_running`. Version one can prove that no
+execution is running, but it cannot prove that ownership was lost. Ownership generations and
+multi-runner routing can add a stronger `lost` result later.
+
 ## Stop preserves safe warm state
 
 Stop is distinct from Delete. Stop preserves the session, workspace, and native harness session
@@ -70,6 +83,21 @@ Five seconds is the Stop alert threshold. Current evidence is below 300 millisec
 above one second needs a written reason. Abandoned work settles within 150 seconds, and clients show
 `recovering` during that window.
 
+## Ship the Codex reap before the pin bump
+
+**Settled:** 2026-09-04.
+
+Version one ships the runner-side Codex child reap now. A separate pull request bumps the Codex ACP
+pin and runs the full Codex matrix. This keeps the proven Stop fix narrow and isolates the broader
+adapter change.
+
+## Runner shutdown grace is 30 seconds
+
+**Settled:** 2026-09-04.
+
+The runner gets a 30-second shutdown grace period. This doubles the known 15-second cleanup bound
+without delaying replacement for a full minute.
+
 ## Durable history uses repaired records after two gates
 
 Records remain the proposed source for durable history. Before immutable writes start, the history
@@ -81,9 +109,14 @@ after the migration boundary receives a sequence, including writes through compa
 endpoints. A path that cannot allocate a sequence stays off behind
 `AGENTA_SESSIONS_HISTORY_WRITES`.
 
-Sequence allocation belongs to the records domain and must commit with the record. Mahmoud still
-must choose between a small cursor table on the analytics engine and moving records to core. The
-analytics cursor is the recommended baseline.
+Sequence allocation uses a records-domain cursor table on the analytics engine.
+
+**Settled:** 2026-09-04.
+
+Each row contains `session_id`, `latest_sequence`, and `updated_at`. The records data access object
+locks and updates the cursor, allocates the next sequence, and inserts the record in the same
+analytics transaction. This additive design avoids moving records and keeps ordering beside the
+rows it protects.
 
 ## Terminal state guards every later record
 
@@ -91,8 +124,11 @@ The record write boundary checks the execution row for every terminal cause. A d
 leaves ingest work pending instead of admitting it without a check. Late output never appears in
 canonical session history.
 
-Whether the implementation rejects or quarantines late output remains open. The current code keeps
-quarantine behind the history flag until Mahmoud decides.
+**Settled:** 2026-09-04.
+
+The implementation quarantines late output with the existing nullable marker. Canonical readers
+exclude quarantined rows. This preserves usage and tool evidence for accounting and support while
+keeping user-visible history unchanged.
 
 ## Temporary frames reuse the records ingest stream
 
@@ -138,13 +174,16 @@ then the interaction and use exact state predicates, so only one wins.
 
 ## Ordered release and rollback
 
+**Settled:** 2026-09-04.
+
 The delivery order is pure fixes, Stop and recovery, history producer and retention, secondary
 shared reading, sender migration, durable approvals, Queue, then Steer. The first three behavior
 changes use env-backed switches read through `env.py`: `AGENTA_SESSIONS_DURABLE_STOP`,
 `AGENTA_SESSIONS_HISTORY_WRITES`, and `AGENTA_SESSIONS_SHARED_READER`.
 
-Turning a switch off returns clients and writers to the mounted old path. Project allowlists and
-capability advertisement remain an open rollout choice.
+Each increment uses one global environment switch. Turning a switch off returns clients and
+writers to the mounted old path. Version one does not add project allowlists or capability
+advertisement. This gives operators one activation and rollback point per increment.
 
 ## Operational contract
 
@@ -158,6 +197,6 @@ labels.
 Version one defers Postgres execution ownership, ownership generations, multi-runner guarantees,
 and permanent token storage.
 
-## Remaining decisions
+## Open questions
 
-[`open-questions.md`](open-questions.md) contains only the seven choices that remain for Mahmoud.
+No open design questions remain.

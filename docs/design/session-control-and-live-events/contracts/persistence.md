@@ -32,7 +32,7 @@ progressive-update audit proves records unsafe.
 - A database compare-and-set on the execution row selects one terminal outcome.
 - Every later record checks that row for every terminal cause.
 - A failed terminal check leaves ingest work pending.
-- Late output stays out of canonical reads. Quarantine or rejection remains open.
+- Late output receives the nullable quarantine marker and stays out of canonical reads.
 
 ## Record ingestion
 
@@ -45,14 +45,21 @@ the same batch.
 
 ## Per-session ordering
 
-The proposed baseline adds a small `session_cursors` row to the analytics engine. The records
-domain alone owns this row. For each durable write, the records data access object locks the cursor
-and increments `latest_sequence`. It inserts the record with that sequence and commits both changes
-in one analytics transaction.
+The design adds a `session_cursors` table to the analytics database. The records domain alone owns
+it. Each row has `session_id`, `latest_sequence`, and `updated_at`.
+
+For each durable write, the records data access object locks the cursor and increments
+`latest_sequence`. It inserts the record with that sequence and updates `updated_at` in the same
+analytics transaction. The transaction commits the cursor allocation and record insert together.
 
 Different sessions write concurrently. Writers for one session serialize only at this commit
-boundary. Mahmoud must still choose this additive design or move records to the core engine before
-implementation starts.
+boundary.
+
+## Late output quarantine
+
+The record write boundary checks the execution row for every terminal cause. A record that arrives
+after terminal settlement receives the existing nullable quarantine marker. Canonical readers
+exclude quarantined rows. The stored row remains available for accounting and support.
 
 ## Terminal settlement
 

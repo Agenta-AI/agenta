@@ -10,10 +10,10 @@ The design freezes six durable event payloads. It also fixes temporary frame ret
 minutes and 100,000 frames per session. The runner sends frames through the existing records ingest
 stream. The relay forwards them to API SSE connections.
 
-Late output disposition remains open. O2 in `open-questions.md` holds the choice between quarantine
-and rejection. The current code quarantines. The setting `AGENTA_SESSIONS_LATE_OUTPUT` selects quarantine or reject.
+Mahmoud settled all seven open choices on 2026-09-04. Late output is quarantined. The records domain
+uses a cursor table on the analytics database. The Codex reap ships before a separate pin bump. Each
+increment uses one global environment switch. The public Stop route remains `/cancel`. The runner
+shutdown grace period is 30 seconds. Stop after teardown returns `not_running`.
 
-`open-questions.md` holds the seven remaining choices: sequence home, late output, Codex child
-cleanup, rollout granularity, Stop spelling, shutdown grace, and teardown result. The next actor
-should resolve each choice when its package needs it, record the baseline commit in `status.md`, and
-start implementation at the checkpoints in `plan.md`.
+No design question blocks implementation. The next actor should record the baseline commit in
+`status.md` and start implementation at the checkpoints in `plan.md`.

@@ -23,8 +23,8 @@ implementation package or claim release proof on a future code commit.
 - Abandoned work settles within 150 seconds. Stop alerts at five seconds, and releases above one
   second need a written reason.
 - Session retention separates from tracing policy before durable history writes turn on.
-- Sequence allocation belongs to the records domain and commits with its record. Its exact engine
-  choice remains open.
+- A records-domain cursor table on the analytics database allocates each sequence in the same
+  transaction as the record insert.
 - Every durable write after migration receives a sequence, including compatibility endpoints.
 - Temporary frames and durable events reuse the records ingest stream with explicit `kind`.
 - Frames carry `frame_index`; durable events carry `sequence`.
@@ -35,10 +35,14 @@ implementation package or claim release proof on a future code commit.
 - Event connections bound authorization age, frame ingress checks owner claims, and logs contain no
   message content or tokens.
 - Delivery uses seven increments with three named env-backed flags and mounted rollback paths.
+- Each increment uses one global environment switch.
+- Late output is quarantined and excluded from canonical reads.
+- The runner shutdown grace period is 30 seconds.
+- The Codex reap ships now. The Codex pin bump uses a separate pull request.
+- Stop after teardown returns `not_running`.
 - Durable approvals ship before Queue and Steer.
 
-Late output disposition, sequence engine, Codex cleanup release order, rollout granularity, Stop
-spelling, shutdown grace, and teardown result remain open in `open-questions.md`.
+Mahmoud settled all seven open choices on 2026-09-04. No open design questions remain.
 
 ## Review record
 
@@ -97,12 +101,11 @@ needs that fix re-merged.
 
 ## Work before implementation
 
-1. Mahmoud resolves the seven choices in `open-questions.md` as their packages need them.
-2. Add the exact Linear security issue URL for Claude Code shell permission behavior.
-3. Record the contract-baseline candidate commit after these document changes are committed.
-4. Land and test #6502 and #6500 on main.
-5. Build the Stop stack in the listed base order.
-6. Run all required `qa.md` rows, including rollback and missing failure injections.
+1. Add the exact Linear security issue URL for Claude Code shell permission behavior.
+2. Record the contract-baseline candidate commit after these document changes are committed.
+3. Land and test #6502 and #6500 on main.
+4. Build the Stop stack in the listed base order.
+5. Run all required `qa.md` rows, including rollback and missing failure injections.
 
 ## Design branch and baseline commit
 

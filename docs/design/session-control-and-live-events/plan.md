@@ -28,8 +28,8 @@ durable, warm, and recoverable.
 | 6 | Approval answers and continuation intent are durable | Durable approvals | Name the env switch and old response fallback before implementation |
 | 7 | Pending input is shared; Queue ships before Steer | Queue and Steer | Name separate Queue and Steer switches before implementation |
 
-The API reads switches through `api/oss/src/utils/env.py`, never `os.getenv`. Project allowlists
-and capability advertisement remain an open choice.
+The API reads switches through `api/oss/src/utils/env.py`, never `os.getenv`. Each increment uses
+one global environment switch. Version one has no project allowlist or capability advertisement.
 
 ## Dependencies
 
@@ -51,9 +51,9 @@ Contract baseline candidate
             |                       +-> Increment 5: sender shared reading
 ```
 
-History producer preparation may run beside Stop work, but retention separation and the sequence
-decision must pass before history writes turn on. The sender moves only after secondary readers
-pass shared-reading and replay checks.
+History producer preparation may run beside Stop work. Retention separation must pass before
+history writes turn on. The analytics cursor decision unblocks the sequence work. The sender moves
+only after secondary readers pass shared-reading and replay checks.
 
 ## Checkpoints
 
@@ -105,9 +105,8 @@ the queue. Add Steer only after save-before-stop and priority-promotion races pa
 ## First execution cycle
 
 1. Record this RFC head as the contract-baseline candidate.
-2. Resolve the seven choices in `open-questions.md` that block their packages.
-3. Land and test #6502 and #6500 on main.
-4. Test the Codex reap from #6496 and test the pin bump in a separate pull request.
-5. Build the Stop stack in the stated base order.
-6. Deploy it on local and Daytona providers.
-7. Run the Stop and recovery checkpoint, including flag rollback.
+2. Land and test #6502 and #6500 on main.
+3. Test the Codex reap from #6496 and test the pin bump in a separate pull request.
+4. Build the Stop stack in the stated base order.
+5. Deploy it on local and Daytona providers.
+6. Run the Stop and recovery checkpoint, including flag rollback.

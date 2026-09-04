@@ -25,9 +25,10 @@ receives a clear conflict without damaging active work.
 - Database terminal compare-and-set for runner and watchdog.
 - Atomic Postgres settlement and idempotent Redis reconciliation.
 - Watchdog settlement, bounded sweep passes, and the 150-second recovery SLO.
-- Late-record guard for every terminal cause. Final quarantine or rejection stays open.
+- Late-record guard for every terminal cause, with late output quarantined.
 - Desktop state restoration when Stop submission fails.
-- Codex reap now, with the ACP pin comparison in a separate pull request if Mahmoud agrees.
+- Codex reap now, with the ACP pin comparison in a separate pull request.
+- A 30-second runner shutdown grace period.
 
 Queue, Steer, shared reading, and durable replay remain outside this package.
 
@@ -85,3 +86,5 @@ and updates the mirror. Each sweep pass has a time bound and logs a timeout.
 - Every failure permits another message.
 - The Stop flag rolls back to the mounted old path.
 - Codex leaves no abandoned child process on local and Daytona.
+- The runner completes bounded cleanup and releases ownership within the 30-second shutdown grace
+  period.

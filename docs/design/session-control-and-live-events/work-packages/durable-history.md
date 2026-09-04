@@ -23,10 +23,11 @@ committed change. Tracing quota and retention cannot delete session history.
 - Replay followed by live events.
 - Visible incomplete-history state.
 
-## Blocking decision
+## Sequence design
 
-Mahmoud must choose the sequence home. The recommended baseline is a small cursor table owned by the
-records domain on the analytics engine. Moving records to core is the alternative.
+A records-domain cursor table on the analytics database owns the per-session sequence. Each row has
+`session_id`, `latest_sequence`, and `updated_at`. The records data access object allocates the next
+sequence and inserts the record in the same analytics transaction. Sequence work is unblocked.
 
 ## Flag and rollback
 
@@ -38,7 +39,7 @@ record writes mounted. A legacy path that cannot allocate a sequence remains off
 1. Exempt session records from tracing quota and retention, and add session-scoped retention.
 2. Confirm every intentional progressive tool update and move it to temporary frames.
 3. Add stable terminal and record IDs.
-4. Add the analytics cursor row and nullable record sequence after Mahmoud settles its home.
+4. Add the analytics cursor table and nullable record sequence.
 5. Route every new and compatibility write through sequence allocation.
 6. Build the grouped snapshot from one consistent database view and page the transcript.
 7. Build subscribe-before-query replay and live following.

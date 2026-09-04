@@ -82,6 +82,9 @@ the guard whenever they know the active execution and retain one idempotency key
 An unguarded Stop on an idle session returns `200` with `already_idle`. An accepted Stop reports
 `stopping`; the event connection later reports `stopped`, `failed`, or `lost`.
 
+If Stop reaches the runner after teardown, the runner returns `not_running`. The result states that
+no execution is active. Version one does not infer `lost` from a missing Redis owner.
+
 ### Client rules
 
 - A button click enters `stopping`, not `stopped`.
@@ -137,4 +140,5 @@ Delete removes a session and its scoped resources. Stop never means Delete.
 ## Compatibility
 
 Existing invoke, cancel, interaction, record, and watch endpoints retain their meanings during
-migration. The old path stays mounted while its env-backed replacement flag can be disabled.
+migration. Version one adds no `/stop` alias. The old path stays mounted while its env-backed
+replacement flag can be disabled.

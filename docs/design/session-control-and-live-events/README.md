@@ -9,12 +9,13 @@ and recovers durable history across clients and failures.
 
 The documents now form a contract-baseline candidate. They define seven delivery increments. The
 first fixes current data-loss and admission bugs. Later increments add durable Stop, durable
-history, shared reading, durable approvals, Queue, and Steer.
+history, shared reading, durable approvals, Queue, and Steer. Mahmoud settled all seven design
+questions on 2026-09-04.
 
 ## Reading order
 
 1. [`rfc.md`](rfc.md) starts with current behavior, then gives the proposal, release increments,
-   flags, and remaining choices.
+   and flags.
 2. [`requirements.md`](requirements.md) maps user problems and issues to system guarantees.
 3. [`decisions.md`](decisions.md) records the settled contracts and their reasons.
 4. [`architecture.md`](architecture.md) explains command, output, history, ownership, and recovery.
@@ -33,7 +34,7 @@ history, shared reading, durable approvals, Queue, and Steer.
 15. [`work-packages/queue-steer.md`](work-packages/queue-steer.md) covers increment 7.
 16. [`qa.md`](qa.md) defines release proof and records what prior runs proved.
 17. [`status.md`](status.md) records the current candidate, review record, and implementation state.
-18. [`open-questions.md`](open-questions.md) presents the seven choices that remain for Mahmoud.
+18. [`open-questions.md`](open-questions.md) records that no design questions remain open.
 19. [`evidence/README.md`](evidence/README.md) indexes spikes, pull requests, and live runs.
 
 ## Terms

@@ -57,8 +57,9 @@ to the same reducer and event connection. A slow reader never blocks the runner.
 ## Durable-history path
 
 Complete messages, tool results, and execution outcomes become immutable records. A records-domain
-cursor allocates the next session sequence in the same analytics transaction as the record unless
-Mahmoud chooses to move records to core.
+cursor table on the analytics database stores `session_id`, `latest_sequence`, and `updated_at`.
+The records data access object allocates the next sequence and inserts the record in the same
+analytics transaction.
 
 ```text
 temporary frames -> complete checkpoint -> record plus session sequence
@@ -96,7 +97,11 @@ ending, clears `running`, releases `alive`, updates the mirror, and settles the 
 repairs any Redis write missed after the Postgres commit.
 
 The runner and watchdog can race, but only one compare-and-set wins. Late records consult that same
-terminal row for every outcome. Their final quarantine or rejection policy remains open.
+terminal row for every outcome. The records worker quarantines them, and canonical readers exclude
+them.
+
+A Stop that reaches the runner after teardown returns `not_running`. Version one does not infer
+`lost` from a missing Redis owner.
 
 ## Failure recovery
 
@@ -117,5 +122,7 @@ writes with `AGENTA_SESSIONS_HISTORY_WRITES`. Increments 4 and 5 gate shared rea
 `AGENTA_SESSIONS_SHARED_READER`.
 
 The API reads all switches through `env.py`. Turning a switch off restores the mounted old path.
+Each increment has one global environment switch. Version one has no project allowlist or
+capability advertisement.
 Every durable write after sequence migration allocates a sequence, including old endpoint writes.
 A compatibility path that cannot meet that rule remains disabled behind the history flag.

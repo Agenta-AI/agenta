@@ -131,7 +131,7 @@ reruns resolved all failures.
 
 | Scenario | Expected result | Proven: commit, provider, harness, evidence path |
 |---|---|---|
-| Runner shutdown grace | Grace exceeds bounded cleanup and owner releases before kill | Not proven; no configured value or run |
+| Runner shutdown grace | 30-second grace contains bounded cleanup and owner releases before kill | Not proven; no configured value or run |
 | Codex child cleanup | No child remains after Stop on local and Daytona | Partly proven at `9e21fba4ee` and `e6a033063a`, local, Codex, `child-process-cleanup.md` and `integration-refresh.md`; proven on local at `3c9ce08a29`, Pi and Codex hooks, `~/agenta-qa-evidence/20260903-235010-3823500-session-control` and `~/agenta-qa-evidence/20260904-003056-143305-session-control`; the Pi run reaped the child in 1.0 seconds |
 | Failed cleanup | Unsafe sandbox never reports warm resume | Partly proven at `38cbc92201`, local, Pi, `post-stop-mirror.md`; no deliberate injection |
 | Bounded sweep pass | Timed-out pass logs; a later pass settles stale work | Not proven; required watchdog cell |
@@ -153,7 +153,7 @@ settled Stop had a live runner.
 
 Before release, verify counters for command admitted, delivered, applied, obsolete, and lost. Verify
 the Stop delivery latency histogram, harness cancel latency, watchdog settlement count, quarantined
-or rejected late-record count, and sweep pass duration. Session and execution IDs must not appear as
+late-record count, and sweep pass duration. Session and execution IDs must not appear as
 metric labels.
 
 ## Timing contract
@@ -161,6 +161,7 @@ metric labels.
 | Mechanism | Required value | Prior evidence |
 |---|---:|---|
 | Heartbeat interval | 30 seconds | Configuration reference only |
+| Runner shutdown grace | 30 seconds | Not configured or measured |
 | Runner owner lease | 120 seconds | Partly measured in `cancel-continuity.md` |
 | Alive and running key TTL | 3600 seconds | Configuration reference only |
 | Park window | 60 seconds local, 120 seconds Daytona | Measured live in the round-two reports |

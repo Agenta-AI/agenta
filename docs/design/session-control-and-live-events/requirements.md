@@ -56,7 +56,7 @@ The system must meet these requirements:
   first result, while a different request returns `409`.
 - Public Stop can include `expected_execution_id`. First-party clients send it when known.
 - The terminal execution row guards every later record for every terminal cause.
-- Late output never enters canonical reads. Whether storage rejects or quarantines it remains open.
+- Late output receives the nullable quarantine marker and never enters canonical reads.
 - Steer saves its input before Stop and preserves that input if Stop fails.
 
 ## Reattach and multiple readers
@@ -97,8 +97,8 @@ The system must meet these requirements:
 - Identical retries are idempotent and cannot change established order.
 - New durable records are immutable. Progressive tool frames remain temporary until one complete
   checkpoint commits.
-- A records-domain cursor allocates one sequence in the same analytics transaction as the record,
-  unless Mahmoud chooses to move records to core.
+- A records-domain cursor table on the analytics database stores `session_id`, `latest_sequence`,
+  and `updated_at`. It allocates one sequence in the same transaction as the record insert.
 - Every durable write after migration receives a sequence, including old endpoint writes.
 - A write path that cannot allocate a sequence stays off behind the history flag.
 - A persistence gap marks `history_complete=false`.
@@ -148,5 +148,5 @@ The system must meet these requirements:
 
 ## Requirement status
 
-The seven increments in [`plan.md`](plan.md) assign implementation order. The remaining choices in
-[`open-questions.md`](open-questions.md) block only the packages named there.
+The seven increments in [`plan.md`](plan.md) assign implementation order. No open design question
+blocks a package.
