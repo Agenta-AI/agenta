@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,12 +14,16 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecordEvent,
 )
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
-from oss.src.dbs.postgres.sessions.records.dbes import RecordDBE
+from oss.src.dbs.postgres.sessions.records.dbes import (
+    RecordDBE,
+    SessionSequenceCursorDBE,
+)
 from oss.src.dbs.postgres.sessions.records.mappings import (
     map_record_event_to_dbe,
     map_record_dbe_to_dto,
 )
 from oss.src.dbs.postgres.shared.engine import AnalyticsEngine, get_analytics_engine
+from oss.src.utils.env import env
 
 
 class RecordsDAO(RecordsDAOInterface):
@@ -48,13 +52,63 @@ class RecordsDAO(RecordsDAOInterface):
         event: SessionRecordEvent,
         session: AsyncSession,
     ) -> Optional[SessionRecord]:
-        stmt = RecordsDAO._upsert_stmt(values_list=[RecordsDAO._values(event=event)])
+        values = RecordsDAO._values(event=event)
+        if env.sessions.sequence_writes:
+            return await RecordsDAO._append_sequenced(values=values, session=session)
+
+        stmt = RecordsDAO._upsert_stmt(values_list=[values])
         result = await session.execute(stmt)
         await session.flush()
 
         row = result.scalars().first()
         if row is None:
             return None
+        return map_record_dbe_to_dto(dbe=row)
+
+    @staticmethod
+    async def _append_sequenced(
+        *,
+        values: dict,
+        session: AsyncSession,
+    ) -> Optional[SessionRecord]:
+        insert_stmt = (
+            insert(RecordDBE)
+            .values(values)
+            .on_conflict_do_nothing(index_elements=["project_id", "record_id"])
+            .returning(RecordDBE.record_id)
+        )
+        inserted_id = (await session.execute(insert_stmt)).scalar_one_or_none()
+        if inserted_id is None:
+            result = await session.execute(
+                RecordsDAO._upsert_stmt(values_list=[values])
+            )
+            await session.flush()
+            row = result.scalars().first()
+            return map_record_dbe_to_dto(dbe=row) if row is not None else None
+
+        cursor_insert = insert(SessionSequenceCursorDBE).values(
+            session_id=values["session_id"],
+            latest_sequence=1,
+        )
+        cursor_stmt = cursor_insert.on_conflict_do_update(
+            index_elements=["session_id"],
+            set_={
+                "latest_sequence": SessionSequenceCursorDBE.latest_sequence + 1,
+                "updated_at": func.now(),
+            },
+        ).returning(SessionSequenceCursorDBE.latest_sequence)
+        sequence = (await session.execute(cursor_stmt)).scalar_one()
+        record_stmt = (
+            update(RecordDBE)
+            .where(
+                RecordDBE.project_id == values["project_id"],
+                RecordDBE.record_id == values["record_id"],
+            )
+            .values(sequence=sequence)
+            .returning(RecordDBE)
+        )
+        row = (await session.execute(record_stmt)).scalars().one()
+        await session.flush()
         return map_record_dbe_to_dto(dbe=row)
 
     async def append_many(
@@ -72,6 +126,17 @@ class RecordsDAO(RecordsDAOInterface):
         )
 
         async with self.engine.session() as session:
+            if env.sessions.sequence_writes:
+                records = []
+                for values in values_list:
+                    record = await self._append_sequenced(
+                        values=values, session=session
+                    )
+                    if record is not None:
+                        records.append(record)
+                await session.commit()
+                return records
+
             stmt = self._upsert_stmt(values_list=values_list)
             result = await session.execute(stmt)
             await session.commit()

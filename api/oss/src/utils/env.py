@@ -1549,6 +1549,9 @@ class SessionsRedisConfig(BaseModel):
     without updating that fixture and the TS side in lockstep.
     """
 
+    sequence_writes: bool = (
+        os.getenv("AGENTA_SESSIONS_SEQUENCE_WRITES") or "false"
+    ).lower() in _TRUTHY
     alive_ttl_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ALIVE_TTL_SECONDS")
         or 3600

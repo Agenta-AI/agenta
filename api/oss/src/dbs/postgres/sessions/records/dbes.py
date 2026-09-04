@@ -1,8 +1,28 @@
-from sqlalchemy import PrimaryKeyConstraint, Index
+from sqlalchemy import (
+    BigInteger,
+    Column,
+    Index,
+    PrimaryKeyConstraint,
+    String,
+    TIMESTAMP,
+    func,
+)
 
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.sessions.records.dbas import RecordDBA, RecordTurnSpanDBA
 from oss.src.dbs.postgres.shared.dbas import ProjectScopeDBA, LifecycleDBA
+
+
+class SessionSequenceCursorDBE(Base):
+    __tablename__ = "session_sequence_cursors"
+
+    session_id = Column(String, primary_key=True)
+    latest_sequence = Column(BigInteger, nullable=False)
+    updated_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
 
 
 class RecordDBE(
@@ -32,5 +52,11 @@ class RecordDBE(
             "project_id",
             "session_id",
             "turn_id",
+        ),
+        Index(
+            "ux_records_session_id_sequence",
+            "session_id",
+            "sequence",
+            unique=True,
         ),
     )

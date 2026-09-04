@@ -78,6 +78,8 @@ class SessionRecord(Lifecycle):
     session_id: str
     project_id: UUID
 
+    sequence: Optional[int] = None
+
     record_index: Optional[int] = None
     timestamp: Optional[datetime] = None
     record_type: Optional[str] = None
