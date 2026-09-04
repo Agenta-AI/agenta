@@ -14,13 +14,20 @@ import {useCallback, useEffect, useMemo, useRef} from "react"
 import {type SessionRowVm} from "@agenta/sessions/row"
 import {
     applySessionTabOrder,
+    openSessionTabRows,
+    sessionTabCloseTargets,
     sessionTabOrderAtomFamily,
+    sessionTabScope,
     setSessionTabOrderAtom,
+    useOpenSessionTabs,
+    usePublishRenderedSessionTabs,
     useSessionCardList,
     useSessionTabOrderSeed,
+    type SessionTabCloseTargets,
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
 import {Skeleton, SimpleTooltip} from "@agenta/ui/ui"
+import {ArrowLineRightIcon, XIcon, XSquareIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -50,6 +57,14 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
     /**
+     * Close one tab. The rail supplies the RENDERED order alongside it, because the survivor a
+     * host routes to is defined over what is on screen and only the rail knows that. Omit and no
+     * close affordance mounts at all.
+     */
+    onClose?: (vm: SessionRowVm, ordered: readonly string[]) => void
+    /** Close several — "Close other tabs" and "Close tabs to the right". */
+    onCloseMany?: (ids: string[], ordered: readonly string[]) => void
+    /**
      * Drag to hand-arrange the tabs, persisted per agent. On by default — a tab strip is a place
      * users expect to arrange. Off leaves the rail in list order.
      */
@@ -73,12 +88,15 @@ const RailTab = ({
     menuFor,
     onMenuSelect,
     draggable,
+    onClose,
 }: {
     vm: SessionRowVm
     active: boolean
     onSelect: (vm: SessionRowVm) => void
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
+    /** Omit where tabs are not closeable — then no × mounts. */
+    onClose?: () => void
     /** A drag slot only inside a reorder group — a lone `Reorder.Item` has no context to drag in. */
     draggable: boolean
 }) => {
@@ -111,6 +129,23 @@ const RailTab = ({
                 active={active}
                 label={vm.title}
                 onSelect={handleSelect}
+                renderActions={
+                    onClose
+                        ? () => (
+                              <button
+                                  type="button"
+                                  aria-label={`Close ${vm.title}`}
+                                  onClick={(event) => {
+                                      event.stopPropagation()
+                                      onClose()
+                                  }}
+                                  className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                              >
+                                  <XIcon size={12} />
+                              </button>
+                          )
+                        : undefined
+                }
                 statusDot={
                     <SimpleTooltip title={vm.status.label}>
                         <span
@@ -151,6 +186,28 @@ const noop = () => undefined
 const MOVE_LEFT = "__rail-move-left"
 const MOVE_RIGHT = "__rail-move-right"
 
+/** Chrome's tab-close verbs, likewise reserved and handled here. */
+const CLOSE = "__rail-close"
+const CLOSE_OTHERS = "__rail-close-others"
+const CLOSE_RIGHT = "__rail-close-right"
+
+const closeEntries = (targets: SessionTabCloseTargets): SessionMenuEntry[] => [
+    {type: "divider"},
+    {key: CLOSE, label: "Close", icon: <XIcon size={14} />, disabled: !targets.closable},
+    {
+        key: CLOSE_OTHERS,
+        label: "Close other tabs",
+        icon: <XSquareIcon size={14} />,
+        disabled: targets.others.length === 0,
+    },
+    {
+        key: CLOSE_RIGHT,
+        label: "Close tabs to the right",
+        icon: <ArrowLineRightIcon size={14} />,
+        disabled: targets.toRight.length === 0,
+    },
+]
+
 const moveEntries = (index: number, count: number): SessionMenuEntry[] =>
     count < 2
         ? []
@@ -178,6 +235,8 @@ export const SessionTabRail = ({
     activeFallbackTitle,
     menuFor,
     onMenuSelect,
+    onClose,
+    onCloseMany,
     reorderable = true,
     className,
     ...listArgs
@@ -188,15 +247,27 @@ export const SessionTabRail = ({
     const listRows = useMemo(() => list.groups.flatMap((group) => group.rows), [list.groups])
     // A rail is arranged by hand, so the user's order wins over the list's. Scoped to the agent
     // whose sessions these are — arranging one agent's rail says nothing about another's.
-    const orderScope = listArgs.agentId ?? "__project__"
+    const orderScope = sessionTabScope(listArgs.agentId)
     const savedOrder = useAtomValue(sessionTabOrderAtomFamily(orderScope))
     const setSavedOrder = useSetAtom(setSessionTabOrderAtom)
-    const rows = useMemo(() => applySessionTabOrder(listRows, savedOrder), [listRows, savedOrder])
+    const arranged = useMemo(
+        () => applySessionTabOrder(listRows, savedOrder),
+        [listRows, savedOrder],
+    )
+    const listedIds = useMemo(() => arranged.map((vm) => vm.id), [arranged])
+    // Rank every session the list carries, open or not, so reopening one restores its old slot.
+    useSessionTabOrderSeed(orderScope, listedIds)
+    // Membership is the user's own: tabs are an explicit set here, not a view of the server list.
+    const openIds = useOpenSessionTabs(orderScope, listedIds, activeSessionId)
+    const rows = useMemo(
+        () => openSessionTabRows(arranged, openIds, activeSessionId),
+        [arranged, openIds, activeSessionId],
+    )
     const hasActive = rows.some((vm) => vm.id === activeSessionId)
     const orderedIds = useMemo(() => rows.map((vm) => vm.id), [rows])
-    // Without a saved order there is nothing holding the rail still, so record the first arrangement
-    // the rail shows and every tab added since.
-    useSessionTabOrderSeed(orderScope, orderedIds)
+    // Published so a keyboard surface outside the rail can address "the Nth tab".
+    usePublishRenderedSessionTabs(orderScope, orderedIds)
+    const closeTabs = useMemo(() => rows.map((vm) => ({id: vm.id, pinned: vm.isPinned})), [rows])
     // Persist the WHOLE visible order on every drop, so sessions the saved order had never seen are
     // captured by the first arrangement that touches them.
     const handleReorder = useCallback(
@@ -233,14 +304,30 @@ export const SessionTabRail = ({
                           active={vm.id === activeSessionId}
                           onSelect={onSelect}
                           draggable={reorderable}
+                          onClose={onClose ? () => onClose(vm, orderedIds) : undefined}
                           menuFor={(row) => [
                               ...(menuFor?.(row) ?? []),
+                              ...(onClose
+                                  ? closeEntries(sessionTabCloseTargets(closeTabs, row.id))
+                                  : []),
                               ...(reorderable ? moveEntries(index, rows.length) : []),
                           ]}
                           onMenuSelect={(row, key) => {
                               if (key === MOVE_LEFT || key === MOVE_RIGHT) {
                                   handleReorder(
                                       moved(orderedIds, index, key === MOVE_LEFT ? -1 : 1),
+                                  )
+                                  return
+                              }
+                              if (key === CLOSE) {
+                                  onClose?.(row, orderedIds)
+                                  return
+                              }
+                              if (key === CLOSE_OTHERS || key === CLOSE_RIGHT) {
+                                  const targets = sessionTabCloseTargets(closeTabs, row.id)
+                                  onCloseMany?.(
+                                      key === CLOSE_OTHERS ? targets.others : targets.toRight,
+                                      orderedIds,
                                   )
                                   return
                               }

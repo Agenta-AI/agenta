@@ -13,6 +13,24 @@ export {
 } from "./filters"
 export {pinnedSessionIdsAtom, isSessionPinnedAtom, toggleSessionPinAtom} from "./pins"
 export {
+    sessionTabScope,
+    MAX_OPEN_SESSION_TABS,
+    openSessionTabsAtomFamily,
+    seedSessionTabsAtom,
+    openSessionTabAtom,
+    closeSessionTabsAtom,
+    openSessionTabRows,
+    closedSessionTabs,
+    nearestSurvivingTab,
+    sessionTabCloseTargets,
+    renderedSessionTabsAtomFamily,
+    setRenderedSessionTabsAtom,
+    useOpenSessionTabs,
+    usePublishRenderedSessionTabs,
+    useCloseSessionTabs,
+    type SessionTabCloseTargets,
+} from "./openTabs"
+export {
     sessionTabOrderAtomFamily,
     setSessionTabOrderAtom,
     applySessionTabOrder,
