@@ -98,18 +98,13 @@ export const ChangesPane = ({
     return (
         <div className={cn("min-h-0 flex-1 overflow-y-auto pb-4 pt-3.5", PANE_PAD)}>
             <div className={cn("mb-3 flex flex-col gap-0.5", BAND_PAD)}>
+                {/* The title carries the tense: these rows are the version's own change. */}
                 <span className="text-[13.5px] font-medium text-colorText">
-                    Version {version ?? "—"}
+                    What version {version ?? "—"} changed
                 </span>
                 {message ? (
                     <span className={cn("text-xs leading-snug", textColors.tertiary)}>
                         {message}
-                    </span>
-                ) : null}
-                {/* Names the tense: these rows are this version's own change, not its contents. */}
-                {sections.length ? (
-                    <span className={cn("mt-1.5 text-[11.5px] leading-snug", textColors.tertiary)}>
-                        What v{version} changed
                     </span>
                 ) : null}
             </div>
