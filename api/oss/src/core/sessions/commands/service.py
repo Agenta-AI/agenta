@@ -659,26 +659,62 @@ class SessionCommandsService:
                 )
                 receipt = None
             if receipt is None or receipt.status != "accepted":
-                await self._mark_continuation_recoverable(admission)
-                admission.execution_state = SessionExecutionState.recoverable
+                if await self._mark_continuation_recoverable(admission, receipt):
+                    admission.execution_state = SessionExecutionState.recoverable
         return admission
 
     async def _mark_continuation_recoverable(
-        self, admission: InteractionContinuationAdmission
-    ) -> None:
+        self,
+        admission: InteractionContinuationAdmission,
+        receipt: Optional[DeliveryReceipt] = None,
+    ) -> bool:
+        """Project a failed delivery onto the execution the card reads.
+
+        Two guards, both learned from a browser pass where a delivered continuation was reported
+        `unreachable` anyway.
+
+        `expected_states` is the important one. A transport that fails AFTER the runner reported
+        its outcome would otherwise demote a `running` execution back to `recoverable`, telling
+        the user to retry a turn that is running underneath the card. Only an execution still
+        waiting for a runner may be turned recoverable.
+
+        The message is the other. It is what the card renders, so it must not promise a
+        redelivery that cannot happen: once the delivery budget is spent, nothing redelivers this
+        command on its own and only the user's next Send does (`resume_recoverable_continuation`
+        reopens the budget).
+
+        False means the DAO REFUSED, which happens only when the execution has moved on, so the
+        caller must not report `recoverable`. A projection that raises returns True: the write is
+        best effort, but the transport failure that brought us here is real and the user still
+        owns the retry.
+        """
         if self._executions is None or admission.command is None:
-            return
+            return False
+        exhausted = receipt is not None and receipt.status == "exhausted"
         try:
-            await self._executions.set_state(
+            applied = await self._executions.set_state(
                 project_id=admission.command.project_id,
                 session_id=admission.command.session_id,
                 execution_id=admission.execution_id,
                 state=SessionExecutionState.recoverable,
                 error={
-                    "code": "continuation_delivery_failed",
+                    "code": (
+                        "continuation_delivery_exhausted"
+                        if exhausted
+                        else "continuation_delivery_failed"
+                    ),
                     "retryable": True,
-                    "message": "The continuation is durable and awaiting redelivery.",
+                    "message": (
+                        "The continuation could not be delivered. Send your next message to "
+                        "retry it."
+                        if exhausted
+                        else "The continuation is durable and awaiting redelivery."
+                    ),
                 },
+                expected_states=[
+                    SessionExecutionState.pending_delivery,
+                    SessionExecutionState.recoverable,
+                ],
             )
         except Exception as error:  # noqa: BLE001 - recovery projection is best effort
             log.error(
@@ -687,6 +723,8 @@ class SessionCommandsService:
                 admission.execution_id,
                 error,
             )
+            return True
+        return applied is not None
 
     async def resume_recoverable_continuation(
         self, *, project_id: UUID, session_id: str
@@ -715,6 +753,32 @@ class SessionCommandsService:
             # `recoverable`, after it has collapsed and tombstoned the old ownership. Until
             # then this durable continuation still owns Send, but it is never redelivered.
             return True
+        if (
+            command.state
+            in (
+                SessionCommandState.pending,
+                SessionCommandState.claimed,
+            )
+            and command.claim_count >= env.agenta.sessions.commands.max_deliveries
+        ):
+            # The budget bounds the AUTOMATIC retry loop, not the user. A command that spent it
+            # is undeliverable until the sweep settles it exhausted, so a Send arriving inside
+            # that window would deliver nothing and re-render a card asking for another Send.
+            # Settle it here instead. Redelivering it as it stands is not an option: the budget
+            # is spent precisely because this execution id keeps being refused, so the ending has
+            # to be recorded before the reopen below can retarget a fresh one.
+            if await self._settle_exhausted_continuation(command):
+                refreshed = await self._dao.fetch_command(command_id=command.id)
+                if refreshed is not None:
+                    command = refreshed
+                execution = (
+                    await self._executions.fetch_execution(
+                        project_id=project_id,
+                        session_id=session_id,
+                        execution_id=execution_id,
+                    )
+                    or execution
+                )
         if command.state not in (
             SessionCommandState.pending,
             SessionCommandState.claimed,
@@ -744,7 +808,7 @@ class SessionCommandsService:
             )
             receipt = None
         if receipt is None or receipt.status != "accepted":
-            await self._mark_continuation_recoverable(admission)
+            await self._mark_continuation_recoverable(admission, receipt)
         return True
 
     async def _reopen_continuation_attempt(
@@ -908,18 +972,36 @@ class SessionCommandsService:
         """Hand the command to the transport, then record what the transport learned.
 
         Never raises. The user's request has already succeeded by the time this runs.
+
+        An `exhausted` receipt means the bounded delivery budget is spent. Nothing redelivers the
+        command after that, so the caller must say the true thing on the card rather than promise
+        a redelivery: only the user's next Send reopens the budget.
         """
+        maximum = env.agenta.sessions.commands.max_deliveries
+        requested = command
         try:
             command = await self._dao.record_delivery_attempt(
-                project_id=command.project_id,
-                command_id=command.id,
+                project_id=requested.project_id,
+                command_id=requested.id,
                 now=datetime.now(timezone.utc),
-                max_deliveries=env.agenta.sessions.commands.max_deliveries,
+                max_deliveries=maximum,
             )
         except Exception as error:  # noqa: BLE001 - delivery bookkeeping is post-commit
             log.warning("control delivery reservation failed: %s", error)
             return None
         if command is None:
+            if requested.claim_count >= maximum:
+                log.warning(
+                    "control delivery budget exhausted for command=%s session=%s after %s "
+                    "attempts",
+                    requested.id,
+                    requested.session_id,
+                    requested.claim_count,
+                )
+                return DeliveryReceipt(
+                    status="exhausted",
+                    detail=f"delivery budget of {maximum} attempts is spent",
+                )
             return None
 
         try:

@@ -1034,3 +1034,129 @@ async def test_recovery_hooks_are_disabled_with_durable_approvals(monkeypatch):
     )
     assert await service.settle_abandoned_commands(now=datetime.now(timezone.utc)) == 0
     assert delivery.delivered == []
+
+
+class _StartedThenUnreachable:
+    """The runner admits the continuation and reports `started`, then the transport fails.
+
+    The real shape of it (browser pass, 2026-09-04 17:28Z-17:35Z): the runner posted its
+    outcome, the API turned the execution `running`, and only afterwards did the detached-start
+    parser reject the stream. Both executions ran to completion carrying
+    `error.code = continuation_delivery_failed`, so the card offered a retry for work that was
+    already done.
+    """
+
+    def __init__(self, executions, execution_id):
+        self._executions = executions
+        self._execution_id = execution_id
+        self.delivered = []
+
+    async def deliver(self, **kwargs):
+        command = kwargs["command"]
+        self.delivered.append(command)
+        await self._executions.set_state(
+            project_id=command.project_id,
+            session_id=command.session_id,
+            execution_id=self._execution_id,
+            state=SessionExecutionState.running,
+            error=None,
+        )
+        return DeliveryReceipt(
+            status="unreachable", detail="parser rejected the stream"
+        )
+
+    async def acknowledge(self, **kwargs):
+        return None
+
+
+@pytest.mark.asyncio
+async def test_a_late_delivery_failure_does_not_demote_a_running_continuation():
+    project_id = uuid4()
+    interaction_id = uuid4()
+    interaction = SessionInteraction(
+        id=interaction_id,
+        project_id=project_id,
+        session_id="session-1",
+        turn_id="source-1",
+        token="approval-1",
+        kind=SessionInteractionKind.user_approval,
+        status=SessionInteractionStatus.responded,
+        data=SessionInteractionData(resolution={"approved": True}),
+    )
+    commands = _Commands()
+    commands.command = _continuation_command(project_id, interaction_id)
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    delivery = _StartedThenUnreachable(executions, "continuation-1")
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=_Interactions(interaction),
+        lock_engine=None,
+        delivery=delivery,
+        executions_dao=executions,
+    )
+
+    resumed = await service.resume_recoverable_continuation(
+        project_id=project_id, session_id="session-1"
+    )
+
+    assert resumed is True
+    assert delivery.delivered
+    # The turn the runner is already running keeps `running`. The recoverable projection is
+    # refused, so the card never asks the user to retry work that is under way.
+    assert executions.continuation.state == SessionExecutionState.running
+    assert executions.continuation.error is None
+
+
+@pytest.mark.asyncio
+async def test_a_send_after_the_budget_is_spent_reopens_the_continuation(monkeypatch):
+    """Command 01a06d7a of the same pass: three refusals, then a command nothing redelivers.
+
+    The budget bounds the automatic loop only. A Send arriving before the sweep settles the
+    command must not be swallowed: settle it exhausted, retarget a fresh execution, deliver.
+    """
+    maximum = 3
+    monkeypatch.setattr(env.agenta.sessions.commands, "max_deliveries", maximum)
+    project_id = uuid4()
+    interaction_id = uuid4()
+    interaction = SessionInteraction(
+        id=interaction_id,
+        project_id=project_id,
+        session_id="session-1",
+        turn_id="source-1",
+        token="approval-1",
+        kind=SessionInteractionKind.user_approval,
+        status=SessionInteractionStatus.responded,
+        data=SessionInteractionData(resolution={"approved": True}),
+    )
+    commands = _Commands()
+    commands.command = _continuation_command(
+        project_id, interaction_id, claim_count=maximum
+    )
+    spent = commands.command
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    delivery = _Unreachable()
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=_Interactions(interaction),
+        lock_engine=None,
+        delivery=delivery,
+        executions_dao=executions,
+    )
+
+    resumed = await service.resume_recoverable_continuation(
+        project_id=project_id, session_id="session-1"
+    )
+
+    assert resumed is True
+    # The exhausted attempt is recorded as ended and the command now targets a NEW execution:
+    # redelivering the old id is what spent the budget in the first place.
+    assert commands.command.target_turn_id != spent.target_turn_id
+    assert commands.command.claim_count == 0
+    assert delivery.delivered
+    assert delivery.delivered[0].target_turn_id == commands.command.target_turn_id
