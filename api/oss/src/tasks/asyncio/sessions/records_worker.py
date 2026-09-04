@@ -7,7 +7,10 @@ from sqlalchemy.exc import DataError, IntegrityError
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.dtos import TERMINAL_RECORD_TYPE
 from oss.src.core.sessions.records.service import RecordsService
-from oss.src.core.sessions.records.streaming import deserialize_record
+from oss.src.core.sessions.records.streaming import (
+    LiveFrameMessage,
+    deserialize_stream_message,
+)
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -290,7 +293,10 @@ class RecordsWorker(StreamConsumer):
                     # reclaim pass, rather than being silently skipped.
                     break
 
-                msg = deserialize_record(payload=payload)
+                msg = deserialize_stream_message(payload=payload)
+                if isinstance(msg, LiveFrameMessage):
+                    acked_ids.append(msg_id)
+                    continue
                 group = groups.get(msg.project_id)
                 if group is None:
                     group = {
@@ -416,3 +422,15 @@ class RecordsWorker(StreamConsumer):
                         )
 
         return total_appended, acked_ids
+
+    async def ack_and_delete(self, message_ids: List[bytes]):
+        if not message_ids:
+            return
+        try:
+            await self.redis.xack(
+                self.stream_name,
+                self.consumer_group,
+                *message_ids,
+            )
+        except Exception as exc:
+            log.error(f"{self.log_prefix} Failed to ACK messages: {exc}")

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -46,6 +46,19 @@ class SessionRecordEvent(BaseModel):
     # non-null value means the record arrived for a turn the watchdog had already ended, so it
     # is kept as evidence and left out of the transcript. See `RecordsService.append_many`.
     quarantined_at: Optional[datetime] = None
+
+
+class SessionLiveFrame(BaseModel):
+    version: Literal[1]
+    kind: Literal["frame"]
+    session_id: str
+    execution_id: str
+    frame_or_event_id: str
+    frame_index: int = Field(ge=0)
+    entity_id: str
+    type: str
+    payload: Dict[str, Any]
+    created_at: datetime
 
 
 class SessionRecord(Lifecycle):

@@ -1581,6 +1581,16 @@ class SessionsRedisConfig(BaseModel):
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT")
         or 1000
     )
+    # Shared record/frame stream retention. The largest measured turn produced 3,161
+    # frames; 100,000 leaves more than 31 turns of headroom at that size.
+    live_stream_maxlen: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_STREAM_MAXLEN")
+        or 100_000
+    )
+    live_frame_max_age_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_FRAME_MAX_AGE_SECONDS")
+        or 900
+    )
     # API-side only (SSE watch endpoint keep-alive cadence) — NOT part of the
     # runner golden fixture; safe to tune without touching the TS side.
     watch_heartbeat_seconds: int = (

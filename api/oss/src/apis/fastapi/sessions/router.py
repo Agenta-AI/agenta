@@ -42,7 +42,8 @@ from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.redis.sessions.contract import project_watch_channel, watch_channel
-from oss.src.dbs.redis.shared.engine import get_streams_engine
+from oss.src.dbs.redis.shared.engine import get_lock_engine, get_streams_engine
+from oss.src.dbs.redis.sessions.locks import get_running_owner
 from oss.src.apis.fastapi.sessions.watch import watch_event_stream
 
 from oss.src.core.access.permissions.types import Permission
@@ -80,8 +81,8 @@ from oss.src.core.sessions.commands.types import (
     SessionCommandNotFound,
 )
 from oss.src.core.sessions.records.service import RecordsService
-from oss.src.core.sessions.records.dtos import SessionRecordEvent
-from oss.src.core.sessions.records.streaming import publish_record
+from oss.src.core.sessions.records.dtos import SessionLiveFrame, SessionRecordEvent
+from oss.src.core.sessions.records.streaming import publish_live_frame, publish_record
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionCreate,
     SessionInteractionKind,
@@ -819,6 +820,33 @@ class RecordsRouter:
             permission=Permission.RUN_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
+
+        if body.kind == "frame":
+            _validate_session_id_http(body.session_id)
+            current_execution_id = await get_running_owner(
+                get_lock_engine(),
+                project_id=str(project_id),
+                session_id=body.session_id,
+            )
+            if current_execution_id != body.execution_id:
+                raise FORBIDDEN_EXCEPTION
+            await publish_live_frame(
+                organization_id=UUID(request.state.organization_id),
+                project_id=UUID(project_id),
+                frame=SessionLiveFrame(
+                    version=body.version,
+                    kind="frame",
+                    session_id=body.session_id,
+                    execution_id=body.execution_id,
+                    frame_or_event_id=body.frame_or_event_id,
+                    frame_index=body.frame_index,
+                    entity_id=body.entity_id,
+                    type=body.type,
+                    payload=body.payload,
+                    created_at=body.created_at,
+                ),
+            )
+            return {"ok": True}
 
         await publish_record(
             organization_id=UUID(request.state.organization_id),

@@ -1,5 +1,5 @@
 import zlib
-from typing import Optional
+from typing import Literal, Optional, Union
 from uuid import UUID
 
 from orjson import dumps, loads
@@ -10,14 +10,12 @@ try:
 except ImportError:
     AsyncpgUUID = None
 
-from oss.src.core.sessions.records.dtos import SessionRecordEvent
+from oss.src.core.sessions.records.dtos import SessionLiveFrame, SessionRecordEvent
 from oss.src.dbs.redis.shared.engine import get_streams_engine
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
-
-MAXLEN_STREAMS_RECORDS = 100_000
 
 # Truncate attributes at ingest to avoid storing unbounded record bodies.
 MAX_ATTRIBUTES_BYTES = 64 * 1024  # 64 KB per record
@@ -91,10 +89,65 @@ class RecordMessage(BaseModel):
     record_event: SessionRecordEvent
 
 
-def deserialize_record(*, payload: bytes) -> RecordMessage:
-    payload = zlib.decompress(payload)
-    raw = loads(payload)
+class LiveFrameMessage(BaseModel):
+    organization_id: Optional[UUID] = None
+    project_id: UUID
+    kind: Literal["frame"] = "frame"
+    frame: SessionLiveFrame
+
+
+StreamMessage = Union[RecordMessage, LiveFrameMessage]
+
+
+def deserialize_stream_message(*, payload: bytes) -> StreamMessage:
+    raw = loads(zlib.decompress(payload))
+    if raw.get("kind") == "frame":
+        return LiveFrameMessage.model_validate(raw)
     return RecordMessage.model_validate(raw)
+
+
+def deserialize_record(*, payload: bytes) -> RecordMessage:
+    message = deserialize_stream_message(payload=payload)
+    if isinstance(message, LiveFrameMessage):
+        raise ValueError("temporary frame is not a durable record")
+    return message
+
+
+async def publish_live_frame(
+    *,
+    organization_id: Optional[UUID] = None,
+    project_id: UUID,
+    frame: SessionLiveFrame,
+) -> bool:
+    redis = _get_redis()
+    if redis is None:
+        log.warning("[RECORDS] Durable Redis not configured; frame not published")
+        return False
+
+    try:
+        message = {
+            "organization_id": str(organization_id) if organization_id else None,
+            "project_id": str(project_id),
+            "kind": "frame",
+            "frame": frame.model_dump(mode="json"),
+        }
+        event_bytes = zlib.compress(dumps(message, default=_orjson_default))
+        await redis.xadd(
+            name="streams:records",
+            fields={"data": event_bytes},
+            maxlen=env.sessions.live_stream_maxlen,
+            approximate=True,
+        )
+        return True
+    except Exception:
+        log.error(
+            "[RECORDS] Failed to publish frame",
+            session_id=frame.session_id,
+            execution_id=frame.execution_id,
+            frame_index=frame.frame_index,
+            exc_info=True,
+        )
+        return False
 
 
 async def publish_record(
@@ -148,7 +201,7 @@ async def publish_record(
         await redis.xadd(
             name="streams:records",
             fields={"data": event_bytes},
-            maxlen=MAXLEN_STREAMS_RECORDS,
+            maxlen=env.sessions.live_stream_maxlen,
             approximate=True,
         )
         return True
