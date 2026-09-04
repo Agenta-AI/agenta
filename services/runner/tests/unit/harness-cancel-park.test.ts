@@ -239,29 +239,30 @@ describe("the cancelled teardown reason", () => {
 });
 
 describe("the stopped-session park window", () => {
-  // The field exists so the value is one named setting when somebody moves it. It defaults to
-  // the ordinary idle window, so introducing it changed no timing. The open recommendation is
-  // the 600 s approval window on the local provider, because a user who stops is about to type.
-  it("defaults a local stopped session to the ordinary idle window", () => {
+  // A settled Stop gets the same ten-minute human-response window on both providers. The
+  // ordinary idle windows remain shorter and continue to govern clean completed turns.
+  it("defaults a local stopped session to the approval window", () => {
     const config = readKeepaliveConfig("local");
     assert.equal(config.ttlMs, 60_000);
-    assert.equal(config.stoppedTtlMs, 60_000);
-    // The recommended alternative, for the reader who comes to change it.
+    assert.equal(config.stoppedTtlMs, 600_000);
     assert.equal(config.approvalTtlMs, 600_000);
   });
 
-  it("defaults a Daytona stopped session to its billed idle window", () => {
+  it("defaults a Daytona stopped session to the ten-minute human-response window", () => {
     const config = readKeepaliveConfig("daytona");
     assert.equal(config.ttlMs, 120_000);
-    assert.equal(config.stoppedTtlMs, 120_000);
+    assert.equal(config.stoppedTtlMs, 600_000);
   });
 
   it("moves with its own env var, without touching the ordinary idle window", () => {
-    process.env.AGENTA_RUNNER_SESSION_STOPPED_TTL_MS = "600000";
+    process.env.AGENTA_RUNNER_SESSION_STOPPED_TTL_MS = "300000";
     try {
-      const config = readKeepaliveConfig("local");
-      assert.equal(config.stoppedTtlMs, 600_000);
-      assert.equal(config.ttlMs, 60_000);
+      const local = readKeepaliveConfig("local");
+      const daytona = readKeepaliveConfig("daytona");
+      assert.equal(local.stoppedTtlMs, 300_000);
+      assert.equal(local.ttlMs, 60_000);
+      assert.equal(daytona.stoppedTtlMs, 300_000);
+      assert.equal(daytona.ttlMs, 120_000);
     } finally {
       delete process.env.AGENTA_RUNNER_SESSION_STOPPED_TTL_MS;
     }
