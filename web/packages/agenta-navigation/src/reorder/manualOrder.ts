@@ -3,7 +3,7 @@ import {atom} from "jotai"
 import {atomWithStorage, createJSONStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
-import {mergeManualOrder, movedManualOrder} from "./applyOrder"
+import {capManualOrder, mergeManualOrder, movedManualOrder} from "./applyOrder"
 
 /**
  * The sidebar's hand-arranged order, per project.
@@ -19,7 +19,7 @@ import {mergeManualOrder, movedManualOrder} from "./applyOrder"
 const STORAGE_KEY = "agenta:sidebar:manual-order"
 
 /** Per zone. An unbounded list would grow with every session ever arranged. */
-const ZONE_CAP = 200
+const ZONE_CAP = 500
 
 // Fallback for when localStorage is absent (SSR, a node test env) or throws (private mode, quota).
 // Once a key is written or removed this session the in-memory copy is authoritative, so a failed
@@ -129,7 +129,7 @@ export const setSidebarManualOrderAtom = atom(
         if (!projectId) return
         const all = get(orderByZoneAtom)
         const key = zoneKey(projectId, zone)
-        const next = mergeManualOrder(all[key] ?? [], ids).slice(0, ZONE_CAP)
+        const next = capManualOrder(mergeManualOrder(all[key] ?? [], ids), ids, ZONE_CAP)
         set(orderByZoneAtom, {...all, [key]: next})
     },
 )
