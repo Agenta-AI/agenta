@@ -8,6 +8,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     APPROVED_EXECUTION_RESULT_UNKNOWN,
+    reconcileInteractionRowStates,
     transcriptToMessages,
 } from "../../../src/assets/transcriptToMessages"
 
@@ -904,6 +905,25 @@ describe("transcriptToMessages interaction-row precedence", () => {
             state: "approval-responded",
             approval: {id: "approval-1", approved: true},
         })
+    })
+
+    it("settles an already-rendered approval when another reader answers the row", () => {
+        const live = transcriptToMessages(abandonedApprovalRecords()) ?? []
+        const reconciled = reconcileInteractionRowStates(
+            live,
+            rowStates(rowState("approval-1", {kind: "user_approval", status: "responded"})),
+        )
+
+        expect(
+            reconciled.flatMap((message) => message.parts).find((part) =>
+                "toolCallId" in part ? part.toolCallId === "tool-1" : false,
+            ),
+        ).toMatchObject({state: "approval-responded"})
+        expect(
+            live.flatMap((message) => message.parts).find((part) =>
+                "toolCallId" in part ? part.toolCallId === "tool-1" : false,
+            ),
+        ).toMatchObject({state: "approval-requested"})
     })
 
     it("preserves record-only replay when row states are omitted", () => {

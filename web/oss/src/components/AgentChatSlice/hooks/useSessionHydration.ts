@@ -1,11 +1,18 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
-import {isSessionTranscript, loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
+import {
+    isSessionTranscript,
+    loadSessionMessages,
+    reconcileInteractionRowStates,
+    type SessionTranscript,
+} from "@agenta/chat/assets"
 import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
 import {
+    fetchSessionInteractionStatesAtom,
     fetchSessionRecordsAtom,
     hasWaitingInteraction,
+    revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
     type SessionInteractionRowStates,
     shouldAdoptServerTranscript,
@@ -466,6 +473,8 @@ export const useSessionHydration = ({
     const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
     const projectId = useAtomValue(projectIdAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const revalidateSessionInteractions = useSetAtom(revalidateSessionInteractionsAtom)
+    const fetchSessionInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
     const refreshFromRecords = useCallback(
         async (transcript?: SessionTranscript): Promise<boolean> => {
             const adoptOrConfirm = (candidate: unknown): boolean => {
@@ -526,26 +535,69 @@ export const useSessionHydration = ({
             readLog,
         ],
     )
-    // `ready` fires on every connect — each tab activation, each return to the foreground — so it
-    // must not repeat a read the mount is already doing. A change that lands after the subscribe
-    // arrives as `records-changed`, which is never skipped (#6296).
+    const refreshFromInteractions = useCallback(() => {
+        if (
+            shouldSkipRecordsRefresh({
+                busy: busyRef.current,
+                pendingResume: !!pendingResumeRef.current,
+            })
+        )
+            return
+        void revalidateSessionInteractions(sessionId)
+            .then(async () => {
+                const rows = await fetchSessionInteractionStates(sessionId)
+                if (
+                    shouldSkipRecordsRefresh({
+                        busy: busyRef.current,
+                        pendingResume: !!pendingResumeRef.current,
+                    })
+                )
+                    return
+                const current = messagesRef.current
+                const reconciled = reconcileInteractionRowStates(current, rows)
+                if (reconciled === current) return
+                messagesRef.current = reconciled
+                setMessages(reconciled)
+                persistMessages({
+                    id: sessionId,
+                    messages: reconciled,
+                    recordCount: recordWatermarkRef.current,
+                })
+            })
+            .catch(() => undefined)
+    }, [
+        sessionId,
+        busyRef,
+        pendingResumeRef,
+        messagesRef,
+        recordWatermarkRef,
+        revalidateSessionInteractions,
+        fetchSessionInteractionStates,
+        setMessages,
+        persistMessages,
+    ])
+    // `ready` fires on every connect — each tab activation, each return to the foreground. Records
+    // can skip a duplicate mount read, but rows must always catch up because a response changes the
+    // interaction row without necessarily appending a record (#6296).
     const refreshOnReady = useCallback(() => {
         if (
-            !shouldRefreshOnReady({
+            shouldRefreshOnReady({
                 inFlight: logReadsInFlightRef.current > 0,
                 lastLoadedAt: logReadCompletedAtRef.current,
                 now: Date.now(),
             })
         )
-            return
-        refreshFromRecords()
-    }, [refreshFromRecords])
+            refreshFromRecords()
+        refreshFromInteractions()
+    }, [refreshFromRecords, refreshFromInteractions])
     useSessionRecordsWatch({
         sessionId,
         projectId,
-        // #5919 relay; this surface re-reads records on any interaction change.
+        // #5919 relay; this surface re-reads records on any interaction change, and the
+        // interaction rows themselves, because a response changes a row without appending a record.
         onInteractionChanged: () => {
             revalidateSessionRecords(sessionId)
+            refreshFromInteractions()
         },
         enabled: activeSessionId === sessionId,
         onReady: refreshOnReady,

@@ -196,8 +196,8 @@ const isRunnerSentinelError = (part: Part): boolean => {
     )
 }
 
-function settleClientToolPart(part: Part, row: SessionInteractionRowState): void {
-    if (part.state !== "input-available") return
+function settleClientToolPart(part: Part, row: SessionInteractionRowState): boolean {
+    if (part.state !== "input-available") return false
 
     if (row.resolution) {
         if (row.resolution.outcome === "error") {
@@ -213,13 +213,15 @@ function settleClientToolPart(part: Part, row: SessionInteractionRowState): void
                     ? output
                     : {...CLIENT_TOOL_INTERACTION_ENDED_OUTPUT}
         }
-        return
+        return true
     }
 
     if (row.status === "cancelled" || row.status === "responded" || row.status === "resolved") {
         part.state = "output-available"
         part.output = {...CLIENT_TOOL_INTERACTION_ENDED_OUTPUT}
+        return true
     }
+    return false
 }
 
 /**
@@ -230,27 +232,32 @@ function settleClientToolPart(part: Part, row: SessionInteractionRowState): void
  * a dead gate left `approval-requested` holds the message queue forever once the scans that read
  * it cover the whole transcript.
  */
-function settleApprovalPart(part: Part, row: SessionInteractionRowState): void {
-    if (part.state !== "approval-requested") return
+function settleApprovalPart(part: Part, row: SessionInteractionRowState): boolean {
+    if (part.state !== "approval-requested") return false
 
     const verdict = row.resolution?.verdict
     if (verdict === "approved" || verdict === "denied") {
         part.state = "approval-responded"
         part.approval = {id: row.token, approved: verdict === "approved"}
-        return
+        return true
     }
     if (row.status === "cancelled") {
         part.state = "output-denied"
-        return
+        return true
     }
-    if (row.status === "responded" || row.status === "resolved") part.state = "approval-responded"
+    if (row.status === "responded" || row.status === "resolved") {
+        part.state = "approval-responded"
+        return true
+    }
+    return false
 }
 
 function applyInteractionRowStates(
     index: TranscriptIndex,
     interactionRowStates: SessionInteractionRowStates | undefined,
-): void {
-    if (!interactionRowStates || interactionRowStates.size === 0) return
+): boolean {
+    if (!interactionRowStates || interactionRowStates.size === 0) return false
+    let changed = false
     for (const row of interactionRowStates.values()) {
         // Token equality supports rows written before the runner stamped the tool-call id; an
         // approval gate is also indexed under its interaction id, which IS the row token.
@@ -258,10 +265,38 @@ function applyInteractionRowStates(
         const part = index.tools.get(toolCallId) ?? index.approvals.get(row.token)
         if (!part) continue
 
-        if (row.kind === "user_approval") settleApprovalPart(part, row)
+        if (row.kind === "user_approval") changed = settleApprovalPart(part, row) || changed
         else if (row.kind === "client_tool" || row.kind === "user_input")
-            settleClientToolPart(part, row)
+            changed = settleClientToolPart(part, row) || changed
     }
+    return changed
+}
+
+/** Apply row lifecycle changes to an already-rendered transcript without waiting for a record. */
+export function reconcileInteractionRowStates(
+    messages: UIMessage[],
+    interactionRowStates: SessionInteractionRowStates | undefined,
+): UIMessage[] {
+    if (!interactionRowStates || interactionRowStates.size === 0) return messages
+
+    const cloned = messages.map((message) => ({
+        ...message,
+        parts: message.parts.map((part) => ({...part})) as UIMessage["parts"],
+    }))
+    const index: TranscriptIndex = {tools: new Map(), approvals: new Map()}
+    for (const message of cloned) {
+        for (const rawPart of message.parts) {
+            const part = rawPart as Part
+            const toolCallId = part.toolCallId
+            if (typeof toolCallId === "string" && toolCallId) index.tools.set(toolCallId, part)
+            const approval = part.approval as {id?: unknown} | undefined
+            if (typeof approval?.id === "string" && approval.id) {
+                index.approvals.set(approval.id, part)
+            }
+        }
+    }
+
+    return applyInteractionRowStates(index, interactionRowStates) ? cloned : messages
 }
 
 /**

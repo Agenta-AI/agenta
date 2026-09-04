@@ -79,15 +79,18 @@ export const fetchSessionInteractionStatesAtom = atom(
     },
 )
 
-export const revalidateSessionInteractionsAtom = atom(null, (get, _set, sessionId: string) => {
-    const projectId = get(projectIdAtom) ?? ""
-    if (!projectId || !sessionId) return
-    // Keep an initial rows fetch in flight while marking its cache entry stale.
-    void get(queryClientAtom).invalidateQueries(
-        {queryKey: sessionInteractionRowsQueryKey(projectId, sessionId)},
-        {cancelRefetch: false},
-    )
-})
+export const revalidateSessionInteractionsAtom = atom(
+    null,
+    async (get, _set, sessionId: string) => {
+        const projectId = get(projectIdAtom) ?? ""
+        if (!projectId || !sessionId) return
+        // Keep an initial rows fetch in flight while marking its cache entry stale.
+        await get(queryClientAtom).invalidateQueries(
+            {queryKey: sessionInteractionRowsQueryKey(projectId, sessionId)},
+            {cancelRefetch: false},
+        )
+    },
+)
 
 /** A row whose lifecycle has ended; `pending` is the only other value the API returns. */
 const isTerminalRow = (row: SessionInteractionRowState): boolean =>
