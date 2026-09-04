@@ -1289,6 +1289,70 @@ def test_runner_gone_measurement_unpauses_even_when_it_never_settles():
     assert hooks.calls.index("stream_row") < hooks.calls.index("unpause")
 
 
+def test_terminal_records_arriving_one_second_after_settle_pass_strict_check():
+    clock = _FakeClock()
+    hooks = _RunnerGoneStubHooks(
+        command=[{"state": "applied", "outcome": "lost", "target_turn_id": "t1"}],
+        executions=[{"terminal_outcome": "execution_lost"}],
+        stream={"flags": {"is_running": False}},
+    )
+
+    def read_terminal():
+        if clock.time() < 1.0:
+            return []
+        return [
+            {
+                "type": "error",
+                "attributes": {
+                    "code": "execution_lost",
+                    "settled_by": "watchdog",
+                },
+            },
+            {"type": "done", "attributes": {"settled_by": "watchdog"}},
+        ]
+
+    measured = sc._measure_runner_gone_while_paused(
+        hooks,
+        "sess",
+        "t1",
+        do_stop=lambda: {"status": 202},
+        read_terminal=read_terminal,
+        sweep_wait=60.0,
+        poll_interval=5.0,
+        clock=clock,
+    )
+
+    assert clock.time() == 1.0
+    assert sc._require_watchdog_execution_lost(measured["terminal"]) is None
+
+
+def test_terminal_records_missing_for_budget_fail_with_old_message():
+    clock = _FakeClock()
+    hooks = _RunnerGoneStubHooks(
+        command=[{"state": "applied", "outcome": "lost", "target_turn_id": "t1"}],
+        executions=[{"terminal_outcome": "execution_lost"}],
+        stream={"flags": {"is_running": False}},
+    )
+    measured = sc._measure_runner_gone_while_paused(
+        hooks,
+        "sess",
+        "t1",
+        do_stop=lambda: {"status": 202},
+        read_terminal=lambda: [],
+        sweep_wait=60.0,
+        poll_interval=5.0,
+        clock=clock,
+    )
+    verdict = sc._require_watchdog_execution_lost(measured["terminal"])
+
+    assert clock.time() == 20.0
+    assert verdict == {
+        "pass": False,
+        "skip": False,
+        "why": "no watchdog execution_lost ending was found among the terminal records",
+    }
+
+
 def test_sandbox_gone_settle_budget_derives_from_probe_defaults():
     saved = sc.SANDBOX_STARTUP_SLACK_S
     sc.SANDBOX_STARTUP_SLACK_S = 0.0

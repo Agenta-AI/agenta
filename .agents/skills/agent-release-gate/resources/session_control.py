@@ -995,6 +995,47 @@ def sandbox_gone_settle_budget_s() -> float:
 RECOVERY_HEALTH_TIMEOUT_S = 60.0
 RECOVERY_HEALTH_POLL_S = 2.0
 
+# The sweep commits the execution outcome before it commits the terminal records. Keep the
+# terminal assertion strict, but allow that second transaction to become visible first.
+TERMINAL_RECORD_SETTLE_BUDGET_S = 20.0
+TERMINAL_RECORD_SETTLE_POLL_S = 0.5
+
+
+def _has_watchdog_ending(rows: list) -> bool:
+    return any(
+        (row.get("attributes") or {}).get("settled_by") == "watchdog" for row in rows
+    )
+
+
+def _require_watchdog_execution_lost(rows: list) -> dict | None:
+    found = any(
+        row.get("type") == "error"
+        and (row.get("attributes") or {}).get("code") == "execution_lost"
+        and (row.get("attributes") or {}).get("settled_by") == "watchdog"
+        for row in rows
+    )
+    if found:
+        return None
+    return _fail(
+        "no watchdog execution_lost ending was found among the terminal records"
+    )
+
+
+def _poll_terminal_after_settle(
+    read_terminal,
+    *,
+    timeout=TERMINAL_RECORD_SETTLE_BUDGET_S,
+    poll_interval=TERMINAL_RECORD_SETTLE_POLL_S,
+    clock=time,
+) -> list:
+    """Wait for the watchdog's terminal-record transaction after durable settlement."""
+    deadline = clock.time() + timeout
+    while True:
+        rows = read_terminal()
+        if _has_watchdog_ending(rows) or clock.time() >= deadline:
+            return rows
+        clock.sleep(poll_interval)
+
 
 def _recover_then_send(health_poll, send, *, timeout, poll_interval, clock=time):
     """Poll `health_poll()` until it returns truthy (bounded by `timeout`), THEN call `send()`.
@@ -1065,7 +1106,15 @@ def _measure_runner_gone_while_paused(
             if clock.time() >= deadline:
                 break
             clock.sleep(poll_interval)
-        terminal = read_terminal()
+        terminal = (
+            _poll_terminal_after_settle(
+                read_terminal,
+                poll_interval=0.5,
+                clock=clock,
+            )
+            if settled_at is not None
+            else read_terminal()
+        )
         # THE gone-and-stays-gone read: is_running, taken while the runner is still paused.
         stream_row = hooks.stream_row(session_id)
         paused_read_at = clock.time()
@@ -2064,10 +2113,11 @@ def cell_sandbox_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
     handle["thread"].join(timeout=wait_s)
     t1 = handle["out"] or {}
     time.sleep(5)
+    terminal = _poll_terminal_after_settle(lambda: terminal_records(session_id, turn))
     evidence.update(
         {
             "turn1_errors": t1.get("errors"),
-            "terminal_records": terminal_records(session_id, turn),
+            "terminal_records": terminal,
             "stream_after": session_stream(session_id),
         }
     )
@@ -2429,17 +2479,9 @@ def cell_runner_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
             f"the Stop command read outcome {stop_command.get('outcome')!r}, expected lost: a "
             "paused runner should never have been able to report it"
         )
-    watchdog_ending = [
-        r
-        for r in terminal
-        if r.get("type") == "error"
-        and (r.get("attributes") or {}).get("code") == "execution_lost"
-        and (r.get("attributes") or {}).get("settled_by") == "watchdog"
-    ]
-    if not watchdog_ending:
-        return evidence, _fail(
-            "no watchdog execution_lost ending was found among the terminal records"
-        )
+    watchdog_failure = _require_watchdog_execution_lost(terminal)
+    if watchdog_failure:
+        return evidence, watchdog_failure
     if paused_is_running is not False:
         return evidence, _fail(
             "the session_streams row did not read is_running: false while the runner was still paused"
@@ -2490,6 +2532,11 @@ def cell_runner_gone_late(cfg, references, args, hooks: OperatorHooks) -> Cell:
             settled_at = time.time()
             break
         time.sleep(5)
+
+    if settled_at is not None:
+        terminal = _poll_terminal_after_settle(
+            lambda: terminal_records(session_id, turn)
+        )
 
     time.sleep(3)
     commands = hooks.command_rows(session_id)
@@ -2833,8 +2880,20 @@ def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
         s["out"] = s["handle"]["out"] or {}
     time.sleep(4)
 
+    def read_terminal(s: dict) -> None:
+        s["terminal_records"] = _poll_terminal_after_settle(
+            lambda: terminal_records(s["session_id"], s["turn_id"])
+        )
+
+    terminal_threads = [
+        threading.Thread(target=read_terminal, args=(s,)) for s in sessions
+    ]
+    for thread in terminal_threads:
+        thread.start()
+    for thread in terminal_threads:
+        thread.join()
+
     for s in sessions:
-        s["terminal_records"] = terminal_records(s["session_id"], s["turn_id"])
         msgs2 = s["msgs"] + [assistant_message(s["out"]), user_msg(RECALL)]
         t2 = invoke(
             s["session_id"], msgs2, cfg, references, f"concurrent-turn2-{s['marker']}"
