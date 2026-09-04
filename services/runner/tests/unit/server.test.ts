@@ -623,6 +623,11 @@ describe("createAgentServer", () => {
         (record) => record.record_type === "done",
       );
       assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.equal(
+        ingested.filter((record) => record.record_type === "error").length,
+        0,
+        "a user Stop does not persist an acquire error",
+      );
       assert.deepEqual(endings[0].attributes, {
         type: "done",
         stopReason: "cancelled",
@@ -635,6 +640,106 @@ describe("createAgentServer", () => {
       assert.equal(records.at(-1)?.result.ok, false);
     } finally {
       vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("persists an acquire failure error before exactly one ending", async () => {
+    const acquireError = "sandbox mount failed";
+    let runTurnCalls = 0;
+    const engine: KeepaliveEngine = {
+      async resolveKeepaliveMount() {
+        return null;
+      },
+      async acquireEnvironment() {
+        return { ok: false, error: acquireError };
+      },
+      async runTurn() {
+        runTurnCalls += 1;
+        return { ok: true, output: "must not run" };
+      },
+      async runCold() {
+        return { ok: false, error: "must not run cold fallback" };
+      },
+    };
+    const run: RunAgent = (request, emit, signal) =>
+      runWithKeepalive(request, emit, signal, {
+        engine,
+        pool: new SessionPool<SessionEnvironment>({ poolMax: 1 }),
+        config: {
+          enabled: true,
+          ttlMs: 60_000,
+          approvalTtlMs: 60_000,
+          poolMax: 1,
+        },
+      });
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-acquire-failure" },
+            is_current_turn: true,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+
+    try {
+      const response = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-acquire-failure",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "fail during acquire" }],
+        }),
+      });
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(runTurnCalls, 0, "the failed acquire never starts the turn");
+      const endingRecords = ingested.filter((record) =>
+        ["error", "done"].includes(record.record_type),
+      );
+      assert.deepEqual(
+        endingRecords.map((record) => record.record_type),
+        ["error", "done"],
+        "the transcript preserves the error before its ending",
+      );
+      assert.deepEqual(endingRecords[0].attributes, {
+        type: "error",
+        message: acquireError,
+      });
+      assert.deepEqual(endingRecords[1].attributes, { type: "done" });
+      assert.equal(
+        records.filter((record) => record.kind === "result").length,
+        1,
+        "the failed run outcome is reported once",
+      );
+      assert.equal(records.at(-1)?.result.error, acquireError);
+    } finally {
       fetchSpy.mockRestore();
       await s.close();
     }
