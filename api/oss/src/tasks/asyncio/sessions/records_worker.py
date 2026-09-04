@@ -178,7 +178,11 @@ class RecordsWorker(StreamConsumer):
             results = await self.service.append_many(
                 events=[msg.record_event for _, msg in entries],
             )
-            quarantined = [row for row in results if row.quarantined_at is not None]
+            quarantined = [
+                row
+                for row in results
+                if getattr(row, "quarantined_at", None) is not None
+            ]
             if quarantined:
                 log.warning(
                     "[RECORDS] Quarantined late records for settled turns",

@@ -171,9 +171,7 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
             if except_tokens:
                 stmt = stmt.where(SessionInteractionDBE.token.notin_(except_tokens))
             result = await session.execute(stmt)
-            return [
-                map_interaction_dbe_to_dto(dbe) for dbe in result.scalars().all()
-            ]
+            return [map_interaction_dbe_to_dto(dbe) for dbe in result.scalars().all()]
 
         if transaction is not None:
             return await execute(transaction)

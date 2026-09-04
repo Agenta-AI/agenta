@@ -721,7 +721,7 @@ async def test_terminal_core_facts_commit_in_one_transaction(command_scope):
                 "INSERT INTO session_interactions "
                 "(project_id, id, session_id, turn_id, token, kind, status) "
                 "VALUES (:project_id, :id, :session_id, 'turn-A', "
-                "'token-A', 'approval', 'pending')"
+                "'token-A', 'user_approval', 'pending')"
             ),
             {
                 "project_id": command_scope["project_id"],
