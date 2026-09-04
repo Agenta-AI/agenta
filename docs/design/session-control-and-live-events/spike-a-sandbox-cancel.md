@@ -31,7 +31,7 @@ scenario in "The live test" ran against a real deployment; everything else is a 
 | Harness | Live test | What `session/cancel` does to the in-flight tool | Evidence |
 | --- | --- | --- | --- |
 | Pi (`pi_core`) | yes, local sandbox | harness answers the prompt in 14 to 31 ms, and the shell child is GONE | live, process probe returned `NO_SLEEP_PROCESS` |
-| Codex | yes, local sandbox | harness answers the prompt in 22 ms, but the shell child KEEPS RUNNING | live, process probe returned the original `sleep` still alive |
+| Codex | yes, local sandbox | harness answers the prompt in 22 ms; the runner reaps the shell child before parking | live process tree captured the leak; the runner reap is covered at the turn boundary |
 | Claude Code | no, this stack has no Anthropic key | not measured | expected to match, from code: the runner branches on capabilities, never on harness name, and sends the same ACP notification to all three |
 
 | Sandbox provider | Live test | Note |
@@ -116,18 +116,13 @@ The Codex reading is unambiguous. One probe returned two leftovers at once, `sle
 seconds elapsed and `sleep 300` at 31 seconds elapsed, which are the cancelled turns of two
 different sessions, so the child survives its own turn AND the session that spawned it.
 
-**Parking is what makes it survive.** Running the same Codex scenario with the settle budget forced
-to 1 ms, so the cancel reports unsettled and the environment is destroyed, left no leftover at all.
-The sandbox teardown kills the orphan; a park keeps it. This consequence is therefore introduced by
-this change, not merely revealed by it. On the local provider it costs host CPU in the runner
-container; on Daytona it would cost billed compute until the idle window closes.
-
-The fix belongs in the Codex ACP bridge rather than the runner: the bridge answers the cancelled
-prompt without propagating the cancel to the exec it started. That bridge is already patched at
-build time by this repo, and deliberately on BOTH surfaces
-(`services/runner/src/engines/sandbox_agent/codex-acp-patch.json`, consumed by the runner image and
-by `services/runner/images/sandbox/daytona/build_snapshot.py`). Note the consequence for question 6:
-a runner-side cancel needs no snapshot rebuild, but a codex-acp fix would need one.
+**Parking made the original leak survive.** Running the same Codex scenario with the settle budget
+forced to 1 ms destroyed the environment and left no leftover. The runner now closes that gap in
+`reap-exec.ts`: after the cancelled prompt settles, it finds the `codex app-server` below this
+sandbox's daemon, selects only descendants started during the stopped turn, and checks that
+`kill -9` exits successfully before reporting them reaped. The turn-boundary test pins the order as
+cancel, process scan, reap, then park. The app server and older session processes remain alive, so
+the native session survives without a Daytona snapshot rebuild.
 
 **What reaches the API.** The turn's `message`, `tool_call` and `tool_result` rows, a `usage` row,
 and the terminal `done` row, all present in the live runs. The terminal record now carries
@@ -382,17 +377,12 @@ agenta-chat transcript suite gives 52 passed.
   expectation is that Claude behaves like the other two. It is an expectation, not a measurement.
 - **Daytona is untested.** Every live run used the local sandbox provider. The Daytona park path is
   the one where park versus delete costs real money, so it belongs in the release gate.
-- **A cancelled turn still drops its continuity record.** `invalidateContinuity` runs on the
-  cancelled path, so a warm resume works only while the environment stays in the process pool. If
-  the runner restarts, or the pool evicts on its TTL, the next turn rebuilds cold AND cannot load
-  the native session by id, so it replays the conversation as text. That is correct today for a
-  rebuild, and it is a real gap for the durable warm resume the RFC wants. It is a separate
-  decision, not a line to change here.
+- **A settled Stop preserves the continuity record.** The durable row carries the native session
+  ID and an end time, so a runner restart can load the same native conversation from its mounted
+  transcript instead of discarding the Stop as an invalid resume point.
 - **The Stop still takes up to 30 seconds to reach the runner.** That is work package B.
-- **The Codex orphan is reported, not fixed.** Fixing it means teaching the Codex ACP bridge to
-  propagate the cancel to its exec, which is a patch to a vendored bundle on two image surfaces and
-  needs its own live verification on Daytona. Doing that at the end of this spike, untested, would
-  be a worse trade than naming it.
+- **The Codex orphan is reaped by the runner.** Live Daytona verification remains part of the
+  pair-level release gate; the runner-side fix needs no vendored bridge or snapshot rebuild.
 
 ## Live test plan for the release gate
 
@@ -402,8 +392,9 @@ Add one cell, run per harness and on both sandbox providers.
 2. Wait until a `tool-input-available` frame for that command has arrived, then send the Stop.
 3. Assert on the stream: the turn ends with `finish`, its open tool call settles as
    `tool-output-error`, and no `error` frame claims the run failed.
-4. Assert on the runner log: `stage=harness_cancel sent=true settled=true`, then
-   `prompt stopReason=cancelled`, then `park-cancelled`. Fail the cell on `no-park:cancelled`.
+4. Assert on the runner log: `stage=harness_cancel sent=true settled=true`, then, for Codex,
+   `stage=harness_reap killed=...`, then `prompt stopReason=cancelled`, then `park-cancelled`. Fail
+   the cell on `no-park:cancelled` or `stage=harness_reap ... skipped=kill-failed`.
 5. Send a second message on the same session, replaying the cancelled turn's assistant message.
 6. Assert on the runner log: `hit-continue` for the same pool key, and NO `stage=sandbox_start`
    between the two turns. On Daytona, additionally assert the sandbox id is unchanged.

@@ -220,7 +220,8 @@ The existing records model could become an append-only replay source if it chang
 6. Acknowledge Redis messages only after their Postgres transaction commits.
 7. Store or recover unacknowledged runner output across runner loss for required durable facts.
 8. Mark a session history incomplete when truncation, quota, retention, or unrecoverable delivery
-   loss creates a gap.
+   loss creates a gap. A replay reader must reject any record whose attributes contain
+   `_truncated`; it must not pass the partial `text`, `input`, or `output` to reconstruction.
 9. Register the live wake-up before reading history so replay-to-live handoff cannot miss a commit.
 
 These changes are substantial, but there is no proven ordering or retry constraint that forces a

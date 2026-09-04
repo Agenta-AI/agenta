@@ -153,6 +153,14 @@ on deleting ownership and waiting for a heartbeat. The current execution keeps i
 while stopping and releases it after cancellation settles. Heartbeat command discovery remains a
 fallback if long polling is unavailable.
 
+### D-018: Use runner-initiated HTTP long polling for immediate control
+
+**Status:** Selected for the milestone 1 implementation on 2026-09-04.
+
+The runner uses HTTP long polling behind a control-delivery port. Durable commands remain
+recoverable across disconnection, and the Stop path does not depend on Redis, WebSockets, or direct
+runner routing. Heartbeat command discovery remains the fallback delivery path.
+
 ## Proposed design decisions
 
 ### P-001: Use one raw runner event ingress
@@ -227,18 +235,6 @@ reuses a `record_id`. Separate exact delivery retries from progressive updates a
 re-emissions. Add regression tests for the final state of tools, interactions, terminal events,
 and harness reconstruction.
 
-### O-006: Immediate runner control
-
-Choose runner-initiated long polling or a persistent runner connection. Future user-operated
-runners are possible but not confirmed. Treat their firewall and credential constraints as one
-consideration, not a binding requirement. The current API knows the logical owner `replica_id`,
-but its configured runner URL is not a replica-specific route.
-
-The current preference is durable long polling because it uses ordinary HTTP, supports prompt
-delivery, and keeps commands recoverable during disconnection. The implementation should place
-transport behind a control-delivery port so Stop and command logic do not depend on long polling,
-Redis, WebSockets, or direct runner routing.
-
 ### O-007: Command boundary
 
 Decide which actions enter a general command inbox. The working boundary is execution-affecting
@@ -264,12 +260,12 @@ The selected direction combines the first and third options. Cancel targets the 
 session. `expected_execution_id` is an optional stale-request guard supplied by clients that know
 the current execution.
 
-### O-009: Busy-message policy names
+### O-010: Busy-message policy names
 
 Choose the public names and defaults for a message submitted while work is active. The current
 working set is `reject`, `queue`, and `steer` under an `on_busy` field.
 
-### O-010: Pending input ordering
+### O-011: Pending input ordering
 
 Pending inputs remain visible in the session snapshot and event stream. The initial contract uses
 server-assigned FIFO order. Clients cannot edit or reorder queued inputs.

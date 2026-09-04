@@ -10,7 +10,8 @@
 - Keep `expected_execution_id` optional on public Stop.
 - Keep the Redis ownership lock until Stop settles.
 - Use heartbeat command discovery as delivery fallback.
-- Require Stop followed by warm resume of the same sandbox and native harness session.
+- Require Stop followed by warm resume of the same sandbox and native harness session. Run this
+  release-gate cell for every supported harness and sandbox-provider pair.
 - Keep live-frame work independent from Stop work.
 - Park the repaired-records versus separate-event-table decision for review.
 

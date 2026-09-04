@@ -56,7 +56,7 @@ Start with **Stop and ownership**:
 
 1. Start the sandbox-agent capability investigation.
 2. Confirm the user-visible Stop requirements and latency target.
-3. Choose the immediate runner-control transport at a high level.
+3. Specify the runner-initiated long-poll claim and acknowledgement contract.
 4. Define terminal settlement and watchdog responsibility.
 5. Decide which current issues this track is expected to close.
 
