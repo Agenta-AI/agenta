@@ -19,9 +19,11 @@ from oss.src.dbs.redis.sessions.contract import (
     WATCH_INTERACTION_RESOLVED,
 )
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
+from oss.src.utils.logging import get_module_logger
 
 
 _RECORD_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "records")
+log = get_module_logger(__name__)
 
 
 class SessionInteractionsService:
@@ -119,33 +121,41 @@ class SessionInteractionsService:
             only_turn_id=only_turn_id,
         )
         if cancelled and command_id is not None and self._records is not None:
-            await self._records.append_many(
-                events=[
-                    SessionRecordEvent(
-                        project_id=project_id,
-                        session_id=interaction.session_id,
-                        record_id=uuid5(
-                            _RECORD_NAMESPACE,
-                            f"{interaction.session_id}:{interaction.token}:"
-                            f"interaction_response:{interaction.turn_id or ''}",
-                        ),
-                        record_type="interaction_response",
-                        record_source="agent",
-                        attributes={
-                            "type": "interaction_response",
-                            "id": interaction.token,
-                            "kind": interaction.kind.value,
-                            "payload": {
-                                "outcome": "cancelled",
-                                "turnId": interaction.turn_id,
-                                "commandId": str(command_id),
+            try:
+                await self._records.append_many(
+                    events=[
+                        SessionRecordEvent(
+                            project_id=project_id,
+                            session_id=interaction.session_id,
+                            record_id=uuid5(
+                                _RECORD_NAMESPACE,
+                                f"{interaction.session_id}:{interaction.token}:"
+                                f"interaction_response:{interaction.turn_id or ''}",
+                            ),
+                            record_type="interaction_response",
+                            record_source="agent",
+                            attributes={
+                                "type": "interaction_response",
+                                "id": interaction.token,
+                                "kind": interaction.kind.value,
+                                "payload": {
+                                    "outcome": "cancelled",
+                                    "turnId": interaction.turn_id,
+                                    "commandId": str(command_id),
+                                },
                             },
-                        },
-                        turn_id=interaction.turn_id,
-                    )
-                    for interaction in cancelled
-                ]
-            )
+                            turn_id=interaction.turn_id,
+                        )
+                        for interaction in cancelled
+                    ]
+                )
+            except Exception:
+                log.warning(
+                    "Failed to append cancellation records for session=%s command=%s",
+                    session_id,
+                    command_id,
+                    exc_info=True,
+                )
         if cancelled:
             await self._publish_interaction(
                 project_id=project_id,

@@ -35,6 +35,11 @@ class _RecordingRecordsService:
         return []
 
 
+class _FailingRecordsService:
+    async def append_many(self, *, events):
+        raise RuntimeError("records unavailable")
+
+
 def _interaction(*, project_id, token, turn_id="turn-1"):
     return SessionInteraction(
         id=uuid4(),
@@ -119,6 +124,33 @@ async def test_stop_cancel_writes_no_record_when_nothing_was_pending():
     assert records.events == []
     assert publisher.calls == []
     assert journal == []
+
+
+@pytest.mark.asyncio
+async def test_record_failure_does_not_block_interaction_resolution_publish():
+    project_id = uuid4()
+    dao = AsyncMock()
+    dao.cancel_session_pending = AsyncMock(
+        return_value=[_interaction(project_id=project_id, token="gate-1")]
+    )
+    journal = []
+    publisher = _RecordingPublisher(journal)
+    service = SessionInteractionsService(
+        interactions_dao=dao,
+        records_service=_FailingRecordsService(),
+        watch_publisher=publisher,
+    )
+
+    count = await service.cancel_session_pending(
+        project_id=project_id,
+        session_id="sess-1",
+        only_turn_id="turn-1",
+        command_id=uuid4(),
+    )
+
+    assert count == 1
+    assert journal == ["publish"]
+    assert publisher.calls == [(str(project_id), "sess-1", "resolved")]
 
 
 @pytest.mark.asyncio
