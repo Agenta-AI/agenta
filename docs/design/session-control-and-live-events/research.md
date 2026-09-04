@@ -21,10 +21,15 @@ when a heartbeat returns `is_current_turn=false`, then aborts locally.
 `DELETE /sessions/streams/?session_id=...` is separate from normal Cancel. It contacts the runner
 and tears down the sandbox. The session remains resumable after Cancel but not after Kill.
 
-The direct kill client uses one configured `runner.internal_url`. Redis separately stores the
-logical owner `replica_id`. The current kill client does not resolve that identifier to a
-replica-specific address. Immediate Cancel cannot assume that logical owner identity already
-provides direct network routing.
+The v1 direct client uses one configured `runner.internal_url`. It is correct for a single runner,
+or when the URL fronts an owner-aware router. Redis separately stores the logical owner
+`replica_id`, but the direct client does not resolve that identity to a replica-specific address.
+A request that reaches the wrong replica returns not found and must not be treated as success.
+
+Immediate Cancel remains durable, so an unavailable owner can recover and apply it later or be
+settled as lost. Kill is best effort through the same configured URL. Until owner-aware forwarding
+exists, a multi-runner Kill cannot guarantee immediate teardown; authoritative session state is
+cleared and sandbox lease or orphan cleanup provides the fallback.
 
 ### Heartbeat
 
