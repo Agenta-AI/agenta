@@ -143,14 +143,14 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
         except_tokens: Optional[List[str]] = None,
         only_turn_id: Optional[str] = None,
         transaction: Optional[Any] = None,
-    ) -> int:
+    ) -> List[SessionInteraction]:
         """Cancel still-pending interactions for a session. With `except_turn_id`, spare the
         current turn's own gates (used at turn start to cancel prior turns' unanswered gates;
         without it, cancel all of them, e.g. on kill). `except_tokens` spares prior-turn gates
         the current turn answers in-band, so the resume can resolve them instead. With
-        `only_turn_id`, touch nothing but that one turn's gates. Returns the count cancelled."""
+        `only_turn_id`, touch nothing but that one turn's gates. Returns the rows cancelled."""
 
-        async def execute(session: Any) -> int:
+        async def execute(session: Any) -> List[SessionInteraction]:
             stmt = (
                 sa_update(SessionInteractionDBE)
                 .where(
@@ -162,6 +162,7 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
                     status="cancelled",
                     updated_at=datetime.now(timezone.utc),
                 )
+                .returning(SessionInteractionDBE)
             )
             if only_turn_id is not None:
                 stmt = stmt.where(SessionInteractionDBE.turn_id == only_turn_id)
@@ -170,12 +171,17 @@ class SessionInteractionsDAO(SessionInteractionsDAOInterface):
             if except_tokens:
                 stmt = stmt.where(SessionInteractionDBE.token.notin_(except_tokens))
             result = await session.execute(stmt)
-            return result.rowcount or 0
+            cancelled = [
+                map_interaction_dbe_to_dto(dbe) for dbe in result.scalars().all()
+            ]
+            return cancelled
 
         if transaction is not None:
             return await execute(transaction)
         async with self.engine.session() as session:
-            return await execute(session)
+            cancelled = await execute(session)
+            await session.commit()
+            return cancelled
 
     async def query_interactions(
         self,

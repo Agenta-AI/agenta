@@ -1,5 +1,5 @@
 from typing import Any, List, Optional
-from uuid import UUID
+from uuid import NAMESPACE_DNS, UUID, uuid5
 
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
@@ -11,6 +11,8 @@ from oss.src.core.sessions.interactions.interfaces import (
     SessionInteractionsDAOInterface,
 )
 from oss.src.core.sessions.interactions.types import InteractionNotFound
+from oss.src.core.sessions.records.dtos import SessionRecordEvent
+from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.shared.dtos import Windowing
 from oss.src.dbs.redis.sessions.contract import (
     WATCH_INTERACTION_PENDING,
@@ -19,15 +21,20 @@ from oss.src.dbs.redis.sessions.contract import (
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 
 
+_RECORD_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "records")
+
+
 class SessionInteractionsService:
     def __init__(
         self,
         *,
         interactions_dao: SessionInteractionsDAOInterface,
         watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
+        records_service: Optional[RecordsService] = None,
     ) -> None:
         self.interactions_dao = interactions_dao
         self._watch = watch_publisher
+        self._records = records_service
 
     async def _publish_interaction(
         self, *, project_id: UUID, session_id: str, status: str
@@ -104,6 +111,7 @@ class SessionInteractionsService:
         only_turn_id: Optional[str] = None,
         transaction: Optional[Any] = None,
         publish: bool = True,
+        command_id: Optional[UUID] = None,
     ) -> int:
         cancelled = await self.interactions_dao.cancel_session_pending(
             project_id=project_id,
@@ -113,11 +121,39 @@ class SessionInteractionsService:
             only_turn_id=only_turn_id,
             transaction=transaction,
         )
+        if cancelled and command_id is not None and self._records is not None:
+            await self._records.append_many(
+                events=[
+                    SessionRecordEvent(
+                        project_id=project_id,
+                        session_id=interaction.session_id,
+                        record_id=uuid5(
+                            _RECORD_NAMESPACE,
+                            f"{interaction.session_id}:{interaction.token}:"
+                            f"interaction_response:{interaction.turn_id or ''}",
+                        ),
+                        record_type="interaction_response",
+                        record_source="agent",
+                        attributes={
+                            "type": "interaction_response",
+                            "id": interaction.token,
+                            "kind": interaction.kind.value,
+                            "payload": {
+                                "outcome": "cancelled",
+                                "turnId": interaction.turn_id,
+                                "commandId": str(command_id),
+                            },
+                        },
+                        turn_id=interaction.turn_id,
+                    )
+                    for interaction in cancelled
+                ]
+            )
         if cancelled and publish:
             await self.publish_session_pending_cancelled(
                 project_id=project_id, session_id=session_id
             )
-        return cancelled
+        return len(cancelled)
 
     async def publish_session_pending_cancelled(
         self, *, project_id: UUID, session_id: str

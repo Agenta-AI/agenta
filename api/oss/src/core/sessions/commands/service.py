@@ -681,6 +681,7 @@ class SessionCommandsService:
                                 project_id=project_id,
                                 session_id=stored_command.session_id,
                                 only_turn_id=execution_id,
+                                command_id=command_id,
                                 transaction=transaction,
                                 publish=False,
                             )
@@ -745,6 +746,7 @@ class SessionCommandsService:
                     project_id=project_id,
                     session_id=session_id,
                     only_turn_id=target,
+                    command_id=command_id,
                 )
             await self._streams.publish_session_ended(
                 project_id=project_id,

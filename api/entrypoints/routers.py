@@ -853,6 +853,7 @@ interactions_dao = SessionInteractionsDAO(engine=_transactions_engine)
 interactions_service = SessionInteractionsService(
     interactions_dao=interactions_dao,
     watch_publisher=_sessions_watch_publisher,
+    records_service=records_service,
 )
 
 triggers_service = TriggersService(

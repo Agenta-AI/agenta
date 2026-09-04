@@ -262,11 +262,19 @@ class _FakeInteractionsService:
         self.cancelled: List[Optional[str]] = []
         self.published_cancelled: List[str] = []
         self.cancelled_count = cancelled_count
+        self.command_ids: List[Optional[UUID]] = []
 
     async def cancel_session_pending(
-        self, *, project_id, session_id, only_turn_id=None, **_
+        self,
+        *,
+        project_id,
+        session_id,
+        only_turn_id=None,
+        command_id=None,
+        **_,
     ):
         self.cancelled.append(only_turn_id)
+        self.command_ids.append(command_id)
         return self.cancelled_count
 
     async def publish_session_pending_cancelled(
@@ -870,6 +878,7 @@ async def test_settlement_releases_running_and_leaves_alive_alone(lock_engine):
         == "turn-A"
     )
     assert interactions.cancelled == ["turn-A"]
+    assert interactions.command_ids == [admission.command.id]
     assert streams.ended == [_SESSION]
 
 

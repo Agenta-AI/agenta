@@ -75,8 +75,8 @@ _PUBLIC_ENDPOINTS = (
     # not a project credential: it holds none for a command it was handed. The route checks the
     # token itself and resolves the project from the command id, so this exemption widens no
     # tenant boundary.
-    "/sessions/control/",
-    "/api/sessions/control/",
+    "/sessions/control/commands/",
+    "/api/sessions/control/commands/",
     # TRIGGERS — inbound provider events arrive from Composio with no auth token
     "/triggers/composio/events/",
     "/api/triggers/composio/events/",
