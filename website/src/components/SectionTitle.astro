@@ -32,7 +32,7 @@ const titleFont =
   {badge && <Badge variant={dark ? "dark" : "default"}>{badge}</Badge>}
   <h2
     class={size === "xl" ? "ag-sectitle ag-sectitle-xl" : "ag-sectitle"}
-    style={`margin:0;font:${titleFont};color:${dark ? "#FFFFFF" : "var(--st-title)"};text-wrap:pretty;`}
+    style={`margin:0;font:${titleFont};color:${dark ? "var(--text-on-dark)" : "var(--st-title)"};text-wrap:pretty;`}
   >
     {title}
   </h2>
@@ -56,7 +56,7 @@ const titleFont =
     --st-sub: var(--th-text-body);
   }
   [data-theme="dark"] .ag-sechead {
-    --st-title: #ffffff;
+    --st-title: var(--text-on-dark);
     --st-sub: var(--text-on-dark-muted);
   }
 </style>

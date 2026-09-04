@@ -56,6 +56,12 @@ const noindex = import.meta.env.PUBLIC_NOINDEX === "true";
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
 
+    <!-- Declared before the resolver below, which rewrites its content for the
+         resolved mode. A meta element further down the head would not exist yet
+         when the resolver runs, so a light-mode first paint would keep the dark
+         colour until the next theme change. -->
+    <meta name="theme-color" content="#0A0A0B" />
+
     <!-- Theme resolver — must run before first paint (inline, before the
          stylesheets). Preference lives in localStorage("ag-theme"):
          "system" (default) | "light" | "dark". "system" resolves via
@@ -122,7 +128,6 @@ const noindex = import.meta.env.PUBLIC_NOINDEX === "true";
     <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
     <link rel="manifest" href="/site.webmanifest" />
-    <meta name="theme-color" content="#0A0A0B" />
 
     <!-- Open Graph -->
     <meta property="og:type" content={ogType} />

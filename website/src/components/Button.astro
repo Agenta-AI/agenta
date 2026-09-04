@@ -7,7 +7,9 @@
 // React components cannot import this file, so they apply the same classes
 // directly. Either way there is one definition. Never write a button's styles
 // inline.
-interface Props {
+// Every other attribute (id, type, disabled, aria-*, data-*, download, …)
+// passes straight through to the rendered element.
+interface Props extends astroHTML.JSX.HTMLAttributes {
   variant?: "primary" | "outline" | "dark" | "ghost";
   href?: string;
   // Opens the link in a new tab (for destinations that leave the marketing
@@ -23,6 +25,7 @@ const {
   external = false,
   block = false,
   class: extraClass,
+  ...rest
 } = Astro.props;
 
 const cls = ["ag-btn", `ag-btn--${variant}`, block && "ag-btn--block", extraClass]
@@ -33,6 +36,7 @@ const Tag = href ? "a" : "button";
 ---
 
 <Tag
+  {...rest}
   class={cls}
   href={href}
   target={href && external ? "_blank" : undefined}

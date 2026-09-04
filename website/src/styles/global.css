@@ -462,7 +462,7 @@ html,
   background: var(--grad-btn-dark);
   border-color: var(--carbon-border);
   box-shadow: var(--shadow-btn-dark);
-  color: #ffffff;
+  color: var(--text-on-dark);
 }
 .ag-btn--ghost {
   background: transparent;

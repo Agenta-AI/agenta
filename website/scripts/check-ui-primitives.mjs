@@ -14,8 +14,11 @@
 // over src/**/*.{astro,tsx,css}.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("../src/", import.meta.url).pathname;
+// fileURLToPath, not URL.pathname: on Windows the latter yields "/C:/..." and
+// every fs call below would fail before astro build even starts.
+const root = fileURLToPath(new URL("../src/", import.meta.url));
 
 const rules = [
   {
