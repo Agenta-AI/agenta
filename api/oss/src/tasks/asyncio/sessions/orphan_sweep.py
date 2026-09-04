@@ -437,6 +437,14 @@ async def run_orphan_sweep(
                 session_id=session_id,
                 turn_id=turn_id,
             )
+            # Clearing affinity is safe only when this turn still owned `alive`; otherwise a
+            # newer turn may already have claimed the session and its owner lease must survive.
+            if released:
+                await force_clear_owner(
+                    lock_engine,
+                    project_id=str(project_id),
+                    session_id=session_id,
+                )
             await mark_turn_superseded(
                 lock_engine,
                 project_id=str(project_id),
