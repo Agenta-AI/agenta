@@ -3167,10 +3167,17 @@ def _load_session_control_result(path: str) -> dict:
     skipped = sorted(name for name, status in statuses.items() if status == "SKIP")
     return {
         "path": str(result_path),
-        "status": "FAIL" if failed else "PASS",
+        "status": "FAIL" if failed else ("INCOMPLETE" if skipped else "PASS"),
         "failed": failed,
         "skipped": skipped,
     }
+
+
+def _session_control_result_label(result: dict) -> str:
+    label = f"recorded {result['status']}"
+    if result["skipped"]:
+        label += "; SKIPPED, UNTESTED: " + ", ".join(result["skipped"])
+    return label
 
 
 def main() -> int:
@@ -3453,7 +3460,7 @@ def main() -> int:
                     "MISSING — no such cell exists"
                     if cell in missing_cells
                     else (
-                        f"recorded {session_control_result['status']}"
+                        _session_control_result_label(session_control_result)
                         if cell == "session_control.py" and session_control_result
                         else "run it separately"
                     )
@@ -3558,7 +3565,7 @@ def main() -> int:
             if cell in CELLS:
                 here = "yes"
             elif cell == "session_control.py" and session_control_result:
-                here = f"recorded {session_control_result['status']}"
+                here = _session_control_result_label(session_control_result)
             else:
                 here = "no — run it separately"
             table += f"| {cell} | {here} | {', '.join(why)} |\n"
@@ -3593,7 +3600,7 @@ def main() -> int:
         for journey in cell["journeys"].values()
     )
     standalone_failed = bool(
-        session_control_result and session_control_result["status"] == "FAIL"
+        session_control_result and session_control_result["status"] != "PASS"
     )
     return 1 if failed or standalone_failed else 0
 
