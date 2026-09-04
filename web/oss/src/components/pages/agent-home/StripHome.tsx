@@ -169,21 +169,11 @@ const StripHome: React.FC = () => {
         const template = AGENT_TEMPLATES.find((entry) => entry.key === templateParam)
         if (!template) return
         seededTemplate.current = templateParam
+        // Seeds the composer and its chip; the connect step comes when the user submits. Opening
+        // it HERE left the hero asking for a description, the chip pointing at a composer that was
+        // no longer rendered, and the card underneath — four things saying the same thing.
         provenance.pick(template)
-        // Arriving with a template is a PICK that happened on another page — the gallery or a
-        // template's own detail page. Treat it as one, or the same choice asks to connect on one
-        // surface and silently skips it on another.
-        if (
-            CONNECT_STEP_MODE &&
-            setup.open({
-                seedMessage: templateBuilderMessage(template),
-                name: template.name,
-                template,
-            })
-        ) {
-            return
-        }
-    }, [templateParam, provenance.pick, setup.open])
+    }, [templateParam, provenance.pick])
 
     const handleCreate = useCallback(
         async (markdown?: string) => {
