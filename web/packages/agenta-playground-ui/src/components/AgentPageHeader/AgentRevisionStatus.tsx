@@ -8,7 +8,7 @@ import {
     flushAgentAutoCommitAtom,
 } from "@agenta/playground/state"
 import {SimpleTooltip} from "@agenta/ui/ui"
-import {CaretDown, WarningCircle} from "@phosphor-icons/react"
+import {ClockCounterClockwise, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -110,7 +110,8 @@ export const AgentRevisionStatus = ({
                                 className="flex cursor-pointer items-center rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:text-colorText"
                             >
                                 v{version}
-                                <CaretDown size={9} className="ml-1" />
+                                {/* A caret would promise a menu; this opens a drawer of history. */}
+                                <ClockCounterClockwise size={11} className="ml-1" />
                             </button>
                         </SimpleTooltip>
                         {historyMounted ? (

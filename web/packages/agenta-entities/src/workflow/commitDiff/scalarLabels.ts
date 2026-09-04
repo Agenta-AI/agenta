@@ -41,6 +41,10 @@ const PATH_LABELS: Record<string, string> = {
     // group; standalone in a diff row that says too little, so it names the subject too.
     "runner.permissions.default": "Tool permissions",
     "harness.permissions.default_mode": "Harness permissions",
+    // The Claude permissions control's own field labels.
+    "harness.permissions.allow": "Allow rules",
+    "harness.permissions.ask": "Ask rules",
+    "harness.permissions.deny": "Deny rules",
     "sandbox.kind": "Sandbox",
     "sandbox.permissions": "Sandbox permissions",
 }
@@ -89,5 +93,7 @@ export const scalarValueLabel = (
     if (mapped) return mapped
     // Only a real boolean reads as On/Off; the string "false" is a value, not a flag.
     if (typeof raw === "boolean") return raw ? "On" : "Off"
+    // A rule list is prose, not JSON: `["Bash"]` is punctuation a reader has to decode.
+    if (Array.isArray(raw)) return raw.length ? raw.map(String).join(", ") : "None"
     return value
 }

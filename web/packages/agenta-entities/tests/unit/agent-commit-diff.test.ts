@@ -161,6 +161,33 @@ describe("subagents get their own section, named the way the config panel names 
     })
 })
 
+describe("permission rules read as rules, not as JSON", () => {
+    // Regression: the row printed `Harness › permissions › allow  —  ["Bash"]`.
+    const row = (local: Record<string, unknown>, remote: Record<string, unknown>) =>
+        classifyAgentChanges({agent: local}, {agent: remote})?.find((s) => s.id === "params")
+            ?.scalarChanges?.[0]
+
+    it("names the rule lists the way the permissions control does", () => {
+        const change = row(
+            {harness: {permissions: {allow: ["Bash"]}}},
+            {harness: {permissions: {allow: []}}},
+        )
+        expect(change?.label).toBe("Allow rules")
+    })
+
+    it("reads a rule list as prose, and an empty one as None", () => {
+        const change = row(
+            {harness: {permissions: {deny: ["Bash", "Write"]}}},
+            {harness: {permissions: {deny: []}}},
+        )
+        expect(change?.label).toBe("Deny rules")
+        expect(change?.beforeLabel).toBe("None")
+        expect(change?.afterLabel).toBe("Bash, Write")
+        // The stored value is untouched for consumers that read it back.
+        expect(change?.after).toBe('["Bash","Write"]')
+    })
+})
+
 describe("the tools section is named the way its own playground names it", () => {
     const one = (params: Record<string, unknown>, before: Record<string, unknown>) =>
         classifyAgentChanges(params, before).find((s) => s.id === "tools")
