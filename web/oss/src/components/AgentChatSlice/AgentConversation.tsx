@@ -253,6 +253,7 @@ const AgentConversation = ({
     const modelKey = useAgentModelKeyStatus(entityId)
     const modelBlocked = modelKey.gateActive
     const [recoverableContinuation, setRecoverableContinuation] = useState(false)
+    const approvalResponseOwnerRef = useRef<string | null>(null)
     const retryRecoverableContinuation = useCallback(async () => {
         const resumed = await retryContinuation()
         if (resumed) setRecoverableContinuation(false)
@@ -415,6 +416,7 @@ const AgentConversation = ({
     // after a reload genuinely auto-resumes, so the queue's pre-resume hold must apply to it.
     const handleApprovalResponse = useCallback(
         async (args: {id: string; approved: boolean; message?: string}) => {
+            approvalResponseOwnerRef.current = args.id
             markLiveGate({kind: "approval", id: args.id})
             // `answerApproval` owns the whole ordered click: the row first, then the part flip that
             // lets the SDK resume. Never flip here — an early flip lets the resume's stale sweep
@@ -435,7 +437,9 @@ const AgentConversation = ({
                 answer: () => answerApproval(args.id, args.approved),
                 steer: (text) => submit({text}),
             })
-            setRecoverableContinuation(outcome?.recoverable === true)
+            if (approvalResponseOwnerRef.current === args.id) {
+                setRecoverableContinuation(outcome?.recoverable === true)
+            }
             return outcome
         },
         [answerApproval, markLiveGate, submit],
@@ -443,9 +447,12 @@ const AgentConversation = ({
 
     const handleApprovalResponses = useCallback(
         async (ids: string[], approved: boolean) => {
+            approvalResponseOwnerRef.current = ids[0]
             markLiveGate({kind: "approval", id: ids[0]})
             const outcome = await answerApprovals(ids, approved)
-            setRecoverableContinuation(outcome?.recoverable === true)
+            if (approvalResponseOwnerRef.current === ids[0]) {
+                setRecoverableContinuation(outcome?.recoverable === true)
+            }
             return outcome
         },
         [answerApprovals, markLiveGate],
@@ -456,6 +463,13 @@ const AgentConversation = ({
         () => getLivePendingApprovals(messages, {stopped: !interactionAvailability.approvals}),
         [messages, interactionAvailability.approvals],
     )
+    const pendingApprovalId = pendingApprovals[0]?.approvalId
+    if (pendingApprovalId && approvalResponseOwnerRef.current !== pendingApprovalId) {
+        approvalResponseOwnerRef.current = pendingApprovalId
+    }
+    useEffect(() => {
+        if (pendingApprovalId) setRecoverableContinuation(false)
+    }, [pendingApprovalId])
     // Parked connect interactions on the paused turn → the connect dock owns their actions (the
     // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
     // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).

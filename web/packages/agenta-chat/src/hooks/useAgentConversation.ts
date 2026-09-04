@@ -285,6 +285,7 @@ export const useAgentConversation = ({
     const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
     const supportsDurableApprovals = useSetAtom(sessionDurableApprovalsCapabilityAtom)
     const [recoverableContinuation, setRecoverableContinuation] = useState(false)
+    const approvalResponseOwnerRef = useRef<string | null>(null)
     const retryRecoverableContinuation = useCallback(async () => {
         const resumed = await resumeSessionContinuation(sessionId)
         if (resumed) setRecoverableContinuation(false)
@@ -652,6 +653,7 @@ export const useAgentConversation = ({
     // transition + AI SDK gate release; durable servers own continuation after their 202.
     const handleApprovalResponse = useCallback(
         async (args: {id: string; approved: boolean}) => {
+            approvalResponseOwnerRef.current = args.id
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
             const outcome = await submitApprovalForCapability({
                 durableApprovals: await supportsDurableApprovals(sessionId),
@@ -672,7 +674,9 @@ export const useAgentConversation = ({
                     }),
                 releaseLegacy: () => addToolApprovalResponse(args),
             })
-            setRecoverableContinuation(outcome.recoverable)
+            if (approvalResponseOwnerRef.current === args.id) {
+                setRecoverableContinuation(outcome.recoverable)
+            }
             return outcome
         },
         [
@@ -686,6 +690,7 @@ export const useAgentConversation = ({
 
     const handleApprovalResponses = useCallback(
         async (args: {ids: string[]; approved: boolean}) => {
+            approvalResponseOwnerRef.current = args.ids[0]
             liveGateInteractionRef.current = {kind: "approval", id: args.ids[0]}
             const outcome = await submitApprovalForCapability({
                 durableApprovals: await supportsDurableApprovals(sessionId),
@@ -714,7 +719,9 @@ export const useAgentConversation = ({
                     }
                 },
             })
-            setRecoverableContinuation(outcome.recoverable)
+            if (approvalResponseOwnerRef.current === args.ids[0]) {
+                setRecoverableContinuation(outcome.recoverable)
+            }
             return outcome
         },
         [
@@ -749,6 +756,13 @@ export const useAgentConversation = ({
         respond: handleApprovalResponse,
         respondAll: handleApprovalResponses,
     })
+    const pendingApprovalId = approvals.current?.approvalId
+    if (pendingApprovalId && approvalResponseOwnerRef.current !== pendingApprovalId) {
+        approvalResponseOwnerRef.current = pendingApprovalId
+    }
+    useEffect(() => {
+        if (pendingApprovalId) setRecoverableContinuation(false)
+    }, [pendingApprovalId])
 
     // Settle a parked client tool (#4920). A widget calls this with the structured reference;
     // `addToolOutput` matches the part by `toolCallId` on the last turn and the resume predicate

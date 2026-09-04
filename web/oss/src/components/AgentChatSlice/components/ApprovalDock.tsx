@@ -51,6 +51,8 @@ const ApprovalDock = ({
     if (open && !resolving) shownRef.current = approvals
     const shown = shownRef.current
     const current = shown[0]
+    const currentIdRef = useRef(current?.approvalId)
+    currentIdRef.current = current?.approvalId
 
     const [responding, setResponding] = useState(false)
     const [answered, setAnswered] = useState(false)
@@ -79,8 +81,10 @@ const ApprovalDock = ({
 
     const settle = async (
         responses: (void | ApprovalSubmissionOutcome | Promise<void | ApprovalSubmissionOutcome>)[],
+        ownerId: string | undefined,
     ) => {
         const results = await Promise.allSettled(responses)
+        if (currentIdRef.current !== ownerId) return
         const failed = results.find(
             (result): result is PromiseRejectedResult => result.status === "rejected",
         )
@@ -111,6 +115,7 @@ const ApprovalDock = ({
             onApprovalResponses
                 ? [onApprovalResponses(ids, approved)]
                 : ids.map((id) => onApprovalResponse({id, approved})),
+            ids[0],
         )
     }
 
@@ -133,13 +138,16 @@ const ApprovalDock = ({
                             if (responding) return
                             setResponding(true)
                             setErrorText(null)
-                            void settle([
-                                onApprovalResponse({
-                                    id: approvalId,
-                                    approved,
-                                    ...(message?.trim() ? {message: message.trim()} : {}),
-                                }),
-                            ])
+                            void settle(
+                                [
+                                    onApprovalResponse({
+                                        id: approvalId,
+                                        approved,
+                                        ...(message?.trim() ? {message: message.trim()} : {}),
+                                    }),
+                                ],
+                                approvalId,
+                            )
                         }}
                         onApproveAll={(ids) => respondMany(ids, true)}
                         onDenyAll={(ids) => respondMany(ids, false)}

@@ -177,4 +177,27 @@ describe("useApprovalDock", () => {
         expect(result.current.answered).toBe(true)
         expect(result.current.recoverable).toBe(true)
     })
+
+    it("does not apply a late recoverable result to the next interaction", async () => {
+        let resolveFirst: ((value: {durable: boolean; recoverable: boolean}) => void) | undefined
+        const respond = vi.fn(
+            () =>
+                new Promise<{durable: boolean; recoverable: boolean}>((resolve) => {
+                    resolveFirst = resolve
+                }),
+        )
+        const {result, rerender} = renderHook(
+            (props: {messages: UIMessage[]}) =>
+                useApprovalDock({messages: props.messages, respond}),
+            {initialProps: {messages: [assistantWithGates("g1")] }},
+        )
+
+        act(() => result.current.respond(true))
+        rerender({messages: [assistantWithGates("g2")]})
+        await act(async () => resolveFirst?.({durable: true, recoverable: true}))
+
+        expect(result.current.current?.approvalId).toBe("g2")
+        expect(result.current.answered).toBe(false)
+        expect(result.current.recoverable).toBe(false)
+    })
 })

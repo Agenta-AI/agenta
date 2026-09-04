@@ -76,6 +76,8 @@ export const useApprovalDock = ({
     const shown = shownRef.current
     const current = shown[0] ?? null
     const count = shown.length
+    const currentIdRef = useRef(current?.approvalId)
+    currentIdRef.current = current?.approvalId
 
     const [responding, setResponding] = useState(false)
     const [answered, setAnswered] = useState(false)
@@ -92,8 +94,12 @@ export const useApprovalDock = ({
     }, [current?.approvalId])
 
     const settle = useCallback(
-        async (responses: (ApprovalResponse | Promise<ApprovalResponse>)[]) => {
+        async (
+            responses: (ApprovalResponse | Promise<ApprovalResponse>)[],
+            ownerId: string | undefined,
+        ) => {
             const results = await Promise.allSettled(responses)
+            if (currentIdRef.current !== ownerId) return
             const failed = results.find(
                 (result): result is PromiseRejectedResult => result.status === "rejected",
             )
@@ -131,7 +137,7 @@ export const useApprovalDock = ({
             if (responding || !current) return
             setResponding(true)
             setErrorText(null)
-            void settle([onRespond({id: current.approvalId, approved})])
+            void settle([onRespond({id: current.approvalId, approved})], current.approvalId)
         },
         [responding, current, onRespond, settle],
     )
@@ -148,6 +154,7 @@ export const useApprovalDock = ({
             onRespondAll
                 ? [onRespondAll({ids, approved: true})]
                 : ids.map((id) => onRespond({id, approved: true})),
+            ids[0],
         )
     }, [responding, shown, onRespond, onRespondAll, settle])
 
