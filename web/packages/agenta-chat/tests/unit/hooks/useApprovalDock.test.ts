@@ -165,4 +165,16 @@ describe("useApprovalDock", () => {
         act(() => result.current.respond(false))
         expect(respond).toHaveBeenCalledTimes(2)
     })
+
+    it("preserves a recoverable durable response for the shared card", async () => {
+        const respond = vi.fn(() => Promise.resolve({durable: true, recoverable: true}))
+        const {result} = renderHook(() =>
+            useApprovalDock({messages: [assistantWithGates("g1")], respond}),
+        )
+
+        await act(async () => result.current.respond(true))
+
+        expect(result.current.answered).toBe(true)
+        expect(result.current.recoverable).toBe(true)
+    })
 })
