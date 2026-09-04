@@ -31,7 +31,7 @@ from urllib.parse import urlparse, urlunparse
 
 import asyncpg
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 import oss.src.models.db_models  # noqa: F401  (register auth/org tables on Base)
@@ -46,7 +46,10 @@ from oss.src.dbs.postgres.sessions.interactions.dbes import (  # noqa: F401
 )
 from oss.src.dbs.postgres.shared.base import Base
 
-from oss.src.core.sessions.streams.dtos import SessionHeartbeatRequest
+from oss.src.core.sessions.streams.dtos import (
+    SessionStreamEdit,
+    SessionStreamFlags,
+)
 from oss.src.utils.env import env
 from oss.src.dbs.postgres.shared.engine import TransactionsEngine
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
@@ -462,58 +465,104 @@ async def test_b_lost_turn_clear_persists_after_a_nested_session_close(
 
 
 @pytest.mark.anyio
-async def test_c_heartbeat_finishing_after_sweep_commit_cannot_revive_row(
-    anyio_backend, wd_engine, monkeypatch
+async def test_c_heartbeat_blocked_on_sweep_cannot_revive_collapsed_row(
+    anyio_backend, wd_engine
 ):
-    """Redis refresh wins first; the sweep commits; only then may the heartbeat write."""
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
-
+    """A heartbeat whose UPDATE snapshot predates the sweep commit must lose its CAS."""
     session_id = "wd-" + uuid.uuid4().hex[:12]
     turn_id = str(uuid.uuid4())
     project_id = await _seed_scenario(wd_engine, session_id=session_id, turn_id=turn_id)
 
-    heartbeat_waiting = asyncio.Event()
-    allow_heartbeat_write = asyncio.Event()
+    parsed = urlparse(env.postgres.uri_core)
+    dsn = urlunparse(("postgresql", parsed.netloc, parsed.path, "", "", ""))
+    sweep = await asyncpg.connect(dsn=dsn)
+    observer = await asyncpg.connect(dsn=dsn)
+    sweep_transaction = sweep.transaction()
+    heartbeat = None
+    committed = False
+    heartbeat_rowcounts = []
 
-    class _DelayedHeartbeatDAO(SessionStreamsDAO):
-        async def update(self, *, project_id, user_id, session_id, stream):
-            if stream.expected_turn_id is not None:
-                heartbeat_waiting.set()
-                await allow_heartbeat_write.wait()
-            return await super().update(
-                project_id=project_id,
-                user_id=user_id,
-                session_id=session_id,
-                stream=stream,
-            )
+    def capture_heartbeat_rowcount(
+        _connection,
+        clauseelement,
+        _multiparams,
+        _params,
+        _execution_options,
+        result,
+    ):
+        if getattr(clauseelement, "is_update", False):
+            table = getattr(clauseelement, "table", None)
+            if table is not None and table.name == "session_streams":
+                heartbeat_rowcounts.append(result.rowcount)
 
-    lock, records_service, commands_service = _build_services(wd_engine)
-    heartbeat_service = SessionStreamsService(
-        streams_dao=_DelayedHeartbeatDAO(wd_engine), lock_engine=lock
+    event.listen(
+        wd_engine._engine.sync_engine, "after_execute", capture_heartbeat_rowcount
     )
-    heartbeat = asyncio.create_task(
-        heartbeat_service.heartbeat(
-            project_id=project_id,
-            request=SessionHeartbeatRequest(
-                session_id=session_id,
-                replica_id="replica-a",
-                turn_id=turn_id,
-                is_running=True,
-            ),
+    try:
+        await sweep_transaction.start()
+        await sweep.execute(
+            "UPDATE session_streams "
+            "SET flags=$1::jsonb, updated_at=NOW() "
+            "WHERE project_id=$2 AND session_id=$3",
+            '{"is_alive": false, "is_running": false, "is_attached": false}',
+            project_id,
+            session_id,
         )
-    )
-    await heartbeat_waiting.wait()
+        await sweep.execute(
+            "INSERT INTO session_executions "
+            "(project_id, session_id, execution_id, terminal_outcome, settled_by, settled_at) "
+            "VALUES ($1,$2,$3,'lost','watchdog',NOW())",
+            project_id,
+            session_id,
+            turn_id,
+        )
 
-    await orphan_sweep.run_orphan_sweep(
-        wd_engine,
-        lock,
-        records_service=records_service,
-        watch_publisher=None,
-        commands_service=commands_service,
-        publish=_noop_publish,
-    )
-    allow_heartbeat_write.set()
-    heartbeat_result = await heartbeat
+        heartbeat = asyncio.create_task(
+            SessionStreamsDAO(wd_engine).update(
+                project_id=project_id,
+                user_id=None,
+                session_id=session_id,
+                stream=SessionStreamEdit(
+                    flags=SessionStreamFlags(
+                        is_alive=True, is_running=True, is_attached=False
+                    ),
+                    turn_id=turn_id,
+                    expected_turn_id=turn_id,
+                ),
+            )
+        )
+
+        async def heartbeat_is_blocked_on_the_sweep():
+            while True:
+                blocked = await observer.fetchval(
+                    "SELECT EXISTS ("
+                    "SELECT 1 FROM pg_stat_activity "
+                    "WHERE datname=current_database() "
+                    "AND wait_event_type='Lock' "
+                    "AND query LIKE 'UPDATE session_streams%')"
+                )
+                if blocked:
+                    return
+                await asyncio.sleep(0.01)
+
+        await asyncio.wait_for(heartbeat_is_blocked_on_the_sweep(), timeout=5)
+        await sweep_transaction.commit()
+        committed = True
+        heartbeat_result = await asyncio.wait_for(heartbeat, timeout=5)
+    finally:
+        event.remove(
+            wd_engine._engine.sync_engine, "after_execute", capture_heartbeat_rowcount
+        )
+        if heartbeat is not None and not heartbeat.done():
+            heartbeat.cancel()
+            await asyncio.gather(heartbeat, return_exceptions=True)
+        if not committed:
+            await sweep_transaction.rollback()
+        await observer.close()
+        await sweep.close()
+
+    assert heartbeat_result is None
+    assert heartbeat_rowcounts == [0]
 
     async with wd_engine.session() as s:
         flags, outcome = (
@@ -528,7 +577,6 @@ async def test_c_heartbeat_finishing_after_sweep_commit_cannot_revive_row(
             )
         ).one()
 
-    assert heartbeat_result.is_current_turn is False
     assert outcome == "lost"
     assert flags == {
         "is_alive": False,

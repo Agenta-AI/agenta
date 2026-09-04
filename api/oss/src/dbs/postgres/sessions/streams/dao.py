@@ -558,6 +558,9 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                         SessionStreamDBE.session_id == session_id,
                         SessionStreamDBE.deleted_at.is_(None),
                         SessionStreamDBE.turn_id == stream.expected_turn_id,
+                        SessionStreamDBE.flags.contains(
+                            {"is_alive": True, "is_running": True}
+                        ),
                         ~terminal_execution_exists,
                     )
                     .values(**values)
