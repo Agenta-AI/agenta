@@ -164,7 +164,6 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionDetachRequest,
     SessionStreamQueryRequest,
     SessionStreamResponse,
-    SessionCapabilities,
     SessionStreamsResponse,
     # records
     SessionRecordIngestBody,
@@ -2645,13 +2644,22 @@ class SessionControlRouter:
         ):
             # The input is durable before Stop is requested. A refused or unreachable Stop
             # therefore never loses the user's message; it stays visible and removable.
-            await self._service.request_cancel(
-                project_id=project_id,
-                user_id=UUID(str(user_id)) if user_id else None,
-                session_id=payload.session_id,
-                expected_execution_id=admission.execution_id,
-                idempotency_key=f"steer:{admission.input.id}",
-            )
+            try:
+                await self._service.request_cancel(
+                    project_id=project_id,
+                    user_id=UUID(str(user_id)) if user_id else None,
+                    session_id=payload.session_id,
+                    expected_execution_id=admission.execution_id,
+                    idempotency_key=f"steer:{admission.input.id}",
+                    steer_input_id=admission.input.id,
+                )
+            except Exception as error:  # noqa: BLE001 - the input is already durable
+                log.warning(
+                    "steer stop request failed input=%s session=%s: %s",
+                    admission.input.id,
+                    payload.session_id,
+                    error,
+                )
         response = PendingInputAdmissionResponse(**admission.model_dump())
         return JSONResponse(
             status_code=(

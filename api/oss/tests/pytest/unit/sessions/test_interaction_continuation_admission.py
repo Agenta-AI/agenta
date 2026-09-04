@@ -264,9 +264,17 @@ class _Inputs:
     def __init__(self, items):
         self.items = items
 
-    async def promote_next(self, *, execution_id, **kwargs):
+    async def promote_next(
+        self, *, execution_id, input_id=None, only_policy=None, **kwargs
+    ):
         item = next(
-            (item for item in self.items if item.state == PendingInputState.pending),
+            (
+                item
+                for item in self.items
+                if item.state == PendingInputState.pending
+                and (input_id is None or item.id == input_id)
+                and (only_policy is None or item.policy == only_policy)
+            ),
             None,
         )
         if item is None:
@@ -1259,3 +1267,113 @@ async def test_a_send_after_the_budget_is_spent_reopens_the_continuation(monkeyp
     assert commands.command.claim_count == 0
     assert delivery.delivered
     assert delivery.delivered[0].target_turn_id == commands.command.target_turn_id
+
+
+def _pending_input(project_id, *, policy, position):
+    return PendingInput(
+        id=uuid4(),
+        project_id=project_id,
+        session_id="session-1",
+        content={"session_id": "session-1", "data": {"messages": [policy]}},
+        position=position,
+        state=PendingInputState.pending,
+        policy=policy,
+        idempotency_key=f"{policy}-{position}",
+        request_fingerprint=str(position) * 64,
+        created_by_id=uuid4(),
+    )
+
+
+def _stop_service(*, project_id, command_data, inputs):
+    commands = _Commands()
+    commands.command = SessionCommand(
+        id=uuid4(),
+        project_id=project_id,
+        session_id="session-1",
+        kind=SessionCommandKind.cancel,
+        target_turn_id="source-1",
+        data=command_data,
+        state=SessionCommandState.pending,
+        created_at=datetime.now(timezone.utc),
+    )
+    streams = SimpleNamespace(
+        settle_command=AsyncMock(),
+        publish_session_ended=AsyncMock(),
+    )
+    interactions = SimpleNamespace(
+        cancel_session_pending=AsyncMock(return_value=0),
+        publish_session_pending_cancelled=AsyncMock(),
+    )
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=streams,
+        interactions_service=interactions,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=_Executions(
+            project_id=project_id,
+            session_id="session-1",
+            source_id="source-1",
+        ),
+        inputs_dao=inputs,
+    )
+    service._reconcile_stopped_redis = AsyncMock()
+    return service, commands
+
+
+@pytest.mark.asyncio
+async def test_manual_stop_pauses_pending_steer(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    project_id = uuid4()
+    steered = _pending_input(project_id, policy="steer", position=0)
+    inputs = _Inputs([steered])
+    service, commands = _stop_service(
+        project_id=project_id,
+        command_data=None,
+        inputs=inputs,
+    )
+
+    settled = await service.settle(
+        command_id=commands.command.id,
+        project_id=project_id,
+        replica_id=None,
+        expected_states=[SessionCommandState.pending],
+        state=SessionCommandState.applied,
+        outcome=SessionCommandOutcome.stopped,
+        execution_id="source-1",
+    )
+
+    assert settled is not None
+    assert inputs.items[0].state == PendingInputState.pending
+
+
+@pytest.mark.asyncio
+async def test_steer_stop_promotes_its_saved_input_before_queue(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    project_id = uuid4()
+    queued = _pending_input(project_id, policy="queue", position=1)
+    steered = _pending_input(project_id, policy="steer", position=0)
+    inputs = _Inputs([queued, steered])
+    service, commands = _stop_service(
+        project_id=project_id,
+        command_data={"steer_input_id": str(steered.id)},
+        inputs=inputs,
+    )
+
+    settled = await service.settle(
+        command_id=commands.command.id,
+        project_id=project_id,
+        replica_id=None,
+        expected_states=[SessionCommandState.pending],
+        state=SessionCommandState.applied,
+        outcome=SessionCommandOutcome.stopped,
+        execution_id="source-1",
+    )
+
+    assert settled is not None
+    assert inputs.items[0].state == PendingInputState.pending
+    assert inputs.items[1].state == PendingInputState.promoted
+    assert commands.command.kind == SessionCommandKind.continue_input
+    assert commands.command.data["input_id"] == str(steered.id)

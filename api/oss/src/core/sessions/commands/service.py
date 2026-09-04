@@ -207,6 +207,7 @@ class SessionCommandsService:
         session_id: str,
         expected_execution_id: Optional[str] = None,
         idempotency_key: Optional[str] = None,
+        steer_input_id: Optional[UUID] = None,
     ) -> CancelAdmission:
         if not validate_session_id(session_id):
             raise SessionIdInvalid(session_id)
@@ -263,6 +264,11 @@ class SessionCommandsService:
                 target_turn_id=None,
                 expected_turn_id=expected_execution_id,
                 idempotency_key=idempotency_key,
+                data=(
+                    {"steer_input_id": str(steer_input_id)}
+                    if steer_input_id is not None
+                    else None
+                ),
                 state=SessionCommandState.obsolete,
                 outcome=SessionCommandOutcome.not_running,
             )
@@ -287,6 +293,11 @@ class SessionCommandsService:
                 target_turn_id=None,
                 expected_turn_id=None,
                 idempotency_key=idempotency_key,
+                data=(
+                    {"steer_input_id": str(steer_input_id)}
+                    if steer_input_id is not None
+                    else None
+                ),
                 state=SessionCommandState.obsolete,
                 outcome=SessionCommandOutcome.superseded_by_newer_turn,
             )
@@ -321,6 +332,11 @@ class SessionCommandsService:
                 target_turn_id=target_turn_id,
                 expected_turn_id=expected_execution_id,
                 idempotency_key=idempotency_key,
+                data=(
+                    {"steer_input_id": str(steer_input_id)}
+                    if steer_input_id is not None
+                    else None
+                ),
                 state=SessionCommandState.pending,
                 outcome=None,
                 stopping_turn_id=target_turn_id,
@@ -367,6 +383,11 @@ class SessionCommandsService:
                         target_turn_id=target_turn_id,
                         expected_turn_id=expected_execution_id,
                         idempotency_key=idempotency_key,
+                        data=(
+                            {"steer_input_id": str(steer_input_id)}
+                            if steer_input_id is not None
+                            else None
+                        ),
                         state=SessionCommandState.pending,
                         outcome=None,
                         stopping_turn_id=target_turn_id,
@@ -766,9 +787,7 @@ class SessionCommandsService:
     async def resume_recoverable_continuation(
         self, *, project_id: UUID, session_id: str
     ) -> bool:
-        if not (
-            env.agenta.sessions.durable_approvals or env.agenta.sessions.queue
-        ):
+        if not (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue):
             return False
         command = await self._dao.fetch_resumable_continuation(
             project_id=project_id,
@@ -984,6 +1003,7 @@ class SessionCommandsService:
         target_turn_id: Optional[str],
         expected_turn_id: Optional[str],
         idempotency_key: Optional[str],
+        data: Optional[dict[str, Any]],
         state: SessionCommandState,
         outcome: Optional[SessionCommandOutcome],
         stopping_turn_id: Optional[str] = None,
@@ -1016,6 +1036,7 @@ class SessionCommandsService:
                 kind=SessionCommandKind.cancel,
                 target_turn_id=target_turn_id,
                 expected_turn_id=expected_turn_id,
+                data=data,
                 state=state,
                 outcome=outcome,
                 settled_at=received_at if outcome is not None else None,
@@ -1339,6 +1360,7 @@ class SessionCommandsService:
         session_id: str,
         parent_execution_id: str,
         transaction: Any,
+        input_id: Optional[UUID] = None,
         only_policy: Optional[str] = None,
     ) -> Optional[InputContinuationAdmission]:
         """Promote one durable input and create its continuation in the same commit."""
@@ -1350,6 +1372,7 @@ class SessionCommandsService:
             project_id=project_id,
             session_id=session_id,
             execution_id=execution_id,
+            input_id=input_id,
             only_policy=only_policy,
             transaction=transaction,
         )
@@ -1408,10 +1431,7 @@ class SessionCommandsService:
         )
         if (
             execution is not None
-            and (
-                env.agenta.sessions.durable_approvals
-                or env.agenta.sessions.queue
-            )
+            and (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
             and (
                 execution.source_interaction_id is not None
                 or execution.parent_execution_id is not None
@@ -1789,16 +1809,21 @@ class SessionCommandsService:
                             or winner.settled_by != settled_by
                         ):
                             raise _SettlementRejected
+                        steer_input_id = (stored_command.data or {}).get(
+                            "steer_input_id"
+                        )
                         if (
                             result.won
                             and outcome == SessionCommandOutcome.stopped
                             and env.agenta.sessions.queue
                             and env.agenta.sessions.steer
+                            and isinstance(steer_input_id, str)
                         ):
                             input_admission = await self._promote_next_input(
                                 project_id=project_id,
                                 session_id=stored_command.session_id,
                                 parent_execution_id=execution_id,
+                                input_id=UUID(steer_input_id),
                                 only_policy="steer",
                                 transaction=transaction,
                             )
