@@ -632,12 +632,83 @@ class TestMountFileOpsRoundtrip:
         listing = await service.list_files(
             project_id=pid, mount_id=mid, order="path", limit=100, git_aware=True
         )
+        # `.gitignore` itself is a dotfile, so the curated flat view drops it as hidden plumbing.
         assert {f.path for f in listing.files} == {
-            ".gitignore",
             "api/main.py",
             "web/index.ts",
         }
-        assert listing.total == 3
+        assert listing.total == 2
+
+    async def test_git_aware_flat_listing_excludes_hidden_paths(self):
+        # Dot-prefixed files and directories are plumbing, not user content: the curated flat view
+        # leaves them out of both the listing and its `total` (#6027).
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in [
+            "notes.md",
+            ".env",
+            ".claude/settings.json",
+            "src/.hidden/keep.txt",
+            "src/main.py",
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, order="path", limit=100, git_aware=True
+        )
+
+        assert {f.path for f in listing.files} == {"notes.md", "src/main.py"}
+        assert listing.total == 2
+
+    async def test_git_aware_count_only_excludes_hidden_paths(self):
+        # The "N files" badge reads the count-only total, so it must agree with the list above.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["notes.md", ".env", ".claude/settings.json"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total == 1
+        assert listing.files == []
+
+    async def test_raw_flat_listing_keeps_hidden_paths(self):
+        # The hidden-file pruning is part of the CURATED view only — the raw contract still lists
+        # everything that is stored, so other API consumers see the mount as it really is.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["notes.md", ".env"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, order="path", limit=100, git_aware=False
+        )
+
+        assert {f.path for f in listing.files} == {"notes.md", ".env"}
+
+    async def test_git_aware_shallow_listing_keeps_hidden_paths(self):
+        # `depth=1` backs the browsable explorer, which shows hidden entries (dimmed) behind its own
+        # toggle — so the pruning above must NOT reach this view.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["notes.md", ".env"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, depth=1, git_aware=True
+        )
+
+        assert {f.path for f in listing.files} == {"notes.md", ".env"}
 
     async def test_raw_listing_keeps_git_and_ignored_by_default(self):
         # Default (git_aware=False) is the plain-endpoint contract: EVERY object under the prefix, incl.

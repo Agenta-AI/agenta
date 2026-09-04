@@ -251,8 +251,9 @@ def _is_git_plumbing(path: str) -> bool:
 
 def _is_hidden_path(path: str) -> bool:
     """A dot-prefixed (hidden) file or folder anywhere in the path — `.claude/…`, `.gitignore`, etc.
-    Mirrors the web `isHiddenPath`. Dropped from the RECENCY view only (it is meant to read like
-    "what did I just work on", not dotfile plumbing); the browsable tree still lists them (dimmed)."""
+    Mirrors the web `isHiddenPath`. Dropped from the curated FLAT view (count + recency): those read
+    like "what is in my drive / what did I just work on", not dotfile plumbing. The browsable tree
+    and `depth=1` levels still list them (dimmed), behind the UI's "show hidden" toggle."""
     return any(
         segment.startswith(".") for segment in path.strip("/").split("/") if segment
     )
@@ -1069,6 +1070,8 @@ class MountsService:
         output) are pruned, runner-internal artifacts are hidden, and — for perf — the flat/recency
         modes descend level-by-level pruning ignored DIRECTORIES at the store layer instead of
         enumerating a `node_modules` dump. Pruning drives both the count and the tree in that mode.
+        The curated FLAT view (count + recency) additionally drops dot-prefixed paths; the browse and
+        `depth=1` views keep them, so the explorer can still show them behind its own toggle.
 
         `include_gitignored` (git_aware only) surfaces `.gitignore`-matched files again — the UI's
         "show git-ignored files" toggle — while STILL hiding `.git` plumbing and runner internals.
@@ -1272,15 +1275,19 @@ class MountsService:
                         f for f in files if not _path_gitignored(f.path, False, specs)
                     ]
                 files = [f for f in files if not _is_internal_mount_path(f.path)]
+                # Dotfile plumbing (`.claude/…`, `.gitignore`, `.env`) is not user content, so the
+                # curated flat view — the "N files" badge AND the recency list it labels — leaves it
+                # out entirely. The browsable tree still lists it (dimmed, behind the UI's "show
+                # hidden" toggle), which is why this drops here and not in the browse/`depth=1` views.
+                files = [f for f in files if not _is_hidden_path(f.path)]
             total = len(files)
             if count_only:
                 return MountFileList(files=[], total=total, total_capped=truncated)
             if order == "recent":
                 if git_aware:
-                    # Drop dotfile plumbing (`.claude/…`, `.gitignore`) — the recency list reads as
-                    # "what did I just work on" — then roll a fresh directory into one folder row.
-                    visible = [f for f in files if not _is_hidden_path(f.path)]
-                    entries = _rollup_recent_entries(visible, limit)
+                    # Hidden/internal plumbing is already gone above; roll a fresh directory into
+                    # one folder row so the list reads as "what did I just work on".
+                    entries = _rollup_recent_entries(files, limit)
                     return MountFileList(files=entries, total=total)
                 # RAW recency: newest object-store mtime first, no rollup/hidden pruning.
                 files.sort(key=lambda f: f.mtime or 0, reverse=True)

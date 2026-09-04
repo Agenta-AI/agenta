@@ -17,7 +17,13 @@ import {
 } from "@agenta/entities/session"
 
 import {agentMountQueryFamily} from "./agentDrive"
-import {cleanPath, driveFileStats, isInternalDrivePath, relativeTime} from "./driveTree"
+import {
+    cleanPath,
+    driveFileStats,
+    isHiddenPath,
+    isInternalDrivePath,
+    relativeTime,
+} from "./driveTree"
 
 /** The agent's durable mount is symlinked into the session cwd under this name (runner:
  * `AGENT_FILES_LINK_NAME`). Its files live in a SEPARATE mount/prefix, so the drive folds them in
@@ -379,6 +385,10 @@ const SUMMARY_LATEST_LIMIT = 5
  *  - The COUNT is a BOUNDED `limit=0` scan per mount (`total`/`total_capped`): the backend stops
  *    after a cap and reports "N+", so the "N files" badge never blocks on enumerating a huge tree.
  *
+ * Neither the count nor the lists include hidden (dot-prefixed) paths — this chrome is about user
+ * content, not plumbing (#6027). The browse explorer still lists them, behind its "show hidden"
+ * toggle; nothing about storage or what the agent can reach changes.
+ *
  * Returns the same {@link SessionDriveData} shape so consumers are unchanged.
  */
 export function useSessionDriveSummary(sessionId: string, artifactId?: string): SessionDriveData {
@@ -399,10 +409,10 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     const recordRecency = useAtomValue(sessionRecordFileRecencyAtomFamily(sessionId))
 
     // The record log's tool paths AS DRIVE PATHS: sandbox workspace root stripped, mount origin
-    // tagged, anything naming no drive file dropped (see `drivePathFromToolPath`). Filtered on the
-    // mount-relative path, before the fold prefix, exactly as the root listing filters its own.
-    // ONE derivation, shared with the gate below, so the gate can't withhold the root-listing
-    // fallback over a row the list then drops.
+    // tagged, anything naming no drive file dropped (see `drivePathFromToolPath`). Filtered by
+    // `isSummaryDrivePath` on the mount-relative path, before the fold prefix, exactly as the root
+    // listing below filters its own. ONE derivation, shared with the gate below, so the gate can't
+    // withhold the root-listing fallback over a row the list then drops.
     const recordFiles = useMemo(
         () =>
             [...recordRecency.entries()]
@@ -410,7 +420,7 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
                 .filter(
                     (entry): entry is {resolved: DriveToolPath; at: number} =>
                         entry.resolved !== null &&
-                        isListableDrivePath(entry.resolved.path, {
+                        isSummaryDrivePath(entry.resolved.path, {
                             fromAgentMount: entry.resolved.origin === "agent",
                         }),
                 ),
@@ -484,9 +494,9 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         // `agent-files` from the session mount is the fold marker and goes, the same name from the
         // agent mount is a real directory and stays.
         const rootEntries: MountFile[] = [
-            ...(rootQuery.data ?? []).filter((f) => isListableDrivePath(f.path)),
+            ...(rootQuery.data ?? []).filter((f) => isSummaryDrivePath(f.path)),
             ...(agentRootQuery.data ?? [])
-                .filter((f) => isListableDrivePath(f.path, {fromAgentMount: true}))
+                .filter((f) => isSummaryDrivePath(f.path, {fromAgentMount: true}))
                 .map((f) => ({
                     ...f,
                     path: `${agentPrefix}${cleanPath(f.path)}`,
