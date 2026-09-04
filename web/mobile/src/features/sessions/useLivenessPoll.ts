@@ -6,16 +6,11 @@ import {
 } from "@agenta/entities/session"
 import {useQuery} from "@tanstack/react-query"
 
-/** Shared key so other polls (interactions) can read the alive set from the cache. */
+/** Shared key for the project liveness subscription. */
 export const livenessQueryKey = (projectId: string) =>
     ["mobile", "session-liveness", projectId] as const
 
-/**
- * Backend liveness for the project's sessions — mirrors the desktop pattern
- * (oss AgentChatSlice state/liveness.ts): ONE project-scoped `is_alive=true` query backs every
- * badge, low-priority, 15s while anything is RUNNING and 60s while one is merely alive, stops
- * when nothing is alive, re-checks on focus.
- */
+/** Poll quickly while work runs, slowly while a session remains warm, and stop when idle. */
 export const useLivenessPoll = (projectId: string) =>
     useQuery<SessionStream[] | null>({
         queryKey: livenessQueryKey(projectId),
