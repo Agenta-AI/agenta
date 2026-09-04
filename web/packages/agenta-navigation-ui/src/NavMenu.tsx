@@ -283,6 +283,61 @@ const LeafRow = memo(function LeafRow({
     )
 })
 
+/** Within this many px of the bottom counts as reaching the end. */
+const REACH_END_PX = 120
+
+/**
+ * The one scrolling group's rows, which page in more as you reach the end.
+ *
+ * `onScroll` rather than an IntersectionObserver sentinel: a sentinel is permanently visible
+ * whenever the content is shorter than the box — routine here, since headings collapse — and that
+ * is a runaway fetch. A scroll handler cannot fire without a scroll. The autofill pass below
+ * covers the case a scroll handler structurally cannot: no scrollbar yet, so no scroll to hear.
+ */
+const ScrollGroupChildren = ({
+    children,
+    onReachEnd,
+}: {
+    children: ReactNode
+    onReachEnd?: () => void
+}) => {
+    const boxRef = useRef<HTMLDivElement>(null)
+    // One ask per growth step. A flick fires dozens of scroll events at the bottom, and each one
+    // asking for a page both stacks requests and rebuilds the list under the pointer.
+    const askedAt = useRef(-1)
+
+    const reachEnd = () => {
+        const box = boxRef.current
+        if (!box || !onReachEnd) return
+        if (askedAt.current === box.scrollHeight) return
+        askedAt.current = box.scrollHeight
+        onReachEnd()
+    }
+
+    return (
+        // Its own scroll box, outside HeightCollapse: the animation drives height, and a scroll
+        // area needs its height to come from the flex line instead. `min-h-0` is what lets it
+        // shrink below its content; the rows around it hold their size on their own.
+        <div
+            ref={boxRef}
+            data-nav-scroll="true"
+            className={clsx(GROUP_CHILDREN, "min-h-0 overflow-y-auto", DRAG_GHOST)}
+            onScroll={
+                onReachEnd
+                    ? (event) => {
+                          const box = event.currentTarget
+                          if (box.scrollHeight - box.scrollTop - box.clientHeight <= REACH_END_PX) {
+                              reachEnd()
+                          }
+                      }
+                    : undefined
+            }
+        >
+            {children}
+        </div>
+    )
+}
+
 /** Children of a collapsed-rail (or vertical-mode) group, flattened into a Radix flyout. */
 const FlyoutChildren = ({
     items,
@@ -508,16 +563,9 @@ const NavMenuImpl = ({
                         )}
                     </div>
                     {item.scrollChildren ? (
-                        // Its own scroll box, outside HeightCollapse: the animation drives height,
-                        // and a scroll area needs its height to come from the flex line instead.
-                        // `min-h-0` is what lets it shrink below its content; the rows around it
-                        // hold their size on their own (auto min-height == their fixed row height).
-                        <div
-                            data-nav-scroll="true"
-                            className={clsx(GROUP_CHILDREN, "min-h-0 overflow-y-auto", DRAG_GHOST)}
-                        >
+                        <ScrollGroupChildren onReachEnd={item.onReachEnd}>
                             {(item.submenu ?? []).map(renderItem)}
-                        </div>
+                        </ScrollGroupChildren>
                     ) : (
                         // `shrink-0`: HeightCollapse's wrapper is `overflow-hidden`, which drops a
                         // flex item's automatic min-height — so beside a scrolling group it

@@ -19,7 +19,6 @@ import {
     sidebarAgentRanksAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
-    sidebarSessionPageSize,
     sidebarSessionsListAtomFamily,
     type SessionSidebarRef,
 } from "./sessionsSource"
