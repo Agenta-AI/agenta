@@ -2055,7 +2055,7 @@ def _assert_runner_token(request: Request) -> None:
         authorization = request.headers.get("Authorization") or ""
         if authorization.lower().startswith("bearer "):
             presented = authorization[7:].strip()
-    if not compare_digest(presented, expected):
+    if not compare_digest(presented.encode("utf-8"), expected.encode("utf-8")):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unauthorized",

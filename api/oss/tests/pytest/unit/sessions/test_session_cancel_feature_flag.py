@@ -3,6 +3,9 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import UUID
 
+import pytest
+from fastapi import HTTPException
+
 from oss.src.apis.fastapi.sessions import router as router_module
 from oss.src.apis.fastapi.sessions.models import SessionCancelRequest
 from oss.src.apis.fastapi.sessions.router import SessionControlRouter
@@ -92,3 +95,13 @@ async def test_cancel_route_uses_durable_path_when_flag_is_on(monkeypatch):
     service.request_cancel.assert_awaited_once()
     service.request_cancel_legacy.assert_not_awaited()
     assert response.status_code == 202
+
+
+def test_runner_token_rejects_non_ascii_credentials_as_unauthorized(monkeypatch):
+    monkeypatch.setattr(env.runner, "token", "shared-secret")
+    request = SimpleNamespace(headers={"X-Agenta-Runner-Token": "nøt-the-token"})
+
+    with pytest.raises(HTTPException) as exc_info:
+        router_module._assert_runner_token(request)
+
+    assert exc_info.value.status_code == 401
