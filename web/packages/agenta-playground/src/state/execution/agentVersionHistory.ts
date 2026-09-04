@@ -1,0 +1,131 @@
+/**
+ * Agent version history: the rows the drawer lists, and the revert that restores one.
+ *
+ * Revert is not a new kind of write — it is a normal commit whose content happens to be old.
+ * History is therefore never rewritten: the selected version's configuration is staged onto the
+ * current revision's draft and committed, minting a new head above everything that came before.
+ *
+ * It commits through {@link flushAgentAutoCommitAtom} rather than calling the commit atom
+ * directly. Staging a draft arms the auto-commit debounce; a second, independent commit would
+ * race it and could mint two versions from one click. The flush owns that timer and its
+ * in-flight guard, so going through it means exactly one new version.
+ */
+import {
+    discardWorkflowDraftAtom,
+    updateWorkflowDraftAtom,
+    workflowDraftAtomFamily,
+    workflowMolecule,
+    type Workflow,
+} from "@agenta/entities/workflow"
+import {atom, getDefaultStore} from "jotai"
+
+import {flushAgentAutoCommitAtom} from "./agentAutoCommit"
+
+/** Prefix of a revert's commit message. */
+export const REVERT_MESSAGE_PREFIX = "Revert to v"
+
+export interface AgentVersionRow {
+    id: string
+    version: number
+    message: string | null
+    createdAt: string | null
+    /** The newest version — the one baseline every diff and every footer count is measured from. */
+    isLatest: boolean
+}
+
+/**
+ * Rows for the version list, newest first.
+ *
+ * Drops the `version: 0` seed every workflow carries: it holds no configuration, so it can be
+ * neither compared nor restored. The revision pickers filter it the same way.
+ */
+export const buildVersionRows = (revisions: Workflow[]): AgentVersionRow[] =>
+    revisions
+        .filter((revision) => (revision.version as number | null | undefined) !== 0)
+        // Version first, timestamp only as a tie-break — `created_at` can disagree with the order.
+        .slice()
+        .sort((a, b) => {
+            const byVersion = (((b.version as number) ?? 0) -
+                ((a.version as number) ?? 0)) as number
+            if (byVersion !== 0) return byVersion
+            const at = Date.parse(a.created_at ?? "")
+            const bt = Date.parse(b.created_at ?? "")
+            return (Number.isNaN(bt) ? 0 : bt) - (Number.isNaN(at) ? 0 : at)
+        })
+        .map((revision, index) => {
+            const message = revision.message?.trim() || null
+            return {
+                id: revision.id,
+                version: (revision.version as number | null | undefined) ?? 0,
+                message,
+                createdAt: revision.created_at ?? null,
+                isLatest: index === 0,
+            }
+        })
+
+/** `Revert to v3 — "Switch to Opus"`, or just `Revert to v3` when that version had no message. */
+export const buildRevertMessage = (row: Pick<AgentVersionRow, "version" | "message">): string =>
+    row.message
+        ? `${REVERT_MESSAGE_PREFIX}${row.version} — "${row.message}"`
+        : `${REVERT_MESSAGE_PREFIX}${row.version}`
+
+export interface RevertAgentRevisionParams {
+    /** The revision under edit — the one the new version is committed from. */
+    revisionId: string
+    /** The historical revision whose configuration is being restored. */
+    targetRevisionId: string
+}
+
+/**
+ * Stage a historical revision's configuration onto the current one and commit it.
+ *
+ * Reads the target through `serverConfiguration`, NOT `configuration`: the latter overlays that
+ * revision's local draft, so an older revision someone once edited would restore content that
+ * was never committed. Schemas ride along — the commit sends `data.schemas`, so leaving them
+ * behind would restore a configuration the old version never had.
+ *
+ * All-or-nothing: if the commit does not land, the draft goes back exactly as it was. Staging
+ * OVERWRITES an existing draft, so a pre-existing one is snapshotted and restored rather than
+ * discarded, or a failed revert would eat edits it never owned.
+ *
+ * Resolves to whether a new version landed.
+ */
+export const revertAgentRevisionAtom = atom(
+    null,
+    async (get, set, {revisionId, targetRevisionId}: RevertAgentRevisionParams) => {
+        if (!revisionId || !targetRevisionId || revisionId === targetRevisionId) return false
+
+        const parameters = get(workflowMolecule.selectors.serverConfiguration(targetRevisionId))
+        if (!parameters) return false
+        const schemas = get(workflowMolecule.selectors.serverData(targetRevisionId))?.data?.schemas
+
+        // Staging overwrites whatever is there, so keep the original to put back on failure.
+        const priorDraft = get(workflowDraftAtomFamily(revisionId))
+        set(updateWorkflowDraftAtom, revisionId, {
+            data: {parameters, ...(schemas ? {schemas} : {})},
+        } as Partial<Workflow>)
+
+        // Nothing staged means the target already matches the current configuration.
+        if (!get(workflowMolecule.selectors.isDirty(revisionId))) {
+            if (priorDraft) set(workflowDraftAtomFamily(revisionId), priorDraft)
+            return false
+        }
+
+        const target = get(workflowMolecule.selectors.data(targetRevisionId)) as Workflow | null
+        const commitMessage = buildRevertMessage({
+            version: (target?.version as number | null | undefined) ?? 0,
+            message: target?.message?.trim() || null,
+        })
+
+        const landed = await set(flushAgentAutoCommitAtom, {revisionId, commitMessage})
+        if (!landed) {
+            if (priorDraft) set(workflowDraftAtomFamily(revisionId), priorDraft)
+            else set(discardWorkflowDraftAtom, revisionId)
+        }
+        return landed
+    },
+)
+
+/** Imperative form, for hosts outside a Jotai render tree. */
+export const revertAgentRevision = (params: RevertAgentRevisionParams) =>
+    getDefaultStore().set(revertAgentRevisionAtom, params)

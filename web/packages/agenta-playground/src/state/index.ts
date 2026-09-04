@@ -465,4 +465,10 @@ export {
     agentAutoCommitScheduledAtomFamily,
     flushAgentAutoCommitAtom,
     registerAgentAutoCommitHandler,
+    buildVersionRows,
+    buildRevertMessage,
+    revertAgentRevisionAtom,
+    revertAgentRevision,
+    REVERT_MESSAGE_PREFIX,
 } from "./execution"
+export type {AgentVersionRow, RevertAgentRevisionParams} from "./execution"
