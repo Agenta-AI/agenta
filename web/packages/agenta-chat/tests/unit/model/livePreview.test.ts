@@ -7,6 +7,7 @@ import {
     reduceSessionLivePreview,
     sessionLivePreviewMessages,
     shouldSubscribeToSessionLivePreview,
+    withoutSharedSenderAcceptanceMessages,
 } from "../../../src/model/livePreview"
 
 const frame = (
@@ -28,6 +29,27 @@ const frame = (
 })
 
 describe("session live preview reducer", () => {
+    it("removes the control-only invoke message but preserves an invoke error", () => {
+        const accepted = {
+            id: "accepted",
+            role: "assistant",
+            parts: [{type: "data-session-accepted", data: {turnId: "turn-1"}}],
+            metadata: {sharedSender: true},
+        }
+        const failed = {
+            ...accepted,
+            id: "failed",
+            metadata: {sharedSender: true, runError: {message: "failed"}},
+        }
+        const ordinary = {id: "ordinary", role: "assistant", parts: [{type: "text", text: "ok"}]}
+
+        expect(
+            withoutSharedSenderAcceptanceMessages([accepted, failed, ordinary] as never[]).map(
+                (message) => message.id,
+            ),
+        ).toEqual(["failed", "ordinary"])
+    })
+
     it("recognizes a running execution from the atomic reconnect snapshot", () => {
         const snapshot = {
             session: {flags: {is_running: true}},

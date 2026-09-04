@@ -52,6 +52,7 @@ import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
 import {parseAgentRunError, type ParsedRunError} from "../model/error"
+import {withoutSharedSenderAcceptanceMessages} from "../model/livePreview"
 import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionStatus"
 import {
     buildTurnViewModels,
@@ -713,7 +714,11 @@ export const useAgentConversation = ({
     // watermark the rendered transcript still stands on (undefined once a live turn extended it).
     useEffect(() => {
         if (status === "streaming") return
-        persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
+        persistMessages({
+            id: sessionId,
+            messages: withoutSharedSenderAcceptanceMessages(messages),
+            recordCount: recordWatermarkRef.current,
+        })
     }, [messages, status, sessionId, persistMessages])
 
     // One startup label per in-flight turn. `submitted` opens a NEW turn, so a label the previous
@@ -790,10 +795,12 @@ export const useAgentConversation = ({
         },
         onDisconnect: revalidate,
     })
-    const displayMessages = useMemo(
-        () => (previewMessages.length ? [...messages, ...previewMessages] : messages),
-        [messages, previewMessages],
-    )
+    const displayMessages = useMemo(() => {
+        const transcriptMessages = withoutSharedSenderAcceptanceMessages(messages)
+        return previewMessages.length
+            ? [...transcriptMessages, ...previewMessages]
+            : transcriptMessages
+    }, [messages, previewMessages])
 
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const handleStop = useCallback(() => {

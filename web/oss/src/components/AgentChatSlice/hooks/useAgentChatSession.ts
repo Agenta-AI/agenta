@@ -14,6 +14,7 @@ import {
     isSessionTurnStopping,
     parseAgentRunError,
     reduceUserStoppedState,
+    withoutSharedSenderAcceptanceMessages,
 } from "@agenta/chat/model"
 import {
     clearTurnClockAtom,
@@ -469,7 +470,11 @@ export const useAgentChatSession = ({
     // Persist the conversation whenever its stream settles (skip mid-stream).
     useEffect(() => {
         if (status === "streaming") return
-        persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
+        persistMessages({
+            id: sessionId,
+            messages: withoutSharedSenderAcceptanceMessages(messages),
+            recordCount: recordWatermarkRef.current,
+        })
     }, [messages, status, sessionId, persistMessages])
 
     // ── #6047 startup states: one label per in-flight turn ──

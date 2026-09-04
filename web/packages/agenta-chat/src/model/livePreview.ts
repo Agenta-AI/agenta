@@ -18,6 +18,18 @@ export const shouldSubscribeToSessionLivePreview = ({
     runningElsewhere: boolean
 }): boolean => sharedReaderAdvertised && runningElsewhere
 
+/** The shared sender still consumes the invoke response for acceptance ids and errors. The AI SDK
+ * creates a message carrier for that control-only stream; keep it out of transcript rendering and
+ * local persistence unless it also carries a run error. */
+export const withoutSharedSenderAcceptanceMessages = (messages: UIMessage[]): UIMessage[] =>
+    messages.filter((message) => {
+        const metadata = message.metadata as
+            | {sharedSender?: boolean; runError?: unknown}
+            | undefined
+        if (!metadata?.sharedSender || metadata.runError) return true
+        return message.parts.some((part) => part.type !== "data-session-accepted")
+    })
+
 /** Atomic refresh verdict: the latest execution exists, is not complete, and the session still
  * owns the running flag from the same snapshot read. */
 export const isSessionSnapshotRunning = (snapshot: SessionSnapshot | undefined): boolean =>

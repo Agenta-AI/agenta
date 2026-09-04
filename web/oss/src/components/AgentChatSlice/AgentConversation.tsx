@@ -30,6 +30,7 @@ import {
     isVisiblePart,
 } from "@agenta/chat/model"
 import {getInteractionAvailability, getLivePendingApprovals} from "@agenta/chat/model"
+import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
 import {
@@ -157,10 +158,10 @@ const AgentConversation = ({
         runningElsewhere,
         onDisconnect: refreshFromRecords,
     })
-    const transcriptMessages = useMemo(
-        () => (previewMessages.length ? [...messages, ...previewMessages] : messages),
-        [messages, previewMessages],
-    )
+    const transcriptMessages = useMemo(() => {
+        const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
+        return previewMessages.length ? [...durableMessages, ...previewMessages] : durableMessages
+    }, [messages, previewMessages])
     const transcriptBusy = busy || previewMessages.length > 0
 
     // Turn Inspector: open state, the focused turn, and the assistant → turn-number mapping.
