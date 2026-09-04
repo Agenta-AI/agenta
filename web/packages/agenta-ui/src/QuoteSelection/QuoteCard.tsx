@@ -20,7 +20,7 @@ export const QuoteCard = ({
             className={`flex items-start gap-2 rounded-[10px] border-0 border-l-2 border-solid border-colorPrimary bg-colorFillQuaternary px-2.5 py-2 ${className}`}
         >
             <Icon size={14} className="mt-0.5 shrink-0 text-colorTextTertiary" />
-            <span className="line-clamp-3 min-w-0 flex-1 break-words text-xs text-colorText">
+            <span className="line-clamp-2 min-w-0 flex-1 break-words text-xs text-colorText">
                 {truncateQuoteText(quote.text, 220)}
             </span>
             {onRemove ? (

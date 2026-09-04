@@ -6,10 +6,9 @@
  * no DOM, adds no nodes, causes no reflow, and paints in the browser's own highlight pass — the
  * same approach the editor's search plugin already uses here.
  *
- * Upkeep is O(quotes), not O(transcript): each commit only asks whether a held range's container is
- * still connected. Re-resolution — a text walk over the root — runs solely when that goes false,
- * which means a virtualised row remounted. Browsers without the API simply show no highlight; the
- * composer chips still carry the quote.
+ * Upkeep is O(quotes), not O(transcript): each commit only asks whether a held range still looks
+ * live. Re-resolution — a text walk over the root — runs solely when it does not. Browsers without
+ * the API simply show no highlight; the composer chips still carry the quote.
  */
 import {useEffect} from "react"
 
@@ -47,9 +46,24 @@ const ensureStyles = () => {
     document.head.appendChild(style)
 }
 
+/** How much of the excerpt a held range is re-checked against — bounded, so the per-commit cost
+ * does not grow with the quote. */
+const VERIFY_CHARS = 40
+
 /**
- * Walk `root` for the quote's text and rebuild a range over it. Only called when a held range's
- * node has left the document.
+ * Is this held range still spanning its excerpt? A re-render can leave the container connected
+ * while the range itself collapses or slides onto other text, which would paint nothing (or the
+ * wrong span) with no other signal — `isConnected` alone misses both.
+ */
+const stillOnText = (range: Range, text: string): boolean => {
+    if (!range.startContainer.isConnected || range.collapsed) return false
+    const want = normalizeQuoteText(text).slice(0, VERIFY_CHARS)
+    return normalizeQuoteText(range.toString()).slice(0, VERIFY_CHARS) === want
+}
+
+/**
+ * Walk `root` for the quote's text and rebuild a range over it. Only called when a held range no
+ * longer spans its excerpt.
  */
 const resolveRange = (root: HTMLElement, text: string): Range | null => {
     const needle = normalizeQuoteText(text)
@@ -104,8 +118,8 @@ export const useQuoteHighlights = (
         const stale: Range[] = []
         quotes.forEach((quote) => {
             let range = getQuoteRange(quote.id)
-            // The cheap check, every commit. A full re-resolve only when the anchor really left.
-            if (!range || !range.startContainer.isConnected) {
+            // The bounded check, every commit. A full re-resolve only when the anchor really moved.
+            if (!range || !stillOnText(range, quote.text)) {
                 range = resolveRange(root, quote.text) ?? undefined
                 setQuoteRange(quote.id, range ?? null)
             }
