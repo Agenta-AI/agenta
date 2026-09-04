@@ -193,7 +193,6 @@ class RecordsWorker(StreamConsumer):
                         {f"{row.session_id}:{row.turn_id}" for row in quarantined}
                     ),
                 )
-            self.mark_committed()
             return len(results), True
         except Exception:
             log.error(

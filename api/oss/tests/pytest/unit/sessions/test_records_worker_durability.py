@@ -377,6 +377,55 @@ async def test_nothing_is_dropped_while_the_write_path_is_down():
 
 
 @pytest.mark.asyncio
+async def test_recovery_with_new_traffic_keeps_the_over_budget_backlog():
+    project_id = uuid4()
+    old_record, new_record = uuid4(), uuid4()
+    redis_client = fakeredis.FakeRedis()
+    await _seed(
+        redis_client,
+        [_payload(project_id=project_id, session_id="s", record_id=old_record)],
+    )
+
+    dao = FakeRecordsDAO(fail_calls=99)
+    worker = _worker(dao, redis_client=redis_client, max_deliveries=2)
+
+    old_batch = await worker.read_batch()
+    await worker.process_batch(old_batch)
+    for _ in range(3):
+        await asyncio.sleep(0.01)
+        reclaimed = await worker.reclaim_batch()
+        assert [msg_id for msg_id, _ in reclaimed] == [
+            msg_id for msg_id, _ in old_batch
+        ]
+        await worker.process_batch(reclaimed)
+
+    dao.fail_calls = 0
+    await redis_client.xadd(
+        name=STREAM,
+        fields={
+            "data": _payload(
+                project_id=project_id,
+                session_id="s",
+                record_id=new_record,
+            )
+        },
+    )
+    new_batch = await worker.read_batch()
+    _, acked_ids = await worker.process_batch(new_batch)
+    await worker.ack_and_delete(acked_ids)
+
+    await asyncio.sleep(0.01)
+    reclaimed = await worker.reclaim_batch()
+    assert [msg_id for msg_id, _ in reclaimed] == [msg_id for msg_id, _ in old_batch]
+    _, acked_ids = await worker.process_batch(reclaimed)
+    await worker.ack_and_delete(acked_ids)
+
+    assert dao.committed == [str(new_record), str(old_record)]
+    assert worker.dropped_messages == 0
+    assert await redis_client.xlen(STREAM) == 0
+
+
+@pytest.mark.asyncio
 async def test_describe_message_survives_an_undecodable_payload():
     assert _worker(FakeRecordsDAO()).describe_message({b"data": b"not-zlib"}) is None
 
