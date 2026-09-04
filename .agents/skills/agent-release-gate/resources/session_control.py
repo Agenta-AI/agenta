@@ -915,6 +915,46 @@ def _skip(why: str) -> dict:
     return {"pass": False, "skip": True, "why": why}
 
 
+def _judge_runner_gone(evidence: dict) -> dict:
+    """Shared PASS rule for the runner-gone family (`runner-gone`, `runner-gone-late`).
+
+    The invariant: exactly one effective terminal outcome for the execution, no command left
+    pending or claimed, is_running false, and the next Send succeeds. Two different races can
+    land this — the runner reports the Stop's outcome before it dies (`outcome-reported-then-
+    died`), or it never gets the chance and the sweep settles the command `lost`
+    (`never-reported`) — and both satisfy the invariant, so both PASS. Which one landed is
+    recorded on `evidence["race"]` for visibility, not asserted on. Mutates `evidence` in place.
+    """
+    if not evidence.get("terminal_records"):
+        return _fail("no terminal record settled within the sweep-wait window")
+    stop_command = evidence.get("stop_command")
+    if stop_command is None:
+        return _fail("no session_commands row was found for the Stop")
+    if stop_command.get("state") not in ("obsolete", "applied"):
+        return _fail(
+            f"the Stop command read state {stop_command.get('state')!r}, expected obsolete or applied"
+        )
+    outcome = stop_command.get("outcome")
+    if outcome in (None, "", "pending", "claimed"):
+        return _fail(
+            f"the Stop command was left {outcome!r}: still pending or claimed, never settled"
+        )
+    stream_row = evidence.get("stream_row") or {}
+    if (stream_row.get("flags") or {}).get("is_running") is not False:
+        return _fail(
+            "the session_streams row did not read is_running: false after the sweep settled "
+            "the command"
+        )
+    if not evidence.get("new_message_ran"):
+        return _fail("the Send sent after recovery did not run cleanly")
+    race = "never-reported" if outcome == "lost" else "outcome-reported-then-died"
+    evidence["race"] = race
+    return _pass(
+        f"race {race}: the Stop command settled off pending/claimed, is_running read false, "
+        "and the next Send ran"
+    )
+
+
 def cell_stop_warm(cfg, references, args, hooks: OperatorHooks) -> Cell:
     """Stop under 5 s, park, warm resume that recalls the codeword. Needs no shell."""
     session_id = str(uuid.uuid4())
@@ -1343,14 +1383,18 @@ def cell_restart_after_stop(cfg, references, args, hooks: OperatorHooks) -> Cell
 
 
 def cell_runner_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
-    """Restart the runner right after a Stop is claimed, before it can report the outcome.
+    """Pause the runner BEFORE the Stop, so the command can never be claimed or reported.
 
-    The sweep must settle the command as `lost`, not `claimed`, after the stale threshold and
-    the sweep interval both pass. The session_streams row must then read `is_running: false`,
-    and a Send sent after that must run.
+    Deterministic version of the hard race: hoping a restart lands between the Stop and the
+    runner's own outcome report is timing-dependent and mostly loses the race (see
+    `runner-gone-late`). Pausing first removes the timing dependency: the runner cannot claim
+    or report the command at all, so it must stay `pending` until the stale threshold and the
+    sweep interval both pass (--sweep-wait), at which point the sweep must settle it `lost`
+    (state `obsolete` or `applied`, outcome `lost`) and write the execution's own watchdog
+    `execution_lost` ending. Unpause, confirm healthy, then send the next message.
     """
     if not hooks.available:
-        return {}, _skip("no --project given: restarting the runner needs docker")
+        return {}, _skip("no --project given: pausing the runner needs docker")
     session_id = str(uuid.uuid4())
     marker = f"FIG{uuid.uuid4().hex[:6].upper()}"
     msgs = [user_msg(sleep_prompt(marker, 240))]
@@ -1358,12 +1402,124 @@ def cell_runner_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
     turn = wait_for_turn(session_id)
     time.sleep(5)
 
-    # Stop first, then take the runner away before it can report the outcome.
+    hooks.pause_runner()
+    try:
+        # The runner is paused: it cannot claim or report the Stop. Fire it anyway — the API
+        # accepts and enqueues the command whether or not the runner is reachable.
+        stop = cancel(session_id, expected=turn, label="stop-then-pause")
+        stop_at = time.time()
+
+        # Wait for the sweep. The plan budgets the stale threshold plus the sweep interval,
+        # held in --sweep-wait.
+        settled_at = None
+        terminal: list = []
+        deadline = time.time() + args.sweep_wait
+        while time.time() < deadline:
+            stream = session_stream(session_id)
+            flags = stream.get("flags") or {}
+            terminal = terminal_records(session_id, turn)
+            if terminal and not flags.get("is_running"):
+                settled_at = time.time()
+                break
+            time.sleep(5)
+
+        time.sleep(3)
+        commands = hooks.command_rows(session_id)
+        stream_row = hooks.stream_row(session_id)
+    finally:
+        # Unpause even if the wait above raises: a paused runner left behind strands every
+        # cell that runs after this one.
+        hooks.unpause_runner()
+    healthy_after_s = hooks.wait_for_runner()
+
+    matching = [c for c in commands if turn and c.get("target_turn_id") == turn]
+    stop_command = matching[-1] if matching else (commands[-1] if commands else None)
+
+    handle["thread"].join(timeout=60)
+    t2 = invoke(
+        session_id,
+        [user_msg(f"The codeword is {marker}. Reply with just the single word READY.")],
+        cfg,
+        references,
+        "gone-turn2",
+    )
+    evidence = {
+        "session_id": session_id,
+        "turn_id": turn,
+        "stop": stop,
+        "seconds_to_settle": round(settled_at - stop_at, 1) if settled_at else None,
+        "terminal_records": terminal,
+        "stream_after": session_stream(session_id),
+        "commands": commands,
+        "stop_command": stop_command,
+        "stream_row": stream_row,
+        "healthy_after_unpause_s": healthy_after_s,
+        "new_message_ran": bool(t2.get("frames")) and not t2.get("errors"),
+        "new_message_errors": t2.get("errors"),
+    }
+    if healthy_after_s is None:
+        return evidence, _fail("the runner never reported healthy after the unpause")
+    if settled_at is None:
+        return evidence, _fail(
+            "no terminal record settled within the sweep-wait window while the runner was paused"
+        )
+    if stop_command is None:
+        return evidence, _fail("no session_commands row was found for the Stop")
+    if stop_command.get("state") not in ("obsolete", "applied"):
+        return evidence, _fail(
+            f"the Stop command read state {stop_command.get('state')!r}, expected obsolete or applied"
+        )
+    if stop_command.get("outcome") != "lost":
+        return evidence, _fail(
+            f"the Stop command read outcome {stop_command.get('outcome')!r}, expected lost: a "
+            "paused runner should never have been able to report it"
+        )
+    watchdog_ending = [
+        r
+        for r in terminal
+        if r.get("type") == "error"
+        and (r.get("attributes") or {}).get("code") == "execution_lost"
+        and (r.get("attributes") or {}).get("settled_by") == "watchdog"
+    ]
+    if not watchdog_ending:
+        return evidence, _fail(
+            "no watchdog execution_lost ending was found among the terminal records"
+        )
+    evidence["race"] = "never-reported"
+    if (stream_row.get("flags") or {}).get("is_running") is not False:
+        return evidence, _fail(
+            "the session_streams row did not read is_running: false after the sweep settled the command"
+        )
+    if not evidence["new_message_ran"]:
+        return evidence, _fail("the Send sent after the unpause did not run cleanly")
+    return evidence, _pass(
+        "pausing the runner first deterministically forced the never-reported race: the sweep "
+        "settled the Stop lost with a watchdog execution_lost ending, the stream row read "
+        "is_running: false, and the next Send ran"
+    )
+
+
+def cell_runner_gone_late(cfg, references, args, hooks: OperatorHooks) -> Cell:
+    """Restart the runner right after a Stop is claimed, hoping it lands before the runner can
+    report the outcome. The softer, timing-dependent sibling of `runner-gone`: a restart often
+    loses this race (the runner reports the Stop's outcome before it actually dies), so this
+    cell accepts either race the sweep can produce — see `_judge_runner_gone`.
+    """
+    if not hooks.available:
+        return {}, _skip("no --project given: restarting the runner needs docker")
+    session_id = str(uuid.uuid4())
+    marker = f"FIG{uuid.uuid4().hex[:6].upper()}"
+    msgs = [user_msg(sleep_prompt(marker, 240))]
+    handle = invoke_async(session_id, msgs, cfg, references, "gone-late-turn1")
+    turn = wait_for_turn(session_id)
+    time.sleep(5)
+
+    # Stop first, then take the runner away before it can (maybe) report the outcome.
     stop = cancel(session_id, expected=turn, label="stop-then-kill")
     kill_at = time.time()
     hooks.kill_runner()
     print(
-        f"[runner-gone] restarted the runner at {time.strftime('%H:%M:%S')}",
+        f"[runner-gone-late] restarted the runner at {time.strftime('%H:%M:%S')}",
         file=sys.stderr,
     )
     handle["thread"].join(timeout=60)
@@ -1392,7 +1548,7 @@ def cell_runner_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
         [user_msg(f"The codeword is {marker}. Reply with just the single word READY.")],
         cfg,
         references,
-        "gone-turn2",
+        "gone-late-turn2",
     )
     evidence = {
         "session_id": session_id,
@@ -1407,32 +1563,7 @@ def cell_runner_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "new_message_ran": bool(t2.get("frames")) and not t2.get("errors"),
         "new_message_errors": t2.get("errors"),
     }
-    if settled_at is None:
-        return evidence, _fail(
-            "no terminal record settled within the sweep-wait window after the runner was taken away"
-        )
-    if stop_command is None:
-        return evidence, _fail("no session_commands row was found for the Stop")
-    if stop_command.get("state") not in ("obsolete", "applied"):
-        return evidence, _fail(
-            f"the Stop command read state {stop_command.get('state')!r}, expected obsolete or applied"
-        )
-    if stop_command.get("outcome") != "lost":
-        return evidence, _fail(
-            f"the Stop command read outcome {stop_command.get('outcome')!r}, expected lost, not claimed"
-        )
-    if (stream_row.get("flags") or {}).get("is_running") is not False:
-        return evidence, _fail(
-            "the session_streams row did not read is_running: false after the sweep settled the command"
-        )
-    if not evidence["new_message_ran"]:
-        return evidence, _fail(
-            "the Send sent after the runner recovered did not run cleanly"
-        )
-    return evidence, _pass(
-        "the sweep settled the Stop as lost, the stream row read is_running: false, and the "
-        "next Send ran"
-    )
+    return evidence, _judge_runner_gone(evidence)
 
 
 def cell_post_stop_row(cfg, references, args, hooks: OperatorHooks) -> Cell:
@@ -1827,6 +1958,7 @@ CELLS: dict[str, tuple[bool, str, "object"]] = {
     "stop-after-finish": (False, "allow", cell_stop_after_finish),
     "restart-after-stop": (True, "allow", cell_restart_after_stop),
     "runner-gone": (True, "allow", cell_runner_gone),
+    "runner-gone-late": (True, "allow", cell_runner_gone_late),
     "post-stop-row": (True, "allow", cell_post_stop_row),
     "codex-child": (True, "allow", cell_codex_child),
     "stale-tail": (True, "allow", cell_stale_tail),
