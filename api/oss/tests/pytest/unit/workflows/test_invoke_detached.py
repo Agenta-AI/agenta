@@ -146,7 +146,22 @@ async def test_stream_service_started_rejects_failure_or_malformed_first_record(
                 credentials="Secret tok",
                 payload={},
                 run_id="run-x",
+                strict_first_record=True,
             )
+
+
+async def test_stream_service_started_keeps_legacy_best_effort_for_ordinary_trigger():
+    response = _FakeStreamResponse(lines=["not-json"])
+    with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
+        result = await _service()._stream_service_started(
+            url="http://svc/invoke",
+            credentials="Secret tok",
+            payload={},
+            run_id="run-x",
+        )
+
+    assert result.accepted is True
+    assert result.run_id == "run-x"
 
 
 async def test_stream_service_started_accepts_success_result_record():
@@ -173,10 +188,11 @@ async def test_invoke_workflow_detached_returns_run_id_and_threads_meta():
 
     captured = {}
 
-    async def _fake_stream(*, url, credentials, payload, run_id):
+    async def _fake_stream(*, url, credentials, payload, run_id, strict_first_record):
         captured["url"] = url
         captured["payload"] = payload
         captured["run_id"] = run_id
+        captured["strict_first_record"] = strict_first_record
         from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 
         return WorkflowServiceDetachedResponse(run_id=run_id, accepted=True)
@@ -199,6 +215,32 @@ async def test_invoke_workflow_detached_returns_run_id_and_threads_meta():
     # The coordination ids are threaded onto the request meta (Foundation B handoff).
     assert captured["payload"]["meta"]["run_id"] == "run-fixed"
     assert captured["payload"]["meta"]["project_id"] == str(project_id)
+    assert captured["strict_first_record"] is False
+
+
+async def test_invoke_workflow_detached_enables_strict_handshake_for_control_command():
+    svc = _service()
+    svc._prepare_invoke = AsyncMock(return_value=("Secret tok", "http://svc"))
+    captured = {}
+
+    async def _fake_stream(*, url, credentials, payload, run_id, strict_first_record):
+        captured["strict_first_record"] = strict_first_record
+        from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
+
+        return WorkflowServiceDetachedResponse(run_id=run_id, accepted=True)
+
+    svc._stream_service_started = _fake_stream
+
+    from agenta.sdk.decorators.running import WorkflowServiceRequest
+
+    await svc.invoke_workflow_detached(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        request=WorkflowServiceRequest(meta={"control_command_id": str(uuid4())}),
+        run_id="run-control",
+    )
+
+    assert captured["strict_first_record"] is True
 
 
 async def test_invoke_workflow_detached_raises_when_no_service_url():

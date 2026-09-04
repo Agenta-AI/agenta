@@ -752,6 +752,7 @@ class WorkflowsService:
         credentials: str,
         payload: dict,
         run_id: str,
+        strict_first_record: bool = False,
     ) -> WorkflowServiceDetachedResponse:
         """Stream the service ``/invoke`` and return on the FIRST record (the started handshake).
 
@@ -803,15 +804,17 @@ class WorkflowsService:
                     try:
                         record = json.loads(line)
                     except json.JSONDecodeError as error:
-                        raise WorkflowDetachedStartFailed(
-                            "Workflow service emitted malformed NDJSON before detached start."
-                        ) from error
-                    if not isinstance(record, dict):
+                        if strict_first_record:
+                            raise WorkflowDetachedStartFailed(
+                                "Workflow service emitted malformed NDJSON before detached start."
+                            ) from error
+                        record = None
+                    if strict_first_record and not isinstance(record, dict):
                         raise WorkflowDetachedStartFailed(
                             "Workflow service emitted a non-object record before detached start."
                         )
-                    kind = record.get("kind")
-                    if kind == "result":
+                    kind = record.get("kind") if isinstance(record, dict) else None
+                    if strict_first_record and kind == "result":
                         result = record.get("result")
                         if not isinstance(result, dict) or result.get("ok") is not True:
                             detail = (
@@ -822,11 +825,13 @@ class WorkflowsService:
                             raise WorkflowDetachedStartFailed(
                                 f"Workflow service rejected detached start: {detail}"
                             )
-                    elif kind != "event":
+                    elif strict_first_record and kind != "event":
                         raise WorkflowDetachedStartFailed(
                             "Workflow service emitted an unknown record before detached start."
                         )
-                    record_run_id = record.get("run_id")
+                    record_run_id = (
+                        record.get("run_id") if isinstance(record, dict) else None
+                    )
                     return WorkflowServiceDetachedResponse(
                         run_id=record_run_id or run_id,
                         accepted=True,
@@ -3007,6 +3012,7 @@ class WorkflowsService:
                 exclude_none=True,
             ),
             run_id=run_id,
+            strict_first_record=bool(meta.get("control_command_id")),
         )
 
     async def inspect_workflow(
