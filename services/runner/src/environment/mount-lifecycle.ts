@@ -208,9 +208,9 @@ export async function mountLocalDurableCwd(
     creds,
     { log: ctx.log, signal: deps.signal },
   );
-  throwIfAcquireAborted(deps.signal);
   if (mounted) {
     ctx.commitLocalMount("cwd", plan.workspace.cwd, creds);
+    throwIfAcquireAborted(deps.signal);
     // Session-local links belong to the mount's lifecycle, not to first acquire: this mount is
     // object storage, which has no symlinks, so a remount hands back a 0-byte file where the link
     // was. Re-materialize the subscription Codex login link here, AFTER the mount is live
@@ -224,6 +224,7 @@ export async function mountLocalDurableCwd(
     }
     return true;
   }
+  throwIfAcquireAborted(deps.signal);
   // A false result means mountStorage stopped the attempt and CONFIRMED the path detached.
   ctx.markCwdDetachConfirmed();
   return false;
@@ -252,8 +253,8 @@ export async function mountLocalAgentCwd(
       rmSync(mountPath, { recursive: true, force: true });
       return false;
     }
-    throwIfAcquireAborted(deps.signal);
     ctx.commitLocalMount("agent", mountPath, creds);
+    throwIfAcquireAborted(deps.signal);
     await seedAgentReadme(mountPath, { log: ctx.log });
     await linkAgentFiles(plan.workspace.cwd, mountPath, { log: ctx.log });
     await activateAgentMountGuidance(ctx, deps);
