@@ -15,8 +15,6 @@ export interface AgentNameInlineProps {
     onRename?: (id: string, name: string) => Promise<boolean>
     /** True when `name` already belongs to a different agent — blocks the commit without a modal. */
     isDuplicateName?: (name: string, selfId?: string) => boolean
-    /** Hide the pen until hover. Off for touch hosts, where hover and double-click never happen. */
-    revealOnHover?: boolean
 }
 
 /**
@@ -30,7 +28,6 @@ export const AgentNameInline = ({
     onRenamed,
     onRename,
     isDuplicateName,
-    revealOnHover = true,
 }: AgentNameInlineProps) => {
     const renameAgent = useRenameAgent()
     const commitRename = onRename ?? renameAgent
@@ -105,13 +102,12 @@ export const AgentNameInline = ({
                 {name || "Agent"}
             </span>
 
-            {/* A real button, so the rename is reachable without a double-click. */}
+            {/* A real button, so the rename is reachable without a double-click. Hidden until hover
+                only where there IS a hover: on touch it stays visible, as double-click never fires. */}
             <button
                 type="button"
                 aria-label="Rename agent"
-                className={`flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring group-hover/name:opacity-100 ${
-                    revealOnHover ? "opacity-0" : "opacity-60"
-                }`}
+                className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring group-hover/name:opacity-100 [@media(hover:hover)]:opacity-0"
                 onClick={(e) => {
                     e.stopPropagation()
                     startEditing()
