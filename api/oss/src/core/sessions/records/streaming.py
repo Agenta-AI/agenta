@@ -22,6 +22,8 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
+MAXLEN_STREAMS_RECORDS = 100_000
+
 # Truncate attributes at ingest to avoid storing unbounded record bodies.
 MAX_ATTRIBUTES_BYTES = 64 * 1024  # 64 KB per record
 
@@ -231,6 +233,8 @@ async def publish_record(
         await redis.xadd(
             name=RECORD_STREAM_NAME,
             fields={"data": event_bytes},
+            maxlen=MAXLEN_STREAMS_RECORDS,
+            approximate=True,
         )
         return True
     except Exception as e:

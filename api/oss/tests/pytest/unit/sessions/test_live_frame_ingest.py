@@ -7,11 +7,17 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import ValidationError
 from oss.src.apis.fastapi.sessions.models import SessionRecordIngestRequest
 from oss.src.apis.fastapi.sessions.router import RecordsRouter
-from oss.src.core.sessions.records.dtos import MAX_LIVE_FRAME_BYTES, SessionLiveFrame
+from oss.src.core.sessions.records.dtos import (
+    MAX_LIVE_FRAME_BYTES,
+    SessionLiveFrame,
+    SessionRecordEvent,
+)
 from oss.src.core.sessions.records.streaming import (
     LIVE_FRAME_STREAM_NAME,
+    MAXLEN_STREAMS_RECORDS,
     RECORD_STREAM_NAME,
     publish_live_frame,
+    publish_record,
     trim_live_stream,
 )
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
@@ -211,6 +217,27 @@ async def test_publish_frame_uses_dedicated_bounded_stream():
     assert xadd["maxlen"] == 4
     assert xadd["approximate"] is False
     redis.xtrim.assert_awaited_once()
+
+
+async def test_publish_record_preserves_flag_off_retention_bound():
+    redis = AsyncMock()
+    project_id = uuid4()
+    record = SessionRecordEvent(
+        project_id=project_id,
+        session_id="session-1",
+        record_type="message",
+        attributes={"type": "text", "text": "hello"},
+    )
+    with (
+        patch("oss.src.core.sessions.records.streaming._get_redis", return_value=redis),
+        patch.object(env.sessions, "shared_reader", False),
+    ):
+        assert await publish_record(project_id=project_id, record_event=record)
+
+    xadd = redis.xadd.await_args.kwargs
+    assert xadd["name"] == RECORD_STREAM_NAME
+    assert xadd["maxlen"] == MAXLEN_STREAMS_RECORDS
+    assert xadd["approximate"] is True
 
 
 async def test_records_worker_deletes_malformed_entries_after_ack():
