@@ -274,8 +274,12 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                 .where(
                     SessionCommandDBE.project_id == project_id,
                     SessionCommandDBE.session_id == session_id,
-                    SessionCommandDBE.kind
-                    == SessionCommandKind.continue_interaction.value,
+                    SessionCommandDBE.kind.in_(
+                        (
+                            SessionCommandKind.continue_interaction.value,
+                            SessionCommandKind.continue_input.value,
+                        )
+                    ),
                     or_(
                         and_(
                             SessionCommandDBE.state.in_(_OPEN_STATES),
@@ -329,8 +333,12 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                     SessionCommandDBE.project_id == project_id,
                     SessionCommandDBE.id == command_id,
                     SessionCommandDBE.target_turn_id == target_turn_id,
-                    SessionCommandDBE.kind
-                    == SessionCommandKind.continue_interaction.value,
+                    SessionCommandDBE.kind.in_(
+                        (
+                            SessionCommandKind.continue_interaction.value,
+                            SessionCommandKind.continue_input.value,
+                        )
+                    ),
                     or_(
                         and_(
                             SessionCommandDBE.state

@@ -179,17 +179,20 @@ class SessionInputsDAO(SessionInputsDAOInterface):
         project_id: UUID,
         session_id: str,
         execution_id: str,
+        only_policy: Optional[str] = None,
         transaction: Optional[Any] = None,
     ) -> Optional[PendingInput]:
         async def execute(session: Any) -> Optional[PendingInput]:
+            stmt = select(SessionInputDBE).where(
+                SessionInputDBE.project_id == project_id,
+                SessionInputDBE.session_id == session_id,
+                SessionInputDBE.state == "pending",
+            )
+            if only_policy is not None:
+                stmt = stmt.where(SessionInputDBE.policy == only_policy)
             row = (
                 await session.execute(
-                    select(SessionInputDBE)
-                    .where(
-                        SessionInputDBE.project_id == project_id,
-                        SessionInputDBE.session_id == session_id,
-                        SessionInputDBE.state == "pending",
-                    )
+                    stmt
                     .order_by(SessionInputDBE.position, SessionInputDBE.created_at)
                     .limit(1)
                     .with_for_update(skip_locked=True)

@@ -540,7 +540,10 @@ async def run_orphan_sweep(
         if (
             records_service is not None
             and commands_service is not None
-            and env.agenta.sessions.durable_approvals
+            and (
+                env.agenta.sessions.durable_approvals
+                or env.agenta.sessions.queue
+            )
         ):
             runner_completed, completion_failures = await _runner_completed_executions(
                 records_service=records_service,
@@ -602,7 +605,7 @@ async def run_orphan_sweep(
         settled_lost = {
             key
             for key in unsettled
-            if env.agenta.sessions.durable_approvals
+            if (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
             and terminal_outcomes.get(key) != "stopped"
         }
 

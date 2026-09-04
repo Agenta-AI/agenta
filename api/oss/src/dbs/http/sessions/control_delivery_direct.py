@@ -58,6 +58,7 @@ class DirectControlDelivery(ControlDeliveryPort):
         continue_interaction: Optional[
             Callable[[SessionCommand], Awaitable[None]]
         ] = None,
+        continue_input: Optional[Callable[[SessionCommand], Awaitable[None]]] = None,
     ) -> None:
         self._timeout = (
             timeout_seconds
@@ -65,6 +66,7 @@ class DirectControlDelivery(ControlDeliveryPort):
             else env.agenta.sessions.commands.delivery_timeout_seconds
         )
         self._continue_interaction = continue_interaction
+        self._continue_input = continue_input
 
     async def deliver(self, *, command: SessionCommand) -> DeliveryReceipt:
         if command.kind == SessionCommandKind.continue_interaction:
@@ -75,6 +77,18 @@ class DirectControlDelivery(ControlDeliveryPort):
                 )
             try:
                 await self._continue_interaction(command)
+            except Exception as error:  # noqa: BLE001 - transport maps failures to receipts
+                return DeliveryReceipt(status="unreachable", detail=str(error))
+            return DeliveryReceipt(status="accepted", replica_id="direct")
+
+        if command.kind == SessionCommandKind.continue_input:
+            if self._continue_input is None:
+                return DeliveryReceipt(
+                    status="unreachable",
+                    detail="pending input delivery is not configured",
+                )
+            try:
+                await self._continue_input(command)
             except Exception as error:  # noqa: BLE001 - transport maps failures to receipts
                 return DeliveryReceipt(status="unreachable", detail=str(error))
             return DeliveryReceipt(status="accepted", replica_id="direct")

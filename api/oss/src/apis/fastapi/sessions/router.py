@@ -111,6 +111,7 @@ from oss.src.core.sessions.inputs.types import (
     SessionInputNotFound,
     SessionInputNotRemovable,
 )
+from oss.src.core.sessions.inputs.dtos import PendingInputState
 from oss.src.core.sessions.attachments.dtos import Attachment
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
 from oss.src.core.sessions.attachments.types import (
@@ -1042,11 +1043,12 @@ class RecordsRouter:
         # window where the watchdog could see no `done`, expose recovery, and replay work that
         # had already finished while the records worker was still settling core state.
         if (
-            env.agenta.sessions.durable_approvals
+            (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
             and self.commands_service is not None
             and body.record_type == TERMINAL_RECORD_TYPE
             and body.turn_id
-            and (body.attributes or {}).get("stopReason") not in ("paused", "cancelled")
+            and (body.attributes or {}).get("stopReason")
+            not in ("paused", "cancelled", "error")
         ):
             await self.commands_service.settle_execution_completed(
                 project_id=UUID(project_id),
@@ -2635,6 +2637,21 @@ class SessionControlRouter:
             policy=payload.on_busy,
             idempotency_key=idempotency_key,
         )
+        if (
+            payload.on_busy == "steer"
+            and admission.action == "pending"
+            and admission.input is not None
+            and admission.input.state == PendingInputState.pending
+        ):
+            # The input is durable before Stop is requested. A refused or unreachable Stop
+            # therefore never loses the user's message; it stays visible and removable.
+            await self._service.request_cancel(
+                project_id=project_id,
+                user_id=UUID(str(user_id)) if user_id else None,
+                session_id=payload.session_id,
+                expected_execution_id=admission.execution_id,
+                idempotency_key=f"steer:{admission.input.id}",
+            )
         response = PendingInputAdmissionResponse(**admission.model_dump())
         return JSONResponse(
             status_code=(

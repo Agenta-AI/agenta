@@ -7,7 +7,10 @@ import pytest
 
 from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputState
 from oss.src.core.sessions.inputs.service import SessionInputsService
-from oss.src.core.sessions.inputs.types import SessionInputBusy
+from oss.src.core.sessions.inputs.types import (
+    SessionInputBusy,
+    SessionInputIdempotencyConflict,
+)
 from oss.src.utils.env import env
 
 
@@ -154,3 +157,61 @@ async def test_idle_input_executes_without_being_queued(monkeypatch):
 
     assert admitted.action == "execute"
     assert dao.items == []
+
+
+@pytest.mark.asyncio
+async def test_queue_idempotency_returns_same_input_and_rejects_conflicting_reuse(
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    project_id = uuid4()
+    service = SessionInputsService(
+        inputs_dao=MemoryInputsDAO(), streams_service=Streams()
+    )
+    kwargs = {
+        "project_id": project_id,
+        "user_id": uuid4(),
+        "session_id": "session-1",
+        "content": {"message": "later"},
+        "policy": "queue",
+        "idempotency_key": "key-1",
+    }
+
+    first = await service.admit(**kwargs)
+    retry = await service.admit(**kwargs)
+    assert retry.input.id == first.input.id
+
+    with pytest.raises(SessionInputIdempotencyConflict):
+        await service.admit(**{**kwargs, "content": {"message": "different"}})
+
+
+@pytest.mark.asyncio
+async def test_steer_is_saved_ahead_of_queued_input(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    project_id = uuid4()
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(inputs_dao=dao, streams_service=Streams())
+
+    queued = await service.admit(
+        project_id=project_id,
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "later"},
+        policy="queue",
+        idempotency_key="queue-1",
+    )
+    steered = await service.admit(
+        project_id=project_id,
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "now"},
+        policy="steer",
+        idempotency_key="steer-1",
+    )
+
+    pending = await service.list_pending(
+        project_id=project_id, session_id="session-1"
+    )
+    assert [item.id for item in pending] == [steered.input.id, queued.input.id]
+    assert steered.execution_id == "execution-1"

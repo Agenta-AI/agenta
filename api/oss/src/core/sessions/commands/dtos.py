@@ -25,6 +25,7 @@ from oss.src.core.shared.dtos import Identifier, Lifecycle
 class SessionCommandKind(str, Enum):
     cancel = "cancel"
     continue_interaction = "continue_interaction"
+    continue_input = "continue_input"
 
 
 class SessionCommandState(str, Enum):

@@ -58,7 +58,11 @@ class SessionInputsService:
             return PendingInputAdmission(action="execute")
 
         current_execution_id = stream.turn_id if stream else None
-        if policy != "queue" or not env.agenta.sessions.queue:
+        queue_enabled = env.agenta.sessions.queue
+        steer_enabled = queue_enabled and env.agenta.sessions.steer
+        if policy == "steer" and not steer_enabled:
+            raise SessionInputBusy(current_execution_id=current_execution_id)
+        if policy not in ("queue", "steer") or not queue_enabled:
             raise SessionInputBusy(current_execution_id=current_execution_id)
         if not idempotency_key:
             raise ValueError("Idempotency-Key is required when queueing input.")
@@ -74,24 +78,31 @@ class SessionInputsService:
             if existing is not None:
                 if existing.request_fingerprint != fingerprint:
                     raise SessionInputIdempotencyConflict()
-                return PendingInputAdmission(action="pending", input=existing)
+                return PendingInputAdmission(
+                    action="pending",
+                    input=existing,
+                    execution_id=current_execution_id,
+                )
             item = await self._dao.create_input(
                 user_id=user_id,
                 pending_input=PendingInputCreate(
                     project_id=project_id,
                     session_id=session_id,
                     content=content,
-                    policy="queue",
+                    policy=policy,
                     idempotency_key=idempotency_key,
                     request_fingerprint=fingerprint,
                 ),
+                prioritize=policy == "steer",
                 transaction=transaction,
             )
             # `create_input` rechecks under the session transaction lock, so a concurrent
             # admission can return the row that won after our optimistic read above.
             if item.request_fingerprint != fingerprint:
                 raise SessionInputIdempotencyConflict()
-        return PendingInputAdmission(action="pending", input=item)
+        return PendingInputAdmission(
+            action="pending", input=item, execution_id=current_execution_id
+        )
 
     async def list_pending(
         self, *, project_id: UUID, session_id: str

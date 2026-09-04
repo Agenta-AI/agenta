@@ -19,6 +19,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    op.drop_constraint(
+        "ck_session_commands_kind", "session_commands", type_="check"
+    )
+    op.create_check_constraint(
+        "ck_session_commands_kind",
+        "session_commands",
+        "kind IN ('cancel', 'continue_interaction', 'continue_input')",
+    )
     op.create_table(
         "session_inputs",
         sa.Column("project_id", sa.UUID(as_uuid=True), nullable=False),
@@ -79,3 +87,11 @@ def downgrade() -> None:
     op.drop_index("uq_session_inputs_idempotency", table_name="session_inputs")
     op.drop_index("uq_session_inputs_id", table_name="session_inputs")
     op.drop_table("session_inputs")
+    op.drop_constraint(
+        "ck_session_commands_kind", "session_commands", type_="check"
+    )
+    op.create_check_constraint(
+        "ck_session_commands_kind",
+        "session_commands",
+        "kind IN ('cancel', 'continue_interaction')",
+    )

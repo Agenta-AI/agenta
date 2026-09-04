@@ -62,6 +62,7 @@ class SessionInputsDAOInterface(ABC):
         project_id: UUID,
         session_id: str,
         execution_id: str,
+        only_policy: Optional[str] = None,
         transaction: Optional[Any] = None,
     ) -> Optional[PendingInput]:
         pass

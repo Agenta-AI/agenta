@@ -96,6 +96,7 @@ from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.service import SimpleWorkflowsService
+from oss.src.core.workflows.dtos import WorkflowServiceRequest
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
@@ -1173,9 +1174,17 @@ session_commands_service = SessionCommandsService(
             ],
             control_command_id=command.id,
             continuation_execution_id=command.target_turn_id,
-        )
+        ),
+        continue_input=lambda command: workflows_service.invoke_workflow_detached(
+            project_id=command.project_id,
+            user_id=command.created_by_id,
+            request=WorkflowServiceRequest.model_validate(command.data["request"]),
+            run_id=command.target_turn_id,
+            control_command_id=command.id,
+        ),
     ),
     executions_dao=session_executions_dao,
+    inputs_dao=session_inputs_dao,
 )
 workflows_service.set_session_continuation_resumer(
     session_commands_service.resume_recoverable_continuation

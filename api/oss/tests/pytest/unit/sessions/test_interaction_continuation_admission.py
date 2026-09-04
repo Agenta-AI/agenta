@@ -27,6 +27,7 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionKind,
     SessionInteractionStatus,
 )
+from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputState
 
 
 class _Commands:
@@ -200,6 +201,8 @@ class _Executions:
             if kwargs["execution_id"] == self.source.execution_id
             else self.continuation
         )
+        if current.terminal_outcome is not None:
+            return SessionExecutionSettlementResult(settlement=current, won=False)
         settled = current.model_copy(
             update={
                 "state": SessionExecutionState.terminal,
@@ -255,6 +258,27 @@ class _Unreachable:
 
     async def acknowledge(self, **kwargs):
         return None
+
+
+class _Inputs:
+    def __init__(self, items):
+        self.items = items
+
+    async def promote_next(self, *, execution_id, **kwargs):
+        item = next(
+            (item for item in self.items if item.state == PendingInputState.pending),
+            None,
+        )
+        if item is None:
+            return None
+        promoted = item.model_copy(
+            update={
+                "state": PendingInputState.promoted,
+                "promoted_execution_id": execution_id,
+            }
+        )
+        self.items[self.items.index(item)] = promoted
+        return promoted
 
 
 @pytest.mark.asyncio
@@ -998,6 +1022,76 @@ async def test_persisted_completion_terminalizes_continuation_before_recovery():
     assert executions.continuation.state == SessionExecutionState.terminal
     assert executions.continuation.terminal_outcome == "completed"
     assert executions.continuation.settled_by == "runner"
+
+
+@pytest.mark.asyncio
+async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    project_id = uuid4()
+    user_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    items = _Inputs(
+        [
+            PendingInput(
+                id=uuid4(),
+                project_id=project_id,
+                session_id="session-1",
+                content={"session_id": "session-1", "data": {"messages": ["one"]}},
+                position=1,
+                state=PendingInputState.pending,
+                policy="queue",
+                idempotency_key="queue-1",
+                request_fingerprint="a" * 64,
+                created_by_id=user_id,
+            ),
+            PendingInput(
+                id=uuid4(),
+                project_id=project_id,
+                session_id="session-1",
+                content={"session_id": "session-1", "data": {"messages": ["two"]}},
+                position=2,
+                state=PendingInputState.pending,
+                policy="queue",
+                idempotency_key="queue-2",
+                request_fingerprint="b" * 64,
+                created_by_id=user_id,
+            ),
+        ]
+    )
+    commands = _Commands()
+    delivery = _Unreachable()
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=delivery,
+        executions_dao=executions,
+        inputs_dao=items,
+    )
+
+    assert await service.settle_execution_completed(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="source-1",
+    )
+    assert items.items[0].state == PendingInputState.promoted
+    assert items.items[1].state == PendingInputState.pending
+    assert commands.command.kind == SessionCommandKind.continue_input
+    assert commands.command.data["request"]["meta"]["promoted_input_id"] == str(
+        items.items[0].id
+    )
+    assert len(delivery.delivered) == 1
+
+    assert await service.settle_execution_completed(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="source-1",
+    )
+    assert items.items[1].state == PendingInputState.pending
+    assert len(delivery.delivered) == 1
 
 
 @pytest.mark.asyncio

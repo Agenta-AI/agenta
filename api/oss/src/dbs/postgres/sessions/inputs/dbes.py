@@ -4,6 +4,7 @@ from sqlalchemy import (
     Column,
     ForeignKeyConstraint,
     Index,
+    PrimaryKeyConstraint,
     String,
     text,
 )
@@ -31,6 +32,7 @@ class SessionInputDBE(Base, ProjectScopeDBA, LifecycleDBA, IdentifierDBA):
 
     __table_args__ = (
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        PrimaryKeyConstraint("project_id", "id"),
         CheckConstraint(
             "state IN ('pending', 'promoted', 'removed')",
             name="ck_session_inputs_state",
