@@ -89,13 +89,46 @@ class _FakeLock:
     async def expire(self, k, ttl):
         return True
 
-    async def eval(self, script, numkeys, key, value, *args):
-        k = key.decode() if isinstance(key, bytes) else key
-        v = value.decode() if isinstance(value, bytes) else value
+    async def eval(self, script, numkeys, *keys_and_args):
+        def decode(value):
+            return value.decode() if isinstance(value, bytes) else str(value)
+
+        keys = [decode(value) for value in keys_and_args[:numkeys]]
+        argv = [decode(value) for value in keys_and_args[numkeys:]]
+        if "AGENTA_WATCHDOG_RELEASE_TURN" in script:
+            alive, running, owner, superseded = keys
+            expected_turn, expected_owner, _ttl = argv
+            alive_value = decode(self._s[alive]) if alive in self._s else ""
+            running_value = decode(self._s[running]) if running in self._s else ""
+            owner_value = decode(self._s[owner]) if owner in self._s else ""
+            released_alive = int(bool(expected_turn) and alive_value == expected_turn)
+            released_running = int(
+                bool(expected_turn) and running_value == expected_turn
+            )
+            if released_alive:
+                self._s.pop(alive, None)
+            if released_running:
+                self._s.pop(running, None)
+            foreign_turn = (alive_value and alive_value != expected_turn) or (
+                running_value and running_value != expected_turn
+            )
+            released_owner = int(
+                bool(expected_owner)
+                and owner_value == expected_owner
+                and not foreign_turn
+            )
+            if released_owner:
+                self._s.pop(owner, None)
+            if expected_turn:
+                self._s[superseded] = b"1"
+            return [released_alive, released_running, released_owner]
+
+        k = keys[0]
+        v = argv[0]
         cur = self._s.get(k)
         if isinstance(cur, bytes):
             cur = cur.decode()
-        if args:
+        if len(argv) > 1:
             if cur is None or cur == v:
                 self._s[k] = v.encode()
                 return v.encode()
@@ -362,17 +395,14 @@ async def test_a_lost_pass_persists_the_collapse_against_real_postgres(
 
 
 @pytest.mark.anyio
-async def test_b_lost_turn_clear_persists_across_a_nested_session(
+async def test_b_lost_turn_clear_persists_after_a_nested_session_close(
     anyio_backend, wd_engine, monkeypatch
 ):
     """The `newly_lost` is_running clear survives a nested session between load and write.
 
-    Same failure mode as finding 7, one branch up. The sweep loads the row that still names the
-    lost turn, runs its Redis releases, then writes. If any step between the load and the write
-    opens an `engine.session()`, its `finally` closes the shared task-scoped session and
-    detaches the loaded row, and an ORM attribute write on that row is then dropped at commit
-    with no error. `release_alive` is patched here to open exactly such a nested session, which
-    is what a future edit could easily introduce for real.
+    Same failure mode as finding 7, one branch up. The owner lookup is patched to open an
+    `engine.session()`, whose `finally` closes the shared task-scoped session before settlement
+    and the lost-turn update. Core writes must still reopen that session and persist.
 
     This never failed in production: before the fix the write sat immediately after the load,
     with nothing nested in between. The test pins the property rather than a past bug. Make the
@@ -386,18 +416,16 @@ async def test_b_lost_turn_clear_persists_across_a_nested_session(
         wd_engine, session_id=session_id, turn_id=turn_id
     )
 
-    real_release_alive = orphan_sweep.release_alive
+    real_get_owner = orphan_sweep.get_owner
     nested_sessions = []
 
-    async def _release_alive_through_a_nested_session(*args, **kwargs):
+    async def _get_owner_through_a_nested_session(*args, **kwargs):
         # Open and close the shared task-scoped session, exactly as a DAO call would.
         async with wd_engine.session():
             nested_sessions.append(1)
-        return await real_release_alive(*args, **kwargs)
+        return await real_get_owner(*args, **kwargs)
 
-    monkeypatch.setattr(
-        orphan_sweep, "release_alive", _release_alive_through_a_nested_session
-    )
+    monkeypatch.setattr(orphan_sweep, "get_owner", _get_owner_through_a_nested_session)
 
     lock, records_service, commands_service = _build_services(wd_engine)
     await orphan_sweep.run_orphan_sweep(

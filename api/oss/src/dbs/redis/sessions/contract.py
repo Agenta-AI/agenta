@@ -159,6 +159,42 @@ else
 end
 """.strip()
 
+# Atomically release only the generation the watchdog swept. A new Send or Steer may install
+# another turn after the database commit, so every destructive Redis action must compare the
+# value captured before the guarded stream update. The swept turn is tombstoned regardless of
+# whether its old lock keys still exist.
+WATCHDOG_RELEASE_TURN_LUA = """
+-- AGENTA_WATCHDOG_RELEASE_TURN
+local expected_turn = ARGV[1]
+local expected_owner = ARGV[2]
+local superseded_ttl = tonumber(ARGV[3])
+local alive = redis.call('GET', KEYS[1]) or ''
+local running = redis.call('GET', KEYS[2]) or ''
+local owner = redis.call('GET', KEYS[3]) or ''
+local released_alive = 0
+local released_running = 0
+local released_owner = 0
+
+if expected_turn ~= '' and alive == expected_turn then
+    released_alive = redis.call('DEL', KEYS[1])
+end
+if expected_turn ~= '' and running == expected_turn then
+    released_running = redis.call('DEL', KEYS[2])
+end
+
+local foreign_turn = (alive ~= '' and alive ~= expected_turn)
+    or (running ~= '' and running ~= expected_turn)
+if expected_owner ~= '' and owner == expected_owner and not foreign_turn then
+    released_owner = redis.call('DEL', KEYS[3])
+end
+
+if expected_turn ~= '' then
+    redis.call('SET', KEYS[4], '1', 'EX', superseded_ttl)
+end
+
+return {released_alive, released_running, released_owner}
+""".strip()
+
 # Atomic claim-or-read: take ownership iff the key is absent or already ours (refreshing the
 # TTL), never steal it from another replica. Returns the actual owner after the operation, so
 # the caller learns who won without a second racy read.

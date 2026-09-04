@@ -6,7 +6,7 @@ every key name, TTL, and wire shape.
 """
 
 import json
-from typing import Optional
+from typing import Optional, Tuple
 
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
@@ -17,6 +17,7 @@ from oss.src.dbs.redis.sessions.contract import (
     RELEASE_IF_OWNER_LUA,
     RUNNING_TTL_SECONDS,
     SUPERSEDED_TTL_SECONDS,
+    WATCHDOG_RELEASE_TURN_LUA,
     alive_key,
     attached_key,
     displaced_channel,
@@ -152,6 +153,29 @@ async def is_turn_superseded(
         return False
     await engine.expire(key, SUPERSEDED_TTL_SECONDS)
     return True
+
+
+async def release_watchdog_turn(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: Optional[str],
+    replica_id: Optional[str],
+) -> Tuple[bool, bool, bool]:
+    """Atomically release only the swept turn and its observed replica owner."""
+    result = await engine.eval(
+        WATCHDOG_RELEASE_TURN_LUA,
+        4,
+        alive_key(project_id, session_id).encode(),
+        running_key(project_id, session_id).encode(),
+        owner_key(project_id, session_id).encode(),
+        superseded_key(project_id, session_id, turn_id or "").encode(),
+        (turn_id or "").encode(),
+        (replica_id or "").encode(),
+        SUPERSEDED_TTL_SECONDS,
+    )
+    return bool(int(result[0])), bool(int(result[1])), bool(int(result[2]))
 
 
 # ---------------------------------------------------------------------------

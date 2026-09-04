@@ -214,6 +214,36 @@ class _FakeRedis:
     async def expire(self, key, ttl):
         return True
 
+    async def eval(self, script, numkeys, *keys_and_args):
+        def decode(value):
+            return value.decode() if isinstance(value, bytes) else str(value)
+
+        keys = [decode(value) for value in keys_and_args[:numkeys]]
+        argv = [decode(value) for value in keys_and_args[numkeys:]]
+        assert "AGENTA_WATCHDOG_RELEASE_TURN" in script
+        alive, running, owner, superseded = keys
+        expected_turn, expected_owner, _ttl = argv
+        alive_value = decode(self._store[alive]) if alive in self._store else ""
+        running_value = decode(self._store[running]) if running in self._store else ""
+        owner_value = decode(self._store[owner]) if owner in self._store else ""
+        released_alive = int(bool(expected_turn) and alive_value == expected_turn)
+        released_running = int(bool(expected_turn) and running_value == expected_turn)
+        if released_alive:
+            self._store.pop(alive, None)
+        if released_running:
+            self._store.pop(running, None)
+        foreign_turn = (alive_value and alive_value != expected_turn) or (
+            running_value and running_value != expected_turn
+        )
+        released_owner = int(
+            bool(expected_owner) and owner_value == expected_owner and not foreign_turn
+        )
+        if released_owner:
+            self._store.pop(owner, None)
+        if expected_turn:
+            self._store[superseded] = b"1"
+        return [released_alive, released_running, released_owner]
+
 
 def _swept(row: _FakeRow) -> bool:
     return row.flags == {"is_alive": False, "is_running": False, "is_attached": False}
@@ -361,6 +391,7 @@ async def test_sweep_clears_redis_for_the_long_threshold_branch(anyio_backend):
         session_id=session_id,
         flags={"is_alive": True, "is_running": False, "is_attached": False},
         age_seconds=IDLE_THRESHOLD_SECONDS + 60,
+        turn_id="turn-1",
     )
 
     await run_orphan_sweep(_FakeTransactionsEngine([row]), redis)

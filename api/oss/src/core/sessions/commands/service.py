@@ -32,7 +32,7 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.sessions.commands.dtos import (
@@ -517,6 +517,7 @@ class SessionCommandsService:
         session_id: str,
         execution_id: str,
         settled_at: datetime,
+        transaction: Optional[Any] = None,
     ) -> bool:
         if self._executions is None:
             return True
@@ -527,6 +528,7 @@ class SessionCommandsService:
             terminal_outcome=SessionCommandOutcome.lost.value,
             settled_by="watchdog",
             settled_at=settled_at,
+            transaction=transaction,
         )
         winner = result.settlement
         return result.won or (

@@ -34,6 +34,7 @@ from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     _unsettled_turns,
     run_orphan_sweep,
 )
+from oss.src.utils.env import env
 
 _PROJECT_ID = UUID("00000000-0000-4000-8000-000000000001")
 
@@ -238,14 +239,23 @@ class _FakePgSession:
 
 
 class _FakeTransactionsEngine:
-    def __init__(self, rows, executions=None, before_stream_update=None):
+    def __init__(
+        self,
+        rows,
+        executions=None,
+        before_stream_update=None,
+        after_commit=None,
+    ):
         self._rows = rows
         self._executions = executions or []
         self._before_stream_update = before_stream_update
+        self._after_commit = after_commit
         self.committed = False
 
     def _mark_committed(self):
         self.committed = True
+        if self._after_commit is not None:
+            self._after_commit()
 
     @asynccontextmanager
     async def session(self):
@@ -277,13 +287,48 @@ class _FakeRedis:
     async def expire(self, key, ttl):
         return True
 
-    async def eval(self, script, numkeys, key, value, *args):
-        k = key.decode() if isinstance(key, bytes) else key
-        v = value.decode() if isinstance(value, bytes) else value
+    async def eval(self, script, numkeys, *keys_and_args):
+        def decode(value):
+            return value.decode() if isinstance(value, bytes) else str(value)
+
+        keys = [decode(value) for value in keys_and_args[:numkeys]]
+        argv = [decode(value) for value in keys_and_args[numkeys:]]
+        if "AGENTA_WATCHDOG_RELEASE_TURN" in script:
+            alive, running, owner, superseded = keys
+            expected_turn, expected_owner, _ttl = argv
+            alive_value = decode(self._store[alive]) if alive in self._store else ""
+            running_value = (
+                decode(self._store[running]) if running in self._store else ""
+            )
+            owner_value = decode(self._store[owner]) if owner in self._store else ""
+            released_alive = int(bool(expected_turn) and alive_value == expected_turn)
+            released_running = int(
+                bool(expected_turn) and running_value == expected_turn
+            )
+            if released_alive:
+                self._store.pop(alive, None)
+            if released_running:
+                self._store.pop(running, None)
+            foreign_turn = (alive_value and alive_value != expected_turn) or (
+                running_value and running_value != expected_turn
+            )
+            released_owner = int(
+                bool(expected_owner)
+                and owner_value == expected_owner
+                and not foreign_turn
+            )
+            if released_owner:
+                self._store.pop(owner, None)
+            if expected_turn:
+                self._store[superseded] = b"1"
+            return [released_alive, released_running, released_owner]
+
+        k = keys[0]
+        v = argv[0]
         current = self._store.get(k)
         if isinstance(current, bytes):
             current = current.decode()
-        if args:
+        if len(argv) > 1:
             if current is None or current == v:
                 self._store[k] = v.encode()
                 return v.encode()
@@ -372,6 +417,22 @@ class _Publisher:
     async def __call__(self, *, project_id, record_event):
         self.published.append(record_event)
         return True
+
+
+class _CommandsService:
+    def __init__(self):
+        self.execution_lost_calls = []
+
+    async def settle_execution_lost(self, **kwargs):
+        assert kwargs["transaction"] is not None
+        self.execution_lost_calls.append(kwargs)
+        return True
+
+    async def settle_abandoned_commands(self, *, now):
+        return 0
+
+    async def repair_terminal_redis(self):
+        return 0
 
 
 def _stale_running_row(session_id="sess-lost", turn_id="turn-1") -> _FakeRow:
@@ -628,6 +689,43 @@ async def test_the_redis_nest_follows_the_settled_row(anyio_backend):
         await redis.get(f"superseded:{project}:session:sess-lost:turn:turn-1")
         is not None
     ), "a late beat from the lost turn must not re-nest the session"
+
+
+@pytest.mark.anyio
+async def test_post_commit_cleanup_preserves_a_new_turn_generation(anyio_backend):
+    stream = _stale_running_row(session_id="sess-cleanup-race", turn_id="turn-a")
+    redis = _FakeRedis()
+    project = str(stream.project_id)
+    alive_key = f"alive:{project}:session:{stream.session_id}"
+    running_key = f"running:{project}:session:{stream.session_id}"
+    owner_key = f"owner:{project}:session:{stream.session_id}"
+    redis._store[alive_key] = b"turn-a"
+    redis._store[running_key] = b"turn-a"
+    redis._store[owner_key] = b"replica-a"
+
+    def install_turn_b():
+        redis._store[alive_key] = b"turn-b"
+        redis._store[running_key] = b"turn-b"
+        redis._store[owner_key] = b"replica-b"
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([stream], after_commit=install_turn_b),
+        redis,
+        records_service=_FakeRecordsService(),
+        publish=_Publisher(),
+    )
+
+    assert redis._store[alive_key] == b"turn-b"
+    assert redis._store[running_key] == b"turn-b"
+    assert redis._store[owner_key] == b"replica-b"
+    assert (
+        redis._store[f"superseded:{project}:session:{stream.session_id}:turn:turn-a"]
+        == b"1"
+    )
+    assert (
+        f"superseded:{project}:session:{stream.session_id}:turn:turn-b"
+        not in redis._store
+    )
 
 
 @pytest.mark.anyio
@@ -1034,6 +1132,35 @@ async def test_lost_turn_clear_loses_to_a_concurrent_turn_advance(anyio_backend)
     assert redis._store[alive_key] == b"turn-new"
     assert redis._store[running_key] == b"turn-new"
     assert redis._store[owner_key] == b"runner-new"
+
+
+@pytest.mark.anyio
+async def test_heartbeat_before_orphan_cas_prevents_settlement_and_records(
+    anyio_backend,
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    stream = _stale_running_row(
+        session_id="sess-heartbeat-before-cas", turn_id="turn-current"
+    )
+    publisher = _Publisher()
+    commands = _CommandsService()
+
+    def heartbeat():
+        stream.updated_at = datetime.now(timezone.utc)
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([stream], before_stream_update=heartbeat),
+        _FakeRedis(),
+        records_service=_FakeRecordsService(),
+        commands_service=commands,
+        publish=publisher,
+    )
+
+    assert commands.execution_lost_calls == []
+    assert publisher.published == []
+    assert stream.flags["is_alive"] is True
+    assert stream.flags["is_running"] is True
 
 
 @pytest.mark.anyio
