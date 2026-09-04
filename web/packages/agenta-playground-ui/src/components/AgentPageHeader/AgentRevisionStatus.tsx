@@ -97,30 +97,54 @@ export const AgentRevisionStatus = ({
             ? {tone: "bg-colorWarning", label: "Draft", tip: "Unsaved changes"}
             : {tone: "bg-colorSuccess", label: "Saved", tip: "Saved"}
 
+    // One object for one revision: the version and its save state describe the same thing, and as
+    // two chips they competed. A failed save is the exception — there the status IS the retry
+    // control, so it stays separate rather than sharing a button that opens history.
+    const merged = version !== null && !!historyWorkflowId && !failed
+
+    const statusBody = (
+        <>
+            {failed ? (
+                <WarningCircle size={12} className="shrink-0 text-colorError" />
+            ) : (
+                <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${dot.tone}`} />
+            )}
+            {/* The word is the first thing to go on a narrow bar — the dot and its tooltip
+                already say it, and the identity beside it needs the room. */}
+            <span className="hidden sm:inline">{dot.label}</span>
+        </>
+    )
+
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
-            {version !== null &&
-                (historyWorkflowId ? (
-                    <>
-                        <SimpleTooltip title="Version history">
-                            <button
-                                type="button"
-                                aria-label="Open version history"
-                                onClick={() => openHistory(historyWorkflowId)}
-                                className="flex cursor-pointer items-center rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:text-colorText"
-                            >
-                                v{version}
-                                {/* A caret would promise a menu; this opens a drawer of history. */}
-                                <ClockCounterClockwise size={11} className="ml-1" />
-                            </button>
-                        </SimpleTooltip>
-                        {historyMounted ? (
-                            <AgentVersionHistoryDrawer
-                                workflowId={historyWorkflowId}
-                                revisionId={revisionId}
-                            />
-                        ) : null}
-                    </>
+            {merged ? (
+                <SimpleTooltip title="Version history">
+                    <button
+                        type="button"
+                        aria-label={`Version ${version}, ${dot.label}. Open version history`}
+                        onClick={() => openHistory(historyWorkflowId)}
+                        className="flex cursor-pointer items-center gap-1.5 rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                    >
+                        {/* A caret would promise a menu; this opens a drawer of history. */}
+                        <ClockCounterClockwise size={11} className="shrink-0" />v{version}
+                        <span className="text-colorTextQuaternary">·</span>
+                        {statusBody}
+                    </button>
+                </SimpleTooltip>
+            ) : null}
+
+            {!merged && version !== null ? (
+                historyWorkflowId ? (
+                    <SimpleTooltip title="Version history">
+                        <button
+                            type="button"
+                            aria-label="Open version history"
+                            onClick={() => openHistory(historyWorkflowId)}
+                            className="flex cursor-pointer items-center gap-1 rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                        >
+                            <ClockCounterClockwise size={11} className="shrink-0" />v{version}
+                        </button>
+                    </SimpleTooltip>
                 ) : (
                     <SimpleTooltip
                         className="max-w-[360px]"
@@ -143,38 +167,38 @@ export const AgentRevisionStatus = ({
                             v{version}
                         </span>
                     </SimpleTooltip>
-                ))}
-            {/* Tooltip only on failure: there it carries the error and the retry hint. In every
-                other state it just repeated the word already next to the dot. */}
-            <StatusWrap tip={failed ? dot.tip : null}>
-                <span
-                    role={failed ? "button" : undefined}
-                    tabIndex={failed ? 0 : undefined}
-                    aria-label={failed ? "Retry saving changes" : undefined}
-                    onClick={failed ? () => void retrySave({revisionId}) : undefined}
-                    onKeyDown={
-                        failed
-                            ? (event) => {
-                                  if (event.key !== "Enter" && event.key !== " ") return
-                                  event.preventDefault()
-                                  void retrySave({revisionId})
-                              }
-                            : undefined
-                    }
-                    className={`flex items-center gap-1.5 text-xs text-colorTextTertiary ${
-                        failed ? "cursor-pointer" : ""
-                    }`}
-                >
-                    {failed ? (
-                        <WarningCircle size={12} className="shrink-0 text-colorError" />
-                    ) : (
-                        <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${dot.tone}`} />
-                    )}
-                    {/* The word is the first thing to go on a narrow bar — the dot and its
-                        tooltip already say it, and the identity beside it needs the room. */}
-                    <span className="hidden sm:inline">{dot.label}</span>
-                </span>
-            </StatusWrap>
+                )
+            ) : null}
+
+            {historyWorkflowId && historyMounted ? (
+                <AgentVersionHistoryDrawer workflowId={historyWorkflowId} revisionId={revisionId} />
+            ) : null}
+
+            {/* Tooltip only on failure: there it carries the error and the retry hint. */}
+            {merged ? null : (
+                <StatusWrap tip={failed ? dot.tip : null}>
+                    <span
+                        role={failed ? "button" : undefined}
+                        tabIndex={failed ? 0 : undefined}
+                        aria-label={failed ? "Retry saving changes" : undefined}
+                        onClick={failed ? () => void retrySave({revisionId}) : undefined}
+                        onKeyDown={
+                            failed
+                                ? (event) => {
+                                      if (event.key !== "Enter" && event.key !== " ") return
+                                      event.preventDefault()
+                                      void retrySave({revisionId})
+                                  }
+                                : undefined
+                        }
+                        className={`flex items-center gap-1.5 text-xs text-colorTextTertiary ${
+                            failed ? "cursor-pointer" : ""
+                        }`}
+                    >
+                        {statusBody}
+                    </span>
+                </StatusWrap>
+            )}
         </div>
     )
 }
