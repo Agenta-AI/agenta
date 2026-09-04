@@ -27,6 +27,7 @@ from uuid import uuid4
 import fakeredis.aioredis as fakeredis
 import pytest
 from orjson import dumps
+from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.records.service import RecordsService
@@ -55,20 +56,21 @@ def _payload(*, project_id, session_id, record_id, record_type="message", turn_i
 class FakeRecordsDAO:
     """Records what committed, and fails the events the caller names."""
 
-    def __init__(self, *, poison_ids=(), fail_calls=0):
+    def __init__(self, *, poison_ids=(), fail_calls=0, transient_error=None):
         self.poison_ids = {str(record_id) for record_id in poison_ids}
         self.fail_calls = fail_calls
+        self.transient_error = transient_error or ConnectionError("postgres is down")
         self.calls = 0
         self.committed: list[str] = []
 
     async def append_many(self, *, events):
         self.calls += 1
         if self.calls <= self.fail_calls:
-            raise RuntimeError("postgres is down")
+            raise self.transient_error
         if any(str(event.record_id) in self.poison_ids for event in events):
             # `append_many` is one statement in one transaction: a rejected row takes the
             # whole call with it, and nothing in the call commits.
-            raise RuntimeError("record rejected")
+            raise IntegrityError("INSERT records", {}, ValueError("record rejected"))
         for event in events:
             self.committed.append(str(event.record_id))
         return [
@@ -122,6 +124,21 @@ async def test_failed_batch_acknowledges_nothing():
     # every id this list carries.
     assert acked_ids == []
     assert dao.committed == []
+    assert dao.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_timeout_leaves_the_whole_batch_pending_without_single_row_retries():
+    project_id = uuid4()
+    dao = FakeRecordsDAO(fail_calls=99, transient_error=asyncio.TimeoutError())
+
+    appended, acked_ids = await _worker(dao).process_batch(
+        _batch(project_id=project_id, record_ids=[uuid4(), uuid4(), uuid4()])
+    )
+
+    assert appended == 0
+    assert acked_ids == []
+    assert dao.calls == 1
 
 
 @pytest.mark.asyncio
@@ -129,8 +146,8 @@ async def test_redelivered_batch_is_acknowledged_once_and_written_once():
     project_id = uuid4()
     record_ids = [uuid4(), uuid4()]
     batch = _batch(project_id=project_id, record_ids=record_ids)
-    # The whole-batch call fails, then the per-record retry fails twice, then Postgres is back.
-    dao = FakeRecordsDAO(fail_calls=3)
+    # The whole batch stays pending on the connection failure, then Postgres is back.
+    dao = FakeRecordsDAO(fail_calls=1)
     worker = _worker(dao)
 
     _, first_acked = await worker.process_batch(batch)
