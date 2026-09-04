@@ -23,14 +23,20 @@ import {
 import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {modal} from "@agenta/ui/app-message"
-import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
+import {
+    ChatBubble,
+    ChatBubbleAvatar,
+    ChatJumpToLatest,
+    turnRowClass,
+} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
+import {User} from "lucide-react"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
-import {takePendingTaskAtom} from "../home/pendingTask"
+import {pendingTasksAtom, takePendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
 
 import {ApprovalDock} from "./ApprovalDock"
@@ -140,6 +146,12 @@ export const LiveConversation = ({
     // vault says one already exists). The guard holds the SESSION it
     // fired for, not a bare flag: this component survives a session switch, and a flag would
     // swallow the next session's stashed task.
+
+    // Peek at the parked task WITHOUT consuming it — used only for display while the gate holds.
+    // `takePendingTaskAtom` removes the entry; this read leaves it in place for the send effect.
+    const pendingTasks = useAtomValue(pendingTasksAtom)
+    const heldTaskText = pendingTasks[sessionId]?.text ?? null
+
     const takePendingTask = useSetAtom(takePendingTaskAtom)
     const sentPendingTaskFor = useRef<string | null>(null)
     const [pendingTaskError, setPendingTaskError] = useState<string | null>(null)
@@ -292,6 +304,30 @@ export const LiveConversation = ({
     } else {
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                {/* A task typed before any provider key exists is held in `pendingTasksAtom`
+                    (not yet sent — the gate is up). Render it as a user bubble so the person
+                    can see what they wrote, matching desktop parity: the desktop shows the
+                    held seed above the connect-model banner. Cleared the moment the gate
+                    drops and the send effect fires (`takePendingTaskAtom` removes the entry). */}
+                {heldTaskText ? (
+                    <div className={`${turnRowClass} justify-end`}>
+                        <ChatBubble
+                            placement="end"
+                            variant="filled"
+                            avatar={<ChatBubbleAvatar icon={<User className="size-4" />} />}
+                            className="min-w-0 max-w-[85%]"
+                            classNames={{
+                                content: "min-w-0 max-w-full overflow-hidden text-xs",
+                                body: "min-w-0 max-w-full overflow-hidden",
+                            }}
+                            content={
+                                <span className="whitespace-pre-wrap break-words">
+                                    {heldTaskText}
+                                </span>
+                            }
+                        />
+                    </div>
+                ) : null}
                 {conversation.isEmpty ? (
                     // The SAME card the desktop shows a conversation with no messages: who you are
                     // about to talk to. A blank session is not an error state — /m rendered nothing
@@ -454,6 +490,9 @@ export const LiveConversation = ({
                                     )
                             }}
                             disabled={conversation.isHydrating || modelBlocked}
+                            placeholder={
+                                modelBlocked ? "Connect a model to start chatting…" : undefined
+                            }
                             waitingOnUser={conversation.hitlPending}
                             streaming={streamingHere}
                             onStop={conversation.stop}
