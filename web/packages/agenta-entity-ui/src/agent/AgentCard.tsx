@@ -154,7 +154,9 @@ export const AgentCard = ({
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Agent actions"
-                    className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                    // pointer-coarse keeps it visible on touch, where there is no hover to
+                    // reveal it and the kebab was simply unreachable.
+                    className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100"
                     onClick={(event) => event.stopPropagation()}
                 >
                     <DotsThreeIcon size={14} />

@@ -1,11 +1,16 @@
-import {useMemo} from "react"
+import {useEffect, useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {useSessionsList} from "@agenta/sessions/state"
+import {
+    applySessionScopeAtom,
+    sessionScopeFromRouteQuery,
+    useSessionsList,
+} from "@agenta/sessions/state"
 import {SessionFiltersBar, SessionFiltersPanel, SessionsListView} from "@agenta/sessions-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -15,6 +20,7 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
 import {useSessionRowMenu} from "./useSessionRowMenu"
 
 /**
@@ -30,6 +36,15 @@ export const SessionListScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    // `?mode=automation` — what the agent overview's "Automation runs" card links to, so a cold
+    // load or a pasted link lands on the same set the card was showing.
+    const router = useRouter()
+    const applyScope = useSetAtom(applySessionScopeAtom)
+    const routeMode = typeof router.query.mode === "string" ? router.query.mode : undefined
+    useEffect(() => {
+        const scope = sessionScopeFromRouteQuery({mode: routeMode})
+        if (scope) applyScope(scope)
+    }, [applyScope, routeMode])
     const list = useSessionsList({
         defaultPolicy: {origin: "exclude-trigger", expansions: []},
         automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
@@ -100,6 +115,9 @@ export const SessionListScreen = ({
                     )}
                 </ScreenScaffold>
             </AppShell>
+            {/* The trigger drawers the automation row verbs open, at screen level so one survives
+                its row unmounting underneath it. */}
+            <SessionAutomationDrawers base={`/w/${workspaceId}/p/${projectId}`} />
         </>
     )
 }

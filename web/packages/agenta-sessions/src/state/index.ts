@@ -8,6 +8,10 @@ export {
     sessionFiltersActiveExceptAgentAtom,
     resetSessionFiltersAtom,
     applySessionScopeAtom,
+    sessionRouteModes,
+    sessionScopeFromRouteQuery,
+    type SessionRouteMode,
+    type SessionRouteQuery,
     type SessionScope,
     type SessionStatusFilter,
 } from "./filters"
