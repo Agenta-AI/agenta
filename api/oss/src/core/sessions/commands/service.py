@@ -50,6 +50,7 @@ from oss.src.core.sessions.commands.interfaces import (
 )
 from oss.src.core.sessions.commands.types import (
     ExecutionExpectationFailed,
+    SessionCommandIdempotencyConflict,
     SessionCommandNotClaimable,
     SessionCommandNotFound,
 )
@@ -153,6 +154,19 @@ class SessionCommandsService:
         # FIRST, before any read. The value compared below is the value stored as the row's
         # `created_at`, so the runner can repeat the same comparison against its own memory.
         received_at = datetime.now(timezone.utc)
+
+        if idempotency_key is not None:
+            existing = await self._dao.fetch_by_idempotency_key(
+                project_id=project_id,
+                session_id=session_id,
+                idempotency_key=idempotency_key,
+            )
+            if existing is not None:
+                if existing.expected_turn_id != expected_execution_id:
+                    raise SessionCommandIdempotencyConflict(
+                        idempotency_key=idempotency_key
+                    )
+                return self._admission_for_existing(existing)
 
         target_turn_id, turn_started_at = await self._resolve_target(
             project_id=project_id,

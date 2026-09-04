@@ -32,7 +32,10 @@ from oss.src.core.sessions.commands.interfaces import (
     DeliveryReceipt,
 )
 from oss.src.core.sessions.commands.service import SessionCommandsService
-from oss.src.core.sessions.commands.types import ExecutionExpectationFailed
+from oss.src.core.sessions.commands.types import (
+    ExecutionExpectationFailed,
+    SessionCommandIdempotencyConflict,
+)
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
     SessionStream,
@@ -103,6 +106,18 @@ class _FakeCommandsDAO:
             stopping_turn_id=stopping_turn_id,
         )
         return CommandCreateResult(command=row, inserted=True)
+
+    async def fetch_by_idempotency_key(
+        self, *, project_id, session_id, idempotency_key
+    ):
+        for row in self.rows:
+            if (
+                row.project_id == project_id
+                and row.session_id == session_id
+                and row.idempotency_key == idempotency_key
+            ):
+                return row
+        return None
 
     async def fetch_open_command(self, *, project_id, session_id, kind, target_turn_id):
         for row in reversed(self.rows):
@@ -650,6 +665,7 @@ async def test_reused_idempotency_key_replays_the_original_turn_without_redelive
         project_id=_PROJECT,
         user_id=_USER,
         session_id=_SESSION,
+        expected_execution_id="turn-A",
         idempotency_key="same-request",
     )
     dao.rows[0] = dao.rows[0].model_copy(
@@ -678,6 +694,7 @@ async def test_reused_idempotency_key_replays_the_original_turn_without_redelive
         project_id=_PROJECT,
         user_id=_USER,
         session_id=_SESSION,
+        expected_execution_id="turn-A",
         idempotency_key="same-request",
     )
 
@@ -686,6 +703,42 @@ async def test_reused_idempotency_key_replays_the_original_turn_without_redelive
     assert replay.execution_id == "turn-A"
     assert replay.accepted is True
     assert len(delivery.delivered) == 1, "an idempotent replay must not target turn-B"
+
+
+@pytest.mark.asyncio
+async def test_reused_idempotency_key_rejects_a_different_expected_execution(
+    lock_engine,
+):
+    await _run_turn(lock_engine, "turn-A")
+    dao = _FakeCommandsDAO()
+    delivery = _RecordingDelivery()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+        ),
+        delivery=delivery,
+    )
+    await svc.request_cancel(
+        project_id=_PROJECT,
+        user_id=_USER,
+        session_id=_SESSION,
+        expected_execution_id="turn-A",
+        idempotency_key="same-key-different-request",
+    )
+
+    with pytest.raises(SessionCommandIdempotencyConflict):
+        await svc.request_cancel(
+            project_id=_PROJECT,
+            user_id=_USER,
+            session_id=_SESSION,
+            expected_execution_id="turn-B",
+            idempotency_key="same-key-different-request",
+        )
+
+    assert len(dao.rows) == 1
+    assert len(delivery.delivered) == 1
 
 
 @pytest.mark.asyncio

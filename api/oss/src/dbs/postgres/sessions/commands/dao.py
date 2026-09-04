@@ -106,7 +106,7 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             #                                      read cannot see a row that has not committed
             #                                      yet, so the database is the decider.
             if command.idempotency_key is not None:
-                existing = await self._fetch_by_idempotency_key(
+                existing = await self.fetch_by_idempotency_key(
                     project_id=command.project_id,
                     session_id=command.session_id,
                     idempotency_key=command.idempotency_key,
@@ -123,7 +123,7 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                 raise
             return CommandCreateResult(command=open_command, inserted=False)
 
-    async def _fetch_by_idempotency_key(
+    async def fetch_by_idempotency_key(
         self,
         *,
         project_id: UUID,

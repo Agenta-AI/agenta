@@ -70,6 +70,7 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.commands.types import (
     ExecutionExpectationFailed,
+    SessionCommandIdempotencyConflict,
     SessionCommandNotClaimable,
     SessionCommandNotFound,
 )
@@ -1889,6 +1890,11 @@ def _handle_command_exceptions():
                         "message": e.message,
                         "current_execution_id": e.current,
                     },
+                ) from e
+            except SessionCommandIdempotencyConflict as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=e.message,
                 ) from e
             except SessionCommandNotFound as e:
                 raise HTTPException(

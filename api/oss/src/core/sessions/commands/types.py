@@ -23,6 +23,17 @@ class ExecutionExpectationFailed(SessionCommandError):
         super().__init__(self.message)
 
 
+class SessionCommandIdempotencyConflict(SessionCommandError):
+    """An idempotency key was reused for a different cancel request."""
+
+    def __init__(self, *, idempotency_key: str) -> None:
+        self.idempotency_key = idempotency_key
+        self.message = (
+            f"idempotency key '{idempotency_key}' belongs to a different request"
+        )
+        super().__init__(self.message)
+
+
 class SessionCommandNotFound(SessionCommandError):
     def __init__(self, *, command_id: str) -> None:
         self.command_id = command_id

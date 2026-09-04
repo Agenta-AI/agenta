@@ -91,6 +91,16 @@ class SessionCommandsDAOInterface(ABC):
         """Create a command and report whether this call inserted it."""
 
     @abstractmethod
+    async def fetch_by_idempotency_key(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        idempotency_key: str,
+    ) -> Optional[SessionCommand]:
+        """The command previously created for this session-scoped retry key."""
+
+    @abstractmethod
     async def fetch_open_command(
         self,
         *,
