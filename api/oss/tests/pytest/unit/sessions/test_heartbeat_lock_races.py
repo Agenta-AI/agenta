@@ -20,7 +20,6 @@ from oss.src.core.sessions.streams.dtos import (
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.dbs.redis.sessions.locks import (
-    clear_running,
     force_clear_owner,
     get_alive_owner,
     get_owner,
@@ -163,24 +162,23 @@ async def test_handover_will_not_evict_a_turn_that_took_the_lock_mid_read(lock_e
 
 
 @pytest.mark.asyncio
-async def test_cancel_tombstones_before_it_clears_the_locks(lock_engine):
-    """Cancel clears `alive` and then tombstones the turn it displaced. A beat from that very
-    turn arriving between the two finds `alive` free, nx-acquires it back, and the cancelled
-    session reads as alive for a full ALIVE_TTL. Writing the tombstone first closes it."""
+async def test_cancel_atomically_tombstones_and_clears_the_locks(lock_engine):
+    """The displaced turn cannot re-arm the session after the atomic operation returns."""
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
     await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a"))
     assert await _alive(lock_engine) == "turn-a"
+    redis = lock_engine._client()
+    original_eval = redis.eval
 
-    async def _beat_mid_displacement(engine, *, project_id: str, session_id: str):
-        await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a"))
-        return await clear_running(engine, project_id=project_id, session_id=session_id)
+    async def _beat_after_atomic_displacement(script, numkeys, *keys_and_args):
+        result = await original_eval(script, numkeys, *keys_and_args)
+        if "AGENTA_DISPLACE_TURNS" in script:
+            late = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a"))
+            assert late.is_current_turn is False
+        return result
 
-    # `clear_running` runs after `alive` is cleared, i.e. inside the old window.
-    with patch(
-        "oss.src.core.sessions.streams.service.clear_running",
-        new=_beat_mid_displacement,
-    ):
+    with patch.object(redis, "eval", new=_beat_after_atomic_displacement):
         await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel())
 
     assert await _alive(lock_engine) is None, (
