@@ -1031,7 +1031,7 @@ class RecordsRouter:
             and self.commands_service is not None
             and body.record_type == TERMINAL_RECORD_TYPE
             and body.turn_id
-            and (body.attributes or {}).get("stopReason") != "paused"
+            and (body.attributes or {}).get("stopReason") not in ("paused", "cancelled")
         ):
             await self.commands_service.settle_execution_completed(
                 project_id=UUID(project_id),

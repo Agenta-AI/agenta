@@ -194,6 +194,45 @@ async def test_terminal_continuation_settles_core_before_stream_acceptance(monke
     )
 
 
+async def test_cancelled_terminal_does_not_settle_continuation_as_completed(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sessions.router.env.agenta.sessions.durable_approvals",
+        True,
+    )
+    commands_service = AsyncMock()
+    router = RecordsRouter(
+        records_service=AsyncMock(),
+        commands_service=commands_service,
+    )
+    project_id = uuid4()
+    request = _make_authed_request(FastAPI(), project_id, uuid4(), uuid4())
+    body = SessionRecordIngestRequest(
+        session_id="session-1",
+        record_type="done",
+        record_source="agent",
+        turn_id="continuation-1",
+        attributes={"stopReason": "cancelled"},
+    )
+
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_record",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+    ):
+        await router.ingest_record_event(request=request, body=body)
+
+    commands_service.settle_execution_completed.assert_not_awaited()
+
+
 async def test_terminal_publish_failure_is_retryable_after_core_settlement(monkeypatch):
     from fastapi import HTTPException
 

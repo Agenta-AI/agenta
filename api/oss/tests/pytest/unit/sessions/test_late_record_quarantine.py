@@ -403,6 +403,36 @@ async def test_paused_or_quarantined_done_does_not_complete_a_continuation(monke
     assert _quarantined(service.records_dao)[-1].record_type == "done"
 
 
+async def test_cancelled_done_arriving_first_leaves_stop_settlement_to_win(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+    executions = _ExecutionSettlements()
+    executions.rows[(_SESSION, _TURN)] = SessionExecutionSettlement(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id=_TURN,
+        state="running",
+        source_interaction_id=uuid4(),
+    )
+    service = RecordsService(records_dao=_StubDAO(), executions_dao=executions)
+
+    await service.append_many(
+        events=[_event("done", attributes={"type": "done", "stopReason": "cancelled"})]
+    )
+    assert executions.rows[(_SESSION, _TURN)].terminal_outcome is None
+
+    result = await executions.settle(
+        project_id=_PROJECT,
+        session_id=_SESSION,
+        execution_id=_TURN,
+        terminal_outcome="stopped",
+        settled_by="runner",
+    )
+
+    assert result.won is True
+    assert executions.rows[(_SESSION, _TURN)].terminal_outcome == "stopped"
+
+
 async def test_ingest_marks_the_runners_terminal_record_written(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     executions = _ExecutionSettlements()

@@ -145,7 +145,8 @@ class RecordsService:
             and record.quarantined_at is None
             and (record.attributes or {}).get(RECORD_SETTLED_BY_ATTRIBUTE)
             != SETTLED_BY_WATCHDOG
-            and (record.attributes or {}).get("stopReason") != "paused"
+            and (record.attributes or {}).get("stopReason")
+            not in ("paused", "cancelled")
         }
         for project_id, session_id, execution_id in candidates:
             try:
