@@ -1,6 +1,6 @@
 export {isQuoteReplyEnabled} from "./flag"
 export {QuoteSelectionLayer} from "./QuoteSelectionLayer"
-export {QuoteCard, QuoteSourceBadge} from "./QuoteCard"
+export {QuoteCard} from "./QuoteCard"
 export {QuoteToolbar, type QuoteToolbarProps} from "./QuoteToolbar"
 export {QuoteNote, type QuoteNoteProps} from "./QuoteNote"
 export {useQuoteSource, dropQuoteRange} from "./sources"
