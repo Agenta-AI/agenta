@@ -89,11 +89,12 @@ class RecordsDAO(RecordsDAOInterface):
             return map_record_dbe_to_dto(dbe=row) if row is not None else None
 
         cursor_insert = insert(SessionSequenceCursorDBE).values(
+            project_id=values["project_id"],
             session_id=values["session_id"],
             latest_sequence=1,
         )
         cursor_stmt = cursor_insert.on_conflict_do_update(
-            index_elements=["session_id"],
+            index_elements=["project_id", "session_id"],
             set_={
                 "latest_sequence": SessionSequenceCursorDBE.latest_sequence + 1,
                 "updated_at": func.now(),
@@ -309,7 +310,8 @@ class RecordsDAO(RecordsDAOInterface):
         async with self.engine.session() as session:
             latest_sequence = await session.scalar(
                 select(SessionSequenceCursorDBE.latest_sequence).where(
-                    SessionSequenceCursorDBE.session_id == session_id
+                    SessionSequenceCursorDBE.project_id == project_id,
+                    SessionSequenceCursorDBE.session_id == session_id,
                 )
             )
             record_count, first_sequenced_at = (

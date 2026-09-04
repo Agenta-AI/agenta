@@ -13,10 +13,11 @@ from oss.src.dbs.postgres.sessions.records.dbas import RecordDBA, RecordTurnSpan
 from oss.src.dbs.postgres.shared.dbas import ProjectScopeDBA, LifecycleDBA
 
 
-class SessionSequenceCursorDBE(Base):
+class SessionSequenceCursorDBE(Base, ProjectScopeDBA):
     __tablename__ = "session_sequence_cursors"
+    __table_args__ = (PrimaryKeyConstraint("project_id", "session_id"),)
 
-    session_id = Column(String, primary_key=True)
+    session_id = Column(String, nullable=False)
     latest_sequence = Column(BigInteger, nullable=False)
     updated_at = Column(
         TIMESTAMP(timezone=True),
@@ -55,6 +56,7 @@ class RecordDBE(
         ),
         Index(
             "ux_records_session_id_sequence",
+            "project_id",
             "session_id",
             "sequence",
             unique=True,

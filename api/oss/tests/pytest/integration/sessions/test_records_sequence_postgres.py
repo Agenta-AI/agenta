@@ -57,7 +57,8 @@ async def test_concurrent_inserts_allocate_distinct_sequences_and_retry_keeps_cu
         async with get_analytics_engine().session() as session:
             cursor = await session.scalar(
                 select(SessionSequenceCursorDBE.latest_sequence).where(
-                    SessionSequenceCursorDBE.session_id == session_id
+                    SessionSequenceCursorDBE.project_id == project_id,
+                    SessionSequenceCursorDBE.session_id == session_id,
                 )
             )
             sequences = list(
@@ -78,6 +79,58 @@ async def test_concurrent_inserts_allocate_distinct_sequences_and_retry_keeps_cu
             )
             await session.execute(
                 delete(SessionSequenceCursorDBE).where(
-                    SessionSequenceCursorDBE.session_id == session_id
+                    SessionSequenceCursorDBE.project_id == project_id,
+                    SessionSequenceCursorDBE.session_id == session_id,
+                )
+            )
+
+
+async def test_sequence_allocation_is_scoped_by_project():
+    project_ids = [uuid.uuid4(), uuid.uuid4()]
+    session_id = f"shared-session-{uuid.uuid4()}"
+    dao = RecordsDAO(engine=get_analytics_engine())
+
+    try:
+        records = []
+        for project_id in project_ids:
+            records.append(
+                await dao.append(
+                    event=SessionRecordEvent(
+                        project_id=project_id,
+                        session_id=session_id,
+                        record_id=uuid.uuid4(),
+                        record_type="message",
+                        record_source="agent",
+                        attributes={"type": "message", "text": "hello"},
+                    )
+                )
+            )
+
+        assert [record.sequence for record in records] == [1, 1]
+
+        async with get_analytics_engine().session() as session:
+            cursors = list(
+                (
+                    await session.scalars(
+                        select(SessionSequenceCursorDBE.latest_sequence)
+                        .where(
+                            SessionSequenceCursorDBE.project_id.in_(project_ids),
+                            SessionSequenceCursorDBE.session_id == session_id,
+                        )
+                        .order_by(SessionSequenceCursorDBE.project_id)
+                    )
+                ).all()
+            )
+
+        assert cursors == [1, 1]
+    finally:
+        async with get_analytics_engine().session() as session:
+            await session.execute(
+                delete(RecordDBE).where(RecordDBE.project_id.in_(project_ids))
+            )
+            await session.execute(
+                delete(SessionSequenceCursorDBE).where(
+                    SessionSequenceCursorDBE.project_id.in_(project_ids),
+                    SessionSequenceCursorDBE.session_id == session_id,
                 )
             )

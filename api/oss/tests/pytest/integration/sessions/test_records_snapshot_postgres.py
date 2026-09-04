@@ -74,6 +74,7 @@ async def test_snapshot_watermark_pages_transcript_without_admitting_later_rows(
             )
             await session.execute(
                 delete(SessionSequenceCursorDBE).where(
-                    SessionSequenceCursorDBE.session_id == session_id
+                    SessionSequenceCursorDBE.project_id == project_id,
+                    SessionSequenceCursorDBE.session_id == session_id,
                 )
             )

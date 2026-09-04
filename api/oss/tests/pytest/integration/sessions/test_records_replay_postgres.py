@@ -75,7 +75,8 @@ async def test_snapshot_n_followed_by_events_after_n_loses_no_commit():
             )
             await session.execute(
                 delete(SessionSequenceCursorDBE).where(
-                    SessionSequenceCursorDBE.session_id == session_id
+                    SessionSequenceCursorDBE.project_id == project_id,
+                    SessionSequenceCursorDBE.session_id == session_id,
                 )
             )
 

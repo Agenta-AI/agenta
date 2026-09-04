@@ -1547,6 +1547,9 @@ class SessionsRedisConfig(BaseModel):
     Defaults mirror the golden fixture (services/runner/tests/fixtures/sessions/
     redis_contract.json) shared with the TypeScript runner. Do not change a default
     without updating that fixture and the TS side in lockstep.
+
+    AGENTA_SESSIONS_SEQUENCE_WRITES folds into AGENTA_SESSIONS_HISTORY_WRITES after
+    PR #6517 and this increment merge, keeping one rollout switch per increment.
     """
 
     sequence_writes: bool = (
