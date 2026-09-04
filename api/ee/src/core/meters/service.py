@@ -78,7 +78,7 @@ class MetersService:
     ):
         stripe = _load_stripe()
         if stripe is None:
-            log.warn("✗ Stripe unavailable")
+            log.warning("✗ Stripe unavailable")
             return
 
         log.info("[report] ============================================")
@@ -160,7 +160,7 @@ class MetersService:
                     if not customer_id:
                         # Missing customer_id — can't report to Stripe.
                         # Bump to flush from dump().
-                        log.warn(
+                        log.warning(
                             f"[report] Skipping meter {meter.organization_id}/{meter.key} - missing customer_id"
                         )
                         skipped_count += 1
@@ -171,7 +171,7 @@ class MetersService:
                         try:
                             meter_name = REPORTS.get(meter.key.value)
                             if not meter_name:
-                                log.warn(
+                                log.warning(
                                     f"[report] Skipping meter {meter.organization_id}/{meter.key} - no Stripe meter mapping"
                                 )
                                 skipped_count += 1
@@ -184,7 +184,7 @@ class MetersService:
                             )
 
                             if not price_id:
-                                log.warn(
+                                log.warning(
                                     f"[report] Skipping meter {meter.organization_id}/{meter.key} - missing price_id"
                                 )
                                 skipped_count += 1
@@ -200,7 +200,7 @@ class MetersService:
                                     break
 
                             if not _id:
-                                log.warn(
+                                log.warning(
                                     f"[report] Skipping meter {meter.organization_id}/{meter.key} - subscription item not found"
                                 )
                                 skipped_count += 1
@@ -250,7 +250,7 @@ class MetersService:
                         try:
                             event_name = REPORTS.get(meter.key.value)
                             if not event_name:
-                                log.warn(
+                                log.warning(
                                     f"[report] Skipping meter {meter.organization_id}/{meter.key} - no Stripe meter mapping"
                                 )
                                 skipped_count += 1
@@ -301,7 +301,7 @@ class MetersService:
                             # If the event already exists, treat this as idempotent
                             # success and bump synced to avoid infinite retries.
                             if "event already exists with identifier" in str(e).lower():
-                                log.warn(
+                                log.warning(
                                     f"[stripe] counter-event duplicate (idempotent): job={job_id} "
                                     f"org={meter.organization_id} key={meter.key} "
                                     f"period={meter.year}-{meter.month} synced={meter.synced} value={meter.value} delta={delta} "

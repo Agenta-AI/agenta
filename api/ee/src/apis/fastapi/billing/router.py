@@ -295,7 +295,9 @@ class BillingRouter:
 
         if not stripe_event.type.startswith("invoice"):
             if not _stripe_has(stripe_event.data.object, "metadata"):
-                log.warn("Skipping stripe event: %s (no metadata)", stripe_event.type)
+                log.warning(
+                    "Skipping stripe event: %s (no metadata)", stripe_event.type
+                )
                 return JSONResponse(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     content={"status": "error", "message": "Metadata not found"},
@@ -310,7 +312,9 @@ class BillingRouter:
             )
 
             if not _stripe_has(subscription_details, "metadata"):
-                log.warn("Skipping stripe event: %s (no metadata)", stripe_event.type)
+                log.warning(
+                    "Skipping stripe event: %s (no metadata)", stripe_event.type
+                )
 
                 return JSONResponse(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -320,7 +324,7 @@ class BillingRouter:
                 metadata = _stripe_get(subscription_details, "metadata")
 
         if not _stripe_has(metadata, "target"):
-            log.warn("Skipping stripe event: %s (no target)", stripe_event.type)
+            log.warning("Skipping stripe event: %s (no target)", stripe_event.type)
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={"status": "error", "message": "Target not found"},
@@ -329,7 +333,7 @@ class BillingRouter:
         target = _stripe_get(metadata, "target")
 
         if target != env.stripe.webhook_target:
-            log.warn(
+            log.warning(
                 "Skipping stripe event: %s (wrong target: %s)",
                 stripe_event.type,
                 target,
@@ -340,7 +344,9 @@ class BillingRouter:
             )
 
         if not _stripe_has(metadata, "organization_id"):
-            log.warn("Skipping stripe event: %s (no organization)", stripe_event.type)
+            log.warning(
+                "Skipping stripe event: %s (no organization)", stripe_event.type
+            )
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 content={"status": "error", "message": "Organization ID not found"},
@@ -365,7 +371,7 @@ class BillingRouter:
                 event = Event.SUBSCRIPTION_CREATED
 
                 if not _stripe_has(stripe_event.data.object, "id"):
-                    log.warn(
+                    log.warning(
                         "Skipping stripe event: %s (no subscription)",
                         stripe_event.type,
                     )
@@ -380,7 +386,9 @@ class BillingRouter:
                 subscription_id = _stripe_get(stripe_event.data.object, "id")
 
                 if not _stripe_has(metadata, "plan"):
-                    log.warn("Skipping stripe event: %s (no plan)", stripe_event.type)
+                    log.warning(
+                        "Skipping stripe event: %s (no plan)", stripe_event.type
+                    )
                     return JSONResponse(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         content={
@@ -391,7 +399,7 @@ class BillingRouter:
 
                 plan = _stripe_get(metadata, "plan")
                 if not plan:
-                    log.warn(
+                    log.warning(
                         "Skipping stripe event: %s (missing plan metadata)",
                         stripe_event.type,
                     )
@@ -403,7 +411,7 @@ class BillingRouter:
                         },
                     )
                 if plan not in get_plans():
-                    log.warn(
+                    log.warning(
                         "Skipping stripe event: %s (unknown plan %s)",
                         stripe_event.type,
                         plan,
@@ -417,7 +425,9 @@ class BillingRouter:
                     )
 
                 if not _stripe_has(stripe_event.data.object, "billing_cycle_anchor"):
-                    log.warn("Skipping stripe event: %s (no anchor)", stripe_event.type)
+                    log.warning(
+                        "Skipping stripe event: %s (no anchor)", stripe_event.type
+                    )
                     return JSONResponse(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         content={
@@ -441,7 +451,9 @@ class BillingRouter:
                 event = Event.SUBSCRIPTION_CANCELLED
 
             else:
-                log.warn("Skipping stripe event: %s (unsupported)", stripe_event.type)
+                log.warning(
+                    "Skipping stripe event: %s (unsupported)", stripe_event.type
+                )
                 return JSONResponse(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     content={"status": "error", "message": "Unsupported event"},
@@ -1111,7 +1123,9 @@ class BillingRouter:
                 if released:
                     log.info("[report] [endpoint] Lock released")
                 else:
-                    log.warn("[report] [endpoint] Lock release skipped (expired/lost)")
+                    log.warning(
+                        "[report] [endpoint] Lock release skipped (expired/lost)"
+                    )
 
         except Exception:
             # Catch-all for any errors, including cache errors
@@ -1128,7 +1142,7 @@ class BillingRouter:
     async def unlock_report_usage(
         self,
     ):
-        log.warn("[report] [unlock] Trigger")
+        log.warning("[report] [unlock] Trigger")
 
         try:
             released = await release_lock(
@@ -1144,7 +1158,7 @@ class BillingRouter:
             )
 
         if released:
-            log.warn("[report] [unlock] Lock force-released")
+            log.warning("[report] [unlock] Lock force-released")
             return JSONResponse(
                 status_code=status.HTTP_200_OK,
                 content={"status": "success", "released": True},

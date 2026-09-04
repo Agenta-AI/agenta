@@ -372,7 +372,7 @@ async def set_cache(
         return True
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        log.warn(
+        log.warning(
             "[cache] SET  ",
             project_id=project_id,
             user_id=user_id,
@@ -381,7 +381,7 @@ async def set_cache(
             value=value if CACHE_DEBUG_VALUE else "***",
             ttl=ttl,
         )
-        log.warn(e)
+        log.warning(e)
 
         return None
 
@@ -442,7 +442,7 @@ async def get_cache(
         return None
 
     except Exception as e:
-        log.warn(
+        log.warning(
             "[cache] GET  ",
             project_id=project_id,
             user_id=user_id,
@@ -451,7 +451,7 @@ async def get_cache(
             model=model,
             is_list=is_list,
         )
-        log.warn(e)
+        log.warning(e)
 
         return None
 
@@ -547,13 +547,13 @@ async def invalidate_cache(
         return True
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        log.warn(
+        log.warning(
             "[cache] FLUSH",
             project_id=project_id,
             user_id=user_id,
             namespace=namespace,
             key=key,
         )
-        log.warn(e)
+        log.warning(e)
 
         return None
