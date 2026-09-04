@@ -663,7 +663,11 @@ async def orphan_sweep_loop(
                 pass_timeout,
             )
         except Exception:
-            log.exception("watchdog: error during sweep pass")
+            # `log` is a MultiLogger, which has no `exception` method; calling one would
+            # raise AttributeError from inside this handler and kill the loop for the life
+            # of the process. Use `error(..., exc_info=True)`, the same shape the helpers
+            # above use, so the first sweep error is logged and the loop goes round again.
+            log.error("watchdog: error during sweep pass", exc_info=True)
         elapsed = (datetime.now(timezone.utc) - started).total_seconds()
         if elapsed > SWEEP_INTERVAL_SECONDS:
             log.warning("watchdog: sweep pass took %.1fs", elapsed)
