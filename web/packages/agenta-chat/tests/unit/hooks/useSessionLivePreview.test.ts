@@ -138,4 +138,29 @@ describe("useSessionLivePreview sender subscription", () => {
         expect(FakeEventSource.instances).toHaveLength(1)
         expect(FakeEventSource.instances[0].closed).toBe(false)
     })
+
+    it("clears the reload snapshot when current liveness reports the turn stopped", async () => {
+        vi.mocked(fetchSessionSnapshot).mockResolvedValue(snapshot(true))
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+
+        const {result, rerender} = renderHook(
+            ({runningElsewhere}: {runningElsewhere: boolean}) =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: true,
+                    runningElsewhere,
+                    sender: true,
+                    onDisconnect: vi.fn(),
+                }),
+            {initialProps: {runningElsewhere: true}, wrapper: wrapper(store)},
+        )
+
+        await waitFor(() => expect(result.current.runningFromSnapshot).toBe(true))
+        rerender({runningElsewhere: false})
+
+        await waitFor(() => expect(result.current.runningFromSnapshot).toBe(false))
+        expect(FakeEventSource.instances).toHaveLength(1)
+        expect(FakeEventSource.instances[0].closed).toBe(false)
+    })
 })

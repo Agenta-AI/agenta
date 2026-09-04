@@ -70,6 +70,10 @@ export const useSessionLivePreview = ({
     })
 
     useEffect(() => {
+        if (!runningElsewhere) setRunningFromSnapshot(false)
+    }, [runningElsewhere])
+
+    useEffect(() => {
         clearPreview(sessionId)
         onReadyChangeRef.current?.(false)
         if (!sharedReaderAdvertised || !sessionId) return
