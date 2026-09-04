@@ -35,7 +35,10 @@ class SessionStreamQueryFlags(BaseModel):
 
 
 class SessionCapabilities(BaseModel):
-    shared_reader: bool = False
+    shared_reader: bool = Field(
+        default=False,
+        description="Deployment-wide shared-reader switch; version one has no project allowlist.",
+    )
 
 
 class SessionStream(Identifier, Header, Lifecycle):

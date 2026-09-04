@@ -10,7 +10,7 @@ from orjson import dumps
 from oss.src.apis.fastapi.sessions.models import SessionRecordIngestRequest
 from oss.src.apis.fastapi.sessions.router import RecordsRouter
 from oss.src.core.sessions.records.dtos import SessionLiveFrame
-from oss.src.core.sessions.records.streaming import publish_live_frame
+from oss.src.core.sessions.records.streaming import publish_live_frame, trim_live_stream
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
 from oss.src.utils.env import env
 
@@ -109,8 +109,9 @@ async def test_frame_ingest_rejects_a_stale_execution():
     publish.assert_not_awaited()
 
 
-async def test_publish_frame_applies_measured_maxlen():
+async def test_publish_frame_uses_guarded_age_trimming():
     redis = AsyncMock()
+    redis.xinfo_groups.return_value = []
     frame = SessionLiveFrame(
         version=1,
         kind="frame",
@@ -128,9 +129,8 @@ async def test_publish_frame_applies_measured_maxlen():
     ):
         assert await publish_live_frame(project_id=uuid4(), frame=frame)
 
-    assert redis.xadd.await_args.kwargs["maxlen"] == 100_000
-    assert redis.xadd.await_args.kwargs["maxlen"] == env.sessions.live_stream_maxlen
-    assert redis.xadd.await_args.kwargs["approximate"] is True
+    assert "maxlen" not in redis.xadd.await_args.kwargs
+    redis.xinfo_groups.assert_awaited_once_with("streams:records")
 
 
 async def test_records_worker_skips_temporary_frames():
@@ -156,3 +156,105 @@ async def test_records_worker_skips_temporary_frames():
     assert appended == 0
     assert processed == [b"1-0"]
     service.append_many.assert_not_awaited()
+
+
+async def test_frame_flood_does_not_evict_a_pending_durable_record():
+    fakeredis = pytest.importorskip("fakeredis")
+    redis = fakeredis.FakeAsyncRedis()
+    await redis.xgroup_create(
+        "streams:records", "worker-records", id="0", mkstream=True
+    )
+    durable_id = await redis.xadd("streams:records", {"data": b"durable"})
+    await redis.xreadgroup(
+        "worker-records",
+        "stalled-worker",
+        {"streams:records": ">"},
+        count=1,
+    )
+
+    with (
+        patch("oss.src.core.sessions.records.streaming._get_redis", return_value=redis),
+        patch.object(env.sessions, "live_stream_maxlen", 4),
+    ):
+        for index in range(129):
+            frame = SessionLiveFrame.model_validate(
+                {
+                    **_frame().model_dump(),
+                    "frame_or_event_id": f"execution-1:{index}",
+                    "frame_index": index,
+                }
+            )
+            assert await publish_live_frame(project_id=uuid4(), frame=frame)
+
+    assert await redis.xrange("streams:records", min=durable_id, max=durable_id)
+    assert await redis.xlen("streams:records") > 4
+
+
+async def test_age_trim_removes_expired_frames_after_records_ack():
+    fakeredis = pytest.importorskip("fakeredis")
+    redis = fakeredis.FakeAsyncRedis()
+    await redis.xgroup_create(
+        "streams:records", "worker-records", id="0", mkstream=True
+    )
+    expired_id = f"{int(datetime.now(timezone.utc).timestamp() * 1000) - 901_000}-0"
+    await redis.xadd("streams:records", {"data": b"expired-frame"}, id=expired_id)
+    delivered = await redis.xreadgroup(
+        "worker-records",
+        "records-worker",
+        {"streams:records": ">"},
+        count=1,
+    )
+    await redis.xack("streams:records", "worker-records", delivered[0][1][0][0])
+
+    with patch.object(env.sessions, "live_frame_max_age_seconds", 900):
+        await trim_live_stream(redis)
+
+    assert await redis.xrange("streams:records", min=expired_id, max=expired_id) == []
+
+
+async def test_records_worker_deletes_only_acknowledged_durable_records():
+    fakeredis = pytest.importorskip("fakeredis")
+    redis = fakeredis.FakeAsyncRedis()
+    await redis.xgroup_create(
+        "streams:records", "worker-records", id="0", mkstream=True
+    )
+    project_id = uuid4()
+    durable = {
+        "organization_id": None,
+        "project_id": str(project_id),
+        "record_event": {"project_id": str(project_id), "session_id": "session-1"},
+    }
+    temporary = {
+        "organization_id": None,
+        "project_id": str(project_id),
+        "kind": "frame",
+        "frame": _frame().model_dump(mode="json", exclude_none=True),
+    }
+    durable_id = await redis.xadd(
+        "streams:records", {"data": zlib.compress(dumps(durable))}
+    )
+    frame_id = await redis.xadd(
+        "streams:records", {"data": zlib.compress(dumps(temporary))}
+    )
+    batch = (
+        await redis.xreadgroup(
+            "worker-records",
+            "records-worker",
+            {"streams:records": ">"},
+            count=2,
+        )
+    )[0][1]
+    service = AsyncMock()
+    service.append_many.return_value = []
+    worker = RecordsWorker(
+        service=service,
+        redis_client=redis,
+        stream_name="streams:records",
+        consumer_group="worker-records",
+    )
+
+    _, processed = await worker.process_batch(batch)
+    await worker.ack_and_delete(processed)
+
+    assert await redis.xrange("streams:records", min=durable_id, max=durable_id) == []
+    assert await redis.xrange("streams:records", min=frame_id, max=frame_id)

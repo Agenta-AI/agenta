@@ -1,7 +1,7 @@
 import asyncio
 import json
 import zlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -129,6 +129,60 @@ async def test_relay_worker_publishes_frames_and_skips_records():
     ]
 
     published, processed = await worker.process_batch(batch)
+
+    assert published == 1
+    assert processed == [b"1-0", b"2-0"]
+    redis.publish.assert_awaited_once()
+
+
+async def test_relay_worker_discards_frames_older_than_900_seconds():
+    project_id = uuid4()
+    redis = AsyncMock()
+    worker = LiveRelayWorker(
+        redis_client=redis,
+        stream_name="streams:records",
+        consumer_group="worker-session-live-relay",
+    )
+    expired = _frame(0)
+    expired["created_at"] = (
+        datetime.now(timezone.utc) - timedelta(seconds=901)
+    ).isoformat()
+    fresh = _frame(1)
+    batch = [
+        (
+            b"1-0",
+            {
+                b"data": zlib.compress(
+                    dumps(
+                        {
+                            "organization_id": None,
+                            "project_id": str(project_id),
+                            "kind": "frame",
+                            "frame": expired,
+                        }
+                    )
+                )
+            },
+        ),
+        (
+            b"2-0",
+            {
+                b"data": zlib.compress(
+                    dumps(
+                        {
+                            "organization_id": None,
+                            "project_id": str(project_id),
+                            "kind": "frame",
+                            "frame": fresh,
+                        }
+                    )
+                )
+            },
+        ),
+    ]
+
+    with patch.object(env.sessions, "live_frame_max_age_seconds", 900):
+        published, processed = await worker.process_batch(batch)
 
     assert published == 1
     assert processed == [b"1-0", b"2-0"]

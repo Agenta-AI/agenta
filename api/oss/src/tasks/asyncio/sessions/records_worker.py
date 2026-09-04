@@ -110,6 +110,7 @@ class RecordsWorker(StreamConsumer):
         # safety net — never the append.
         self.interactions_service = interactions_service
         self._permanent_failure_ids: set[bytes] = set()
+        self._consumed_durable_record_ids: set[bytes] = set()
 
     async def reconcile_orphaned_gates(
         self,
@@ -279,6 +280,7 @@ class RecordsWorker(StreamConsumer):
         The returned ids are acknowledged and deleted by the consumer loop, so an id only goes
         in once its rows are committed, or once this worker has decided to drop it on purpose.
         """
+        self._consumed_durable_record_ids.clear()
         groups: Dict[UUID, Dict[str, Any]] = {}
         acked_ids: List[bytes] = []
         batch_bytes = 0
@@ -297,6 +299,7 @@ class RecordsWorker(StreamConsumer):
                 if isinstance(msg, LiveFrameMessage):
                     acked_ids.append(msg_id)
                     continue
+                self._consumed_durable_record_ids.add(msg_id)
                 group = groups.get(msg.project_id)
                 if group is None:
                     group = {
@@ -434,3 +437,16 @@ class RecordsWorker(StreamConsumer):
             )
         except Exception as exc:
             log.error(f"{self.log_prefix} Failed to ACK messages: {exc}")
+            return
+
+        durable_ids = [
+            message_id
+            for message_id in message_ids
+            if message_id in self._consumed_durable_record_ids
+        ]
+        if durable_ids:
+            try:
+                await self.redis.xdel(self.stream_name, *durable_ids)
+            except Exception as exc:
+                log.error(f"{self.log_prefix} Failed to DELETE durable messages: {exc}")
+        self._consumed_durable_record_ids.difference_update(message_ids)
