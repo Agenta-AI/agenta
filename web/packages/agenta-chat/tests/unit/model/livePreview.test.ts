@@ -5,6 +5,7 @@ import {
     createSessionLivePreviewState,
     reduceSessionLivePreview,
     sessionLivePreviewMessages,
+    shouldSubscribeToSessionLivePreview,
 } from "../../../src/model/livePreview"
 
 const frame = (
@@ -111,4 +112,23 @@ describe("session live preview reducer", () => {
             {type: "text", text: "x".repeat(5_000)},
         ])
     })
+})
+
+describe("session live preview subscription", () => {
+    it.each([
+        {sharedReaderAdvertised: false, runningElsewhere: false, expected: false},
+        {sharedReaderAdvertised: false, runningElsewhere: true, expected: false},
+        {sharedReaderAdvertised: true, runningElsewhere: false, expected: false},
+        {sharedReaderAdvertised: true, runningElsewhere: true, expected: true},
+    ])(
+        "returns $expected when advertised=$sharedReaderAdvertised and remote=$runningElsewhere",
+        ({sharedReaderAdvertised, runningElsewhere, expected}) => {
+            expect(
+                shouldSubscribeToSessionLivePreview({
+                    sharedReaderAdvertised,
+                    runningElsewhere,
+                }),
+            ).toBe(expected)
+        },
+    )
 })

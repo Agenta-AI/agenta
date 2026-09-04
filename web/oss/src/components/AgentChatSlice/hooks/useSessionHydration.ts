@@ -1,7 +1,6 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
 import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
-import {useSessionLivePreview} from "@agenta/chat/hooks"
 import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
 import {
     fetchSessionRecordsAtom,
@@ -483,11 +482,6 @@ export const useSessionHydration = ({
             adoptServerTranscriptRef.current(transcript, {armJump: false})
         })
     }, [sessionId, busyRef, pendingResumeRef, revalidateSessionRecords, readLog])
-    const previewMessages = useSessionLivePreview({
-        sessionId,
-        enabled: runningElsewhere && liveness.sharedReader,
-        onDisconnect: refreshFromRecords,
-    })
     // `ready` fires on every connect — each tab activation, each return to the foreground — so it
     // must not repeat a read the mount is already doing. A change that lands after the subscribe
     // arrives as `records-changed`, which is never skipped (#6296).
@@ -521,6 +515,7 @@ export const useSessionHydration = ({
         stopStateLoading: liveness.isLoading,
         sessionTurnId: liveness.turnId,
         stoppingTurnId: liveness.stoppingTurnId,
-        previewMessages,
+        sharedReaderAdvertised: liveness.sharedReader,
+        refreshFromRecords,
     }
 }

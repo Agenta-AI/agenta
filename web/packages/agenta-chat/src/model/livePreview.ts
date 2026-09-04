@@ -8,6 +8,15 @@ import type {UIMessage} from "ai"
 
 type PreviewPart = Record<string, unknown> & {type: string}
 
+/** The reader is useful only for a backend-advertised run owned by another browser. */
+export const shouldSubscribeToSessionLivePreview = ({
+    sharedReaderAdvertised,
+    runningElsewhere,
+}: {
+    sharedReaderAdvertised: boolean
+    runningElsewhere: boolean
+}): boolean => sharedReaderAdvertised && runningElsewhere
+
 const stringValue = (value: unknown): string =>
     typeof value === "string" ? value : value == null ? "" : String(value)
 

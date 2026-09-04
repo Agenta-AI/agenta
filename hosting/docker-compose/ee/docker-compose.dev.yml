@@ -518,6 +518,7 @@ services:
             # only its last message loses the conversation.
             AGENTA_SESSIONS_RECONSTRUCT: ${AGENTA_SESSIONS_RECONSTRUCT:-}
             AGENTA_RECORDS_DURABLE: ${AGENTA_RECORDS_DURABLE:-}
+            AGENTA_RUNNER_LIVE_FRAMES: ${AGENTA_RUNNER_LIVE_FRAMES:-false}
         # === STORAGE ============================================== #
         volumes:
             - ../../../services/runner/src:/app/src

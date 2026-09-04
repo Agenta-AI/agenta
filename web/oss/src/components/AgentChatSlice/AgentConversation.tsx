@@ -13,6 +13,7 @@ import {
     stagedFilesToParts,
     useComposerAttachments,
     useAgentChatQueue,
+    useSessionLivePreview,
     type QueuedMessage,
 } from "@agenta/chat/hooks"
 import {
@@ -147,8 +148,15 @@ const AgentConversation = ({
         resumeOrphaned,
         isSeen,
         runningElsewhere,
-        previewMessages,
+        sharedReaderAdvertised,
+        refreshFromRecords,
     } = useAgentChatSession({entityId, sessionId, initialMessages, intent: scrollIntent})
+    const previewMessages = useSessionLivePreview({
+        sessionId,
+        sharedReaderAdvertised,
+        runningElsewhere,
+        onDisconnect: refreshFromRecords,
+    })
     const transcriptMessages = useMemo(
         () => (previewMessages.length ? [...messages, ...previewMessages] : messages),
         [messages, previewMessages],

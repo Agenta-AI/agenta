@@ -739,7 +739,8 @@ export const useAgentConversation = ({
 
     const previewMessages = useSessionLivePreview({
         sessionId,
-        enabled: sharedReaderEnabled && !busy && remoteRunIsFresh,
+        sharedReaderAdvertised: sharedReaderEnabled,
+        runningElsewhere: !busy && remoteRunIsFresh,
         onDisconnect: revalidate,
     })
     const displayMessages = useMemo(

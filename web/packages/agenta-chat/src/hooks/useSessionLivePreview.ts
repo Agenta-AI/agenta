@@ -4,7 +4,11 @@ import {clearSessionLivePreviewAtom, sessionLivePreviewAtomFamily} from "@agenta
 import type {UIMessage} from "ai"
 import {useAtom, useSetAtom} from "jotai"
 
-import {reduceSessionLivePreview, sessionLivePreviewMessages} from "../model/livePreview"
+import {
+    reduceSessionLivePreview,
+    sessionLivePreviewMessages,
+    shouldSubscribeToSessionLivePreview,
+} from "../model/livePreview"
 import {
     connectSessionLiveEvents,
     type SessionLiveEventsConnection,
@@ -12,12 +16,15 @@ import {
 
 export const useSessionLivePreview = ({
     sessionId,
-    enabled,
+    sharedReaderAdvertised,
+    runningElsewhere,
     onDisconnect,
 }: {
     sessionId: string
-    /** True only when the backend advertises shared_reader and another browser owns the run. */
-    enabled: boolean
+    /** Capability copied from the current backend session snapshot. */
+    sharedReaderAdvertised: boolean
+    /** True only when this browser is not the sender of the running turn. */
+    runningElsewhere: boolean
     /** Re-fetches the durable transcript after any gap; preview frames never fill history. */
     onDisconnect: () => void
 }): UIMessage[] => {
@@ -25,6 +32,10 @@ export const useSessionLivePreview = ({
     const clearPreview = useSetAtom(clearSessionLivePreviewAtom)
     const onDisconnectRef = useRef(onDisconnect)
     onDisconnectRef.current = onDisconnect
+    const enabled = shouldSubscribeToSessionLivePreview({
+        sharedReaderAdvertised,
+        runningElsewhere,
+    })
 
     useEffect(() => {
         clearPreview(sessionId)
