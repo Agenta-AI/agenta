@@ -156,7 +156,7 @@ export function ItemRow({
                 <ItemAvatar descriptor={descriptor} />
                 <div className="min-w-0 flex-1">
                     <div
-                        className={`truncate text-[13px] font-medium ${
+                        className={`truncate text-[13px] font-normal ${
                             descriptor.monoName === false ? "" : "font-mono"
                         }`}
                     >
