@@ -102,6 +102,7 @@ KNOWN_REQUEST_KEYS = {
     "turnId",
     "detached",
     "projectId",
+    "controlCommandId",
     "effectiveParameters",
 }
 
@@ -1045,6 +1046,28 @@ def test_known_request_keys_match_the_wire_schema():
         field.alias or name for name, field in WireRunRequest.model_fields.items()
     }
     assert declared == KNOWN_REQUEST_KEYS
+
+
+def test_request_to_wire_carries_durable_continuation_coordination_ids():
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5.5"),
+        messages=[Message(role="user", content="approved")],
+        session_id="session-1",
+        turn_id="turn-continuation-1",
+        project_id="project-1",
+        control_command_id="command-1",
+    )
+
+    assert payload["sessionId"] == "session-1"
+    assert payload["turnId"] == "turn-continuation-1"
+    assert payload["projectId"] == "project-1"
+    assert payload["controlCommandId"] == "command-1"
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+    parsed = WireRunRequest.model_validate(payload)
+    assert parsed.control_command_id == "command-1"
 
 
 def test_named_connection_choice_is_a_declared_schema_field():
