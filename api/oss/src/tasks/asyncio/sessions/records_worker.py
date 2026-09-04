@@ -398,6 +398,8 @@ class RecordsWorker(StreamConsumer):
                     results_by_session.setdefault(result.session_id, []).append(result)
 
             for session_results in results_by_session.values():
+                # Live events carry this batch's committed maximum; replay/ready uses the
+                # authoritative session cursor and may therefore be higher.
                 watermark = max(
                     (result.sequence or 0 for result in session_results), default=0
                 )

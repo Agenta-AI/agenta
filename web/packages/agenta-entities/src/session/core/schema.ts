@@ -210,8 +210,12 @@ export const sessionLiveFrameSchema = z.object({
     created_at: z.string(),
 })
 
-/** Durable relay envelope. The open `type` is intentional: reconnect cursors must advance past
- * future event types even when this client does not know how to render them yet. */
+/** Durable relay envelope. `watermark` is a non-negative integer: on a live event it is the
+ * publishing records-worker batch's highest committed sequence for the session; on an SSE ready
+ * frame the same field name is the authoritative session sequence cursor after replay. When a
+ * ready frame omits it, the client keeps its requested `after` cursor. The open `type` is
+ * intentional: reconnect cursors must advance past future event types even when this client does
+ * not know how to render them yet. */
 export const sessionDurableEventSchema = z.object({
     version: z.literal(1),
     kind: z.literal("event"),

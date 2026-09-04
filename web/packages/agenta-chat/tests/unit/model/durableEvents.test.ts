@@ -6,6 +6,7 @@ import {
     completeSessionDurableEventReplay,
     createSessionDurableEventState,
     reduceSessionDurableEvent,
+    shouldRefetchSessionTranscript,
 } from "../../../src/model"
 
 const durableEvent = (
@@ -90,5 +91,22 @@ describe("reduceSessionDurableEvent", () => {
     it("does not replay cursorless legacy envelopes into the live tail", () => {
         const state = createSessionDurableEventState(0)
         expect(reduceSessionDurableEvent(state, {...durableEvent(1), sequence: null})).toBe(state)
+    })
+
+    it("refetches once for a sequence gap, not for watermark-only advances", () => {
+        let state = createSessionDurableEventState(4)
+        let refetches = 0
+        const feed = (event: SessionDurableEvent) => {
+            const next = reduceSessionDurableEvent(state, event)
+            if (shouldRefetchSessionTranscript(state, next, event)) refetches += 1
+            state = next
+        }
+
+        feed(durableEvent(5, "future.completed", 8))
+        feed(durableEvent(6, "future.completed", 9))
+        expect(refetches).toBe(0)
+
+        feed(durableEvent(8, "future.completed", 10))
+        expect(refetches).toBe(1)
     })
 })

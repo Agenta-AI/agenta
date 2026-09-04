@@ -14,6 +14,7 @@ import {
     completeSessionDurableEventReplay,
     createSessionDurableEventState,
     reduceSessionDurableEvent,
+    shouldRefetchSessionTranscript,
 } from "../model/durableEvents"
 import {
     reduceSessionLivePreview,
@@ -86,7 +87,7 @@ export const useSessionLivePreview = ({
                     setPreview((current) => reduceSessionLivePreview(current, frame)),
                 onEvent: (event) => {
                     const next = reduceSessionDurableEvent(durable, event)
-                    if (next.latestSequence === durable.latestSequence) {
+                    if (!shouldRefetchSessionTranscript(durable, next, event)) {
                         durable = next
                         return
                     }

@@ -99,6 +99,8 @@ async def live_event_stream(
         try:
             await pubsub.subscribe(channel)
             await queue.put(retry_frame(retry_milliseconds))
+            # Unlike a live event's batch maximum, ready reports the authoritative session
+            # cursor returned by replay (or the requested `after` cursor without replay).
             watermark = await replay()
             await queue.put(ready_frame(watermark=watermark))
             loop = asyncio.get_running_loop()

@@ -117,6 +117,14 @@ class ToolCompletedPayload(BaseModel):
 
 
 class SessionDurableEventBase(BaseModel):
+    """Durable relay wire envelope.
+
+    ``watermark`` is a non-negative integer. On a live event it is the highest sequence
+    committed for that session in the publishing records-worker batch; on the SSE ``ready``
+    frame the same field name is the authoritative session sequence cursor after replay. A
+    client that receives a ready frame without it keeps the requested ``after`` cursor.
+    """
+
     version: Literal[1] = 1
     kind: Literal["event"] = "event"
     session_id: str

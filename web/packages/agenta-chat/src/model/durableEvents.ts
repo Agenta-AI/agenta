@@ -46,3 +46,11 @@ export const reduceSessionDurableEvent = (
         events,
     }
 }
+
+export const shouldRefetchSessionTranscript = (
+    previous: SessionDurableEventState,
+    next: SessionDurableEventState,
+    event: SessionDurableEvent,
+): boolean =>
+    next.events.length !== previous.events.length ||
+    (event.sequence != null && event.sequence > previous.lastEventSequence + 1)
