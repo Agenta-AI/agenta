@@ -5,14 +5,14 @@ export interface SessionDurableEventState {
     latestSequence: number
     /** Highest event sequence applied within this replay/live connection. */
     lastEventSequence: number
-    /** Known events accepted after the last snapshot, in durable sequence order. */
-    events: SessionDurableEvent[]
+    /** Number of known events accepted after the last snapshot. */
+    acceptedKnownEventCount: number
 }
 
 export const createSessionDurableEventState = (latestSequence = 0): SessionDurableEventState => ({
     latestSequence,
     lastEventSequence: latestSequence,
-    events: [],
+    acceptedKnownEventCount: 0,
 })
 
 export const completeSessionDurableEventReplay = (
@@ -37,13 +37,12 @@ export const reduceSessionDurableEvent = (
     const sequence = event.sequence
     if (sequence == null || sequence <= state.lastEventSequence) return state
 
-    const events = sessionDurableEventTypeSchema.safeParse(event.type).success
-        ? [...state.events, event]
-        : state.events
     return {
         latestSequence: Math.max(state.latestSequence, sequence, event.watermark),
         lastEventSequence: sequence,
-        events,
+        acceptedKnownEventCount:
+            state.acceptedKnownEventCount +
+            Number(sessionDurableEventTypeSchema.safeParse(event.type).success),
     }
 }
 
@@ -52,5 +51,5 @@ export const shouldRefetchSessionTranscript = (
     next: SessionDurableEventState,
     event: SessionDurableEvent,
 ): boolean =>
-    next.events.length !== previous.events.length ||
+    next.acceptedKnownEventCount !== previous.acceptedKnownEventCount ||
     (event.sequence != null && event.sequence > previous.lastEventSequence + 1)

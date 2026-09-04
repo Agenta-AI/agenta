@@ -33,7 +33,7 @@ describe("reduceSessionDurableEvent", () => {
         const twice = reduceSessionDurableEvent(once, durableEvent(5))
 
         expect(twice.latestSequence).toBe(5)
-        expect(twice.events.map((event) => event.sequence)).toEqual([5])
+        expect(twice.acceptedKnownEventCount).toBe(1)
         expect(twice).toBe(once)
     })
 
@@ -45,7 +45,7 @@ describe("reduceSessionDurableEvent", () => {
 
         expect(state.latestSequence).toBe(9)
         expect(state.lastEventSequence).toBe(9)
-        expect(state.events.map((event) => event.sequence)).toEqual([3, 6, 7, 9])
+        expect(state.acceptedKnownEventCount).toBe(4)
     })
 
     it("drops a duplicate and an out-of-order older event", () => {
@@ -67,7 +67,7 @@ describe("reduceSessionDurableEvent", () => {
 
         expect(second.latestSequence).toBe(9)
         expect(second.lastEventSequence).toBe(6)
-        expect(second.events.map((event) => event.sequence)).toEqual([3, 6])
+        expect(second.acceptedKnownEventCount).toBe(2)
     })
 
     it("learns the replay watermark when no typed event was returned", () => {
@@ -75,7 +75,7 @@ describe("reduceSessionDurableEvent", () => {
 
         expect(state.latestSequence).toBe(5)
         expect(state.lastEventSequence).toBe(5)
-        expect(state.events).toEqual([])
+        expect(state.acceptedKnownEventCount).toBe(0)
     })
 
     it("ignores unknown event payloads while advancing the reconnect cursor", () => {
@@ -85,12 +85,21 @@ describe("reduceSessionDurableEvent", () => {
         )
 
         expect(state.latestSequence).toBe(9)
-        expect(state.events).toEqual([])
+        expect(state.acceptedKnownEventCount).toBe(0)
     })
 
     it("does not replay cursorless legacy envelopes into the live tail", () => {
         const state = createSessionDurableEventState(0)
         expect(reduceSessionDurableEvent(state, {...durableEvent(1), sequence: null})).toBe(state)
+    })
+
+    it("refetches for each newly accepted known event", () => {
+        const initial = createSessionDurableEventState(4)
+        const accepted = reduceSessionDurableEvent(initial, durableEvent(5))
+        const duplicate = reduceSessionDurableEvent(accepted, durableEvent(5))
+
+        expect(shouldRefetchSessionTranscript(initial, accepted, durableEvent(5))).toBe(true)
+        expect(shouldRefetchSessionTranscript(accepted, duplicate, durableEvent(5))).toBe(false)
     })
 
     it("refetches once for a sequence gap, not for watermark-only advances", () => {
