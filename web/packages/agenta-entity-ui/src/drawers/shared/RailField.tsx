@@ -146,13 +146,13 @@ export function RailField({label, align = "top", path, wide, children}: RailFiel
     const labelNode = changed ? (
         <Popover>
             <PopoverTrigger asChild>
-                {/* role=button makes the Radix aria-haspopup/expanded attrs valid here. */}
-                <span
-                    role="button"
-                    className="cursor-pointer underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4"
+                {/* A real button, so the keyboard can reach the change detail and its Restore. */}
+                <button
+                    type="button"
+                    className="cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-inherit underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4 outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                 >
                     {label}
-                </span>
+                </button>
             </PopoverTrigger>
             {/* antd Popover chrome: elevated panel with 12px inner padding. */}
             <PopoverContent side="top" align="start" className="p-3">
