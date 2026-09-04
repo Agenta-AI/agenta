@@ -382,12 +382,13 @@ async def run_orphan_sweep(
         # settle's `stopping_turn_id`) still lands. That is the finding-7 bug: the row kept
         # `is_running: true` after the sweep. The collapse below writes through a Core UPDATE
         # keyed by these ids, and the Redis/watch steps read these tuples, never the rows.
-        orphan_rows: List[Tuple[UUID, UUID, str, Optional[str]]] = [
+        orphan_rows: List[Tuple[UUID, UUID, str, Optional[str], Optional[datetime]]] = [
             (
                 row.id,
                 row.project_id,
                 row.session_id,
                 str(row.turn_id) if row.turn_id else None,
+                row.updated_at,
             )
             for row in orphans
         ]
@@ -533,7 +534,7 @@ async def run_orphan_sweep(
         # matched; this owns every other lost turn (a row the query did not return, or an
         # older execution whose row has since advanced). Everything here is guarded on
         # `turn_id`, so a row that now names a NEWER running turn is never disturbed.
-        collapsing = {(p, s, t) for (_id, p, s, t) in orphan_rows}
+        collapsing = {(p, s, t) for (_id, p, s, t, _u) in orphan_rows}
         newly_lost = sorted(unsettled - collapsing, key=lambda t: t[1])
 
         # Clear `is_running` on the DB row that STILL names a lost turn, keeping `is_alive` so
@@ -545,7 +546,9 @@ async def run_orphan_sweep(
         # edit puts between the load and the write, can open a nested `engine.session()`, whose
         # `finally` closes the shared task-scoped session and detaches these rows. A mutation on
         # a detached row is tracked by no session and is dropped at commit with no error.
-        running_rows_cleared: List[Tuple[UUID, UUID, str, Dict[str, Any]]] = []
+        running_rows_to_clear: List[
+            Tuple[UUID, UUID, str, str, Optional[datetime], Dict[str, Any]]
+        ] = []
         if newly_lost:
             rows_to_clear = (
                 (
@@ -567,37 +570,157 @@ async def run_orphan_sweep(
             for row in rows_to_clear:
                 flags = dict(row.flags or {})
                 flags["is_running"] = False
-                running_rows_cleared.append(
-                    (row.id, row.project_id, row.session_id, flags)
+                running_rows_to_clear.append(
+                    (
+                        row.id,
+                        row.project_id,
+                        row.session_id,
+                        str(row.turn_id),
+                        row.updated_at,
+                        flags,
+                    )
                 )
 
-        for project_id, session_id, turn_id in newly_lost:
+        # Both writes to `session_streams` happen HERE, from the values captured above, and both
+        # go through a Core UPDATE. No ORM attribute write on this table survives anywhere in
+        # this pass, on purpose: the rows were loaded before nested `engine.session()` calls that
+        # detach them, and a detached row's mutation is dropped at commit with no error.
+        # Every lost turn's row first, keeping `is_alive` so the session stays resumable.
+        running_rows_cleared: List[
+            Tuple[UUID, UUID, str, str, Optional[datetime], Dict[str, Any]]
+        ] = []
+        failed_running_clears: Set[Tuple[UUID, str, str]] = set()
+        for (
+            row_id,
+            project_uuid,
+            session_id,
+            turn_id,
+            observed_updated_at,
+            cleared_flags,
+        ) in running_rows_to_clear:
+            conditions = [
+                SessionStreamDBE.id == row_id,
+                SessionStreamDBE.project_id == project_uuid,
+                SessionStreamDBE.session_id == session_id,
+                SessionStreamDBE.turn_id == turn_id,
+                SessionStreamDBE.deleted_at.is_(None),
+                (
+                    SessionStreamDBE.updated_at == observed_updated_at
+                    if observed_updated_at is not None
+                    else SessionStreamDBE.updated_at.is_(None)
+                ),
+            ]
+            result = await session.execute(
+                sa_update(SessionStreamDBE)
+                .where(*conditions)
+                .values(flags=cleared_flags, updated_at=now)
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount != 1:
+                failed_running_clears.add((project_uuid, session_id, turn_id))
+                log.info(
+                    "watchdog: lost-turn stream advanced during sweep; leaving it untouched",
+                    session_id=session_id,
+                    turn_id=turn_id,
+                )
+                continue
+            running_rows_cleared.append(
+                (
+                    row_id,
+                    project_uuid,
+                    session_id,
+                    turn_id,
+                    observed_updated_at,
+                    cleared_flags,
+                )
+            )
+
+        # Then the orphan rows, through guarded Core UPDATEs (finding 7).
+        # `synchronize_session=False` because nothing after this reads these rows back through
+        # the ORM identity map.
+        collapsed_flags = SessionStreamFlags(
+            is_alive=False, is_running=False, is_attached=False
+        ).model_dump(mode="json")
+        collapsed_rows: List[
+            Tuple[UUID, UUID, str, Optional[str], Optional[datetime]]
+        ] = []
+        for (
+            row_id,
+            project_uuid,
+            session_id,
+            turn_id,
+            observed_updated_at,
+        ) in orphan_rows:
+            conditions = [
+                SessionStreamDBE.id == row_id,
+                SessionStreamDBE.project_id == project_uuid,
+                SessionStreamDBE.session_id == session_id,
+                SessionStreamDBE.deleted_at.is_(None),
+                (
+                    SessionStreamDBE.turn_id == turn_id
+                    if turn_id is not None
+                    else SessionStreamDBE.turn_id.is_(None)
+                ),
+                (
+                    SessionStreamDBE.updated_at == observed_updated_at
+                    if observed_updated_at is not None
+                    else SessionStreamDBE.updated_at.is_(None)
+                ),
+            ]
+            result = await session.execute(
+                sa_update(SessionStreamDBE)
+                .where(*conditions)
+                .values(flags=collapsed_flags, updated_at=now)
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount != 1:
+                log.info(
+                    "watchdog: orphan stream advanced during sweep; leaving it untouched",
+                    session_id=session_id,
+                    turn_id=turn_id,
+                )
+                continue
+            collapsed_rows.append(
+                (row_id, project_uuid, session_id, turn_id, observed_updated_at)
+            )
+            log.warning(
+                "watchdog: settled a session_stream whose runner went silent",
+                extra={
+                    "session_id": session_id,
+                    "stream_id": str(row_id),
+                    "turn_id": turn_id,
+                    "lost": (project_uuid, session_id, turn_id) in unsettled,
+                },
+            )
+
+        await session.commit()
+
+        # The old turn remains the Redis owner until its guarded row update commits. A failed
+        # compare-and-set means a newer heartbeat or turn won, so none of its Redis state is ours.
+        for project_uuid, session_id, turn_id in newly_lost:
+            if (project_uuid, session_id, turn_id) in failed_running_clears:
+                continue
             released = await release_alive(
                 lock_engine,
-                project_id=str(project_id),
+                project_id=str(project_uuid),
                 session_id=session_id,
                 turn_id=turn_id,
             )
-            # Clearing affinity is safe only when this turn still owned `alive`; otherwise a
-            # newer turn may already have claimed the session and its owner lease must survive.
             if released:
                 await force_clear_owner(
                     lock_engine,
-                    project_id=str(project_id),
+                    project_id=str(project_uuid),
                     session_id=session_id,
                 )
-            # Clear the running lock too, guarded so a newer turn's lock survives. Without this
-            # the SEND gate's running check keeps refusing even after `is_running` is cleared
-            # on the row.
             await release_running(
                 lock_engine,
-                project_id=str(project_id),
+                project_id=str(project_uuid),
                 session_id=session_id,
                 turn_id=turn_id,
             )
             await mark_turn_superseded(
                 lock_engine,
-                project_id=str(project_id),
+                project_id=str(project_uuid),
                 session_id=session_id,
                 turn_id=turn_id,
             )
@@ -610,48 +733,14 @@ async def run_orphan_sweep(
                 },
             )
 
-        # Both writes to `session_streams` happen HERE, from the values captured above, and both
-        # go through a Core UPDATE. No ORM attribute write on this table survives anywhere in
-        # this pass, on purpose: the rows were loaded before nested `engine.session()` calls that
-        # detach them, and a detached row's mutation is dropped at commit with no error.
-        # Every lost turn's row first, keeping `is_alive` so the session stays resumable.
-        for row_id, _p, _s, cleared_flags in running_rows_cleared:
-            await session.execute(
-                sa_update(SessionStreamDBE)
-                .where(SessionStreamDBE.id == row_id)
-                .values(flags=cleared_flags, updated_at=now)
-                .execution_options(synchronize_session=False)
-            )
-
-        # Then the orphan rows, through ONE Core UPDATE keyed by their ids (finding 7).
-        # `synchronize_session=False` because nothing after this reads these rows back through
-        # the ORM identity map.
-        collapsed_flags = SessionStreamFlags(
-            is_alive=False, is_running=False, is_attached=False
-        ).model_dump(mode="json")
-        orphan_ids = [oid for (oid, _p, _s, _t) in orphan_rows]
-        if orphan_ids:
-            await session.execute(
-                sa_update(SessionStreamDBE)
-                .where(SessionStreamDBE.id.in_(orphan_ids))
-                .values(flags=collapsed_flags, updated_at=now)
-                .execution_options(synchronize_session=False)
-            )
-        for _oid, project_uuid, session_id, turn_id in orphan_rows:
-            log.warning(
-                "watchdog: settled a session_stream whose runner went silent",
-                extra={
-                    "session_id": session_id,
-                    "stream_id": str(_oid),
-                    "turn_id": turn_id,
-                    "lost": (project_uuid, session_id, turn_id) in unsettled,
-                },
-            )
-
-        await session.commit()
-
         # Bring the Redis locks the SEND gate reads in sync with the rows just written.
-        for _oid, project_uuid, session_id, row_turn_id in orphan_rows:
+        for (
+            _row_id,
+            project_uuid,
+            session_id,
+            row_turn_id,
+            _observed_updated_at,
+        ) in collapsed_rows:
             project_id = str(project_uuid)
             displaced_alive = await force_cancel_alive(
                 lock_engine, project_id=project_id, session_id=session_id
@@ -685,7 +774,13 @@ async def run_orphan_sweep(
         # settled turn keeps showing it as running until the user reloads. Best effort: the
         # publisher never raises and never re-drives the settle above.
         if watch_publisher is not None:
-            for _oid, project_uuid, session_id, _turn_id in orphan_rows:
+            for (
+                _row_id,
+                project_uuid,
+                session_id,
+                _turn_id,
+                _observed_updated_at,
+            ) in collapsed_rows:
                 try:
                     await watch_publisher.lifecycle(
                         project_id=str(project_uuid),
@@ -709,7 +804,14 @@ async def run_orphan_sweep(
 
             # A row whose `is_running` was cleared (but not collapsed) also needs the mirror
             # update, or a browser sitting on it keeps the turn drawn as running until a reload.
-            for _row_id, project_uuid, session_id, _flags in running_rows_cleared:
+            for (
+                _row_id,
+                project_uuid,
+                session_id,
+                _turn_id,
+                _observed_updated_at,
+                _flags,
+            ) in running_rows_cleared:
                 try:
                     await watch_publisher.changed(
                         project_id=str(project_uuid),
@@ -733,7 +835,7 @@ async def run_orphan_sweep(
 
         log.info(
             "watchdog: settled %d sessions (%d turns marked lost, %d commands lost)",
-            len(orphans),
+            len(collapsed_rows),
             len(unsettled),
             commands_settled,
         )

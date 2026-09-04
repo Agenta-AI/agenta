@@ -30,6 +30,7 @@ from sqlalchemy.sql.elements import (
     UnaryExpression,
 )
 from sqlalchemy.sql.functions import Function
+from sqlalchemy.sql.dml import Update
 
 from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     IDLE_THRESHOLD_SECONDS,
@@ -86,6 +87,10 @@ def _evaluate(node, row) -> Optional[bool]:
             return left is not right
         if node.operator is operators.lt:
             return None if left is None or right is None else left < right
+        if node.operator is operators.eq:
+            return None if left is None or right is None else left == right
+        if node.operator is operators.in_op:
+            return None if left is None else left in right
         if getattr(node.operator, "opstring", None) == "@>":
             return _contains(left, right)
     raise AssertionError(
@@ -144,39 +149,32 @@ class _FakeScalars:
 
 
 class _FakeResult:
-    def __init__(self, rows):
+    def __init__(self, rows, *, rowcount=0):
         self._rows = rows
+        self.rowcount = rowcount
 
     def scalars(self):
         return _FakeScalars(self._rows)
 
 
 class _FakePgSession:
-    def __init__(self, rows):
+    def __init__(self, rows, before_update=None):
         self._rows = rows
+        self._before_update = before_update
 
     async def execute(self, stmt):
-        text = str(stmt)
-        if text.startswith("UPDATE") and "session_streams" in text:
-            # Both session_streams writes are Core UPDATEs keyed by row id, never ORM
-            # attribute writes (finding 7). The collapse binds `id IN (...)`, a list; the
-            # lost-turn clear binds `id = ...`, a scalar. Apply either to the in-memory rows.
-            params = stmt.compile().params
-            flags_val = next(
-                (v for v in params.values() if isinstance(v, dict) and "is_alive" in v),
-                None,
-            )
-            ids = set()
-            for value in params.values():
-                if isinstance(value, (list, set, tuple)):
-                    ids.update(x for x in value if isinstance(x, str))
-                elif isinstance(value, str):
-                    ids.add(value)
-            if flags_val is not None:
-                for row in self._rows:
-                    if row.id in ids:
-                        row.flags = dict(flags_val)
-            return _FakeResult([])
+        if isinstance(stmt, Update):
+            if self._before_update is not None:
+                self._before_update()
+                self._before_update = None
+            matched = [
+                row for row in self._rows if _evaluate(stmt.whereclause, row) is True
+            ]
+            for row in matched:
+                for column, value in stmt._values.items():
+                    key = column if isinstance(column, str) else column.key
+                    setattr(row, key, _value(value, row))
+            return _FakeResult([], rowcount=len(matched))
         matched = [
             row for row in self._rows if _evaluate(stmt.whereclause, row) is True
         ]
@@ -187,12 +185,13 @@ class _FakePgSession:
 
 
 class _FakeTransactionsEngine:
-    def __init__(self, rows):
+    def __init__(self, rows, before_update=None):
         self._rows = rows
+        self._before_update = before_update
 
     @asynccontextmanager
     async def session(self):
-        yield _FakePgSession(self._rows)
+        yield _FakePgSession(self._rows, self._before_update)
 
 
 class _FakeRedis:
@@ -368,3 +367,54 @@ async def test_sweep_clears_redis_for_the_long_threshold_branch(anyio_backend):
 
     assert await redis.get(f"alive:{_PROJECT_ID}:session:{session_id}") is None
     assert await redis.get(f"owner:{_PROJECT_ID}:session:{session_id}") is None
+
+
+@pytest.mark.anyio
+async def test_turn_advance_during_sweep_prevents_collapse_and_redis_cleanup(
+    anyio_backend,
+):
+    session_id = "sess-advanced-during-sweep"
+    row = _FakeRow(
+        session_id=session_id,
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="turn-old",
+    )
+    redis = _FakeRedis()
+    await redis.set(f"alive:{_PROJECT_ID}:session:{session_id}", b"turn-new")
+    await redis.set(f"running:{_PROJECT_ID}:session:{session_id}", b"turn-new")
+    await redis.set(f"owner:{_PROJECT_ID}:session:{session_id}", b"runner-new")
+
+    def advance_row():
+        row.turn_id = "turn-new"
+        row.updated_at = datetime.now(timezone.utc)
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row], before_update=advance_row), redis
+    )
+
+    assert row.flags["is_alive"] is True
+    assert row.flags["is_running"] is True
+    assert await redis.get(f"alive:{_PROJECT_ID}:session:{session_id}") == b"turn-new"
+    assert await redis.get(f"running:{_PROJECT_ID}:session:{session_id}") == b"turn-new"
+    assert await redis.get(f"owner:{_PROJECT_ID}:session:{session_id}") == b"runner-new"
+
+
+@pytest.mark.anyio
+async def test_heartbeat_during_sweep_prevents_collapse(anyio_backend):
+    row = _FakeRow(
+        session_id="sess-heartbeat-during-sweep",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="turn-current",
+    )
+
+    def heartbeat():
+        row.updated_at = datetime.now(timezone.utc)
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row], before_update=heartbeat), _FakeRedis()
+    )
+
+    assert row.flags["is_alive"] is True
+    assert row.flags["is_running"] is True

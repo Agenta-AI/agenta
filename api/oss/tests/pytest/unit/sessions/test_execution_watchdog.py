@@ -86,8 +86,9 @@ class _FakeExecutionRow:
 
 
 class _FakeResult:
-    def __init__(self, rows):
+    def __init__(self, rows, *, rowcount=0):
         self._rows = rows
+        self.rowcount = rowcount
 
     def scalars(self):
         return self
@@ -97,9 +98,11 @@ class _FakeResult:
 
 
 class _FakePgSession:
-    def __init__(self, rows, executions):
+    def __init__(self, rows, executions, before_stream_update=None, on_commit=None):
         self._rows = rows
         self._executions = executions
+        self._before_stream_update = before_stream_update
+        self._on_commit = on_commit
         self.commits = 0
 
     async def execute(self, stmt):
@@ -151,6 +154,10 @@ class _FakePgSession:
         # clear binds `id = ...`, a scalar. Row ids are strings here and are the only string
         # bind in either statement.
         if text.startswith("UPDATE") and "session_streams" in text:
+            if self._before_stream_update is not None:
+                self._before_stream_update()
+                self._before_stream_update = None
+                return _FakeResult([], rowcount=0)
             params = stmt.compile().params
             flags_val = next(
                 (v for v in params.values() if isinstance(v, dict) and "is_alive" in v),
@@ -163,10 +170,13 @@ class _FakePgSession:
                 elif isinstance(value, (str, UUID)):
                     ids.add(value)
             if flags_val is not None:
+                matched = 0
                 for r in self._rows:
                     if r.id in ids:
                         r.flags = dict(flags_val)
                         r.updated_at = now
+                        matched += 1
+                return _FakeResult([], rowcount=matched)
             return _FakeResult([])
 
         # The lost-turn is_running clear: a session_streams SELECT keyed by a list of
@@ -223,16 +233,28 @@ class _FakePgSession:
 
     async def commit(self):
         self.commits += 1
+        if self._on_commit is not None:
+            self._on_commit()
 
 
 class _FakeTransactionsEngine:
-    def __init__(self, rows, executions=None):
+    def __init__(self, rows, executions=None, before_stream_update=None):
         self._rows = rows
         self._executions = executions or []
+        self._before_stream_update = before_stream_update
+        self.committed = False
+
+    def _mark_committed(self):
+        self.committed = True
 
     @asynccontextmanager
     async def session(self):
-        yield _FakePgSession(self._rows, self._executions)
+        yield _FakePgSession(
+            self._rows,
+            self._executions,
+            self._before_stream_update,
+            self._mark_committed,
+        )
 
 
 class _FakeRedis:
@@ -271,6 +293,18 @@ class _FakeRedis:
             self._store.pop(k, None)
             return 1
         return 0
+
+
+class _CommitObservingRedis(_FakeRedis):
+    def __init__(self, engine: _FakeTransactionsEngine):
+        super().__init__()
+        self._engine = engine
+
+    async def eval(self, *args, **kwargs):
+        assert self._engine.committed, (
+            "Redis ownership was released before the DB commit"
+        )
+        return await super().eval(*args, **kwargs)
 
 
 class _FakeRecordsService:
@@ -900,6 +934,77 @@ async def test_a_lost_execution_clears_is_running_on_a_row_that_still_names_it(
     assert running_key not in redis._store
     # The mirror update reaches open readers.
     assert (str(stream.project_id), "session", stream.session_id) in watch.changes
+
+
+@pytest.mark.anyio
+async def test_lost_turn_redis_release_follows_the_stream_commit(anyio_backend):
+    stream = _FakeRow(
+        session_id="sess-commit-before-release",
+        turn_id="turn-lost",
+        is_running=True,
+        age_seconds=0,
+    )
+    execution = _FakeExecutionRow(
+        session_id=stream.session_id,
+        execution_id="turn-lost",
+        terminal_outcome="lost",
+    )
+    engine = _FakeTransactionsEngine([stream], [execution])
+    redis = _CommitObservingRedis(engine)
+    for prefix in ("alive", "running"):
+        redis._store[f"{prefix}:{stream.project_id}:session:{stream.session_id}"] = (
+            b"turn-lost"
+        )
+
+    await run_orphan_sweep(
+        engine,
+        redis,
+        records_service=_FakeRecordsService(),
+        publish=_Publisher(),
+    )
+
+    assert engine.committed is True
+
+
+@pytest.mark.anyio
+async def test_lost_turn_clear_loses_to_a_concurrent_turn_advance(anyio_backend):
+    stream = _FakeRow(
+        session_id="sess-advance-during-lost-clear",
+        turn_id="turn-old",
+        is_running=True,
+        age_seconds=0,
+    )
+    execution = _FakeExecutionRow(
+        session_id=stream.session_id,
+        execution_id="turn-old",
+        terminal_outcome="lost",
+    )
+    redis = _FakeRedis()
+    alive_key = f"alive:{stream.project_id}:session:{stream.session_id}"
+    running_key = f"running:{stream.project_id}:session:{stream.session_id}"
+    owner_key = f"owner:{stream.project_id}:session:{stream.session_id}"
+    redis._store[alive_key] = b"turn-new"
+    redis._store[running_key] = b"turn-new"
+    redis._store[owner_key] = b"runner-new"
+
+    def advance_stream():
+        stream.turn_id = "turn-new"
+        stream.updated_at = datetime.now(timezone.utc)
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine(
+            [stream], [execution], before_stream_update=advance_stream
+        ),
+        redis,
+        records_service=_FakeRecordsService(),
+        publish=_Publisher(),
+    )
+
+    assert stream.turn_id == "turn-new"
+    assert stream.flags["is_running"] is True
+    assert redis._store[alive_key] == b"turn-new"
+    assert redis._store[running_key] == b"turn-new"
+    assert redis._store[owner_key] == b"runner-new"
 
 
 @pytest.mark.anyio
