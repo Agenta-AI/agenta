@@ -31,7 +31,9 @@ export const QuoteToolbar = ({anchor, bounds, onCopy, onReply, touch}: QuoteTool
     }, [touch])
 
     const above = anchor.top - size.height - GAP
-    const flipped = above < 0
+    // Flip below unless the slot above clears the pane's top edge — a negative top escapes the
+    // pane and draws over the session tabs above it.
+    const flipped = above < GAP
     const top = flipped ? anchor.bottom + GAP : above
     const left = Math.min(
         Math.max(anchor.left - size.width / 2, GAP),

@@ -49,8 +49,10 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: Quo
 
     const width = Math.min(WIDTH, Math.max(bounds.width - GAP * 2, 200))
     const below = anchor.bottom + GAP
-    const flipped = height > 0 && below + height > bounds.height && anchor.top - height - GAP > 0
-    const top = flipped ? anchor.top - height - GAP : below
+    const flipped = height > 0 && below + height > bounds.height && anchor.top - height - GAP > GAP
+    // Clamped either way: an unclamped flip near the top escapes the pane and lands on the
+    // session tabs above it.
+    const top = Math.max(flipped ? anchor.top - height - GAP : below, GAP)
     const left = Math.min(
         Math.max(anchor.left - width / 2, GAP),
         Math.max(bounds.width - width - GAP, GAP),
