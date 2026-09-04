@@ -113,7 +113,8 @@ export const LiveConversation = ({
     const conversation = useAgentConversation({
         entityId,
         sessionId,
-        sharedReaderEnabled: running && sharedReader,
+        sharedReaderAdvertised: sharedReader,
+        sharedReaderRunning: running,
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
     })
 

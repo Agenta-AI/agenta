@@ -66,7 +66,7 @@ describe("useSessionLivePreview sender subscription", () => {
         vi.mocked(fetchSessionSnapshot).mockReset()
     })
 
-    it("uses the snapshot capability as opt-in and follows after its watermark", async () => {
+    it("subscribes an advertised sender and follows after the snapshot watermark", async () => {
         vi.mocked(fetchSessionSnapshot).mockResolvedValue(snapshot(true))
         const store = createStore()
         store.set(projectIdAtom, "project-1")
@@ -76,7 +76,8 @@ describe("useSessionLivePreview sender subscription", () => {
             () =>
                 useSessionLivePreview({
                     sessionId: "session-1",
-                    enabled: false,
+                    sharedReaderAdvertised: true,
+                    runningElsewhere: false,
                     sender: true,
                     onReadyChange,
                     onDisconnect: vi.fn(),
@@ -91,23 +92,50 @@ describe("useSessionLivePreview sender subscription", () => {
         expect(onReadyChange).toHaveBeenLastCalledWith(true)
     })
 
-    it("keeps the sender on legacy invoke when the snapshot capability is off", async () => {
-        vi.mocked(fetchSessionSnapshot).mockResolvedValue(snapshot(false))
+    it("makes no snapshot request or running claim when the capability is off", async () => {
         const store = createStore()
         store.set(projectIdAtom, "project-1")
 
-        renderHook(
+        const {result} = renderHook(
             () =>
                 useSessionLivePreview({
                     sessionId: "session-1",
-                    enabled: false,
+                    sharedReaderAdvertised: false,
+                    runningElsewhere: false,
                     sender: true,
                     onDisconnect: vi.fn(),
                 }),
             {wrapper: wrapper(store)},
         )
 
-        await waitFor(() => expect(fetchSessionSnapshot).toHaveBeenCalledOnce())
+        await act(async () => {})
+        expect(fetchSessionSnapshot).not.toHaveBeenCalled()
         expect(FakeEventSource.instances).toHaveLength(0)
+        expect(result.current.runningFromSnapshot).toBe(false)
+    })
+
+    it("keeps the sender connection open across remote-running state changes", async () => {
+        vi.mocked(fetchSessionSnapshot).mockResolvedValue(snapshot(true))
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+
+        const {rerender} = renderHook(
+            ({runningElsewhere}: {runningElsewhere: boolean}) =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: true,
+                    runningElsewhere,
+                    sender: true,
+                    onDisconnect: vi.fn(),
+                }),
+            {initialProps: {runningElsewhere: false}, wrapper: wrapper(store)},
+        )
+
+        await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1))
+        rerender({runningElsewhere: true})
+
+        expect(fetchSessionSnapshot).toHaveBeenCalledOnce()
+        expect(FakeEventSource.instances).toHaveLength(1)
+        expect(FakeEventSource.instances[0].closed).toBe(false)
     })
 })

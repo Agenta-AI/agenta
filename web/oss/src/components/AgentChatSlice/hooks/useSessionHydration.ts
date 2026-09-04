@@ -112,7 +112,6 @@ export const useSessionHydration = ({
     persistMessages,
     intent,
     pendingResumeRef,
-    sharedSenderReadyRef,
 }: {
     sessionId: string
     initialMessages: UIMessage[]
@@ -138,8 +137,6 @@ export const useSessionHydration = ({
      * and the parked interaction never resumes (bug: "Not now" firing zero network requests).
      */
     pendingResumeRef: MutableRefObject<unknown>
-    /** Set by the shared event connection before prepareRequest chooses its response source. */
-    sharedSenderReadyRef: MutableRefObject<boolean>
 }) => {
     // Cache-first — when this tab opens with no locally-cached messages (a session this browser
     // never ran, or after a storage clear), hydrate once from the server (`queryRecords` → v6
@@ -519,15 +516,6 @@ export const useSessionHydration = ({
             readLog,
         ],
     )
-    const {messages: previewMessages, runningFromSnapshot} = useSessionLivePreview({
-        sessionId,
-        enabled: runningElsewhere && liveness.sharedReader,
-        sender: true,
-        onReadyChange: (ready) => {
-            sharedSenderReadyRef.current = ready
-        },
-        onDisconnect: refreshFromRecords,
-    })
     // `ready` fires on every connect — each tab activation, each return to the foreground — so it
     // must not repeat a read the mount is already doing. A change that lands after the subscribe
     // arrives as `records-changed`, which is never skipped (#6296).
@@ -559,8 +547,7 @@ export const useSessionHydration = ({
     return {
         isHydrating,
         hydratedEmpty,
-        runningElsewhere: runningElsewhere || (runningFromSnapshot && !busy),
-        previewMessages,
+        runningElsewhere,
         stopStateLoading: liveness.isLoading,
         sessionTurnId: liveness.turnId,
         stoppingTurnId: liveness.stoppingTurnId,

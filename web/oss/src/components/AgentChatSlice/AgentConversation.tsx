@@ -148,16 +148,20 @@ const AgentConversation = ({
         answerApproval,
         resumeOrphaned,
         isSeen,
-        runningElsewhere,
+        runningElsewhere: livenessRunningElsewhere,
         sharedReaderAdvertised,
         refreshFromRecords,
+        setSharedSenderReady,
     } = useAgentChatSession({entityId, sessionId, initialMessages, intent: scrollIntent})
-    const previewMessages = useSessionLivePreview({
+    const {messages: previewMessages, runningFromSnapshot} = useSessionLivePreview({
         sessionId,
         sharedReaderAdvertised,
-        runningElsewhere,
+        runningElsewhere: livenessRunningElsewhere,
+        sender: true,
+        onReadyChange: setSharedSenderReady,
         onDisconnect: refreshFromRecords,
     })
+    const runningElsewhere = livenessRunningElsewhere || (runningFromSnapshot && !busy)
     const transcriptMessages = useMemo(() => {
         const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
         return previewMessages.length ? [...durableMessages, ...previewMessages] : durableMessages

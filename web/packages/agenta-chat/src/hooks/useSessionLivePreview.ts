@@ -23,6 +23,7 @@ import {
     isSessionSnapshotRunning,
     reduceSessionLivePreview,
     sessionLivePreviewMessages,
+    shouldSubscribeToSessionLivePreview,
 } from "../model/livePreview"
 import {
     connectSessionLiveEvents,
@@ -34,15 +35,18 @@ const RECONNECT_MAX_DELAY_MS = 30_000
 
 export const useSessionLivePreview = ({
     sessionId,
-    enabled,
+    sharedReaderAdvertised,
+    runningElsewhere,
     sender,
     onReadyChange,
     onDisconnect,
 }: {
     sessionId: string
-    /** True only when the backend advertises shared_reader and another browser owns the run. */
-    enabled: boolean
-    /** Probe the snapshot capability and subscribe before this browser sends its next turn. */
+    /** Capability copied from the current backend session snapshot or liveness response. */
+    sharedReaderAdvertised: boolean
+    /** True only when this browser is not the sender of the running turn. */
+    runningElsewhere: boolean
+    /** Subscribe before this browser sends its next turn. */
     sender?: boolean
     /** Non-reactive request-pipeline signal: true only while the shared event route is ready. */
     onReadyChange?: (ready: boolean) => void
@@ -59,12 +63,18 @@ export const useSessionLivePreview = ({
     const retryHydrationRef = useRef<() => void>(() => undefined)
     const onReadyChangeRef = useRef(onReadyChange)
     onReadyChangeRef.current = onReadyChange
+    const subscribed = shouldSubscribeToSessionLivePreview({
+        sharedReaderAdvertised,
+        runningElsewhere,
+        sender,
+    })
 
     useEffect(() => {
         clearPreview(sessionId)
-        setRunningFromSnapshot(false)
         onReadyChangeRef.current?.(false)
-        if ((!enabled && !sender) || !sessionId) return
+        if (!sharedReaderAdvertised || !sessionId) return
+        setRunningFromSnapshot(false)
+        if (!subscribed) return
         if (typeof window === "undefined" || typeof window.EventSource === "undefined") return
 
         let connection: SessionLiveEventsConnection | null = null
@@ -115,11 +125,6 @@ export const useSessionLivePreview = ({
             }
             if (disposed || currentGeneration !== generation) return
             setRunningFromSnapshot(isSessionSnapshotRunning(snapshot ?? undefined))
-
-            // `sender` is only an opt-in request from the client. The stack controls activation
-            // through the snapshot capability; when the route is disabled (or this pre-first-turn
-            // session has no snapshot yet), invoke remains the legacy rendering source.
-            if (!enabled && snapshot?.session.capabilities?.shared_reader !== true) return
 
             if (snapshot && projectId) {
                 try {
@@ -225,12 +230,12 @@ export const useSessionLivePreview = ({
         }
     }, [
         clearPreview,
-        enabled,
         fetchInteractionStates,
         projectId,
-        sender,
         sessionId,
         setPreview,
+        sharedReaderAdvertised,
+        subscribed,
     ])
 
     useEffect(() => {
@@ -243,6 +248,6 @@ export const useSessionLivePreview = ({
 
     return {
         messages: useMemo(() => sessionLivePreviewMessages(preview), [preview]),
-        runningFromSnapshot,
+        runningFromSnapshot: sharedReaderAdvertised && runningFromSnapshot,
     }
 }

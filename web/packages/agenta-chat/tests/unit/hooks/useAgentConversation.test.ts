@@ -96,6 +96,25 @@ const errorResponse = (): Response =>
         headers: {"content-type": "application/json"},
     })
 
+const sharedErrorResponse = (): Response => {
+    const chunks = [
+        {type: "start", messageId: "shared-error"},
+        {type: "start-step"},
+        {
+            type: "data-session-accepted",
+            data: {sessionId: "session-1", turnId: "turn-1", executionId: "turn-1"},
+        },
+        {type: "error", errorText: "shared provider failed"},
+        {type: "finish-step"},
+        {type: "finish"},
+    ]
+    const body = chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("")
+    return new Response(`${body}data: [DONE]\n\n`, {
+        status: 200,
+        headers: {"content-type": "text/event-stream"},
+    })
+}
+
 const fetchMock = vi.fn<typeof globalThis.fetch>()
 vi.stubGlobal("fetch", fetchMock)
 
@@ -434,5 +453,41 @@ describe("useAgentConversation", () => {
         expect(result.current.stopped).toBe(true)
         expect(result.current.error).toBeUndefined()
         expect(result.current.runStatus).toBe("idle")
+    })
+
+    it("renders an invoke error that shares the acceptance carrier", async () => {
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "content-type": "application/json",
+                "x-ag-session-response": "shared",
+            },
+            requestBody: {session_id: opts?.sessionId},
+        }))
+        fetchMock.mockResolvedValue(sharedErrorResponse())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "explode on the shared path"})
+        })
+        await waitFor(() => expect(result.current.runStatus).toBe("error"), {timeout: 5000})
+
+        await waitFor(() => {
+            const sharedCarriers = result.current.messages.filter(
+                (message) =>
+                    (message.metadata as {sharedSender?: boolean} | undefined)?.sharedSender,
+            )
+            expect(sharedCarriers).toHaveLength(1)
+            expect(
+                (sharedCarriers[0].metadata as {runError?: {message?: string}}).runError?.message,
+            ).toBe("shared provider failed")
+        })
+        const last = result.current.turns[result.current.turns.length - 1]
+        expect(last.status.errorText).toBe("shared provider failed")
+        expect(last.status.isError).toBe(true)
     })
 })

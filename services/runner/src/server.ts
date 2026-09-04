@@ -438,7 +438,7 @@ function inBandAnswerTokens(request: AgentRunRequest): string[] | undefined {
  * exactly one terminal `{kind:"result"}` line (success or failure). Selected by the caller
  * with `Accept: application/x-ndjson`; the one-shot `/run` path is left untouched.
  *
- * For explicitly detached session runs (sessionId + detached; the turnId is runner-minted):
+ * For session-owned runs (including explicitly detached shared-sender runs):
  *  - the run survives client disconnect (abort is NOT wired to the response close event);
  *  - every event is persisted producer-side via the record ingest endpoint;
  *  - an alive-lock watchdog heartbeats the coordination plane for the run's lifetime.
@@ -493,8 +493,8 @@ async function runAndStreamWithApiBaseResolved(
     `[sessions] stream sessionOwned=${sessionOwned} sessionId=${sessionId ?? "-"} turnId=${turnId ?? "-"} cred=${credentialState}\n`,
   );
 
-  // Only an explicit shared-reader handoff detaches lifetime. Legacy session and ad-hoc runs
-  // remain request-owned: closing invoke aborts the turn exactly as before the shared sender.
+  // Session-owned runs survive client disconnect; detached additionally selects shared response.
+  // Non-session runs remain request-owned: closing invoke aborts the turn.
   const controller = new AbortController();
   let clientDisconnected = false;
   // Resolves when the platform tells us this turn is no longer current — a Stop, a takeover,
@@ -504,14 +504,14 @@ async function runAndStreamWithApiBaseResolved(
   const interrupted = new Promise<string>((resolve) => {
     markInterrupted = resolve;
   });
-  if (!detached) {
+  if (!sessionOwned && !detached) {
     // Listen on the response, not the request: the request body is already fully read, so
     // its `close` can fire early on a keep-alive connection. `res` `close` fires when the
     // response connection ends — after a normal `res.end()` (harmless: the run is already
     // done) or when the client drops mid-stream (the case we want to cancel).
     res.on("close", () => controller.abort());
   } else {
-    // Detached: the run signal is deliberately NOT aborted (the run must survive the
+    // Session-owned: the run signal is deliberately NOT aborted (the run must survive the
     // disconnect and finish), but keep-alive's park decision must still see the disconnect —
     // a disconnected client's session is destroyed at turn end, never parked. The flag is
     // only read while the run is in flight, so the close that follows a normal `res.end()`

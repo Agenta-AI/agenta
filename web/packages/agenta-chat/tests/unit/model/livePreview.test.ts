@@ -188,17 +188,20 @@ describe("session live preview reducer", () => {
 
 describe("session live preview subscription", () => {
     it.each([
-        {sharedReaderAdvertised: false, runningElsewhere: false, expected: false},
-        {sharedReaderAdvertised: false, runningElsewhere: true, expected: false},
-        {sharedReaderAdvertised: true, runningElsewhere: false, expected: false},
-        {sharedReaderAdvertised: true, runningElsewhere: true, expected: true},
+        {sharedReaderAdvertised: false, runningElsewhere: false, sender: false, expected: false},
+        {sharedReaderAdvertised: false, runningElsewhere: true, sender: false, expected: false},
+        {sharedReaderAdvertised: false, runningElsewhere: false, sender: true, expected: false},
+        {sharedReaderAdvertised: true, runningElsewhere: false, sender: false, expected: false},
+        {sharedReaderAdvertised: true, runningElsewhere: true, sender: false, expected: true},
+        {sharedReaderAdvertised: true, runningElsewhere: false, sender: true, expected: true},
     ])(
-        "returns $expected when advertised=$sharedReaderAdvertised and remote=$runningElsewhere",
-        ({sharedReaderAdvertised, runningElsewhere, expected}) => {
+        "returns $expected when advertised=$sharedReaderAdvertised, remote=$runningElsewhere, sender=$sender",
+        ({sharedReaderAdvertised, runningElsewhere, sender, expected}) => {
             expect(
                 shouldSubscribeToSessionLivePreview({
                     sharedReaderAdvertised,
                     runningElsewhere,
+                    sender,
                 }),
             ).toBe(expected)
         },

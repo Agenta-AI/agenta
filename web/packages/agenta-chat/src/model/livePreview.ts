@@ -9,14 +9,16 @@ import type {UIMessage} from "ai"
 
 type PreviewPart = Record<string, unknown> & {type: string}
 
-/** The reader is useful only for a backend-advertised run owned by another browser. */
+/** A sender subscribes eagerly; a secondary reader waits for a remote run. */
 export const shouldSubscribeToSessionLivePreview = ({
     sharedReaderAdvertised,
     runningElsewhere,
+    sender = false,
 }: {
     sharedReaderAdvertised: boolean
     runningElsewhere: boolean
-}): boolean => sharedReaderAdvertised && runningElsewhere
+    sender?: boolean
+}): boolean => sharedReaderAdvertised && (sender || runningElsewhere)
 
 /** The shared sender still consumes the invoke response for acceptance ids and errors. The AI SDK
  * creates a message carrier for that control-only stream; keep it out of transcript rendering and

@@ -827,8 +827,12 @@ describe("createAgentServer", () => {
       await s.close();
     }
   });
-  for (const detached of [false, true]) {
-    it(`a dropped session invoke ${detached ? "does not cancel an explicitly detached turn" : "still cancels a legacy turn"}`, async () => {
+  for (const testCase of [
+    { name: "plain", sessionOwned: false, detached: false, aborts: true },
+    { name: "session-owned", sessionOwned: true, detached: false, aborts: false },
+    { name: "detached", sessionOwned: true, detached: true, aborts: false },
+  ]) {
+    it(`a dropped ${testCase.name} invoke ${testCase.aborts ? "cancels" : "does not cancel"} the turn`, async () => {
       vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://api:8000");
       let releaseRun: (() => void) | undefined;
       let observedAbort = false;
@@ -881,8 +885,8 @@ describe("createAgentServer", () => {
         request.end(
           JSON.stringify({
             harness: "pi_core",
-            sessionId: `session-${detached ? "detached" : "legacy"}`,
-            ...(detached ? { detached: true } : {}),
+            ...(testCase.sessionOwned ? { sessionId: `session-${testCase.name}` } : {}),
+            ...(testCase.detached ? { detached: true } : {}),
             telemetry: {
               exporters: {
                 otlp: {
@@ -899,7 +903,7 @@ describe("createAgentServer", () => {
         request.destroy();
         await new Promise<void>((resolve) => setTimeout(resolve, 25));
 
-        if (detached) {
+        if (!testCase.aborts) {
           assert.equal(observedAbort, false, "the dropped response must not own turn lifetime");
           assert.equal(completed, false, "the fake turn is still running after disconnect");
           releaseRun?.();
@@ -915,7 +919,7 @@ describe("createAgentServer", () => {
           };
           poll();
         });
-        assert.equal(observedAbort, !detached);
+        assert.equal(observedAbort, testCase.aborts);
       } finally {
         releaseRun?.();
         await s.close();

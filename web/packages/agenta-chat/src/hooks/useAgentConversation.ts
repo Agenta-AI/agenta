@@ -125,9 +125,11 @@ export interface ToolOutputSettleInput {
 export interface UseAgentConversationArgs {
     entityId: string
     sessionId: string
-    /** Host-derived capability + remote-owner gate for the display-only live reader. */
-    sharedReaderEnabled?: boolean
-    /** Timestamp of the liveness snapshot behind `sharedReaderEnabled`. */
+    /** Backend-advertised ability to read display-only live frames. */
+    sharedReaderAdvertised?: boolean
+    /** Backend liveness says a run is active, potentially in another browser. */
+    sharedReaderRunning?: boolean
+    /** Timestamp of the liveness snapshot behind `sharedReaderRunning`. */
     sharedReaderLivenessUpdatedAt?: number
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
@@ -202,7 +204,8 @@ export interface AgentConversation {
 export const useAgentConversation = ({
     entityId,
     sessionId,
-    sharedReaderEnabled = false,
+    sharedReaderAdvertised = false,
+    sharedReaderRunning = false,
     sharedReaderLivenessUpdatedAt = 0,
     isClientToolPart,
 }: UseAgentConversationArgs): AgentConversation => {
@@ -788,7 +791,8 @@ export const useAgentConversation = ({
 
     const {messages: previewMessages, runningFromSnapshot} = useSessionLivePreview({
         sessionId,
-        enabled: sharedReaderEnabled && !busy && remoteRunIsFresh,
+        sharedReaderAdvertised,
+        runningElsewhere: sharedReaderRunning && !busy && remoteRunIsFresh,
         sender: true,
         onReadyChange: (ready) => {
             sharedSenderReadyRef.current = ready
