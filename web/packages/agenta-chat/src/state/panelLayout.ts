@@ -78,3 +78,22 @@ export const configPanelCollapsedAtom = atom(
         set(configPanelCollapsedPreferenceAtom, collapsed)
     },
 )
+
+/** Persisted width of the pane docked beside the chat (the desktop Inspector, /m's config rail). */
+export const rightPanelWidthAtom = atomWithStorage<number>(
+    "agenta:agent-chat:right-panel-width",
+    460,
+)
+
+/** Pane min (keeps tool-I/O JSON readable) and the chat floor it must never squeeze below. */
+export const RIGHT_PANEL_MIN = 360
+export const RIGHT_PANEL_MAX = 900
+export const CHAT_MIN = 460
+
+/** The Files pane keeps its own width + bounds — tree plus preview needs more room than a dock. */
+export const filesPaneWidthAtom = atomWithStorage<number>("agenta:agent-chat:files-pane-width", 620)
+export const FILES_PANE_MIN = 420
+export const FILES_PANE_MAX = 1600
+
+/** The agent config pane's fixed width in the desktop MainLayout; kept in sync there. */
+export const AGENT_CONFIG_WIDTH = 440
