@@ -2,7 +2,7 @@ import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/sta
 import {querySessionStreams} from "@agenta/entities/session"
 import {useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {SessionTabRail} from "@agenta/sessions-ui"
-import {ShortcutKeys, ShortcutsHelpButton} from "@agenta/ui/shortcuts"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
@@ -118,7 +118,6 @@ export const SessionTabs = ({
                                 base={base}
                                 activeSessionId={sessionId}
                             />
-                            <ShortcutsHelpButton />
                             {filesOpen ? null : (
                                 <SimpleTooltip
                                     title={

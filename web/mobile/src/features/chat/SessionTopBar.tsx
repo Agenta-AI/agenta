@@ -1,5 +1,3 @@
-import {useState} from "react"
-
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentNameInline, useAgentIconChrome} from "@agenta/entity-ui/agent"
 import {
@@ -8,10 +6,11 @@ import {
     AgentPageHeader,
     AgentRevisionStatus,
 } from "@agenta/playground-ui/agent-page-header"
+import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {useAtomValue} from "jotai"
 import {Bot} from "lucide-react"
 
-import {AgentIconSheet} from "../agents/AgentIconSheet"
+import {AgentIconPopover} from "../agents/AgentIconPopover"
 import {NavDrawer} from "../nav/NavDrawer"
 
 /**
@@ -40,7 +39,6 @@ export const SessionTopBar = ({
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
     const chrome = useAgentIconChrome(agentId, {size: 15, fallbackGlyph: null})
-    const [iconSheetOpen, setIconSheetOpen] = useState(false)
 
     // The chip is always drawn here rather than deferred to the bar's own: on this surface it is the
     // picker's trigger, so it has to exist before the agent has an icon.
@@ -55,51 +53,27 @@ export const SessionTopBar = ({
     )
 
     return (
-        <>
-            <AgentPageHeader
-                // Nav is the DRAWER here, as on every other screen in this app — not a bespoke back
-                // chevron. It hides itself at lg, where the rail takes over and the bar then opens with
-                // the agent icon exactly like the desktop playground's. Getting back to the sessions
-                // list is the drawer's Sessions entry, or the tab rail above the conversation.
-                leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
-                name={
-                    agentId ? (
-                        <AgentNameInline
-                            workflowId={agentId}
-                            name={name || "Agent"}
-                            revealOnHover={false}
-                        />
-                    ) : (
-                        name || "Agent"
-                    )
-                }
-                icon={
-                    agentId ? (
-                        <button
-                            type="button"
-                            aria-label="Change agent icon"
-                            className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0"
-                            onClick={() => setIconSheetOpen(true)}
-                        >
-                            {chip}
-                        </button>
-                    ) : (
-                        chip
-                    )
-                }
-                revision={
-                    entityId ? (
-                        <AgentRevisionStatus revisionId={entityId} historyWorkflowId={agentId} />
-                    ) : undefined
-                }
-            />
-            {agentId ? (
-                <AgentIconSheet
-                    workflowId={agentId}
-                    open={iconSheetOpen}
-                    onClose={() => setIconSheetOpen(false)}
-                />
-            ) : null}
-        </>
+        <AgentPageHeader
+            // Nav is the DRAWER here, as on every other screen in this app — not a bespoke back
+            // chevron. It hides itself at lg, where the rail takes over and the bar then opens with
+            // the agent icon exactly like the desktop playground's. Getting back to the sessions
+            // list is the drawer's Sessions entry, or the tab rail above the conversation.
+            leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
+            name={
+                agentId ? (
+                    <AgentNameInline workflowId={agentId} name={name || "Agent"} />
+                ) : (
+                    name || "Agent"
+                )
+            }
+            icon={agentId ? <AgentIconPopover workflowId={agentId}>{chip}</AgentIconPopover> : chip}
+            revision={
+                entityId ? (
+                    <AgentRevisionStatus revisionId={entityId} historyWorkflowId={agentId} />
+                ) : undefined
+            }
+            // The desktop puts this at the header's right edge too, not on the tab strip.
+            actions={<ShortcutsHelpButton />}
+        />
     )
 }
