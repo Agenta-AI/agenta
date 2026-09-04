@@ -2,15 +2,17 @@ export type CancelledStopAction = "settle-parked" | "settle-idle" | "abort-retry
 
 /** Choose the local follow-up after the server confirms a turn cancellation. */
 export const cancelledStopAction = ({
-    parked,
+    parkedAtRequest,
+    parkedAtResponse,
     streaming,
     retry,
 }: {
-    parked: boolean
+    parkedAtRequest: boolean
+    parkedAtResponse: boolean
     streaming: boolean
     retry: boolean
 }): CancelledStopAction => {
-    if (parked) return "settle-parked"
+    if (parkedAtRequest || parkedAtResponse) return "settle-parked"
     if (!streaming) return "settle-idle"
     if (retry) return "abort-retry"
     return "await-terminal"

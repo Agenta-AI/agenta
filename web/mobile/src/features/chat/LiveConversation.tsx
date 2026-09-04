@@ -195,6 +195,8 @@ export const LiveConversation = ({
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
     const streamingHereRef = useRef(streamingHere)
     streamingHereRef.current = streamingHere
+    const hitlPendingRef = useRef(conversation.hitlPending)
+    hitlPendingRef.current = conversation.hitlPending
     const [stoppingHere, setStoppingHere] = useState(false)
     const stopWatchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
@@ -268,7 +270,8 @@ export const LiveConversation = ({
                 if (stopSessionIdRef.current !== sessionId) return
                 if (outcome.status === "cancelled") {
                     const action = cancelledStopAction({
-                        parked: wasParked,
+                        parkedAtRequest: wasParked,
+                        parkedAtResponse: !streamingHereRef.current && hitlPendingRef.current,
                         streaming: streamingHereRef.current,
                         retry: isRetry,
                     })

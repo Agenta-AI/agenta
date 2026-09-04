@@ -4,20 +4,46 @@ import {cancelledStopAction} from "../../src/features/chat/stopHereState"
 
 describe("mobile local Stop state", () => {
     it("settles a parked approval as soon as the server confirms cancellation", () => {
-        expect(cancelledStopAction({parked: true, streaming: false, retry: false})).toBe(
-            "settle-parked",
-        )
+        expect(
+            cancelledStopAction({
+                parkedAtRequest: true,
+                parkedAtResponse: true,
+                streaming: false,
+                retry: false,
+            }),
+        ).toBe("settle-parked")
+    })
+
+    it("settles when a streaming run parks before cancellation returns", () => {
+        expect(
+            cancelledStopAction({
+                parkedAtRequest: false,
+                parkedAtResponse: true,
+                streaming: false,
+                retry: false,
+            }),
+        ).toBe("settle-parked")
     })
 
     it("waits for terminal stream evidence after cancelling an active stream", () => {
-        expect(cancelledStopAction({parked: false, streaming: true, retry: false})).toBe(
-            "await-terminal",
-        )
+        expect(
+            cancelledStopAction({
+                parkedAtRequest: false,
+                parkedAtResponse: false,
+                streaming: true,
+                retry: false,
+            }),
+        ).toBe("await-terminal")
     })
 
     it("hard-aborts an active stream after the watchdog retry is accepted", () => {
-        expect(cancelledStopAction({parked: false, streaming: true, retry: true})).toBe(
-            "abort-retry",
-        )
+        expect(
+            cancelledStopAction({
+                parkedAtRequest: false,
+                parkedAtResponse: false,
+                streaming: true,
+                retry: true,
+            }),
+        ).toBe("abort-retry")
     })
 })
