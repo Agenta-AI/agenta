@@ -19,6 +19,7 @@ import {
     SIDEBAR_STATUS_GROUP_ZONE,
     sidebarManualOrderAtomFamily,
     sidebarManualOrdersAtom,
+    sidebarReorderActiveAtom,
     sidebarSessionZone,
     withManualAgentRanks,
 } from "../reorder"
@@ -256,6 +257,142 @@ const sidebarSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
     }),
 )
 
+/** Each page widens one request, so the last one is the most expensive — stop before it hurts. */
+const MAX_SESSION_PAGES = 12
+
+/** The predicate a page count belongs to — change it and the count is meaningless. */
+const filtersKey = (filters: SidebarSessionFilters) =>
+    [filters.agentIds.join(","), filters.status, filters.activity, filters.type].join("|")
+
+const sessionPageCountStateAtomFamily = atomFamily((_scopeId: string) =>
+    atom<{key: string; pages: number}>({key: "", pages: 0}),
+)
+
+/**
+ * How many pages BEYOND the polling head the rail has asked for.
+ *
+ * Self-resetting: a stored count from another predicate reads as 0, so switching a facet drops
+ * you back to one page rather than firing a several-hundred-row request for a list you have not
+ * scrolled yet.
+ */
+export const sidebarSessionPageCountAtomFamily = atomFamily((scopeId: string) =>
+    atom(
+        (get) => {
+            const state = get(sessionPageCountStateAtomFamily(scopeId))
+            const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)))
+            return state.key === key ? state.pages : 0
+        },
+        (get, set, next: number) => {
+            const key = filtersKey(get(sidebarSessionFiltersAtomFamily(scopeId)))
+            set(sessionPageCountStateAtomFamily(scopeId), {key, pages: next})
+        },
+    ),
+)
+
+/** Oldest activity in the head window — where the next page starts. */
+const oldestActivity = (rows: readonly SessionStream[]): string | undefined => {
+    let oldest: string | undefined
+    for (const row of rows) {
+        const at = row.updated_at ?? row.created_at
+        if (!at) continue
+        if (!oldest || at < oldest) oldest = at
+    }
+    return oldest
+}
+
+/**
+ * Sessions older than the polling head, one page per request.
+ *
+ * Deliberately NOT polled: a refetch interval on an accumulating list costs one request per page
+ * per tick. Liveness stays on the head, which every changed row re-enters — activity ordering
+ * means a session that just did something IS newest — so a stale copy down here always loses the
+ * dedupe to the fresh one above.
+ */
+const sidebarSessionsOlderQueryAtomFamily = atomFamily((scopeId: string) =>
+    atomWithQuery<SessionStream[] | null>((get) => {
+        const projectId = get(projectIdAtom)
+        const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
+        const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
+        const {agentIds, flags, includeArchived, origin, excludeOrigin, oldest} =
+            requestFilters(filters)
+        const head = get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? null
+        // The head's oldest row is the boundary; without it there is nothing to page past yet.
+        const boundary = head ? oldestActivity(head) : undefined
+        return {
+            queryKey: [
+                "sidebar-sessions",
+                "older",
+                projectId,
+                filters.agentIds,
+                filters.status,
+                filters.activity,
+                filters.type,
+                boundary ?? null,
+                pages,
+            ],
+            queryFn: ({signal}) =>
+                queryByAgents(agentIds, (references) =>
+                    querySessions({
+                        projectId: projectId ?? "",
+                        references,
+                        flags,
+                        includeArchived,
+                        origin,
+                        excludeOrigin,
+                        // The activity floor still applies; the boundary only narrows it further.
+                        oldest,
+                        newest: boundary,
+                        limit: scopeLimit(scopeId) * pages,
+                        order: "descending",
+                        abortSignal: signal,
+                        lowPriority: true,
+                    }),
+                ),
+            // Nothing to page until the head has landed, and no pages asked for yet.
+            enabled: Boolean(projectId) && pages > 0 && Boolean(boundary),
+            placeholderData: keepPreviousDataWithinProject(scopeId, projectId),
+            staleTime: 30_000,
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
+
+/**
+ * What the rail needs to page: whether more exist, whether a page is in flight, and how to ask.
+ *
+ * `loadMore` widens the window rather than appending a cursor page, so every reload re-reads the
+ * whole tail — which is also what lets a row archived elsewhere disappear from it.
+ */
+export const sidebarSessionPagingAtomFamily = atomFamily((scopeId: string) =>
+    atom((get) => {
+        const pages = get(sidebarSessionPageCountAtomFamily(scopeId))
+        const head = get(sidebarSessionsQueryAtomFamily(scopeId))
+        const older = get(sidebarSessionsOlderQueryAtomFamily(scopeId))
+        const pageSize = scopeLimit(scopeId)
+        const headFull = (head.data?.length ?? 0) >= pageSize
+        // A short page is the end of the list; a full one means there is probably another.
+        const olderFull = (older.data?.length ?? 0) >= pageSize * pages
+        return {
+            hasMore: pages < MAX_SESSION_PAGES && (pages === 0 ? headFull : olderFull),
+            isLoadingMore: older.isFetching,
+            isError: older.isError,
+        }
+    }),
+)
+
+/** Ask for one more page. No-op mid-drag: the engine caches every row's rect at dragstart. */
+export const loadMoreSidebarSessionsAtomFamily = atomFamily((scopeId: string) =>
+    atom(null, (get, set) => {
+        if (get(sidebarReorderActiveAtom)) return
+        const paging = get(sidebarSessionPagingAtomFamily(scopeId))
+        if (!paging.hasMore || paging.isLoadingMore) return
+        set(
+            sidebarSessionPageCountAtomFamily(scopeId),
+            get(sidebarSessionPageCountAtomFamily(scopeId)) + 1,
+        )
+    }),
+)
+
 const sidebarPinnedSessionsQueryAtomFamily = atomFamily((scopeId: string) =>
     atomWithQuery<SessionStream[] | null>((get) => {
         const projectId = get(projectIdAtom)
@@ -457,10 +594,17 @@ const sidebarSessionRefsAtomFamily = atomFamily((scopeId: string) =>
             (row) => !pinned.has(row.session_id),
         )
 
+        // Pages past the head. They trail it, and `uniqueBySession` keeps the head's copy of any
+        // row that has since climbed back into it.
+        const olderRows = (get(sidebarSessionsOlderQueryAtomFamily(scopeId)).data ?? []).filter(
+            (row) => !pinned.has(row.session_id),
+        )
+
         const isRef = (ref: SessionSidebarRef | null): ref is SessionSidebarRef => ref !== null
         const server = [
             ...pinnedRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
             ...recentRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
+            ...olderRows.map((row) => toSidebarRef(row, pinned)).filter(isRef),
         ]
         const all = withLocalSessions(
             server,
