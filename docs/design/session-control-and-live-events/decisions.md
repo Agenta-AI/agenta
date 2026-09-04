@@ -41,7 +41,12 @@ system must deliver live frames to every connected reader.
 **Status:** Confirmed direction on 2026-09-02.
 
 Live text fragments can have bounded retention. Completed messages, lifecycle facts, tools, and
-interactions require durable recovery. One raw ingress can feed both consumers.
+interactions require durable recovery. The API accepts both through one HTTP ingest endpoint, then
+publishes frames to `streams:session-live-frames` and durable records to `streams:records`.
+
+The live-frame stream applies a 15-minute age bound and a 100,000-frame count bound across the
+deployment. Separate Redis Streams preserve the durable consumer's acknowledgement policy and
+remove cross-consumer trim coordination.
 
 ### D-006: Investigate sandbox-agent cancellation before selecting Stop semantics
 
@@ -172,13 +177,13 @@ durable recovery source after process or Redis failure.
 
 ## Proposed design decisions
 
-### P-001: Use one raw runner event ingress
+### P-001: Use one HTTP ingress and separate Redis Streams
 
-**Status:** Proposed. Not approved.
+**Status:** Settled on 2026-09-04.
 
-The runner sends raw frames once. A shared Redis Stream can feed both the live relay and a durable
-projector. The projector combines raw frames into durable events. The live relay forwards raw or
-briefly batched frames without waiting for message completion.
+The runner sends temporary frames and durable records through one records ingest HTTP endpoint.
+The API routes frames to `streams:session-live-frames` and durable records to `streams:records`.
+The live relay forwards frames without waiting for message completion.
 
 The current sender response and current persistence path can remain during migration.
 
@@ -235,7 +240,10 @@ Do not add a sequence column to mutable upserts and call the result append-only.
 
 ### O-004: Raw live transport
 
-Choose the Redis Stream layout, retention limit, redaction boundary, and browser fan-out model.
+**Status:** Stream layout and retention settled on 2026-09-04.
+
+Temporary frames use a dedicated deployment-wide Redis Stream bounded to 15 minutes and 100,000
+frames. Redaction and browser fan-out remain part of the later shared-reader package.
 
 ### O-005: Stable record-ID semantics spike
 
