@@ -251,19 +251,19 @@ export const useAgentChatSession = ({
         experimental_throttle: 50,
     })
 
-    const sendMessageWithFreshGuard: typeof sendMessage = useCallback(
-        (...args: Parameters<typeof sendMessage>) => {
+    const sendMessageWithFreshGuard: typeof sendChatMessage = useCallback(
+        (...args: Parameters<typeof sendChatMessage>) => {
             clearSessionTurnId(sessionId)
-            return sendMessage(...args)
+            return sendChatMessage(...args)
         },
-        [sendMessage, sessionId],
+        [sendChatMessage, sessionId],
     )
-    const regenerateWithFreshGuard: typeof regenerate = useCallback(
-        (...args: Parameters<typeof regenerate>) => {
+    const regenerateWithFreshGuard: typeof regenerateChatMessage = useCallback(
+        (...args: Parameters<typeof regenerateChatMessage>) => {
             clearSessionTurnId(sessionId)
-            return regenerate(...args)
+            return regenerateChatMessage(...args)
         },
-        [regenerate, sessionId],
+        [regenerateChatMessage, sessionId],
     )
 
     const busy = isChatBusy(status)
@@ -272,21 +272,6 @@ export const useAgentChatSession = ({
     messagesRef.current = messages
     const busyRef = useRef(busy)
     busyRef.current = busy
-
-    const sendMessage = useCallback(
-        (...args: Parameters<typeof sendChatMessage>) => {
-            clearSessionTurnId(sessionId)
-            return sendChatMessage(...args)
-        },
-        [sendChatMessage, sessionId],
-    )
-    const regenerate = useCallback(
-        (...args: Parameters<typeof regenerateChatMessage>) => {
-            clearSessionTurnId(sessionId)
-            return regenerateChatMessage(...args)
-        },
-        [regenerateChatMessage, sessionId],
-    )
 
     useEffect(() => {
         dispatchStopped({type: "transcript", messages})
