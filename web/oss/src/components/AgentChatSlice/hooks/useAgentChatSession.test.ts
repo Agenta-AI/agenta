@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
     capturedHooks: undefined as
         | {prepareRequest: (args: {messages: UIMessage[]; id?: string}) => Promise<unknown>}
         | undefined,
+    messages: [] as UIMessage[],
     regenerate: vi.fn(() => Promise.resolve()),
     sendMessage: vi.fn(() => Promise.resolve()),
     turnIds: new Map<string, string>(),
@@ -33,12 +34,13 @@ vi.mock("@agenta/chat/model", () => ({
     ignoreStreamRejection: () => undefined,
     parseAgentRunError: () => ({message: "error"}),
     reduceUserStoppedState: (
-        state: {stopped: boolean; turnIdentity: null},
+        current: {stopped: boolean; turnIdentity: null},
         event: {type: string},
-    ) => ({
-        ...state,
-        stopped: event.type === "user-stop" ? true : event.type === "reset" ? false : state.stopped,
-    }),
+    ) => {
+        if (event.type === "user-stop" && !current.stopped) return {...current, stopped: true}
+        if (event.type === "reset" && current.stopped) return {...current, stopped: false}
+        return current
+    },
 }))
 
 vi.mock("@agenta/chat/state", () => ({
@@ -97,7 +99,7 @@ vi.mock("@ai-sdk/react", () => ({
         addToolApprovalResponse: vi.fn(),
         addToolOutput: vi.fn(),
         error: undefined,
-        messages: [],
+        messages: state.messages,
         regenerate: state.regenerate,
         sendMessage: state.sendMessage,
         setMessages: vi.fn(),
