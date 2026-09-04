@@ -5,9 +5,6 @@ adapter](pi.md) and produces a Pi-shaped config, so it inherits everything Pi do
 tools, the system-prompt layers, tracing). What it adds is a fixed set of Agenta-shipped
 extras that the agent author cannot turn off:
 
-- **Forced tools**: always unioned into the agent's resolved tools. At minimum `read`
-  (Pi only renders the skills section when `read` is enabled) and `bash` (so skills can run
-  their helper scripts).
 - **Forced skills**: Agenta-shipped Pi skills loaded on every run.
 - **A base AGENTS.md preamble**: the author's `instructions` are appended after it.
 - **A base persona**: forced onto Pi's `append_system`, with any author-supplied
@@ -25,15 +22,14 @@ The forced *policy* lives in the SDK harness layer, in one editable module:
 `SessionConfig`, exactly where `PiHarness` and `ClaudeHarness` do their own translation.
 
 The forced skill *files* live with the runner that runs Pi, under
-`services/agent/skills/<name>/` (each a directory with a `SKILL.md`). Skills are real files on
+`services/runner/skills/<name>/` (each a directory with a `SKILL.md`). Skills are real files on
 disk because they reference relative scripts and assets, so they cannot ride the wire as
 text. The contract between the two halves is the skill **name**: `AGENTA_FORCED_SKILLS` lists
 names, and each must match a committed directory under the runner's skills root.
 
 Because the Agenta harness IS Pi, its tools are delivered the Pi-native way (through the
-extension on the ACP path), never over MCP. There is no forced tool set any more: the runner
-activates all seven Pi built-ins on every Pi run, so `read` and `bash` are there without anything
-forcing them.
+extension on the ACP path), never over MCP. The runner activates all seven Pi built-ins on every
+Pi run, so `read` and `bash` are there without additional configuration.
 
 ## How a skill reaches the model
 
@@ -47,7 +43,7 @@ runner lays the bundled directories into the Pi agent dir.
 2. `runSandboxAgent` resolves each name against its bundled `skills/` root
    (`engines/skills.ts`, override with `AGENTA_AGENT_SKILLS_DIR`) and writes the directories
    into the Pi agent dir's `skills/` (user scope).
-3. Pi loads them, and because the forced `read` tool is enabled, surfaces them in the system
+3. Pi loads them, and because the native `read` tool is active, surfaces them in the system
    prompt. The model reads a skill's `SKILL.md` on demand (progressive disclosure).
 
 ## Two prompt layers, kept distinct
@@ -86,7 +82,7 @@ removed after the run. A plain `pi_core` run is unchanged (it installs only the 
 the shared agent dir).
 
 The base AGENTS.md preamble rides the wire as `agentsMd` (written into the session `cwd`), and
-the forced `read` / `bash` tools are Pi defaults under pi-acp. The persona rides the wire as
+the active `read` / `bash` built-ins are Pi defaults under pi-acp. The persona rides the wire as
 `appendSystemPrompt` and the engine writes it into the per-run Pi agent dir as
 `APPEND_SYSTEM.md` (`engines/sandbox_agent/pi-assets.ts`), so Pi loads it on the run. Daytona
 skill uploads are UTF-8 text only (`writeFsFile` takes a string body); binary skill assets are
