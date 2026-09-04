@@ -144,9 +144,10 @@ export function normalizeDesiredState(
     skills: request.skills ?? null,
   });
 
-  // PROMPTS: the system and append prompts. `gatewayGuidance` is deliberately absent here and
-  // from every other facet (mirroring `configFingerprint`): it is derived config the runner
-  // splices at build time, refreshed by whatever rebuild happens anyway, never a reason for one.
+  // PROMPTS: the authored system and append prompts. SDK-owned `platformInstructions` and legacy
+  // `gatewayGuidance` are deliberately absent here and from every other facet (mirroring
+  // `configFingerprint`): the runner splices generated text at build time, and it never causes an
+  // otherwise reusable warm environment to be replaced.
   //
   // SEPARATE FROM `workspaceFiles`, and not live. For Pi these land as files under the agent
   // directory, and the adapter matrix records active-session observation as NOT GUARANTEED: a

@@ -215,7 +215,7 @@ async def test_search_tools_names_the_connected_integrations(fake_http, connecti
     )
 
     search = next(s for s in resolution.tool_specs if s.name == "search_tools")
-    # The descriptions are STABLE across integration sets: names live in the gatewayGuidance
+    # The descriptions are STABLE across integration sets: names live in platformInstructions
     # prompt section, because `customTools` is fingerprinted and a names sentence here made
     # adding an integration evict the warm session.
     assert "Connected integrations" not in search.description

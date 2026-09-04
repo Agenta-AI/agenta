@@ -119,7 +119,8 @@ Request fields include:
 | `sessionId` | External conversation id. The runtime is cold and receives history in `messages`. |
 | `agentsMd` | Instructions that become `AGENTS.md`. |
 | `systemPrompt`, `appendSystemPrompt` | Pi prompt overrides. The sandbox-agent engine writes `SYSTEM.md` / `APPEND_SYSTEM.md` into the per-run Pi agent dir, local and Daytona. |
-| `gatewayGuidance` | The derived gateway-tools instruction section (`{text, carrier}`). The runner splices it into the named prompt surface (`appendSystemPrompt` or `agentsMd`) at environment build; it is deliberately excluded from the session fingerprint, so adding an integration never evicts a warm session and the names list (worded as examples) refreshes on the next build. |
+| `platformInstructions` | SDK-generated Agenta base and applicable gateway guidance. The runner prepends it to Pi's append-system text or Claude/Codex's instruction file when building the environment. It stays outside session fingerprints, so warm environments keep their existing text until the next build. Author instruction fields remain separate. |
+| `gatewayGuidance` | Legacy runner input (`{text, carrier}`) accepted during the SDK rollout. New SDKs emit only `platformInstructions`, which takes precedence when both fields are present. |
 | `skills` | Resolved inline skill packages (full `SKILL.md` content, with `@ag.embed` references inlined server-side), declared in the agent config. All three harnesses wire them; the runner materializes each into a skill dir (`pi_core`/`pi_agenta` through Pi's agent-dir scope, Claude under project-local `.claude/skills`). Omitted when none are declared. |
 | `model` | Requested model id. Not honored on the Pi ACP path; pi-acp accepts only its default model (see Ground Truth). |
 | `messages` | Conversation history and current turn. |
