@@ -354,6 +354,8 @@ def test_assert_command_settled_is_a_noop_without_hooks():
         "settled": True,
         "command": None,
         "execution_rows": [],
+        "natural_finish": False,
+        "note": None,
         "why": None,
     }
 
@@ -418,6 +420,52 @@ def test_assert_command_settled_fails_on_more_than_one_execution_row():
     )
     result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=0)
     assert result["settled"] is False
+    assert "exactly one session_executions row" in result["why"]
+
+
+def test_assert_command_settled_accepts_a_stop_after_a_natural_finish():
+    """A valid Stop that lands after the turn already finished settles obsolete/not_running with
+    NO execution row. Zero rows is correct there — accept it, flag it, and note it."""
+    hooks = _StubSettlementHooks(
+        command_sequence=[
+            [
+                {
+                    "id": "cmd-1",
+                    "target_turn_id": "turn-1",
+                    "state": "obsolete",
+                    "outcome": "not_running",
+                }
+            ]
+        ],
+        execution_sequence=[[]],  # zero execution rows, and that is correct here
+    )
+    result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=5.0)
+    assert result["settled"] is True
+    assert result["natural_finish"] is True
+    assert result["note"] == "stop landed after a natural finish"
+    assert result["execution_rows"] == []
+    assert result["why"] is None
+
+
+def test_assert_command_settled_still_requires_a_row_for_a_real_stop():
+    """The strict one-row requirement is kept when the runner actually stopped the turn: an
+    obsolete/stopped command with zero execution rows must still FAIL."""
+    hooks = _StubSettlementHooks(
+        command_sequence=[
+            [
+                {
+                    "id": "cmd-1",
+                    "target_turn_id": "turn-1",
+                    "state": "obsolete",
+                    "outcome": "stopped",
+                }
+            ]
+        ],
+        execution_sequence=[[]],
+    )
+    result = sc.assert_command_settled(hooks, "session-1", "turn-1", timeout=0)
+    assert result["settled"] is False
+    assert result["natural_finish"] is False
     assert "exactly one session_executions row" in result["why"]
 
 

@@ -1664,13 +1664,29 @@ def assert_command_settled(
     190e9118: command stuck `claimed` forever, zero session_executions rows, yet every driver-
     level assertion — one terminal trace record, a warm resume — still passed).
 
-    Returns a dict with `settled` (bool), `command`, `execution_rows`, and `why` (a one-line
-    reason, only set when `settled` is False). Never raises: a hookless run (`NullHooks`) reads
-    as `settled=True` with `why=None` so a cell that runs without --project is not blocked by a
-    check it has no way to make (the cell's own `hooks.available` guard already SKIPs it).
+    A Stop can also land AFTER the turn already finished naturally — common on a fast Claude Code
+    turn: the valid Stop returns 202, but the runner has nothing to cancel, so the command settles
+    `obsolete`/`not_running` and NO execution row is written. Zero rows is correct there, so a Stop
+    that settled `not_running` is accepted with zero execution rows and `natural_finish=True`. The
+    strict one-row requirement is kept for a Stop the runner applied (`stopped`) or the sweep
+    settled (`lost`). `stop-after-finish` and `stop-during-completion` already accept this shape;
+    routing it through here shares it with every Stop-issuing cell.
+
+    Returns a dict with `settled` (bool), `command`, `execution_rows`, `natural_finish` (bool),
+    `note` (set to "stop landed after a natural finish" on that path, else None), and `why` (a
+    one-line reason, only set when `settled` is False). Never raises: a hookless run (`NullHooks`)
+    reads as `settled=True` so a cell that runs without --project is not blocked by a check it has
+    no way to make (the cell's own `hooks.available` guard already SKIPs it).
     """
     if not hooks.available:
-        return {"settled": True, "command": None, "execution_rows": [], "why": None}
+        return {
+            "settled": True,
+            "command": None,
+            "execution_rows": [],
+            "natural_finish": False,
+            "note": None,
+            "why": None,
+        }
     deadline = time.time() + timeout
     command: dict | None = None
     executions: list[dict] = []
@@ -1682,14 +1698,21 @@ def assert_command_settled(
             "applied",
             "obsolete",
         )
+        outcome = command.get("outcome") if command else None
+        # The Stop landed after a natural finish: obsolete/not_running, no execution row to expect.
+        natural_finish = settled_command and outcome == "not_running"
         settled_execution = len(executions) == 1 and bool(
             executions[0].get("terminal_outcome")
         )
-        if settled_command and settled_execution:
+        if settled_command and (natural_finish or settled_execution):
             return {
                 "settled": True,
                 "command": command,
                 "execution_rows": executions,
+                "natural_finish": natural_finish,
+                "note": "stop landed after a natural finish"
+                if natural_finish
+                else None,
                 "why": None,
             }
         if time.time() >= deadline:
@@ -1710,6 +1733,8 @@ def assert_command_settled(
         "settled": False,
         "command": command,
         "execution_rows": executions,
+        "natural_finish": False,
+        "note": None,
         "why": why,
     }
 
