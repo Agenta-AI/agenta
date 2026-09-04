@@ -1,26 +1,35 @@
 ---
-// Hero video placeholder (dark). Rendered only when Hero's SHOW_HERO_VIDEO flag
+// Hero video placeholder. Rendered only when Hero's SHOW_HERO_VIDEO flag
 // is on; kept as a component so the card returns intact once a video asset lands.
+// Light frame = the explorer treatment (surface-app + shadow-frame, spec §5 q4);
+// dark = the original literals, via the .ag-video component-local vars below.
 ---
 
 <div
   class="ag-video"
-  style="position:relative;width:min(1016px,100%);height:452px;margin-top:28px;border-radius:8px;background:linear-gradient(180deg,#1C1B1E,#141315);box-shadow:0 24px 70px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);overflow:hidden;display:flex;align-items:center;justify-content:center;"
+  style="position:relative;width:min(1016px,100%);height:452px;margin-top:28px;border-radius:8px;background:var(--hv-bg);box-shadow:var(--hv-shadow);overflow:hidden;display:flex;align-items:center;justify-content:center;"
 >
   <img
+    class="th-dark-only"
     src="/logos/Agenta-symbol-dark.svg"
+    alt=""
+    style="position:absolute;left:-40px;bottom:-60px;width:340px;opacity:0.05;"
+  />
+  <img
+    class="th-light-only"
+    src="/logos/Agenta-symbol-light.svg"
     alt=""
     style="position:absolute;left:-40px;bottom:-60px;width:340px;opacity:0.05;"
   />
   <div style="position:absolute;top:16px;left:16px;display:flex;gap:6px;">
     <span
-      style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.14);"
+      style="width:10px;height:10px;border-radius:50%;background:var(--hv-dot);"
     ></span>
     <span
-      style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.14);"
+      style="width:10px;height:10px;border-radius:50%;background:var(--hv-dot);"
     ></span>
     <span
-      style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.14);"
+      style="width:10px;height:10px;border-radius:50%;background:var(--hv-dot);"
     ></span>
   </div>
   <div
@@ -38,13 +47,31 @@
         >
       </span>
     </div>
-    <span style="font:var(--text-label);color:rgba(255,255,255,0.66);"
+    <span style="font:var(--text-label);color:var(--hv-label);"
       >Watch: build a support agent in 2 min</span
     >
   </div>
   <div
-    style="position:absolute;bottom:16px;left:18px;font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.4);"
+    style="position:absolute;bottom:16px;left:18px;font:var(--text-caption);letter-spacing:0.03em;color:var(--hv-meta);"
   >
     2:04 · Product overview
   </div>
 </div>
+
+<style is:global>
+  .ag-video {
+    --hv-bg: var(--surface-app);
+    --hv-shadow: var(--shadow-frame);
+    --hv-dot: var(--paper-200);
+    --hv-label: var(--ink-600);
+    --hv-meta: var(--ink-500);
+  }
+  [data-theme="dark"] .ag-video {
+    --hv-bg: linear-gradient(180deg, #1c1b1e, #141315);
+    --hv-shadow:
+      0 24px 70px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+    --hv-dot: rgba(255, 255, 255, 0.14);
+    --hv-label: rgba(255, 255, 255, 0.66);
+    --hv-meta: rgba(255, 255, 255, 0.4);
+  }
+</style>
