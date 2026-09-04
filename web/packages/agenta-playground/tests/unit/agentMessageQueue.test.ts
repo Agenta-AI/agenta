@@ -221,4 +221,16 @@ describe("canReleaseQueuedMessage", () => {
             ]),
         ).toBe(true)
     })
+
+    it("releases an answered approval after its durable terminal record", () => {
+        expect(
+            canReleaseQueuedMessage("ready", [
+                user("do it"),
+                {
+                    ...assistantWithTool("approval-responded", true),
+                    metadata: {recordTerminal: true},
+                },
+            ]),
+        ).toBe(true)
+    })
 })

@@ -66,6 +66,8 @@ interface DraftMessage {
     paused?: boolean
     /** The turn paused for approval and then RESUMED to completion (a second, non-paused `done`). */
     resumed?: boolean
+    /** A non-paused durable `done` closed this turn. */
+    recordTerminal?: boolean
     /** The turn's persisted `error` event — replayed through the same `metadata.runError` channel
      *  the live stream stamps, so a failure renders as the error bubble, not as body text. */
     runError?: string
@@ -632,7 +634,10 @@ export function transcriptToMessages(
             }
             // A resumed-then-completed turn is no longer paused.
             if (current?.paused) current.resumed = true
-            if (current) current.paused = false
+            if (current) {
+                current.paused = false
+                current.recordTerminal = true
+            }
             current = null
             continue
         }
@@ -668,6 +673,7 @@ export function transcriptToMessages(
             if (d.usage) metadata.usage = d.usage
             if (d.paused) metadata.paused = true
             if (d.runStopped) metadata.runStopped = true
+            if (d.recordTerminal) metadata.recordTerminal = true
             if (d.runError && !d.runStopped)
                 metadata.runError = {
                     message: d.runError,

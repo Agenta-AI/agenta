@@ -32,6 +32,21 @@ const assistantAwaitingApproval = (id: string): UIMessage =>
         ],
     }) as unknown as UIMessage
 
+const assistantTerminalAfterApproval = (id: string): UIMessage =>
+    ({
+        ...assistantAwaitingApproval(id),
+        metadata: {recordTerminal: true},
+        parts: [
+            {
+                type: "tool-send_email",
+                state: "approval-responded",
+                toolCallId: `${id}-call`,
+                input: {to: "a@b.c"},
+                approval: {id: `${id}-approval`, approved: true},
+            },
+        ],
+    }) as unknown as UIMessage
+
 interface HarnessProps {
     status: string
     messages: UIMessage[]
@@ -177,6 +192,25 @@ describe("useAgentChatQueue", () => {
         rerender({...paused, messages: [userTurn("u1", "go"), assistantText("a2", "sent")]})
         expect(sendQueued).toHaveBeenCalledTimes(1)
         expect(sendQueued.mock.calls[0][0]).toMatchObject({text: "held"})
+        expect(result.current.queued).toHaveLength(0)
+    })
+
+    it("drains a held message after the continuation terminal record", () => {
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+        }
+        const {result, rerender, sendQueued} = setup(paused)
+        act(() => result.current.submit({text: "after continuation"}))
+
+        rerender({
+            ...paused,
+            messages: [userTurn("u1", "go"), assistantTerminalAfterApproval("a1")],
+        })
+
+        expect(sendQueued).toHaveBeenCalledOnce()
+        expect(sendQueued.mock.calls[0][0]).toMatchObject({text: "after continuation"})
         expect(result.current.queued).toHaveLength(0)
     })
 

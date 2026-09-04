@@ -881,12 +881,16 @@ describe("transcriptToMessages interaction-row precedence", () => {
 
     it("still settles a resumed turn's gate when no row carries a verdict", () => {
         // The sweep's own job, unchanged: a resumed gate must not replay as still awaiting the user.
-        const parts = allParts(resumedApprovalRecords())
+        const messages = transcriptToMessages(resumedApprovalRecords()) ?? []
+        const parts = messages.flatMap(
+            (message) => message.parts as unknown as Record<string, unknown>[],
+        )
 
         expect(parts.some((part) => part.state === "approval-requested")).toBe(false)
         expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
             state: "approval-responded",
         })
+        expect(messages.at(-1)?.metadata).toMatchObject({recordTerminal: true})
     })
 
     it("keeps an answered approval row's approved verdict", () => {

@@ -25,6 +25,7 @@ interface ToolPartLike {
 interface MessageLike {
     role?: string
     parts?: ToolPartLike[]
+    metadata?: unknown
 }
 
 const isToolPart = (part: ToolPartLike): boolean => {
@@ -77,6 +78,12 @@ export function messageHasPendingHitl(message: MessageLike): boolean {
  */
 export function canReleaseQueuedMessage(status: string, messages: MessageLike[]): boolean {
     if (status === "error") return !isHitlPending(messages)
+    const lastAssistant = messages.findLast((message) => message.role === "assistant")
+    const recordTerminal = (lastAssistant?.metadata as {recordTerminal?: unknown} | undefined)
+        ?.recordTerminal
+    if (status === "ready" && recordTerminal === true) {
+        return !isHitlPending(messages)
+    }
     return (
         status === "ready" &&
         !isHitlPending(messages) &&
