@@ -845,7 +845,7 @@ export function useModelHarness({
                 // The drawer body is the rail's only host, so the divider runs its full height.
                 bleed
                 // Wider than the default rail: these labels carry an icon as well.
-                railWidth="w-[132px]"
+                railWidth="w-[148px]"
                 items={advancedPanels.map((panel) => panel.item)}
                 value={activeAdvancedPanel?.item.value ?? ""}
                 onChange={setAdvancedPanelValue}
