@@ -22,6 +22,9 @@ export async function submitServerOwnedApproval<T>({
 export interface ApprovalSubmissionOutcome {
     durable: boolean
     recoverable: boolean
+    /** `execution.id` from the respond body — the continuation turn the server just started.
+     *  The queue holds every send until this execution writes its own terminal record. */
+    executionId?: string
 }
 
 /** Choose the approval owner from the server capability, preserving the original local path. */

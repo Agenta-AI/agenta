@@ -72,7 +72,7 @@ export const respondInteractionAnswerAtom = atom(
             toolCallId: string
             approved: boolean
         },
-    ): Promise<{durable: boolean; recoverable: boolean}> => {
+    ): Promise<{durable: boolean; recoverable: boolean; executionId?: string}> => {
         const {sessionId, toolCallId, approved} = params
         const projectId = get(projectIdAtom) ?? ""
         if (!projectId || !sessionId) throw new Error("Approval has no project or session scope.")
@@ -100,6 +100,7 @@ export const respondInteractionAnswerAtom = atom(
         return {
             durable: result.accepted,
             recoverable: result.execution?.state === "recoverable",
+            ...(result.execution?.id ? {executionId: result.execution.id} : {}),
         }
     },
 )
@@ -115,7 +116,7 @@ export const respondInteractionAnswersAtom = atom(
             toolCallIds: string[]
             approved: boolean
         },
-    ): Promise<{durable: boolean; recoverable: boolean}> => {
+    ): Promise<{durable: boolean; recoverable: boolean; executionId?: string}> => {
         const {sessionId, toolCallIds, approved} = params
         const projectId = get(projectIdAtom) ?? ""
         if (!projectId || !sessionId) throw new Error("Approval has no project or session scope.")
@@ -156,6 +157,7 @@ export const respondInteractionAnswersAtom = atom(
         return {
             durable: result.accepted,
             recoverable: result.execution?.state === "recoverable",
+            ...(result.execution?.id ? {executionId: result.execution.id} : {}),
         }
     },
 )

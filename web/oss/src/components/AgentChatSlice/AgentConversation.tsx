@@ -253,6 +253,11 @@ const AgentConversation = ({
     const modelKey = useAgentModelKeyStatus(entityId)
     const modelBlocked = modelKey.gateActive
     const [recoverableContinuation, setRecoverableContinuation] = useState(false)
+    // Execution id of the continuation the last durable answer started (respond body,
+    // `execution.id`). The queue holds every send until that execution writes its terminal record:
+    // the transcript-derived hold cannot cover the seconds between the answer and the
+    // continuation's first record, and a transcript adopted inside that gap reads as settled.
+    const [continuationExecutionId, setContinuationExecutionId] = useState<string | null>(null)
     const approvalResponseOwnerRef = useRef<string | null>(null)
     const retryRecoverableContinuation = useCallback(async () => {
         const resumed = await retryContinuation()
@@ -407,6 +412,7 @@ const AgentConversation = ({
         resumeOrphaned,
         recoverable: recoverableContinuation,
         retryContinuation: retryRecoverableContinuation,
+        continuationExecutionId,
         sendQueued,
         sessionId,
     })
@@ -439,6 +445,7 @@ const AgentConversation = ({
             })
             if (approvalResponseOwnerRef.current === args.id) {
                 setRecoverableContinuation(outcome?.recoverable === true)
+                setContinuationExecutionId(outcome?.executionId ?? null)
             }
             return outcome
         },
@@ -452,6 +459,7 @@ const AgentConversation = ({
             const outcome = await answerApprovals(ids, approved)
             if (approvalResponseOwnerRef.current === ids[0]) {
                 setRecoverableContinuation(outcome?.recoverable === true)
+                setContinuationExecutionId(outcome?.executionId ?? null)
             }
             return outcome
         },
@@ -468,7 +476,10 @@ const AgentConversation = ({
         approvalResponseOwnerRef.current = pendingApprovalId
     }
     useEffect(() => {
-        if (pendingApprovalId) setRecoverableContinuation(false)
+        if (pendingApprovalId) {
+            setRecoverableContinuation(false)
+            setContinuationExecutionId(null)
+        }
     }, [pendingApprovalId])
     // Parked connect interactions on the paused turn → the connect dock owns their actions (the
     // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)

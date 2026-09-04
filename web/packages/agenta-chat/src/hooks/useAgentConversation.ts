@@ -285,6 +285,11 @@ export const useAgentConversation = ({
     const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
     const supportsDurableApprovals = useSetAtom(sessionDurableApprovalsCapabilityAtom)
     const [recoverableContinuation, setRecoverableContinuation] = useState(false)
+    // Execution id of the continuation the last durable answer started (respond body,
+    // `execution.id`). The queue holds every send until that execution writes its terminal record:
+    // the transcript-derived hold cannot cover the seconds between the answer and the
+    // continuation's first record, and a transcript adopted inside that gap reads as settled.
+    const [continuationExecutionId, setContinuationExecutionId] = useState<string | null>(null)
     const approvalResponseOwnerRef = useRef<string | null>(null)
     const retryRecoverableContinuation = useCallback(async () => {
         const resumed = await resumeSessionContinuation(sessionId)
@@ -645,6 +650,7 @@ export const useAgentConversation = ({
         resumeOrphaned,
         recoverable: recoverableContinuation,
         retryContinuation: retryRecoverableContinuation,
+        continuationExecutionId,
         sendQueued,
         sessionId,
     })
@@ -676,6 +682,7 @@ export const useAgentConversation = ({
             })
             if (approvalResponseOwnerRef.current === args.id) {
                 setRecoverableContinuation(outcome.recoverable)
+                setContinuationExecutionId(outcome.executionId ?? null)
             }
             return outcome
         },
@@ -721,6 +728,7 @@ export const useAgentConversation = ({
             })
             if (approvalResponseOwnerRef.current === args.ids[0]) {
                 setRecoverableContinuation(outcome.recoverable)
+                setContinuationExecutionId(outcome.executionId ?? null)
             }
             return outcome
         },
@@ -761,7 +769,10 @@ export const useAgentConversation = ({
         approvalResponseOwnerRef.current = pendingApprovalId
     }
     useEffect(() => {
-        if (pendingApprovalId) setRecoverableContinuation(false)
+        if (pendingApprovalId) {
+            setRecoverableContinuation(false)
+            setContinuationExecutionId(null)
+        }
     }, [pendingApprovalId])
 
     // Settle a parked client tool (#4920). A widget calls this with the structured reference;
