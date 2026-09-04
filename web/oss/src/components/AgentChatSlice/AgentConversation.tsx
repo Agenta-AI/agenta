@@ -30,7 +30,7 @@ import {
     isVisiblePart,
 } from "@agenta/chat/model"
 import {getInteractionAvailability, getLivePendingApprovals} from "@agenta/chat/model"
-import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
+import {durableTranscriptMessages, withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
 import {
@@ -114,7 +114,11 @@ const AgentConversation = ({
     const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
-    const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
+    // Dropped on the way in as well as on the way out: a cache written before that rule existed
+    // must not paint a dead request's failure card over a turn the server finished.
+    const [initialMessages] = useState(() =>
+        durableTranscriptMessages(store.get(sessionMessagesAtom)[sessionId] ?? []),
+    )
     const richInputRef = useRef<RichChatInputHandle>(null)
 
     const composer = useComposerDraft({sessionId, richInputRef, revealPlayedRef})

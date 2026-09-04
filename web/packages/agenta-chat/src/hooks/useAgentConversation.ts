@@ -51,8 +51,11 @@ import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
-import {parseAgentRunError, type ParsedRunError} from "../model/error"
-import {withoutSharedSenderAcceptanceMessages} from "../model/livePreview"
+import {parseAgentRunError, type ParsedRunError, type RunErrorMetadata} from "../model/error"
+import {
+    durableTranscriptMessages,
+    withoutSharedSenderAcceptanceMessages,
+} from "../model/livePreview"
 import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionStatus"
 import {
     buildTurnViewModels,
@@ -220,7 +223,12 @@ export const useAgentConversation = ({
     const clearTurnClock = useSetAtom(clearTurnClockAtom)
 
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
-    const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
+    // A transport stamp from a previous mount is dropped on the way in as well as on the way out:
+    // a cache written before that rule existed must not paint a failure card over a turn the server
+    // finished (see `durableTranscriptMessages`).
+    const [initialMessages] = useState(() =>
+        durableTranscriptMessages(store.get(sessionMessagesAtom)[sessionId] ?? []),
+    )
     // Only the last assistant turn can carry the current stopped state.
     const [userStoppedState, dispatchStopped] = useReducer(
         reduceUserStoppedState,
@@ -264,6 +272,11 @@ export const useAgentConversation = ({
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
 
+    // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
+    // `onData` and never the transcript — this is the only place the answer survives. A stream that
+    // dies after it is a lost connection, not a lost turn; one that dies before it may be a send
+    // that never started, and that failure has to stay on screen and in the cache.
+    const turnAcceptedRef = useRef(false)
     // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
     const busyRef = useRef(false)
     const messagesRef = useRef(initialMessages)
@@ -301,6 +314,7 @@ export const useAgentConversation = ({
         // #6047 startup states: the runner narrates what it is doing while the environment boots,
         // so a 15s cold start reads as progress instead of a stalled session.
         onData: (part) => {
+            if (part.type === "data-session-accepted") turnAcceptedRef.current = true
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
         },
@@ -362,6 +376,7 @@ export const useAgentConversation = ({
         addToolApprovalResponse,
         addToolOutput,
         error,
+        clearError,
     } = useChat({
         chat,
         // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
@@ -425,7 +440,10 @@ export const useAgentConversation = ({
             const adopt = shouldAdoptServerTranscript({
                 serverRecordCount: sequenceCursor ?? recordCount,
                 serverMessageCount: serverMsgs.length,
-                localMessageCount: messagesRef.current.length,
+                // A turn this browser only FAILED TO WATCH is not transcript the log has to beat:
+                // counting its stamp would make the local copy look longer than the server's and
+                // pin the failure card on screen (the floor rule below).
+                localMessageCount: durableTranscriptMessages(messagesRef.current).length,
                 watermark:
                     sequenceCursor === undefined
                         ? recordWatermarkRef.current
@@ -443,11 +461,16 @@ export const useAgentConversation = ({
             // on-screen length, that keeps the guard order-independent.
             recordWatermarkRef.current = recordCount
             if (sequenceCursor !== undefined) sequenceWatermarkRef.current = sequenceCursor
+            // The durable log just superseded whatever this browser was rendering, including a
+            // failed request of our own. `useChat` holds that error until the next send, and the
+            // session dot reads it — so without this the transcript shows the finished turn while
+            // the dot stays red, with nothing on screen to explain it.
+            clearError()
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
             return true
         },
-        [persistMessages, sessionId, setMessages],
+        [clearError, persistMessages, sessionId, setMessages],
     )
 
     useEffect(() => {
@@ -675,16 +698,18 @@ export const useAgentConversation = ({
     useEffect(() => {
         if (!error) return
         const parsed = parseAgentRunError(error)
+        // Recorded beside the error: the durable filter needs to tell "we lost the stream of a turn
+        // the server owns" from "this send may never have started".
+        const stamp: RunErrorMetadata = {runError: parsed, turnAccepted: turnAcceptedRef.current}
         setMessages((prev) => {
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
-            const existing = (last?.metadata as {runError?: {message?: string}} | undefined)
-                ?.runError
+            const existing = (last?.metadata as RunErrorMetadata | undefined)?.runError
             if (last?.role === "assistant") {
                 if (existing?.message === parsed.message) return prev // already stamped
                 const next = [...prev]
                 next[next.length - 1] = {
                     ...last,
-                    metadata: {...(last.metadata as object | undefined), runError: parsed},
+                    metadata: {...(last.metadata as object | undefined), ...stamp},
                 }
                 return next
             }
@@ -695,7 +720,7 @@ export const useAgentConversation = ({
                     id: `run-error-${generateId()}`,
                     role: "assistant",
                     parts: [],
-                    metadata: {runError: parsed},
+                    metadata: stamp,
                 } as (typeof prev)[number],
             ]
         })
@@ -711,6 +736,8 @@ export const useAgentConversation = ({
             recordWatermarkRef.current = undefined
             sequenceWatermarkRef.current = undefined
         }
+        // A new turn has its own acceptance to earn; `streaming` is the same turn continuing.
+        if (status === "submitted") turnAcceptedRef.current = false
     }, [status])
 
     // Persist the conversation whenever its stream settles (skip mid-stream), under whatever
@@ -719,7 +746,7 @@ export const useAgentConversation = ({
         if (status === "streaming") return
         persistMessages({
             id: sessionId,
-            messages: withoutSharedSenderAcceptanceMessages(messages),
+            messages: durableTranscriptMessages(messages),
             recordCount: recordWatermarkRef.current,
         })
     }, [messages, status, sessionId, persistMessages])

@@ -48,6 +48,7 @@ vi.mock("@agenta/entities/trace", () => ({
 }))
 
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
+import {TRANSPORT_ERROR_MESSAGE} from "../../../src/model/error"
 import {
     getSessionTurnId,
     markSessionFresh,
@@ -113,6 +114,37 @@ const sharedErrorResponse = (): Response => {
         status: 200,
         headers: {"content-type": "text/event-stream"},
     })
+}
+
+/** The shared sender's invoke stream accepted the turn, then the connection died — what a
+ * backgrounded tab sees while the runner carries the turn on to completion. */
+const sharedDroppedStreamResponse = (): Response => {
+    const chunks = [
+        {type: "start", messageId: "shared-dropped"},
+        {type: "start-step"},
+        {
+            // Transient, as the runner sends it: it reaches `onData` and never the transcript.
+            type: "data-session-accepted",
+            data: {sessionId: "session-1", turnId: "turn-1", executionId: "turn-1"},
+            transient: true,
+        },
+    ]
+    return new Response(
+        new ReadableStream({
+            async start(controller) {
+                for (const chunk of chunks) {
+                    controller.enqueue(
+                        new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\n\n`),
+                    )
+                }
+                // Let the client read the acceptance first. `controller.error` resets the queue, so
+                // erroring in the same tick would throw away what was just enqueued.
+                await new Promise((resolve) => setTimeout(resolve, 20))
+                controller.error(new TypeError("Failed to fetch"))
+            },
+        }),
+        {status: 200, headers: {"content-type": "text/event-stream"}},
+    )
 }
 
 const fetchMock = vi.fn<typeof globalThis.fetch>()
@@ -453,6 +485,89 @@ describe("useAgentConversation", () => {
         expect(result.current.stopped).toBe(true)
         expect(result.current.error).toBeUndefined()
         expect(result.current.runStatus).toBe("idle")
+    })
+
+    /**
+     * Increment 5, two tabs on one session: the sender's invoke stream carries acceptance and
+     * errors only, so a stream that dies while the tab is backgrounded says nothing about the turn
+     * — the runner finishes it and writes it to the session log. The stamp is live feedback and
+     * must not outlive the reload, or the next open paints "Could not reach Agenta" over a turn
+     * that completed server-side (browser evidence 2026-09-04, session 4d21415e).
+     */
+    it("shows a dead invoke stream live, but persists no failure for the reload", async () => {
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "content-type": "application/json",
+                "x-ag-session-response": "shared",
+            },
+            requestBody: {session_id: opts?.sessionId},
+        }))
+        // Accepted, then the connection died — what a backgrounded tab's closed stream leaves.
+        fetchMock.mockResolvedValue(sharedDroppedStreamResponse())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "One more short line, please."})
+        })
+        await waitFor(() => expect(result.current.runStatus).toBe("error"), {timeout: 5000})
+
+        // Live: the user still gets told, with the translated reason and a retry.
+        await waitFor(() => {
+            const last = result.current.turns[result.current.turns.length - 1]
+            expect(last.status.isError).toBe(true)
+            expect(last.status.errorText).toBe(TRANSPORT_ERROR_MESSAGE)
+        })
+
+        // Durable: only the user turn. Nothing here can repaint the failure after a reload, and
+        // the count the adoption guard compares stays equal to what the log holds.
+        await waitFor(() => {
+            const persisted = store.get(sessionMessagesAtom)[sessionId]
+            expect(persisted).toHaveLength(1)
+            expect(persisted[0].role).toBe("user")
+            expect(persisted.some((m) => (m.metadata as {runError?: unknown})?.runError)).toBe(
+                false,
+            )
+        })
+    })
+
+    /**
+     * The other half of the rule. A stream that dies BEFORE the acceptance may describe a turn that
+     * never started, so that card is the only signal the user gets and it has to survive the
+     * reload.
+     */
+    it("keeps a failure the server never accepted, so the reload still shows it", async () => {
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "content-type": "application/json",
+                "x-ag-session-response": "shared",
+            },
+            requestBody: {session_id: opts?.sessionId},
+        }))
+        // The request never left: no acceptance, no turn id, nothing to converge on.
+        fetchMock.mockRejectedValue(new TypeError("Failed to fetch"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "this one never left"})
+        })
+        await waitFor(() => expect(result.current.runStatus).toBe("error"), {timeout: 5000})
+
+        await waitFor(() => {
+            const persisted = store.get(sessionMessagesAtom)[sessionId]
+            expect(persisted).toHaveLength(2)
+            const stamped = persisted[1].metadata as {runError?: {message?: string}}
+            expect(stamped.runError?.message).toBe(TRANSPORT_ERROR_MESSAGE)
+        })
     })
 
     it("renders an invoke error that shares the acceptance carrier", async () => {

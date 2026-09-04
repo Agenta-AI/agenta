@@ -9,12 +9,14 @@ import {
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
 import {
+    durableTranscriptMessages,
     ignoreStreamRejection,
     createUserStoppedState,
     isSessionTurnStopping,
     parseAgentRunError,
     reduceUserStoppedState,
     withoutSharedSenderAcceptanceMessages,
+    type RunErrorMetadata,
 } from "@agenta/chat/model"
 import {
     clearTurnClockAtom,
@@ -151,6 +153,11 @@ export const useAgentChatSession = ({
     const mountedRef = useRef(false)
     const messagesRef = useRef(initialMessages)
     const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
+    // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
+    // `onData` and never the transcript — this is the only place the answer survives. A stream that
+    // dies after it is a lost connection, not a lost turn; one that dies before it may be a send
+    // that never started, and that failure has to stay on screen and in the cache.
+    const turnAcceptedRef = useRef(false)
     const sharedSenderReadyRef = useRef(false)
     const setSharedSenderReady = useCallback((ready: boolean) => {
         sharedSenderReadyRef.current = ready
@@ -176,6 +183,7 @@ export const useAgentChatSession = ({
         },
         // ── #6047 startup states: capture the runner's observed startup boundary as it streams ──
         onData: (part) => {
+            if (part.type === "data-session-accepted") turnAcceptedRef.current = true
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
         },
@@ -252,6 +260,7 @@ export const useAgentChatSession = ({
         addToolApprovalResponse,
         addToolOutput,
         error,
+        clearError,
     } = useChat({
         chat,
         // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
@@ -313,6 +322,7 @@ export const useAgentChatSession = ({
         busy,
         setMessages,
         persistMessages,
+        clearRunError: clearError,
         intent,
         pendingResumeRef: liveGateInteractionRef,
     })
@@ -431,16 +441,18 @@ export const useAgentChatSession = ({
     useEffect(() => {
         if (!error) return
         const parsed = parseAgentRunError(error)
+        // Recorded beside the error: the durable filter needs to tell "we lost the stream of a turn
+        // the server owns" from "this send may never have started".
+        const stamp: RunErrorMetadata = {runError: parsed, turnAccepted: turnAcceptedRef.current}
         setMessages((prev) => {
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
-            const existing = (last?.metadata as {runError?: {message?: string}} | undefined)
-                ?.runError
+            const existing = (last?.metadata as RunErrorMetadata | undefined)?.runError
             if (last?.role === "assistant") {
                 if (existing?.message === parsed.message) return prev // already stamped
                 const next = [...prev]
                 next[next.length - 1] = {
                     ...last,
-                    metadata: {...(last.metadata as object | undefined), runError: parsed},
+                    metadata: {...(last.metadata as object | undefined), ...stamp},
                 }
                 return next
             }
@@ -451,7 +463,7 @@ export const useAgentChatSession = ({
                     id: `run-error-${generateId()}`,
                     role: "assistant",
                     parts: [],
-                    metadata: {runError: parsed},
+                    metadata: stamp,
                 } as (typeof prev)[number],
             ]
         })
@@ -467,6 +479,8 @@ export const useAgentChatSession = ({
             recordWatermarkRef.current = undefined
             sequenceWatermarkRef.current = undefined
         }
+        // A new turn has its own acceptance to earn; `streaming` is the same turn continuing.
+        if (status === "submitted") turnAcceptedRef.current = false
     }, [status])
 
     // Persist the conversation whenever its stream settles (skip mid-stream).
@@ -474,7 +488,7 @@ export const useAgentChatSession = ({
         if (status === "streaming") return
         persistMessages({
             id: sessionId,
-            messages: withoutSharedSenderAcceptanceMessages(messages),
+            messages: durableTranscriptMessages(messages),
             recordCount: recordWatermarkRef.current,
         })
     }, [messages, status, sessionId, persistMessages])

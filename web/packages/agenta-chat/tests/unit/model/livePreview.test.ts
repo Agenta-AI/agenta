@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     createSessionLivePreviewState,
+    durableTranscriptMessages,
     isSessionSnapshotRunning,
     reduceSessionLivePreview,
     sessionLivePreviewMessages,
@@ -48,6 +49,56 @@ describe("session live preview reducer", () => {
                 (message) => message.id,
             ),
         ).toEqual(["failed", "ordinary"])
+    })
+
+    /**
+     * Both filters remove a shared-sender row, and they divide the cases between them: the
+     * acceptance filter takes the ordinary control row and keeps anything with a `runError`, and
+     * the dead-sender filter takes exactly the failure the server never issued for a turn it owns.
+     */
+    it("drops the control row a dead stream left, and keeps a real invoke error", () => {
+        const user = {id: "u1", role: "user", parts: [{type: "text", text: "hi"}]}
+        const carrier = {
+            id: "accepted",
+            role: "assistant",
+            parts: [{type: "data-session-accepted", data: {turnId: "turn-1"}}],
+            metadata: {sharedSender: true},
+        }
+        // What a dropped stream really leaves: the step marker, and a transient acceptance that
+        // never became a part.
+        const droppedShape = {id: "accepted", role: "assistant", parts: [{type: "step-start"}]}
+        const deadStream = {
+            ...droppedShape,
+            metadata: {
+                sharedSender: true,
+                turnAccepted: true,
+                runError: {message: "Could not reach Agenta.", transport: true},
+            },
+        }
+        const invokeError = {
+            ...carrier,
+            metadata: {sharedSender: true, runError: {message: "no usable credential", code: 422}},
+        }
+
+        expect(durableTranscriptMessages([user, deadStream] as never[]).map((m) => m.id)).toEqual([
+            "u1",
+        ])
+        expect(durableTranscriptMessages([user, invokeError] as never[]).map((m) => m.id)).toEqual([
+            "u1",
+            "accepted",
+        ])
+        // The plain control row goes as it always did.
+        expect(durableTranscriptMessages([user, carrier] as never[]).map((m) => m.id)).toEqual([
+            "u1",
+        ])
+    })
+
+    it("leaves an answered turn untouched", () => {
+        const messages = [
+            {id: "u1", role: "user", parts: [{type: "text", text: "hi"}]},
+            {id: "a1", role: "assistant", parts: [{type: "text", text: "DONE"}]},
+        ] as never[]
+        expect(durableTranscriptMessages(messages)).toEqual(messages)
     })
 
     it("recognizes a running execution from the atomic reconnect snapshot", () => {
