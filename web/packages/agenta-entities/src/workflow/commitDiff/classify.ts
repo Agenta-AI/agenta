@@ -9,7 +9,7 @@ import {computeTextDiffLines} from "@agenta/ui/diff"
 
 import {PARAM_KEYS, readAgentConfig, stableStringify} from "./accessors"
 import {agentItemIdentity, type AgentItemKind} from "./identity"
-import {scalarKeyLabel, scalarValueLabel} from "./scalarLabels"
+import {gatewayPermissionLabel, scalarKeyLabel, scalarValueLabel} from "./scalarLabels"
 import type {
     AgentConfigView,
     ChangeItem,
@@ -51,8 +51,37 @@ function toolProps(tool: NormalizedTool): Record<string, unknown> {
         : {}
 }
 
-function diffToolFields(before: NormalizedTool, after: NormalizedTool): ToolFieldChange[] {
+/** Permission field paths, so the row can name them instead of counting them as parameters. */
+const PERMISSION_DEFAULT = "permissions.default"
+const PERMISSION_TOOL_PREFIX = "permissions.tools."
+
+/** An integration's policy: its own default, plus whatever it overrides per tool. */
+function diffPolicyFields(before: NormalizedTool, after: NormalizedTool): ToolFieldChange[] {
+    if (!before.policy || !after.policy) return []
     const changes: ToolFieldChange[] = []
+    if (before.policy.default !== after.policy.default) {
+        changes.push({
+            field: PERMISSION_DEFAULT,
+            kind: "changed",
+            detail: `permission ${gatewayPermissionLabel(before.policy.default)} → ${gatewayPermissionLabel(after.policy.default)}`,
+        })
+    }
+    const names = new Set([...Object.keys(before.policy.tools), ...Object.keys(after.policy.tools)])
+    for (const name of [...names].sort()) {
+        const from = before.policy.tools[name]
+        const to = after.policy.tools[name]
+        if (from === to) continue
+        changes.push({
+            field: `${PERMISSION_TOOL_PREFIX}${name}`,
+            kind: !from ? "added" : !to ? "removed" : "changed",
+            detail: `${name}: ${gatewayPermissionLabel(from)} → ${gatewayPermissionLabel(to)}`,
+        })
+    }
+    return changes
+}
+
+function diffToolFields(before: NormalizedTool, after: NormalizedTool): ToolFieldChange[] {
+    const changes: ToolFieldChange[] = [...diffPolicyFields(before, after)]
     if (before.description !== after.description) {
         changes.push({field: "description", kind: "changed", detail: "description changed"})
     }
@@ -78,9 +107,22 @@ function diffToolFields(before: NormalizedTool, after: NormalizedTool): ToolFiel
 }
 
 function toolRowDetail(fields: ToolFieldChange[]): string | undefined {
+    const permissionDefault = fields.find((f) => f.field === PERMISSION_DEFAULT)
+    const perTool = fields.filter((f) => f.field.startsWith(PERMISSION_TOOL_PREFIX))
     const descChanged = fields.some((f) => f.field === "description")
-    const paramCount = fields.filter((f) => f.field !== "description").length
+    const paramCount = fields.filter(
+        (f) =>
+            f.field !== "description" &&
+            f.field !== PERMISSION_DEFAULT &&
+            !f.field.startsWith(PERMISSION_TOOL_PREFIX),
+    ).length
+
+    // A lone policy change is worth spelling out — "permission Ask → Allow" says what a count cannot.
+    if (permissionDefault && !perTool.length && !descChanged && !paramCount) {
+        return permissionDefault.detail
+    }
     const parts: string[] = []
+    if (permissionDefault || perTool.length) parts.push("permissions")
     if (descChanged) parts.push("description")
     if (paramCount) parts.push(paramCount === 1 ? "1 parameter" : `${paramCount} parameters`)
     // Fingerprint-based edit detection can flag a change in a field diffToolFields doesn't inspect

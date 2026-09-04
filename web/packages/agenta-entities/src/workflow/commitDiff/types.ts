@@ -104,6 +104,8 @@ export interface NormalizedTool {
     fingerprint: string
     /** A function-call tool (`function.name`); only these get field-level diffs. */
     isFunction: boolean
+    /** A `gateway_connection`'s authored policy: the integration default plus per-tool overrides. */
+    policy?: {default: string; tools: Record<string, string>}
     /** A `{type:"reference"}` entry — another agent, sectioned apart from the real tools. */
     isSubagent?: boolean
 }

@@ -49,6 +49,18 @@ const PATH_LABELS: Record<string, string> = {
     "sandbox.permissions": "Sandbox permissions",
 }
 
+/** An integration's permission vocabulary, as the tool form spells it. */
+const GATEWAY_PERMISSION_LABELS: Record<string, string> = {
+    allow: "Allow",
+    ask: "Ask",
+    deny: "Deny",
+    inherit: "Inherit",
+}
+
+/** What to call a gateway permission. Unset means the entry inherits the integration default. */
+export const gatewayPermissionLabel = (value: string | undefined): string =>
+    (value && GATEWAY_PERMISSION_LABELS[value]) ?? "Inherit"
+
 /** Per-path value vocabulary — the stored enum is not what the control calls it. */
 const VALUE_LABELS: Record<string, (value: string) => string | undefined> = {
     "runner.permissions.default": permissionPolicyLabel,

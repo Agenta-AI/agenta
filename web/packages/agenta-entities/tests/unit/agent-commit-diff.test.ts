@@ -196,6 +196,44 @@ describe("an edited skill shows its prose, the way Instructions does", () => {
     })
 })
 
+describe("an integration's permission change says what it became", () => {
+    // Regression: the row read "Composio search · changed" for every policy edit — the fingerprint
+    // caught it, but nothing described it, so the diff carried no information.
+    const connection = (permissions: Record<string, unknown>) => ({
+        type: "gateway_connection",
+        connection: {provider: "composio", integration: "composio_search", slug: "conn-1"},
+        policy: {permissions},
+    })
+    const row = (local: Record<string, unknown>, remote: Record<string, unknown>) =>
+        classifyAgentChanges(
+            {agent: {tools: [connection(local)]}},
+            {agent: {tools: [connection(remote)]}},
+        )?.find((s) => s.id === "tools")?.items?.[0]
+
+    it("spells out a default policy change", () => {
+        const item = row({default: "allow"}, {default: "ask"})
+        expect(item?.kind).toBe("edited")
+        expect(item?.detail).toBe("permission Ask → Allow")
+    })
+
+    it("treats an absent default as Inherit rather than as nothing", () => {
+        expect(row({default: "deny"}, {})?.detail).toBe("permission Inherit → Deny")
+    })
+
+    it("records a per-tool override as its own field change", () => {
+        const item = row({default: "ask", tools: {SEARCH: "allow"}}, {default: "ask"})
+        expect(item?.detail).toBe("permissions changed")
+        expect(item?.fieldChanges).toEqual([
+            {field: "permissions.tools.SEARCH", kind: "added", detail: "SEARCH: Inherit → Allow"},
+        ])
+    })
+
+    it("does not count permissions as parameters", () => {
+        const item = row({default: "allow", tools: {A: "deny", B: "deny"}}, {default: "ask"})
+        expect(item?.detail).toBe("permissions changed")
+    })
+})
+
 describe("renaming a skill in place is an edit, not a swap", () => {
     // Regression: identity is the name, so a rename read as "1 added, 1 removed" and the body
     // diff behind it was never computed — exactly the change you most want to see.

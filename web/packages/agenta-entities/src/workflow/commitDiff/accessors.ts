@@ -67,6 +67,25 @@ function coerceContent(content: unknown): string {
 }
 
 /**
+ * An integration's authored policy — `policy.permissions.{default, tools}`. Read here rather than
+ * through `parseGatewayConnection` (entity-ui) so the classifier stays dependency-light.
+ */
+function readConnectionPolicy(raw: Record<string, unknown>): NormalizedTool["policy"] {
+    const permissions =
+        isObj(raw.policy) && isObj(raw.policy.permissions) ? raw.policy.permissions : undefined
+    const tools: Record<string, string> = {}
+    if (isObj(permissions?.tools)) {
+        for (const [name, value] of Object.entries(permissions.tools)) {
+            if (typeof value === "string") tools[name] = value
+        }
+    }
+    return {
+        default: typeof permissions?.default === "string" ? permissions.default : "inherit",
+        tools,
+    }
+}
+
+/**
  * Normalize one tool entry. Every tool subtype is surfaced (nothing dropped): function/gateway
  * tools keyed by name, workflow-reference tools by slug, builtin/platform tools by type — so a
  * builtin or reference tool added/removed/edited still shows in the Tools diff. Field-level detail
@@ -102,6 +121,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
                 paramsJson: "{}",
                 fingerprint,
                 isFunction: false,
+                policy: readConnectionPolicy(raw),
             }
         }
     }
