@@ -67,6 +67,9 @@ import {
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
   withinCredentialPropagationWindow,
 } from "./errors.ts";
+import { cancelHarnessTurn } from "./cancel-turn.ts";
+import { reapLeakedExecChildren } from "./reap-exec.ts";
+import { sandboxAgentServerPort } from "./provider.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import {
   capturePiTranscriptCursor,
@@ -147,6 +150,12 @@ export async function runTurn(
   // heartbeat aborts `signal`). Distinct from PAUSED/RUN_LIMIT_TRIPPED so the turn ends CLEANLY
   // (honest interrupted transcript, keep-warm) instead of falling through to the error catch.
   const CANCELLED = Symbol("cancelled");
+  /**
+   * Did the harness confirm it stopped? Set only on the cancelled path, and only when the ACP
+   * cancel was sent AND the harness answered its open prompt inside the settle budget. It rides
+   * out on the result because it is the one fact that decides park versus delete for a Stop.
+   */
+  let cancelSettled = false;
   const continuityStore = deps.sessionContinuityStore ?? sessionContinuityStore;
   /**
    * Should a credential refusal this turn be reported as a delivery race rather than a bad key?
@@ -1076,6 +1085,10 @@ export async function runTurn(
     // byte-exact args). Either way, on a HITL pause the prompt resolves cancelled or never
     // resolves, and the pause signal ends the turn.
     let promptPromise: Promise<unknown>;
+    // When the prompt was issued, so a reap after a Stop can tell a process this turn started
+    // from one the SESSION started earlier (an stdio MCP server). A resumed turn keeps the
+    // resume's own start, which only ever makes the reap more conservative. See `reap-exec.ts`.
+    let promptStartedAtMs = Date.now();
     if (opts.resume) {
       // The resume turn owns continued events; each decision answers one parked gate by id.
       // Carried gates keep the shared original prompt pending until a later answer.
@@ -1159,13 +1172,20 @@ export async function runTurn(
         pause.pause();
       }
     } else {
+      promptStartedAtMs = Date.now();
       promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
       promptPromise.catch(() => {});
     }
-    // A user Stop aborts `signal`, which severs the harness fetch (rejecting the prompt). We want a
-    // clean cancel, not an error: resolve the race to CANCELLED both when the abort event lands first
-    // AND when the prompt rejection lands first while already aborted, so the outcome is deterministic
-    // regardless of ordering. A real (non-abort) prompt rejection is re-thrown into the shared catch.
+    // A user Stop aborts `signal`. That abort does NOT reach the harness: the signal is handed to
+    // `SandboxAgent.start` for its health wait only, never to the ACP transport or the prompt
+    // request, so the prompt promise below stays pending and the harness keeps working. (An earlier
+    // comment here claimed the abort severed the harness fetch. It does not, which is why the
+    // cancelled branch has to send a real `session/cancel` — see `cancel-turn.ts`.)
+    //
+    // So the race is won by the abort event itself. Resolve to CANCELLED both when the abort lands
+    // first AND when the prompt rejection lands first while already aborted, so the outcome is
+    // deterministic regardless of ordering. A real (non-abort) prompt rejection is re-thrown into
+    // the shared catch.
     const cancelled = new Promise<typeof CANCELLED>((resolve) => {
       if (signal?.aborted) resolve(CANCELLED);
       else
@@ -1262,6 +1282,33 @@ export async function runTurn(
       }
     }
     if (stopReason === "cancelled") {
+      // Tell the HARNESS to stop before anything else. The abort only made the runner stop
+      // waiting; without this the harness still holds an open prompt and a running tool, and the
+      // sandbox could never be parked. A settled cancel is what earns the warm park below; see
+      // `cancel-turn.ts`.
+      const cancel = await cancelHarnessTurn({
+        sandbox: env.sandbox,
+        sessionId: env.session?.id,
+        promptPromise,
+        log: logger,
+      });
+      cancelSettled = cancel.settled;
+      // Codex leaves its shell child running inside the sandbox we are about to park; Pi and
+      // Claude kill theirs. Reap it here, never in the bridge: the Codex shell is a child of a
+      // vendored Rust binary the JS bridge holds no pid for, and a bridge patch would ship only
+      // through a Daytona snapshot rebuild. Best effort, and it cannot change the park decision.
+      if (cancel.settled && plan.acpAgent === "codex") {
+        await reapLeakedExecChildren({
+          sandbox: env.sandbox,
+          sandboxAgentPort: sandboxAgentServerPort(env.sandbox?.sandboxId),
+          turnElapsedMs: Date.now() - promptStartedAtMs,
+          log: logger,
+        }).catch(() => undefined);
+      }
+      // The harness has been asked to stop, so the Pi trace port and the environment teardown must
+      // not ask again. Their `destroySession` also aborts `env.mcpAbort`, which belongs to the
+      // ENVIRONMENT and must survive a park (the approval-park path skips it for the same reason).
+      if (cancel.requested) env.sessionDestroyRequested = true;
       // The user Stopped the turn: let any in-flight frames settle, honor real completions that
       // already arrived, then settle every STILL-open tool call with the interrupt sentinel so the
       // transcript closes HONESTLY — no orphaned "running" parts, no synthetic success. A deliberate
@@ -1374,11 +1421,27 @@ export async function runTurn(
       return { ok: false, error: swallowedError };
     }
 
-    // A pause has not finished authoring the turn, so only a completed execution can advance the
-    // in-memory resume pointer or complete the durable ledger row.
+    // Which endings are a faithful resume point, and may therefore advance the in-memory resume
+    // pointer and complete the durable ledger row.
+    //
+    //  - A completed execution, as it always has been.
+    //  - A user Stop the HARNESS confirmed. `cancelSettled` is the same proof that earns the warm
+    //    park in `shouldPark`: the harness answered the cancelled prompt, so it is idle and its
+    //    native transcript holds a short but FINISHED turn. Nothing more will be written into it.
+    //
+    // A stopped turn has to take this path, not just the park, because the park alone is
+    // process-local. `hydrateHarnessSessionFromDurable` refuses to re-seed the store from a row
+    // without `end_time`, so a Stop used to leave its row forever incomplete and the session lost
+    // its native harness session on the next runner restart or pool eviction: the rebuild went
+    // cold and the conversation survived only as replayed text.
+    //
+    // Still dropped, unchanged: a pause has not finished authoring the turn, and an UNSETTLED
+    // cancel leaves the harness in an unknown state, possibly still writing. Both fall back to
+    // cold replay, which is the always-correct floor.
+    const turnIsResumePoint =
+      stopReason !== "paused" && (stopReason !== "cancelled" || cancelSettled);
     if (
-      stopReason !== "paused" &&
-      stopReason !== "cancelled" &&
+      turnIsResumePoint &&
       env.continuityTurnIndex !== undefined &&
       sessionId
     ) {
@@ -1405,7 +1468,8 @@ export async function runTurn(
         ).catch(() => {});
       }
     } else if (stopReason === "paused" || stopReason === "cancelled") {
-      // A pause/cancel stopped mid-turn, after the harness may have written a partial turn natively.
+      // A pause, or a cancel the harness never confirmed: the turn stopped mid-write, so the
+      // native transcript may hold a partial turn nobody can describe.
       invalidateContinuity(sessionId, plan.harness, deps);
     }
 
@@ -1416,6 +1480,7 @@ export async function runTurn(
       events: emit ? [] : run.events(),
       usage,
       stopReason,
+      ...(stopReason === "cancelled" ? { cancelSettled } : {}),
       capabilities: {
         ...env.capabilities,
         streamingDeltas: !!emit && env.capabilities.streamingDeltas,

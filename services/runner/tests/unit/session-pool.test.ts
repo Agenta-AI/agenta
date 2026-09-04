@@ -165,6 +165,7 @@ describe("readKeepaliveConfig", () => {
     "AGENTA_RUNNER_SESSION_KEEPALIVE",
     "AGENTA_RUNNER_SESSION_TTL_MS",
     "AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS",
+    "AGENTA_RUNNER_SESSION_STOPPED_TTL_MS",
     "AGENTA_RUNNER_SESSION_POOL_MAX",
     "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS",
     "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM",
@@ -190,6 +191,9 @@ describe("readKeepaliveConfig", () => {
       enabled: true,
       ttlMs: 60_000,
       approvalTtlMs: 600_000,
+      // Defaults to the idle window, so the stopped-session field changes no timing on its own.
+      // The open recommendation is to move it to the approval window; Mahmoud picks.
+      stoppedTtlMs: 60_000,
       poolMax: 8,
     });
   });
@@ -228,6 +232,8 @@ describe("readKeepaliveConfig", () => {
     assert.deepEqual(readKeepaliveConfig("daytona"), {
       enabled: true,
       ttlMs: 120_000,
+      // Daytona keeps its billed idle window for a stopped session unless an operator opts in.
+      stoppedTtlMs: 120_000,
       approvalTtlMs: 120_000,
       poolMax: 20,
     });
@@ -238,6 +244,7 @@ describe("readKeepaliveConfig", () => {
       enabled: false,
       ttlMs: 0,
       approvalTtlMs: 0,
+      stoppedTtlMs: 0,
       poolMax: 20,
     });
     process.env.AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS = "45000";
@@ -245,6 +252,7 @@ describe("readKeepaliveConfig", () => {
       enabled: true,
       ttlMs: 45_000,
       approvalTtlMs: 45_000,
+      stoppedTtlMs: 45_000,
       poolMax: 20,
     });
     process.env.AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM = "7";

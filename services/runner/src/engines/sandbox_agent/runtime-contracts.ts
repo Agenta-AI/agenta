@@ -190,12 +190,18 @@ export interface RunTurnOptions {
   continuation?: boolean;
   /**
    * The session was rehydrated via `session/load` (the patched `resumeSession`), so the harness
-   * already holds the prior turns natively. Like `continuation`, the prompt is only the new user
-   * text; `buildTurnText` must not run. Distinct field from `continuation` because the two arrive
-   * through different acquire paths (live pool checkout vs a fresh cold acquire that loaded an
-   * old session) — `runTurn` treats them identically for the text-selection decision.
+   * accepted the prior native session id. This is deliberately weaker than proof that prior turns
+   * were replayed; `nativeHistoryVerified` supplies that proof. Distinct from `continuation`
+   * because the two arrive through different acquire paths (live pool checkout vs a fresh cold
+   * acquire that attempted to load an old session).
    */
   loaded?: boolean;
+  /**
+   * The native load produced observable prior-message events. `loaded` alone only proves the
+   * adapter accepted the requested id; without this proof the reconstructed transcript remains
+   * authoritative and must be replayed.
+   */
+  nativeHistoryVerified?: boolean;
   /**
    * Keep-alive approval park mode: on a parkable ACP permission gate the pause keeps the session
    * alive (no settle/abort/destroy) so a later resume can answer it. A non-parkable pause (Pi
@@ -215,11 +221,13 @@ export interface RunTurnOptions {
 
 /**
  * Send only the new user text (not the full cold transcript) when the harness already holds the
- * prior turns: a live continuation, or a session rehydrated via `session/load`. `runTurn` calls
- * this, so a test that pins it pins the shipped decision.
+ * prior turns: a live continuation, or a `session/load` that emitted observable prior-message
+ * events. `runTurn` calls this, so a test that pins it pins the shipped decision.
  */
 export function sendLastMessageOnly(opts: RunTurnOptions): boolean {
-  return Boolean(opts.continuation || opts.loaded);
+  return Boolean(
+    opts.continuation || (opts.loaded && opts.nativeHistoryVerified),
+  );
 }
 
 /**
@@ -311,6 +319,10 @@ export interface SessionEnvironment {
   projectScopeId?: string;
   /** This acquire resumed the harness's native session via `session/load` (not cold). */
   loadedFromContinuity: boolean;
+  /** The load emitted at least one prior conversation event, proving native history is present. */
+  nativeHistoryVerified: boolean;
+  /** The native transcript path survives this environment's teardown and a later cold rebuild. */
+  nativeHistoryDurable: boolean;
   /** A remote, session-owned run whose sandbox can be parked (warm) rather than deleted at end. */
   resumable: boolean;
   /**

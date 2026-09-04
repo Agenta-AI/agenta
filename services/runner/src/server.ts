@@ -16,6 +16,10 @@
  */
 import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
+import {
+  isUserStopAbort,
+  USER_STOP_ABORT_REASON,
+} from "./sessions/stop-signal.ts";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
@@ -80,7 +84,7 @@ import {
   SESSION_TURN_IN_USE_CODE,
   SESSION_TURN_IN_USE_MESSAGE,
 } from "./sessions/admission.ts";
-import { startAliveWatchdog } from "./sessions/alive.ts";
+import { releaseOwnedSessions, startAliveWatchdog } from "./sessions/alive.ts";
 import {
   buildWorkflowReferenceList,
   cancelStaleInteractions,
@@ -289,6 +293,7 @@ const realKeepaliveEngine: KeepaliveEngine = {
     try {
       result = await runTurn(acquired.env, request, emit, signal, {
         loaded: acquired.env.loadedFromContinuity,
+        nativeHistoryVerified: acquired.env.nativeHistoryVerified,
         ...(credential ? { credential } : {}),
         seededDecisions: await loadDurableDecisions(
           acquired.env.sessionId,
@@ -491,6 +496,8 @@ async function runAndStreamWithApiBaseResolved(
   let emitFn: EmitEvent = liveEmit;
   let flushPersist: (() => Promise<void>) | undefined;
   let persistError: ((message: string) => void) | undefined;
+  let persistTerminal: ((stopReason?: string) => void) | undefined;
+  let terminalRecordEmitted = false;
   let aliveWatchdog:
     | {
         release: () => Promise<void>;
@@ -520,7 +527,9 @@ async function runAndStreamWithApiBaseResolved(
       sessionId,
       turnId,
       platformCredentialForRequest(request),
-      () => controller.abort(),
+      // LABELLED, not a bare abort: `shouldPark` parks only an abort it can prove was a
+      // cooperative Stop. See `sessions/stop-signal.ts`.
+      () => controller.abort(USER_STOP_ABORT_REASON),
       {
         name: proposeSessionName(request),
         references: buildWorkflowReferenceList(request.runContext?.workflow),
@@ -623,9 +632,22 @@ async function runAndStreamWithApiBaseResolved(
         );
       }
     }
-    emitFn = persistingEmit;
+    emitFn = (event) => {
+      if (event.type === "done") terminalRecordEmitted = true;
+      persistingEmit(event);
+    };
     flushPersist = flush;
     persistError = (message) => persist({ type: "error", message }, "agent");
+    persistTerminal = (stopReason) => {
+      terminalRecordEmitted = true;
+      persist(
+        {
+          type: "done",
+          ...(stopReason === "cancelled" ? { stopReason } : {}),
+        },
+        "agent",
+      );
+    };
   }
 
   let result: AgentRunResult;
@@ -634,9 +656,25 @@ async function runAndStreamWithApiBaseResolved(
       clientGone: () => clientDisconnected,
       credential: aliveWatchdog?.credential,
     });
-    // A failed engine run ({ok:false}) already emitted its own error EVENT through the
-    // persisting emitter, so no extra persist here (it would duplicate the record). Drain
-    // all queued persists before the sandbox tears down.
+    // `runTurn` normally emits `done` itself. Acquisition can fail before `runTurn` starts,
+    // though, and a cooperative Stop during a cold sandbox create reaches exactly that path.
+    // Close any failed run that emitted no terminal record; preserve the Stop marker when the
+    // labelled control-plane abort caused it. A genuine acquire failure never reached runTurn's
+    // error emitter, so preserve its error before the done backstop instead of making the empty
+    // turn look successful. Both records use the same ordered persistence chain as runTurn's
+    // emitter but stay off the live stream, whose result envelope is unchanged.
+    if (
+      !terminalRecordEmitted &&
+      persistTerminal &&
+      (!result.ok || isUserStopAbort(controller.signal))
+    ) {
+      const userStopped = isUserStopAbort(controller.signal);
+      if (!userStopped && !result.ok && persistError) {
+        persistError(result.error ?? "Agent run failed.");
+      }
+      persistTerminal(userStopped ? "cancelled" : undefined);
+    }
+    // Drain the terminal backstop and all prior persists before the sandbox tears down.
     if (flushPersist) await flushPersist();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -651,6 +689,13 @@ async function runAndStreamWithApiBaseResolved(
     // A throw escaping run() itself (outside the engine's own try/catch) emitted no error
     // event — persist it here as the backstop.
     if (persistError) persistError(message);
+    if (
+      !terminalRecordEmitted &&
+      persistTerminal &&
+      isUserStopAbort(controller.signal)
+    ) {
+      persistTerminal("cancelled");
+    }
     if (flushPersist) await flushPersist().catch(() => {});
     result = { ok: false, error: message };
   } finally {
@@ -941,6 +986,14 @@ if (isEntrypoint(import.meta.url)) {
         ),
       );
       await destroyInFlightSandboxes(timeoutMs, "shutdown-in-flight");
+      // LAST, and only after the sandboxes are gone: hand back the `owner:session:<id>`
+      // affinity keys this replica holds. Nothing else releases them, and `claim_owner` never
+      // steals, so without this the replacement replica is refused every message on those
+      // sessions for the rest of the 120-second lease. It runs last because a session whose
+      // sandbox is still being destroyed should not yet look free to another replica, and it
+      // is bounded so it can never hold the process past the SIGTERM grace period. A SIGKILL
+      // reaches no handler at all; the lease stays the fallback for that.
+      await releaseOwnedSessions(timeoutMs);
     },
   });
 

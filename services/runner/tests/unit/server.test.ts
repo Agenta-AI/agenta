@@ -19,8 +19,13 @@ import {
   createAgentServer,
   normalizeKillProjectId,
   registerShutdownHandler,
+  runWithKeepalive,
+  type KeepaliveEngine,
   type RunAgent,
 } from "../../src/server.ts";
+import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
+import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
+import { HEARTBEAT_INTERVAL_SECONDS } from "../../src/sessions/contract.ts";
 
 const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 const previousToken = process.env[TOKEN_ENV];
@@ -520,6 +525,297 @@ describe("createAgentServer", () => {
         "terminal result does not echo events",
       );
     } finally {
+      await s.close();
+    }
+  });
+
+  it("persists one stopped ending when user Stop aborts a slow cold acquire", async () => {
+    let markAcquireStarted!: () => void;
+    const acquireStarted = new Promise<void>((resolve) => {
+      markAcquireStarted = resolve;
+    });
+    let runTurnCalls = 0;
+    const engine: KeepaliveEngine = {
+      async resolveKeepaliveMount() {
+        return null;
+      },
+      async acquireEnvironment(_request, signal) {
+        markAcquireStarted();
+        await new Promise<void>((resolve) => {
+          if (signal?.aborted) return resolve();
+          signal?.addEventListener("abort", () => resolve(), { once: true });
+        });
+        return { ok: false, error: "sandbox acquisition aborted" };
+      },
+      async runTurn() {
+        runTurnCalls += 1;
+        return { ok: true, output: "must not run" };
+      },
+      async runCold() {
+        return { ok: false, error: "must not run cold fallback" };
+      },
+    };
+    const run: RunAgent = (request, emit, signal) =>
+      runWithKeepalive(request, emit, signal, {
+        engine,
+        pool: new SessionPool<SessionEnvironment>({ poolMax: 1 }),
+        config: {
+          enabled: true,
+          ttlMs: 60_000,
+          approvalTtlMs: 60_000,
+          poolMax: 1,
+        },
+      });
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-stop-during-acquire" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-stop-during-acquire",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "start slowly" }],
+        }),
+      });
+
+      await acquireStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(runTurnCalls, 0, "the Stop landed before the turn started");
+      const endings = ingested.filter(
+        (record) => record.record_type === "done",
+      );
+      assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.equal(
+        ingested.filter((record) => record.record_type === "error").length,
+        0,
+        "a user Stop does not persist an acquire error",
+      );
+      assert.deepEqual(endings[0].attributes, {
+        type: "done",
+        stopReason: "cancelled",
+      });
+      assert.equal(
+        records.filter((record) => record.kind === "result").length,
+        1,
+        "the run outcome is reported once",
+      );
+      assert.equal(records.at(-1)?.result.ok, false);
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("persists an acquire failure error before exactly one ending", async () => {
+    const acquireError = "sandbox mount failed";
+    let runTurnCalls = 0;
+    const engine: KeepaliveEngine = {
+      async resolveKeepaliveMount() {
+        return null;
+      },
+      async acquireEnvironment() {
+        return { ok: false, error: acquireError };
+      },
+      async runTurn() {
+        runTurnCalls += 1;
+        return { ok: true, output: "must not run" };
+      },
+      async runCold() {
+        return { ok: false, error: "must not run cold fallback" };
+      },
+    };
+    const run: RunAgent = (request, emit, signal) =>
+      runWithKeepalive(request, emit, signal, {
+        engine,
+        pool: new SessionPool<SessionEnvironment>({ poolMax: 1 }),
+        config: {
+          enabled: true,
+          ttlMs: 60_000,
+          approvalTtlMs: 60_000,
+          poolMax: 1,
+        },
+      });
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-acquire-failure" },
+            is_current_turn: true,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+
+    try {
+      const response = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-acquire-failure",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "fail during acquire" }],
+        }),
+      });
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(runTurnCalls, 0, "the failed acquire never starts the turn");
+      const endingRecords = ingested.filter((record) =>
+        ["error", "done"].includes(record.record_type),
+      );
+      assert.deepEqual(
+        endingRecords.map((record) => record.record_type),
+        ["error", "done"],
+        "the transcript preserves the error before its ending",
+      );
+      assert.deepEqual(endingRecords[0].attributes, {
+        type: "error",
+        message: acquireError,
+      });
+      assert.deepEqual(endingRecords[1].attributes, { type: "done" });
+      assert.equal(
+        records.filter((record) => record.kind === "result").length,
+        1,
+        "the failed run outcome is reported once",
+      );
+      assert.equal(records.at(-1)?.result.error, acquireError);
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("keeps the normal Stop path at exactly one persisted ending", async () => {
+    const normalStop: RunAgent = async (_request, emit) => {
+      emit?.({ type: "done", stopReason: "cancelled" });
+      return { ok: true, stopReason: "cancelled", events: [] };
+    };
+    const s = await listen(normalStop);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-normal-stop" },
+            is_current_turn: true,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+
+    try {
+      const response = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-normal-stop",
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "stop normally" }],
+        }),
+      });
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      const endings = ingested.filter(
+        (record) => record.record_type === "done",
+      );
+      assert.equal(endings.length, 1, "the server must not duplicate runTurn's ending");
+      assert.deepEqual(endings[0].attributes, {
+        type: "done",
+        stopReason: "cancelled",
+      });
+      assert.equal(
+        records.filter(
+          (record) =>
+            record.kind === "event" && record.event?.type === "done",
+        ).length,
+        1,
+        "the normal Stop still streams its one done event",
+      );
+      assert.equal(
+        records.filter((record) => record.kind === "result").length,
+        1,
+        "the run outcome is reported once",
+      );
+    } finally {
+      fetchSpy.mockRestore();
       await s.close();
     }
   });

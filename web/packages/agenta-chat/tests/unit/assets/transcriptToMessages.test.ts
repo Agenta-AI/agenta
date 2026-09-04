@@ -1056,3 +1056,34 @@ describe("transcriptToMessages run-error code", () => {
         expect(runErrorOf({type: "error", message: "boom"})).toEqual({message: "boom"})
     })
 })
+
+describe("transcriptToMessages user-Stop terminal record", () => {
+    // A cancelled `done` is an ordinary turn terminator during reconstruction.
+    it("closes a stopped turn like a completed one", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "run something long"}, "user"),
+            record("r-msg", {type: "message", text: "starting"}),
+            record("r-done-cancelled", {type: "done", stopReason: "cancelled"}),
+            record("r-user-2", {type: "message", text: "what was the codeword"}, "user"),
+            record("r-msg-2", {type: "message", text: "MANGO"}),
+            record("r-done", {type: "done"}),
+        ])
+
+        // Four bubbles: a stopped turn must not swallow the next one the way a pause does.
+        expect(messages).toHaveLength(4)
+        expect(messages![1].parts).toMatchObject([{type: "text", text: "starting"}])
+        expect(messages![3].parts).toMatchObject([{type: "text", text: "MANGO"}])
+    })
+
+    it("does not mark a stopped turn as paused", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "run something long"}, "user"),
+            record("r-msg", {type: "message", text: "starting"}),
+            record("r-done-cancelled", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(
+            (messages![1] as unknown as {metadata?: {paused?: boolean}}).metadata?.paused,
+        ).toBeFalsy()
+    })
+})

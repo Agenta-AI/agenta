@@ -558,6 +558,14 @@ export async function runWithKeepalive(
     }
   };
 
+  /**
+   * The idle window a clean park gets. A user Stop gets the longer stopped window, because the
+   * user is about to type the next message; every other clean turn gets the ordinary one. See
+   * `KeepaliveConfig.stoppedTtlMs` for how to collapse the two.
+   */
+  const parkTtlMs = (stopped: boolean): number =>
+    stopped ? (config.stoppedTtlMs ?? config.ttlMs) : config.ttlMs;
+
   const resultTeardownReason = (result: AgentRunResult): TeardownReason =>
     shouldPark(result, signal, clientGone)
       ? "clean-resumable"
@@ -769,7 +777,12 @@ export async function runWithKeepalive(
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!(await seat(config.ttlMs, "idle"))) {
+      // A settled user Stop parks like any clean turn, but on the LONGER stopped window: the
+      // user is about to type. Logged so the live evidence shows the sandbox surviving a Stop
+      // rather than a `no-park:cancelled` eviction.
+      const stopped = result.stopReason === "cancelled";
+      if (stopped) klog(`park-cancelled key=${key} ttl=${parkTtlMs(stopped)}ms`);
+      if (!(await seat(parkTtlMs(stopped), "idle"))) {
         await drop("park-refused", "clean-resumable");
       } else {
         await notifyParkedLive(env);
@@ -827,7 +840,9 @@ export async function runWithKeepalive(
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!(await pool.repark(live, update, config.ttlMs))) {
+      const stopped = result.stopReason === "cancelled";
+      if (stopped) klog(`park-cancelled key=${key} ttl=${parkTtlMs(stopped)}ms`);
+      if (!(await pool.repark(live, update, parkTtlMs(stopped)))) {
         await live.teardown("failed-turn");
       } else {
         await notifyParkedLive(env);
@@ -892,6 +907,7 @@ export async function runWithKeepalive(
       result = await engine.runTurn(env, request, trackedEmit, signal, {
         approvalParkMode: true,
         loaded: env.loadedFromContinuity,
+        nativeHistoryVerified: env.nativeHistoryVerified,
         ...turnCredential,
       });
     } catch (err) {
