@@ -76,7 +76,6 @@ class StreamConsumer:
         #: Messages this process gave up on. Only ever grows; read by tests and logs.
         self.dropped_messages = 0
         self._last_reclaim_at = 0.0
-        self._last_commit_at = 0.0
 
     async def create_consumer_group(self):
         """Create consumer group if it doesn't exist. Safe to call multiple times (idempotent)."""
@@ -160,32 +159,22 @@ class StreamConsumer:
         """Subclass hook: a short identity for a dropped message, for the loss log."""
         return None
 
-    def mark_committed(self) -> None:
-        """Subclasses call this after a durable write. See `write_path_is_healthy`."""
-        self._last_commit_at = time.monotonic()
-
-    def write_path_is_healthy(self) -> bool:
-        """Has anything at all been written recently?
-
-        The delivery counter alone cannot tell a message the write path will never accept apart
-        from a write path that is simply down: both fail every delivery. Dropping on the count
-        alone therefore deletes every message in flight whenever an outage lasts longer than
-        `max_deliveries` windows, which is the loss this worker exists to prevent. So the drop
-        only applies while other messages are committing.
-        """
-        if self._last_commit_at == 0.0:
-            return False
-        window_ms = max(self.reclaim_min_idle_ms, 1_000) * 2
-        return (time.monotonic() - self._last_commit_at) * 1000 <= window_ms
+    def is_permanent_failure(
+        self,
+        msg_id: bytes,
+        data: Dict[bytes, bytes],
+    ) -> bool:
+        """Subclass hook: whether this exact message is known not to succeed on retry."""
+        return False
 
     async def reclaim_batch(self) -> List[Tuple[bytes, Dict[bytes, bytes]]]:
-        """Re-deliver entries an earlier pass left unacknowledged, and drop the ones that never
-        write.
+        """Re-deliver entries an earlier pass left unacknowledged.
 
         `read_batch` only ever asks Redis for `>`, so an entry that is never acknowledged is
         invisible to every later read of this group. Without this pass, "skip the ACK so Redis
-        retries it" means "lose it quietly with a growing pending list". Redis' own per-entry
-        delivery counter bounds the retry, so one poison entry cannot hold the group forever.
+        retries it" means "lose it quietly with a growing pending list". Redis' delivery count
+        bounds retries only for a message the subclass has identified as permanently invalid;
+        it cannot distinguish a poison message from a transient write-path outage.
         """
         if not self.reclaim_pending:
             return []
@@ -233,7 +222,6 @@ class StreamConsumer:
 
         # XCLAIM returns nothing for an entry whose stream payload is already gone (MAXLEN
         # trim), and removes it from the pending list itself.
-        healthy = self.write_path_is_healthy()
         retry: List[Tuple[bytes, Dict[bytes, bytes]]] = []
         expired: List[Tuple[bytes, Dict[bytes, bytes]]] = []
         over_budget = 0
@@ -242,7 +230,7 @@ class StreamConsumer:
                 continue
             if deliveries.get(msg_id, 1) >= self.max_deliveries:
                 over_budget += 1
-                if healthy:
+                if self.is_permanent_failure(msg_id, data):
                     expired.append((msg_id, data))
                     continue
             retry.append((msg_id, data))
@@ -251,7 +239,7 @@ class StreamConsumer:
             await self.drop_expired(expired)
         elif over_budget:
             log.warning(
-                f"{self.log_prefix} Keeping over-budget messages: nothing is writing",
+                f"{self.log_prefix} Keeping over-budget messages: failure is not known to be permanent",
                 stream=self.stream_name,
                 group=self.consumer_group,
                 count=over_budget,

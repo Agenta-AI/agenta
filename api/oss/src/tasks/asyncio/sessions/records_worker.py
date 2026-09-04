@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from redis.asyncio import Redis
+from sqlalchemy.exc import DataError, IntegrityError
 
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.dtos import TERMINAL_RECORD_TYPE
@@ -23,6 +24,7 @@ if is_ee():
 # human instead of finishing (services/runner/src/tracing/otel.ts: the field is written ONLY
 # for a pause and omitted on every other stop reason).
 PAUSED_STOP_REASON = "paused"
+ROW_REJECTION_ERRORS = (DataError, IntegrityError)
 
 
 def finished_turns_in_batch(events: List[Any]) -> Dict[str, str]:
@@ -104,6 +106,7 @@ class RecordsWorker(StreamConsumer):
         # Absent disables gate reconciliation (minimal test compositions), which only loses the
         # safety net — never the append.
         self.interactions_service = interactions_service
+        self._permanent_failure_ids: set[bytes] = set()
 
     async def reconcile_orphaned_gates(
         self,
@@ -167,13 +170,20 @@ class RecordsWorker(StreamConsumer):
         except Exception:
             return None
 
+    def is_permanent_failure(
+        self,
+        msg_id: bytes,
+        data: Dict[bytes, bytes],
+    ) -> bool:
+        return msg_id in self._permanent_failure_ids
+
     async def _append(
         self,
         *,
         project_id: UUID,
         entries: List[Tuple[bytes, Any]],
-    ) -> Tuple[int, bool]:
-        """One `append_many` call. Returns the rows written and whether it committed."""
+    ) -> Tuple[int, Optional[Exception]]:
+        """One `append_many` call. Returns rows written and any failure."""
         try:
             results = await self.service.append_many(
                 events=[msg.record_event for _, msg in entries],
@@ -193,16 +203,15 @@ class RecordsWorker(StreamConsumer):
                         {f"{row.session_id}:{row.turn_id}" for row in quarantined}
                     ),
                 )
-            self.mark_committed()
-            return len(results), True
-        except Exception:
+            return len(results), None
+        except Exception as exc:
             log.error(
                 "[RECORDS] Failed to append event batch",
                 project_id=str(project_id),
                 size=len(entries),
                 exc_info=True,
             )
-            return 0, False
+            return 0, exc
 
     async def _append_committed(
         self,
@@ -212,17 +221,23 @@ class RecordsWorker(StreamConsumer):
     ) -> Tuple[int, List[bytes]]:
         """Write a project group and report the message ids that are durable.
 
-        `append_many` is one statement in one transaction, so a single record Postgres rejects
-        takes the whole group down with it. The retry writes the group one record at a time so
-        the unrelated records still land. One record at a time rather than a binary split: the
-        split is cheaper only when the failure is a lone poison record, and it is more expensive
-        when Postgres itself is down, which is the common case.
+        `append_many` is one statement in one transaction, so a row-specific database rejection
+        takes the whole group down with it. Only that failure class triggers one-record writes to
+        isolate the rejected row. Connection, timeout, and unknown failures leave the entire
+        group pending for Redis reclaim instead of multiplying calls during an outage.
         """
-        appended, committed = await self._append(project_id=project_id, entries=entries)
-        if committed:
+        appended, failure = await self._append(project_id=project_id, entries=entries)
+        if failure is None:
+            self._permanent_failure_ids.difference_update(
+                msg_id for msg_id, _ in entries
+            )
             return appended, [msg_id for msg_id, _ in entries]
 
+        if not isinstance(failure, ROW_REJECTION_ERRORS):
+            return 0, []
+
         if len(entries) == 1:
+            self._permanent_failure_ids.add(entries[0][0])
             return 0, []
 
         log.warning(
@@ -234,10 +249,15 @@ class RecordsWorker(StreamConsumer):
         total_appended = 0
         committed_ids: List[bytes] = []
         for entry in entries:
-            appended, ok = await self._append(project_id=project_id, entries=[entry])
-            if ok:
+            appended, failure = await self._append(
+                project_id=project_id, entries=[entry]
+            )
+            if failure is None:
                 total_appended += appended
                 committed_ids.append(entry[0])
+                self._permanent_failure_ids.discard(entry[0])
+            elif isinstance(failure, ROW_REJECTION_ERRORS):
+                self._permanent_failure_ids.add(entry[0])
 
         log.warning(
             "[RECORDS] Retry finished",
