@@ -55,7 +55,7 @@ import {
     type ClientToolPartPredicate,
     type TurnViewModel,
 } from "../model/turnViewModel"
-import {lastTurnWasUserStopped, reduceUserStoppedState} from "../model/userStop"
+import {createUserStoppedState, reduceUserStoppedState} from "../model/userStop"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
 import {stampMessagesCreatedAtAtom} from "../state/messageStamps"
 import {
@@ -205,11 +205,12 @@ export const useAgentConversation = ({
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
     const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
     // Only the last assistant turn can carry the current stopped state.
-    const [stopped, dispatchStopped] = useReducer(
+    const [userStoppedState, dispatchStopped] = useReducer(
         reduceUserStoppedState,
         initialMessages,
-        lastTurnWasUserStopped,
+        createUserStoppedState,
     )
+    const stopped = userStoppedState.stopped
     const setStopped = useCallback(
         (next: boolean) => dispatchStopped({type: next ? "user-stop" : "reset"}),
         [],

@@ -1,7 +1,13 @@
 import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {lastTurnWasUserStopped, reduceUserStoppedState} from "../../../src/model/userStop"
+import {
+    createUserStoppedState,
+    lastTurnWasUserStopped,
+    reduceUserStoppedState,
+    type UserStoppedState,
+    type UserStoppedStateEvent,
+} from "../../../src/model/userStop"
 
 const assistant = (metadata?: Record<string, unknown>): UIMessage =>
     ({id: "a1", role: "assistant", parts: [], metadata}) as UIMessage
@@ -33,34 +39,39 @@ const clientInteraction = {
     ],
 } as UIMessage
 
+const reduce = (
+    event: UserStoppedStateEvent,
+    state: UserStoppedState = createUserStoppedState([]),
+) => reduceUserStoppedState(state, event)
+
 describe("user stopped state", () => {
     it("maps a stream-delivered cancelled ending to the neutral state", () => {
         expect(
-            reduceUserStoppedState(false, {
+            reduce({
                 type: "stream-terminal",
                 finishReason: "other",
                 messages: [assistant()],
-            }),
+            }).stopped,
         ).toBe(true)
     })
 
     it("does not mistake a paused approval for a cancellation", () => {
         expect(
-            reduceUserStoppedState(false, {
+            reduce({
                 type: "stream-terminal",
                 finishReason: "other",
                 messages: [approval],
-            }),
+            }).stopped,
         ).toBe(false)
     })
 
     it("does not mistake a parked client interaction for a cancellation", () => {
         expect(
-            reduceUserStoppedState(false, {
+            reduce({
                 type: "stream-terminal",
                 finishReason: "other",
                 messages: [clientInteraction],
-            }),
+            }).stopped,
         ).toBe(false)
     })
 
@@ -68,20 +79,38 @@ describe("user stopped state", () => {
         const messages = [assistant({runStopped: true})]
 
         expect(lastTurnWasUserStopped(messages)).toBe(true)
-        expect(reduceUserStoppedState(false, {type: "transcript", messages})).toBe(true)
+        expect(reduce({type: "transcript", messages}).stopped).toBe(true)
     })
 
     it("keeps genuine stream failures non-neutral", () => {
         expect(
-            reduceUserStoppedState(false, {
+            reduce({
                 type: "stream-terminal",
                 finishReason: "error",
                 messages: [assistant()],
-            }),
+            }).stopped,
         ).toBe(false)
     })
 
     it("clears the marker when a new turn starts", () => {
-        expect(reduceUserStoppedState(true, {type: "reset"})).toBe(false)
+        const state = reduce({type: "user-stop"}, createUserStoppedState([assistant()]))
+        expect(reduce({type: "reset"}, state).stopped).toBe(false)
+    })
+
+    it("keeps the local latch while the same stopped turn changes in place", () => {
+        const stoppedTurn = assistant({turnId: "turn-1"})
+        const state = reduce({type: "user-stop"}, createUserStoppedState([stoppedTurn]))
+
+        expect(reduce({type: "transcript", messages: [stoppedTurn]}, state).stopped).toBe(true)
+    })
+
+    it("clears the latch when revalidation adopts a newer resumed turn", () => {
+        const state = reduce(
+            {type: "user-stop"},
+            createUserStoppedState([assistant({turnId: "turn-1"})]),
+        )
+        const resumedTurn = assistant({turnId: "turn-2"})
+
+        expect(reduce({type: "transcript", messages: [resumedTurn]}, state).stopped).toBe(false)
     })
 })

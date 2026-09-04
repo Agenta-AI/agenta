@@ -2,7 +2,6 @@ import {act, createElement} from "react"
 import {createRoot} from "react-dom/client"
 import type {UIMessage} from "ai"
 import {beforeEach, describe, expect, it, vi} from "vitest"
-
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -30,11 +29,16 @@ vi.mock("@agenta/chat/hooks", () => ({
 }))
 
 vi.mock("@agenta/chat/model", () => ({
+    createUserStoppedState: () => ({stopped: false, turnIdentity: null}),
     ignoreStreamRejection: () => undefined,
-    lastTurnWasUserStopped: () => false,
     parseAgentRunError: () => ({message: "error"}),
-    reduceUserStoppedState: (state: boolean, event: {type: string}) =>
-        event.type === "user-stop" ? true : event.type === "reset" ? false : state,
+    reduceUserStoppedState: (
+        state: {stopped: boolean; turnIdentity: null},
+        event: {type: string},
+    ) => ({
+        ...state,
+        stopped: event.type === "user-stop" ? true : event.type === "reset" ? false : state.stopped,
+    }),
 }))
 
 vi.mock("@agenta/chat/state", () => ({

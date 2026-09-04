@@ -10,7 +10,7 @@ import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
 import {
     ignoreStreamRejection,
-    lastTurnWasUserStopped,
+    createUserStoppedState,
     parseAgentRunError,
     reduceUserStoppedState,
 } from "@agenta/chat/model"
@@ -120,11 +120,12 @@ export const useAgentChatSession = ({
     // so this is a single boolean gated on position at render time — independent of message ids (which
     // can be missing/duplicated in restore/error paths and would otherwise smear the tag onto every
     // turn). Cleared on the next send/resend.
-    const [stopped, dispatchStopped] = useReducer(
+    const [userStoppedState, dispatchStopped] = useReducer(
         reduceUserStoppedState,
         initialMessages,
-        lastTurnWasUserStopped,
+        createUserStoppedState,
     )
+    const stopped = userStoppedState.stopped
     const setStopped = useCallback(
         (next: boolean) => dispatchStopped({type: next ? "user-stop" : "reset"}),
         [],
