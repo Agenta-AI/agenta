@@ -360,7 +360,13 @@ class SessionCancelRequest(BaseModel):
     # refuses the request if another one is running. When absent, it cancels whichever
     # execution is active when the request is applied. A person never types this: the browser
     # fills it from the session's own state, and a first-party client always sends it.
-    expected_execution_id: Optional[str] = None
+    expected_execution_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional stale-request guard honored only in cancel mode; ignored for send, "
+            "steer, and attach."
+        ),
+    )
 
 
 class SessionCommandRef(BaseModel):
