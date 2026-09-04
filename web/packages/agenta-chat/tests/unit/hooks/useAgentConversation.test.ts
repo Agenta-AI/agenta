@@ -21,6 +21,8 @@ import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+const {resumeContinuation} = vi.hoisted(() => ({resumeContinuation: vi.fn()}))
+
 vi.mock("@agenta/playground/agent-chat", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/playground/agent-chat")>()
     return {
@@ -49,6 +51,7 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
         fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
         fetchSessionSnapshot: vi.fn(),
         querySessionTranscript: vi.fn(),
+        resumeSessionContinuationAtom: atom(null, () => resumeContinuation()),
     }
 })
 
@@ -271,6 +274,8 @@ beforeEach(() => {
     } as SessionSnapshot)
     vi.mocked(querySessionTranscript).mockReset()
     vi.mocked(querySessionTranscript).mockResolvedValue([])
+    resumeContinuation.mockReset()
+    resumeContinuation.mockResolvedValue(false)
     vi.mocked(buildAgentRequest).mockClear()
     // Restore the ready-workflow build: one test replaces it with a not-yet-loaded one, and
     // `mockClear` keeps the implementation.
@@ -284,6 +289,28 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe("useAgentConversation", () => {
+    it("redelivers a durable continuation before request build and suppresses direct invoke", async () => {
+        resumeContinuation.mockResolvedValueOnce(true)
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "do not race"})
+        })
+        await waitFor(() => expect(result.current.status).toBe("error"))
+
+        expect(resumeContinuation).toHaveBeenCalledOnce()
+        expect(vi.mocked(buildAgentRequest)).not.toHaveBeenCalled()
+        expect(fetchMock).not.toHaveBeenCalled()
+        expect(result.current.error).toEqual({
+            code: "continuation_resumed",
+            message:
+                "A saved approval is resuming. Wait for it to finish, then try this message again.",
+        })
+    })
+
     it("runs a full turn: send → stream → settle → persist + status publish", async () => {
         fetchMock.mockResolvedValue(streamResponse("Hello back"))
         const store = createStore()

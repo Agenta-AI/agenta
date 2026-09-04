@@ -22,6 +22,20 @@ describe("parseAgentRunError", () => {
         expect(parseAgentRunError(raw)).toEqual({message: "Boom", code: 500})
     })
 
+    it("preserves the continuation race class when the workflow envelope also uses HTTP 409", () => {
+        const raw = JSON.stringify({
+            status: {
+                type: "https://agenta.ai/docs/errors#continuation-resumed",
+                code: 409,
+                message: "The durable continuation owns this session.",
+            },
+        })
+        expect(parseAgentRunError(raw)).toEqual({
+            message: "The durable continuation owns this session.",
+            code: "continuation_resumed",
+        })
+    })
+
     it("falls back to a top-level message when there's no status wrapper", () => {
         const raw = JSON.stringify({message: "Top level"})
         expect(parseAgentRunError(raw)).toEqual({message: "Top level", code: undefined})

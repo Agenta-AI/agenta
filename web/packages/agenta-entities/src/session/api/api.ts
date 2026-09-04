@@ -1144,6 +1144,35 @@ export interface CancelSessionExecutionResult {
     conflict: boolean
 }
 
+export interface ResumeSessionContinuationParams extends SessionScopedParams {}
+
+/**
+ * Ask the API to redeliver an already-durable approval continuation before a direct invoke.
+ *
+ * This mutation deliberately throws on transport or malformed-response failures: if ownership
+ * is uncertain, allowing the caller to start a fresh turn could race the saved continuation.
+ */
+export async function resumeSessionContinuation({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: ResumeSessionContinuationParams): Promise<boolean> {
+    if (!projectId || !sessionId) {
+        throw new Error("Continuation preflight has no project or session scope.")
+    }
+
+    const data = await getSessionsClient().resumeSessionContinuation(
+        {session_id: sessionId},
+        projectScopedRequest(projectId, appId, abortSignal),
+    )
+    const parsed = z.object({resumed: z.boolean()}).safeParse(data)
+    if (!parsed.success) {
+        throw new Error("Continuation preflight returned an invalid response.")
+    }
+    return parsed.data.resumed
+}
+
 /** Cancel current work through Fern while keeping the session warm. */
 export async function cancelSessionExecution({
     sessionId,

@@ -24,6 +24,7 @@ export {
     cancelSessionStream,
     type CancelSessionOutcome,
     type CancelSessionStreamParams,
+    resumeSessionContinuation,
     killSession,
     deleteSession as deleteSessionRemote,
     archiveSession as archiveSessionRemote,
@@ -47,6 +48,7 @@ export {
     type CommandSessionStreamParams,
     type CancelSessionExecutionParams,
     type CancelSessionExecutionResult,
+    type ResumeSessionContinuationParams,
 } from "./api/api"
 export {
     getSessionsClient,
@@ -141,7 +143,11 @@ export {
     type SessionInteractionRowState,
     type SessionInteractionRowStates,
 } from "./state/interactionStatus"
-export {recordInteractionAnswerAtom, respondInteractionAnswerAtom} from "./state/interactionAnswer"
+export {
+    recordInteractionAnswerAtom,
+    respondInteractionAnswerAtom,
+    resumeSessionContinuationAtom,
+} from "./state/interactionAnswer"
 export {
     sessionMountsQueryFamily,
     mountFilesQueryFamily,

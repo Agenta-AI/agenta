@@ -4,6 +4,7 @@ import {
     buildRequestWithinDeadline,
     getMessageTraceId,
     latestTurnId,
+    prepareAfterContinuationPreflight,
     startupLabelFromDataPart,
     submitServerOwnedApproval,
 } from "@agenta/chat/assets"
@@ -44,6 +45,7 @@ import {
     killSession,
     recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
+    resumeSessionContinuationAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
 } from "@agenta/entities/session"
@@ -147,6 +149,7 @@ export const useAgentChatSession = ({
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
     const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
+    const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
     const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     // `null` means "no live gate" — voided by a stop, or spent once a resume really went out;
@@ -181,26 +184,32 @@ export const useAgentChatSession = ({
     // instead of sticking to the revision this session first mounted on.
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
-            clearSessionTurnId(sessionId)
-            turnAcceptedRef.current = false
-            acceptedExecutionIdRef.current = null
-            acceptedRunBySession.delete(sessionId)
-            setAcceptedRunPending(false)
-            const sharedResponse = sharedSenderReadyRef.current
-            const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
-            turnDeliverySourceBySession.set(sessionId, deliverySource)
-            setTurnDeliverySource(deliverySource)
-            // Bounded: retries while the invocation URL is still loading and rejects if the build
-            // hangs, so a failed send surfaces as an error bubble instead of an eternal spinner
-            // (#6042). The helper owns the not-ready / timed-out errors.
-            const req = await buildRequestWithinDeadline(() =>
-                buildAgentRequest(entityId, messages, {
-                    sessionId: id ?? sessionId,
-                    sharedResponse,
-                }),
+            return prepareAfterContinuationPreflight(
+                resumeSessionContinuation,
+                id ?? sessionId,
+                async () => {
+                    clearSessionTurnId(sessionId)
+                    turnAcceptedRef.current = false
+                    acceptedExecutionIdRef.current = null
+                    acceptedRunBySession.delete(sessionId)
+                    setAcceptedRunPending(false)
+                    const sharedResponse = sharedSenderReadyRef.current
+                    const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
+                    turnDeliverySourceBySession.set(sessionId, deliverySource)
+                    setTurnDeliverySource(deliverySource)
+                    // Bounded: retries while the invocation URL is still loading and rejects if
+                    // the build hangs, so a failed send surfaces as an error bubble instead of an
+                    // eternal spinner (#6042).
+                    const req = await buildRequestWithinDeadline(() =>
+                        buildAgentRequest(entityId, messages, {
+                            sessionId: id ?? sessionId,
+                            sharedResponse,
+                        }),
+                    )
+                    captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
+                    return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
+                },
             )
-            captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
-            return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
         },
         // ── #6047 startup states: capture the runner's observed startup boundary as it streams ──
         onData: (part) => {

@@ -392,6 +392,7 @@ export * from "./SessionInteractionQuery.js";
 export * from "./SessionInteractionQueryFlags.js";
 export * from "./SessionInteractionRequest.js";
 export * from "./SessionInteractionResponse.js";
+export * from "./SessionContinuationResumeResponse.js";
 export * from "./SessionInteractionStatus.js";
 export * from "./SessionInteractionsResponse.js";
 export * from "./SessionListItem.js";

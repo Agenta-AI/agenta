@@ -2,7 +2,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-import {respondInteraction, transitionInteraction} from "../api/api"
+import {respondInteraction, resumeSessionContinuation, transitionInteraction} from "../api/api"
 
 import {
     fetchSessionInteractionStatesAtom,
@@ -29,9 +29,22 @@ const rowForToolCall = (states: SessionInteractionRowStates, toolCallId: string)
 }
 
 /**
+ * The final admission check before a chat transport invokes the runner directly. `true` means a
+ * saved approval continuation owns the session and was redelivered, so the caller must abort its
+ * competing fresh turn. In flag-off mode the API returns false and this is a no-op.
+ */
+export const resumeSessionContinuationAtom = atom(
+    null,
+    async (get, _set, sessionId: string): Promise<boolean> => {
+        const projectId = get(projectIdAtom) ?? ""
+        return resumeSessionContinuation({projectId, sessionId})
+    },
+)
+
+/**
  * Submit an approval through the response endpoint and preserve its failure for the card.
- * HTTP 202 means the server durably owns continuation; HTTP 200 is the flag-off legacy path and
- * tells the caller to release the local AI SDK gate exactly as before.
+ * HTTP 202 means the server durably owns continuation; HTTP 200 is the flag-off server dispatcher
+ * path. Both are server-owned, so callers never also release the local AI SDK gate.
  */
 export const respondInteractionAnswerAtom = atom(
     null,

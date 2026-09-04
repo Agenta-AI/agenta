@@ -21,6 +21,7 @@ import {
     invalidateSessionLivenessQueries,
     recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
+    resumeSessionContinuationAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
     shouldAdoptServerTranscript,
@@ -41,6 +42,7 @@ import {useSetAtom, useStore} from "jotai"
 
 import {latestTurnId} from "../assets/agentTurn"
 import {buildRequestWithinDeadline} from "../assets/boundedRequest"
+import {prepareAfterContinuationPreflight} from "../assets/continuationPreflight"
 import {filesToParts} from "../assets/files"
 import {
     isSessionTranscript,
@@ -276,6 +278,7 @@ export const useAgentConversation = ({
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
     const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
+    const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
 
     // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
     // `onData` and never the transcript — this is the only place the answer survives. A stream that
@@ -298,26 +301,30 @@ export const useAgentConversation = ({
 
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
-            clearSessionTurnId(sessionId)
-            turnAcceptedRef.current = false
-            acceptedExecutionIdRef.current = null
-            acceptedRunBySession.delete(sessionId)
-            setAcceptedRunPending(false)
-            const sharedResponse = sharedSenderReadyRef.current
-            const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
-            turnDeliverySourceBySession.set(sessionId, deliverySource)
-            setTurnDeliverySource(deliverySource)
-            // Bounded, not instant. A null build means the workflow entity has not loaded its
-            // invocation URL YET — the first send to a freshly created agent races that fetch, and
-            // failing on the first null made a new user's first message fail (#6042 on the desktop;
-            // the same race reached /m through this hook).
-            const req = await buildRequestWithinDeadline(() =>
-                buildAgentRequest(entityIdRef.current, messages, {
-                    sessionId: id ?? sessionId,
-                    sharedResponse,
-                }),
+            return prepareAfterContinuationPreflight(
+                resumeSessionContinuation,
+                id ?? sessionId,
+                async () => {
+                    clearSessionTurnId(sessionId)
+                    turnAcceptedRef.current = false
+                    acceptedExecutionIdRef.current = null
+                    acceptedRunBySession.delete(sessionId)
+                    setAcceptedRunPending(false)
+                    const sharedResponse = sharedSenderReadyRef.current
+                    const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
+                    turnDeliverySourceBySession.set(sessionId, deliverySource)
+                    setTurnDeliverySource(deliverySource)
+                    // Bounded, not instant. A null build means the workflow entity has not loaded
+                    // its invocation URL yet — the first send races that fetch (#6042).
+                    const req = await buildRequestWithinDeadline(() =>
+                        buildAgentRequest(entityIdRef.current, messages, {
+                            sessionId: id ?? sessionId,
+                            sharedResponse,
+                        }),
+                    )
+                    return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
+                },
             )
-            return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
         },
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
