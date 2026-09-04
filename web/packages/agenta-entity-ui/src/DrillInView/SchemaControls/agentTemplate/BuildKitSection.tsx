@@ -70,6 +70,7 @@ export function BuildKitSection({
                 <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 text-xs font-medium">Playground build kit</span>
                     <Switch
+                        size="sm"
                         checked={enabled}
                         onCheckedChange={onEnabledChange}
                         disabled={disabled}
@@ -77,8 +78,8 @@ export function BuildKitSection({
                     />
                 </div>
                 <span className="text-xs leading-snug text-colorTextDescription">
-                    These playground-only tools and permissions help the assistant build and revise
-                    this agent. None of this is part of the published agent.
+                    Tools and permissions the assistant builds with here. None of it reaches the
+                    published agent.
                 </span>
             </div>
             {!enabled ? (
