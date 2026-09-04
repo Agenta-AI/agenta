@@ -706,6 +706,7 @@ export const LiveConversation = ({
                             </ContentRail>
                         ) : null}
                         <Composer
+                            entityId={entityId}
                             sessionId={sessionId}
                             onSend={({text, parts}) => {
                                 setStoppingHere(false)

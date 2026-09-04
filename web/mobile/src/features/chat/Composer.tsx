@@ -1,16 +1,24 @@
-import {useEffect, useRef, type MutableRefObject} from "react"
+import {useCallback, useEffect, useRef, type MutableRefObject} from "react"
 
 import {describeAccepted} from "@agenta/chat/assets"
 import {
     AttachmentDropOverlay,
     ChatComposer,
     MicPermissionNotice,
+    PermissionsPickerPanel,
     RecordingBar,
     VoiceInputButton,
 } from "@agenta/chat/components"
-import {stagedFilesToParts, useComposerAttachments, useVoiceComposer} from "@agenta/chat/hooks"
+import {
+    stagedFilesToParts,
+    useChatSlashCommands,
+    useComposerAttachments,
+    useComposerDraft,
+    useVoiceComposer,
+} from "@agenta/chat/hooks"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import type {FileUIPart} from "ai"
 import {AnimatePresence, motion} from "motion/react"
 
@@ -29,6 +37,7 @@ import {useMotionPresets} from "@/lib/motion/presets"
  * behave identically on both surfaces and stay behind one per-user setting.
  */
 export const Composer = ({
+    entityId,
     sessionId,
     onSend,
     disabled = false,
@@ -39,6 +48,8 @@ export const Composer = ({
     inputRef,
     placeholder,
 }: {
+    /** The agent revision the `/` palette reads and writes (model, permissions, skills). */
+    entityId: string
     sessionId: string
     onSend: (input: {text: string; parts?: FileUIPart[]}) => void | Promise<void>
     /** No resolvable agent yet, or the screen is still hydrating. */
@@ -58,6 +69,51 @@ export const Composer = ({
     const attachments = useComposerAttachments({sessionId})
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
     const richInputRef = inputRef ?? ownInputRef
+    // A tab switch is a route change here, so the whole composer unmounts — the per-session
+    // draft is what carries unsent text across it.
+    const draft = useComposerDraft({sessionId, richInputRef})
+
+    // The `/` palette and its two pickers, anchored to the composer box so they open where the
+    // palette was. No `/new` row: the session rail's `+` is the only way to start one here.
+    const composerBoxRef = useRef<HTMLDivElement>(null)
+    // A tap outside is a deliberate move elsewhere — the one close that must not pull focus back.
+    const skipFocusRestoreRef = useRef(false)
+    const slash = useChatSlashCommands({
+        entityId,
+        // The picker autofocuses itself; a still-focused Lexical editor takes focus back on the
+        // next reconcile, which Radix reads as an outside interaction and dismisses on.
+        onPickerOpen: useCallback(() => {
+            richInputRef.current?.blur()
+        }, [richInputRef]),
+    })
+    // Focus can only return AFTER the picker unmounts — a focus() in the handler is undone when
+    // the still-focused panel leaves the DOM.
+    const hadPickerRef = useRef(slash.picker)
+    useEffect(() => {
+        const had = hadPickerRef.current
+        hadPickerRef.current = slash.picker
+        if (!had || slash.picker) return
+        if (skipFocusRestoreRef.current) {
+            skipFocusRestoreRef.current = false
+            return
+        }
+        richInputRef.current?.focus()
+    }, [richInputRef, slash.picker])
+    // Stable: both panels register document-level listeners keyed on these.
+    const closePicker = slash.closePicker
+    const dismissPicker = useCallback(
+        (reason: "escape" | "outside") => {
+            if (reason === "outside") skipFocusRestoreRef.current = true
+            closePicker()
+        },
+        [closePicker],
+    )
+    // The picker consumed the `/` that opened it, so stepping back puts it back. Insert, not
+    // setMarkdown: the rest of the message is still there.
+    const backToCommands = useCallback(() => {
+        closePicker()
+        richInputRef.current?.insertText("/")
+    }, [closePicker, richInputRef])
     const sending = useRef(false)
     const presets = useMotionPresets()
 
@@ -97,6 +153,7 @@ export const Composer = ({
             // Enter, which the send button's `sendDisabled` guard doesn't cover.
             const parts = outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
             await onSend({text, parts})
+            draft.clearDraft()
             attachments.clearAttachments(staged.map((file) => file.uid))
         } catch {
             // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so an
@@ -173,36 +230,94 @@ export const Composer = ({
                                 : describeAccepted(attachments.limits)
                         }
                     />
-                    <ChatComposer
-                        inputRef={richInputRef}
-                        onSubmit={submit}
-                        attachments={attachments}
-                        attachmentsBlocked={attachmentsBlocked}
-                        disabled={disabled}
-                        composerDisabled={disabled}
-                        dictating={dictating}
-                        placeholder={placeholder}
-                        waitingOnUser={waitingOnUser}
-                        streaming={streaming}
-                        stopping={stopping}
-                        onStop={onStop}
-                        extraPrefix={
-                            <VoiceInputButton
-                                inputRef={richInputRef}
-                                onStartAudio={startVoiceMessage}
-                                audioSupported={voiceRecorder.supported}
-                                audioPending={voiceRecorder.pending}
-                                // This surface reads no model catalog, so it does not claim
-                                // the agent can or cannot hear — the menu stays neutral.
-                                audioPerceivable={null}
-                                attachmentsFull={attachments.atMax}
-                                onDictationError={setDictationError}
-                                onDictatingChange={setDictating}
-                                stopRef={dictationStopRef}
-                                disabled={disabled}
-                            />
-                        }
-                    />
+                    <div ref={composerBoxRef} className="relative">
+                        <AnimatePresence initial={false}>
+                            {slash.picker === "permissions" ? (
+                                <motion.div
+                                    key="permissions"
+                                    variants={presets.crossfade}
+                                    initial="initial"
+                                    animate="animate"
+                                    exit="exit"
+                                    className="absolute inset-x-0 bottom-full z-50 mb-2"
+                                >
+                                    <PermissionsPickerPanel
+                                        current={slash.currentPermission}
+                                        options={slash.permissionOptions}
+                                        onApply={slash.applyPermission}
+                                        onDismiss={dismissPicker}
+                                        onBackToCommands={backToCommands}
+                                    />
+                                </motion.div>
+                            ) : null}
+                        </AnimatePresence>
+                        {/* The catalog picker: controlled open, no trigger, sized to the composer. */}
+                        <SelectLLMProviderBase
+                            open={slash.picker === "model"}
+                            onOpenChange={(next) => {
+                                if (!next) closePicker()
+                            }}
+                            onDismissOutside={() => {
+                                skipFocusRestoreRef.current = true
+                            }}
+                            onStepBack={backToCommands}
+                            anchorRef={composerBoxRef}
+                            hideTrigger
+                            showGroup
+                            showSearch
+                            searchPlaceholder="Search models"
+                            sectionTooltip={<HarnessTooltip />}
+                            options={slash.modelGroups}
+                            value={slash.currentModel}
+                            onChange={(next, option) => slash.applyModel(next, option)}
+                            searchSuffix="/model"
+                            panelFooter={
+                                <div className="text-muted-foreground flex items-center gap-1.5 text-[10.5px]">
+                                    <span>Changes this agent&apos;s draft config.</span>
+                                    <button
+                                        type="button"
+                                        onClick={backToCommands}
+                                        className="text-muted-foreground ml-auto cursor-pointer border-none bg-transparent p-0 text-[10.5px]"
+                                    >
+                                        ← back to commands
+                                    </button>
+                                </div>
+                            }
+                        />
+                        <ChatComposer
+                            inputRef={richInputRef}
+                            onSubmit={submit}
+                            attachments={attachments}
+                            attachmentsBlocked={attachmentsBlocked}
+                            initialMarkdown={draft.initialDraft}
+                            onChange={draft.handleComposerChange}
+                            slashCommands={slash.sections}
+                            disabled={disabled}
+                            composerDisabled={disabled}
+                            dictating={dictating}
+                            placeholder={placeholder}
+                            waitingOnUser={waitingOnUser}
+                            streaming={streaming}
+                            stopping={stopping}
+                            onStop={onStop}
+                            extraPrefix={
+                                <VoiceInputButton
+                                    inputRef={richInputRef}
+                                    onStartAudio={startVoiceMessage}
+                                    audioSupported={voiceRecorder.supported}
+                                    audioPending={voiceRecorder.pending}
+                                    // This surface reads no model catalog, so it does not claim
+                                    // the agent can or cannot hear — the menu stays neutral.
+                                    audioPerceivable={null}
+                                    attachmentsFull={attachments.atMax}
+                                    onDictationError={setDictationError}
+                                    onDictatingChange={setDictating}
+                                    stopRef={dictationStopRef}
+                                    disabled={disabled}
+                                />
+                            }
+                        />
+                    </div>
                     <AnimatePresence initial={false}>
                         {voiceRecorder.takeoverVisible ? (
                             <motion.div
