@@ -126,7 +126,6 @@ export const ChangesPane = ({
                 <ChangeSections
                     sections={sections}
                     size="small"
-                    hideTags
                     ghost
                     openState={openState}
                     onToggleSection={(id) =>

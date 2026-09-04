@@ -300,7 +300,6 @@ export function SectionCard({
     onOpenInstructions,
     onOpenTool,
     small,
-    hideTags,
     ghost,
 }: {
     section: ChangeSection
@@ -312,8 +311,6 @@ export function SectionCard({
     /** Omit to make edited tools non-clickable (no detail view to drill into). */
     onOpenTool?: (itemId: string) => void
     small?: boolean
-    /** Hide the per-section change tags. The count already sits in the pane header. */
-    hideTags?: boolean
     /** Drop the card fill and border — flat rows separated by a rule, not stacked cards. */
     ghost?: boolean
 }) {
@@ -369,7 +366,7 @@ export function SectionCard({
                     <span className={cn("flex-1 leading-none", small ? "text-xs" : "text-[13px]")}>
                         {section.title}
                     </span>
-                    {hideTags ? null : <StatusTags tags={section.tags} small={small} />}
+                    <StatusTags tags={section.tags} small={small} />
                     <span
                         className={cn(
                             "inline-flex shrink-0 items-center leading-none",
@@ -484,8 +481,6 @@ export interface ChangeSectionsProps {
     /** Wired by hosts that own a detail view (the commit modal); omitted, rows stay inline. */
     onOpenInstructions?: (sectionId: string) => void
     onOpenTool?: (sectionId: string, itemId: string) => void
-    /** Hide the per-section change tags. The count already sits in the pane header. */
-    hideTags?: boolean
     /** Drop the card fill and border — flat rows separated by a rule, not stacked cards. */
     ghost?: boolean
 }
@@ -501,7 +496,6 @@ export function ChangeSections({
     onToggleSection,
     onOpenInstructions,
     onOpenTool,
-    hideTags,
     ghost,
 }: ChangeSectionsProps) {
     return (
@@ -513,7 +507,6 @@ export function ChangeSections({
                     items={section.items}
                     open={openState[section.id] ?? false}
                     small={size === "small"}
-                    hideTags={hideTags}
                     ghost={ghost}
                     onToggle={() => onToggleSection(section.id)}
                     onOpenInstructions={
