@@ -78,6 +78,56 @@ async def test_durable_response_returns_202_and_stable_refs(monkeypatch):
     )
 
 
+async def test_matching_partial_answer_retry_returns_terminal_source(monkeypatch):
+    project_id = uuid4()
+    user_id = uuid4()
+    interaction_id = uuid4()
+    interaction = SessionInteraction(
+        id=interaction_id,
+        project_id=project_id,
+        session_id="session-1",
+        turn_id="source-1",
+        token="approval-1",
+        kind=SessionInteractionKind.user_approval,
+        status=SessionInteractionStatus.responded,
+    )
+    admission = SimpleNamespace(
+        interaction=interaction,
+        command=None,
+        execution_id="source-1",
+        execution_state=SessionExecutionState.terminal,
+        waiting_for_interactions=False,
+    )
+    commands = SimpleNamespace(respond_interaction=AsyncMock(return_value=admission))
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    router = InteractionsRouter(
+        interactions_service=AsyncMock(),
+        workflows_service=AsyncMock(),
+        commands_service=commands,
+    )
+
+    response = await router.respond_interaction(
+        request=SimpleNamespace(
+            state=SimpleNamespace(project_id=project_id, user_id=user_id),
+            headers={"Idempotency-Key": "partial-answer-retry"},
+        ),
+        interaction_id=interaction_id,
+        body=SessionInteractionRespondRequest(
+            answer={"approved": True}, expected_execution_id="source-1"
+        ),
+    )
+
+    assert response.status_code == 202
+    assert json.loads(response.body) == {
+        "interaction": interaction.model_dump(mode="json"),
+        "command": None,
+        "execution": {"id": "source-1", "state": "terminal"},
+    }
+
+
 async def test_durable_batch_returns_202_with_one_continuation(monkeypatch):
     project_id = uuid4()
     user_id = uuid4()

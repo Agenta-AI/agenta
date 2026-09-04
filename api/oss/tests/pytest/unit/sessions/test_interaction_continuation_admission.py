@@ -419,6 +419,7 @@ async def test_parallel_answers_wait_then_share_one_continuation():
 
     assert retry.interaction.id == first_id
     assert retry.command is None
+    assert retry.execution_state == SessionExecutionState.terminal
     assert len(delivery.delivered) == 1
 
 

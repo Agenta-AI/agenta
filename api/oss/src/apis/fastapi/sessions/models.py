@@ -486,7 +486,11 @@ class SessionExecutionRef(BaseModel):
 class SessionInteractionContinuationExecution(BaseModel):
     id: str
     state: Literal[
-        "awaiting_interactions", "pending_delivery", "recoverable", "running"
+        "awaiting_interactions",
+        "pending_delivery",
+        "recoverable",
+        "running",
+        "terminal",
     ]
 
 
