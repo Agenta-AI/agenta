@@ -392,10 +392,7 @@ export const useAgentChatSession = ({
         restoredIdsRef.current.has(lastMessage.id) &&
         agentShouldResumeAfterApproval({messages})
 
-    // The runner names the turn it just started, in the streaming message's metadata. Remembering
-    // it is what lets Stop say WHICH turn to cancel instead of "whatever is running" (#6417).
-    // Only ids seen streaming in this page are kept: the store is in memory, so a reload starts
-    // empty and Stop falls back to sending no guard rather than naming a turn from a past session.
+    // Cache only the newest turn id observed by this page for guarded Stop.
     useEffect(() => {
         const turnId = latestTurnId(messages)
         if (turnId) setSessionTurnId(sessionId, turnId)
@@ -565,8 +562,7 @@ export const useAgentChatSession = ({
                 })
             return
         }
-        // Keep the browser stream attached until the durable Stop is accepted and the run emits a
-        // terminal event. The expected execution fences the request to the turn on screen.
+        // Keep the stream attached until a terminal event confirms accepted cancellation.
         const isRetry = retryStopRef.current
         const expectedExecutionId = isRetry
             ? expectedStopExecutionIdRef.current
