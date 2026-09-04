@@ -58,8 +58,9 @@ export interface QueryRecordsParams {
 
 /**
  * Fetch a session's durable, append-only record log — the replay source for rendering a
- * conversation. Returns events ordered by the backend (uuid7 `id`); `null` on failure or
- * when the project scope is missing.
+ * conversation. Returns events ordered by the backend on (timestamp, created_at,
+ * record_index) — `id` carries no time order; `null` on failure or when the project scope is
+ * missing.
  */
 export async function querySessionRecords({
     sessionId,
