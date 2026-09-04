@@ -19,7 +19,7 @@ import {
     sidebarAgentRanksAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
-    sidebarSessionScopeLimit,
+    sidebarSessionPageSize,
     sidebarSessionsListAtomFamily,
     type SessionSidebarRef,
 } from "./sessionsSource"
@@ -32,6 +32,10 @@ import type {
 } from "./types"
 
 const DEFAULT_SIDEBAR_ENTITY_LIMIT = 5
+
+/** An entity that renders every ref it holds, however many that is — the list is bounded by what
+ * has been fetched, not by a render cap. */
+export const SIDEBAR_UNBOUNDED = Number.POSITIVE_INFINITY
 
 // Sidebar item keys that own a dynamic entity list. The static row in
 // `useSidebarConfig` and the registry entry below must share the same key —
@@ -157,10 +161,8 @@ const ENTITIES: SidebarEntity[] = [
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         // An archived row is second-class, not hidden: same row, dimmed.
         getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
-        // A heading over one row says nothing, so a grouped list needs the window the source
-        // fetches rather than the flat list's seven.
-        maxItems: sidebarSessionScopeLimit(MAIN_SIDEBAR_SCOPE_ID),
-        showAllPath: "/sessions",
+        // Every loaded page renders; the scroll container pages in more as you reach its end.
+        maxItems: SIDEBAR_UNBOUNDED,
     }),
     defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
         kind: "app",

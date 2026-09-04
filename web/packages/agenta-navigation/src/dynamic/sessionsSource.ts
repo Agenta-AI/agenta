@@ -82,9 +82,9 @@ const SCOPE_SESSION_LIMIT: Record<string, number> = {
 
 const scopeLimit = (scopeId: string) => SCOPE_SESSION_LIMIT[scopeId] ?? SIDEBAR_SESSION_LIMIT
 
-/** The fetched window, for a rail that renders all of it — so the two numbers cannot drift and
- * leave rows silently dropped between the request and the render. */
-export const sidebarSessionScopeLimit = scopeLimit
+/** The size of ONE fetched page. The rail renders every page it has loaded, so this no longer
+ * doubles as a render cap — see `SIDEBAR_UNBOUNDED`. */
+export const sidebarSessionPageSize = scopeLimit
 
 /** Scopes whose rail groups and filters. Everything below is gated on this so a scope that does
  * neither issues exactly the request, and takes exactly the subscriptions, it always did. */
