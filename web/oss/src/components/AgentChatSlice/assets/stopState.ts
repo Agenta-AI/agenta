@@ -3,6 +3,7 @@ export type StopPhase = "idle" | "requesting" | "accepted" | "retryable" | "term
 export type StopEvent =
     | {type: "request"}
     | {type: "accepted"}
+    | {type: "cancelled"; parked: boolean}
     | {type: "terminal"}
     | {type: "timeout"}
     | {type: "failed" | "already_idle" | "reset"}
@@ -13,6 +14,9 @@ export const reduceStopPhase = (phase: StopPhase, event: StopEvent): StopPhase =
             return phase === "terminal" ? "terminal" : "requesting"
         case "accepted":
             return phase === "terminal" ? "stopped" : "accepted"
+        case "cancelled":
+            if (event.parked || phase === "terminal") return "stopped"
+            return "accepted"
         case "timeout":
             return phase === "accepted" ? "retryable" : phase
         case "terminal":

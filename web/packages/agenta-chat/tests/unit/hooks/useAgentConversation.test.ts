@@ -76,12 +76,6 @@ const errorResponse = (): Response =>
         headers: {"content-type": "application/json"},
     })
 
-const userStopResponse = (): Response =>
-    new Response(JSON.stringify({status: {code: "user-stop", message: "Request was aborted"}}), {
-        status: 409,
-        headers: {"content-type": "application/json"},
-    })
-
 const fetchMock = vi.fn<typeof globalThis.fetch>()
 vi.stubGlobal("fetch", fetchMock)
 
@@ -379,22 +373,5 @@ describe("useAgentConversation", () => {
         expect(result.current.stopped).toBe(true)
         expect(result.current.error).toBeUndefined()
         expect(result.current.runStatus).toBe("idle")
-    })
-
-    it("keeps an explicitly labelled user-stop error out of the failure state", async () => {
-        fetchMock.mockResolvedValue(userStopResponse())
-        const store = createStore()
-        const sessionId = nextSessionId()
-        markSessionFresh(sessionId)
-        const {result} = mount(store, "rev-1", sessionId)
-
-        await act(async () => {
-            await result.current.send({text: "start"})
-        })
-        await waitFor(() => expect(result.current.stopped).toBe(true), {timeout: 5000})
-
-        expect(result.current.error).toBeUndefined()
-        expect(result.current.runStatus).toBe("idle")
-        expect(result.current.turns.at(-1)?.status.isError).toBe(false)
     })
 })

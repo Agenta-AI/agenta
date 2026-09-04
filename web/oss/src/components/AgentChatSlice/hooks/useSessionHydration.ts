@@ -111,6 +111,7 @@ export const useSessionHydration = ({
     persistMessages,
     intent,
     pendingResumeRef,
+    onInteractionChanged,
 }: {
     sessionId: string
     initialMessages: UIMessage[]
@@ -134,6 +135,9 @@ export const useSessionHydration = ({
      * and the parked interaction never resumes (bug: "Not now" firing zero network requests).
      */
     pendingResumeRef: MutableRefObject<unknown>
+    /** A parked Stop can use the interaction relay as terminal evidence even though `busy` was
+     * already false before cancellation. */
+    onInteractionChanged?: () => void
 }) => {
     // Cache-first — when this tab opens with no locally-cached messages (a session this browser
     // never ran, or after a storage clear), hydrate once from the server (`queryRecords` → v6
@@ -501,7 +505,10 @@ export const useSessionHydration = ({
         sessionId,
         projectId,
         // #5919 relay; this surface re-reads records on any interaction change.
-        onInteractionChanged: () => revalidateSessionRecords(sessionId),
+        onInteractionChanged: () => {
+            revalidateSessionRecords(sessionId)
+            onInteractionChanged?.()
+        },
         enabled: activeSessionId === sessionId,
         onReady: refreshOnReady,
         onRecordsChanged: refreshFromRecords,

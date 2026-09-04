@@ -46,6 +46,7 @@ import {
 } from "./pendingTaskPolicy"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
+import {cancelledStopAction} from "./stopHereState"
 import {TurnRow} from "./TurnRow"
 import {showTrailingWorkingPulse} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
@@ -179,17 +180,6 @@ export const LiveConversation = ({
         takePendingTask,
     ])
 
-    // Push-invalidation: a records change (another device's turn, a steer resume) folds into
-    // the engine's transcript under its adopt guards.
-    const watch = useSessionWatch({sessionId, projectId, onRecordsChanged: revalidate})
-    // The watch relay is the primary cross-device signal; when it cannot connect, fall back to a
-    // slow revalidate poll only while the backend says the session is running elsewhere.
-    useEffect(() => {
-        if (watch.connected || !running) return
-        const timer = setInterval(() => revalidate(), 7_500)
-        return () => clearInterval(timer)
-    }, [watch.connected, running, revalidate])
-
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
     const streamingHereRef = useRef(streamingHere)
     streamingHereRef.current = streamingHere
@@ -197,6 +187,40 @@ export const LiveConversation = ({
     const stopWatchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
     const retryStopRef = useRef(false)
+    const parkedStopRef = useRef(false)
+    const settleParkedStop = useCallback(() => {
+        if (!parkedStopRef.current) return
+        parkedStopRef.current = false
+        if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
+        stopWatchdogTimerRef.current = null
+        retryStopRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        // The server has cancelled the parked turn. The engine's stop is now only the local latch:
+        // it hides the dead gate and renders the neutral Stopped/Resend state.
+        stop()
+        setStoppingHere(false)
+    }, [stop])
+    // A records refetch can remove the pending gate before the cancel request resolves.
+    useEffect(() => {
+        if (!conversation.hitlPending) settleParkedStop()
+    }, [conversation.hitlPending, settleParkedStop])
+
+    // Push-invalidation: a records change (another device's turn, a steer resume) folds into
+    // the engine's transcript under its adopt guards. An interaction change also settles a Stop
+    // that began while the turn was parked, where no streaming busy edge can arrive.
+    const watch = useSessionWatch({
+        sessionId,
+        projectId,
+        onRecordsChanged: revalidate,
+        onInteractionChanged: settleParkedStop,
+    })
+    // The watch relay is the primary cross-device signal; when it cannot connect, fall back to a
+    // slow revalidate poll only while the backend says the session is running elsewhere.
+    useEffect(() => {
+        if (watch.connected || !running) return
+        const timer = setInterval(() => revalidate(), 7_500)
+        return () => clearInterval(timer)
+    }, [watch.connected, running, revalidate])
     useEffect(() => {
         if (streamingHere || !stopWatchdogTimerRef.current) return
         clearTimeout(stopWatchdogTimerRef.current)
@@ -208,6 +232,7 @@ export const LiveConversation = ({
     useEffect(
         () => () => {
             if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
+            parkedStopRef.current = false
         },
         [],
     )
@@ -222,6 +247,7 @@ export const LiveConversation = ({
         if (stoppingHere) return
         if (!projectId || !sessionId) return
         setStoppingHere(true)
+        parkedStopRef.current = !streamingHereRef.current && conversation.hitlPending
         const isRetry = retryStopRef.current
         const expectedExecutionId = isRetry
             ? expectedStopExecutionIdRef.current
@@ -237,12 +263,21 @@ export const LiveConversation = ({
         })
             .then((outcome) => {
                 if (outcome.status === "cancelled") {
-                    if (!streamingHereRef.current) {
+                    const action = cancelledStopAction({
+                        parked: parkedStopRef.current,
+                        streaming: streamingHereRef.current,
+                        retry: isRetry,
+                    })
+                    if (action === "settle-parked") {
+                        settleParkedStop()
+                        return
+                    }
+                    if (action === "settle-idle") {
                         setStoppingHere(false)
                         expectedStopExecutionIdRef.current = undefined
                         return
                     }
-                    if (isRetry) {
+                    if (action === "abort-retry") {
                         stop()
                         setStoppingHere(false)
                         expectedStopExecutionIdRef.current = undefined
@@ -256,6 +291,7 @@ export const LiveConversation = ({
                     return
                 }
                 if (isRetry) retryStopRef.current = true
+                parkedStopRef.current = false
                 setStoppingHere(false)
                 if (outcome.status === "idle") {
                     retryStopRef.current = false
@@ -266,6 +302,7 @@ export const LiveConversation = ({
             })
             .catch((error: unknown) => {
                 if (isRetry) retryStopRef.current = true
+                parkedStopRef.current = false
                 setStoppingHere(false)
                 message.warning(
                     error instanceof Error
@@ -273,7 +310,7 @@ export const LiveConversation = ({
                         : "Could not stop the run. It may still be running.",
                 )
             })
-    }, [projectId, sessionId, stop, stoppingHere])
+    }, [projectId, sessionId, stop, stoppingHere, conversation.hitlPending, settleParkedStop])
 
     // Emptied after a user stop, matching the desktop and the two docks below: Stop cancels the
     // stopped turn's gates server-side, so an approve pressed after it answers a turn that is gone.

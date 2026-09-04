@@ -55,7 +55,7 @@ import {
     type ClientToolPartPredicate,
     type TurnViewModel,
 } from "../model/turnViewModel"
-import {isUserStopError, lastTurnWasUserStopped, reduceUserStoppedState} from "../model/userStop"
+import {lastTurnWasUserStopped, reduceUserStoppedState} from "../model/userStop"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
 import {stampMessagesCreatedAtAtom} from "../state/messageStamps"
 import {
@@ -308,12 +308,7 @@ export const useAgentConversation = ({
                 dropSessionChat(sessionId)
             }
         },
-        onError: (streamError) => {
-            dispatchStopped({
-                type: "stream-terminal",
-                messages: messagesRef.current,
-                error: streamError,
-            })
+        onError: () => {
             // Clear the marker but do NOT void the resume. A gateway approval is answered while the
             // stream is still open, so the SDK skips its own dispatch and only re-evaluates when the
             // stream ends — often by erroring, right here. `null` made that last evaluation return
@@ -353,8 +348,6 @@ export const useAgentConversation = ({
     })
 
     const busy = isChatBusy(status)
-    const userStopError = isUserStopError(error)
-
     // `messages`/`busy` change every commit; consumers that must stay referentially stable
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
     messagesRef.current = messages
@@ -633,7 +626,7 @@ export const useAgentConversation = ({
 
     // Publish this session's run state (single source of truth for session-list status dots).
     // Precedence error > awaiting approval > running > idle.
-    const runStatus = deriveSessionRunStatus({error: !!error && !userStopError, hitlPending, busy})
+    const runStatus = deriveSessionRunStatus({error: !!error, hitlPending, busy})
     useEffect(() => {
         setSessionStatus({id: sessionId, status: runStatus})
     }, [runStatus, sessionId, setSessionStatus])
@@ -651,7 +644,7 @@ export const useAgentConversation = ({
     // it renders as an error bubble with the real reason (and persists with the session via the
     // effect below), instead of a transient banner + a generic "no response".
     useEffect(() => {
-        if (!error || userStopError) return
+        if (!error) return
         const parsed = parseAgentRunError(error)
         setMessages((prev) => {
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
@@ -677,7 +670,7 @@ export const useAgentConversation = ({
                 } as (typeof prev)[number],
             ]
         })
-    }, [error, setMessages, userStopError])
+    }, [error, setMessages])
 
     // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
     // records the runner logged for it — so drop the watermark and let the next open re-sync from
@@ -830,10 +823,7 @@ export const useAgentConversation = ({
         [messages, busy, executedFor, isClientToolPart, renderMap],
     )
 
-    const parsedError = useMemo(
-        () => (error && !userStopError ? parseAgentRunError(error) : undefined),
-        [error, userStopError],
-    )
+    const parsedError = useMemo(() => (error ? parseAgentRunError(error) : undefined), [error])
 
     return {
         messages,
