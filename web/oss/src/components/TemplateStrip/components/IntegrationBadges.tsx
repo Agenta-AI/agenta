@@ -17,14 +17,10 @@ const IntegrationBadges = ({slugs, size = "card"}: {slugs: string[]; size?: "car
                 return (
                     <span
                         key={slug}
-                        // The stack overlaps, so paint order decides what stays legible. The first
-                        // slug is the template's PRIMARY provider; without this the alternative
-                        // drawn after it covered the primary, and a small card read as GitLab.
-                        style={chip ? undefined : {zIndex: slugs.length - index}}
                         className={`flex shrink-0 items-center justify-center border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorWhite)] ${
                             chip
                                 ? "size-[18px] rounded-[5px]"
-                                : `relative size-6 rounded-md ${index > 0 ? "-ml-1.5" : ""}`
+                                : `size-6 rounded-md ${index > 0 ? "-ml-1.5" : ""}`
                         }`}
                     >
                         <Image
