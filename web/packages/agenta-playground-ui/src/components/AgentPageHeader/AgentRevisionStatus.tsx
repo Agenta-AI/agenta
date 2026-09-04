@@ -107,7 +107,7 @@ export const AgentRevisionStatus = ({
             {failed ? (
                 <WarningCircle size={12} className="shrink-0 text-colorError" />
             ) : (
-                <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${dot.tone}`} />
+                <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot.tone}`} />
             )}
             {/* The word is the first thing to go on a narrow bar — the dot and its tooltip
                 already say it, and the identity beside it needs the room. */}
