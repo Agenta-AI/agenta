@@ -12,7 +12,12 @@ export {
     type SessionStatusFilter,
 } from "./filters"
 export {pinnedSessionIdsAtom, isSessionPinnedAtom, toggleSessionPinAtom} from "./pins"
-export {sessionTabOrderAtomFamily, setSessionTabOrderAtom, applySessionTabOrder} from "./tabOrder"
+export {
+    sessionTabOrderAtomFamily,
+    setSessionTabOrderAtom,
+    applySessionTabOrder,
+    useSessionTabOrderSeed,
+} from "./tabOrder"
 export {
     sessionListRequestFilters,
     sessionListIdGroupLimit,

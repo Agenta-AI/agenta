@@ -1,5 +1,7 @@
+import {useEffect} from "react"
+
 import {projectIdAtom} from "@agenta/shared/state"
-import {atom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
@@ -35,9 +37,9 @@ export const setSessionTabOrderAtom = atom(
 )
 
 /**
- * Sorts rows by a hand-arranged order. Ids the order has never seen — a session created since the
- * last arrangement — lead, in their natural (most recent first) order, because a session you just
- * started is the one you are about to use. Arranging again captures them.
+ * Sorts rows by a hand-arranged order. Ids the order has never seen TRAIL: the base order is the
+ * server's activity window, so leading them made a session jump to the head of the rail the moment
+ * any turn touched it (#6544). `useSessionTabOrderSeed` appends them to the order for good.
  */
 export const applySessionTabOrder = <T extends {id: string}>(rows: T[], order: string[]): T[] => {
     if (order.length === 0) return rows
@@ -46,5 +48,26 @@ export const applySessionTabOrder = <T extends {id: string}>(rows: T[], order: s
     const fresh: T[] = []
     for (const row of rows) (rank.has(row.id) ? known : fresh).push(row)
     known.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0))
-    return [...fresh, ...known]
+    return [...known, ...fresh]
+}
+
+/**
+ * Seeds the saved order from the first rows a rail observes, and appends every id it has not seen
+ * since.
+ *
+ * Until this existed the order stayed empty until the user hand-dragged once, so nothing held the
+ * rail still: its base order is `updated_at desc`, refetched on focus and on a 30s stale window,
+ * and any turn in any session reshuffled the tabs (#6544). Placed ids keep their slot — this only
+ * ever appends, so it can never undo an arrangement.
+ */
+export const useSessionTabOrderSeed = (scope: string, ids: readonly string[]) => {
+    const saved = useAtomValue(sessionTabOrderAtomFamily(scope))
+    const setOrder = useSetAtom(setSessionTabOrderAtom)
+    useEffect(() => {
+        if (ids.length === 0) return
+        const placed = new Set(saved)
+        const unseen = ids.filter((id) => !placed.has(id))
+        if (unseen.length === 0) return
+        setOrder({scope, ids: [...saved, ...unseen]})
+    }, [ids, saved, scope, setOrder])
 }
