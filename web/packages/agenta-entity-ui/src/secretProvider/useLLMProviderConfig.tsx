@@ -6,12 +6,12 @@ import {
     vaultSecretsQueryAtom,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {ProviderDrawer} from "@agenta/entity-ui/secretProvider"
 import {ManageProvidersRow, type ProviderGroup} from "@agenta/ui/select-llm-provider"
 import {Plus} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 
-import ConfigureProviderDrawer from "@/oss/components/ModelRegistry/Drawers/ConfigureProviderDrawer"
+import ConfigureProviderDrawer from "./ConfigureProviderDrawer"
+import ProviderDrawer from "./ProviderDrawer"
 
 /** Names which surface drove the (global, project-independent) harness catalog lookup. */
 const HARNESS_CATALOG_KEY = "agenta:playground:model-picker"
@@ -33,6 +33,9 @@ const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).d
  * - footerContent: the "Manage model providers" row under the picker, opening the shared drawer
  * - emptyStateContent: the set-up affordance for a project with nothing connected
  * - overlay: the drawers, mounted outside the popup lifecycle
+ *
+ * Host-neutral on purpose: every host that renders the shared config panel needs the same picker
+ * groups and the same drawers, so this lives beside them rather than in one app.
  */
 export function useLLMProviderConfig() {
     const connections = useAtomValue(providerConnectionsAtom)
@@ -60,9 +63,8 @@ export function useLLMProviderConfig() {
         [connectionGroupsFor],
     )
 
-    // Opens the drawer for a NEW provider with `kind` pre-selected. Exposed via DrillInUIContext
-    // (llmProviderConfig) so the package-level Provider credentials rail's "Add Azure/Bedrock/
-    // Vertex AI/OpenAI-compatible" rows can reach this OSS-only drawer.
+    // Opens the drawer for a NEW provider with `kind` pre-selected, so the Provider credentials
+    // rail's "Add Azure/Bedrock/Vertex AI/OpenAI-compatible" rows can reach it.
     const openConfigureProvider = useCallback((kind: string) => {
         setInitialProviderKind(kind)
         setIsConfigProviderOpen(true)
@@ -153,3 +155,5 @@ export function useLLMProviderConfig() {
         [llmProviderConfig, drawers],
     )
 }
+
+export type LLMProviderConfig = ReturnType<typeof useLLMProviderConfig>["llmProviderConfig"]
