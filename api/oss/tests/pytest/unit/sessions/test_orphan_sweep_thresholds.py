@@ -323,6 +323,28 @@ async def test_running_row_is_swept_at_the_short_threshold(anyio_backend):
 
 
 @pytest.mark.anyio
+async def test_durable_sweep_clears_dead_affinity_when_alive_already_expired(
+    anyio_backend,
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+    row = _FakeRow(
+        session_id="sess-dead-affinity",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="turn-dead",
+    )
+    redis = _FakeRedis()
+    owner_key = f"owner:{_PROJECT_ID}:session:{row.session_id}"
+    await redis.set(owner_key, b"replica-dead")
+
+    await run_orphan_sweep(_FakeTransactionsEngine([row]), redis)
+
+    assert _swept(row)
+    assert await redis.get(owner_key) is None
+
+
+@pytest.mark.anyio
 async def test_persisted_done_is_terminalized_before_stale_ownership_is_cleared(
     anyio_backend,
     monkeypatch,
