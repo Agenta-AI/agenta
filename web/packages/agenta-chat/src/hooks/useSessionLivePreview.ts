@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {
     clearSessionLivePreviewAtom,
@@ -20,6 +20,7 @@ import {
     shouldRefetchSessionTranscript,
 } from "../model/durableEvents"
 import {
+    isSessionSnapshotRunning,
     reduceSessionLivePreview,
     sessionLivePreviewMessages,
 } from "../model/livePreview"
@@ -47,11 +48,12 @@ export const useSessionLivePreview = ({
     onReadyChange?: (ready: boolean) => void
     /** Adopts a bounded transcript or re-fetches after a later gap/disconnect. */
     onDisconnect: (transcript?: SessionTranscript) => boolean | Promise<boolean>
-}): {messages: UIMessage[]} => {
+}): {messages: UIMessage[]; runningFromSnapshot: boolean} => {
     const projectId = useAtomValue(projectIdAtom)
     const [preview, setPreview] = useAtom(sessionLivePreviewAtomFamily(sessionId))
     const clearPreview = useSetAtom(clearSessionLivePreviewAtom)
     const fetchInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
+    const [runningFromSnapshot, setRunningFromSnapshot] = useState(false)
     const onDisconnectRef = useRef(onDisconnect)
     onDisconnectRef.current = onDisconnect
     const retryHydrationRef = useRef<() => void>(() => undefined)
@@ -60,6 +62,7 @@ export const useSessionLivePreview = ({
 
     useEffect(() => {
         clearPreview(sessionId)
+        setRunningFromSnapshot(false)
         onReadyChangeRef.current?.(false)
         if ((!enabled && !sender) || !sessionId) return
         if (typeof window === "undefined" || typeof window.EventSource === "undefined") return
@@ -111,6 +114,7 @@ export const useSessionLivePreview = ({
                 return
             }
             if (disposed || currentGeneration !== generation) return
+            setRunningFromSnapshot(isSessionSnapshotRunning(snapshot ?? undefined))
 
             // `sender` is only an opt-in request from the client. The stack controls activation
             // through the snapshot capability; when the route is disabled (or this pre-first-turn
@@ -173,6 +177,13 @@ export const useSessionLivePreview = ({
                         return
                     }
                     durable = next
+                    if (event.type === "execution.started") setRunningFromSnapshot(true)
+                    if (
+                        event.type === "execution.stopped" ||
+                        event.type === "execution.failed" ||
+                        event.type === "execution.lost"
+                    )
+                        setRunningFromSnapshot(false)
                     // Completed durable rows replace temporary frames in the transcript source.
                     clearPreview(sessionId)
                     void adoptTranscript().then((adopted) => {
@@ -230,5 +241,8 @@ export const useSessionLivePreview = ({
         }, retryHydration)
     }, [preview.gapDetected])
 
-    return {messages: useMemo(() => sessionLivePreviewMessages(preview), [preview])}
+    return {
+        messages: useMemo(() => sessionLivePreviewMessages(preview), [preview]),
+        runningFromSnapshot,
+    }
 }

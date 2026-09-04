@@ -1,8 +1,9 @@
-import type {SessionLiveFrame} from "@agenta/entities/session"
+import type {SessionLiveFrame, SessionSnapshot} from "@agenta/entities/session"
 import {describe, expect, it} from "vitest"
 
 import {
     createSessionLivePreviewState,
+    isSessionSnapshotRunning,
     reduceSessionLivePreview,
     sessionLivePreviewMessages,
     shouldSubscribeToSessionLivePreview,
@@ -27,6 +28,27 @@ const frame = (
 })
 
 describe("session live preview reducer", () => {
+    it("recognizes a running execution from the atomic reconnect snapshot", () => {
+        const snapshot = {
+            session: {flags: {is_running: true}},
+            execution: {turn_id: "turn-1", end_time: null},
+        } as SessionSnapshot
+
+        expect(isSessionSnapshotRunning(snapshot)).toBe(true)
+        expect(
+            isSessionSnapshotRunning({
+                ...snapshot,
+                execution: {...snapshot.execution, end_time: "2026-08-06T12:01:00Z"},
+            } as SessionSnapshot),
+        ).toBe(false)
+        expect(
+            isSessionSnapshotRunning({
+                ...snapshot,
+                session: {...snapshot.session, flags: {is_running: false}},
+            } as SessionSnapshot),
+        ).toBe(false)
+    })
+
     it("collapses ordered frames into their current entity state", () => {
         let state = createSessionLivePreviewState()
         state = reduceSessionLivePreview(state, frame(0, "text-start", {}))

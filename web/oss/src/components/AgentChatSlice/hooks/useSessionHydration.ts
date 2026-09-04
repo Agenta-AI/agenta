@@ -519,7 +519,7 @@ export const useSessionHydration = ({
             readLog,
         ],
     )
-    const {messages: previewMessages} = useSessionLivePreview({
+    const {messages: previewMessages, runningFromSnapshot} = useSessionLivePreview({
         sessionId,
         enabled: runningElsewhere && liveness.sharedReader,
         sender: true,
@@ -559,7 +559,8 @@ export const useSessionHydration = ({
     return {
         isHydrating,
         hydratedEmpty,
-        runningElsewhere,
+        runningElsewhere: runningElsewhere || (runningFromSnapshot && !busy),
+        previewMessages,
         stopStateLoading: liveness.isLoading,
         sessionTurnId: liveness.turnId,
         stoppingTurnId: liveness.stoppingTurnId,

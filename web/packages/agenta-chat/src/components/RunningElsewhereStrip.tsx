@@ -47,8 +47,8 @@ export const RunningElsewhereStrip = ({
             <span className="bg-colorInfo relative inline-flex size-2 rounded-full" />
         </span>
         <span className="text-colorTextSecondary text-xs">
-            This session is running somewhere else — the transcript updates as the turn progresses.
-            If it stays still, the run may have already ended.
+            This turn is still running — the transcript updates as it progresses. If it stays still,
+            the run may have already ended.
         </span>
         {action ? <span className="ml-auto shrink-0">{action}</span> : null}
     </div>

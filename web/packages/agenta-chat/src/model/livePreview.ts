@@ -1,5 +1,6 @@
 import {
     createSessionLivePreviewState,
+    type SessionSnapshot,
     type SessionLiveFrame,
     type SessionLivePreviewExecution,
     type SessionLivePreviewState,
@@ -16,6 +17,13 @@ export const shouldSubscribeToSessionLivePreview = ({
     sharedReaderAdvertised: boolean
     runningElsewhere: boolean
 }): boolean => sharedReaderAdvertised && runningElsewhere
+
+/** Atomic refresh verdict: the latest execution exists, is not complete, and the session still
+ * owns the running flag from the same snapshot read. */
+export const isSessionSnapshotRunning = (snapshot: SessionSnapshot | undefined): boolean =>
+    snapshot?.session.flags?.is_running === true &&
+    snapshot.execution != null &&
+    snapshot.execution.end_time == null
 
 const stringValue = (value: unknown): string =>
     typeof value === "string" ? value : value == null ? "" : String(value)
