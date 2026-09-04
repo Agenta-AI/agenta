@@ -1,7 +1,7 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
 import {isSessionTranscript, loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
-import {durableTranscriptMessages} from "@agenta/chat/model"
+import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
 import {
     fetchSessionRecordsAtom,
@@ -174,10 +174,8 @@ export const useSessionHydration = ({
             const adopt = shouldAdoptServerTranscript({
                 serverRecordCount: sequenceCursor ?? recordCount,
                 serverMessageCount: serverMsgs.length,
-                // A turn this browser only FAILED TO WATCH is not transcript the log has to beat:
-                // counting a dead request's stamp makes the local copy look longer than the
-                // server's, and the floor rule then pins the failure card on screen.
-                localMessageCount: durableTranscriptMessages(messagesRef.current).length,
+                localMessageCount: withoutSharedSenderAcceptanceMessages(messagesRef.current)
+                    .length,
                 watermark:
                     sequenceCursor === undefined
                         ? recordWatermarkRef.current

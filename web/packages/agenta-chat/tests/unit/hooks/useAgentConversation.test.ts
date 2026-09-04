@@ -48,7 +48,10 @@ vi.mock("@agenta/entities/trace", () => ({
 }))
 
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
-import {TRANSPORT_ERROR_MESSAGE} from "../../../src/model/error"
+import {
+    ACCEPTED_SENDER_DISCONNECT_MESSAGE,
+    TRANSPORT_ERROR_MESSAGE,
+} from "../../../src/model/error"
 import {
     getSessionTurnId,
     markSessionFresh,
@@ -494,7 +497,7 @@ describe("useAgentConversation", () => {
      * must not outlive the reload, or the next open paints "Could not reach Agenta" over a turn
      * that completed server-side (browser evidence 2026-09-04, session 4d21415e).
      */
-    it("shows a dead invoke stream live, but persists no failure for the reload", async () => {
+    it("shows an accepted disconnect as ephemeral connection state", async () => {
         vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
             invocationUrl: "https://agent.test/invoke",
             headers: {
@@ -514,13 +517,11 @@ describe("useAgentConversation", () => {
         await act(async () => {
             await result.current.send({text: "One more short line, please."})
         })
-        await waitFor(() => expect(result.current.runStatus).toBe("error"), {timeout: 5000})
-
-        // Live: the user still gets told, with the translated reason and a retry.
         await waitFor(() => {
-            const last = result.current.turns[result.current.turns.length - 1]
-            expect(last.status.isError).toBe(true)
-            expect(last.status.errorText).toBe(TRANSPORT_ERROR_MESSAGE)
+            expect(result.current.connectionWarning).toBe(ACCEPTED_SENDER_DISCONNECT_MESSAGE)
+            expect(result.current.error).toBeUndefined()
+            expect(result.current.runStatus).not.toBe("error")
+            expect(result.current.turns.some((turn) => turn.status.isError)).toBe(false)
         })
 
         // Durable: only the user turn. Nothing here can repaint the failure after a reload, and
@@ -561,6 +562,7 @@ describe("useAgentConversation", () => {
             await result.current.send({text: "this one never left"})
         })
         await waitFor(() => expect(result.current.runStatus).toBe("error"), {timeout: 5000})
+        expect(result.current.connectionWarning).toBeUndefined()
 
         await waitFor(() => {
             const persisted = store.get(sessionMessagesAtom)[sessionId]
@@ -590,6 +592,7 @@ describe("useAgentConversation", () => {
             await result.current.send({text: "explode on the shared path"})
         })
         await waitFor(() => expect(result.current.runStatus).toBe("error"), {timeout: 5000})
+        expect(result.current.connectionWarning).toBeUndefined()
 
         await waitFor(() => {
             const sharedCarriers = result.current.messages.filter(

@@ -1,5 +1,3 @@
-import type {UIMessage} from "ai"
-
 export interface ParsedRunError {
     message: string
     /** An HTTP-ish status from a JSON error envelope, or a stable runner failure class string. */
@@ -27,6 +25,9 @@ const ERROR_CLASS_PREFIX = /^[a-z]*error:\s*/
 
 /** One sentence with something to do in it, in place of a browser's internal wording. */
 export const TRANSPORT_ERROR_MESSAGE = "Could not reach Agenta. Check your connection and retry."
+
+export const ACCEPTED_SENDER_DISCONNECT_MESSAGE =
+    "Connection interrupted. The turn was accepted and is still running."
 
 /** Trailing periods and spaces, scanned rather than matched: `/[.\s]+$/` backtracks
  * quadratically on a long unmatched tail (CodeQL js/polynomial-redos). */
@@ -100,57 +101,22 @@ export const parseAgentRunError = (err: unknown): ParsedRunError => {
  * Next.js dev Runtime Error overlay (F-033). */
 export const ignoreStreamRejection = () => {}
 
-/** Metadata the error effect writes onto the row it stamps. `turnAccepted` records that the
- * server took the turn before the stream died — see `isDeadAcceptedSenderCarrier`. */
 export interface RunErrorMetadata {
     runError?: ParsedRunError
-    turnAccepted?: boolean
 }
 
-/**
- * The row a sender stream left behind after the server had already accepted the turn.
- *
- * Three things have to be true together, and each one carries weight.
- *
- * - `turnAccepted`: the runner answered this send with its acceptance frame, so it owns the turn
- *   and will write it to the durable log with or without us. Without this flag the send may never
- *   have started, and the card is the only thing telling the user so.
- * - `transport`: WE lost the request. No server verdict came back, so there is no judgment here to
- *   preserve.
- * - No answer of its own: every part is structure or control. On the shared path there is never
- *   more, because the answer arrives through the session frames. A row that DOES hold content is a
- *   turn, so it stays whole, stamp included.
- *
- * The acceptance cannot be read off the message. The runner marks that frame `transient`
- * (`services/runner/src/server.ts`), so the AI SDK hands it to `onData` and never puts it in
- * `parts`. The hook records it for the turn in flight instead.
- */
-/** Parts that say a turn was opened, not what it answered. The AI SDK adds `step-start` for the
- * `start-step` chunk, and a non-transient acceptance would land as its own data part. */
-const CONTROL_PART_TYPES = new Set(["step-start", "data-session-accepted"])
-
-const isDeadAcceptedSenderCarrier = (message: UIMessage): boolean => {
-    const metadata = message.metadata as RunErrorMetadata | undefined
-    return (
-        metadata?.turnAccepted === true &&
-        metadata.runError?.transport === true &&
-        message.parts.every((part) => CONTROL_PART_TYPES.has(part.type))
-    )
+export interface AgentRunErrorBoundary {
+    runError?: ParsedRunError
+    connectionWarning?: string
 }
 
-/**
- * Drop the row a dead sender stream leaves behind once the server owns the turn.
- *
- * That row is control, not transcript: the turn runs on and lands in the durable log, so the row
- * must not be persisted and must not be counted when the adoption guard compares what we render
- * with what the log holds. Both would keep a failure card over a turn the server completed.
- *
- * The rendered transcript is NOT filtered this way. A user whose send fails still sees the card,
- * live, in the tab that failed.
- *
- * Returns the same array when there is nothing to drop, which saves an allocation on every settle.
- */
-export const withoutDeadSenderAcceptance = (messages: UIMessage[]): UIMessage[] =>
-    messages.some(isDeadAcceptedSenderCarrier)
-        ? messages.filter((message) => !isDeadAcceptedSenderCarrier(message))
-        : messages
+/** Keep an accepted sender disconnect out of conversation content; the shared run continues. */
+export const classifyAgentRunError = (
+    error: unknown,
+    turnAccepted: boolean,
+): AgentRunErrorBoundary => {
+    const parsed = parseAgentRunError(error)
+    return turnAccepted && parsed.transport
+        ? {connectionWarning: ACCEPTED_SENDER_DISCONNECT_MESSAGE}
+        : {runError: parsed}
+}

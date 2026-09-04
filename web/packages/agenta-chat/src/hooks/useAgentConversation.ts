@@ -51,11 +51,8 @@ import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
-import {parseAgentRunError, type ParsedRunError, type RunErrorMetadata} from "../model/error"
-import {
-    durableTranscriptMessages,
-    withoutSharedSenderAcceptanceMessages,
-} from "../model/livePreview"
+import {classifyAgentRunError, type ParsedRunError, type RunErrorMetadata} from "../model/error"
+import {withoutSharedSenderAcceptanceMessages} from "../model/livePreview"
 import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionStatus"
 import {
     buildTurnViewModels,
@@ -150,6 +147,8 @@ export interface AgentConversation {
     runStatus: SessionRunStatus
     /** Parsed reason of the current stream failure, when there is one. */
     error?: ParsedRunError
+    /** Ephemeral warning when the sender connection drops after the session accepted the turn. */
+    connectionWarning?: string
     /** Pre-grouped per-turn view models (render items, status, empty-collapse, active turn). */
     turns: TurnViewModel[]
     /** Send a user message (routes through the queue: sends now, or holds while busy/paused). */
@@ -223,11 +222,8 @@ export const useAgentConversation = ({
     const clearTurnClock = useSetAtom(clearTurnClockAtom)
 
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
-    // A transport stamp from a previous mount is dropped on the way in as well as on the way out:
-    // a cache written before that rule existed must not paint a failure card over a turn the server
-    // finished (see `durableTranscriptMessages`).
     const [initialMessages] = useState(() =>
-        durableTranscriptMessages(store.get(sessionMessagesAtom)[sessionId] ?? []),
+        withoutSharedSenderAcceptanceMessages(store.get(sessionMessagesAtom)[sessionId] ?? []),
     )
     // Only the last assistant turn can carry the current stopped state.
     const [userStoppedState, dispatchStopped] = useReducer(
@@ -385,6 +381,10 @@ export const useAgentConversation = ({
     })
 
     const busy = isChatBusy(status)
+    const errorBoundary = useMemo(
+        () => (error ? classifyAgentRunError(error, turnAcceptedRef.current) : {}),
+        [error],
+    )
     // Require liveness newer than the local settle before classifying a run as remote.
     const previousBusyForReaderRef = useRef(busy)
     const localReaderSettleAtRef = useRef(0)
@@ -440,10 +440,8 @@ export const useAgentConversation = ({
             const adopt = shouldAdoptServerTranscript({
                 serverRecordCount: sequenceCursor ?? recordCount,
                 serverMessageCount: serverMsgs.length,
-                // A turn this browser only FAILED TO WATCH is not transcript the log has to beat:
-                // counting its stamp would make the local copy look longer than the server's and
-                // pin the failure card on screen (the floor rule below).
-                localMessageCount: durableTranscriptMessages(messagesRef.current).length,
+                localMessageCount: withoutSharedSenderAcceptanceMessages(messagesRef.current)
+                    .length,
                 watermark:
                     sequenceCursor === undefined
                         ? recordWatermarkRef.current
@@ -678,7 +676,7 @@ export const useAgentConversation = ({
 
     // Publish this session's run state (single source of truth for session-list status dots).
     // Precedence error > awaiting approval > running > idle.
-    const runStatus = deriveSessionRunStatus({error: !!error, hitlPending, busy})
+    const runStatus = deriveSessionRunStatus({error: !!errorBoundary.runError, hitlPending, busy})
     useEffect(() => {
         setSessionStatus({id: sessionId, status: runStatus})
     }, [runStatus, sessionId, setSessionStatus])
@@ -692,15 +690,11 @@ export const useAgentConversation = ({
         [sessionId, setSessionStatus],
     )
 
-    // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
-    // it renders as an error bubble with the real reason (and persists with the session via the
-    // effect below), instead of a transient banner + a generic "no response".
+    // Run failures become conversation content; an accepted transport loss stays connection state.
     useEffect(() => {
-        if (!error) return
-        const parsed = parseAgentRunError(error)
-        // Recorded beside the error: the durable filter needs to tell "we lost the stream of a turn
-        // the server owns" from "this send may never have started".
-        const stamp: RunErrorMetadata = {runError: parsed, turnAccepted: turnAcceptedRef.current}
+        const parsed = errorBoundary.runError
+        if (!parsed) return
+        const stamp: RunErrorMetadata = {runError: parsed}
         setMessages((prev) => {
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
             const existing = (last?.metadata as RunErrorMetadata | undefined)?.runError
@@ -724,7 +718,7 @@ export const useAgentConversation = ({
                 } as (typeof prev)[number],
             ]
         })
-    }, [error, setMessages])
+    }, [errorBoundary.runError, setMessages])
 
     // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
     // records the runner logged for it — so drop the watermark and let the next open re-sync from
@@ -746,7 +740,7 @@ export const useAgentConversation = ({
         if (status === "streaming") return
         persistMessages({
             id: sessionId,
-            messages: durableTranscriptMessages(messages),
+            messages: withoutSharedSenderAcceptanceMessages(messages),
             recordCount: recordWatermarkRef.current,
         })
     }, [messages, status, sessionId, persistMessages])
@@ -933,13 +927,12 @@ export const useAgentConversation = ({
         [displayMessages, busy, executedFor, isClientToolPart, previewMessages.length, renderMap],
     )
 
-    const parsedError = useMemo(() => (error ? parseAgentRunError(error) : undefined), [error])
-
     return {
         messages: displayMessages,
         status,
         runStatus,
-        error: parsedError,
+        error: errorBoundary.runError,
+        connectionWarning: errorBoundary.connectionWarning,
         turns,
         send,
         stop: handleStop,

@@ -4,6 +4,7 @@ import {CHAT_COLUMN, shouldShowStopControl} from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {
     ChatComposer,
+    ConnectionWarningStrip,
     MicPermissionNotice,
     RecordingBar,
     RunningElsewhereStrip,
@@ -59,6 +60,7 @@ const AgentComposerDock = ({
     messages,
     busy,
     runningElsewhere,
+    connectionWarning,
     hitlPending,
     queue,
     modelKey,
@@ -88,6 +90,8 @@ const AgentComposerDock = ({
     busy: boolean
     /** The backend reports a live run for this session that this browser is not driving. */
     runningElsewhere: boolean
+    /** The sender request disconnected after the session accepted the turn. */
+    connectionWarning?: string
     hitlPending: boolean
     queue: {
         queued: QueuedMessage[]
@@ -313,6 +317,9 @@ const AgentComposerDock = ({
                     as busy instead of frozen (#5530). */}
                 {runningElsewhere && !chromeHidden ? (
                     <RunningElsewhereStrip className={CHAT_COLUMN} />
+                ) : null}
+                {connectionWarning && !chromeHidden ? (
+                    <ConnectionWarningStrip className={CHAT_COLUMN} message={connectionWarning} />
                 ) : null}
                 <ApprovalDock
                     className={CHAT_COLUMN}

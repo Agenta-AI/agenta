@@ -10,8 +10,9 @@ import {
 } from "@agenta/chat/assets"
 import {
     ConnectionDock,
-    ElicitationDock,
     ConnectionFocusProvider,
+    ConnectionWarningStrip,
+    ElicitationDock,
     QueuedMessagesDock,
     RunningElsewhereStrip,
 } from "@agenta/chat/components"
@@ -577,6 +578,11 @@ export const LiveConversation = ({
                                         <StopButton sessionId={sessionId} projectId={projectId} />
                                     }
                                 />
+                            </ContentRail>
+                        ) : null}
+                        {conversation.connectionWarning ? (
+                            <ContentRail>
+                                <ConnectionWarningStrip message={conversation.connectionWarning} />
                             </ContentRail>
                         ) : null}
                         {pendingApprovals.length > 0 ? (

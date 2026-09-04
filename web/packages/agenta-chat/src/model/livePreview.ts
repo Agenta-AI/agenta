@@ -7,9 +7,8 @@ import {
 } from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 
-import {withoutDeadSenderAcceptance} from "./error"
-
 type PreviewPart = Record<string, unknown> & {type: string}
+const SHARED_SENDER_CONTROL_PARTS = new Set(["data-session-accepted", "step-start"])
 
 /** A sender subscribes eagerly; a secondary reader waits for a remote run. */
 export const shouldSubscribeToSessionLivePreview = ({
@@ -31,24 +30,8 @@ export const withoutSharedSenderAcceptanceMessages = (messages: UIMessage[]): UI
             | {sharedSender?: boolean; runError?: unknown}
             | undefined
         if (!metadata?.sharedSender || metadata.runError) return true
-        return message.parts.some((part) => part.type !== "data-session-accepted")
+        return message.parts.some((part) => !SHARED_SENDER_CONTROL_PARTS.has(part.type))
     })
-
-/**
- * The transcript as the DURABLE log should hold it: no control-only carrier, and no row left over
- * from a sender stream that died after the server took the turn.
- *
- * Both filters remove a shared-sender carrier; they differ on which one. The acceptance filter
- * removes the ordinary control row and deliberately keeps one that holds a `runError`, so a real
- * invoke error stays visible. `withoutDeadSenderAcceptance` removes exactly the error the server
- * never issued. The two are independent, so the order here is for reading, not for correctness.
- *
- * Use it for what is persisted and for the count the adoption guard compares with the log. The
- * rendered transcript is NOT filtered this way: a failed send stays on screen for the user who
- * made it.
- */
-export const durableTranscriptMessages = (messages: UIMessage[]): UIMessage[] =>
-    withoutSharedSenderAcceptanceMessages(withoutDeadSenderAcceptance(messages))
 
 /** Atomic refresh verdict: the latest execution exists, is not complete, and the session still
  * owns the running flag from the same snapshot read. */

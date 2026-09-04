@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useReducer, useRef} from "react"
+import {useCallback, useEffect, useMemo, useReducer, useRef, useState} from "react"
 
 import {
     buildRequestWithinDeadline,
@@ -9,14 +9,14 @@ import {
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
 import {
-    durableTranscriptMessages,
+    classifyAgentRunError,
     ignoreStreamRejection,
     createUserStoppedState,
     isSessionTurnStopping,
     parseAgentRunError,
     reduceUserStoppedState,
-    withoutSharedSenderAcceptanceMessages,
     type RunErrorMetadata,
+    withoutSharedSenderAcceptanceMessages,
 } from "@agenta/chat/model"
 import {
     clearTurnClockAtom,
@@ -282,6 +282,10 @@ export const useAgentChatSession = ({
         },
         [regenerateChatMessage, sessionId],
     )
+    const errorBoundary = useMemo(
+        () => (error ? classifyAgentRunError(error, turnAcceptedRef.current) : {}),
+        [error],
+    )
 
     const busy = isChatBusy(status)
     // `messages`/`busy` change every token; consumers that must stay referentially stable
@@ -434,16 +438,11 @@ export const useAgentChatSession = ({
         if (turnId) setSessionTurnId(sessionId, turnId)
     }, [messages, sessionId])
 
-    // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
-    // it renders as a red error bubble with the real reason (and persists with the session via the
-    // effect below), instead of a transient top banner + a generic "no response". FE-only — it
-    // uses the error useChat already has; the backend doesn't need to attach it to the trace.
+    // Run failures become conversation content; an accepted transport loss stays connection state.
     useEffect(() => {
-        if (!error) return
-        const parsed = parseAgentRunError(error)
-        // Recorded beside the error: the durable filter needs to tell "we lost the stream of a turn
-        // the server owns" from "this send may never have started".
-        const stamp: RunErrorMetadata = {runError: parsed, turnAccepted: turnAcceptedRef.current}
+        const parsed = errorBoundary.runError
+        if (!parsed) return
+        const stamp: RunErrorMetadata = {runError: parsed}
         setMessages((prev) => {
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
             const existing = (last?.metadata as RunErrorMetadata | undefined)?.runError
@@ -467,7 +466,7 @@ export const useAgentChatSession = ({
                 } as (typeof prev)[number],
             ]
         })
-    }, [error, setMessages])
+    }, [errorBoundary.runError, setMessages])
 
     // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
     // records the runner logged for it — so drop the watermark and let the next open re-sync from
@@ -488,7 +487,7 @@ export const useAgentChatSession = ({
         if (status === "streaming") return
         persistMessages({
             id: sessionId,
-            messages: durableTranscriptMessages(messages),
+            messages: withoutSharedSenderAcceptanceMessages(messages),
             recordCount: recordWatermarkRef.current,
         })
     }, [messages, status, sessionId, persistMessages])
@@ -724,7 +723,8 @@ export const useAgentChatSession = ({
         messages,
         status,
         busy,
-        error,
+        error: errorBoundary.runError,
+        connectionWarning: errorBoundary.connectionWarning,
         sendMessage: sendMessageWithFreshGuard,
         regenerate: regenerateWithFreshGuard,
         setMessages,
