@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import NAMESPACE_DNS, UUID, uuid5
 
 from oss.src.core.sessions.interactions.dtos import (
@@ -26,6 +26,27 @@ _RECORD_NAMESPACE = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "records")
 log = get_module_logger(__name__)
 
 
+def _watch_interaction_state(interaction: SessionInteraction) -> Dict[str, Any]:
+    data: Dict[str, Any] = {}
+    if interaction.data is not None:
+        if (
+            interaction.data.request is not None
+            and interaction.data.request.tool_call_id is not None
+        ):
+            data["request"] = {"tool_call_id": interaction.data.request.tool_call_id}
+        if interaction.data.resolution is not None:
+            data["resolution"] = interaction.data.resolution
+    return {
+        "id": str(interaction.id) if interaction.id is not None else None,
+        "session_id": interaction.session_id,
+        "turn_id": interaction.turn_id,
+        "token": interaction.token,
+        "kind": interaction.kind.value,
+        "status": interaction.status.value if interaction.status is not None else None,
+        "data": data or None,
+    }
+
+
 class SessionInteractionsService:
     def __init__(
         self,
@@ -39,7 +60,12 @@ class SessionInteractionsService:
         self._records = records_service
 
     async def _publish_interaction(
-        self, *, project_id: UUID, session_id: str, status: str
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        status: str,
+        interactions: Optional[List[SessionInteraction]] = None,
     ) -> None:
         # Fire-and-forget relay notification; the publisher never raises.
         if self._watch is not None:
@@ -47,6 +73,14 @@ class SessionInteractionsService:
                 project_id=str(project_id),
                 session_id=session_id,
                 status=status,
+                interactions=(
+                    [
+                        _watch_interaction_state(interaction)
+                        for interaction in interactions
+                    ]
+                    if interactions is not None
+                    else None
+                ),
             )
 
     async def create_interaction(
@@ -66,6 +100,7 @@ class SessionInteractionsService:
             project_id=project_id,
             session_id=interaction.session_id,
             status=WATCH_INTERACTION_PENDING,
+            interactions=[created],
         )
         return created
 
@@ -125,6 +160,7 @@ class SessionInteractionsService:
                 project_id=transition.project_id,
                 session_id=transition.session_id,
                 status=WATCH_INTERACTION_RESOLVED,
+                interactions=[result],
             )
         return result
 
@@ -200,12 +236,17 @@ class SessionInteractionsService:
         )
 
     async def publish_interaction_responded(
-        self, *, project_id: UUID, session_id: str
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        interactions: List[SessionInteraction],
     ) -> None:
         await self._publish_interaction(
             project_id=project_id,
             session_id=session_id,
             status=WATCH_INTERACTION_RESOLVED,
+            interactions=interactions,
         )
 
     async def query_interactions(

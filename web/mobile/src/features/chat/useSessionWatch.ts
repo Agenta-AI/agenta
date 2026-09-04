@@ -16,13 +16,13 @@ import {sessionWatchUrl, watchRetryDelayMs} from "./watchRelay"
 const MIN_INTERVAL_MS = 3_000
 
 /**
- * One EventSource per foregrounded chat screen (M3 live relay). Events carry no payloads —
- * every handler funnels into the existing revalidate paths:
+ * One EventSource per foregrounded chat screen (M3 live relay). Most events invalidate existing
+ * queries; interaction events also carry committed row state for immediate gate retirement:
  *
  * - `records-changed` (and every `open`, for missed-event coverage) → `onRecordsChanged`,
  *   i.e. the transcript tick's body (`revalidateSessionRecordsAtom` + re-read).
- * - `lifecycle` / `interaction` → invalidate the shared liveness + actionable-interactions
- *   queries, and the nav rail's own session queries (no duplicated state; each refetches).
+ * - `interaction` → reduce its committed row state and invalidate the shared badge queries.
+ * - `lifecycle` → invalidate liveness and the nav rail's session queries.
  *
  * Foreground-only: the source closes on `visibilitychange → hidden` and reopens on visible.
  * Transient errors ride EventSource's built-in reconnect (the server pins its delay with an
@@ -41,7 +41,7 @@ export const useSessionWatch = ({
     sessionId: string
     projectId: string
     onRecordsChanged: () => void
-    onInteractionChanged?: () => void
+    onInteractionChanged?: (event: MessageEvent<string>) => void
     sharedReaderAdvertised?: boolean
 }): {connected: boolean} => {
     const [connected, setConnected] = useState(false)
@@ -139,9 +139,9 @@ export const useSessionWatch = ({
                 }
             })
             es.addEventListener("lifecycle", () => invalidateBadges(true))
-            es.addEventListener("interaction", () => {
+            es.addEventListener("interaction", (event) => {
+                onInteractionChangedRef.current?.(event as MessageEvent<string>)
                 invalidateBadges()
-                onInteractionChangedRef.current?.()
             })
             es.onerror = () => {
                 setConnected(false)

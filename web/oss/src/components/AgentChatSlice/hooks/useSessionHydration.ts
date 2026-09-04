@@ -12,6 +12,7 @@ import {
     fetchSessionInteractionStatesAtom,
     fetchSessionRecordsAtom,
     hasWaitingInteraction,
+    interactionStatesFromWatchEvent,
     revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
     type SessionInteractionRowStates,
@@ -42,6 +43,7 @@ const REMOTE_RUN_POLL_MS = 15_000
  * resets to the fast cadence, so a long turn that is simply quiet (a slow tool call emits no
  * records until it returns) is still followed. */
 const REMOTE_RUN_POLL_MAX_MS = 60_000
+const INTERACTION_GATE_POLL_MS = 1_000
 
 /** Retry budget for the stranded-first-send record check when the fetch itself fails
  * (`records: null`). Bounded so a down endpoint gets a short burst, not a hammer; when the budget
@@ -542,7 +544,37 @@ export const useSessionHydration = ({
             readLog,
         ],
     )
-    const refreshFromInteractions = useCallback(() => {
+    const applyInteractionStates = useCallback(
+        (rows: SessionInteractionRowStates) => {
+            if (
+                shouldSkipRecordsRefresh({
+                    busy: busyRef.current,
+                    pendingResume: !!pendingResumeRef.current,
+                })
+            )
+                return
+            const current = messagesRef.current
+            const reconciled = reconcileInteractionRowStates(current, rows)
+            if (reconciled === current) return
+            messagesRef.current = reconciled
+            setMessages(reconciled)
+            persistMessages({
+                id: sessionId,
+                messages: reconciled,
+                recordCount: recordWatermarkRef.current,
+            })
+        },
+        [
+            sessionId,
+            busyRef,
+            pendingResumeRef,
+            messagesRef,
+            recordWatermarkRef,
+            setMessages,
+            persistMessages,
+        ],
+    )
+    const refreshFromInteractions = useCallback(async () => {
         if (
             shouldSkipRecordsRefresh({
                 busy: busyRef.current,
@@ -550,39 +582,33 @@ export const useSessionHydration = ({
             })
         )
             return
-        void revalidateSessionInteractions(sessionId)
-            .then(async () => {
-                const rows = await fetchSessionInteractionStates(sessionId)
-                if (
-                    shouldSkipRecordsRefresh({
-                        busy: busyRef.current,
-                        pendingResume: !!pendingResumeRef.current,
-                    })
-                )
-                    return
-                const current = messagesRef.current
-                const reconciled = reconcileInteractionRowStates(current, rows)
-                if (reconciled === current) return
-                messagesRef.current = reconciled
-                setMessages(reconciled)
-                persistMessages({
-                    id: sessionId,
-                    messages: reconciled,
-                    recordCount: recordWatermarkRef.current,
-                })
-            })
-            .catch(() => undefined)
+        try {
+            await revalidateSessionInteractions(sessionId)
+            const rows = await fetchSessionInteractionStates(sessionId)
+            applyInteractionStates(rows)
+        } catch {
+            // Best-effort fallback; the live relay or next interval can still converge.
+        }
     }, [
         sessionId,
         busyRef,
         pendingResumeRef,
-        messagesRef,
-        recordWatermarkRef,
         revalidateSessionInteractions,
         fetchSessionInteractionStates,
-        setMessages,
-        persistMessages,
+        applyInteractionStates,
     ])
+    const refreshFromInteractionEvent = useCallback(
+        (event: MessageEvent<string>) => {
+            const pushed = interactionStatesFromWatchEvent(event.data, sessionId)
+            if (!pushed) {
+                void refreshFromInteractions()
+                return
+            }
+            applyInteractionStates(pushed)
+            void revalidateSessionInteractions(sessionId)
+        },
+        [sessionId, applyInteractionStates, refreshFromInteractions, revalidateSessionInteractions],
+    )
     // `ready` fires on every connect — each tab activation, each return to the foreground. Records
     // can skip a duplicate mount read, but rows must always catch up because a response changes the
     // interaction row without necessarily appending a record (#6296).
@@ -595,16 +621,31 @@ export const useSessionHydration = ({
             })
         )
             refreshFromRecords()
-        refreshFromInteractions()
+        void refreshFromInteractions()
     }, [refreshFromRecords, refreshFromInteractions])
+    const interactionGateOpen = isHitlPending(messagesRef.current)
+    useEffect(() => {
+        if (activeSessionId !== sessionId || !interactionGateOpen) return
+        let cancelled = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const poll = async () => {
+            await refreshFromInteractions()
+            if (!cancelled) timer = setTimeout(poll, INTERACTION_GATE_POLL_MS)
+        }
+        timer = setTimeout(poll, INTERACTION_GATE_POLL_MS)
+        return () => {
+            cancelled = true
+            if (timer) clearTimeout(timer)
+        }
+    }, [activeSessionId, sessionId, interactionGateOpen, refreshFromInteractions])
     useSessionRecordsWatch({
         sessionId,
         projectId,
-        // #5919 relay; this surface re-reads records on any interaction change, and the
-        // interaction rows themselves, because a response changes a row without appending a record.
-        onInteractionChanged: () => {
+        // #5919 relay; this surface re-reads records on any interaction change, and applies the
+        // pushed interaction row, because a response changes a row without appending a record.
+        onInteractionChanged: (event) => {
             revalidateSessionRecords(sessionId)
-            refreshFromInteractions()
+            refreshFromInteractionEvent(event)
         },
         enabled: activeSessionId === sessionId,
         onReady: refreshOnReady,

@@ -3,6 +3,7 @@ import type {
     SessionInteractionRowStates,
     SessionRecord,
 } from "@agenta/entities/session"
+import {interactionStatesFromWatchEvent} from "@agenta/entities/session"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
 import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
@@ -32,7 +33,9 @@ const record = (
     created_at: null,
 })
 
-const firstAssistantMetadata = (messages: UIMessage[] | null): Record<string, unknown> | undefined =>
+const firstAssistantMetadata = (
+    messages: UIMessage[] | null,
+): Record<string, unknown> | undefined =>
     messages?.find((message) => message.role === "assistant")?.metadata as
         | Record<string, unknown>
         | undefined
@@ -275,15 +278,12 @@ describe("transcriptToMessages approval resume", () => {
                 "agent",
                 "source-turn",
             ),
-            record(
-                "r-source-done",
-                {type: "done", stopReason: "paused"},
-                "agent",
-                "source-turn",
-            ),
+            record("r-source-done", {type: "done", stopReason: "paused"}, "agent", "source-turn"),
         ]
-        const pendingParts = transcriptToMessages(pendingRecords)![1]
-            .parts as unknown as Record<string, unknown>[]
+        const pendingParts = transcriptToMessages(pendingRecords)![1].parts as unknown as Record<
+            string,
+            unknown
+        >[]
         expect(pendingParts).toEqual(
             expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
         )
@@ -350,12 +350,7 @@ describe("transcriptToMessages approval resume", () => {
                 "agent",
                 "source-turn",
             ),
-            record(
-                "r-source-done",
-                {type: "done", stopReason: "paused"},
-                "agent",
-                "source-turn",
-            ),
+            record("r-source-done", {type: "done", stopReason: "paused"}, "agent", "source-turn"),
         ]
         const running = [
             ...source,
@@ -390,7 +385,12 @@ describe("transcriptToMessages approval resume", () => {
 
         const finished = transcriptToMessages([
             ...running,
-            record("r-result", {type: "tool_result", id: "tool-2", output: "ok"}, "agent", "continuation-turn"),
+            record(
+                "r-result",
+                {type: "tool_result", id: "tool-2", output: "ok"},
+                "agent",
+                "continuation-turn",
+            ),
             record("r-continuation-done", {type: "done"}, "agent", "continuation-turn"),
         ])
         expect(firstAssistantMetadata(finished)).toMatchObject({
@@ -1072,22 +1072,41 @@ describe("transcriptToMessages interaction-row precedence", () => {
         })
     })
 
-    it("settles an already-rendered approval when another reader answers the row", () => {
+    it("replays the observer tab sequence from pending record to pushed resolution", () => {
         const live = transcriptToMessages(abandonedApprovalRecords()) ?? []
-        const reconciled = reconcileInteractionRowStates(
-            live,
-            rowStates(rowState("approval-1", {kind: "user_approval", status: "responded"})),
+        const pushed = interactionStatesFromWatchEvent(
+            JSON.stringify({
+                type: "interaction",
+                session_id: "session-1",
+                status: "resolved",
+                interactions: [
+                    {
+                        id: "interaction-row-1",
+                        session_id: "session-1",
+                        turn_id: "turn-1",
+                        token: "approval-1",
+                        kind: "user_approval",
+                        status: "responded",
+                        data: {
+                            request: {tool_call_id: "tool-1"},
+                            resolution: {verdict: "approved", tool_call_id: "tool-1"},
+                        },
+                    },
+                ],
+            }),
+            "session-1",
         )
+        const reconciled = reconcileInteractionRowStates(live, pushed)
 
         expect(
-            reconciled.flatMap((message) => message.parts).find((part) =>
-                "toolCallId" in part ? part.toolCallId === "tool-1" : false,
-            ),
-        ).toMatchObject({state: "approval-responded"})
+            reconciled
+                .flatMap((message) => message.parts)
+                .find((part) => ("toolCallId" in part ? part.toolCallId === "tool-1" : false)),
+        ).toMatchObject({state: "approval-responded", approval: {approved: true}})
         expect(
-            live.flatMap((message) => message.parts).find((part) =>
-                "toolCallId" in part ? part.toolCallId === "tool-1" : false,
-            ),
+            live
+                .flatMap((message) => message.parts)
+                .find((part) => ("toolCallId" in part ? part.toolCallId === "tool-1" : false)),
         ).toMatchObject({state: "approval-requested"})
     })
 

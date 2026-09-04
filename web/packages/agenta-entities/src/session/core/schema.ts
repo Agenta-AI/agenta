@@ -92,6 +92,13 @@ export const sessionInteractionResponseSchema = z.object({
     interaction: sessionInteractionSchema.nullish(),
 })
 
+export const sessionInteractionWatchEventSchema = z.object({
+    type: z.literal("interaction"),
+    session_id: z.string(),
+    status: z.string(),
+    interactions: z.array(sessionInteractionSchema).nullish(),
+})
+
 export type SessionInteraction = z.infer<typeof sessionInteractionSchema>
 
 /** HITL lifecycle codes. `pending` is the only actionable state. */

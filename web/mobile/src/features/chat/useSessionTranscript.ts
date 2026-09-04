@@ -1,11 +1,24 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
-import {revalidateSessionRecordsAtom} from "@agenta/entities/session"
+import {
+    loadSessionMessages,
+    reconcileInteractionRowStates,
+    type SessionTranscript,
+} from "@agenta/chat/assets"
+import {
+    fetchSessionInteractionStatesAtom,
+    interactionStatesFromWatchEvent,
+    revalidateSessionInteractionsAtom,
+    revalidateSessionRecordsAtom,
+    type SessionInteractionRowStates,
+} from "@agenta/entities/session"
+import {isHitlPending} from "@agenta/playground"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
 
 import {adoptTranscriptRead, shouldAdoptTranscript} from "./transcriptAdoption"
+
+const INTERACTION_GATE_POLL_MS = 1_000
 
 /**
  * Read-only transcript for one session: server record replay via `loadSessionMessages`
@@ -129,5 +142,49 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         }
     }, [refresh, pollMs])
 
-    return {messages, state, refresh}
+    const applyInteractionStates = useCallback(
+        (rows: SessionInteractionRowStates) => {
+            if (sessionRef.current !== sessionId) return
+            const current = messagesRef.current
+            const reconciled = reconcileInteractionRowStates(current, rows)
+            if (reconciled === current) return
+            messagesRef.current = reconciled
+            setMessages(reconciled)
+        },
+        [sessionId],
+    )
+    const refreshInteractions = useCallback(async () => {
+        const store = getDefaultStore()
+        await store.set(revalidateSessionInteractionsAtom, sessionId)
+        applyInteractionStates(await store.set(fetchSessionInteractionStatesAtom, sessionId))
+    }, [applyInteractionStates, sessionId])
+    const interactionChanged = useCallback(
+        (event: MessageEvent<string>) => {
+            const pushed = interactionStatesFromWatchEvent(event.data, sessionId)
+            if (!pushed) {
+                void refreshInteractions()
+                return
+            }
+            applyInteractionStates(pushed)
+            void getDefaultStore().set(revalidateSessionInteractionsAtom, sessionId)
+        },
+        [applyInteractionStates, refreshInteractions, sessionId],
+    )
+    const interactionGateOpen = isHitlPending(messages)
+    useEffect(() => {
+        if (!interactionGateOpen) return
+        let cancelled = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const poll = async () => {
+            await refreshInteractions().catch(() => undefined)
+            if (!cancelled) timer = setTimeout(poll, INTERACTION_GATE_POLL_MS)
+        }
+        timer = setTimeout(poll, INTERACTION_GATE_POLL_MS)
+        return () => {
+            cancelled = true
+            if (timer) clearTimeout(timer)
+        }
+    }, [interactionGateOpen, refreshInteractions])
+
+    return {messages, state, refresh, interactionChanged}
 }

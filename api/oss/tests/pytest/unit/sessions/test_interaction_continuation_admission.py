@@ -129,6 +129,7 @@ def _durable_approvals_enabled(monkeypatch):
 class _Interactions:
     def __init__(self, interaction):
         self.interactions = [interaction]
+        self.published = []
 
     @property
     def interaction(self):
@@ -161,7 +162,7 @@ class _Interactions:
         return self.interactions[index]
 
     async def publish_interaction_responded(self, **kwargs):
-        return None
+        self.published.append(kwargs)
 
 
 class _Executions:
@@ -304,6 +305,9 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
     assert delivery.delivered[0].data["answer"] == {"approved": True}
     assert executions.source.terminal_outcome == "continued"
     assert executions.states[-1][1] == SessionExecutionState.recoverable
+    assert interactions.published[0]["interactions"][0].data.resolution == {
+        "approved": True
+    }
 
     commands.command = commands.command.model_copy(
         update={"target_turn_id": "continuation-retry"}

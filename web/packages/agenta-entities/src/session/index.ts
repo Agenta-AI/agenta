@@ -141,6 +141,8 @@ export {
 export {
     fetchSessionInteractionStatesAtom,
     hasWaitingInteraction,
+    interactionStatesFromRows,
+    interactionStatesFromWatchEvent,
     revalidateSessionInteractionsAtom,
     type SessionInteractionRowState,
     type SessionInteractionRowStates,

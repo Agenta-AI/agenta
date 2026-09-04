@@ -12,6 +12,7 @@ import type {
     SessionInteractionKind,
     SessionInteractionStatusCode,
 } from "../core/schema"
+import {sessionInteractionWatchEventSchema} from "../core/schema"
 
 const SESSION_INTERACTION_ROWS_STALE_MS = 15_000
 
@@ -37,7 +38,7 @@ export interface SessionInteractionRowState {
 
 export type SessionInteractionRowStates = ReadonlyMap<string, SessionInteractionRowState>
 
-function interactionStatesFromRows(rows: SessionInteraction[]): SessionInteractionRowStates {
+export function interactionStatesFromRows(rows: SessionInteraction[]): SessionInteractionRowStates {
     const states = new Map<string, SessionInteractionRowState>()
     for (const row of rows) {
         if (typeof row.token !== "string" || !row.token) continue
@@ -54,6 +55,21 @@ function interactionStatesFromRows(rows: SessionInteraction[]): SessionInteracti
         })
     }
     return states
+}
+
+/** Row states delivered by the session watch relay; undefined means the caller must refetch. */
+export function interactionStatesFromWatchEvent(
+    data: string,
+    sessionId: string,
+): SessionInteractionRowStates | undefined {
+    try {
+        const parsed = sessionInteractionWatchEventSchema.safeParse(JSON.parse(data))
+        if (!parsed.success || parsed.data.session_id !== sessionId || !parsed.data.interactions)
+            return undefined
+        return interactionStatesFromRows(parsed.data.interactions)
+    } catch {
+        return undefined
+    }
 }
 
 /**

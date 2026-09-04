@@ -263,10 +263,12 @@ export const LiveConversation = ({
     }, [sessionId])
 
     // Push invalidation folds cross-device changes into the guarded transcript.
+    const {interactionChanged} = conversation
     const watch = useSessionWatch({
         sessionId,
         projectId,
         onRecordsChanged: revalidate,
+        onInteractionChanged: interactionChanged,
         sharedReaderAdvertised: sharedReader,
     })
     // Poll slowly while a cross-device run cannot be watched live.

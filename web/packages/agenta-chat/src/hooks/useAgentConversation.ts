@@ -19,12 +19,15 @@ import {useCallback, useEffect, useMemo, useReducer, useRef, useState} from "rea
 import {
     invalidateSessionListQueries,
     invalidateSessionLivenessQueries,
+    fetchSessionInteractionStatesAtom,
+    interactionStatesFromWatchEvent,
     recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
     resumeSessionContinuationAtom,
     sessionDurableApprovalsCapabilityAtom,
     revalidateSessionMountsAtom,
+    revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
@@ -56,6 +59,7 @@ import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {submitApprovalForCapability} from "../assets/serverOwnedApproval"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
+import {reconcileInteractionRowStates} from "../assets/transcriptToMessages"
 import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
 import {classifyAgentRunError, type ParsedRunError, type RunErrorMetadata} from "../model/error"
 import {withoutSharedSenderAcceptanceMessages} from "../model/livePreview"
@@ -102,6 +106,7 @@ import {useSessionLivePreview} from "./useSessionLivePreview"
  * error; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to a
  * dev runtime-error overlay (F-033). */
 const ignoreStreamRejection = () => {}
+const INTERACTION_GATE_POLL_MS = 1_000
 
 export interface SendInput {
     text: string
@@ -206,6 +211,8 @@ export interface AgentConversation {
     readerReady: boolean
     /** This browser's accepted turn is still owned by the shared session path. */
     acceptedRunPending: boolean
+    /** Apply a pushed interaction row immediately, falling back to the row query for old events. */
+    interactionChanged: (event: MessageEvent<string>) => void
 }
 
 /**
@@ -229,6 +236,8 @@ export const useAgentConversation = ({
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const revalidateSessionInteractions = useSetAtom(revalidateSessionInteractionsAtom)
+    const fetchSessionInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
     const pruneExpanded = useSetAtom(pruneExpandedAtom)
     const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
     const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
@@ -987,6 +996,59 @@ export const useAgentConversation = ({
             : transcriptMessages
     }, [includePreview, messages, previewMessages])
 
+    const applyInteractionStates = useCallback(
+        (rows: ReturnType<typeof interactionStatesFromWatchEvent>) => {
+            if (!rows || busyRef.current || liveGateInteractionRef.current) return
+            const current = messagesRef.current
+            const reconciled = reconcileInteractionRowStates(current, rows)
+            if (reconciled === current) return
+            messagesRef.current = reconciled
+            setMessages(reconciled)
+            persistMessages({
+                id: sessionId,
+                messages: reconciled,
+                recordCount: recordWatermarkRef.current,
+            })
+        },
+        [persistMessages, sessionId, setMessages],
+    )
+    const refreshInteractions = useCallback(async () => {
+        if (busyRef.current || liveGateInteractionRef.current) return
+        await revalidateSessionInteractions(sessionId)
+        applyInteractionStates(await fetchSessionInteractionStates(sessionId))
+    }, [
+        applyInteractionStates,
+        fetchSessionInteractionStates,
+        revalidateSessionInteractions,
+        sessionId,
+    ])
+    const interactionChanged = useCallback(
+        (event: MessageEvent<string>) => {
+            const pushed = interactionStatesFromWatchEvent(event.data, sessionId)
+            if (!pushed) {
+                void refreshInteractions()
+                return
+            }
+            applyInteractionStates(pushed)
+            void revalidateSessionInteractions(sessionId)
+        },
+        [applyInteractionStates, refreshInteractions, revalidateSessionInteractions, sessionId],
+    )
+    useEffect(() => {
+        if (!hitlPending) return
+        let cancelled = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const poll = async () => {
+            await refreshInteractions().catch(() => undefined)
+            if (!cancelled) timer = setTimeout(poll, INTERACTION_GATE_POLL_MS)
+        }
+        timer = setTimeout(poll, INTERACTION_GATE_POLL_MS)
+        return () => {
+            cancelled = true
+            if (timer) clearTimeout(timer)
+        }
+    }, [hitlPending, refreshInteractions])
+
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const handleStop = useCallback(() => {
         const last = messagesRef.current[messagesRef.current.length - 1]
@@ -1124,5 +1186,6 @@ export const useAgentConversation = ({
         runningFromSnapshot,
         readerReady,
         acceptedRunPending,
+        interactionChanged,
     }
 }

@@ -36,7 +36,7 @@ export const useSessionRecordsWatch = ({
      * `onRecordsChanged` so it can skip a log the caller has just read (#6296). */
     onReady: () => void
     onRecordsChanged: () => void
-    onInteractionChanged: () => void
+    onInteractionChanged: (event: MessageEvent<string>) => void
     sharedReaderAdvertised: boolean
 }): void => {
     const queryClient = useQueryClient()

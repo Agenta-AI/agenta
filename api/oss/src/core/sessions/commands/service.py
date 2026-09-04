@@ -638,6 +638,7 @@ class SessionCommandsService:
             await self._interactions.publish_interaction_responded(
                 project_id=project_id,
                 session_id=admission.interaction.session_id,
+                interactions=admission.interactions,
             )
         except Exception as error:  # noqa: BLE001 - the durable transaction already committed
             log.warning(
