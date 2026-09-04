@@ -19,6 +19,7 @@ def _event_base(
     *,
     entity_id: str,
     include_legacy: bool,
+    watermark: int,
 ) -> Optional[Dict[str, Any]]:
     created_at = record.timestamp or record.created_at
     execution_id = record.turn_id or (record.attributes or {}).get("execution_id")
@@ -36,12 +37,13 @@ def _event_base(
         "frame_or_event_id": str(record.record_id),
         "entity_id": entity_id,
         "sequence": record.sequence,
+        "watermark": watermark,
         "created_at": created_at,
     }
 
 
 def _direct_event(
-    record: SessionRecord, *, include_legacy: bool
+    record: SessionRecord, *, include_legacy: bool, watermark: int
 ) -> Optional[SessionDurableEvent]:
     if record.record_type not in SESSION_DURABLE_EVENT_TYPES:
         return None
@@ -61,6 +63,7 @@ def _direct_event(
         record,
         entity_id=str(entity_id or record.record_id),
         include_legacy=include_legacy,
+        watermark=watermark,
     )
     if base is None:
         return None
@@ -76,9 +79,15 @@ def durable_events_from_records(
     records: List[SessionRecord],
     *,
     include_legacy: bool = False,
+    watermark: Optional[int] = None,
 ) -> List[SessionDurableEvent]:
     events: List[SessionDurableEvent] = []
     tool_calls: Dict[tuple[str, str], Dict[str, Any]] = {}
+    resolved_watermark = (
+        watermark
+        if watermark is not None
+        else max((record.sequence or 0 for record in records), default=0)
+    )
 
     for record in records:
         # Some DAO decorators and legacy test doubles return commit sentinels rather than hydrated
@@ -86,7 +95,11 @@ def durable_events_from_records(
         if not isinstance(record, SessionRecord):
             continue
         attributes = record.attributes or {}
-        direct = _direct_event(record, include_legacy=include_legacy)
+        direct = _direct_event(
+            record,
+            include_legacy=include_legacy,
+            watermark=resolved_watermark,
+        )
         if direct is not None:
             events.append(direct)
             continue
@@ -101,6 +114,7 @@ def durable_events_from_records(
             record,
             entity_id=entity_id,
             include_legacy=include_legacy,
+            watermark=resolved_watermark,
         )
         if base is None:
             continue

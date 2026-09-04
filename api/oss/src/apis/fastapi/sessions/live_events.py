@@ -4,7 +4,10 @@ import math
 from contextlib import suppress
 from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
-from oss.src.core.sessions.records.dtos import SessionDurableEvent
+from oss.src.core.sessions.records.dtos import (
+    SessionDurableEvent,
+    SessionDurableEventsReplay,
+)
 
 from oss.src.utils.logging import get_module_logger
 
@@ -18,8 +21,9 @@ def retry_frame(retry_milliseconds: int) -> str:
     return f"retry: {retry_milliseconds}\n\n"
 
 
-def ready_frame() -> str:
-    return "event: ready\ndata: {}\n\n"
+def ready_frame(*, watermark: Optional[int] = None) -> str:
+    payload = {} if watermark is None else {"watermark": watermark}
+    return f"event: ready\ndata: {json.dumps(payload)}\n\n"
 
 
 def close_frame(*, reason: str, reconnect: bool) -> str:
@@ -52,7 +56,7 @@ async def live_event_stream(
     buffer_limit: int,
     after: int = 0,
     replay_query: Optional[
-        Callable[[int], Awaitable[list[SessionDurableEvent]]]
+        Callable[[int], Awaitable[SessionDurableEventsReplay]]
     ] = None,
 ) -> AsyncIterator[str]:
     queue: asyncio.Queue[str] = asyncio.Queue(maxsize=max(1, buffer_limit))
@@ -74,11 +78,12 @@ async def live_event_stream(
         except asyncio.QueueFull:
             force_close(reason="slow_reader", reconnect=True)
 
-    async def replay() -> None:
+    async def replay() -> int:
         nonlocal cursor
         if replay_query is None:
-            return
-        for event in await replay_query(cursor):
+            return cursor
+        result = await replay_query(cursor)
+        for event in result.events:
             if event.frame_or_event_id in seen_event_ids:
                 continue
             if event.sequence is not None and event.sequence <= cursor:
@@ -87,13 +92,15 @@ async def live_event_stream(
             enqueue(format_durable_event(event))
             if event.sequence is not None:
                 cursor = event.sequence
+        cursor = max(cursor, result.watermark)
+        return cursor
 
     async def pump() -> None:
         try:
             await pubsub.subscribe(channel)
             await queue.put(retry_frame(retry_milliseconds))
-            await replay()
-            await queue.put(ready_frame())
+            watermark = await replay()
+            await queue.put(ready_frame(watermark=watermark))
             loop = asyncio.get_running_loop()
             last_authorization_check = loop.time()
             poll_seconds = min(

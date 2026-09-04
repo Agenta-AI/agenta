@@ -13,6 +13,7 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecord,
     SessionRecordEvent,
     SessionRecordsPage,
+    SessionRecordsReplay,
     SessionRecordsReadState,
 )
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
@@ -356,13 +357,25 @@ class RecordsDAO(RecordsDAOInterface):
         project_id: UUID,
         session_id: str,
         after: int,
-    ) -> List[SessionRecord]:
-        sequence_filter = (
-            or_(RecordDBE.sequence.is_(None), RecordDBE.sequence > 0)
-            if after == 0
-            else RecordDBE.sequence > after
-        )
+    ) -> SessionRecordsReplay:
         async with self.engine.session() as session:
+            watermark = (
+                await session.scalar(
+                    select(SessionSequenceCursorDBE.latest_sequence).where(
+                        SessionSequenceCursorDBE.project_id == project_id,
+                        SessionSequenceCursorDBE.session_id == session_id,
+                    )
+                )
+                or 0
+            )
+            sequence_filter = (
+                or_(
+                    RecordDBE.sequence.is_(None),
+                    RecordDBE.sequence.between(1, watermark),
+                )
+                if after == 0
+                else RecordDBE.sequence.between(after + 1, watermark)
+            )
             rows = list(
                 (
                     await session.execute(
@@ -379,7 +392,10 @@ class RecordsDAO(RecordsDAOInterface):
                 .scalars()
                 .all()
             )
-        return [map_record_dbe_to_dto(dbe=row) for row in rows]
+        return SessionRecordsReplay(
+            records=[map_record_dbe_to_dto(dbe=row) for row in rows],
+            watermark=watermark,
+        )
 
     async def latest_message_per_session(
         self,

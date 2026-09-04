@@ -1,43 +1,48 @@
 import {sessionDurableEventTypeSchema, type SessionDurableEvent} from "@agenta/entities/session"
 
 export interface SessionDurableEventState {
-    /** Highest contiguous sequence consumed, including unknown forward-compatible event types. */
+    /** Latest committed record cursor reported by the snapshot or event stream. */
     latestSequence: number
+    /** Highest event sequence applied within this replay/live connection. */
+    lastEventSequence: number
     /** Known events accepted after the last snapshot, in durable sequence order. */
     events: SessionDurableEvent[]
-    /** Out-of-order arrivals held until every preceding sequence arrives. */
-    pending: Readonly<Record<number, SessionDurableEvent>>
 }
 
 export const createSessionDurableEventState = (latestSequence = 0): SessionDurableEventState => ({
     latestSequence,
+    lastEventSequence: latestSequence,
     events: [],
-    pending: {},
 })
 
+export const completeSessionDurableEventReplay = (
+    state: SessionDurableEventState,
+    watermark: number,
+): SessionDurableEventState => {
+    const latestSequence = Math.max(state.latestSequence, watermark)
+    const lastEventSequence = Math.max(state.lastEventSequence, watermark)
+    if (latestSequence === state.latestSequence && lastEventSequence === state.lastEventSequence)
+        return state
+    return {...state, latestSequence, lastEventSequence}
+}
+
 /**
- * Apply one durable event exactly once. Sequence is the ordering contract; event prose and Redis
- * arrival order are not. Unknown types still consume their sequence so a newer client event cannot
- * be stranded behind a forward-compatible envelope this build does not render.
+ * Apply one durable event exactly once. Record sequences can have gaps because only typed records
+ * become events. Unknown types still advance the event order and reconnect watermark.
  */
 export const reduceSessionDurableEvent = (
     state: SessionDurableEventState,
     event: SessionDurableEvent,
 ): SessionDurableEventState => {
     const sequence = event.sequence
-    if (sequence == null || sequence <= state.latestSequence || state.pending[sequence])
-        return state
+    if (sequence == null || sequence <= state.lastEventSequence) return state
 
-    const pending: Record<number, SessionDurableEvent> = {...state.pending, [sequence]: event}
-    const events = [...state.events]
-    let latestSequence = state.latestSequence
-
-    while (pending[latestSequence + 1]) {
-        const next = pending[latestSequence + 1]
-        delete pending[latestSequence + 1]
-        latestSequence += 1
-        if (sessionDurableEventTypeSchema.safeParse(next.type).success) events.push(next)
+    const events = sessionDurableEventTypeSchema.safeParse(event.type).success
+        ? [...state.events, event]
+        : state.events
+    return {
+        latestSequence: Math.max(state.latestSequence, sequence, event.watermark),
+        lastEventSequence: sequence,
+        events,
     }
-
-    return {latestSequence, events, pending}
 }

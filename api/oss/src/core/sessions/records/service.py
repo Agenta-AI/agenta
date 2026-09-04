@@ -6,6 +6,7 @@ from oss.src.core.sessions.records.dtos import (
     RECORD_SETTLED_BY_ATTRIBUTE,
     SETTLED_BY_WATCHDOG,
     TERMINAL_RECORD_TYPE,
+    SessionDurableEventsReplay,
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
@@ -335,12 +336,19 @@ class RecordsService:
         session_id: str,
         after: int,
     ):
-        records = await self.records_dao.get_records_after(
+        replay = await self.records_dao.get_records_after(
             project_id=project_id,
             session_id=session_id,
             after=after,
         )
-        return durable_events_from_records(records, include_legacy=after == 0)
+        return SessionDurableEventsReplay(
+            events=durable_events_from_records(
+                replay.records,
+                include_legacy=after == 0,
+                watermark=replay.watermark,
+            ),
+            watermark=replay.watermark,
+        )
 
     async def latest_message_per_session(
         self,

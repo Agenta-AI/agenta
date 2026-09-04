@@ -10,7 +10,11 @@ import {projectIdAtom} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-import {createSessionDurableEventState, reduceSessionDurableEvent} from "../model/durableEvents"
+import {
+    completeSessionDurableEventReplay,
+    createSessionDurableEventState,
+    reduceSessionDurableEvent,
+} from "../model/durableEvents"
 import {
     reduceSessionLivePreview,
     sessionLivePreviewMessages,
@@ -91,7 +95,9 @@ export const useSessionLivePreview = ({
                     clearPreview(sessionId)
                     onDisconnectRef.current()
                 },
-                onReady: () => {},
+                onReady: ({watermark}) => {
+                    durable = completeSessionDurableEventReplay(durable, watermark)
+                },
                 onDisconnect: ({reconnect}) => {
                     close()
                     onDisconnectRef.current()

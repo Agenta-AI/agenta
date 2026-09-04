@@ -6,6 +6,7 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecord,
     SessionRecordEvent,
     SessionRecordsPage,
+    SessionRecordsReplay,
     SessionRecordsReadState,
 )
 
@@ -59,7 +60,7 @@ class RecordsDAOInterface:
         project_id: UUID,
         session_id: str,
         after: int,
-    ) -> List[SessionRecord]:
+    ) -> SessionRecordsReplay:
         raise NotImplementedError
 
     async def get_event(

@@ -11,7 +11,10 @@ from orjson import dumps
 
 from oss.src.apis.fastapi.sessions.live_events import live_event_stream
 from oss.src.apis.fastapi.sessions.router import SessionStreamsRouter
-from oss.src.core.sessions.records.dtos import MessageCompletedEvent
+from oss.src.core.sessions.records.dtos import (
+    MessageCompletedEvent,
+    SessionDurableEventsReplay,
+)
 from oss.src.core.sessions.records.streaming import LIVE_FRAME_STREAM_NAME
 from oss.src.tasks.asyncio.sessions.live_relay_worker import LiveRelayWorker
 from oss.src.utils.env import env
@@ -65,6 +68,7 @@ def _event(sequence: int = 1):
         "frame_or_event_id": f"event-{sequence}",
         "entity_id": "message-1",
         "sequence": sequence,
+        "watermark": sequence,
         "type": "message.completed",
         "payload": {
             "message_id": "message-1",
@@ -142,6 +146,7 @@ async def test_live_stream_forwards_durable_event_envelopes():
     event = json.loads((await anext(stream)).split("data: ", 1)[1])
     assert event["kind"] == "event"
     assert event["sequence"] == 1
+    assert event["watermark"] == 1
     await stream.aclose()
 
 
@@ -161,7 +166,10 @@ async def test_live_stream_subscribes_before_replay_and_dedupes_notification():
     async def replay(after):
         assert subscribed is True
         replay_calls.append(after)
-        return [event] if after < 3 else []
+        return SessionDurableEventsReplay(
+            events=[event] if after < 3 else [],
+            watermark=3,
+        )
 
     stream = live_event_stream(
         channel="events:project-1:session:session-1",
@@ -178,9 +186,33 @@ async def test_live_stream_subscribes_before_replay_and_dedupes_notification():
     assert (await anext(stream)).startswith("retry:")
     replayed = json.loads((await anext(stream)).split("data: ", 1)[1])
     assert replayed["sequence"] == 3
-    assert (await anext(stream)).startswith("event: ready")
+    assert replayed["watermark"] == 3
+    assert await anext(stream) == 'event: ready\ndata: {"watermark": 3}\n\n'
     await asyncio.sleep(0.01)
     assert replay_calls == [2, 3]
+    await stream.aclose()
+
+
+async def test_replay_ready_reports_watermark_without_typed_events():
+    pubsub = FakePubSub([])
+
+    async def replay(_after):
+        return SessionDurableEventsReplay(events=[], watermark=5)
+
+    stream = live_event_stream(
+        channel="events:project-1:session:session-1",
+        pubsub_factory=lambda: pubsub,
+        authorization_check=AsyncMock(return_value=True),
+        authorization_recheck_seconds=60,
+        heartbeat_seconds=60,
+        retry_milliseconds=5000,
+        buffer_limit=4,
+        after=2,
+        replay_query=replay,
+    )
+
+    assert (await anext(stream)).startswith("retry:")
+    assert await anext(stream) == 'event: ready\ndata: {"watermark": 5}\n\n'
     await stream.aclose()
 
 
@@ -292,6 +324,7 @@ async def test_relay_worker_publishes_durable_events():
     relayed = json.loads(redis.publish.await_args.args[1])
     assert relayed["kind"] == "event"
     assert relayed["sequence"] == 1
+    assert relayed["watermark"] == 1
 
 
 async def test_events_route_is_hidden_when_shared_reader_is_off():

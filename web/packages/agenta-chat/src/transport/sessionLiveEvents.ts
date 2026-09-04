@@ -12,6 +12,10 @@ export interface SessionLiveDisconnect {
     reconnect: boolean
 }
 
+export interface SessionLiveReady {
+    watermark: number
+}
+
 export interface SessionLiveEventsConnection {
     close: () => void
 }
@@ -32,7 +36,7 @@ export const connectSessionLiveEvents = ({
     after: number
     onFrame: (frame: SessionLiveFrame) => void
     onEvent: (event: SessionDurableEvent) => void
-    onReady: () => void
+    onReady: (event: SessionLiveReady) => void
     onDisconnect: (event: SessionLiveDisconnect) => void
 }): SessionLiveEventsConnection => {
     const source = new EventSource(sessionLiveEventsUrl(sessionId, after), {withCredentials: true})
@@ -52,7 +56,21 @@ export const connectSessionLiveEvents = ({
             // Ignore malformed JSON because live relay envelopes are display-only.
         }
     }
-    source.addEventListener("ready", onReady)
+    source.addEventListener("ready", (event) => {
+        let watermark = after
+        try {
+            const data = JSON.parse((event as MessageEvent<string>).data) as Record<string, unknown>
+            if (
+                typeof data.watermark === "number" &&
+                Number.isInteger(data.watermark) &&
+                data.watermark >= 0
+            )
+                watermark = data.watermark
+        } catch {
+            // A malformed readiness detail must not move the reconnect cursor forward.
+        }
+        onReady({watermark})
+    })
     source.addEventListener("relay-close", (event) => {
         let detail: SessionLiveDisconnect = {reason: "relay_closed", reconnect: true}
         try {

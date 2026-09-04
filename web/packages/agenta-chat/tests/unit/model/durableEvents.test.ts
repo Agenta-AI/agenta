@@ -2,15 +2,24 @@ import {describe, expect, it} from "vitest"
 
 import type {SessionDurableEvent} from "@agenta/entities/session"
 
-import {createSessionDurableEventState, reduceSessionDurableEvent} from "../../../src/model"
+import {
+    completeSessionDurableEventReplay,
+    createSessionDurableEventState,
+    reduceSessionDurableEvent,
+} from "../../../src/model"
 
-const durableEvent = (sequence: number, type = "message.completed"): SessionDurableEvent => ({
+const durableEvent = (
+    sequence: number,
+    type = "message.completed",
+    watermark = sequence,
+): SessionDurableEvent => ({
     version: 1,
     kind: "event",
     session_id: "session-1",
     execution_id: "execution-1",
     frame_or_event_id: `event-${sequence}`,
     sequence,
+    watermark,
     type,
     payload: {},
     created_at: "2026-09-04T00:00:00Z",
@@ -27,15 +36,45 @@ describe("reduceSessionDurableEvent", () => {
         expect(twice).toBe(once)
     })
 
-    it("buffers out-of-order arrivals and drains them in sequence order", () => {
-        const initial = createSessionDurableEventState(2)
-        const gap = reduceSessionDurableEvent(initial, durableEvent(4, "tool.completed"))
-        const filled = reduceSessionDurableEvent(gap, durableEvent(3))
+    it("applies the non-contiguous event sequence seen on the live relay", () => {
+        const state = [3, 6, 7, 9].reduce(
+            (current, sequence) => reduceSessionDurableEvent(current, durableEvent(sequence)),
+            createSessionDurableEventState(1),
+        )
 
-        expect(gap.latestSequence).toBe(2)
-        expect(filled.latestSequence).toBe(4)
-        expect(filled.events.map((event) => event.sequence)).toEqual([3, 4])
-        expect(filled.pending).toEqual({})
+        expect(state.latestSequence).toBe(9)
+        expect(state.lastEventSequence).toBe(9)
+        expect(state.events.map((event) => event.sequence)).toEqual([3, 6, 7, 9])
+    })
+
+    it("drops a duplicate and an out-of-order older event", () => {
+        const initial = [3, 6, 7, 9].reduce(
+            (current, sequence) => reduceSessionDurableEvent(current, durableEvent(sequence)),
+            createSessionDurableEventState(1),
+        )
+
+        expect(reduceSessionDurableEvent(initial, durableEvent(9))).toBe(initial)
+        expect(reduceSessionDurableEvent(initial, durableEvent(6))).toBe(initial)
+    })
+
+    it("keeps event order separate from an event watermark ahead of it", () => {
+        const first = reduceSessionDurableEvent(
+            createSessionDurableEventState(1),
+            durableEvent(3, "message.completed", 9),
+        )
+        const second = reduceSessionDurableEvent(first, durableEvent(6, "tool.completed", 9))
+
+        expect(second.latestSequence).toBe(9)
+        expect(second.lastEventSequence).toBe(6)
+        expect(second.events.map((event) => event.sequence)).toEqual([3, 6])
+    })
+
+    it("learns the replay watermark when no typed event was returned", () => {
+        const state = completeSessionDurableEventReplay(createSessionDurableEventState(1), 5)
+
+        expect(state.latestSequence).toBe(5)
+        expect(state.lastEventSequence).toBe(5)
+        expect(state.events).toEqual([])
     })
 
     it("ignores unknown event payloads while advancing the reconnect cursor", () => {

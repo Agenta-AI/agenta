@@ -392,12 +392,23 @@ class RecordsWorker(StreamConsumer):
 
             committed = set(committed_ids)
             committed_events = [msg for msg_id, msg in entries if msg_id in committed]
-            for event in durable_events_from_records(results):
-                await publish_durable_event(
-                    organization_id=project_batch["organization_id"],
-                    project_id=project_batch["project_id"],
-                    event=event,
+            results_by_session: Dict[str, List[SessionRecord]] = {}
+            for result in results:
+                if isinstance(result, SessionRecord):
+                    results_by_session.setdefault(result.session_id, []).append(result)
+
+            for session_results in results_by_session.values():
+                watermark = max(
+                    (result.sequence or 0 for result in session_results), default=0
                 )
+                for event in durable_events_from_records(
+                    session_results, watermark=watermark
+                ):
+                    await publish_durable_event(
+                        organization_id=project_batch["organization_id"],
+                        project_id=project_batch["project_id"],
+                        event=event,
+                    )
 
             # Strictly post-append, and BEFORE the relay tee: a client woken by the records
             # notification below must already see the cancelled gate, not re-render it.

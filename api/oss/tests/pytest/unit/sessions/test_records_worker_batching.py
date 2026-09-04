@@ -146,6 +146,7 @@ async def test_durable_event_is_published_only_after_record_commit_returns():
     async def publish(**kwargs):
         assert committed is True
         assert kwargs["event"].sequence == 1
+        assert kwargs["event"].watermark == 1
         return True
 
     worker = RecordsWorker(

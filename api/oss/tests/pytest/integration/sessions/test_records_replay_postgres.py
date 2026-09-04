@@ -29,15 +29,22 @@ async def _fresh_analytics_engine(monkeypatch):
         engine_module._analytics_engine = None
 
 
-def _event(project_id, session_id, text):
+def _event(
+    project_id,
+    session_id,
+    text="",
+    *,
+    record_type="message",
+    attributes=None,
+):
     return SessionRecordEvent(
         project_id=project_id,
         session_id=session_id,
         record_id=uuid.uuid4(),
         turn_id="execution-1",
-        record_type="message",
+        record_type=record_type,
         record_source="agent",
-        attributes={"type": "message", "text": text},
+        attributes=attributes or {"type": "message", "text": text},
     )
 
 
@@ -48,16 +55,52 @@ async def test_snapshot_n_followed_by_events_after_n_loses_no_commit():
     service = RecordsService(records_dao=dao)
 
     try:
-        await dao.append_many(
-            events=[
-                _event(project_id, session_id, "one"),
-                _event(project_id, session_id, "two"),
-            ]
-        )
+        await dao.append(event=_event(project_id, session_id, "one"))
         snapshot = await dao.get_read_state(
             project_id=project_id, session_id=session_id
         )
-        await dao.append(event=_event(project_id, session_id, "three"))
+        await dao.append_many(
+            events=[
+                _event(
+                    project_id, session_id, record_type="done", attributes={"ok": True}
+                ),
+                _event(project_id, session_id, "three"),
+                _event(
+                    project_id,
+                    session_id,
+                    record_type="usage",
+                    attributes={"tokens": 1},
+                ),
+                _event(
+                    project_id,
+                    session_id,
+                    record_type="tool_call",
+                    attributes={"id": "tool-1", "name": "read", "input": {}},
+                ),
+                _event(
+                    project_id,
+                    session_id,
+                    record_type="tool_result",
+                    attributes={"id": "tool-1", "output": "ok"},
+                ),
+                _event(
+                    project_id,
+                    session_id,
+                    record_type="execution.stopped",
+                    attributes={
+                        "stopped_at": datetime.now(timezone.utc).isoformat(),
+                        "reason": "completed",
+                    },
+                ),
+                _event(
+                    project_id,
+                    session_id,
+                    record_type="thought",
+                    attributes={"text": "x"},
+                ),
+                _event(project_id, session_id, "nine"),
+            ]
+        )
 
         replay = await service.get_events_after(
             project_id=project_id,
@@ -65,9 +108,12 @@ async def test_snapshot_n_followed_by_events_after_n_loses_no_commit():
             after=snapshot.latest_sequence,
         )
 
-        assert snapshot.latest_sequence == 2
-        assert [event.sequence for event in replay] == [3]
-        assert replay[0].payload.content == "three"
+        assert snapshot.latest_sequence == 1
+        assert [event.sequence for event in replay.events] == [3, 6, 7, 9]
+        assert replay.events[0].payload.content == "three"
+        assert replay.events[-1].payload.content == "nine"
+        assert replay.events[-1].watermark == 9
+        assert replay.watermark == 9
     finally:
         async with get_analytics_engine().session() as session:
             await session.execute(
@@ -116,8 +162,9 @@ async def test_legacy_session_replays_ordered_history_and_is_incomplete():
 
         assert read.latest_sequence == 0
         assert read.history_complete is False
-        assert [event.sequence for event in replay] == [None, None]
-        assert [event.payload.content for event in replay] == ["first", "second"]
+        assert replay.watermark == 0
+        assert [event.sequence for event in replay.events] == [None, None]
+        assert [event.payload.content for event in replay.events] == ["first", "second"]
     finally:
         async with get_analytics_engine().session() as session:
             await session.execute(

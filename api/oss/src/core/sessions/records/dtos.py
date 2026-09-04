@@ -124,6 +124,7 @@ class SessionDurableEventBase(BaseModel):
     frame_or_event_id: str
     entity_id: str
     sequence: Optional[int] = Field(default=None, ge=1)
+    watermark: int = Field(ge=0)
     created_at: datetime
 
 
@@ -168,6 +169,12 @@ SessionDurableEvent = Annotated[
     ],
     Field(discriminator="type"),
 ]
+
+
+class SessionDurableEventsReplay(BaseModel):
+    events: list[SessionDurableEvent]
+    watermark: int = Field(ge=0)
+
 
 SESSION_DURABLE_EVENT_TYPES = {
     "execution.started",
@@ -232,3 +239,8 @@ class SessionRecordsPage(BaseModel):
     limit: int = Field(ge=1)
     next_offset: Optional[int] = Field(default=None, ge=0)
     through_sequence: int = Field(ge=0)
+
+
+class SessionRecordsReplay(BaseModel):
+    records: list[SessionRecord]
+    watermark: int = Field(ge=0)

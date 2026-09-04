@@ -219,6 +219,7 @@ export const sessionDurableEventSchema = z.object({
     execution_id: z.string(),
     frame_or_event_id: z.string(),
     sequence: z.number().int().positive().nullable(),
+    watermark: z.number().int().nonnegative(),
     type: z.string(),
     payload: z.record(z.string(), z.unknown()),
     created_at: z.string(),
