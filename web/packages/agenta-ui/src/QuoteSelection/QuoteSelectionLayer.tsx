@@ -18,7 +18,7 @@ import {QuoteToolbar} from "./QuoteToolbar"
 import {dropQuoteRange, setQuoteRange} from "./sources"
 import {addQuote, useQuotesToPaint, useSessionQuotes} from "./store"
 import {useQuoteHighlights} from "./useQuoteHighlights"
-import {useQuoteSelection, type QuoteCandidate} from "./useQuoteSelection"
+import {rectIn, useQuoteSelection, type QuoteCandidate} from "./useQuoteSelection"
 
 /** Resolve the excerpt against the body's raw source so a file quote carries real line numbers. */
 const draftFrom = (candidate: QuoteCandidate): Quote => {
@@ -50,6 +50,10 @@ export const QuoteSelectionLayer = ({
     const quotes = useSessionQuotes(sessionId)
     const toPaint = useQuotesToPaint(sessionId)
     const returnFocusRef = useRef<HTMLElement | null>(null)
+    // Read by the scroll tracker, so it can bind once per note instead of once per scroll frame.
+    const draftRangeRef = useRef<Range | null>(null)
+    draftRangeRef.current = draft?.candidate.range ?? null
+    const draftId = draft?.quote.id
 
     const beginReply = useCallback((candidate: QuoteCandidate) => {
         returnFocusRef.current = document.activeElement as HTMLElement | null
@@ -70,6 +74,31 @@ export const QuoteSelectionLayer = ({
     // The draft paints too, so the span stays marked while the note is being written.
     const painted = useMemo(() => (draft ? [...toPaint, draft.quote] : toPaint), [toPaint, draft])
     useQuoteHighlights(rootRef, painted, enabled)
+
+    // The open note rides with its span: its box is positioned against the root, so leaving the
+    // anchor frozen would strand it over whatever scrolled under it.
+    useEffect(() => {
+        if (!draftId) return
+        const track = () => {
+            const root = rootRef.current
+            const range = draftRangeRef.current
+            if (!root || !range) return
+            const rect = rectIn(root, range)
+            if (!rect) return
+            setDraft((held) =>
+                held && held.quote.id === draftId
+                    ? {...held, candidate: {...held.candidate, rect}}
+                    : held,
+            )
+        }
+        window.addEventListener("resize", track)
+        // Capture: the scroller sits under the root and scroll does not bubble.
+        document.addEventListener("scroll", track, true)
+        return () => {
+            window.removeEventListener("resize", track)
+            document.removeEventListener("scroll", track, true)
+        }
+    }, [draftId, rootRef])
 
     // Esc closes the pill, matching the note box's own handler.
     useEffect(() => {
