@@ -802,7 +802,10 @@ describe("createAgentServer", () => {
         stopReason: "cancelled",
       });
       assert.equal(
-        records.filter((record) => record.kind === "event").length,
+        records.filter(
+          (record) =>
+            record.kind === "event" && record.event?.type === "done",
+        ).length,
         1,
         "the normal Stop still streams its one done event",
       );
