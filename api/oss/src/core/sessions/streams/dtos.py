@@ -80,6 +80,10 @@ class SessionStreamEdit(Header):
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
+    # Internal heartbeat fence. When present, the DAO updates only this still-current,
+    # non-terminal execution generation. Excluded from serialization because it is a write
+    # precondition, not stream state.
+    expected_turn_id: Optional[str] = Field(default=None, exclude=True)
 
 
 class SessionStreamHeaderEdit(Header):

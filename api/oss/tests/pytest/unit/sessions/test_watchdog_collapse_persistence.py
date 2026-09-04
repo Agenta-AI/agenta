@@ -24,6 +24,7 @@ the fixture creates its own and drops it. Point it at any reachable core Postgre
         uv run --no-sync pytest oss/tests/pytest/unit/sessions/test_watchdog_collapse_persistence.py -q
 """
 
+import asyncio
 import uuid
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse, urlunparse
@@ -45,6 +46,7 @@ from oss.src.dbs.postgres.sessions.interactions.dbes import (  # noqa: F401
 )
 from oss.src.dbs.postgres.shared.base import Base
 
+from oss.src.core.sessions.streams.dtos import SessionHeartbeatRequest
 from oss.src.utils.env import env
 from oss.src.dbs.postgres.shared.engine import TransactionsEngine
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
@@ -451,3 +453,79 @@ async def test_b_lost_turn_clear_persists_after_a_nested_session_close(
     # is_running cleared and PERSISTED; is_alive kept, so the session stays resumable.
     assert flags["is_running"] is False
     assert flags["is_alive"] is True
+
+
+@pytest.mark.anyio
+async def test_c_heartbeat_finishing_after_sweep_commit_cannot_revive_row(
+    anyio_backend, wd_engine, monkeypatch
+):
+    """Redis refresh wins first; the sweep commits; only then may the heartbeat write."""
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+
+    session_id = "wd-" + uuid.uuid4().hex[:12]
+    turn_id = str(uuid.uuid4())
+    project_id = await _seed_scenario(wd_engine, session_id=session_id, turn_id=turn_id)
+
+    heartbeat_waiting = asyncio.Event()
+    allow_heartbeat_write = asyncio.Event()
+
+    class _DelayedHeartbeatDAO(SessionStreamsDAO):
+        async def update(self, *, project_id, user_id, session_id, stream):
+            if stream.expected_turn_id is not None:
+                heartbeat_waiting.set()
+                await allow_heartbeat_write.wait()
+            return await super().update(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                stream=stream,
+            )
+
+    lock, records_service, commands_service = _build_services(wd_engine)
+    heartbeat_service = SessionStreamsService(
+        streams_dao=_DelayedHeartbeatDAO(wd_engine), lock_engine=lock
+    )
+    heartbeat = asyncio.create_task(
+        heartbeat_service.heartbeat(
+            project_id=project_id,
+            request=SessionHeartbeatRequest(
+                session_id=session_id,
+                replica_id="replica-a",
+                turn_id=turn_id,
+                is_running=True,
+            ),
+        )
+    )
+    await heartbeat_waiting.wait()
+
+    await orphan_sweep.run_orphan_sweep(
+        wd_engine,
+        lock,
+        records_service=records_service,
+        watch_publisher=None,
+        commands_service=commands_service,
+        publish=_noop_publish,
+    )
+    allow_heartbeat_write.set()
+    heartbeat_result = await heartbeat
+
+    async with wd_engine.session() as s:
+        flags, outcome = (
+            await s.execute(
+                text(
+                    "SELECT ss.flags, se.terminal_outcome "
+                    "FROM session_streams ss JOIN session_executions se "
+                    "ON se.project_id=ss.project_id AND se.session_id=ss.session_id "
+                    "AND se.execution_id=ss.turn_id WHERE ss.session_id=:s"
+                ),
+                {"s": session_id},
+            )
+        ).one()
+
+    assert heartbeat_result.is_current_turn is False
+    assert outcome == "lost"
+    assert flags == {
+        "is_alive": False,
+        "is_running": False,
+        "is_attached": False,
+    }

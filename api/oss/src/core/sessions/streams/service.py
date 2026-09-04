@@ -920,8 +920,21 @@ class SessionStreamsService:
                 project_id=project_id,
                 user_id=None,
                 session_id=request.session_id,
-                stream=SessionStreamEdit(flags=flags, turn_id=durable_turn_id),
+                stream=SessionStreamEdit(
+                    flags=flags,
+                    turn_id=durable_turn_id,
+                    expected_turn_id=request.turn_id if turn_was_established else None,
+                ),
             )
+            if stream is None and turn_was_established:
+                # The guarded row write lost to settlement or to a new generation. Redis may
+                # already have been refreshed, but this beat no longer owns durable state and
+                # must tell the runner to stop.
+                is_current_turn = False
+                stream = await self._dao.get_by_session_id(
+                    project_id=project_id,
+                    session_id=request.session_id,
+                )
 
         # `running` lifecycle for the path that actually runs turns. `_start_turn` publishes it
         # for send/steer, but the runner mints its own turn id and only ever heartbeats, so

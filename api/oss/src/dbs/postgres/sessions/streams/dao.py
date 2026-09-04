@@ -48,6 +48,7 @@ from oss.src.dbs.postgres.sessions.references import (
     references_containment_json,
     references_to_json,
 )
+from oss.src.dbs.postgres.sessions.executions.dbes import SessionExecutionDBE
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
     SESSION_ORIGIN_TAG_KEY,
@@ -530,6 +531,45 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         session_id: str,
         stream: SessionStreamEdit,
     ) -> Optional[SessionStream]:
+        if stream.expected_turn_id is not None:
+            terminal_execution_exists = (
+                select(SessionExecutionDBE.execution_id)
+                .where(
+                    SessionExecutionDBE.project_id == project_id,
+                    SessionExecutionDBE.session_id == session_id,
+                    SessionExecutionDBE.execution_id == stream.expected_turn_id,
+                )
+                .exists()
+            )
+            values = {
+                "updated_by_id": user_id,
+                "updated_at": datetime.now(timezone.utc),
+            }
+            if stream.flags is not None:
+                values["flags"] = stream.flags.model_dump(mode="json")
+            if stream.turn_id is not None:
+                values["turn_id"] = stream.turn_id
+
+            async with self.engine.session() as session:
+                result = await session.execute(
+                    sa_update(SessionStreamDBE)
+                    .where(
+                        SessionStreamDBE.project_id == project_id,
+                        SessionStreamDBE.session_id == session_id,
+                        SessionStreamDBE.deleted_at.is_(None),
+                        SessionStreamDBE.turn_id == stream.expected_turn_id,
+                        ~terminal_execution_exists,
+                    )
+                    .values(**values)
+                    .returning(SessionStreamDBE)
+                    .execution_options(synchronize_session=False)
+                )
+                dbe = result.scalar_one_or_none()
+                await session.commit()
+            if dbe is None:
+                return None
+            return map_stream_dbe_to_dto(stream_dbe=dbe)
+
         async with self.engine.session() as session:
             stmt = select(SessionStreamDBE).where(
                 SessionStreamDBE.project_id == project_id,
