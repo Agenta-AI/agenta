@@ -126,7 +126,7 @@ const openVariantUseApiDrawer = async (page: any) => {
     // outside the table must neither satisfy the check nor receive the click.
     // `.avt-body` + role, not `.ant-table-*`: the table is the virtual one and its selection
     // control is the Radix Checkbox (role=checkbox), so no antd classes exist here.
-    const tableBody = page.locator(".avt-body")
+    const tableBody = page.locator(".avt-body, .ant-table-tbody")
     const checkedRow = tableBody.getByRole("checkbox", {checked: true}).first()
     if (!(await checkedRow.isVisible().catch(() => false))) {
         const firstRowCheckbox = tableBody.getByRole("checkbox").first()
@@ -207,7 +207,9 @@ const useApiTests = () => {
                 await uiHelpers.expectPath(`/apps/${appId}/variants`)
                 // Wait for the registry table itself — the thing this test goes on to use —
                 // rather than a tab control, so the check cannot drift with the chrome again.
-                await expect(page.locator(".avt-body").first()).toBeVisible({timeout: 15000})
+                await expect(page.locator(".avt-body, .ant-table-tbody").first()).toBeVisible({
+                    timeout: 15000,
+                })
             })
 
             let useApiDrawer: any
