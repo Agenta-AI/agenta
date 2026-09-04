@@ -243,14 +243,9 @@ const StripHome: React.FC = () => {
                             {/* Chip docks into this gap (bottom-full), so it can only tighten so
                                 far. The 2px nudge + z-10 overlap and paint above the composer's
                                 top border so the chip reads as one shape, not a seam. */}
-                            {/* The chip docks onto the composer's top edge, so it has nothing to
-                                sit on once the step replaces the composer — and the step already
-                                names the template above the card. */}
-                            {setup.draft ? null : (
-                                <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
-                                    {provenance.chipNode}
-                                </div>
-                            )}
+                            <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
+                                {provenance.chipNode}
+                            </div>
                             <HomeTaskComposer />
                         </>
                     }
@@ -314,9 +309,14 @@ const StripHome: React.FC = () => {
                             The 2px nudge + z-10 overlap and paint above the composer's top border
                             so the chip reads as one shape, not a seam. */}
                         <div className="relative mt-11 flex flex-col items-stretch">
-                            <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
-                                {provenance.chipNode}
-                            </div>
+                            {/* The chip docks onto the composer's top edge, so it has nothing to
+                                sit on once the step replaces the composer — and the step names the
+                                template on its own line just below. */}
+                            {setup.draft ? null : (
+                                <div className="absolute bottom-full left-0 z-10 translate-y-[2px]">
+                                    {provenance.chipNode}
+                                </div>
+                            )}
                             {setup.draft ? (
                                 // The step is open: what they asked for settles into a line above
                                 // the card, still editable, so the description stays on screen
