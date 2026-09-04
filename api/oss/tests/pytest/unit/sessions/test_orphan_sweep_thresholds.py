@@ -162,9 +162,10 @@ class _FakeResult:
 
 
 class _FakePgSession:
-    def __init__(self, rows, before_update=None):
+    def __init__(self, rows, before_update=None, on_commit=None):
         self._rows = rows
         self._before_update = before_update
+        self._on_commit = on_commit
 
     async def execute(self, stmt):
         if isinstance(stmt, Update):
@@ -185,17 +186,22 @@ class _FakePgSession:
         return _FakeResult(matched)
 
     async def commit(self):
-        pass
+        if self._on_commit is not None:
+            self._on_commit()
 
 
 class _FakeTransactionsEngine:
     def __init__(self, rows, before_update=None):
         self._rows = rows
         self._before_update = before_update
+        self.committed = False
+
+    def _mark_committed(self):
+        self.committed = True
 
     @asynccontextmanager
     async def session(self):
-        yield _FakePgSession(self._rows, self._before_update)
+        yield _FakePgSession(self._rows, self._before_update, self._mark_committed)
 
 
 class _FakeRedis:
@@ -247,6 +253,20 @@ class _FakeRedis:
         if expected_turn:
             self._store[superseded] = b"1"
         return [released_alive, released_running, released_owner]
+
+
+class _CommitObservingRedis(_FakeRedis):
+    def __init__(self, engine: _FakeTransactionsEngine):
+        super().__init__()
+        self.engine = engine
+
+    async def eval(self, script, numkeys, key, expected, *args):
+        normalized = key.decode() if isinstance(key, bytes) else key
+        if normalized.startswith(("alive:", "running:", "owner:")):
+            assert self.engine.committed, (
+                "watchdog released Redis before the row commit"
+            )
+        return await super().eval(script, numkeys, key, expected, *args)
 
 
 def _swept(row: _FakeRow) -> bool:
@@ -320,6 +340,33 @@ async def test_running_row_is_swept_at_the_short_threshold(anyio_backend):
     assert _swept(row), (
         "6 minutes of silence from a turn that beats every 30s means the runner died"
     )
+
+
+@pytest.mark.anyio
+async def test_redis_release_happens_only_after_stream_collapse_commits(
+    anyio_backend,
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+    row = _FakeRow(
+        session_id="sess-commit-before-redis",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="turn-old",
+    )
+    engine = _FakeTransactionsEngine([row])
+    redis = _CommitObservingRedis(engine)
+    for prefix, value in (
+        ("alive", b"turn-old"),
+        ("running", b"turn-old"),
+        ("owner", b"replica-old"),
+    ):
+        await redis.set(f"{prefix}:{_PROJECT_ID}:session:{row.session_id}", value)
+
+    await run_orphan_sweep(engine, redis)
+
+    assert engine.committed is True
+    assert _swept(row)
 
 
 @pytest.mark.anyio
