@@ -242,6 +242,36 @@ function toolsSection(
     }
 }
 
+/** A whole-body diff has no unchanged region to fold, so cap it before it floods the pane. */
+const ITEM_DIFF_LINES = 12
+
+function capHunks(diff: TextDiff): TextDiff {
+    if (diff.hunks.length <= ITEM_DIFF_LINES) return diff
+    const hidden = diff.hunks.length - ITEM_DIFF_LINES
+    return {
+        ...diff,
+        hunks: [
+            ...diff.hunks.slice(0, ITEM_DIFF_LINES),
+            {type: "fold", content: `… ${hidden} more ${hidden === 1 ? "line" : "lines"}`},
+        ] as TextDiff["hunks"],
+    }
+}
+
+/**
+ * A whole body arriving or leaving. Built directly rather than through the line differ: against an
+ * empty side that reports the empty string as its own removed line.
+ */
+function wholeBodyDiff(body: string, kind: "added" | "removed"): TextDiff {
+    const lines = body.split("\n")
+    return {
+        added: kind === "added" ? lines.length : 0,
+        removed: kind === "removed" ? lines.length : 0,
+        before: kind === "removed" ? body : "",
+        after: kind === "added" ? body : "",
+        hunks: lines.map((content) => ({type: kind, content})) as TextDiff["hunks"],
+    }
+}
+
 /** Folded prose diff plus its line counts — the shape both Instructions and skills render. */
 function buildTextDiff(before: string, after: string): TextDiff {
     const hunks = computeTextDiffLines(before, after, {enableFolding: true})
@@ -393,7 +423,7 @@ function entryEdit(before: unknown, after: unknown): Pick<ChangeItem, "detail" |
 
     return {
         detail: parts.length ? `${parts.join(" & ")} changed` : undefined,
-        textDiff: bodyChanged ? buildTextDiff(beforeBody, afterBody) : undefined,
+        textDiff: bodyChanged ? capHunks(buildTextDiff(beforeBody, afterBody)) : undefined,
     }
 }
 
@@ -460,8 +490,22 @@ function listSection(
     const total = added.length + removed.length + edited.length
     if (total === 0) return null
 
+    // An added skill showed only its name, which says nothing about what the agent gained. Its
+    // body is the skill, so it reads as an all-added diff — and a removal as an all-removed one.
     const plain = (entries: ListEntry[], kindTag: ChangeItem["kind"]) =>
-        entries.map(({key, entry}) => ({id: key, label: entryLabel(entry), kind: kindTag}))
+        entries.map(({key, entry}) => {
+            const body = entryField(entry, "body")
+            const description = entryField(entry, "description")
+            return {
+                id: key,
+                label: entryLabel(entry),
+                kind: kindTag,
+                detail: description || undefined,
+                textDiff: body
+                    ? capHunks(wholeBodyDiff(body, kindTag === "added" ? "added" : "removed"))
+                    : undefined,
+            }
+        })
     const editedRows = edited.map(({key, before, after}) => {
         const beforeLabel = entryLabel(before)
         const afterLabel = entryLabel(after)

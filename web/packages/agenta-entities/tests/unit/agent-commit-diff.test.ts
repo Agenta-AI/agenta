@@ -275,6 +275,50 @@ describe("an integration's permission change says what it became", () => {
     })
 })
 
+describe("an added or removed skill shows what it contains", () => {
+    const skill = (over: Record<string, unknown> = {}) => ({
+        name: "stop-slop",
+        description: "Trims filler from replies",
+        body: "Cut the filler.\nBe direct.",
+        ...over,
+    })
+    const section = (local: unknown[], remote: unknown[]) =>
+        classifyAgentChanges({agent: {skills: local}}, {agent: {skills: remote}})?.find(
+            (s) => s.id === "skills",
+        )
+
+    it("renders an added skill's body as an all-added diff, with its description on the row", () => {
+        const item = section([skill()], [])?.items?.[0]
+
+        expect(item?.detail).toBe("Trims filler from replies")
+        expect(item?.textDiff?.hunks.map((h) => h.type)).toEqual(["added", "added"])
+        expect(item?.textDiff?.added).toBe(2)
+    })
+
+    it("renders a removed skill's body as an all-removed diff", () => {
+        const item = section([], [skill()])?.items?.[0]
+        expect(item?.textDiff?.hunks.every((h) => h.type === "removed")).toBe(true)
+    })
+
+    it("caps a long body and says how much it hid", () => {
+        const body = Array.from({length: 30}, (_, i) => `line ${i}`).join("\n")
+        const item = section([skill({body})], [])?.items?.[0]
+
+        expect(item?.textDiff?.hunks).toHaveLength(13)
+        expect(item?.textDiff?.hunks[12]).toEqual({type: "fold", content: "… 18 more lines"})
+        // The counts stay true even though the render is capped.
+        expect(item?.textDiff?.added).toBe(30)
+    })
+
+    it("leaves an entry with no body alone", () => {
+        const item = classifyAgentChanges(
+            {agent: {mcps: [{name: "linear", url: "https://mcp.linear.app"}]}},
+            {agent: {mcps: []}},
+        )?.find((s) => s.id === "mcps")?.items?.[0]
+        expect(item?.textDiff).toBeUndefined()
+    })
+})
+
 describe("renaming a skill in place is an edit, not a swap", () => {
     // Regression: identity is the name, so a rename read as "1 added, 1 removed" and the body
     // diff behind it was never computed — exactly the change you most want to see.
