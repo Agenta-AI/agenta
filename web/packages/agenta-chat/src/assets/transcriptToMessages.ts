@@ -713,8 +713,11 @@ export function transcriptToMessages(
     applyInteractionRowStates(index, options?.interactionRowStates)
 
     // A resumed turn's remaining approval gate was answered even when its response row is absent.
+    // A continuation turn proves the same thing: the runner emits no records under its new
+    // execution before the durable answer owns it, so an observer retires the card on the first
+    // continuation frame instead of waiting for that optional event or `done`.
     for (const d of drafts) {
-        if (!d.resumed) continue
+        if (!d.resumed && !d.approvalContinuation) continue
         for (const part of d.parts) {
             if (part.state === "approval-requested") part.state = "approval-responded"
         }

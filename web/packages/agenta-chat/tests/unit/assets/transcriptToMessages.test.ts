@@ -255,6 +255,73 @@ const approvalRecords = (): SessionRecord[] => [
  * turn the user already answered.
  */
 describe("transcriptToMessages approval resume", () => {
+    it("retires tab A's pending card on the first continuation frame without a response event", () => {
+        const pendingRecords = [
+            record("r-user", {type: "message", text: "run it"}, "user", "source-turn"),
+            record(
+                "r-call",
+                {type: "tool_call", id: "tool-1", name: "bash", input: {}},
+                "agent",
+                "source-turn",
+            ),
+            record(
+                "r-req",
+                {
+                    type: "interaction_request",
+                    id: "approval-1",
+                    kind: "user_approval",
+                    payload: {toolCallId: "tool-1"},
+                },
+                "agent",
+                "source-turn",
+            ),
+            record(
+                "r-source-done",
+                {type: "done", stopReason: "paused"},
+                "agent",
+                "source-turn",
+            ),
+        ]
+        const pendingParts = transcriptToMessages(pendingRecords)![1]
+            .parts as unknown as Record<string, unknown>[]
+        expect(pendingParts).toEqual(
+            expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
+        )
+
+        const continuationRunning = transcriptToMessages([
+            ...pendingRecords,
+            record(
+                "r-continuation-thought",
+                {type: "thought", text: "approved"},
+                "agent",
+                "continuation-turn",
+            ),
+        ])!
+        expect(continuationRunning.flatMap((message) => message.parts)).not.toEqual(
+            expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
+        )
+        expect(firstAssistantMetadata(continuationRunning)).toMatchObject({
+            approvalContinuation: {executionId: "continuation-turn", state: "running"},
+        })
+
+        const continuationDone = transcriptToMessages([
+            ...pendingRecords,
+            record(
+                "r-continuation-thought",
+                {type: "thought", text: "approved"},
+                "agent",
+                "continuation-turn",
+            ),
+            record("r-continuation-done", {type: "done"}, "agent", "continuation-turn"),
+        ])!
+        expect(continuationDone.flatMap((message) => message.parts)).not.toEqual(
+            expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
+        )
+        expect(firstAssistantMetadata(continuationDone)).toMatchObject({
+            approvalContinuation: {executionId: "continuation-turn", state: "done"},
+        })
+    })
+
     it("tracks a durable continuation by its own execution through running and terminal records", () => {
         const source = [
             record("r-user", {type: "message", text: "run it"}, "user", "source-turn"),
