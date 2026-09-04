@@ -47,6 +47,7 @@ import {
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
+import { USER_STOP_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
 import {
   fakeHarness,
   flushPromises,
@@ -98,6 +99,79 @@ describe("PendingApprovalPauseController", () => {
 });
 
 describe("runSandboxAgent orchestration", () => {
+  for (const providerName of ["local", "daytona"] as const) {
+    it(`a Stop preempts slow ${providerName} acquisition and cleans a late sandbox`, async () => {
+      const { deps } = fakeHarness();
+      const delegateStart = deps.startSandboxAgent!;
+      let releaseCreate!: (sandboxId: string) => void;
+      const slowCreate = new Promise<string>((resolve) => {
+        releaseCreate = resolve;
+      });
+      let markCreateStarted!: () => void;
+      const createStarted = new Promise<void>((resolve) => {
+        markCreateStarted = resolve;
+      });
+      let markCleaned!: () => void;
+      const cleaned = new Promise<void>((resolve) => {
+        markCleaned = resolve;
+      });
+      let destroys = 0;
+      deps.buildSandboxProvider = (() => ({
+        name: providerName,
+        create: () => {
+          markCreateStarted();
+          return slowCreate;
+        },
+        async destroy() {
+          destroys += 1;
+          markCleaned();
+        },
+        async getUrl() {
+          return "http://sandbox.invalid";
+        },
+      })) as any;
+      deps.startSandboxAgent = (async (options: any) => {
+        await options.sandbox.create();
+        return delegateStart(options);
+      }) as any;
+
+      const controller = new AbortController();
+      const acquire = acquireEnvironment(
+        {
+          harness: "claude",
+          sandbox: providerName,
+          messages: [{ role: "user", content: "start slowly" }],
+        },
+        deps,
+        controller.signal,
+      );
+      await createStarted;
+      controller.abort(USER_STOP_ABORT_REASON);
+
+      const result = await Promise.race([
+        acquire,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(
+            () => reject(new Error("Stop exceeded the delivery timeout")),
+            4_000,
+          ),
+        ),
+      ]);
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /acquisition was aborted/);
+
+      releaseCreate(`${providerName}-late-id`);
+      await Promise.race([
+        cleaned,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(() => reject(new Error("late sandbox leaked")), 4_000),
+        ),
+      ]);
+      assert.equal(destroys, 1);
+    });
+  }
+
   // NOTE: in-band redaction of the LIVE event stream / result / trace-start input was a
   // daytona-secret-materialization concept that was not adopted. Redaction happens at the
   // durable/exported sinks (persisted transcript + exported spans; see redaction-sinks.test.ts),

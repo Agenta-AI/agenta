@@ -64,6 +64,7 @@ export async function prepareEnvironmentSetup(
   request: AgentRunRequest,
   deps: SandboxAgentDeps = {},
   presignedMount?: MountCredentials | null,
+  signal?: AbortSignal,
 ) {
   const logger = deps.log ?? defaultLog;
   const acquireStartedAt = Date.now();
@@ -116,6 +117,7 @@ export async function prepareEnvironmentSetup(
             apiBase: apiBase(),
             authorization: runCred,
             log: logger,
+            signal,
           })
         : null;
   // A session-owned run expects a durable session cwd mount. When signing returns nothing the run
@@ -136,6 +138,7 @@ export async function prepareEnvironmentSetup(
           apiBase: apiBase(),
           authorization: runCred,
           log: logger,
+          signal,
         })
       : null;
   // A workflow-artifact run expects an agent mount; same structured degrade signal when unsigned.

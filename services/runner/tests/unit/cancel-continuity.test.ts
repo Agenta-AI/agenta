@@ -38,6 +38,8 @@ interface CancelFakeOpts {
    * `cancelSession`, which is the shipped "unsettled" shape: the harness is never told to stop.
    */
   cancellable?: boolean;
+  /** Trigger the test's abort only after acquisition has completed and prompt has started. */
+  onPrompt?: () => void;
 }
 
 /**
@@ -67,9 +69,11 @@ function fakeCancellableSandbox(opts: CancelFakeOpts = {}) {
     onEvent() {},
     onPermissionRequest() {},
     prompt() {
-      return new Promise((resolve) => {
+      const response = new Promise((resolve) => {
         answerPrompt = () => resolve({ stopReason: "cancelled" });
       });
+      opts.onPrompt?.();
+      return response;
     },
   };
 
@@ -190,30 +194,27 @@ const stopRequest: AgentRunRequest = {
   } as any,
 };
 
-/** The cooperative user Stop: the heartbeat interrupt labels its abort. */
-function userStopSignal(): AbortSignal {
+/** Build the real timing shape: acquire first, then abort when the harness prompt is in flight. */
+function fakeAbortingSandbox(
+  opts: CancelFakeOpts = {},
+  kind: "user-stop" | "plain" = "user-stop",
+) {
   const controller = new AbortController();
-  controller.abort(USER_STOP_ABORT_REASON);
-  return controller.signal;
-}
-
-/** An abort that is NOT a user Stop: a client disconnect, or any unlabelled call site. */
-function plainAbortSignal(): AbortSignal {
-  const controller = new AbortController();
-  controller.abort();
-  return controller.signal;
+  const fake = fakeCancellableSandbox({
+    ...opts,
+    onPrompt: () =>
+      kind === "user-stop"
+        ? controller.abort(USER_STOP_ABORT_REASON)
+        : controller.abort(),
+  });
+  return { ...fake, signal: controller.signal };
 }
 
 describe("a stopped turn's continuity record", () => {
   it("completes the durable ledger row with an end time and the native session id", async () => {
-    const { calls, deps } = fakeCancellableSandbox();
+    const { calls, deps, signal } = fakeAbortingSandbox();
 
-    const result = await runSandboxAgent(
-      stopRequest,
-      undefined,
-      userStopSignal(),
-      deps,
-    );
+    const result = await runSandboxAgent(stopRequest, undefined, signal, deps);
 
     assert.equal(result.ok, true);
     assert.equal(result.stopReason, "cancelled");
@@ -241,9 +242,9 @@ describe("a stopped turn's continuity record", () => {
   });
 
   it("advances the in-memory resume pointer, so the next turn may load by id", async () => {
-    const { deps, continuityStore } = fakeCancellableSandbox();
+    const { deps, continuityStore, signal } = fakeAbortingSandbox();
 
-    await runSandboxAgent(stopRequest, undefined, userStopSignal(), deps);
+    await runSandboxAgent(stopRequest, undefined, signal, deps);
 
     assert.deepEqual(continuityStore.get("sess-stop", "claude"), {
       agentSessionId: AGENT_SESSION_ID,
@@ -257,9 +258,9 @@ describe("a stopped turn's continuity record", () => {
   });
 
   it("keeps the sandbox warm as well, so both halves of the resume survive", async () => {
-    const { calls, deps } = fakeCancellableSandbox();
+    const { calls, deps, signal } = fakeAbortingSandbox();
 
-    await runSandboxAgent(stopRequest, undefined, userStopSignal(), deps);
+    await runSandboxAgent(stopRequest, undefined, signal, deps);
 
     assert.equal(calls.paused, 1, "a confirmed Stop parks");
     assert.equal(calls.destroyed, 0);
@@ -269,14 +270,12 @@ describe("a stopped turn's continuity record", () => {
     // A disconnect deletes the sandbox, but the harness still confirmed it is idle and its
     // native session lives on the durable cwd, so the record stays worth keeping: the next turn
     // mounts the same durable directory and may `session/load` into a fresh sandbox.
-    const { calls, deps, continuityStore } = fakeCancellableSandbox();
-
-    const result = await runSandboxAgent(
-      stopRequest,
-      undefined,
-      plainAbortSignal(),
-      deps,
+    const { calls, deps, continuityStore, signal } = fakeAbortingSandbox(
+      {},
+      "plain",
     );
+
+    const result = await runSandboxAgent(stopRequest, undefined, signal, deps);
 
     assert.equal(result.ok, true);
     assert.equal(calls.destroyed, 1, "an unlabelled abort still deletes");
@@ -293,16 +292,11 @@ describe("an abort the harness never confirmed", () => {
   it("drops the record and leaves the ledger row open", async () => {
     // An unpatched client cannot send `session/cancel`, so the harness may still be writing.
     // This is the unchanged floor: no record, no completion, cold replay next turn.
-    const { calls, deps, continuityStore } = fakeCancellableSandbox({
+    const { calls, deps, continuityStore, signal } = fakeAbortingSandbox({
       cancellable: false,
     });
 
-    const result = await runSandboxAgent(
-      stopRequest,
-      undefined,
-      userStopSignal(),
-      deps,
-    );
+    const result = await runSandboxAgent(stopRequest, undefined, signal, deps);
 
     assert.equal(result.ok, true);
     assert.equal(result.cancelSettled, false);
@@ -313,9 +307,11 @@ describe("an abort the harness never confirmed", () => {
   });
 
   it("still appended the started row, which alone must never look resumable", async () => {
-    const { calls, deps } = fakeCancellableSandbox({ cancellable: false });
+    const { calls, deps, signal } = fakeAbortingSandbox({
+      cancellable: false,
+    });
 
-    await runSandboxAgent(stopRequest, undefined, userStopSignal(), deps);
+    await runSandboxAgent(stopRequest, undefined, signal, deps);
 
     assert.equal(calls.appended.length, 1, "the turn started, so a row exists");
     assert.equal(calls.appended[0].turnIndex, 0);

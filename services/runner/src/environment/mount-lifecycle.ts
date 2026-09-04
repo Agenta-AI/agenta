@@ -62,6 +62,7 @@ import {
   writeSystemPromptLocal,
 } from "../engines/sandbox_agent/pi-assets.ts";
 import { containsTransportEndpointDisconnected } from "../engines/sandbox_agent/runtime-policy.ts";
+import { throwIfAcquireAborted } from "./acquire-abort.ts";
 import { rethrowIfInvariant, type AcquireContext } from "./acquire-context.ts";
 
 /** The Pi agent directory inside a Daytona sandbox. Injected so this unit stays import-light. */
@@ -77,6 +78,8 @@ export interface MountDeps {
   ) => Promise<import("../engines/sandbox_agent/mount.ts").MountCredentials | null>;
   /** The remote Pi directory constant, passed in rather than imported. */
   daytonaPiDir: string;
+  /** The turn signal that must preempt a mount during environment acquisition. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -203,8 +206,9 @@ export async function mountLocalDurableCwd(
   const mounted = await (deps.mountStorage ?? mountStorage)(
     plan.workspace.cwd,
     creds,
-    { log: ctx.log },
+    { log: ctx.log, signal: deps.signal },
   );
+  throwIfAcquireAborted(deps.signal);
   if (mounted) {
     ctx.commitLocalMount("cwd", plan.workspace.cwd, creds);
     // Session-local links belong to the mount's lifecycle, not to first acquire: this mount is
@@ -240,6 +244,7 @@ export async function mountLocalAgentCwd(
     if (
       !(await (deps.mountStorage ?? mountStorage)(mountPath, creds, {
         log: ctx.log,
+        signal: deps.signal,
       }))
     ) {
       // false means mountStorage confirmed detach is safe. This path is a sibling of the session
@@ -247,6 +252,7 @@ export async function mountLocalAgentCwd(
       rmSync(mountPath, { recursive: true, force: true });
       return false;
     }
+    throwIfAcquireAborted(deps.signal);
     ctx.commitLocalMount("agent", mountPath, creds);
     await seedAgentReadme(mountPath, { log: ctx.log });
     await linkAgentFiles(plan.workspace.cwd, mountPath, { log: ctx.log });
