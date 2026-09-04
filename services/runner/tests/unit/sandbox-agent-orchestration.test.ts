@@ -685,6 +685,48 @@ describe("runSandboxAgent orchestration", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
+  it("backs the local Pi transcript directory with the active durable cwd mount", async () => {
+    const { calls, deps } = fakeHarness();
+    deps.signSessionMountCredentials = async () => ({
+      region: "us-east-1",
+      bucket: "bucket",
+      prefix: "mounts/project/session",
+      accessKey: "test-access-key",
+      secretKey: "test-secret-key",
+      projectId: "project",
+    });
+    deps.mountStorage = async () => true;
+    deps.unmountStorage = async () => true;
+    deps.hydrateHarnessSessionFromDurable = async () => {};
+
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "local",
+      sessionId: "session-local-rebuild",
+      runContext: { project: { id: "project" } },
+      telemetry: {
+        exporters: {
+          otlp: { headers: { authorization: "ApiKey test" } },
+        },
+      },
+      messages: [{ role: "user", content: "continue" }],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    try {
+      assert.equal(acquired.env.nativeHistoryDurable, true);
+      assert.equal(
+        (calls.providerArgs[1] as Record<string, string>)
+          .PI_CODING_AGENT_SESSION_DIR,
+        "/tmp/agenta/mounts/project/session/agents/sessions/pi",
+      );
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
   it("creates the configured Pi transcript directory inside a Daytona cwd", async () => {
     const { calls, deps } = fakeHarness();
     deps.prepareDaytonaPiAssets = (async () => true) as any;

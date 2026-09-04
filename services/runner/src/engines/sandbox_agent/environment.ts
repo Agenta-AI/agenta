@@ -650,7 +650,8 @@ async function acquireEnvironmentOnce(
     // mount-success path add guidance/env atomically, while a failed mount starts a normal
     // scratch-only harness with no false durable-storage signal.
     if (environment.mountCreds && !plan.isDaytona) {
-      await mountLocalDurableCwd("initial");
+      const mounted = await mountLocalDurableCwd("initial");
+      if (mounted && piSessionDir) environment.nativeHistoryDurable = true;
     }
     if (environment.agentMountCreds && !plan.isDaytona) {
       await mountLocalAgentCwd();
@@ -1231,6 +1232,7 @@ async function acquireEnvironmentOnce(
       cwd: plan.workspace.cwd,
       sessionInit,
       priorAgentSessionId,
+      nativeHistoryDurable: environment.nativeHistoryDurable,
       localSessionId,
       continuitySessionKey,
       log: logger,
@@ -1251,6 +1253,7 @@ async function acquireEnvironmentOnce(
         cwd: plan.workspace.cwd,
         sessionInit,
         priorAgentSessionId: environment.session?.agentSessionId,
+        nativeHistoryDurable: environment.nativeHistoryDurable,
         localSessionId,
         continuitySessionKey,
         log: logger,

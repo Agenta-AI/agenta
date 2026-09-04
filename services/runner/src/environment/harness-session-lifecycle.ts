@@ -73,6 +73,8 @@ export interface OpenSessionInput {
   sessionInit: Record<string, unknown>;
   /** The native session id to resume, when the store says one is eligible. */
   priorAgentSessionId: string | undefined;
+  /** Whether the native transcript path is backed by durable storage for this acquire. */
+  nativeHistoryDurable: boolean;
   /** The runner-local key both modes use for the persist record. */
   localSessionId: string | undefined;
   /** For the continuity log line only. */
@@ -160,7 +162,7 @@ export async function openSession(
       session = await input.sandbox.resumeSession(input.localSessionId);
       loadedFromContinuity =
         session.agentSessionId === input.priorAgentSessionId;
-      if (loadedFromContinuity) {
+      if (loadedFromContinuity && input.nativeHistoryDurable) {
         try {
           nativeHistoryVerified = await loadedHistoryWasObserved(
             input.persist,
@@ -175,6 +177,7 @@ export async function openSession(
       input.log(
         `[continuity] session/load attempted session=${input.continuitySessionKey} ` +
           `harness=${input.harness} loaded=${loadedFromContinuity} ` +
+          `historyDurable=${input.nativeHistoryDurable} ` +
           `historyVerified=${nativeHistoryVerified}`,
       );
     } catch (err) {

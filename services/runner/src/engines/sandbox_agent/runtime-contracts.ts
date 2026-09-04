@@ -321,6 +321,8 @@ export interface SessionEnvironment {
   loadedFromContinuity: boolean;
   /** The load emitted at least one prior conversation event, proving native history is present. */
   nativeHistoryVerified: boolean;
+  /** The native transcript path survives this environment's teardown and a later cold rebuild. */
+  nativeHistoryDurable: boolean;
   /** A remote, session-owned run whose sandbox can be parked (warm) rather than deleted at end. */
   resumable: boolean;
   /**

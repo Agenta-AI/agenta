@@ -391,6 +391,9 @@ export async function prepareEnvironmentSetup(
     projectScopeId: projectScopeFor(request, mountCreds?.projectId)?.id,
     loadedFromContinuity: false,
     nativeHistoryVerified: false,
+    // Daytona keeps its established per-harness transcript mounts. Local becomes durable only
+    // after its cwd mount succeeds; the Pi transcript directory lives underneath that cwd.
+    nativeHistoryDurable: plan.isDaytona,
     resumable: false,
     continuityTurnIndex: undefined,
     sessionDestroyRequested: false,
