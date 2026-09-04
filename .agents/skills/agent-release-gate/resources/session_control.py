@@ -135,6 +135,9 @@ class OperatorHooks:
     def wait_for_runner(self, *, timeout: float = 120.0) -> float | None:
         raise HooksUnavailable
 
+    def ensure_runner_healthy(self, *, timeout: float = 120.0) -> dict:
+        raise HooksUnavailable
+
     def restart_runner(self, grace_seconds: int = 10) -> None:
         raise HooksUnavailable
 
@@ -300,6 +303,33 @@ class DockerComposeHooks(OperatorHooks):
                 return round(time.time() - started, 1)
             time.sleep(1)
         return None
+
+    def ensure_runner_healthy(self, *, timeout: float = 120.0) -> dict:
+        """Recover the runner container to running and healthy, whatever a cell left it in.
+
+        `run_cell()` calls this in a `finally` block after every cell that needs hooks, so a
+        cell that pauses, stops, or restarts the runner and then raises before its own restore
+        code runs does not strand the runner paused or down for the next cell.
+        """
+        paused = (
+            self.dc(
+                "inspect", "-f", "{{.State.Paused}}", f"{self.project}-runner-1"
+            ).strip()
+            == "true"
+        )
+        if paused:
+            self.unpause_runner()
+        status = self.dc(
+            "inspect", "-f", "{{.State.Status}}", f"{self.project}-runner-1"
+        ).strip()
+        if status != "running":
+            self.restart_runner()
+        healthy_after_s = self.wait_for_runner(timeout=timeout)
+        return {
+            "was_paused": paused,
+            "status_before": status,
+            "healthy_after_s": healthy_after_s,
+        }
 
     def restart_runner(self, grace_seconds: int = 10) -> None:
         self.dc(
@@ -1143,8 +1173,12 @@ def cell_records_outage(cfg, references, args, hooks: OperatorHooks) -> Cell:
     wait_for_turn(session_id)
     time.sleep(6)
     hooks.stop_postgres()
-    time.sleep(20)
-    hooks.start_postgres()
+    try:
+        time.sleep(20)
+    finally:
+        # Restore Postgres even if something above raises: a stopped Postgres left behind
+        # strands every cell that runs after this one, not just this one's own assertions.
+        hooks.start_postgres()
     handle["thread"].join(timeout=400)
     landed = []
     deadline = time.time() + 180
@@ -1523,12 +1557,16 @@ def cell_stale_tail(cfg, references, args, hooks: OperatorHooks) -> Cell:
     wait_for_turn(session_id)
     time.sleep(3)
     hooks.pause_runner()
-    deadline = time.time() + args.sweep_wait
-    while time.time() < deadline:
-        if any(r["type"] == "done" for r in hooks.record_rows(session_id)):
-            break
-        time.sleep(5)
-    hooks.unpause_runner()
+    try:
+        deadline = time.time() + args.sweep_wait
+        while time.time() < deadline:
+            if any(r["type"] == "done" for r in hooks.record_rows(session_id)):
+                break
+            time.sleep(5)
+    finally:
+        # A paused runner left behind strands every cell that runs after this one. Restore it
+        # even if hooks.record_rows() above raises.
+        hooks.unpause_runner()
     handle["thread"].join(timeout=180)
     time.sleep(20)
     rows = hooks.record_rows(session_id)
@@ -1606,6 +1644,106 @@ def cell_repeat_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
         )
     return evidence, _pass(
         "two Stops 50ms apart produced exactly one terminal record and a warm resume"
+    )
+
+
+def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
+    """Five independent sessions, each with a long turn, all Stopped within one second.
+
+    Every Stop must return HTTP 202, every session must read exactly one terminal record, and
+    every session must recall its own codeword on a warm resume. HTTP-only: needs no shell.
+    """
+    n = 5
+    sessions = []
+    for i in range(n):
+        session_id = str(uuid.uuid4())
+        marker = f"NOVA{i}{uuid.uuid4().hex[:5].upper()}"
+        msgs = [user_msg(sleep_prompt(marker, args.sleep_seconds))]
+        handle = invoke_async(
+            session_id, msgs, cfg, references, f"concurrent-turn1-{i}"
+        )
+        sessions.append(
+            {"session_id": session_id, "marker": marker, "msgs": msgs, "handle": handle}
+        )
+
+    for s in sessions:
+        s["turn_id"] = wait_for_turn(s["session_id"])
+    missing_turn = [s["session_id"] for s in sessions if not s["turn_id"]]
+    if missing_turn:
+        evidence = {"n": n, "missing_turn_sessions": missing_turn}
+        return evidence, _fail(
+            f"{len(missing_turn)} of {n} sessions never reported a running turn"
+        )
+    time.sleep(2)
+
+    def fire(s: dict) -> None:
+        s["stop"] = cancel(
+            s["session_id"],
+            expected=s["turn_id"],
+            label=f"concurrent-stop-{s['marker']}",
+        )
+
+    threads = [threading.Thread(target=fire, args=(s,)) for s in sessions]
+    fired_at = time.time()
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    stop_window_s = round(time.time() - fired_at, 3)
+
+    for s in sessions:
+        s["handle"]["thread"].join(timeout=180)
+        s["out"] = s["handle"]["out"] or {}
+    time.sleep(4)
+
+    for s in sessions:
+        s["terminal_records"] = terminal_records(s["session_id"], s["turn_id"])
+        msgs2 = s["msgs"] + [assistant_message(s["out"]), user_msg(RECALL)]
+        t2 = invoke(
+            s["session_id"], msgs2, cfg, references, f"concurrent-turn2-{s['marker']}"
+        )
+        s["resume_recalled_marker"] = s["marker"] in (t2.get("text") or "")
+        s["resume_text"] = (t2.get("text") or "")[:200]
+
+    evidence = {
+        "n": n,
+        "stop_window_s": stop_window_s,
+        "sessions": [
+            {
+                "session_id": s["session_id"],
+                "turn_id": s["turn_id"],
+                "stop_status": s["stop"]["status"],
+                "stop_round_trip_s": s["stop"]["round_trip_s"],
+                "terminal_record_count": len(s["terminal_records"]),
+                "resume_recalled_marker": s["resume_recalled_marker"],
+            }
+            for s in sessions
+        ],
+    }
+    not_202 = [s["session_id"] for s in sessions if s["stop"]["status"] != 202]
+    if not_202:
+        return evidence, _fail(
+            f"{len(not_202)} of {n} concurrent Stops did not return HTTP 202: {not_202}"
+        )
+    bad_terminal = [
+        s["session_id"] for s in sessions if len(s["terminal_records"]) != 1
+    ]
+    if bad_terminal:
+        return evidence, _fail(
+            f"{len(bad_terminal)} of {n} sessions did not read exactly one terminal record: "
+            f"{bad_terminal}"
+        )
+    not_recalled = [
+        s["session_id"] for s in sessions if not s["resume_recalled_marker"]
+    ]
+    if not_recalled:
+        return evidence, _fail(
+            f"{len(not_recalled)} of {n} sessions did not recall their codeword on resume: "
+            f"{not_recalled}"
+        )
+    return evidence, _pass(
+        f"all {n} concurrent Stops returned HTTP 202 within {stop_window_s}s, each session read "
+        "exactly one terminal record, and each resumed warm with its own codeword"
     )
 
 
@@ -1693,8 +1831,54 @@ CELLS: dict[str, tuple[bool, str, "object"]] = {
     "codex-child": (True, "allow", cell_codex_child),
     "stale-tail": (True, "allow", cell_stale_tail),
     "repeat-stop": (False, "allow", cell_repeat_stop),
+    "concurrent-stops": (False, "allow", cell_concurrent_stops),
     "stop-during-completion": (False, "allow", cell_stop_during_completion),
 }
+
+
+def run_cell(
+    name: str, fn, cfg, references, args, hooks: OperatorHooks, needs_hooks: bool
+) -> dict:
+    """Run one cell and return its `results["cells"][name]` entry.
+
+    A cell that pauses, stops, or restarts the runner restores it itself in its own `finally`
+    block (see `cell_stale_tail` and `cell_records_outage`). This is the second, run-level
+    guarantee: a cell that raises BEFORE its own restore code runs must not strand the runner
+    paused or down for the cell that runs after it, so the recovery check here runs in a
+    `finally` block too, no matter how the cell ends.
+    """
+    started = time.time()
+    try:
+        evidence, verdict = fn(cfg, references, args, hooks)
+    except Exception as exc:  # noqa: BLE001
+        import traceback
+
+        evidence = {
+            "driver_error": f"{type(exc).__name__}: {exc}",
+            "traceback": traceback.format_exc()[-1500:],
+        }
+        verdict = _fail(f"driver exception: {type(exc).__name__}: {exc}")
+    finally:
+        if needs_hooks and hooks.available:
+            try:
+                recovery = hooks.ensure_runner_healthy()
+            except Exception as exc:  # noqa: BLE001
+                print(f"[{name}] runner-health recovery failed: {exc}", file=sys.stderr)
+            else:
+                if (
+                    recovery.get("was_paused")
+                    or recovery.get("status_before") != "running"
+                ):
+                    print(f"[{name}] recovered the runner: {recovery}", file=sys.stderr)
+                if recovery.get("healthy_after_s") is None:
+                    print(
+                        f"[{name}] WARNING: the runner did not report healthy after recovery",
+                        file=sys.stderr,
+                    )
+    elapsed = round(time.time() - started, 1)
+    verdict_str = "SKIP" if verdict["skip"] else ("PASS" if verdict["pass"] else "FAIL")
+    print(f"[{name}] {verdict_str} — {verdict['why']}", file=sys.stderr)
+    return {"evidence": evidence, "verdict": verdict, "elapsed_s": elapsed}
 
 
 def main() -> int:
@@ -1787,27 +1971,9 @@ def main() -> int:
         needs_hooks, permission, fn = CELLS[name]
         cfg, references = config_for(permission)
         print(f"\n=== cell {name} ===", file=sys.stderr)
-        started = time.time()
-        try:
-            evidence, verdict = fn(cfg, references, args, hooks)
-        except Exception as exc:  # noqa: BLE001
-            import traceback
-
-            evidence = {
-                "driver_error": f"{type(exc).__name__}: {exc}",
-                "traceback": traceback.format_exc()[-1500:],
-            }
-            verdict = _fail(f"driver exception: {type(exc).__name__}: {exc}")
-        elapsed = round(time.time() - started, 1)
-        verdict_str = (
-            "SKIP" if verdict["skip"] else ("PASS" if verdict["pass"] else "FAIL")
+        results["cells"][name] = run_cell(
+            name, fn, cfg, references, args, hooks, needs_hooks
         )
-        print(f"[{name}] {verdict_str} — {verdict['why']}", file=sys.stderr)
-        results["cells"][name] = {
-            "evidence": evidence,
-            "verdict": verdict,
-            "elapsed_s": elapsed,
-        }
         (outdir / "results.json").write_text(json.dumps(results, indent=2, default=str))
 
     lines = ["| cell | verdict | why |", "|---|---|---|"]

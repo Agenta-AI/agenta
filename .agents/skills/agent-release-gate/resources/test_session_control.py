@@ -37,6 +37,7 @@ def test_null_hooks_raises_on_every_method():
         raise AssertionError(f"{method} should raise HooksUnavailable")
     for method in (
         "wait_for_runner",
+        "ensure_runner_healthy",
         "restart_runner",
         "kill_runner",
         "pause_runner",
@@ -126,9 +127,100 @@ def test_cell_names_are_stable_and_known():
         "codex-child",
         "stale-tail",
         "repeat-stop",
+        "concurrent-stops",
         "stop-during-completion",
     }
     assert set(sc.CELLS) == expected
+
+
+def test_run_cell_finally_path_with_null_hooks_does_not_crash():
+    """run_cell()'s runner-health recovery is gated on `needs_hooks and hooks.available`. With
+    NullHooks (no --project), hooks.available is False, so the finally block must skip the
+    recovery call rather than let HooksUnavailable escape through it — even for a needs_hooks
+    cell whose own function raises before it can restore anything itself."""
+
+    class Args:
+        sleep_seconds = 1
+        sweep_wait = 1
+        project = None
+        sandbox = "local"
+
+    def boom(cfg, references, args, hooks):
+        raise RuntimeError("cell blew up before it could restore anything")
+
+    hooks = sc.NullHooks()
+    result = sc.run_cell("boom-cell", boom, {}, {}, Args(), hooks, True)
+    assert result["verdict"]["pass"] is False
+    assert result["verdict"]["skip"] is False
+    assert "driver exception" in result["verdict"]["why"]
+    assert "RuntimeError" in result["evidence"]["driver_error"]
+    assert "elapsed_s" in result
+
+
+def test_run_cell_recovers_the_runner_when_a_cell_raises():
+    """The run-level guarantee: a needs_hooks cell that raises must still trigger the runner
+    recovery check, so a paused or restarted runner does not strand the cell that runs next."""
+
+    class Args:
+        sleep_seconds = 1
+        sweep_wait = 1
+        project = "fake-project"
+        sandbox = "local"
+
+    class StubHooks(sc.OperatorHooks):
+        available = True
+
+        def __init__(self):
+            self.recovered = False
+
+        def ensure_runner_healthy(self, *, timeout: float = 120.0) -> dict:
+            self.recovered = True
+            return {
+                "was_paused": True,
+                "status_before": "running",
+                "healthy_after_s": 1.0,
+            }
+
+    def boom(cfg, references, args, hooks):
+        raise RuntimeError("cell paused the runner and blew up before unpausing it")
+
+    hooks = StubHooks()
+    result = sc.run_cell("boom-cell", boom, {}, {}, Args(), hooks, True)
+    assert hooks.recovered is True
+    assert result["verdict"]["pass"] is False
+
+
+def test_run_cell_skips_recovery_for_cells_that_do_not_need_hooks():
+    """A cell that never touches Docker (needs_hooks=False) must not trigger a recovery check,
+    even when hooks happen to be available."""
+
+    class Args:
+        sleep_seconds = 1
+        sweep_wait = 1
+        project = "fake-project"
+        sandbox = "local"
+
+    class StubHooks(sc.OperatorHooks):
+        available = True
+
+        def __init__(self):
+            self.recovered = False
+
+        def ensure_runner_healthy(self, *, timeout: float = 120.0) -> dict:
+            self.recovered = True
+            return {
+                "was_paused": False,
+                "status_before": "running",
+                "healthy_after_s": 1.0,
+            }
+
+    def ok(cfg, references, args, hooks):
+        return {"session_id": "abc"}, sc._pass("fine")
+
+    hooks = StubHooks()
+    result = sc.run_cell("http-only-cell", ok, {}, {}, Args(), hooks, False)
+    assert hooks.recovered is False
+    assert result["verdict"]["pass"] is True
 
 
 def test_resolve_env_names_every_missing_variable(monkeypatch):
