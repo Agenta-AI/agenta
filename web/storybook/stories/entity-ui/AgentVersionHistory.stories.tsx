@@ -165,7 +165,26 @@ export const ChangesLoading: PaneStory = {
 /** Selected version's configuration is byte-identical to the current one. */
 export const ChangesIdentical: PaneStory = {
     ...Changes,
-    args: {sections: [], version: 2, message: "Add the Linear MCP server", isLoading: false},
+    args: {
+        sections: [],
+        version: 2,
+        message: "Add the Linear MCP server",
+        isLoading: false,
+        emptyText: "Identical to your current configuration — restoring it would change nothing.",
+    },
+}
+
+/** The configs differ, but only in fields the classifier does not surface — still restorable. */
+export const ChangesUnclassified: PaneStory = {
+    ...Changes,
+    args: {
+        sections: [],
+        version: 2,
+        message: "Add the Linear MCP server",
+        isLoading: false,
+        emptyText:
+            "This version differs, but not in anything the summary can describe. Restoring it still applies the stored configuration.",
+    },
 }
 
 export const ChangesNoSelection: PaneStory = {

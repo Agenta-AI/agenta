@@ -16,7 +16,7 @@ import {
     workflowRevisionsByWorkflowListDataAtomFamily,
     workflowRevisionsByWorkflowQueryAtomFamily,
 } from "@agenta/entities/workflow"
-import {classifyAgentChanges} from "@agenta/entities/workflow/commitDiff"
+import {classifyAgentChanges, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {buildVersionRows, revertAgentRevisionAtom} from "@agenta/playground/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {cn, textColors} from "@agenta/ui/styles"
@@ -121,6 +121,22 @@ export const AgentVersionHistoryDrawer = ({
         [selectedParams, currentParams],
     )
 
+    // An empty `sections` is not proof the configs match — the classifier only surfaces what it
+    // recognises. Compare the stored objects so an unclassified difference stays restorable.
+    const identical = useMemo(
+        () =>
+            !!selectedParams &&
+            !!currentParams &&
+            stableStringify(selectedParams) === stableStringify(currentParams),
+        [selectedParams, currentParams],
+    )
+    const isCurrentRevision = !!selectedId && selectedId === revisionId
+    const emptyText = isCurrentRevision
+        ? "This is the version you are on."
+        : identical
+          ? "Identical to your current configuration — restoring it would change nothing."
+          : "This version differs, but not in anything the summary can describe. Restoring it still applies the stored configuration."
+
     const listLoading = query.isPending && revisions.length === 0
     const isError = query.isError && revisions.length === 0
     // A selected version whose config has not resolved is LOADING, not "identical" — an empty
@@ -147,7 +163,7 @@ export const AgentVersionHistoryDrawer = ({
                     phase={phase}
                     selectedVersion={selectedRow?.version ?? null}
                     currentVersion={latestRow?.version ?? null}
-                    disabled={!selectedRow || diffLoading || !sections.length}
+                    disabled={!selectedRow || diffLoading || identical || isCurrentRevision}
                     onRequestConfirm={() => setPhase("confirm")}
                     onCancel={() => setPhase("idle")}
                     onConfirm={handleConfirm}
@@ -196,6 +212,7 @@ export const AgentVersionHistoryDrawer = ({
                         message={selectedRow?.message}
                         isLoading={diffLoading}
                         placeholder={placeholder}
+                        emptyText={emptyText}
                     />
                 </div>
             </div>

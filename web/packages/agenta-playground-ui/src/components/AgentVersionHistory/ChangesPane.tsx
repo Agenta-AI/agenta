@@ -72,6 +72,8 @@ export interface ChangesPaneProps {
     isLoading: boolean
     /** Shown instead of a diff when there is nothing to select yet (empty list, load error). */
     placeholder?: string
+    /** Why there are no sections — the caller knows whether the configs actually match. */
+    emptyText?: string
 }
 
 export const ChangesPane = ({
@@ -80,6 +82,7 @@ export const ChangesPane = ({
     message,
     isLoading,
     placeholder,
+    emptyText = "This is the current configuration. Nothing to compare.",
 }: ChangesPaneProps) => {
     const [openOverrides, setOpenOverrides] = useState<Record<string, boolean>>({})
     // Sections can arrive after the first render, so resolve open state per section rather than
@@ -111,8 +114,13 @@ export const ChangesPane = ({
                 ) : null}
             </div>
             {sections.length === 0 ? (
-                <div className={cn("px-6 py-14 text-center text-[12.5px]", textColors.tertiary)}>
-                    This is the current configuration. Nothing to compare.
+                <div
+                    className={cn(
+                        "mx-auto max-w-[340px] px-6 py-14 text-center text-[12.5px] leading-relaxed",
+                        textColors.tertiary,
+                    )}
+                >
+                    {emptyText}
                 </div>
             ) : (
                 <ChangeSections
