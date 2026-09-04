@@ -164,14 +164,13 @@ describe("startAliveWatchdog admitted (single-turn admission)", () => {
     await watchdog.release();
   });
 
-  it("fails OPEN: an unreachable API admits the turn", async () => {
-    // A transient blip refusing every message would be a worse outage than the bug this closes.
-    // The keepalive pool's busy check is the backstop for the window this leaves open.
+  it("fails closed when the admission API is unreachable", async () => {
+    // Without an affirmative first heartbeat, the runner cannot prove it owns this turn.
     vi.stubGlobal("fetch", async () => {
       throw new Error("network down");
     });
     const watchdog = await startAliveWatchdog("sess-c", "turn-c", "proj-1");
-    assert.equal(watchdog.admitted, true);
+    assert.equal(watchdog.admitted, false);
     await watchdog.release();
   });
 

@@ -15,7 +15,11 @@
 import { describe, it, beforeEach, afterEach, vi } from "vitest";
 import assert from "node:assert/strict";
 
-const fetchCalls: Array<{ url: string; body: any }> = [];
+const fetchCalls: Array<{
+  url: string;
+  body: any;
+  headers?: RequestInit["headers"];
+}> = [];
 let fetchImpl: (
   url: string,
   init?: RequestInit,
@@ -24,7 +28,7 @@ let fetchImpl: (
 
 vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
   const body = init?.body ? JSON.parse(init.body as string) : undefined;
-  fetchCalls.push({ url, body });
+  fetchCalls.push({ url, body, headers: init?.headers });
   return fetchImpl(url, init);
 });
 
@@ -46,6 +50,7 @@ const ownedBy = (replica: string) => async () =>
 beforeEach(() => {
   fetchCalls.length = 0;
   fetchImpl = ownedBy(REPLICA_ID);
+  process.env.AGENTA_RUNNER_TOKEN = "runner-secret";
 });
 
 afterEach(async () => {
@@ -54,6 +59,7 @@ afterEach(async () => {
     forgetOwnedSession(id);
   }
   vi.restoreAllMocks();
+  delete process.env.AGENTA_RUNNER_TOKEN;
 });
 
 describe("learning which sessions this replica owns", () => {
@@ -118,6 +124,10 @@ describe("the shutdown release", () => {
       assert.ok(call.url.endsWith("/sessions/streams/heartbeat"));
       assert.equal(call.body.release_owner, true);
       assert.equal(call.body.replica_id, REPLICA_ID);
+      assert.equal(
+        (call.headers as Record<string, string>)["x-agenta-runner-token"],
+        "runner-secret",
+      );
       assert.equal(
         call.body.turn_id,
         undefined,
