@@ -303,6 +303,9 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
     assert executions.source.terminal_outcome == "continued"
     assert executions.states[-1][1] == SessionExecutionState.recoverable
 
+    commands.command = commands.command.model_copy(
+        update={"target_turn_id": "continuation-retry"}
+    )
     retry = await service.respond_interaction(
         project_id=project_id,
         user_id=user_id,
@@ -312,7 +315,7 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
         idempotency_key="response-1",
     )
     assert retry.command.id == admission.command.id
-    assert retry.execution_id == admission.execution_id
+    assert retry.execution_id == "continuation-retry"
 
     with pytest.raises(IdempotencyKeyReused):
         await service.respond_interaction(

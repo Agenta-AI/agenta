@@ -480,7 +480,9 @@ class SessionCommandsService:
                 )
                 if not same_request:
                     raise IdempotencyKeyReused()
-                execution_id = str(existing.data["continuation_execution_id"])
+                execution_id = existing.target_turn_id or str(
+                    existing.data["continuation_execution_id"]
+                )
                 admission = InteractionContinuationAdmission(
                     interaction=by_id[anchor_id],
                     command=existing,
