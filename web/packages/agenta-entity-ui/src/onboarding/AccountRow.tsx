@@ -16,7 +16,7 @@ import {
     useToolIntegrationConnections,
     useToolIntegrationDetail,
 } from "@agenta/entities/gatewayTool"
-import type {DetectedAccount} from "@agenta/entities/workflow"
+import {PROVIDERS, type DetectedAccount} from "@agenta/entities/workflow"
 import {Button} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, CheckCircle, Plugs} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -41,6 +41,9 @@ export interface AccountRowProps {
     onUndoSkip?: (slug: string) => void
 }
 
+/** A slug's display name, for naming an alternative the row has no detail query for. */
+const providerLabel = (slug: string): string => PROVIDERS[slug]?.label ?? slug
+
 const AccountRow = ({
     account,
     onConnectedChange,
@@ -62,6 +65,10 @@ const AccountRow = ({
 
     const name = detail?.name ?? account.label
     const logo = detail?.logo ?? account.logo
+    // Satisfied by a stand-in: name the provider that actually did it, or the row claims a
+    // connection to something the workspace has not got.
+    const viaAlternative = satisfiedVia && satisfiedVia !== account.slug ? satisfiedVia : undefined
+    const alternativeNames = (account.alternatives ?? []).map(providerLabel)
     // Only an unconnected REQUIRED account is highlighted: it is the one thing standing between
     // the user and their agent. A suggested account is an offer, so it stays quiet.
     const blocking = account.required && !connected
@@ -97,8 +104,15 @@ const AccountRow = ({
                 <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-2">
                         <span className="truncate text-xs font-medium text-[var(--ag-colorText)]">
-                            {name}
+                            {viaAlternative ? providerLabel(viaAlternative) : name}
                         </span>
+                        {/* The choice, stated on the row that offers it: without it an alternative
+                            existed only in the data and the user was asked for one provider. */}
+                        {!connected && alternativeNames.length ? (
+                            <span className="shrink-0 text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                or {alternativeNames.join(" or ")}
+                            </span>
+                        ) : null}
                         {account.required ? (
                             <span className="shrink-0 rounded-full border border-solid border-[var(--ag-colorWarningBorder)] px-1.5 text-[10px] font-medium text-[var(--ag-colorWarning)]">
                                 Required

@@ -11,9 +11,11 @@
  */
 import {useCallback, useMemo, useState} from "react"
 
+import {isConnectionActive, useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {
     DEFAULT_PERMISSION,
     detectAccounts,
+    isAccountSatisfied,
     suggestionAccounts,
     type AgentPermission,
     type AgentStarterTemplate,
@@ -48,6 +50,18 @@ export interface AgentSetupStep {
 }
 
 export function useAgentSetupStep(): AgentSetupStep {
+    // What the workspace is already connected to, so the step can decline to open at all.
+    const {connections} = useToolConnectionsQuery()
+    const workspaceSlugs = useMemo(
+        () =>
+            new Set(
+                connections
+                    .filter(isConnectionActive)
+                    .map((connection) => connection.integration_key)
+                    .filter(Boolean) as string[],
+            ),
+        [connections],
+    )
     const [draft, setDraft] = useState<AgentSetupDraft | null>(null)
     const [accounts, setAccounts] = useState<DetectedAccount[]>([])
     const [skippedSlugs, setSkippedSlugs] = useState<string[]>([])
@@ -58,17 +72,30 @@ export function useAgentSetupStep(): AgentSetupStep {
      * account has nothing to connect and nothing to show — opening on it puts a blocking card
      * reading "Nothing required." between the user and their agent.
      */
-    const open = useCallback((next: AgentSetupDraft) => {
-        // Detection is a one-shot: re-running it as the user connects would reshuffle the rows
-        // under their cursor, and an account they added by hand must never be detected away.
-        const detected = detectAccounts({description: next.seedMessage, template: next.template})
-        if (detected.length === 0) return false
-        setAccounts(detected)
-        setSkippedSlugs([])
-        setPermission(DEFAULT_PERMISSION)
-        setDraft(next)
-        return true
-    }, [])
+    const open = useCallback(
+        (next: AgentSetupDraft) => {
+            // Detection is a one-shot: re-running it as the user connects would reshuffle the rows
+            // under their cursor, and an account they added by hand must never be detected away.
+            const detected = detectAccounts({
+                description: next.seedMessage,
+                template: next.template,
+            })
+            if (detected.length === 0) return false
+            // Nothing left to ask: every need the template gates on is already met by a connection
+            // this workspace has — including one standing in for another. Stopping here would be a
+            // card with every row ticked and a button, which is a step that exists to be dismissed.
+            const outstanding = detected.filter(
+                (account) => account.required && !isAccountSatisfied(account, workspaceSlugs),
+            )
+            if (outstanding.length === 0) return false
+            setAccounts(detected)
+            setSkippedSlugs([])
+            setPermission(DEFAULT_PERMISSION)
+            setDraft(next)
+            return true
+        },
+        [workspaceSlugs],
+    )
 
     const close = useCallback(() => setDraft(null), [])
 
