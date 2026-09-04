@@ -93,7 +93,7 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: Quo
                     type="button"
                     aria-label="Attach this quote"
                     onClick={() => onStage(note)}
-                    className={`absolute bottom-1.5 right-1.5 flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-colorPrimary text-white hover:opacity-90 ${
+                    className={`absolute bottom-2.5 right-2 flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-colorPrimary text-white hover:opacity-90 ${
                         touch ? "h-7 w-7" : "h-6 w-6"
                     }`}
                 >
