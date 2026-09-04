@@ -65,6 +65,39 @@ describe("cancelSessionExecution", () => {
         })
     })
 
+    it("accepts and normalizes the API flag-off legacy cancel payload", async () => {
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+        fernCancelSessionExecution.mockReturnValue({
+            withRawResponse: () =>
+                Promise.resolve({
+                    data: {
+                        mode: "cancel",
+                        session_id: "session-1",
+                        turn_id: "turn-1",
+                        watcher_id: null,
+                        detached: true,
+                        cancelled_turn_ids: [],
+                    },
+                    rawResponse: {status: 200},
+                }),
+        })
+
+        const result = await cancelSessionExecution({
+            projectId: "project-1",
+            sessionId: "session-1",
+            expectedExecutionId: "turn-1",
+        })
+
+        expect(result).toEqual({
+            command: {id: "", state: "applied"},
+            execution: {id: "turn-1", state: "idle"},
+            accepted: true,
+            conflict: false,
+        })
+        expect(consoleError).not.toHaveBeenCalled()
+        consoleError.mockRestore()
+    })
+
     it("rejects malformed successful payloads at the Zod boundary", async () => {
         const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
         fernCancelSessionExecution.mockReturnValue({

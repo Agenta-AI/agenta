@@ -952,7 +952,7 @@ export interface CancelSessionExecutionResult {
     command: {id: string; state: string}
     /** What to render: the execution being stopped, or nothing. */
     execution: {id: string | null; state: "stopping" | "idle"}
-    /** True when the API accepted the Stop (202); false when there was nothing to stop (200). */
+    /** True when the active API path accepted or completed the Stop. */
     accepted: boolean
     /** True when the API refused because another execution is running (409). */
     conflict: boolean
@@ -989,6 +989,14 @@ export async function cancelSessionExecution({
             "[cancelSessionExecution]",
         )
         if (!validated) return null
+        if (!("command" in validated)) {
+            return {
+                command: {id: "", state: "applied"},
+                execution: {id: validated.turn_id ?? null, state: "idle"},
+                accepted: true,
+                conflict: false,
+            }
+        }
         return {
             command: validated.command,
             execution: {...validated.execution, id: validated.execution.id ?? null},

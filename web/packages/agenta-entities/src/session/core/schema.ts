@@ -209,13 +209,16 @@ export const sessionStreamCommandResponseSchema = z.object({
     cancelled_turn_ids: z.array(z.string()).nullish(),
 })
 
-export const sessionCancelExecutionResponseSchema = z.object({
-    command: z.object({id: z.string(), state: z.string()}),
-    execution: z.object({
-        id: z.string().nullish(),
-        state: z.enum(["stopping", "idle"]),
+export const sessionCancelExecutionResponseSchema = z.union([
+    z.object({
+        command: z.object({id: z.string(), state: z.string()}),
+        execution: z.object({
+            id: z.string().nullish(),
+            state: z.enum(["stopping", "idle"]),
+        }),
     }),
-})
+    sessionStreamCommandResponseSchema,
+])
 
 export type SessionStream = z.infer<typeof sessionStreamSchema>
 export type SessionReference = z.infer<typeof sessionReferenceSchema>
