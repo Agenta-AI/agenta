@@ -171,6 +171,7 @@ class SessionCommandsService:
         target_turn_id, turn_started_at = await self._resolve_target(
             project_id=project_id,
             session_id=session_id,
+            expected_turn_id=expected_execution_id,
         )
 
         if (
@@ -192,8 +193,8 @@ class SessionCommandsService:
             )
 
         if target_turn_id is None:
-            # Nothing is running and nothing is parked. Record the intent so a retry with the
-            # same key gets the same answer, and settle it in the same write.
+            # No eligible execution is running. Record the intent so a retry with the same key
+            # gets the same answer, and settle it in the same write.
             created = await self._insert(
                 project_id=project_id,
                 user_id=user_id,
@@ -279,17 +280,17 @@ class SessionCommandsService:
         *,
         project_id: UUID,
         session_id: str,
+        expected_turn_id: Optional[str],
     ) -> Tuple[Optional[str], Optional[datetime]]:
         """The execution to stop, and when it started.
 
-        `running` first, then `alive`. A session parked awaiting an approval holds `alive` and
-        not `running`, and Stop must reach it: that is the case with no control channel at all
-        today, because a parked session stops heartbeating.
+        An unfenced Stop targets only `running`. A named Stop may fall back to `alive` so it can
+        still reach the parked approval the caller observed.
         """
         turn_id = await get_running_owner(
             self._lock, project_id=str(project_id), session_id=session_id
         )
-        if turn_id is None:
+        if turn_id is None and expected_turn_id is not None:
             turn_id = await get_alive_owner(
                 self._lock, project_id=str(project_id), session_id=session_id
             )

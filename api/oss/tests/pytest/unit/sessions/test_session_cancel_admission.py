@@ -7,7 +7,7 @@ run they meant, and it can kill a run they never meant. These pin the rules that
     value the guard compared is the value the runner can re-compare;
   * a stale `expected_execution_id` is refused and writes nothing at all;
   * an execution that started AFTER the request arrived is never targeted;
-  * a parked session, which holds `alive` and not `running`, is still reachable;
+  * only a named Stop can reach a parked session, which holds `alive` and not `running`;
   * two Stops in a row collapse onto one command;
   * Redis is not written at admission, so the stopping execution keeps its locks while it stops.
 """
@@ -49,6 +49,7 @@ from oss.src.dbs.redis.sessions.locks import (
     get_alive_owner,
     get_running_owner,
     get_session_liveness,
+    is_turn_superseded,
     release_running,
 )
 
@@ -520,9 +521,10 @@ async def test_the_stored_created_at_is_the_value_that_was_compared(lock_engine)
 
 
 @pytest.mark.asyncio
-async def test_a_parked_session_is_reachable_through_the_alive_owner(lock_engine):
-    # A session awaiting an approval holds `alive` and not `running`, and it has stopped
-    # heartbeating. This is the case with no control channel at all today.
+async def test_unfenced_stop_before_new_turn_admission_ignores_the_parked_owner(
+    lock_engine,
+):
+    # Turn B was submitted by the browser but has not established `running` yet.
     await acquire_alive(
         lock_engine,
         project_id=str(_PROJECT),
@@ -530,8 +532,10 @@ async def test_a_parked_session_is_reachable_through_the_alive_owner(lock_engine
         turn_id="turn-parked",
     )
     delivery = _RecordingDelivery()
+    dao = _FakeCommandsDAO()
     svc = _service(
         lock_engine,
+        dao=dao,
         streams=_FakeStreamsService(_stream("turn-parked", None)),
         delivery=delivery,
     )
@@ -540,9 +544,28 @@ async def test_a_parked_session_is_reachable_through_the_alive_owner(lock_engine
         project_id=_PROJECT, user_id=_USER, session_id=_SESSION
     )
 
-    assert admission.accepted is True
-    assert admission.execution_id == "turn-parked"
-    assert len(delivery.delivered) == 1
+    assert admission.accepted is False
+    assert admission.execution_id is None
+    assert admission.command.outcome == SessionCommandOutcome.not_running
+    assert delivery.delivered == []
+    assert (
+        await get_alive_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=_SESSION
+        )
+        == "turn-parked"
+    )
+    assert (
+        await get_running_owner(
+            lock_engine, project_id=str(_PROJECT), session_id=_SESSION
+        )
+        is None
+    )
+    assert not await is_turn_superseded(
+        lock_engine,
+        project_id=str(_PROJECT),
+        session_id=_SESSION,
+        turn_id="turn-parked",
+    )
 
 
 @pytest.mark.asyncio

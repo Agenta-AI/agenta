@@ -174,14 +174,15 @@ class SessionStreamsService:
         project_id: UUID,
         session_id: str,
         expected_turn_id: Optional[str] = None,
-    ) -> None:
-        """Tear alive+running off whichever turn holds them, tombstoning it first.
+        running_only: bool = False,
+    ) -> List[str]:
+        """Tombstone and release the selected turn owners.
 
         The order is the point. Clearing first leaves a window in which the turn being
         displaced heartbeats, finds `alive` free and nx-acquires it straight back - a
         cancelled session then reads as alive for a whole ALIVE_TTL. Tombstoning first makes
-        that beat refuse itself. The keys are still re-read after the clear, so a turn that
-        took them inside the window is tombstoned too.
+        that beat refuse itself. Broad displacement re-reads the keys after clearing them;
+        running-only cancellation uses owner-checked releases so it cannot touch another turn.
         """
         alive_owner = await get_alive_owner(
             self._lock,
@@ -193,6 +194,28 @@ class SessionStreamsService:
             project_id=str(project_id),
             session_id=session_id,
         )
+        if running_only:
+            if running_owner is None:
+                return []
+            await self._supersede_turns(
+                project_id=project_id,
+                session_id=session_id,
+                turn_ids=(running_owner,),
+            )
+            await release_alive(
+                self._lock,
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=running_owner,
+            )
+            await release_running(
+                self._lock,
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=running_owner,
+            )
+            return [running_owner]
+
         if expected_turn_id is not None:
             actual = next(
                 (
@@ -224,6 +247,19 @@ class SessionStreamsService:
             project_id=project_id,
             session_id=session_id,
             turn_ids=(displaced_alive, displaced_running),
+        )
+        return list(
+            dict.fromkeys(
+                turn_id
+                for turn_id in (
+                    alive_owner,
+                    running_owner,
+                    expected_turn_id,
+                    displaced_alive,
+                    displaced_running,
+                )
+                if turn_id is not None
+            )
         )
 
     async def _publish_lifecycle(
@@ -326,25 +362,28 @@ class SessionStreamsService:
             )
 
         elif mode == CommandMode.cancel:
-            await self._displace_turns(
+            cancelled_turn_ids = await self._displace_turns(
                 project_id=project_id,
                 session_id=session_id,
                 expected_turn_id=request.expected_execution_id,
+                running_only=request.expected_execution_id is None,
             )
-            await self._mark_stream_ended(
-                project_id=project_id,
-                user_id=user_id,
-                session_id=session_id,
-            )
-            await self._publish_lifecycle(
-                project_id=project_id,
-                session_id=session_id,
-                state=WATCH_LIFECYCLE_ENDED,
-            )
+            if cancelled_turn_ids:
+                await self._mark_stream_ended(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                await self._publish_lifecycle(
+                    project_id=project_id,
+                    session_id=session_id,
+                    state=WATCH_LIFECYCLE_ENDED,
+                )
             return SessionStreamCommandResponse(
                 mode=mode,
                 session_id=session_id,
                 detached=True,
+                cancelled_turn_ids=cancelled_turn_ids,
             )
 
         else:  # ATTACH
