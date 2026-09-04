@@ -390,6 +390,7 @@ export async function prepareEnvironmentSetup(
     mountProjectId: mountCreds?.projectId,
     projectScopeId: projectScopeFor(request, mountCreds?.projectId)?.id,
     loadedFromContinuity: false,
+    nativeHistoryVerified: false,
     resumable: false,
     continuityTurnIndex: undefined,
     sessionDestroyRequested: false,

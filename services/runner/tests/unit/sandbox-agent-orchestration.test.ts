@@ -41,6 +41,8 @@ import { appendPlatformGuidance } from "../../src/engines/sandbox_agent/system-p
 import { platformGuidanceAppendix } from "../../src/engines/sandbox_agent/platform-guidance.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
+  acquireEnvironment,
+  runTurn,
   runSandboxAgent,
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
@@ -144,6 +146,74 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
     assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  it("replays rebuilt history after an evicted local Pi load cannot verify native turns", async () => {
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "local",
+      messages: [
+        { role: "user", content: "Remember the codeword KIWI-9" },
+        { role: "assistant", content: "I will remember it." },
+        { role: "user", content: "What was the codeword?" },
+      ],
+    };
+    const { calls, deps } = fakeHarness();
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    try {
+      const result = await runTurn(
+        acquired.env,
+        request,
+        undefined,
+        undefined,
+        { loaded: true, nativeHistoryVerified: false },
+      );
+
+      assert.equal(result.ok, true);
+      const prompt = calls.promptBlocks?.[0]?.text ?? "";
+      assert.match(prompt, /^Conversation so far:/);
+      assert.match(prompt, /KIWI-9/);
+      assert.match(prompt, /The user now says:\nWhat was the codeword\?$/);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
+  it("keeps the last-message-only path for a verified Daytona native load", async () => {
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "daytona",
+      messages: [
+        { role: "user", content: "Remember the codeword KIWI-9" },
+        { role: "assistant", content: "I will remember it." },
+        { role: "user", content: "What was the codeword?" },
+      ],
+    };
+    const { calls, deps } = fakeHarness();
+    deps.prepareDaytonaPiAssets = (async () => true) as any;
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    try {
+      const result = await runTurn(
+        acquired.env,
+        request,
+        undefined,
+        undefined,
+        { loaded: true, nativeHistoryVerified: true },
+      );
+
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [
+        { type: "text", text: "What was the codeword?" },
+      ]);
+    } finally {
+      await acquired.env.destroy();
+    }
   });
 
   it("passes the live turn credential provider to the trace exporter", async () => {

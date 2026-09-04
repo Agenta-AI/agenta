@@ -293,6 +293,7 @@ const realKeepaliveEngine: KeepaliveEngine = {
     try {
       result = await runTurn(acquired.env, request, emit, signal, {
         loaded: acquired.env.loadedFromContinuity,
+        nativeHistoryVerified: acquired.env.nativeHistoryVerified,
         ...(credential ? { credential } : {}),
         seededDecisions: await loadDurableDecisions(
           acquired.env.sessionId,

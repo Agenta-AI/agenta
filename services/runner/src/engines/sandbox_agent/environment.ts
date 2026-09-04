@@ -1238,6 +1238,7 @@ async function acquireEnvironmentOnce(
     });
     environment.session = opened.session;
     environment.loadedFromContinuity = opened.loadedFromContinuity;
+    environment.nativeHistoryVerified = opened.nativeHistoryVerified;
     // The reopen capability, captured here because this is the only scope holding the persist
     // driver, the session-init payload and the local session key together. Same pattern as
     // `destroy`: the environment carries a closure rather than the ingredients.
@@ -1260,6 +1261,7 @@ async function acquireEnvironmentOnce(
       if (result.ok) {
         environment.session = result.session;
         environment.loadedFromContinuity = result.loadedFromContinuity;
+        environment.nativeHistoryVerified = result.nativeHistoryVerified;
       }
       return result;
     };
