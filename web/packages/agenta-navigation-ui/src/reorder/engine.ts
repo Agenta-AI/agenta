@@ -283,6 +283,12 @@ export const attachReorder = (root: HTMLElement): (() => void) => {
             if (moved > TOUCH_CANCEL_PX) clearPending()
             return
         }
+        // No button held means the press already ended — a click whose pointerup fired during the
+        // lazy engine load leaves a stale pending, and the next stray move must not become a drag.
+        if (event.buttons === 0) {
+            clearPending()
+            return
+        }
         if (moved < DRAG_THRESHOLD_PX) return
         const {el, item} = pending
         clearPending()
