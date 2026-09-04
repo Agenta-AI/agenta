@@ -63,6 +63,23 @@ class _FakeRow:
         self.updated_at = datetime.now(timezone.utc) - timedelta(seconds=age_seconds)
 
 
+class _FakeExecutionRow:
+    def __init__(
+        self,
+        *,
+        session_id: str,
+        execution_id: str,
+        terminal_outcome: str = "stopped",
+        age_seconds: int = ORPHAN_THRESHOLD_SECONDS + 30,
+    ):
+        self.project_id = _PROJECT_ID
+        self.session_id = session_id
+        self.execution_id = execution_id
+        self.terminal_outcome = terminal_outcome
+        self.settled_by = "runner"
+        self.settled_at = datetime.now(timezone.utc) - timedelta(seconds=age_seconds)
+
+
 class _FakeResult:
     def __init__(self, rows):
         self._rows = rows
@@ -75,8 +92,9 @@ class _FakeResult:
 
 
 class _FakePgSession:
-    def __init__(self, rows):
+    def __init__(self, rows, executions):
         self._rows = rows
+        self._executions = executions
         self.commits = 0
 
     async def execute(self, stmt):
@@ -86,6 +104,16 @@ class _FakePgSession:
         # the running and idle branches.
         text = str(stmt)
         now = datetime.now(timezone.utc)
+
+        if "session_executions" in text:
+            rows = [
+                execution
+                for execution in self._executions
+                if execution.terminal_outcome in {"stopped", "lost"}
+                and (now - execution.settled_at).total_seconds()
+                > ORPHAN_THRESHOLD_SECONDS
+            ]
+            return _FakeResult(sorted(rows, key=lambda row: row.settled_at))
 
         def age(row):
             return (now - (row.updated_at or row.created_at)).total_seconds()
@@ -122,12 +150,13 @@ class _FakePgSession:
 
 
 class _FakeTransactionsEngine:
-    def __init__(self, rows):
+    def __init__(self, rows, executions=None):
         self._rows = rows
+        self._executions = executions or []
 
     @asynccontextmanager
     async def session(self):
-        yield _FakePgSession(self._rows)
+        yield _FakePgSession(self._rows, self._executions)
 
 
 class _FakeRedis:
@@ -541,3 +570,71 @@ async def test_a_stopped_turn_owned_by_a_newer_turn_keeps_that_lock(anyio_backen
     )
 
     assert redis._store.get(alive_key) == b"turn-newer"
+
+
+@pytest.mark.anyio
+async def test_a_stopped_execution_gets_an_ending_after_stream_advances(
+    anyio_backend,
+):
+    stream = _FakeRow(
+        session_id="sess-advanced",
+        turn_id="turn-later",
+        is_running=False,
+        age_seconds=0,
+    )
+    execution = _FakeExecutionRow(
+        session_id=stream.session_id,
+        execution_id="turn-stopped",
+    )
+    redis = _FakeRedis()
+    alive_key = f"alive:{stream.project_id}:session:{stream.session_id}"
+    running_key = f"running:{stream.project_id}:session:{stream.session_id}"
+    redis._store[alive_key] = b"turn-later"
+    redis._store[running_key] = b"turn-later"
+    publisher = _Publisher()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([stream], [execution]),
+        redis,
+        records_service=_FakeRecordsService({("sess-advanced", "turn-later")}),
+        publish=publisher,
+    )
+
+    assert [event.record_type for event in publisher.published] == ["error", "done"]
+    assert all(event.turn_id == "turn-stopped" for event in publisher.published)
+    assert redis._store[alive_key] == b"turn-later"
+    assert redis._store[running_key] == b"turn-later"
+
+
+@pytest.mark.anyio
+async def test_a_stopped_execution_does_not_touch_a_newer_running_turn(
+    anyio_backend,
+):
+    stream = _FakeRow(
+        session_id="sess-advanced-running",
+        turn_id="turn-running",
+        is_running=True,
+        age_seconds=0,
+    )
+    execution = _FakeExecutionRow(
+        session_id=stream.session_id,
+        execution_id="turn-stopped",
+    )
+    redis = _FakeRedis()
+    alive_key = f"alive:{stream.project_id}:session:{stream.session_id}"
+    running_key = f"running:{stream.project_id}:session:{stream.session_id}"
+    redis._store[alive_key] = b"turn-running"
+    redis._store[running_key] = b"turn-running"
+    publisher = _Publisher()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([stream], [execution]),
+        redis,
+        records_service=_FakeRecordsService(),
+        publish=publisher,
+    )
+
+    assert [event.record_type for event in publisher.published] == ["error", "done"]
+    assert all(event.turn_id == "turn-stopped" for event in publisher.published)
+    assert redis._store[alive_key] == b"turn-running"
+    assert redis._store[running_key] == b"turn-running"
