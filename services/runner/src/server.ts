@@ -17,7 +17,10 @@
  */
 import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
-import { USER_STOP_ABORT_REASON } from "./sessions/stop-signal.ts";
+import {
+  isUserStopAbort,
+  USER_STOP_ABORT_REASON,
+} from "./sessions/stop-signal.ts";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import {
   createServer,
@@ -319,6 +322,7 @@ const realKeepaliveEngine: KeepaliveEngine = {
     try {
       result = await runTurn(acquired.env, request, emit, signal, {
         loaded: acquired.env.loadedFromContinuity,
+        nativeHistoryVerified: acquired.env.nativeHistoryVerified,
         ...(credential ? { credential } : {}),
         seededDecisions: await loadDurableDecisions(
           acquired.env.sessionId,
@@ -579,6 +583,8 @@ async function runAndStreamWithApiBaseResolved(
   let persistError:
     | ((message: string, code?: RunErrorCode) => void)
     | undefined;
+  let persistTerminal: ((stopReason?: string) => void) | undefined;
+  let terminalRecordEmitted = false;
   let aliveWatchdog:
     | {
         release: () => Promise<void>;
@@ -721,10 +727,23 @@ async function runAndStreamWithApiBaseResolved(
         );
       }
     }
-    emitFn = persistingEmit;
+    emitFn = (event) => {
+      if (event.type === "done") terminalRecordEmitted = true;
+      persistingEmit(event);
+    };
     flushPersist = flush;
     persistError = (message, code) =>
       persist({ type: "error", message, ...(code ? { code } : {}) }, "agent");
+    persistTerminal = (stopReason) => {
+      terminalRecordEmitted = true;
+      persist(
+        {
+          type: "done",
+          ...(stopReason === "cancelled" ? { stopReason } : {}),
+        },
+        "agent",
+      );
+    };
   }
 
   let result: AgentRunResult;
@@ -748,6 +767,24 @@ async function runAndStreamWithApiBaseResolved(
     });
     if (outcome.settled) {
       result = outcome.value;
+      // `runTurn` normally emits `done` itself. Acquisition can fail before `runTurn` starts,
+      // though, and a cooperative Stop during a cold sandbox create reaches exactly that path.
+      // Close any failed run that emitted no terminal record; preserve the Stop marker when the
+      // labelled control-plane abort caused it. A genuine acquire failure never reached runTurn's
+      // error emitter, so preserve its error before the done backstop instead of making the empty
+      // turn look successful. Both records use the same ordered persistence chain as runTurn's
+      // emitter but stay off the live stream, whose result envelope is unchanged.
+      if (
+        !terminalRecordEmitted &&
+        persistTerminal &&
+        (!result.ok || isUserStopAbort(controller.signal))
+      ) {
+        const userStopped = isUserStopAbort(controller.signal);
+        if (!userStopped && !result.ok && persistError) {
+          persistError(result.error ?? "Agent run failed.");
+        }
+        persistTerminal(userStopped ? "cancelled" : undefined);
+      }
     } else {
       // The run is still pending and may never settle. Give the turn the ending the runner
       // owes it, and let the abandoned run keep its own teardown if it ever unwinds.
@@ -776,6 +813,13 @@ async function runAndStreamWithApiBaseResolved(
     // A throw escaping run() itself (outside the engine's own try/catch) emitted no error
     // event — persist it here as the backstop.
     if (persistError) persistError(message);
+    if (
+      !terminalRecordEmitted &&
+      persistTerminal &&
+      isUserStopAbort(controller.signal)
+    ) {
+      persistTerminal("cancelled");
+    }
     if (flushPersist) await flushPersist().catch(() => {});
     result = { ok: false, error: message };
   } finally {

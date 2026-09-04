@@ -919,6 +919,7 @@ export async function runWithKeepalive(
       result = await engine.runTurn(env, request, trackedEmit, signal, {
         approvalParkMode: true,
         loaded: env.loadedFromContinuity,
+        nativeHistoryVerified: env.nativeHistoryVerified,
         ...turnCredential,
       });
     } catch (err) {

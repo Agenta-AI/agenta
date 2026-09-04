@@ -79,6 +79,7 @@ export async function runSandboxAgent(
   try {
     result = await runTurn(env, request, emit, signal, {
       loaded: env.loadedFromContinuity,
+      nativeHistoryVerified: env.nativeHistoryVerified,
       ...turnOptions,
       // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
       // rows the spread would then discard — a claimed row is spent even if it is thrown away.

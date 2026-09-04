@@ -41,10 +41,13 @@ import { appendPlatformGuidance } from "../../src/engines/sandbox_agent/system-p
 import { platformGuidanceAppendix } from "../../src/engines/sandbox_agent/platform-guidance.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
+  acquireEnvironment,
+  runTurn,
   runSandboxAgent,
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
+import { USER_STOP_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
 import {
   fakeHarness,
   flushPromises,
@@ -96,6 +99,79 @@ describe("PendingApprovalPauseController", () => {
 });
 
 describe("runSandboxAgent orchestration", () => {
+  for (const providerName of ["local", "daytona"] as const) {
+    it(`a Stop preempts slow ${providerName} acquisition and cleans a late sandbox`, async () => {
+      const { deps } = fakeHarness();
+      const delegateStart = deps.startSandboxAgent!;
+      let releaseCreate!: (sandboxId: string) => void;
+      const slowCreate = new Promise<string>((resolve) => {
+        releaseCreate = resolve;
+      });
+      let markCreateStarted!: () => void;
+      const createStarted = new Promise<void>((resolve) => {
+        markCreateStarted = resolve;
+      });
+      let markCleaned!: () => void;
+      const cleaned = new Promise<void>((resolve) => {
+        markCleaned = resolve;
+      });
+      let destroys = 0;
+      deps.buildSandboxProvider = (() => ({
+        name: providerName,
+        create: () => {
+          markCreateStarted();
+          return slowCreate;
+        },
+        async destroy() {
+          destroys += 1;
+          markCleaned();
+        },
+        async getUrl() {
+          return "http://sandbox.invalid";
+        },
+      })) as any;
+      deps.startSandboxAgent = (async (options: any) => {
+        await options.sandbox.create();
+        return delegateStart(options);
+      }) as any;
+
+      const controller = new AbortController();
+      const acquire = acquireEnvironment(
+        {
+          harness: "claude",
+          sandbox: providerName,
+          messages: [{ role: "user", content: "start slowly" }],
+        },
+        deps,
+        controller.signal,
+      );
+      await createStarted;
+      controller.abort(USER_STOP_ABORT_REASON);
+
+      const result = await Promise.race([
+        acquire,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(
+            () => reject(new Error("Stop exceeded the delivery timeout")),
+            4_000,
+          ),
+        ),
+      ]);
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /acquisition was aborted/);
+
+      releaseCreate(`${providerName}-late-id`);
+      await Promise.race([
+        cleaned,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(() => reject(new Error("late sandbox leaked")), 4_000),
+        ),
+      ]);
+      assert.equal(destroys, 1);
+    });
+  }
+
   // NOTE: in-band redaction of the LIVE event stream / result / trace-start input was a
   // daytona-secret-materialization concept that was not adopted. Redaction happens at the
   // durable/exported sinks (persisted transcript + exported spans; see redaction-sinks.test.ts),
@@ -144,6 +220,74 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
     assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  it("replays rebuilt history after an evicted local Pi load cannot verify native turns", async () => {
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "local",
+      messages: [
+        { role: "user", content: "Remember the codeword KIWI-9" },
+        { role: "assistant", content: "I will remember it." },
+        { role: "user", content: "What was the codeword?" },
+      ],
+    };
+    const { calls, deps } = fakeHarness();
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    try {
+      const result = await runTurn(
+        acquired.env,
+        request,
+        undefined,
+        undefined,
+        { loaded: true, nativeHistoryVerified: false },
+      );
+
+      assert.equal(result.ok, true);
+      const prompt = calls.promptBlocks?.[0]?.text ?? "";
+      assert.match(prompt, /^Conversation so far:/);
+      assert.match(prompt, /KIWI-9/);
+      assert.match(prompt, /The user now says:\nWhat was the codeword\?$/);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
+  it("keeps the last-message-only path for a verified Daytona native load", async () => {
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "daytona",
+      messages: [
+        { role: "user", content: "Remember the codeword KIWI-9" },
+        { role: "assistant", content: "I will remember it." },
+        { role: "user", content: "What was the codeword?" },
+      ],
+    };
+    const { calls, deps } = fakeHarness();
+    deps.prepareDaytonaPiAssets = (async () => true) as any;
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    try {
+      const result = await runTurn(
+        acquired.env,
+        request,
+        undefined,
+        undefined,
+        { loaded: true, nativeHistoryVerified: true },
+      );
+
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [
+        { type: "text", text: "What was the codeword?" },
+      ]);
+    } finally {
+      await acquired.env.destroy();
+    }
   });
 
   it("passes the live turn credential provider to the trace exporter", async () => {
@@ -613,6 +757,48 @@ describe("runSandboxAgent orchestration", () => {
     );
     assert.equal(existsSync(expected), true);
     rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("backs the local Pi transcript directory with the active durable cwd mount", async () => {
+    const { calls, deps } = fakeHarness();
+    deps.signSessionMountCredentials = async () => ({
+      region: "us-east-1",
+      bucket: "bucket",
+      prefix: "mounts/project/session",
+      accessKey: "test-access-key",
+      secretKey: "test-secret-key",
+      projectId: "project",
+    });
+    deps.mountStorage = async () => true;
+    deps.unmountStorage = async () => true;
+    deps.hydrateHarnessSessionFromDurable = async () => {};
+
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "local",
+      sessionId: "session-local-rebuild",
+      runContext: { project: { id: "project" } },
+      telemetry: {
+        exporters: {
+          otlp: { headers: { authorization: "ApiKey test" } },
+        },
+      },
+      messages: [{ role: "user", content: "continue" }],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    try {
+      assert.equal(acquired.env.nativeHistoryDurable, true);
+      assert.equal(
+        (calls.providerArgs[1] as Record<string, string>)
+          .PI_CODING_AGENT_SESSION_DIR,
+        "/tmp/agenta/mounts/project/session/agents/sessions/pi",
+      );
+    } finally {
+      await acquired.env.destroy();
+    }
   });
 
   it("creates the configured Pi transcript directory inside a Daytona cwd", async () => {
