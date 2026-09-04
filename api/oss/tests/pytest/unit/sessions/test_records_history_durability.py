@@ -7,7 +7,11 @@ from orjson import dumps
 from sqlalchemy.dialects import postgresql
 
 from ee.src.core.sessions.records.service import RecordsRetentionService
-from oss.src.core.sessions.records.dtos import SessionRecord, SessionRecordsAppendResult
+from oss.src.core.sessions.records.dtos import (
+    SessionRecord,
+    SessionRecordEvent,
+    SessionRecordsAppendResult,
+)
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.types import (
     RecordContentConflict,
@@ -238,7 +242,11 @@ async def test_records_service_normalizes_list_returning_dao():
     records_dao = AsyncMock()
     records_dao.append_many = AsyncMock(return_value=[record])
 
-    result = await RecordsService(records_dao=records_dao).append_many(events=[])
+    result = await RecordsService(records_dao=records_dao).append_many(
+        events=[
+            SessionRecordEvent(project_id=project_id, session_id="sess-list-result")
+        ]
+    )
 
     assert result == SessionRecordsAppendResult(records=[record])
 

@@ -20,7 +20,6 @@ consumer-group behaviour, not a mock of it.
 
 import asyncio
 import zlib
-from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -381,27 +380,15 @@ async def test_describe_message_survives_an_undecodable_payload():
     assert _worker(FakeRecordsDAO()).describe_message({b"data": b"not-zlib"}) is None
 
 
-def _fake_ee(monkeypatch, *, allowed=True, raises=False):
-    """Run the EE quota branch of `process_batch` without an EE build."""
-
-    async def check_entitlements(**_):
-        if raises:
-            raise RuntimeError("entitlements unreachable")
-        return allowed, None, None
-
-    monkeypatch.setattr(records_worker, "is_ee", lambda: True)
-    monkeypatch.setattr(
-        records_worker, "check_entitlements", check_entitlements, raising=False
+def _fake_ee(monkeypatch, *, raises=False):
+    entitlement_check = AsyncMock(
+        side_effect=RuntimeError("entitlements unreachable") if raises else None,
+        return_value=(False, None, None),
     )
     monkeypatch.setattr(
-        records_worker,
-        "Counter",
-        SimpleNamespace(RECORDS_INGESTED="records"),
-        raising=False,
+        records_worker, "check_entitlements", entitlement_check, raising=False
     )
-    monkeypatch.setattr(
-        records_worker, "scope_from", lambda **kwargs: kwargs, raising=False
-    )
+    return entitlement_check
 
 
 def _org_batch(*, organization_id, project_id, record_id):
@@ -419,8 +406,10 @@ def _org_batch(*, organization_id, project_id, record_id):
 
 
 @pytest.mark.asyncio
-async def test_over_quota_org_is_acknowledged_and_counted(monkeypatch):
-    _fake_ee(monkeypatch, allowed=False)
+async def test_session_history_is_not_dropped_when_tracing_quota_is_exceeded(
+    monkeypatch,
+):
+    entitlement_check = _fake_ee(monkeypatch)
     dao = FakeRecordsDAO()
     worker = _worker(dao)
 
@@ -428,15 +417,15 @@ async def test_over_quota_org_is_acknowledged_and_counted(monkeypatch):
         _org_batch(organization_id=uuid4(), project_id=uuid4(), record_id=uuid4())
     )
 
-    # Over quota is a deliberate product drop, so redelivering it would spin forever.
     assert acked_ids == [b"1-0"]
-    assert worker.dropped_messages == 1
-    assert dao.committed == []
+    assert worker.dropped_messages == 0
+    assert len(dao.committed) == 1
+    entitlement_check.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_unreachable_quota_meter_leaves_the_record_pending(monkeypatch):
-    _fake_ee(monkeypatch, raises=True)
+async def test_session_history_ignores_an_unreachable_tracing_quota_meter(monkeypatch):
+    entitlement_check = _fake_ee(monkeypatch, raises=True)
     dao = FakeRecordsDAO()
     worker = _worker(dao)
 
@@ -444,8 +433,7 @@ async def test_unreachable_quota_meter_leaves_the_record_pending(monkeypatch):
         _org_batch(organization_id=uuid4(), project_id=uuid4(), record_id=uuid4())
     )
 
-    # The meter was unreachable, not exceeded. Deleting the record would turn an
-    # entitlements outage into a deleted conversation.
-    assert acked_ids == []
+    assert acked_ids == [b"1-0"]
     assert worker.dropped_messages == 0
-    assert dao.committed == []
+    assert len(dao.committed) == 1
+    entitlement_check.assert_not_awaited()

@@ -70,6 +70,8 @@ class RecordsWorker(StreamConsumer):
         max_batch_mb: int = 50,
         watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
         interactions_service: Optional[SessionInteractionsService] = None,
+        reclaim_min_idle_ms: int = 30_000,
+        max_deliveries: int = 5,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -80,12 +82,22 @@ class RecordsWorker(StreamConsumer):
             max_block_ms=max_block_ms,
             max_delay_ms=max_delay_ms,
             max_batch_mb=max_batch_mb,
+            reclaim_pending=True,
+            reclaim_min_idle_ms=reclaim_min_idle_ms,
+            max_deliveries=max_deliveries,
         )
         self.service = service
         self.watch_publisher = watch_publisher
         # Absent disables gate reconciliation (minimal test compositions), which only loses the
         # safety net — never the append.
         self.interactions_service = interactions_service
+
+    def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
+        try:
+            record = deserialize_record(payload=data[b"data"]).record_event
+            return f"{record.session_id}:{record.record_id}:{record.record_type}"
+        except Exception:
+            return None
 
     async def reconcile_orphaned_gates(
         self,
@@ -174,6 +186,7 @@ class RecordsWorker(StreamConsumer):
                     msg_id=repr(msg_id),
                     exc_info=True,
                 )
+                self.dropped_messages += 1
                 acknowledged_ids.append(msg_id)
 
         batches = list(groups.values())
@@ -186,6 +199,7 @@ class RecordsWorker(StreamConsumer):
                     events=[msg.record_event for _, msg in entries],
                 )
                 total_appended += len(result.records)
+                self.mark_committed()
             except RecordContentConflict as exc:
                 log.error(
                     "[RECORDS] Rejected conflicting stable record ids",
@@ -278,6 +292,7 @@ class RecordsWorker(StreamConsumer):
         conflict_ids = set(result.conflicting_record_ids)
         record_id = msg.record_event.record_id or msg.record_event.producer_id
         committed_events = [] if record_id in conflict_ids else [msg]
+        self.mark_committed()
         return len(result.records), [msg_id], committed_events
 
     async def _after_commit(

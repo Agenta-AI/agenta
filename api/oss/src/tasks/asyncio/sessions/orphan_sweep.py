@@ -321,6 +321,31 @@ async def _settle_abandoned_commands(
         return 0
 
 
+async def _settle_execution_lost(
+    commands_service: Optional[Any],
+    *,
+    project_id: UUID,
+    session_id: str,
+    execution_id: str,
+    settled_at: datetime,
+) -> bool:
+    if commands_service is None:
+        return True
+    settle = getattr(commands_service, "settle_execution_lost", None)
+    if settle is None:
+        return True
+    try:
+        return await settle(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+            settled_at=settled_at,
+        )
+    except Exception:
+        log.warning("watchdog: failed to settle execution lost", exc_info=True)
+        return False
+
+
 async def _repair_terminal_redis(commands_service: Optional[Any]) -> int:
     if commands_service is None:
         return 0
@@ -455,8 +480,8 @@ async def run_orphan_sweep(
             if (
                 key not in terminal_turns
                 and env.agenta.sessions.durable_stop
-                and commands_service is not None
-                and not await commands_service.settle_execution_lost(
+                and not await _settle_execution_lost(
+                    commands_service,
                     project_id=project_id,
                     session_id=session_id,
                     execution_id=turn_id,

@@ -197,9 +197,9 @@ async def test_a_thawed_runners_tail_is_quarantined_not_appended_as_history():
 
     # Every record is still written — quarantine keeps the evidence — and every one of them
     # is marked, so no read that rebuilds the transcript will show it.
-    assert len(results) == 4
+    assert len(results.records) == 4
     assert len(_quarantined(dao)) == 4
-    assert all(row.quarantined_at is not None for row in results)
+    assert all(row.quarantined_at is not None for row in results.records)
 
 
 async def test_reject_policy_drops_a_late_tail(monkeypatch):
@@ -209,7 +209,7 @@ async def test_reject_policy_drops_a_late_tail(monkeypatch):
 
     results = await service.append_many(events=[_event("tool_result"), _event("usage")])
 
-    assert results == []
+    assert results.records == []
     assert dao.appended == []
 
 
@@ -253,7 +253,7 @@ async def test_watchdog_winner_rejects_the_runners_records_when_configured(monke
 
     results = await service.append_many(events=[_event("usage"), _event("done")])
 
-    assert results == []
+    assert results.records == []
     assert dao.appended == []
 
 
@@ -321,7 +321,7 @@ async def test_execution_lookup_failure_appends_the_batch_unguarded(monkeypatch)
 
     results = await service.append_many(events=events)
 
-    assert len(results) == 2
+    assert len(results.records) == 2
     assert dao.appended == events
     assert _quarantined(dao) == []
 
@@ -372,7 +372,7 @@ async def test_ending_marker_failure_does_not_fail_record_ingest(monkeypatch):
 
     results = await service.append_many(events=[_event("done")])
 
-    assert len(results) == 1
+    assert len(results.records) == 1
     assert [event.record_type for event in dao.appended] == ["done"]
     assert executions.rows[(_SESSION, _TURN)].ending_written_at is None
 
@@ -420,7 +420,7 @@ async def test_an_ordinary_stop_the_watchdog_never_saw_is_untouched():
     results = await service.append_many(events=ending)
 
     assert _quarantined(dao) == []
-    assert all(row.quarantined_at is None for row in results)
+    assert all(row.quarantined_at is None for row in results.records)
 
 
 async def test_a_turn_the_runner_settled_itself_does_not_trigger_the_guard():
@@ -519,8 +519,10 @@ async def test_redelivery_quarantines_the_same_records_again():
     first = await service.append_many(events=tail)
     second = await service.append_many(events=tail)
 
-    assert [row.record_id for row in first] == [row.record_id for row in second]
-    assert all(row.quarantined_at is not None for row in first + second)
+    assert [row.record_id for row in first.records] == [
+        row.record_id for row in second.records
+    ]
+    assert all(row.quarantined_at is not None for row in first.records + second.records)
 
 
 async def test_a_failed_lookup_appends_the_batch_rather_than_losing_it():
@@ -530,7 +532,7 @@ async def test_a_failed_lookup_appends_the_batch_rather_than_losing_it():
 
     results = await service.append_many(events=[_event("tool_call"), _event("done")])
 
-    assert len(results) == 2
+    assert len(results.records) == 2
     assert _quarantined(dao) == []
 
 
@@ -538,7 +540,7 @@ async def test_an_empty_batch_asks_the_database_nothing():
     dao = _StubDAO(watchdog_settled={(_SESSION, _TURN)})
     service = RecordsService(records_dao=dao)
 
-    assert await service.append_many(events=[]) == []
+    assert (await service.append_many(events=[])).records == []
     assert dao.lookups == []
     assert dao.appended == []
 
