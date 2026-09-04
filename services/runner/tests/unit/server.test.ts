@@ -890,7 +890,7 @@ describe("createAgentServer", () => {
             telemetry: {
               exporters: {
                 otlp: {
-                  endpoint: "http://api:8000/otlp/v1/traces",
+                  endpoint: "http://127.0.0.1:8000/otlp/v1/traces",
                   headers: { authorization: "ApiKey test" },
                 },
               },

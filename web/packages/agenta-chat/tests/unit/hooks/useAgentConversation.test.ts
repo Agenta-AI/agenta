@@ -48,10 +48,7 @@ vi.mock("@agenta/entities/trace", () => ({
 }))
 
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
-import {
-    ACCEPTED_SENDER_DISCONNECT_MESSAGE,
-    TRANSPORT_ERROR_MESSAGE,
-} from "../../../src/model/error"
+import {ACCEPTED_SENDER_DISCONNECT_MESSAGE, TRANSPORT_ERROR_MESSAGE} from "../../../src/model/error"
 import {
     getSessionTurnId,
     markSessionFresh,

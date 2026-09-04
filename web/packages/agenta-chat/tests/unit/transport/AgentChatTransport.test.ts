@@ -201,11 +201,12 @@ describe("AgentChatTransport", () => {
                 Accept: "text/event-stream",
                 "x-ag-session-response": "shared",
             },
-            fetch: vi.fn(async () =>
-                new Response(sseBody, {
-                    status: 200,
-                    headers: {"content-type": "text/event-stream"},
-                }),
+            fetch: vi.fn(
+                async () =>
+                    new Response(sseBody, {
+                        status: 200,
+                        headers: {"content-type": "text/event-stream"},
+                    }),
             ) as unknown as typeof fetch,
         })
 
