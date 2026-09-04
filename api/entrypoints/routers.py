@@ -186,6 +186,9 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.dbs.postgres.sessions.commands.dbes import SessionCommandDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
 from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
+from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
+from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
@@ -603,6 +606,7 @@ session_streams_dao = SessionStreamsDAO(engine=_transactions_engine)
 session_turns_dao = SessionTurnsDAO(engine=_transactions_engine)
 session_commands_dao = SessionCommandsDAO(engine=_transactions_engine)
 session_executions_dao = SessionExecutionsDAO(engine=_transactions_engine)
+session_inputs_dao = SessionInputsDAO(engine=_transactions_engine)
 
 connections_dao = ConnectionsDAO(engine=_transactions_engine)
 mounts_dao = MountsDAO(engine=_transactions_engine)
@@ -1138,6 +1142,11 @@ sessions_service = SessionsService(
     records_service=records_service,
 )
 
+session_inputs_service = SessionInputsService(
+    inputs_dao=session_inputs_dao,
+    streams_service=session_streams_service,
+)
+
 # Durable session commands (Stop). The control-delivery adapter is chosen by one setting.
 # `direct` posts the command to the runner's own /cancel over the hop that already carries hard
 # kill; `long_poll` is not built yet, and naming it fails at boot rather than silently falling
@@ -1183,6 +1192,7 @@ sessions = SessionsRouter(
     turns_service=session_turns_service,
     sessions_service=sessions_service,
     commands_service=session_commands_service,
+    inputs_service=session_inputs_service,
     respond_task=_interactions_worker.respond_interaction,
     interactions_dispatcher=_interactions_dispatcher,
 )

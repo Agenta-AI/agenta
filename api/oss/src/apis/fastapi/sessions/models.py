@@ -29,6 +29,7 @@ from oss.src.core.sessions.interactions.dtos import (
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
 from oss.src.core.sessions.types import SessionReference
+from oss.src.core.sessions.inputs.dtos import PendingInput
 from oss.src.core.shared.dtos import OTelSpanId, Windowing
 from oss.src.dbs.postgres.sessions.streams.dao import MAX_SESSION_QUERY_LIMIT
 
@@ -122,6 +123,55 @@ class SessionResponse(BaseModel):
     session: Optional[SessionStream] = None
 
 
+class SessionCapabilities(BaseModel):
+    durable_approvals: bool = False
+    queue: bool = False
+    steer: bool = False
+
+
+class SessionExecutionSnapshot(BaseModel):
+    id: Optional[str] = None
+    state: Literal["idle", "running", "stopping"] = "idle"
+
+
+class SessionPendingSnapshot(BaseModel):
+    inputs: List[PendingInput] = Field(default_factory=list)
+    interactions: List[SessionInteraction] = Field(default_factory=list)
+
+
+class SessionReadSnapshot(BaseModel):
+    latest_sequence: int = 0
+    history_complete: bool = True
+
+
+class SessionSnapshotResponse(BaseModel):
+    session: Optional[SessionStream] = None
+    execution: SessionExecutionSnapshot = Field(
+        default_factory=SessionExecutionSnapshot
+    )
+    pending: SessionPendingSnapshot = Field(default_factory=SessionPendingSnapshot)
+    read: SessionReadSnapshot = Field(default_factory=SessionReadSnapshot)
+    capabilities: SessionCapabilities = Field(default_factory=SessionCapabilities)
+
+
+class PendingInputResponse(BaseModel):
+    input: PendingInput
+
+
+class PendingInputAdmissionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: SessionId
+    content: Dict[str, Any]
+    on_busy: Literal["reject", "queue", "steer"] = "reject"
+
+
+class PendingInputAdmissionResponse(BaseModel):
+    action: Literal["execute", "pending"]
+    input: Optional[PendingInput] = None
+    execution_id: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # Streams request/response models
 # ---------------------------------------------------------------------------
@@ -136,10 +186,6 @@ class SessionStreamQueryRequest(BaseModel):
     session_id: Optional[str] = None
     is_alive: Optional[bool] = None
     is_running: Optional[bool] = None
-
-
-class SessionCapabilities(BaseModel):
-    durable_approvals: bool = False
 
 
 class SessionStreamResponse(BaseModel):
