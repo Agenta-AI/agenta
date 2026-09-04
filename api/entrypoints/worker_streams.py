@@ -149,6 +149,22 @@ async def _build_events_worker(redis_client: Redis) -> StreamConsumer:
     )
 
 
+async def _initialize_consumer(consumer: StreamConsumer) -> None:
+    await consumer.create_consumer_group()
+    removed = await prune_idle_consumers(
+        url=env.redis.uri_durable,
+        queue_name=consumer.stream_name,
+        consumer_group_name=consumer.consumer_group,
+        keep=consumer.consumer_name,
+    )
+    if removed:
+        log.info(
+            "[STREAMS] Pruned idle consumers",
+            stream=consumer.stream_name,
+            removed=removed,
+        )
+
+
 async def main_async() -> int:
     try:
         streams = _selected_streams()
@@ -176,23 +192,21 @@ async def main_async() -> int:
         consumers: List[StreamConsumer] = [
             await builders[name](redis_client) for name in streams
         ]
-        if env.sessions.shared_reader and "records" in streams:
-            consumers.append(await _build_live_relay_worker(redis_client))
 
         for consumer in consumers:
-            await consumer.create_consumer_group()
-            removed = await prune_idle_consumers(
-                url=env.redis.uri_durable,
-                queue_name=consumer.stream_name,
-                consumer_group_name=consumer.consumer_group,
-                keep=consumer.consumer_name,
-            )
-            if removed:
-                log.info(
-                    "[STREAMS] Pruned idle consumers",
-                    stream=consumer.stream_name,
-                    removed=removed,
+            await _initialize_consumer(consumer)
+
+        if env.sessions.shared_reader and "records" in streams:
+            try:
+                live_relay = await _build_live_relay_worker(redis_client)
+                await _initialize_consumer(live_relay)
+            except Exception:
+                log.error(
+                    "[STREAMS] Live relay disabled after initialization failure",
+                    exc_info=True,
                 )
+            else:
+                consumers.append(live_relay)
 
         log.info("[STREAMS] Starting worker-streams", selected=streams)
 
