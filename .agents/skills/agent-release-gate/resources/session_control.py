@@ -68,6 +68,12 @@ SANDBOX_STARTUP_SLACK_S = 0.0
 # _client_shape_messages() below.
 CLIENT_SHAPE = "full"
 
+# Set in main() from --durable-stop. In auto mode, the first recognized cancel response fixes
+# the effective state for the run: the durable route returns command + execution metadata, while
+# the production-default legacy route returns its older cancellation summary.
+DURABLE_STOP_OPTION = "auto"
+DURABLE_STOP_STATE: str | None = None
+
 RUNS = pathlib.Path(
     os.environ.get(
         "AGENTA_QA_RUNS_DIR", str(pathlib.Path.home() / "agenta-qa-evidence")
@@ -995,6 +1001,47 @@ def sandbox_gone_settle_budget_s() -> float:
 RECOVERY_HEALTH_TIMEOUT_S = 60.0
 RECOVERY_HEALTH_POLL_S = 2.0
 
+# The sweep commits the execution outcome before it commits the terminal records. Keep the
+# terminal assertion strict, but allow that second transaction to become visible first.
+TERMINAL_RECORD_SETTLE_BUDGET_S = 20.0
+TERMINAL_RECORD_SETTLE_POLL_S = 0.5
+
+
+def _has_watchdog_ending(rows: list) -> bool:
+    return any(
+        (row.get("attributes") or {}).get("settled_by") == "watchdog" for row in rows
+    )
+
+
+def _require_watchdog_execution_lost(rows: list) -> dict | None:
+    found = any(
+        row.get("type") == "error"
+        and (row.get("attributes") or {}).get("code") == "execution_lost"
+        and (row.get("attributes") or {}).get("settled_by") == "watchdog"
+        for row in rows
+    )
+    if found:
+        return None
+    return _fail(
+        "no watchdog execution_lost ending was found among the terminal records"
+    )
+
+
+def _poll_terminal_after_settle(
+    read_terminal,
+    *,
+    timeout=TERMINAL_RECORD_SETTLE_BUDGET_S,
+    poll_interval=TERMINAL_RECORD_SETTLE_POLL_S,
+    clock=time,
+) -> list:
+    """Wait for the watchdog's terminal-record transaction after durable settlement."""
+    deadline = clock.time() + timeout
+    while True:
+        rows = read_terminal()
+        if _has_watchdog_ending(rows) or clock.time() >= deadline:
+            return rows
+        clock.sleep(poll_interval)
+
 
 def _recover_then_send(health_poll, send, *, timeout, poll_interval, clock=time):
     """Poll `health_poll()` until it returns truthy (bounded by `timeout`), THEN call `send()`.
@@ -1065,7 +1112,15 @@ def _measure_runner_gone_while_paused(
             if clock.time() >= deadline:
                 break
             clock.sleep(poll_interval)
-        terminal = read_terminal()
+        terminal = (
+            _poll_terminal_after_settle(
+                read_terminal,
+                poll_interval=0.5,
+                clock=clock,
+            )
+            if settled_at is not None
+            else read_terminal()
+        )
         # THE gone-and-stays-gone read: is_running, taken while the runner is still paused.
         stream_row = hooks.stream_row(session_id)
         paused_read_at = clock.time()
@@ -1521,9 +1576,11 @@ def cancel(
         payload = r.json()
     except Exception:
         payload = {"raw": r.text[:400]}
+    durable_stop = _observe_durable_stop(payload)
     record = {
         "status": r.status_code,
         "body": payload,
+        "durable_stop": durable_stop,
         "sent_at": sent,
         "sent_iso": time.strftime("%H:%M:%S", time.localtime(sent))
         + f".{int((sent % 1) * 1000):03d}",
@@ -1534,6 +1591,49 @@ def cancel(
         file=sys.stderr,
     )
     return record
+
+
+_LEGACY_CANCEL_KEYS = {
+    "mode",
+    "session_id",
+    "turn_id",
+    "watcher_id",
+    "detached",
+    "cancelled_turn_ids",
+}
+
+
+def _detect_durable_stop(payload: object) -> str | None:
+    """Identify the Stop implementation from a successful cancel response body."""
+    if not isinstance(payload, dict):
+        return None
+    if "command" in payload and "execution" in payload:
+        return "on"
+    if _LEGACY_CANCEL_KEYS.issubset(payload):
+        return "off"
+    return None
+
+
+def _resolve_durable_stop(option: str, payload: object) -> str | None:
+    """Resolve an explicit flag value, or infer auto from the cancel response shape."""
+    if option in ("on", "off"):
+        return option
+    return _detect_durable_stop(payload)
+
+
+def _observe_durable_stop(payload: object) -> str | None:
+    """Record the effective durable-stop state for this run when the response identifies it."""
+    global DURABLE_STOP_STATE
+    observed = _resolve_durable_stop(DURABLE_STOP_OPTION, payload)
+    if observed is None:
+        return DURABLE_STOP_STATE
+    if DURABLE_STOP_STATE is not None and observed != DURABLE_STOP_STATE:
+        raise RuntimeError(
+            "cancel responses disagreed about durable Stop state: "
+            f"first {DURABLE_STOP_STATE}, now {observed}"
+        )
+    DURABLE_STOP_STATE = observed
+    return DURABLE_STOP_STATE
 
 
 def records(session_id: str) -> list:
@@ -1924,7 +2024,7 @@ def cell_stale_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
 
 
 def cell_stop_approval(cfg_ask, references_ask, args, hooks: OperatorHooks) -> Cell:
-    """A parked approval is cancelled by Stop, and a late answer is refused. Needs no shell."""
+    """Stop a parked approval and enforce the flag-specific late-answer behavior."""
     session_id = str(uuid.uuid4())
     marker = f"PEAR{uuid.uuid4().hex[:6].upper()}"
     prompt = f"The codeword is {marker}. Run exactly this one shell command and nothing else: echo hello. Then reply DONE."
@@ -1962,6 +2062,7 @@ def cell_stop_approval(cfg_ask, references_ask, args, hooks: OperatorHooks) -> C
         "expected_execution_id": expected,
         "stop": stop,
         "late_answer": late,
+        "durable_stop": _resolve_durable_stop(args.durable_stop, stop["body"]),
         "resume_recalled_marker": marker in (t2.get("text") or ""),
         # Without the actual reply, a FAIL here cannot be told apart from a driver replay bug
         # (the reconstructed `output-denied` part shaped wrong) versus the model genuinely not
@@ -1973,25 +2074,43 @@ def cell_stop_approval(cfg_ask, references_ask, args, hooks: OperatorHooks) -> C
     }
     evidence["sandbox_ids"] = sandbox_ids(session_id)
     evidence["warm_same_sandbox"] = len(evidence["sandbox_ids"]) <= 1
-    if pending is None:
-        return evidence, _fail(
+    return evidence, _judge_stop_approval(evidence, pending_found=pending is not None)
+
+
+def _judge_stop_approval(evidence: dict, *, pending_found: bool) -> dict:
+    """Apply all stop-approval assertions with only the late-answer rule gated by the flag."""
+    if not pending_found:
+        return _fail(
             "no pending approval was seen before the Stop; the race did not land"
         )
+    stop = evidence["stop"]
     if stop["status"] not in (200, 202):
-        return evidence, _fail(
+        return _fail(
             f"named Stop on a parked approval returned HTTP {stop['status']}, expected 200 or 202"
         )
+    settle = evidence["command_settled"]
     if not settle["settled"]:
-        return evidence, _fail(settle["why"])
-    if late.get("status") == 200:
-        return evidence, _fail(
-            "the late approval answer was accepted after the Stop settled it"
+        return _fail(settle["why"])
+    durable_stop = evidence["durable_stop"]
+    if durable_stop not in ("on", "off"):
+        return _fail(
+            "could not determine durable Stop state from the cancel response; "
+            "pass --durable-stop on or off"
         )
+    late = evidence["late_answer"]
+    if durable_stop == "on" and late.get("status") == 200:
+        return _fail("the late approval answer was accepted after the Stop settled it")
+    if durable_stop == "off":
+        if late.get("status") != 200:
+            return _fail(
+                "the legacy path refused the late approval answer, expected HTTP 200"
+            )
+        evidence["late_answer"]["note"] = "late answer accepted: legacy path"
     if not evidence["resume_recalled_marker"]:
-        return evidence, _fail(
-            "resume after the approval Stop did not recall the codeword"
-        )
-    return evidence, _pass(
+        return _fail("resume after the approval Stop did not recall the codeword")
+    if durable_stop == "off":
+        return _pass("late answer accepted: legacy path")
+    return _pass(
         "Stop cancelled the parked approval, the late answer was refused, resume recalled the codeword"
     )
 
@@ -2064,10 +2183,11 @@ def cell_sandbox_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
     handle["thread"].join(timeout=wait_s)
     t1 = handle["out"] or {}
     time.sleep(5)
+    terminal = _poll_terminal_after_settle(lambda: terminal_records(session_id, turn))
     evidence.update(
         {
             "turn1_errors": t1.get("errors"),
-            "terminal_records": terminal_records(session_id, turn),
+            "terminal_records": terminal,
             "stream_after": session_stream(session_id),
         }
     )
@@ -2429,17 +2549,9 @@ def cell_runner_gone(cfg, references, args, hooks: OperatorHooks) -> Cell:
             f"the Stop command read outcome {stop_command.get('outcome')!r}, expected lost: a "
             "paused runner should never have been able to report it"
         )
-    watchdog_ending = [
-        r
-        for r in terminal
-        if r.get("type") == "error"
-        and (r.get("attributes") or {}).get("code") == "execution_lost"
-        and (r.get("attributes") or {}).get("settled_by") == "watchdog"
-    ]
-    if not watchdog_ending:
-        return evidence, _fail(
-            "no watchdog execution_lost ending was found among the terminal records"
-        )
+    watchdog_failure = _require_watchdog_execution_lost(terminal)
+    if watchdog_failure:
+        return evidence, watchdog_failure
     if paused_is_running is not False:
         return evidence, _fail(
             "the session_streams row did not read is_running: false while the runner was still paused"
@@ -2490,6 +2602,11 @@ def cell_runner_gone_late(cfg, references, args, hooks: OperatorHooks) -> Cell:
             settled_at = time.time()
             break
         time.sleep(5)
+
+    if settled_at is not None:
+        terminal = _poll_terminal_after_settle(
+            lambda: terminal_records(session_id, turn)
+        )
 
     time.sleep(3)
     commands = hooks.command_rows(session_id)
@@ -2776,7 +2893,7 @@ def cell_repeat_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
 def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
     """Five independent sessions, each with a long turn, all Stopped within one second.
 
-    Every Stop must return HTTP 202, every session must read exactly one terminal record, and
+    Every Stop must return HTTP 200 or 202, every session must read exactly one terminal record, and
     every session must recall its own codeword on a warm resume. HTTP-only: needs no shell.
     """
     n = 5
@@ -2833,8 +2950,20 @@ def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
         s["out"] = s["handle"]["out"] or {}
     time.sleep(4)
 
+    def read_terminal(s: dict) -> None:
+        s["terminal_records"] = _poll_terminal_after_settle(
+            lambda: terminal_records(s["session_id"], s["turn_id"])
+        )
+
+    terminal_threads = [
+        threading.Thread(target=read_terminal, args=(s,)) for s in sessions
+    ]
+    for thread in terminal_threads:
+        thread.start()
+    for thread in terminal_threads:
+        thread.join()
+
     for s in sessions:
-        s["terminal_records"] = terminal_records(s["session_id"], s["turn_id"])
         msgs2 = s["msgs"] + [assistant_message(s["out"]), user_msg(RECALL)]
         t2 = invoke(
             s["session_id"], msgs2, cfg, references, f"concurrent-turn2-{s['marker']}"
@@ -2858,10 +2987,13 @@ def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
             for s in sessions
         ],
     }
-    not_202 = [s["session_id"] for s in sessions if s["stop"]["status"] != 202]
-    if not_202:
+    not_accepted = [
+        s["session_id"] for s in sessions if s["stop"]["status"] not in (200, 202)
+    ]
+    if not_accepted:
         return evidence, _fail(
-            f"{len(not_202)} of {n} concurrent Stops did not return HTTP 202: {not_202}"
+            f"{len(not_accepted)} of {n} concurrent Stops did not return HTTP 200 or 202: "
+            f"{not_accepted}"
         )
     unsettled = [
         s["session_id"] for s in sessions if not s["command_settled"]["settled"]
@@ -2888,7 +3020,7 @@ def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
             f"{not_recalled}"
         )
     return evidence, _pass(
-        f"all {n} concurrent Stops returned HTTP 202 within {stop_window_s}s, each session read "
+        f"all {n} concurrent Stops returned HTTP 200 or 202 within {stop_window_s}s, each session read "
         "exactly one terminal record, and each resumed warm with its own codeword"
     )
 
@@ -3041,6 +3173,15 @@ def main() -> int:
     )
     ap.add_argument("--sandbox", default="local", choices=["local", "daytona"])
     ap.add_argument(
+        "--durable-stop",
+        default="auto",
+        choices=["on", "off", "auto"],
+        help=(
+            "durable Stop feature state. auto (default) detects command+execution responses "
+            "as on and legacy cancellation-summary responses as off"
+        ),
+    )
+    ap.add_argument(
         "--client-shape",
         default="full",
         choices=["full", "last-message"],
@@ -3074,6 +3215,11 @@ def main() -> int:
         SANDBOX_STARTUP_SLACK_S = 25.0
     global CLIENT_SHAPE
     CLIENT_SHAPE = args.client_shape
+    global DURABLE_STOP_OPTION, DURABLE_STOP_STATE
+    DURABLE_STOP_OPTION = args.durable_stop
+    DURABLE_STOP_STATE = (
+        args.durable_stop if args.durable_stop in ("on", "off") else None
+    )
 
     prior: dict = {}
     if args.resume:
@@ -3114,6 +3260,10 @@ def main() -> int:
         "harness": args.harness,
         "sandbox": args.sandbox,
         "client_shape": args.client_shape,
+        "durable_stop": {
+            "option": args.durable_stop,
+            "state": DURABLE_STOP_STATE,
+        },
         "cells": {},
     }
     for name in wanted:
@@ -3123,6 +3273,7 @@ def main() -> int:
                 file=sys.stderr,
             )
             results["cells"][name] = prior[name]
+            results["durable_stop"]["state"] = DURABLE_STOP_STATE
             (outdir / "results.json").write_text(
                 json.dumps(results, indent=2, default=str)
             )
@@ -3133,6 +3284,7 @@ def main() -> int:
         results["cells"][name] = run_cell(
             name, fn, cfg, references, args, hooks, needs_hooks
         )
+        results["durable_stop"]["state"] = DURABLE_STOP_STATE
         (outdir / "results.json").write_text(json.dumps(results, indent=2, default=str))
 
     lines = ["| cell | verdict | why |", "|---|---|---|"]
