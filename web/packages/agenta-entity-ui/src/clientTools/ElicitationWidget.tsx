@@ -204,7 +204,8 @@ const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps
     return (
         <div className="flex min-w-0 items-start gap-2 py-1">
             <Question size={13} className="mt-0.5 shrink-0 text-colorTextTertiary" />
-            <span className="line-clamp-2 min-w-0 text-xs text-colorTextSecondary">
+            {/* Two lines is ~20 words in a wide row but ~7 on a phone, so narrow gets four. */}
+            <span className="line-clamp-4 min-w-0 text-xs text-colorTextSecondary sm:line-clamp-2">
                 {parsed.payload.message}
                 <span className="text-colorTextTertiary">
                     {" "}
