@@ -274,20 +274,26 @@ export async function runTurn(
   // while a turn waits for a human. So probe the sandbox's own HTTP surface, independently of
   // the wedged ACP channel, and end the turn through the same trip path any other limit uses.
   // See `sandbox-liveness.ts` and issue #6418.
+  // A remote sandbox does not refuse the socket when it dies: its provider's proxy answers for it
+  // with "sandbox <id> not found" indefinitely, which the poll reads as alive. So the turn's own
+  // ACP transport reports that answer on `env.sandboxGone`, and the probe ends the turn on it at
+  // once. That path needs no health URL, so it is wired even when the poll is disabled.
   const sandboxHealth = sandboxHealthUrl(env.sandbox);
-  const sandboxLiveness = sandboxHealth
-    ? startSandboxLivenessProbe({
-        probe: httpLivenessProbe(sandboxHealth),
-        limits: resolveSandboxLivenessLimits(logger),
-        onGone: (reason: string) => {
-          runLimitReason = reason;
-          runLimitTrip?.();
-        },
-        log: logger,
-      })
-    : undefined;
+  const sandboxLiveness = startSandboxLivenessProbe({
+    ...(sandboxHealth ? { probe: httpLivenessProbe(sandboxHealth) } : {}),
+    goneSignal: env.sandboxGone,
+    limits: resolveSandboxLivenessLimits(logger),
+    onGone: (reason: string) => {
+      runLimitReason = reason;
+      runLimitTrip?.();
+    },
+    log: logger,
+  });
   if (!sandboxHealth) {
-    logger("[sandbox-liveness] no health URL on this sandbox; probe disabled");
+    logger(
+      "[sandbox-liveness] no health URL on this sandbox; polling disabled " +
+        "(the transport's own sandbox-gone report still ends the turn)",
+    );
   }
 
   try {

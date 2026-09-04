@@ -18,13 +18,16 @@ import {
   DEFAULT_PROBE_TIMEOUT_MS,
   PROBE_FAILURES_ENV,
   PROBE_INTERVAL_ENV,
+  httpLivenessProbe,
   resolveSandboxLivenessLimits,
+  SandboxGoneError,
   sandboxHealthUrl,
   startSandboxLivenessProbe,
   type Clock,
   type SandboxLivenessLimits,
 } from "../../src/engines/sandbox_agent/sandbox-liveness.ts";
 import { SANDBOX_GONE_MARKER } from "../../src/engines/sandbox_agent/errors.ts";
+import { createSandboxGoneLatch } from "../../src/engines/sandbox_agent/sandbox-gone.ts";
 
 /** A clock whose timers only run when the test says so, in scheduled order. */
 function fakeClock(): Clock & { tick(): Promise<void>; pending(): number } {
@@ -146,6 +149,158 @@ describe("sandbox liveness probe", () => {
     expect(probe).not.toHaveBeenCalled();
     expect(onGone).not.toHaveBeenCalled();
     expect(clock.pending()).toBe(0);
+  });
+});
+
+/** A latch the environment already armed, which is what every turn past acquire holds. */
+function armedLatch() {
+  const latch = createSandboxGoneLatch();
+  latch.arm();
+  return latch;
+}
+
+/**
+ * The Daytona case. The proxy answers for a deleted sandbox, so no probe ever fails the weak way
+ * and the three-strike counter never moves. Both routes below end the turn instead.
+ */
+describe("a sandbox the provider says is gone", () => {
+  it("ends the turn on the FIRST such answer, without waiting for the threshold", async () => {
+    const onGone = vi.fn();
+    const probe = vi
+      .fn()
+      .mockRejectedValue(new SandboxGoneError("sandbox a476c238 not found"));
+    const clock = fakeClock();
+
+    const handle = startSandboxLivenessProbe({ probe, limits, onGone, clock });
+
+    await clock.tick(); // one interval, one probe
+    await clock.tick();
+
+    expect(probe).toHaveBeenCalledTimes(1);
+    expect(onGone).toHaveBeenCalledTimes(1);
+    expect(onGone.mock.calls[0][0]).toContain(SANDBOX_GONE_MARKER);
+    expect(onGone.mock.calls[0][0]).toContain("a476c238");
+    handle.dispose();
+  });
+
+  it("ends the turn the moment the ACP transport reports it, with no probe at all", async () => {
+    const onGone = vi.fn();
+    const goneSignal = armedLatch();
+    const clock = fakeClock();
+
+    const handle = startSandboxLivenessProbe({
+      probe: vi.fn().mockResolvedValue(200),
+      goneSignal,
+      limits,
+      onGone,
+      clock,
+    });
+    goneSignal.note("provider reports the sandbox is gone (HTTP 404)");
+
+    expect(onGone).toHaveBeenCalledTimes(1);
+    expect(onGone.mock.calls[0][0]).toContain(SANDBOX_GONE_MARKER);
+    handle.dispose();
+  });
+
+  it("honours the transport's report on a sandbox with no health URL to poll", () => {
+    const onGone = vi.fn();
+    const goneSignal = armedLatch();
+    const clock = fakeClock();
+
+    const handle = startSandboxLivenessProbe({
+      goneSignal,
+      limits,
+      onGone,
+      clock,
+    });
+
+    expect(clock.pending()).toBe(0); // nothing to poll, so nothing is scheduled
+    goneSignal.note("deleted");
+
+    expect(onGone).toHaveBeenCalledTimes(1);
+    handle.dispose();
+  });
+
+  it("still reports one death when the probe and the transport both see it", async () => {
+    const onGone = vi.fn();
+    const goneSignal = armedLatch();
+    const probe = vi
+      .fn()
+      .mockRejectedValue(new SandboxGoneError("sandbox gone per probe"));
+    const clock = fakeClock();
+
+    const handle = startSandboxLivenessProbe({
+      probe,
+      goneSignal,
+      limits,
+      onGone,
+      clock,
+    });
+    goneSignal.note("sandbox gone per transport");
+    await clock.tick();
+    await clock.tick();
+
+    expect(onGone).toHaveBeenCalledTimes(1);
+    handle.dispose();
+  });
+
+  it("hands the listener back on dispose, so a warm sandbox keeps no finished turns", () => {
+    const goneSignal = armedLatch();
+    const finishedTurn = vi.fn();
+    const currentTurn = vi.fn();
+    const clock = fakeClock();
+
+    // Turn 1 runs and ends. Turn 2 starts on the SAME warm environment, so the same latch.
+    startSandboxLivenessProbe({
+      goneSignal,
+      limits,
+      onGone: finishedTurn,
+      clock,
+    }).dispose();
+    const handle = startSandboxLivenessProbe({
+      goneSignal,
+      limits,
+      onGone: currentTurn,
+      clock,
+    });
+
+    goneSignal.note("deleted");
+
+    expect(finishedTurn).not.toHaveBeenCalled();
+    expect(currentTurn).toHaveBeenCalledTimes(1);
+    handle.dispose();
+  });
+});
+
+describe("httpLivenessProbe", () => {
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("rejects with a definitive error when the provider names the sandbox as gone", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      new Response("not found: sandbox a476c238 not found", {
+        status: 404,
+        headers: { "x-daytona-error-code": "SANDBOX_NOT_FOUND" },
+      }),
+    ) as unknown as typeof fetch;
+
+    await expect(
+      httpLivenessProbe("http://sandbox/v1/health")(),
+    ).rejects.toBeInstanceOf(SandboxGoneError);
+  });
+
+  it("keeps reading an ordinary 404 as alive", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        new Response("Not Found", { status: 404 }),
+      ) as unknown as typeof fetch;
+
+    await expect(httpLivenessProbe("http://sandbox/v1/health")()).resolves.toBe(
+      404,
+    );
   });
 });
 
