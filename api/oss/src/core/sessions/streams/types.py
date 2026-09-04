@@ -46,6 +46,7 @@ class SessionTurnMismatch(SessionStreamError):
     none and the holding turn started after the cancel arrived. Both are the stop-then-send
     race: the turn the user meant has already ended and the next one has taken the session.
     """
+
     def __init__(
         self,
         session_id: str,
