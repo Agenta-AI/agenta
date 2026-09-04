@@ -220,6 +220,48 @@ function updateEvent(update: Record<string, unknown>) {
 }
 
 describe("acquireEnvironment / runTurn split", () => {
+  it("emits observed environment boundaries around acquisition", async () => {
+    const { deps } = fakeHarness();
+    const events: AgentEvent[] = [];
+
+    const acquired = await acquireEnvironment(
+      request,
+      deps,
+      undefined,
+      undefined,
+      (event) => events.push(event),
+    );
+
+    assert.equal(acquired.ok, true);
+    assert.deepEqual(events, [
+      {
+        type: "data",
+        name: "agent-status",
+        data: { phase: "environment_starting" },
+        transient: true,
+      },
+      {
+        type: "data",
+        name: "agent-status",
+        data: { phase: "preparing_workspace" },
+        transient: true,
+      },
+      {
+        type: "data",
+        name: "agent-status",
+        data: { phase: "opening_session" },
+        transient: true,
+      },
+      {
+        type: "data",
+        name: "agent-status",
+        data: { phase: "environment_ready" },
+        transient: true,
+      },
+    ]);
+    if (acquired.ok) await acquired.env.destroy();
+  });
+
   it("one acquired environment serves two turns without re-acquiring the session", async () => {
     const { calls, deps } = fakeHarness();
 

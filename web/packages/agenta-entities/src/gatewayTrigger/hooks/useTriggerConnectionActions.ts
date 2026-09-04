@@ -1,6 +1,6 @@
 import {useCallback} from "react"
 
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
 
 import {deleteTriggerConnection, refreshTriggerConnection, revokeTriggerConnection} from "../api"
 
@@ -9,6 +9,7 @@ import {deleteTriggerConnection, refreshTriggerConnection, revokeTriggerConnecti
 // caches — otherwise a connection created/removed from triggers would read as
 // stale on the tools list (and vice-versa).
 const invalidateConnections = () => {
+    const queryClient = getHostQueryClient()
     queryClient.invalidateQueries({queryKey: ["triggers", "connections"]})
     queryClient.invalidateQueries({queryKey: ["tools", "connections"]})
     queryClient.invalidateQueries({queryKey: ["tools", "catalog"]})

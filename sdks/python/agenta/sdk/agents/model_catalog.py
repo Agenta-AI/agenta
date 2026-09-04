@@ -15,7 +15,10 @@ code:
 - ``data/pi_models.generated.json`` — machine-generated from ``@earendil-works/pi-ai``. Objective
   facts only; curated fields absent.
 - ``data/pi_models.curated.json`` — human overlay (id -> ``{label?, description?, ratings?}``),
-  merged onto the generated facts at load time so a regeneration never overwrites judgments.
+  merged onto the generated facts at load time so a regeneration never overwrites judgments. Its
+  ``additions`` list carries whole entries for models the pinned pi-ai release predates; a
+  generated entry of the same id always wins, so an addition retires itself on the next
+  regeneration.
 - ``data/claude_models.curated.json`` — hand-curated Claude alias entries (facts + judgments).
 - ``data/codex_models.curated.json``: hand-curated Codex entries (facts + judgments), with the
   same shape as the Claude catalog.
@@ -96,24 +99,39 @@ def _read_json(name: str) -> dict:
 
 
 def load_pi_model_catalog() -> ModelCatalog:
-    """The Pi catalog: generated facts with the human overlay merged on by id.
+    """The Pi catalog: generated facts with the human overlay merged on by id, plus additions.
 
     The overlay only ever supplies ``label`` / ``description`` / ``ratings``; every objective fact
     comes from the generated file. ``pydantic`` validates each entry on construction (including the
     1-5 rating range), so a malformed data file fails loud here.
+
+    ``additions`` carries whole hand-written entries (``source: "curated"``) for models released
+    after the pinned pi-ai snapshot. Without them such a model has no catalog entry at all, so the
+    picker can only show its bare id and ``PROVIDER_DEFAULT_MODELS`` cannot offer it. A generated
+    entry of the same id always wins: the addition is a stopgap that retires itself the moment a
+    regeneration carries the model, rather than shadowing fresher sourced facts.
     """
     generated = _read_json("pi_models.generated.json")
-    overlay = _read_json("pi_models.curated.json").get("overlay", {})
+    curated_file = _read_json("pi_models.curated.json")
+    overlay = curated_file.get("overlay", {})
+    additions = curated_file.get("additions", [])
 
     entries: List[ModelCatalogEntry] = []
+    generated_ids = set()
     for raw in generated.get("models", []):
         merged = dict(raw)
+        generated_ids.add(raw.get("id"))
         curated = overlay.get(raw.get("id"))
         if curated:
             for field in _OVERLAY_FIELDS:
                 if field in curated:
                     merged[field] = curated[field]
         entries.append(ModelCatalogEntry.model_validate(merged))
+
+    for raw in additions:
+        if raw.get("id") in generated_ids:
+            continue
+        entries.append(ModelCatalogEntry.model_validate(raw))
 
     return ModelCatalog(schema_version="1", models=entries)
 
@@ -184,7 +202,7 @@ def model_input_modalities(
 ) -> Optional[List[str]]:
     """Look up input modalities using the model id form accepted by ``harness``."""
     entry: Optional[ModelCatalogEntry]
-    if harness in ("pi_core", "pi_agenta"):
+    if harness == "pi_core":
         catalog = pi_model_catalog()
         catalog_id = _catalog_id(provider, model_id)
     elif harness == "claude":
@@ -217,7 +235,7 @@ def model_catalog_entries(harness: str) -> List[Dict[str, object]]:
     uses its curated model catalog. An unknown harness has an empty catalog (like the ``models``
     map default).
     """
-    if harness in ("pi_core", "pi_agenta"):
+    if harness == "pi_core":
         catalog = pi_model_catalog()
     elif harness == "claude":
         catalog = claude_model_catalog()

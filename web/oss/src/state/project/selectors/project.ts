@@ -1,3 +1,5 @@
+import {fetchAllProjects, filterOutDemoProjects} from "@agenta/entities/project"
+import {ProjectsResponse} from "@agenta/entities/project"
 import {catalogPersister} from "@agenta/shared/api/persist"
 import {logAtom, projectIdAtom} from "@agenta/shared/state"
 import type {QueryKey} from "@tanstack/react-query"
@@ -6,12 +8,18 @@ import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryClient} from "@/oss/lib/api/queryClient"
-import {fetchAllProjects} from "@/oss/services/project"
-import {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {selectedOrgAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
+import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom} from "@/oss/state/session"
 import {jwtReadyAtom} from "@/oss/state/session/jwt"
+
+import {
+    NEUTRAL_ROUTE_CONTEXT,
+    resolveRouteContext,
+    shouldRunRouteGuard,
+    type RouteContext,
+} from "./routeContext"
 
 // Re-export the shared projectIdAtom so all OSS code uses the same atom as entity packages
 export {projectIdAtom}
@@ -113,6 +121,12 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
         // parallel with /profile/, so this does not reintroduce the sequential
         // profile-wait that 2ede5faa10 removed to fix the demo-banner cold-load race.
         enabled: get(sessionExistsAtom) && jwtReady && !isAcceptRoute && !!orgId,
+        // A 4xx is an answer, not a hiccup: most often a workspace id that does not exist.
+        retry: (failureCount, error: any) => {
+            const status = error?.response?.status
+            if (status && status >= 400 && status < 500) return false
+            return failureCount < 2
+        },
         // Paint from disk + background revalidate; key includes orgId so no cross-org bleed.
         persister: catalogPersister.persisterFn<ProjectsResponse[], QueryKey>,
     }
@@ -124,15 +138,9 @@ logAtom(projectsQueryAtom, "projectsQueryAtom", logProjects)
 
 const EmptyProjects: ProjectsResponse[] = []
 
-/**
- * Filters demo projects out of the list. Falls back to the full list when
- * every project is a demo one, so the user is not left with an empty UI.
- * Exported for unit-test access (projectsDemoFilter.test.ts).
- */
-export const filterOutDemoProjects = (projects: ProjectsResponse[]): ProjectsResponse[] => {
-    const nonDemoProjects = projects.filter((project) => !project.is_demo)
-    return nonDemoProjects.length ? nonDemoProjects : projects
-}
+// Lives in @agenta/entities/project so /m applies the SAME filter; re-exported for the local
+// unit test (projectsDemoFilter.test.ts) and existing importers.
+export {filterOutDemoProjects}
 
 export const projectsAtom = atom((get) => {
     const res = get(projectsQueryAtom)
@@ -156,6 +164,72 @@ const projectMatchesWorkspace = (
     if (project.organization_id && project.organization_id === workspaceId) return true
     return false
 }
+
+/**
+ * Backs the route-level id guard: does the address name a workspace and project that exist?
+ *
+ * Unscoped on purpose: the workspace-scoped request 401s for an id that does not exist and then
+ * never settles, so the check has to ride on a call that always answers. The handler returns every
+ * membership either way, so one response settles both ids.
+ *
+ * Keyed by the ids it judges even though the response is not. A shared key would answer from a
+ * list fetched before the workspace or project existed and 404 it: creating an org refetches only
+ * orgs, and creating a project navigates before its refetch lands.
+ */
+const routeGuardProjectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
+    const {routeLayer} = get(appStateSnapshotAtom)
+    const {workspaceId, projectId} = get(appIdentifiersAtom)
+    const userId = (get(userAtom) as {id?: string} | null)?.id
+    const jwtReady = Boolean((get(jwtReadyAtom) as any)?.data)
+    return {
+        // Account-scoped like orgsQueryAtom: a sign-out that skips useSession.logout leaves this
+        // membership answer in the cache, and the next account must not be judged by it.
+        queryKey: ["projects", "route-guard", userId ?? "", workspaceId ?? "", projectId ?? ""],
+        queryFn: async () => fetchAllProjects(),
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        refetchOnMount: false,
+        retry: (failureCount, error: any) => {
+            const status = error?.response?.status
+            if (status && status >= 400 && status < 500) return false
+            return failureCount < 2
+        },
+        enabled:
+            shouldRunRouteGuard(routeLayer) &&
+            !!workspaceId &&
+            !!userId &&
+            get(sessionExistsAtom) &&
+            jwtReady,
+    }
+})
+
+/** Route-gated before the query is read, so routes carrying no ids never subscribe to it. */
+export const routeContextAtom = atom<RouteContext>((get) => {
+    const {routeLayer} = get(appStateSnapshotAtom)
+    if (!shouldRunRouteGuard(routeLayer)) return NEUTRAL_ROUTE_CONTEXT
+
+    const {workspaceId, projectId} = get(appIdentifiersAtom)
+    const query = get(routeGuardProjectsQueryAtom) as {
+        isPending?: boolean
+        error?: unknown
+        data?: ProjectsResponse[]
+    }
+    // The raw list, not projectsAtom: a workspace holding only demo projects is still real.
+    const rows = query.data ?? []
+
+    return resolveRouteContext({
+        routeLayer,
+        workspaceId,
+        projectId,
+        isPending: query.isPending ?? true,
+        failed: Boolean(query.error),
+        workspaceHoldsProject: rows.some((row) => projectMatchesWorkspace(row, workspaceId)),
+        projectInWorkspace: rows.some(
+            (row) => row.project_id === projectId && projectMatchesWorkspace(row, workspaceId),
+        ),
+    })
+})
 
 /**
  * Exported for unit-test access (projectAtom.race.test.ts). Internal to this

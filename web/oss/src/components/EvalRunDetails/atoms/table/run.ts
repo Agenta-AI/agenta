@@ -1,6 +1,7 @@
 import type {EvaluationRun} from "@agenta/entities/evaluationRun"
 import {fetchWorkflowsBatch} from "@agenta/entities/workflow"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"

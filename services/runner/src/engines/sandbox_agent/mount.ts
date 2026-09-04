@@ -7,8 +7,9 @@
  * prefix-scoped credentials (`POST /sessions/mounts/sign`), then geesefs-mounts with those.
  *
  * This module covers the LOCAL sandbox: the daemon runs on this host, so the cwd is a host
- * directory and geesefs mounts on-host — the signed credentials never enter agent-reachable
- * space. The remote (Daytona/E2B) path mounts INSIDE the sandbox and is layered on top of this.
+ * directory and geesefs mounts on-host. The signed credentials stay out of the agent process env
+ * and argv, but a same-user local process can inspect the mount process, so Pi redaction still
+ * treats them as visible. The remote (Daytona/E2B) path mounts inside the sandbox.
  *
  * Uses scoped STS credentials instead of a bucket-wide master key.
  */

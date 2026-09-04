@@ -54,6 +54,7 @@ def _stream_filter(
     return SessionStreamQuery(
         include_ended=lifecycle.include_ended,
         include_archived=lifecycle.include_archived,
+        archived_only=lifecycle.archived_only,
         search=query.search if query else None,
         flags=query.flags if query else None,
         origins=query.origins if query else None,

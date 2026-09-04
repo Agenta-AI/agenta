@@ -1,27 +1,318 @@
-import {partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
+import {useMemo, useState} from "react"
 
-import {StatusTag} from "@/components/StatusTag"
+import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
+import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
+import {
+    AttachmentCard,
+    AttachmentCardGrid,
+    CollapsibleMessageBody,
+    StartupActivity,
+    TurnFooter,
+} from "@agenta/chat/components"
+import {useTypewriter} from "@agenta/chat/hooks"
+import {partSentence, partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
+import {resolveToolDisplay} from "@agenta/chat/skin"
+import {messageBodyKey, useStartupPhase} from "@agenta/chat/state"
+import {AgentChatAvatar} from "@agenta/entity-ui/agent"
+import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
+import {buildRenderMap} from "@agenta/playground"
+import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
+import {
+    ChatBubble,
+    ChatBubbleAvatar,
+    ChatTypingDots,
+    turnRowClass,
+    turnToolbarClass,
+    turnToolbarRevealClass,
+    userBubbleContentClass,
+} from "@agenta/ui/components/presentational"
+import {useSetAtom} from "jotai"
+import {
+    Ban,
+    Bot,
+    Brain,
+    CheckCircle2,
+    ChevronRight,
+    CircleDashed,
+    User,
+    Wrench,
+    XCircle,
+} from "lucide-react"
+
+import {Button} from "@/components/ui/button"
 
 import {AssistantMarkdown} from "./AssistantMarkdown"
-import {AttachmentPart} from "./AttachmentPart"
 import {isLiveTextItem} from "./markdownStream"
 
-/** One transcript turn: markdown text, attachments, one-line tool summaries, raw error line. */
-export const TurnRow = ({turn}: {turn: TurnViewModel}) => (
-    <div className={`flex ${turn.isUser ? "justify-end" : "justify-start"}`}>
-        <div
-            className={`flex min-w-0 max-w-[85%] flex-col gap-1 ${turn.isUser ? "items-end" : "items-start"}`}
-        >
+type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
+
+/** Split out so a COLLAPSED fold does not run a frame loop revealing text nobody can see. */
+const ReasoningBody = ({text, urgent}: {text: string; urgent?: boolean}) => {
+    const {text: revealed} = useTypewriter(text, {urgent})
+    return (
+        <div className="text-colorTextTertiary ml-5 mt-1 whitespace-pre-wrap text-xs">
+            {revealed}
+        </div>
+    )
+}
+
+/** Desktop ReasoningPart's shape: a caret+brain toggle over a muted italic aside. */
+const ReasoningFold = ({
+    text,
+    streaming,
+    urgent,
+}: {
+    text: string
+    streaming: boolean
+    urgent?: boolean
+}) => {
+    const [manual, setManual] = useState<boolean | null>(null)
+    const open = manual ?? streaming
+    return (
+        <div className="flex max-w-full flex-col">
+            <button
+                type="button"
+                onClick={() => setManual(!open)}
+                aria-expanded={open}
+                className="text-colorTextSecondary -ml-1 flex w-fit items-center gap-1 rounded px-1 py-0.5 text-xs italic"
+            >
+                <ChevronRight
+                    className={`size-3 transition-transform ${open ? "rotate-90" : ""}`}
+                />
+                <Brain className="size-3" />
+                <span>{streaming ? "Thinking…" : "Thought"}</span>
+            </button>
+            {open ? <ReasoningBody text={text} urgent={urgent} /> : null}
+        </div>
+    )
+}
+
+/** One tool group, desktop ToolActivity's header language: status glyph + name + summary.
+ *
+ * The name is the HUMANISED sentence the shared resolver builds ("Reading a file"), not the wire
+ * name — the desktop has read that way since the tool-activity work landed, and rendering
+ * `partToolName` here left /m showing "read" beside prod's "Reading a file failed". */
+const ToolLines = ({item}: {item: ToolsItem}) => (
+    <div className="flex flex-col gap-1 py-0.5">
+        {item.parts.map((tool, i) => {
+            const key = tool.toolCallId ?? `${item.index}-${i}`
+            const state = tool.state as string
+            // Desktop's per-state header language: a gate is a warning wrench marked "Awaiting
+            // approval" (the decision lives in the bottom ApprovalDock), a denial gets the quiet
+            // ban glyph, and everything unsettled spins.
+            const awaiting = state === "approval-requested"
+            const denied = state === "output-denied"
+            const failed = state === "output-error"
+            const settled = state === "output-available" || state === "approval-responded"
+            const summary = awaiting ? "Awaiting approval" : denied ? "denied" : rowSummary(tool)
+            const display = resolveToolDisplay(
+                partToolName(tool),
+                (tool as {input?: unknown}).input,
+                undefined,
+                (tool as {output?: unknown}).output,
+            )
+            const shownName = partSentence(tool, display.activity)
+            // Drop a summary the sentence already made: "Reading a file failed · failed" is the
+            // same word twice. The desktop row reads sentence + technical detail, not both.
+            const midText =
+                summary && shownName.toLowerCase().endsWith(summary.toLowerCase()) ? null : summary
+            return (
+                <p
+                    key={key}
+                    className="m-0 flex min-w-0 items-center gap-2 overflow-hidden text-xs"
+                >
+                    {awaiting ? (
+                        <Wrench className="text-colorWarning size-3.5 shrink-0" />
+                    ) : denied ? (
+                        <Ban className="text-colorTextTertiary size-3.5 shrink-0" />
+                    ) : failed ? (
+                        <XCircle className="text-colorError size-3.5 shrink-0" />
+                    ) : settled ? (
+                        <CheckCircle2 className="text-colorSuccess size-3.5 shrink-0" />
+                    ) : (
+                        <CircleDashed className="text-colorTextTertiary size-3.5 shrink-0 motion-safe:animate-spin" />
+                    )}
+                    {/* The sentence never yields, as on the desktop row: the detail and the status
+                        beside it absorb the squeeze. With `min-w-0` here instead, every child was
+                        equally shrinkable, so a long argument took the width and left "Listed
+                        files" as "Li…" on a phone. `max-w-full` caps a sentence that is wider than
+                        the row on its own, and the row clips what is left. */}
+                    <span className="text-colorText max-w-full shrink-0 truncate font-medium">
+                        {shownName}
+                    </span>
+                    {display.detail ? (
+                        <span className="text-colorTextSecondary min-w-0 truncate font-mono">
+                            {display.detail}
+                        </span>
+                    ) : null}
+                    {midText ? (
+                        <span
+                            className={`min-w-0 truncate ${
+                                failed ? "text-colorError" : "text-colorTextSecondary"
+                            }`}
+                        >
+                            {midText}
+                        </span>
+                    ) : null}
+                </p>
+            )
+        })}
+    </div>
+)
+
+/**
+ * Desktop RunErrorBody's callout: the red card with a title and the reason inline.
+ *
+ * The retry is here rather than in the turn's hover toolbar because the toolbar hides rewind on
+ * the LAST turn (rewinding it just re-runs what is already current) — and a failed run is always
+ * the last turn, so the one turn that most needs re-running was the one turn with no way to do it.
+ */
+const RunErrorCallout = ({text, onRetry}: {text: string; onRetry?: () => void}) => {
+    const [expanded, setExpanded] = useState(false)
+    const big = text.length > 240 || text.split("\n").length > 4
+    return (
+        <div className="bg-destructive/10 flex items-start gap-2 rounded-xl px-4 py-3">
+            <XCircle className="text-colorError mt-px size-4 shrink-0" />
+            <div className="flex min-w-0 flex-col items-start gap-0.5">
+                <span className="text-colorError text-xs font-medium">The agent run failed</span>
+                <span
+                    className={`text-colorError whitespace-pre-wrap break-words text-xs ${
+                        big && !expanded ? "line-clamp-3" : ""
+                    }`}
+                >
+                    {text}
+                </span>
+                {big ? (
+                    <button
+                        type="button"
+                        onClick={() => setExpanded((v) => !v)}
+                        className="text-colorError -ml-1 rounded px-1 py-0.5 text-[11px] font-medium"
+                    >
+                        {expanded ? "Show less" : "Show more"}
+                    </button>
+                ) : null}
+                {onRetry ? (
+                    <Button size="sm" variant="outline" className="mt-1" onClick={onRetry}>
+                        Retry
+                    </Button>
+                ) : null}
+            </div>
+        </div>
+    )
+}
+
+/**
+ * The started-but-empty assistant turn: what the agent is DOING, in words, beside its avatar.
+ *
+ * The indicator belongs to the turn, not to the transcript. /m rendered it as a status line after
+ * the whole list, so on a tall pane it floated far below the avatar it belonged to, detached from
+ * anything. And it was wordless — the runner narrates its startup (#6047) so a cold boot reads as
+ * progress rather than a stall, and /m dropped that narration entirely.
+ */
+const TurnAvatar = ({
+    isUser = false,
+    workflowId,
+}: {
+    isUser?: boolean
+    workflowId?: string | null
+}) => {
+    if (isUser) return <ChatBubbleAvatar icon={<User className="size-4" />} />
+    return <AgentChatAvatar workflowId={workflowId} fallback={<Bot className="size-4" />} />
+}
+
+const PendingTurn = ({sessionId, workflowId}: {sessionId: string; workflowId?: string | null}) => {
+    const startupPhase = useStartupPhase(sessionId)
+    return (
+        <div className={`${turnRowClass} justify-start`}>
+            <ChatBubble
+                placement="start"
+                variant="borderless"
+                avatar={<TurnAvatar workflowId={workflowId} />}
+                className="min-w-0 max-w-[85%]"
+                content={
+                    startupPhase ? <StartupActivity label={startupPhase} /> : <ChatTypingDots />
+                }
+            />
+        </div>
+    )
+}
+
+/** The content endpoint carries the session cookie, so a same-origin anchor saves it directly. */
+const downloadAttachment = (url: string, name: string) => {
+    const link = document.createElement("a")
+    link.href = url
+    link.download = name
+    link.hidden = true
+    document.body.append(link)
+    link.click()
+    link.remove()
+}
+
+/**
+ * One transcript turn on the shared bubble chrome — the mobile face of the desktop
+ * AgentMessage: user turns as filled bubbles hugging the right, assistant turns flush on the
+ * canvas, both with the 24px icon avatar; reasoning folds, tool lines with status glyphs, and
+ * the red run-failure callout.
+ */
+export const TurnRow = ({
+    turn,
+    onClientToolOutput,
+    onRewind,
+    sessionId,
+    workflowId,
+}: {
+    turn: TurnViewModel
+    /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
+     * the read-only transcript screen has no engine to settle into — and it passes no client-tool
+     * predicate either, so it never produces one of these items to begin with. */
+    onClientToolOutput?: ClientToolOutputHandler
+    /** Re-run the conversation from this turn. Absent on the read-only transcript screen. */
+    onRewind?: (turn: TurnViewModel) => void
+    /** Scopes the startup narration to this conversation. */
+    sessionId: string
+    /** The agent's workflow id, so its own icon rides the assistant bubbles. Display only. */
+    workflowId?: string | null
+}) => {
+    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
+    const traceId = getMessageTraceId(turn.message)
+    // `render.kind` rides as a sibling `data-render` part, so widget dispatch needs the map.
+    const renderMap = useMemo(
+        () => buildRenderMap(turn.message.parts as {type?: string; data?: unknown}[]),
+        [turn.message.parts],
+    )
+    // The elicitation retry cap: did an elicitation already degrade earlier this turn?
+    const degradedEarlierInTurn = hasPriorElicitationDegradation(
+        turn.message.parts as {state?: string; errorText?: string}[],
+    )
+    const usage = getMessageUsage(turn.message)
+
+    // The turn's text, which is what a reader wants on the clipboard — not its tool rows.
+    const copyText = (turn.message.parts ?? [])
+        .filter((part) => part.type === "text")
+        .map((part) => (part as {text?: string}).text ?? "")
+        .join("\n")
+        .trim()
+
+    // Only the turn being generated shows the loading state, and only until it has content —
+    // the same gate the desktop uses.
+    if (!turn.isUser && turn.isStreamingTurn && !turn.status.hasContent) {
+        return <PendingTurn sessionId={sessionId} workflowId={workflowId} />
+    }
+
+    const body = (
+        <div className="flex min-w-0 max-w-full flex-col gap-2">
             {turn.items.map((item, position) => {
+                if (item.kind === "files") return null
                 if (item.kind === "part") {
                     if (item.part.type === "text") {
-                        // Desktop parity: only user messages get a bubble, and what the user
-                        // typed renders literally — markdown in your own words is surprising.
+                        if (!(item.part.text ?? "").trim()) return null
+                        // What the user typed renders literally — markdown in your own words
+                        // is surprising (desktop parity).
                         if (turn.isUser) {
                             return (
                                 <p
                                     key={item.index}
-                                    className="bg-muted rounded-lg px-3 py-2 whitespace-pre-wrap text-xs"
+                                    className="m-0 whitespace-pre-wrap break-words text-xs"
                                 >
                                     {item.part.text}
                                 </p>
@@ -32,80 +323,135 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => (
                                 key={item.index}
                                 streaming={isLiveTextItem(turn, position)}
                                 text={item.part.text}
+                                urgent={position !== turn.items.length - 1}
                             />
                         )
                     }
-                    if (item.part.type === "file") {
-                        return <AttachmentPart key={item.index} part={item.part} />
-                    }
                     if (item.part.type === "reasoning") {
                         return (
-                            <details key={item.index} className="max-w-full">
-                                <summary className="text-muted-foreground cursor-pointer select-none text-xs">
-                                    Thoughts
-                                </summary>
-                                <p className="text-muted-foreground border-border mt-1 border-l-2 pl-2 whitespace-pre-wrap text-xs italic">
-                                    {item.part.text}
-                                </p>
-                            </details>
+                            <ReasoningFold
+                                key={item.index}
+                                text={item.part.text}
+                                streaming={isLiveTextItem(turn, position)}
+                                urgent={position !== turn.items.length - 1}
+                            />
                         )
                     }
                     return null
                 }
                 if (item.kind === "tools") {
+                    return <ToolLines key={item.index} item={item} />
+                }
+                if (item.kind === "clientTool" && onClientToolOutput) {
                     return (
-                        <div key={item.index} className="flex flex-col gap-0.5">
-                            {item.parts.map((part, i) => {
-                                const key = part.toolCallId ?? `${item.index}-${i}`
-                                if (part.state === "approval-requested") {
-                                    // The decision lives in the bottom ApprovalDock; the row is
-                                    // just the marker (desktop parity).
-                                    return (
-                                        <p key={key} className="flex items-center gap-2 text-xs">
-                                            <StatusTag tone="attention">approval</StatusTag>
-                                            <span className="text-muted-foreground truncate">
-                                                {partToolName(part)}
-                                            </span>
-                                        </p>
-                                    )
-                                }
-                                const summary = rowSummary(part)
-                                const failed = part.state === "output-error"
-                                // The name and a state dot are the whole row; the summary is a
-                                // tool's raw output and can be many lines of YAML or JSON, which
-                                // spilled down the screen when it rendered inline.
-                                return (
-                                    <details key={key} className="max-w-full">
-                                        <summary className="flex cursor-pointer select-none items-center gap-1.5 text-xs">
-                                            <span
-                                                aria-hidden
-                                                className={`size-1.5 shrink-0 rounded-full ${
-                                                    failed
-                                                        ? "bg-destructive"
-                                                        : "bg-muted-foreground"
-                                                }`}
-                                            />
-                                            <span className="truncate">{partToolName(part)}</span>
-                                        </summary>
-                                        {summary ? (
-                                            <p className="text-muted-foreground border-border mt-1 border-l-2 pl-2 text-xs break-words whitespace-pre-wrap">
-                                                {summary}
-                                            </p>
-                                        ) : null}
-                                    </details>
-                                )
-                            })}
-                        </div>
+                        <ClientToolPart
+                            key={`clienttool-${item.part.toolCallId || item.index}`}
+                            part={item.part}
+                            onOutput={onClientToolOutput}
+                            renderMap={renderMap}
+                            degradedEarlierInTurn={degradedEarlierInTurn}
+                        />
                     )
                 }
-                // clientTool never occurs — the predicate defaults to false on mobile.
                 return null
             })}
             {turn.status.showError ? (
-                <p className="text-destructive text-xs">
-                    {turn.status.errorText ?? "Something went wrong."}
-                </p>
+                <RunErrorCallout
+                    text={turn.status.errorText ?? "Something went wrong."}
+                    // Re-runs the failed turn through the same rewind path the toolbar uses, so a
+                    // tool that already ran still gets its warning first.
+                    onRetry={onRewind && !turn.isUser ? () => onRewind(turn) : undefined}
+                />
             ) : null}
         </div>
-    </div>
-)
+    )
+
+    // Attachments hang above the bubble rather than inside its fill, so a message reads as its
+    // files first and its words second.
+    const fileItems = turn.items.filter((item) => item.kind === "files")
+    const attachments = fileItems.length ? (
+        <div className="flex flex-col gap-2">
+            {fileItems.map((item) => (
+                <AttachmentCardGrid key={item.index}>
+                    {item.parts.map((file, n) => (
+                        <AttachmentCard
+                            key={`${item.index}-${n}`}
+                            name={file.filename || file.mediaType || "attachment"}
+                            mediaType={file.mediaType ?? ""}
+                            src={file.url}
+                            action={file.url ? "download" : "none"}
+                            onDownload={() =>
+                                downloadAttachment(
+                                    file.url,
+                                    file.filename || file.mediaType || "attachment",
+                                )
+                            }
+                        />
+                    ))}
+                </AttachmentCardGrid>
+            ))}
+        </div>
+    ) : null
+    // Attachments with no words: there is no bubble to paint, only the cards. An empty text part
+    // counts as no words — a turn carrying only files still arrives with one.
+    const hasBubbleContent =
+        turn.items.some(
+            (item) =>
+                item.kind !== "files" &&
+                !(
+                    item.kind === "part" &&
+                    item.part.type === "text" &&
+                    !(item.part.text ?? "").trim()
+                ),
+        ) || turn.status.showError
+
+    // Desktop parity: a long pasted message clamps behind "Show more" rather than burying its reply.
+    const content = turn.isUser ? (
+        <CollapsibleMessageBody stateKey={messageBodyKey(turn.message.id)}>
+            {body}
+        </CollapsibleMessageBody>
+    ) : (
+        body
+    )
+
+    return (
+        <div className={`${turnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
+            <ChatBubble
+                placement={turn.isUser ? "end" : "start"}
+                variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
+                avatar={<TurnAvatar isUser={turn.isUser} workflowId={workflowId} />}
+                className="min-w-0 max-w-[85%]"
+                classNames={{
+                    content: turn.isUser
+                        ? `${userBubbleContentClass} text-xs`
+                        : "min-w-0 max-w-full overflow-hidden text-xs",
+                    body: "min-w-0 max-w-full overflow-hidden",
+                }}
+                content={hasBubbleContent ? content : null}
+                header={attachments}
+            />
+            {/* The turn's information and actions, revealed on hover or keyboard focus — the same
+                lane the desktop transcript reserves, so a settled turn reads quietly until you
+                reach for it. */}
+            <div
+                className={`${turnToolbarClass} ${turnToolbarRevealClass} ${
+                    turn.isUser ? "right-11" : "left-11"
+                }`}
+            >
+                <TurnFooter
+                    messageId={turn.message.id}
+                    traceId={traceId}
+                    turnTraceId={turn.turnTraceId}
+                    isUser={turn.isUser}
+                    isStreaming={turn.isStreamingTurn}
+                    usage={usage}
+                    copyText={copyText}
+                    // Rewinding the LAST turn just re-runs the turn that is already current, so the
+                    // desktop hides it there and so do we.
+                    onRewind={onRewind && !turn.isLast ? () => onRewind(turn) : undefined}
+                    onViewTrace={(id) => openTraceDrawer({traceId: id})}
+                />
+            </div>
+        </div>
+    )
+}

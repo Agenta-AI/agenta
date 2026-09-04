@@ -49,6 +49,9 @@ const SCRUBBED = [
   "DAYTONA_API_URL",
   "DAYTONA_TARGET",
   "DAYTONA_SNAPSHOT",
+  // The per-run export credential the trace exporter falls back to. Present in a dev shell, it
+  // flips the credential-less export paths (skip vs send) that otel export tests assert on.
+  "AGENTA_CREDENTIALS",
 ];
 
 for (const name of SCRUBBED) delete process.env[name];

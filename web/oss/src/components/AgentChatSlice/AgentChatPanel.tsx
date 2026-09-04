@@ -3,34 +3,47 @@ import {
     Suspense,
     useCallback,
     useEffect,
+    useMemo,
     useRef,
     useState,
     useSyncExternalStore,
     type CSSProperties,
 } from "react"
 
+import {
+    chatPanelMaximizedAtom,
+    configPanelCollapsedAtom,
+    sessionStatusAtomFamily,
+} from "@agenta/chat/state"
+import {commandSessionStream} from "@agenta/entities/session"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {workflowRevisionDrawerOpenAtom} from "@agenta/playground-ui/workflow-revision-drawer"
+import {currentSessionParamForScope, writeSessionParamForScope} from "@agenta/sessions/link"
+import {
+    pendingSessionOpensAtom,
+    removePendingSessionOpensAtom,
+    type PendingSessionOpen,
+} from "@agenta/sessions/state"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import {Splitter, Tabs} from "antd"
-import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useSessionShortcuts} from "@agenta/ui/shortcuts"
+import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
-import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
 import {SessionFilesPane, useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
+import {projectIdAtom} from "@/oss/state/project"
 
+import {shouldCancelRunOnClose} from "./assets/closeSessionCancel"
 // Direct file import — the barrel would statically pull the inspector drawer into this chunk.
 import {ConversationSkeleton, SessionBarSkeleton} from "./components/AgentChatSkeleton"
 import InspectSessionButton from "./components/Inspector/InspectSessionButton"
 import MountFade from "./components/MountFade"
 import OpenFilesPaneButton from "./components/OpenFilesPaneButton"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
+import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import ShowConfigPanelButton from "./components/ShowConfigPanelButton"
 import {useSessionActions} from "./hooks/useSessionActions"
-import {useSessionShortcuts} from "./hooks/useSessionShortcuts"
-import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "./state/panelLayout"
-import {pendingSessionOpenAtom} from "./state/pendingSessionOpen"
 import {useReconcileServerSessions} from "./state/projectSessions"
 import {
     FILES_PANE_MAX,
@@ -44,6 +57,7 @@ import {
     addSessionAtomFamily,
     adoptSessionAtomFamily,
     closeSessionAtomFamily,
+    closeSessionsAtomFamily,
     pruneSessionHusksAtomFamily,
     renameSessionAtomFamily,
     sessionsListAtomFamily,
@@ -112,8 +126,35 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
     const addSession = useSetAtom(addSessionAtomFamily(scope))
     const closeSession = useSetAtom(closeSessionAtomFamily(scope))
+    const closeSessions = useSetAtom(closeSessionsAtomFamily(scope))
     const renameSession = useSetAtom(renameSessionAtomFamily(scope))
     const setActiveSession = useSetAtom(setActiveSessionAtomFamily(scope))
+    const projectId = useAtomValue(projectIdAtom)
+    const store = useStore()
+    // Closing a running tab IS a stop, so it sends the same cooperative cancel the Stop button does.
+    const cancelIfRunning = useCallback(
+        (id: string) => {
+            const status = store.get(sessionStatusAtomFamily(id))
+            if (projectId && shouldCancelRunOnClose({status, projectId})) {
+                commandSessionStream({sessionId: id, projectId}).catch(() => {})
+            }
+        },
+        [projectId, store],
+    )
+    const handleClose = useCallback(
+        (id: string) => {
+            cancelIfRunning(id)
+            closeSession(id)
+        },
+        [cancelIfRunning, closeSession],
+    )
+    const handleCloseMany = useCallback(
+        (ids: string[]) => {
+            ids.forEach(cancelIfRunning)
+            closeSessions(ids)
+        },
+        [cancelIfRunning, closeSessions],
+    )
     // Stable identity: the tag bar forwards this straight to each memo'd chip.
     const handleRename = useCallback(
         (id: string, title: string) => renameSession({id, title}),
@@ -125,9 +166,8 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     useReconcileServerSessions(scope)
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
-    const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
-    const requestSessionSearch = useSetAtom(sessionSearchRequestAtom)
     const configPanelCollapsed = useAtomValue(configPanelCollapsedAtom)
+    const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
     // The rail pane is `size={0}` + `inert` until maximized, so mounting it on boot renders the
     // whole session list (rows, dots, hover actions) into a zero-width panel. Latch it on first
     // open and keep it mounted after, so toggling back and forth doesn't remount or lose scroll.
@@ -139,41 +179,68 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // panel mounts; every additional session pane skips it (no per-switch flash).
     const composerRevealPlayedRef = useRef(false)
 
-    // A session opened from a project-wide surface (sessions page, Home) lands here after the nav.
-    // Adopt it so a session this browser has never seen becomes a real tab; its transcript then
-    // hydrates from records. Consumed once — clearing the slot is what stops it re-firing.
-    const pendingOpen = useAtomValue(pendingSessionOpenAtom)
-    const setPendingOpen = useSetAtom(pendingSessionOpenAtom)
+    // Sessions opened from a project-wide surface (sessions page, Home) land here after the nav.
+    // Adopt them so a session this browser has never seen becomes a real tab; its transcript then
+    // hydrates from records. EVERY queued entry for this scope is consumed — two rapid creates are
+    // two sessions, not an overwrite (#6042).
+    const pendingOpens = useAtomValue(pendingSessionOpensAtom)
+    const removePendingOpens = useSetAtom(removePendingSessionOpensAtom)
     const adoptSession = useSetAtom(adoptSessionAtomFamily(scope))
-    const pendingOpenForScope = pendingOpen?.appId === scope ? pendingOpen : null
-    // Strict Mode replays this effect with the same captured value; the ref stops the replay
-    // adding a second session before the atom write lands.
-    const consumedOpenRef = useRef<typeof pendingOpen>(null)
+    const pendingOpensForScope = useMemo(
+        () => pendingOpens.filter((t) => t.appId === scope),
+        [pendingOpens, scope],
+    )
+    // Strict Mode replays this effect with the same captured values; the ref stops the replay
+    // adding the same session twice before the atom write lands.
+    const consumedOpensRef = useRef(new Set<PendingSessionOpen>())
     useEffect(() => {
-        if (!pendingOpenForScope || consumedOpenRef.current === pendingOpenForScope) return
-        consumedOpenRef.current = pendingOpenForScope
-        if (pendingOpenForScope.sessionId) {
-            adoptSession({id: pendingOpenForScope.sessionId, title: pendingOpenForScope.title})
-        } else {
-            // No id means "start a fresh conversation here" — Home's composer. It may name the
-            // session up front, so the message it sent along lands in this one and no other.
-            addSession({id: pendingOpenForScope.newSessionId})
+        const fresh = pendingOpensForScope.filter((t) => !consumedOpensRef.current.has(t))
+        if (fresh.length === 0) return
+        for (const target of fresh) {
+            consumedOpensRef.current.add(target)
+            if (target.sessionId) {
+                adoptSession({id: target.sessionId, title: target.title})
+            } else {
+                // No id means "start a fresh conversation here" — Home's composer. It may name the
+                // session up front, so the message it sent along lands in this one and no other.
+                addSession({id: target.newSessionId})
+            }
         }
-        setPendingOpen(null)
-    }, [pendingOpenForScope, adoptSession, addSession, setPendingOpen])
+        removePendingOpens(fresh)
+    }, [pendingOpensForScope, adoptSession, addSession, removePendingOpens])
+
+    // `?session_id=` names the session on screen, so a pasted link and a reload both land on it.
+    // Read once per scope — every in-app open goes through the queue above, which rewrites the
+    // param itself. Adopting is the same verb: the session hydrates from records either way.
+    const [linked, setLinked] = useState(() => ({
+        scope,
+        id: currentSessionParamForScope(scope),
+    }))
+    if (linked.scope !== scope) setLinked({scope, id: currentSessionParamForScope(scope)})
+    const linkedSessionId = linked.scope === scope ? linked.id : ""
+    useEffect(() => {
+        if (!linkedSessionId) return
+        adoptSession({id: linkedSessionId})
+        setLinked({scope, id: ""})
+    }, [linkedSessionId, scope, adoptSession])
 
     // Always keep at least one tab. Re-arms when the list drains without double-firing
     // under StrictMode. Held while a deep-linked session is pending: adopting it satisfies the
     // at-least-one-tab rule, and seeding first would leave a stray blank tab beside it.
+    //
+    // Held too until a project resolves: the session store drops every write made without one, so
+    // seeding early latched `seeded` against a session that was never stored, and the latch only
+    // re-arms while the list is empty — which the reconciler ends by filling history (#6295).
     const seeded = useRef(false)
     useEffect(() => {
-        if (pendingOpenForScope) return
+        if (!projectId) return
+        if (pendingOpensForScope.length > 0 || linkedSessionId) return
         if (sessions.length === 0 && !seeded.current) {
             seeded.current = true
             addSession()
         }
         if (sessions.length > 0) seeded.current = false
-    }, [sessions.length, addSession, pendingOpenForScope])
+    }, [projectId, sessions.length, addSession, pendingOpensForScope, linkedSessionId])
 
     // Sweep husks (never-run, untitled, empty sessions) that accumulated in history — from before
     // the close-time cleanup, or orphaned by a reload. Open tabs are untouched, so this never drops
@@ -185,13 +252,27 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // Tolerate a stale active id (its tab was closed) by falling back to the first tab.
     const activeId = sessions.some((s) => s.id === rawActiveId) ? rawActiveId : sessions[0]?.id
 
+    // Keep the address bar on the session you're looking at, so it stays copyable as you switch
+    // tabs. Held until a pending link is adopted, or this would overwrite the link with whatever
+    // tab the last visit left open.
+    useEffect(() => {
+        if (linkedSessionId || !activeId) return
+        writeSessionParamForScope(scope, activeId)
+    }, [activeId, scope, linkedSessionId])
+
     // Keyboard shortcuts. Switch and rename happen inside per-session components, so they travel as
     // requests on the shared atoms. The drawer mounts a second panel over this one, so exactly one
     // of the two listens; onboarding hides the bar entirely and allows a single session.
     const {setArchived} = useSessionActions()
     const requestComposerFocus = useSetAtom(focusComposerRequestAtom)
     const requestRename = useSetAtom(renameSessionRequestAtom)
+    const requestSessionSearch = useSetAtom(sessionSearchRequestAtom)
     const drawerOpen = useAtomValue(workflowRevisionDrawerOpenAtom)
+    // Docked Files pane — a full-height sibling of the WHOLE chat column (session bar included),
+    // like the config pane on the other side: its divider runs to the top and the session bar
+    // stays confined to the chat. Follows the ACTIVE session (openers set per-session atoms).
+    const filesPane = useSessionFilesPane(activeId ?? "")
+
     useSessionShortcuts({
         sessions,
         activeId,
@@ -229,15 +310,15 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
             requestSessionSearch({scope, nonce: Date.now()})
         }, [chatMaximized, scope, setChatMaximized, requestSessionSearch]),
         onToggleConfigPanel: useCallback(
-            () => setConfigPanelCollapsed((collapsed) => !collapsed),
-            [setConfigPanelCollapsed],
+            () => setConfigPanelCollapsed(!configPanelCollapsed),
+            [configPanelCollapsed, setConfigPanelCollapsed],
         ),
+        onToggleFilesPane: useCallback(() => {
+            if (filesPane.open) filesPane.close()
+            else filesPane.openPane()
+        }, [filesPane]),
     })
 
-    // Docked Files pane — a full-height sibling of the WHOLE chat column (session bar included),
-    // like the config pane on the other side: its divider runs to the top and the session bar
-    // stays confined to the chat. Follows the ACTIVE session (openers set per-session atoms).
-    const filesPane = useSessionFilesPane(activeId ?? "")
     // Workflow artifact id — the key for the agent's durable `agent-files` mount; the pane's
     // DriveSessionProvider needs it here because it sits OUTSIDE the per-tab conversations.
     const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
@@ -297,39 +378,39 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
         if (prevMaximizedRef.current === chatMaximized) return
         prevMaximizedRef.current = chatMaximized
         setHoldAnimate(true)
-        const t = setTimeout(() => setHoldAnimate(false), 280)
+        const t = setTimeout(() => setHoldAnimate(false), paneSlideHoldMs())
         return () => clearTimeout(t)
     }, [chatMaximized])
     const animateRailSplit = justToggled || holdAnimate
+
+    // antd Tabs semantics, hand-rolled: a pane mounts on FIRST activation and stays mounted
+    // (hidden) afterwards, so switching tabs preserves a session's live useChat stream. Rendering
+    // every session eagerly would boot every conversation at once; unmounting on switch would
+    // kill the stream — the visited set is exactly antd's lazy-then-keep contract.
+    const visitedRef = useRef<Set<string>>(new Set())
+    if (activeId) visitedRef.current.add(activeId)
 
     return (
         // The rail gets the SAME resizable splitter treatment as the build-mode config pane (gutter
         // bar + grip). It lives INSIDE the chat panel (not MainLayout's config pane) on purpose: the
         // revision drawer also hosts this panel with its own chat scope, and the rail must follow it.
-        <Splitter
-            className={clsx(
-                "h-full min-h-0 min-w-0 w-full playground-splitter playground-splitter-agent",
-                {
-                    // Build mode: rail pane pinned to 0, bar hidden — mirrors the config pane's collapse.
-                    "playground-splitter-collapsed": !chatMaximized,
-                    "playground-splitter-animated": animateRailSplit,
-                },
-            )}
-            onResize={(sizes) => {
-                if (chatMaximized) setRailSize(sizes[0])
+        <SplitPane
+            paneSide="start"
+            paneSize={chatMaximized ? railSize : 0}
+            paneMin={chatMaximized ? RAIL_MIN_WIDTH : 0}
+            paneMax={RAIL_MAX_WIDTH}
+            fillMin={320}
+            resizable={chatMaximized}
+            animate={animateRailSplit}
+            barHidden={!chatMaximized}
+            className="h-full min-h-0 min-w-0 w-full"
+            onResize={(size) => {
+                if (chatMaximized) setRailSize(size)
             }}
-        >
-            <Splitter.Panel
-                defaultSize={RAIL_WIDTH}
-                size={chatMaximized ? railSize : 0}
-                min={RAIL_MIN_WIDTH}
-                max={RAIL_MAX_WIDTH}
-                collapsible={false}
-                className="!overflow-hidden !p-0"
-            >
-                {/* `inert` drops the clipped rail from tab order + a11y while collapsed. Flex-bounded
-                    (not a plain h-full cascade) so the rail's session list actually scrolls — a bare
-                    h-full chain through the fade wrapper grew with content and never bounded. */}
+            pane={
+                /* `inert` drops the clipped rail from tab order + a11y while collapsed. Flex-bounded
+                   (not a plain h-full cascade) so the rail's session list actually scrolls — a bare
+                   h-full chain through the fade wrapper grew with content and never bounded. */
                 <div className="flex h-full min-h-0 w-full flex-col" inert={!chatMaximized}>
                     {/* Rail pane is width-0 unless maximized, so no visible fallback is needed. */}
                     <Suspense fallback={null}>
@@ -345,10 +426,10 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                         )}
                     </Suspense>
                 </div>
-            </Splitter.Panel>
-            <Splitter.Panel collapsible={false} className="!overflow-hidden !p-0">
-                {/* [chat column | Files pane] — the pane pushes the tabs (bar included) aside and
-                    collapses to 0; the bar's "«/»" toggle and the pane header's "»" both drive it. */}
+            }
+            fill={
+                /* [chat column | Files pane] — the pane pushes the tabs (bar included) aside and
+                   collapses to 0; the bar's "«" and the pane header's "»" both drive it. */
                 <RightPanelSplit
                     open={filesPane.open}
                     widthAtom={filesPaneWidthAtom}
@@ -362,95 +443,96 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                         ) : null
                     }
                 >
-                    <Tabs
-                        animated={false}
-                        // The session bar is an ABSOLUTE overlay (`.ant-tabs-nav` pinned top) so its
-                        // presence never reflows the content. The build↔chat motion is published as a
-                        // CSS var (`--agent-bar-inset`: 48 in build, 0 in chat) that the TRANSCRIPT column
-                        // consumes as its top padding — so only the transcript eases, not the context rail
-                        // beside it (which the shared content-holder padding used to drag up too).
+                    <div
+                        // The session bar is an ABSOLUTE overlay pinned top, so its presence never
+                        // reflows the content. The build↔chat motion is published as a CSS var
+                        // (`--agent-bar-inset`: 48 in build, 0 in chat) that the TRANSCRIPT column
+                        // consumes as its top padding — so only the transcript eases, not the context
+                        // rail beside it.
                         style={
                             {
                                 "--agent-bar-inset": chromeHidden || chatMaximized ? "0px" : "48px",
                             } as CSSProperties
                         }
-                        className="relative flex h-full min-h-0 min-w-0 w-full flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full [&_.ant-tabs-nav]:!mb-0"
-                        activeKey={activeId}
-                        onChange={setActiveSession}
-                        renderTabBar={() => (
-                            // renderTabBar's node stands in for the nav, so making IT absolute (pinned top,
-                            // bounded to the pane width) takes the bar out of flow — the transcript no longer
-                            // reflows when it appears, and the strip has a bounded width so tabs scroll. It just
-                            // fades (opacity) out in chat mode / onboarding while the content padding animates.
-                            <div
-                                className="absolute inset-x-0 top-0 z-10 min-w-0 overflow-hidden motion-safe:transition-opacity motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
-                                style={{
-                                    opacity: chromeHidden || chatMaximized ? 0 : 1,
-                                    pointerEvents:
-                                        chromeHidden || chatMaximized ? "none" : undefined,
-                                }}
-                                // opacity/pointerEvents hide it visually + for the mouse; `inert` also drops
-                                // the hidden tabs from keyboard tab order + a11y (mirrors the rail above).
-                                inert={chromeHidden || chatMaximized}
-                            >
-                                {/* Region fallback = the same bar skeleton the pre-confirmation gate
+                        className="relative flex h-full min-h-0 min-w-0 w-full flex-col"
+                    >
+                        {/* The bar overlay: absolute (out of flow), bounded to the pane width so tabs
+                        scroll; fades out in chat mode / onboarding while the content padding animates. */}
+                        <div
+                            className="absolute inset-x-0 top-0 z-10 min-w-0 overflow-hidden motion-safe:transition-opacity motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
+                            style={{
+                                opacity: chromeHidden || chatMaximized ? 0 : 1,
+                                pointerEvents: chromeHidden || chatMaximized ? "none" : undefined,
+                            }}
+                            // opacity/pointerEvents hide it visually + for the mouse; `inert` also drops
+                            // the hidden tabs from keyboard tab order + a11y (mirrors the rail above).
+                            inert={chromeHidden || chatMaximized}
+                        >
+                            {/* Region fallback = the same bar skeleton the pre-confirmation gate
                             renders, so the strip's lane holds its shape while this chunk loads; the
                             real bar eases in over it (MountFade) instead of popping. */}
-                                <Suspense fallback={<SessionBarSkeleton />}>
-                                    <MountFade>
-                                        <SessionTagBar
-                                            sessions={sessions}
-                                            activeId={activeId}
-                                            onSelect={setActiveSession}
-                                            onAdd={addSession}
-                                            addDisabled={addLocked}
-                                            onClose={closeSession}
-                                            onRename={handleRename}
-                                            showSessions={!chatMaximized}
-                                            leftExtra={
-                                                !chatMaximized && configPanelCollapsed ? (
-                                                    <ShowConfigPanelButton />
-                                                ) : undefined
-                                            }
-                                            extra={
-                                                chatMaximized ? undefined : (
-                                                    <>
-                                                        <InspectSessionButton
-                                                            sessionId={activeId ?? null}
-                                                        />
-                                                        <OpenFilesPaneButton
-                                                            sessionId={activeId ?? null}
-                                                        />
-                                                    </>
-                                                )
-                                            }
-                                        />
-                                    </MountFade>
-                                </Suspense>
-                            </div>
-                        )}
-                        items={sessions.map((session) => ({
-                            key: session.id,
-                            // Bar is rendered by `renderTabBar` (SessionTagBar); the per-item label is unused.
-                            label: null,
-                            children: (
-                                // The heavy conversation body hydrates behind its own transcript/composer
-                                // skeleton (same shape the frame reserves) and eases in over it.
-                                <Suspense fallback={<ConversationSkeleton />}>
-                                    <MountFade className="h-full min-h-0 w-full">
-                                        <AgentConversation
-                                            entityId={entityId}
-                                            sessionId={session.id}
-                                            revealPlayedRef={composerRevealPlayedRef}
-                                        />
-                                    </MountFade>
-                                </Suspense>
-                            ),
-                        }))}
-                    />
+                            <Suspense fallback={<SessionBarSkeleton />}>
+                                <MountFade>
+                                    <SessionTagBar
+                                        sessions={sessions}
+                                        activeId={activeId}
+                                        onSelect={setActiveSession}
+                                        onAdd={addSession}
+                                        addDisabled={addLocked}
+                                        onClose={handleClose}
+                                        onCloseMany={handleCloseMany}
+                                        onRename={handleRename}
+                                        showSessions={!chatMaximized}
+                                        leftExtra={
+                                            !chatMaximized && configPanelCollapsed ? (
+                                                <ShowConfigPanelButton />
+                                            ) : undefined
+                                        }
+                                        extra={
+                                            chatMaximized ? undefined : (
+                                                <>
+                                                    <InspectSessionButton
+                                                        sessionId={activeId ?? null}
+                                                    />
+                                                    <SessionHistoryMenu />
+                                                    <OpenFilesPaneButton
+                                                        sessionId={activeId ?? null}
+                                                    />
+                                                </>
+                                            )
+                                        }
+                                    />
+                                </MountFade>
+                            </Suspense>
+                        </div>
+                        <div className="min-h-0 w-full flex-1">
+                            {sessions.map((session) => {
+                                if (!visitedRef.current.has(session.id)) return null
+                                const active = session.id === activeId
+                                return (
+                                    <div
+                                        key={session.id}
+                                        className={active ? "h-full min-h-0 w-full" : "hidden"}
+                                    >
+                                        {/* The heavy conversation body hydrates behind its own
+                                        transcript/composer skeleton and eases in over it. */}
+                                        <Suspense fallback={<ConversationSkeleton />}>
+                                            <MountFade className="h-full min-h-0 w-full">
+                                                <AgentConversation
+                                                    entityId={entityId}
+                                                    sessionId={session.id}
+                                                    revealPlayedRef={composerRevealPlayedRef}
+                                                />
+                                            </MountFade>
+                                        </Suspense>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
                 </RightPanelSplit>
-            </Splitter.Panel>
-        </Splitter>
+            }
+        />
     )
 }
 

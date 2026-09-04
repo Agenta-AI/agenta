@@ -14,7 +14,7 @@ import {memo} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {atom, useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import MetadataSidebar from "./MetadataSidebar"
 import {

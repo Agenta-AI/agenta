@@ -2,24 +2,34 @@
  * "Show configuration" trigger — reveals the config panel after it was collapsed via the config
  * header's collapse button. Only rendered while collapsed (see AgentChatPanel).
  */
+import {configPanelCollapsedAtom} from "@agenta/chat/state"
+import {shortcutAria} from "@agenta/shared/utils"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {CaretDoubleRight} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
 import {useSetAtom} from "jotai"
-
-import {configPanelCollapsedAtom} from "../state/panelLayout"
 
 export default function ShowConfigPanelButton() {
     const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
 
     return (
-        <Tooltip title="Show configuration">
+        <SimpleTooltip
+            title={
+                <span className="flex items-center gap-1.5">
+                    Show configuration <ShortcutKeys id="panel.config" tone="inverse" />
+                </span>
+            }
+        >
             <Button
-                type="text"
-                size="small"
-                icon={<CaretDoubleRight size={14} />}
-                onClick={() => setConfigPanelCollapsed(false)}
+                variant="ghost"
+                size="icon-sm"
+                aria-keyshortcuts={shortcutAria("panel.config")}
                 aria-label="Show configuration"
-            />
-        </Tooltip>
+                onClick={() => setConfigPanelCollapsed(false)}
+                className="h-7 w-7 shrink-0 p-0"
+            >
+                <CaretDoubleRight size={14} />
+            </Button>
+        </SimpleTooltip>
     )
 }

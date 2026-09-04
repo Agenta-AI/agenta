@@ -1,5 +1,5 @@
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
-import {ModalProps} from "antd"
+import type {EnhancedModalProps as ModalProps} from "@agenta/ui"
 
 export interface ExtendedEnvironment extends AppEnvironmentDeployment {
     revision?:

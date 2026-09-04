@@ -1,13 +1,14 @@
 import {useMemo} from "react"
 
+import type {SidebarScope, SidebarSection, SidebarSlotContext} from "@agenta/navigation"
+import {WORKFLOW_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
+
 import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
 import SidebarBackButton from "../components/SidebarBackButton"
 import SidebarToggleButton from "../components/SidebarToggleButton"
 import WorkflowPicker from "../components/WorkflowPicker"
-import type {SidebarScope, SidebarSection, SidebarSlotContext} from "../engine/types"
 
 import {useSidebarBottomSection} from "./bottomSection"
-import {WORKFLOW_SIDEBAR_SCOPE_ID} from "./constants"
 import {useWorkflowSidebarItems} from "./workflowItems"
 
 interface WorkflowScopeOptions {

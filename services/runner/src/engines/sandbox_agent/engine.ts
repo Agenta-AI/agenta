@@ -4,6 +4,8 @@ import {
   type EmitEvent,
 } from "../../protocol.ts";
 import { acquireEnvironment } from "./environment.ts";
+import { runCredential } from "./runtime-policy.ts";
+import { loadDurableDecisions } from "../../sessions/interactions.ts";
 import { runTurn } from "./run-turn.ts";
 import {
   type RunTurnOptions,
@@ -38,9 +40,15 @@ export async function runSandboxAgent(
   emit?: EmitEvent,
   signal?: AbortSignal,
   deps: SandboxAgentDeps = {},
-  turnOptions: Pick<RunTurnOptions, "credential"> = {},
+  turnOptions: Pick<RunTurnOptions, "credential" | "seededDecisions"> = {},
 ): Promise<AgentRunResult> {
-  const acquired = await acquireEnvironment(request, deps, signal);
+  const acquired = await acquireEnvironment(
+    request,
+    deps,
+    signal,
+    undefined,
+    emit,
+  );
   if (!acquired.ok) return { ok: false, error: acquired.error };
   const env = acquired.env;
   let result: AgentRunResult | undefined;
@@ -48,6 +56,16 @@ export async function runSandboxAgent(
     result = await runTurn(env, request, emit, signal, {
       loaded: env.loadedFromContinuity,
       ...turnOptions,
+      // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
+      // rows the spread would then discard — a claimed row is spent even if it is thrown away.
+      // Read + claim BEFORE the turn: runTurn must not suspend before its responder is wired.
+      seededDecisions:
+        turnOptions.seededDecisions ??
+        (await loadDurableDecisions(
+          env.sessionId,
+          runCredential(request),
+          env.logger,
+        )),
     });
     return result;
   } finally {

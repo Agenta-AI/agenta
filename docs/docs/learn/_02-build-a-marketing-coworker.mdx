@@ -6,6 +6,7 @@ description: "Build an agent that writes marketing copy in your voice, correct i
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
+import { Stream } from "@cloudflare/stream-react";
 ```
 
 In this tutorial you build an agent that works on your marketing, teach it your company and your voice, correct it once, and then hand the recurring part of its job to a schedule. By the end, the agent produces next week's content plan every Monday morning without you opening a chat.
@@ -51,12 +52,8 @@ An agent's instructions are its identity. They live in a file called `AGENTS.md`
 
 In the `Configuration` column, open the `Instructions` section and click the `AGENTS.md` row. The editor opens with an `Edit` and `Preview` control at the top. Click `Source` in the toolbar to edit the raw markdown.
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/instructions-agents-md-editor.png")}
-  alt="The AGENTS.md editor dialog with its toolbar and the writing tips rail"
-  loading="lazy"
-/>
+<Stream controls autoplay muted loop src="527e90e91f5b353cbfe4ebd9035c36d6" height="400px" />
+
 
 Replace what is there with this, then press `Save`:
 
@@ -133,7 +130,7 @@ The agent stops before it writes and shows a card titled `Approval needed to con
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/chat-approval-card.png")}
+  img={require("/images/agents/agenta-approval-wide.png")}
   alt="An approval card in the conversation showing the tool the agent wants to use, with Deny and Approve buttons"
   loading="lazy"
 />
@@ -215,7 +212,7 @@ At the top of the `Configuration` column, press `Commit`. The left pane lists wh
 
 <Image
   style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/commit-dialog.png")}
+  img={require("/images/agents/agenta-issue-triage-wide.png")}
   alt="The commit dialog listing what is changing, with the New version choice and the commit message"
   loading="lazy"
 />
@@ -226,12 +223,8 @@ Every commit is kept, so you can see what the agent looked like at any point and
 
 In `Configuration`, scroll to the `Triggers` heading and its `Schedules` section. Press `Add schedule`. The `New schedule` dialog has four parts.
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/schedules-new-schedule.png")}
-  alt="The New schedule dialog with its cadence list, day and time pickers, version selector, and message box"
-  loading="lazy"
-/>
+<Stream controls autoplay muted loop src="8d439bac8d056105aa2f4dffab6a93cc" height="400px" />
+
 
 1. **`Name`.** Type `Weekly content plan` in `Schedule name`.
 2. **`When should it run?`** Choose `Weekly`. Under `On these days` pick `Mon`. Under `At these times (UTC)` set `09:00`. A green line confirms the schedule it parsed and the next time it fires.

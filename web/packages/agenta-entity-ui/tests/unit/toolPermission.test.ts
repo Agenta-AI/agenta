@@ -13,7 +13,10 @@ import {
     findGrantableHarnessTool,
     findGrantableTool,
     gateRulePattern,
+    readConnectionPermissions,
     readHarnessAllowList,
+    withConnectionPermissions,
+    withConnectionToolPermission,
     withHarnessToolAllow,
     withToolPermission,
 } from "../../src/DrillInView/SchemaControls/toolPermission"
@@ -280,5 +283,105 @@ describe("withHarnessToolAllow", () => {
         const snapshot = JSON.stringify(params)
         withHarnessToolAllow(params, "bash", true)
         expect(JSON.stringify(params)).toBe(snapshot)
+    })
+})
+
+// ---------------------------------------------------------------------------
+// F15: the connection policy write-through
+// ---------------------------------------------------------------------------
+//
+// A `gateway_connection` entry governs a whole integration, so it is addressed by provider and
+// integration rather than by a gate name. The permission drawer writes through these helpers, and
+// the write must land in the draft config immediately: the run reads the draft, so the change takes
+// effect on the in-flight resume and on every future run.
+
+const GITHUB = {provider: "composio", integration: "github"}
+
+const wrapConnection = (permissions: {
+    default: string
+    tools: Record<string, string>
+}): Record<string, unknown> => ({
+    agent: {
+        tools: [
+            {type: "function", function: {name: "my_tool"}},
+            {
+                type: "gateway_connection",
+                connection: {provider: "composio", integration: "github", slug: "github-work"},
+                policy: {permissions},
+            },
+        ],
+    },
+})
+
+const connectionEntry = (parameters: unknown) =>
+    ((parameters as {agent: {tools: unknown[]}}).agent.tools[1] ?? {}) as {
+        connection: Record<string, unknown>
+        policy: {permissions: {default: string; tools: Record<string, string>}}
+    }
+
+describe("F15: the connection policy write-through", () => {
+    it("reads the saved policy of an integration's entry", () => {
+        const parameters = wrapConnection({default: "deny", tools: {GET_ISSUE: "allow"}})
+        expect(readConnectionPermissions(parameters, GITHUB)).toEqual({
+            default: "deny",
+            tools: {GET_ISSUE: "allow"},
+        })
+    })
+
+    it("returns null for an integration the agent has not configured", () => {
+        const parameters = wrapConnection({default: "deny", tools: {}})
+        const linear = {provider: "composio", integration: "linear"}
+        expect(readConnectionPermissions(parameters, linear)).toBe(null)
+        expect(withConnectionToolPermission(parameters, linear, "CREATE_ISSUE", "ask")).toBe(null)
+    })
+
+    it("lands a per-tool change in the draft config immediately", () => {
+        const parameters = wrapConnection({default: "inherit", tools: {}})
+        const next = withConnectionToolPermission(parameters, GITHUB, "DELETE_REPOSITORY", "deny")
+        expect(connectionEntry(next).policy.permissions).toEqual({
+            default: "inherit",
+            tools: {DELETE_REPOSITORY: "deny"},
+        })
+    })
+
+    it("keeps the other tools and the default untouched", () => {
+        const parameters = wrapConnection({default: "ask", tools: {GET_ISSUE: "allow"}})
+        const next = withConnectionToolPermission(parameters, GITHUB, "CREATE_ISSUE", "deny")
+        expect(connectionEntry(next).policy.permissions).toEqual({
+            default: "ask",
+            tools: {GET_ISSUE: "allow", CREATE_ISSUE: "deny"},
+        })
+    })
+
+    it("saves a per-tool value that equals the current default", () => {
+        // Redundancy is intended: the author set it deliberately and it survives a later change of
+        // default. It is also what keeps the override count and the Custom label agreeing.
+        const parameters = wrapConnection({default: "ask", tools: {}})
+        const next = withConnectionToolPermission(parameters, GITHUB, "GET_ISSUE", "ask")
+        expect(connectionEntry(next).policy.permissions.tools).toEqual({GET_ISSUE: "ask"})
+    })
+
+    it("writes a whole preset, clearing the per-tool map", () => {
+        const parameters = wrapConnection({default: "deny", tools: {GET_ISSUE: "allow"}})
+        const next = withConnectionPermissions(parameters, GITHUB, {default: "allow", tools: {}})
+        expect(connectionEntry(next).policy.permissions).toEqual({default: "allow", tools: {}})
+    })
+
+    it("keeps the connection slug and the other tools entries", () => {
+        const parameters = wrapConnection({default: "deny", tools: {}})
+        const next = withConnectionPermissions(parameters, GITHUB, {default: "ask", tools: {}})
+        expect(connectionEntry(next).connection).toEqual({
+            provider: "composio",
+            integration: "github",
+            slug: "github-work",
+        })
+        expect((next as unknown as {agent: {tools: unknown[]}}).agent.tools).toHaveLength(2)
+    })
+
+    it("does not mutate the input parameters", () => {
+        const parameters = wrapConnection({default: "deny", tools: {}})
+        const snapshot = JSON.stringify(parameters)
+        withConnectionToolPermission(parameters, GITHUB, "GET_ISSUE", "allow")
+        expect(JSON.stringify(parameters)).toBe(snapshot)
     })
 })

@@ -1,10 +1,6 @@
+import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {X} from "lucide-react"
 import {AnimatePresence, LayoutGroup, motion} from "motion/react"
-
-import {
-    templateProviderSlugs,
-    type AgentTemplate,
-} from "@/oss/components/pages/agent-home/assets/templates"
 
 import {STRIP_COPY} from "../assets/constants"
 
@@ -20,7 +16,7 @@ const TemplateChip = ({
     onClear,
     className,
 }: {
-    template: AgentTemplate
+    template: AgentStarterTemplate
     onClear: () => void
     className?: string
 }) => (

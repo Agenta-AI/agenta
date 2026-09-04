@@ -162,6 +162,14 @@ async def reset_user_password(request: Request, user_id: str):
             status_code=403,
         )
 
+    project = await db_manager.get_project_by_id(request.state.project_id)
+    owner = await db_manager.get_organization_owner(str(project.organization_id))
+    if owner and str(owner.id) == str(user_id):
+        return JSONResponse(
+            {"detail": "The organization owner's password cannot be reset this way."},
+            status_code=403,
+        )
+
     user_password = await user_service.generate_user_password_reset_link(
         user_id=user_id,
         admin_user_id=request.state.user_id,

@@ -14,6 +14,7 @@ import {
     harnessCapabilitiesAtomFamily,
     harnessCatalogFailedAtom,
     retryHarnessCatalogAtom,
+    type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
@@ -36,6 +37,7 @@ import {
     harnessAllowsModel,
     harnessSupportsUserMcp,
     modelIdFromConfig,
+    bareConnectionModelId,
     modelLabel,
     providerForModel,
     vaultModelGroups,
@@ -53,7 +55,7 @@ import {
 import {PiPermissionsControl} from "../PiPermissionsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
-import {enumLabel} from "./agentTemplateUtils"
+import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
 import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
 import ModelPickerControl from "./ModelPickerControl"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
@@ -74,7 +76,7 @@ export function useModelHarness({
     disabled,
     withTooltip,
     revisionId,
-    buildKitEnabledOverride,
+    buildKitOverride,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
@@ -83,7 +85,7 @@ export function useModelHarness({
     withTooltip?: boolean
     revisionId?: string | null
     /** Draft buffer for the build-kit toggle (used by the section drawer's scoped-edit mode). */
-    buildKitEnabledOverride?: {value: boolean; onChange: (value: boolean) => void}
+    buildKitOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
 }) {
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
     const subProps = useCallback(
@@ -146,7 +148,8 @@ export function useModelHarness({
     // carries through extra keys (e.g. `extras`) so a form edit never silently drops them. The picker
     // is harness-filtered: selecting a model sets BOTH the model id and its provider, fed by the
     // `/inspect` capability map below.
-    const harnessValue = typeof harness.kind === "string" ? (harness.kind as string) : null
+    const harnessValue = effectiveHarnessValue(harness)
+    // "pi_agenta" is a removed experiment; old stored revisions may still carry it.
     const isPiHarness = harnessValue === "pi_core" || harnessValue === "pi_agenta"
     const llm = config.llm
     const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
@@ -342,11 +345,16 @@ export function useModelHarness({
     )
 
     // Prefer the harness catalog's label ("Sonnet") over the stored id ("sonnet"), so the summary
-    // names the model the way the picker did.
+    // names the model the way the picker did. A connection model key is namespaced
+    // ("<connection>/<deployment>/..."), which neither the catalog nor the schema knows it by, so
+    // both are also asked about its bare id — the summary must read as a model name either way.
+    const bareModel = modelId ? bareConnectionModelId(modelId) : null
     const modelSummary =
         [
             enumLabel(harnessProps.kind, harness.kind),
-            modelLabel(capabilities, harnessValue, modelId) ?? enumLabel(props.llm, modelId),
+            modelLabel(capabilities, harnessValue, modelId) ??
+                modelLabel(capabilities, harnessValue, bareModel) ??
+                enumLabel(props.llm, bareModel),
         ]
             .filter(Boolean)
             .join(" · ") || undefined
@@ -373,7 +381,7 @@ export function useModelHarness({
         revisionId: revisionId ?? null,
         sandboxPermissions: (sandbox.permissions as Record<string, unknown> | null) ?? null,
         disabled,
-        enabledOverride: buildKitEnabledOverride,
+        stateOverride: buildKitOverride,
     })
 
     // Which Advanced sub-sections own an uncommitted change (see `ChangedPathsProvider`). Drives
@@ -508,8 +516,10 @@ export function useModelHarness({
             harnessIds={harnessList}
             harness={harnessValue}
             modelId={modelId}
+            provider={connection.provider ?? null}
             mode={connection.mode}
             slug={connection.slug ?? null}
+            replaceable={revisionId?.startsWith("local-") ?? false}
             disabled={disabled}
             // A subscription is a login mounted into the deployment; cloud has nowhere to mount one.
             // isCloud is really isEE today, which would hide subscriptions on self-hosted EE,

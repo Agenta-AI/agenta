@@ -8,7 +8,6 @@
  * const events = await querySessionRecords({sessionId, projectId})
  * ```
  */
-import type {AgentaApi} from "@agentaai/api-client"
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
@@ -180,6 +179,10 @@ export interface RespondInteractionParams extends InteractionScopedParams {
 export const isInteractionConflict = (error: unknown): boolean =>
     (error as {statusCode?: number} | null)?.statusCode === 409
 
+/** True for the backend's `404 No such file or folder`. */
+const isNotFound = (error: unknown): boolean =>
+    (error as {statusCode?: number} | null)?.statusCode === 404
+
 export interface TransitionInteractionParams extends SessionScopedParams {
     token: string
     status: SessionInteractionStatusCode
@@ -206,8 +209,7 @@ export async function transitionInteraction({
             session_id: sessionId,
             token,
             status,
-            // The generated type predates the widened resolution payload.
-            resolution: resolution as AgentaApi.SessionInteractionResolution | undefined,
+            resolution,
         },
         projectScopedRequest(projectId, appId, abortSignal),
     )
@@ -316,6 +318,8 @@ export interface QuerySessionsPageParams {
     turnReferences?: {id?: string; slug?: string; version?: string}[]
     includeEnded?: boolean
     includeArchived?: boolean
+    /** Only archived sessions. Wins over `includeArchived` server-side. */
+    archivedOnly?: boolean
     includeTotal?: boolean
     expand?: SessionExpansion[]
     windowing?: SessionWindowingParams
@@ -330,6 +334,8 @@ export interface QuerySessionsParams {
     references?: {id?: string; slug?: string; version?: string}[]
     includeEnded?: boolean
     includeArchived?: boolean
+    /** Only archived sessions. Wins over `includeArchived` server-side. */
+    archivedOnly?: boolean
     search?: string
     flags?: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean}
     sessionIds?: string[]
@@ -393,6 +399,7 @@ export async function querySessionsPage({
     turnReferences,
     includeEnded,
     includeArchived,
+    archivedOnly,
     includeTotal,
     expand,
     windowing,
@@ -415,6 +422,7 @@ export async function querySessionsPage({
                 turn_references: turnReferences,
                 include_ended: includeEnded,
                 include_archived: includeArchived,
+                archived_only: archivedOnly,
                 include_total: includeTotal,
                 expand,
                 windowing,
@@ -433,6 +441,7 @@ export async function querySessions({
     references,
     includeEnded = true,
     includeArchived = true,
+    archivedOnly,
     search,
     flags,
     sessionIds,
@@ -465,6 +474,7 @@ export async function querySessions({
         turnReferences: references,
         includeEnded,
         includeArchived,
+        archivedOnly,
         windowing:
             limit !== undefined ||
             next !== undefined ||
@@ -912,11 +922,15 @@ export async function readMountFile({
 
     // maxRetries 1: a single small file read; one transient-recovery, no pit. Also keeps the git
     // repo probe (`.git/HEAD` on a non-repo folder → 404) from retrying — 404 isn't retryable anyway.
-    const data = await callFern("[readMountFile]", () =>
-        getMountsClient().getMountFiles(
-            {mount_id: mountId, read: path},
-            projectScopedRequest(projectId, appId, abortSignal, 1),
-        ),
+    // 404 is silent: "not there" is this call's answer, not a failure (#6349).
+    const data = await callFern(
+        "[readMountFile]",
+        () =>
+            getMountsClient().getMountFiles(
+                {mount_id: mountId, read: path},
+                projectScopedRequest(projectId, appId, abortSignal, 1),
+            ),
+        isNotFound,
     )
     if (!data) return null
 

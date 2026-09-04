@@ -321,6 +321,48 @@ class WireResolvedToolSpec(_WireModel):
     permission: Optional[str] = None
 
 
+class WireGatewayTool(_WireModel):
+    """One compiled tool decision inside ``gatewayPolicy`` (contracts section 5).
+
+    ``readOnly`` is TRI-STATE: ``true`` is a read, ``false`` is a write, and ``null`` is
+    unknown because the provider catalog carries no hint. The producer emits the key with a
+    null value rather than dropping it, and the TypeScript mirror declares
+    ``boolean | null``, so a missing key and a null value cannot come to mean different
+    things on the two sides.
+    """
+
+    permission: Literal["allow", "ask", "deny"]
+    read_only: Optional[bool] = Field(default=None, alias="readOnly")
+
+
+class WireGatewayIntegration(_WireModel):
+    """One configured integration inside ``gatewayPolicy``: its routing plus its tool table."""
+
+    provider: str
+    connection: str
+    toolkit_version: str = Field(alias="toolkitVersion")
+    tools: Dict[str, WireGatewayTool] = Field(default_factory=dict)
+
+
+class WireGatewayGuidance(_WireModel):
+    """The derived gateway-tools instruction section (``gatewayGuidance`` on the request)."""
+
+    text: str
+    carrier: Literal["appendSystemPrompt", "agentsMd"]
+
+
+class WireGatewayPolicy(_WireModel):
+    """The private compiled gateway policy (``gatewayPolicy`` on the request).
+
+    Read only by the runner, which gates ``gateway.run`` and filters ``gateway.search``
+    results against it. It never reaches the harness or the sandbox, and ``inherit`` never
+    crosses this boundary: the SDK compiler has already applied it. Omitted entirely when the
+    agent has no ``gateway_connection`` entry.
+    """
+
+    integrations: Dict[str, WireGatewayIntegration] = Field(default_factory=dict)
+
+
 class WirePermissionRule(_WireModel):
     pattern: str
     permission: str
@@ -466,7 +508,7 @@ class WireRunRequest(_WireModel):
 
     Every field is optional on the wire (the contract is implicitly all-optional), so the schema
     expresses "optional" while the producer's omit-when-empty behavior stays in ``wire.py`` and
-    is pinned by the golden fixtures. The harness selects the agent (``pi_core`` / ``pi_agenta``
+    is pinned by the golden fixtures. The harness selects the agent (``pi_core``
     / ``claude``); there is no engine selector on the wire (A3 removed the legacy backend).
     """
 
@@ -515,6 +557,17 @@ class WireRunRequest(_WireModel):
     skills: Optional[List[WireSkill]] = None
     # Policy + prompt overrides + files.
     permissions: Optional[WirePermissions] = None
+    # The private compiled policy for the agent's gateway connections. Top level, because both
+    # derived tools read the same table. Omitted when the agent configures no connection.
+    gateway_policy: Optional[WireGatewayPolicy] = Field(
+        default=None, alias="gatewayPolicy"
+    )
+    # The derived gateway-tools guidance and its prompt carrier. Its own field so the runner
+    # splices it at environment build and the session fingerprint can exclude it (an integration
+    # add must not evict a warm session). Omitted when the agent configures no connection.
+    gateway_guidance: Optional[WireGatewayGuidance] = Field(
+        default=None, alias="gatewayGuidance"
+    )
     system_prompt: Optional[str] = Field(default=None, alias="systemPrompt")
     append_system_prompt: Optional[str] = Field(
         default=None, alias="appendSystemPrompt"

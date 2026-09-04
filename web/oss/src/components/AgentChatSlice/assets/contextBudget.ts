@@ -11,9 +11,8 @@
  * `context_window` per model, delivered to the frontend on the harness-capabilities document and
  * resolved via `contextWindowForModel` (@agenta/entities/workflow). Nothing is hardcoded here.
  */
+import {getMessageUsage} from "@agenta/chat/assets"
 import type {UIMessage} from "ai"
-
-import {getMessageUsage} from "./trace"
 
 export interface ContextBudget {
     /** Latest assistant turn's total tokens — current window occupancy. `null` until a turn has usage. */

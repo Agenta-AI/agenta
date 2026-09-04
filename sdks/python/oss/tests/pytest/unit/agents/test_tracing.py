@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from agenta.sdk.agents import RunContextTrace, RunContextWorkflow
 
 from agenta.sdk.agents import tracing
@@ -31,6 +33,50 @@ def test_trace_context_none_without_traceparent_or_authorization(monkeypatch):
     monkeypatch.setattr(tracing, "inject", lambda _headers: {})
 
     assert tracing.trace_context() is None
+
+
+def test_record_usage_stamps_runner_totals_on_active_workflow_span(monkeypatch):
+    attributes = {}
+    span = SimpleNamespace(
+        set_attribute=lambda key, value: attributes.__setitem__(key, value)
+    )
+    monkeypatch.setattr(tracing.otel_trace, "get_current_span", lambda: span)
+
+    tracing.record_usage({"input": 100, "output": 20, "total": 120, "cost": 0.0042})
+
+    assert attributes == {
+        "gen_ai.usage.input_tokens": 100,
+        "gen_ai.usage.output_tokens": 20,
+        "gen_ai.usage.prompt_tokens": 100,
+        "gen_ai.usage.completion_tokens": 20,
+        "gen_ai.usage.total_tokens": 120,
+        "gen_ai.usage.cost": 0.0042,
+    }
+
+
+def test_record_usage_derives_total_from_input_and_output(monkeypatch):
+    attributes = {}
+    span = SimpleNamespace(
+        set_attribute=lambda key, value: attributes.__setitem__(key, value)
+    )
+    monkeypatch.setattr(tracing.otel_trace, "get_current_span", lambda: span)
+
+    tracing.record_usage({"input": 100, "output": 20})
+
+    assert attributes["gen_ai.usage.total_tokens"] == 120
+
+
+@pytest.mark.parametrize("cost", [0.0, 0.0042])
+def test_record_usage_keeps_cost_without_token_total(monkeypatch, cost):
+    attributes = {}
+    span = SimpleNamespace(
+        set_attribute=lambda key, value: attributes.__setitem__(key, value)
+    )
+    monkeypatch.setattr(tracing.otel_trace, "get_current_span", lambda: span)
+
+    tracing.record_usage({"cost": cost})
+
+    assert attributes == {"gen_ai.usage.cost": cost}
 
 
 def test_run_context_keeps_trace_when_workflow_capture_fails(monkeypatch):

@@ -1,7 +1,12 @@
 import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {getMessageRunError, getMessageTraceId, getMessageUsage} from "../../../src/assets/trace"
+import {
+    getMessageRunError,
+    getMessageRunErrorCode,
+    getMessageTraceId,
+    getMessageUsage,
+} from "../../../src/assets/trace"
 
 describe("getMessageTraceId", () => {
     it("prefers message.metadata.traceId", () => {
@@ -62,6 +67,57 @@ describe("getMessageRunError", () => {
     it("returns undefined when there is no runError", () => {
         const message = {id: "m1", role: "assistant", parts: []} as unknown as UIMessage
         expect(getMessageRunError(message)).toBeUndefined()
+    })
+})
+
+describe("getMessageRunErrorCode", () => {
+    it("reads the code off the run-error metadata", () => {
+        const message = {
+            id: "m1",
+            role: "assistant",
+            metadata: {runError: {message: "boom", code: "starter_credits_exhausted"}},
+            parts: [],
+        } as unknown as UIMessage
+        expect(getMessageRunErrorCode(message)).toBe("starter_credits_exhausted")
+    })
+
+    it("falls back to the live data-agent-error part", () => {
+        const message = {
+            id: "m1",
+            role: "assistant",
+            parts: [{type: "data-agent-error", data: {code: "rate_limited", errorText: "boom"}}],
+        } as unknown as UIMessage
+        expect(getMessageRunErrorCode(message)).toBe("rate_limited")
+    })
+
+    it("prefers the metadata code over the part's", () => {
+        const message = {
+            id: "m1",
+            role: "assistant",
+            metadata: {runError: {message: "boom", code: "starter_credits_program_paused"}},
+            parts: [{type: "data-agent-error", data: {code: "runner_error"}}],
+        } as unknown as UIMessage
+        expect(getMessageRunErrorCode(message)).toBe("starter_credits_program_paused")
+    })
+
+    it("ignores the numeric ParsedRunError code", () => {
+        const message = {
+            id: "m1",
+            role: "assistant",
+            metadata: {runError: {message: "boom", code: 402}},
+            parts: [],
+        } as unknown as UIMessage
+        expect(getMessageRunErrorCode(message)).toBeUndefined()
+    })
+
+    it("returns undefined when nothing carries a code", () => {
+        const message = {
+            id: "m1",
+            role: "assistant",
+            metadata: {runError: {message: "boom"}},
+            parts: [{type: "text", text: "hi"}],
+        } as unknown as UIMessage
+        expect(getMessageRunErrorCode(message)).toBeUndefined()
     })
 })
 

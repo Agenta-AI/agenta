@@ -6,7 +6,7 @@ import {
     formatNextRun,
     summarizeSchedule,
     timesFormCleanGrid,
-    validateCron,
+    validateSchedule,
     type CronCadence,
     type CronTimeOfDay,
     type ScheduleBuilderState,
@@ -139,7 +139,9 @@ export function ScheduleBuilderField({
         [builder, emit],
     )
 
-    const validation = useMemo(() => validateCron(value), [value])
+    // Cadence, not just field shape: the backend refuses anything tighter than its
+    // frequency floor, so catch it here instead of on submit.
+    const validation = useMemo(() => validateSchedule(value), [value])
     const summary = validation.valid ? summarizeSchedule(builder) : value
     const nextLine = useMemo(
         () => (validation.valid ? formatNextRun(value, builder) : ""),

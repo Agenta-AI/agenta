@@ -7,15 +7,18 @@
   "packageManager": "pnpm@10.30.0",
   "scripts": {
     "fetch-fonts": "node scripts/fetch-fonts.mjs",
-    "predev": "node scripts/fetch-fonts.mjs",
+    "predev": "node scripts/fetch-fonts.mjs && node scripts/copy-openapi.mjs",
     "dev": "astro dev",
     "start": "astro dev",
-    "prebuild": "node scripts/fetch-fonts.mjs",
-    "build": "astro build",
+    "prebuild": "node scripts/fetch-fonts.mjs && node scripts/copy-openapi.mjs",
+    "lint:ui": "node scripts/check-ui-primitives.mjs",
+    "build": "node scripts/check-ui-primitives.mjs && astro build",
+    "postbuild": "node scripts/verify-build.mjs",
     "preview": "astro preview",
     "deploy:preview": "PUBLIC_NOINDEX=true astro build && wrangler deploy",
     "astro": "astro",
-    "check": "astro check"
+    "check": "astro check",
+    "test": "vitest run"
   },
   "dependencies": {
     "@astrojs/mdx": "^5.0.6",
@@ -28,6 +31,8 @@
   },
   "devDependencies": {
     "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0"
+    "@types/react-dom": "^19.2.0",
+    "vitest": "^3.2.4",
+    "wrangler": "4.113.0"
   }
 }

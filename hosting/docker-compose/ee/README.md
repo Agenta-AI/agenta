@@ -22,6 +22,7 @@ Open `.env.ee.gh` and set the required values:
 AGENTA_LICENSE=ee
 AGENTA_AUTH_KEY=<generate with: openssl rand -hex 32>
 AGENTA_CRYPT_KEY=<generate with: openssl rand -hex 32>
+AGENTA_SERVICES_INTERNAL_KEY=<generate with: openssl rand -hex 32>
 ```
 
 See [Environment Variables](#environment-variables) for what else you can configure.
@@ -134,6 +135,7 @@ cp hosting/docker-compose/ee/env.ee.gh.example hosting/docker-compose/ee/.env.ee
 | `AGENTA_LICENSE` | Must be `ee`. |
 | `AGENTA_AUTH_KEY` | Secret for internal service authentication. Generate with `openssl rand -hex 32`. |
 | `AGENTA_CRYPT_KEY` | Encryption key for sensitive data at rest. Generate with `openssl rand -hex 32`. |
+| `AGENTA_SERVICES_INTERNAL_KEY` | Proves the Services container is the platform runtime, so a run can read write-only secret values. Set the same value on the API and the Services container; no fallback to `AGENTA_AUTH_KEY`. Generate with `openssl rand -hex 32`. |
 | `AGENTA_WEB_URL` | Public URL of the web frontend (default: `http://localhost`). |
 | `AGENTA_API_URL` | Public URL of the API (default: `http://localhost/api`). |
 | `AGENTA_SERVICES_URL` | Public URL of the services endpoint (default: `http://localhost/services`). |
@@ -146,6 +148,12 @@ Most optional variables can be left empty. A few are worth calling out:
 - **LLM provider keys** (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.): These power the built-in LLM proxy in the playground. Leave empty if your users will provide their own keys at runtime.
 - **SSO / OAuth** (`GOOGLE_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_ID`, etc.): Set a provider's `CLIENT_ID` and `CLIENT_SECRET` to enable it. The frontend auto-detects which providers are configured. Leave empty to use email/password authentication only.
 - **Database** (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_URI_*`): The compose stack includes Postgres with working defaults. Override these only if you bring your own database. **Change the default password in production.**
+
+### Development and Debugging
+
+| Variable | Description |
+|----------|-------------|
+| `AGENTA_SERVICES_ALLOWED_ORIGINS` | Comma-separated web origins that may call the services API. Set this when the development web app runs on a different origin from `AGENTA_SERVICES_URL`, for example `http://localhost:3000,http://192.0.2.10:8680`. Recreate the `services` container after changing it. |
 
 The example file lists all variables with descriptions, grouped by category.
 

@@ -1,12 +1,9 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/AgentChatTransport.ts
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
-// Adaptations: none — `createNegotiatingFetch`/`NegotiatingFetch` come from `@agenta/playground`
-// and `generateId` from `@agenta/shared/utils`, both already allowed package deps; no OSS-app
-// import was involved.
-import {createNegotiatingFetch, type NegotiatingFetch} from "@agenta/playground"
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
+import {createNegotiatingFetch, type NegotiatingFetch} from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
 import {DefaultChatTransport, type UIMessage, type UIMessageChunk} from "ai"
+
+import {installStreamTraceHelper, traceStreamChunks} from "./streamTrace"
 
 /**
  * Agent chat transport.
@@ -226,6 +223,9 @@ export class AgentChatTransport extends DefaultChatTransport<UIMessage> {
         // body stream (`resolvedMode(stream)`), so request and parse stay in lockstep.
         if (this.negotiator.resolvedMode(stream) === "batch")
             return batchJsonToUiMessageStream(stream)
-        return super.processResponseStream(stream)
+        // Deltas pass through untouched: typing cadence is paced at paint by `useTypewriter`.
+        // The trace only timestamps them — see `streamTrace.ts` for why the cadence is measured.
+        installStreamTraceHelper()
+        return traceStreamChunks(super.processResponseStream(stream))
     }
 }

@@ -1,4 +1,6 @@
 ---
+import Badge from "./Badge.astro";
+import Section from "./Section.astro";
 // Ported 1:1 from the design source: "Agenta Landing - Agents (Dark).dc.html"
 // (OPEN SOURCE section, lines 440-482). Static markup + one small copy-button
 // island (the terminal card's "Copy prompt"). The .ag-oss (2-col band) and
@@ -49,9 +51,9 @@ const ossStrip = [
 }));
 ---
 
-<section
+<Section tone="dark"
   data-screen-label="Open source"
-  style="background:var(--ag-d-bg-1);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
+  style="background:var(--th-darksec-oss);"
 >
   <div class="ag-secpad" style="padding:var(--section-pad-y) 0;display:flex;justify-content:center;">
     <div
@@ -59,15 +61,14 @@ const ossStrip = [
       style="width:min(1120px,100%);display:grid;grid-template-columns:420px 1fr;gap:72px;padding:0 28px;box-sizing:border-box;align-items:center;text-align:left;"
     >
       <div style="display:flex;flex-direction:column;gap:24px;">
-        <span
-          style="align-self:flex-start;display:inline-flex;align-items:center;height:24px;padding:0 11px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);font:500 12px/1 var(--font-sans);letter-spacing:0.03em;color:rgba(255,255,255,0.7);"
-          >Open source</span
-        >
-        <span
+        <Badge variant="dark" style="align-self:flex-start;">Open source</Badge>
+        <!-- Real <h2> — see the note in OpenStandards.astro. -->
+        <h2
           class="ag-bighead"
-          style="font:300 44px/1.1 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
-          >Self-host Agenta on your infrastructure</span
+          style="margin:0;font:300 44px/1.1 'GT Alpina',serif;color:#F7F6F4;text-wrap:pretty;"
         >
+          Self-host Agenta on your infrastructure
+        </h2>
         <span
           style="font:var(--text-body-md);color:rgba(255,255,255,0.55);text-wrap:pretty;"
           >MIT-licensed and yours to run. Keep your agents and data on your own
@@ -97,11 +98,10 @@ const ossStrip = [
         </div>
         <div class="ag-oss-btns" style="display:flex;gap:12px;margin-top:6px;">
           <a
-            class="ag-key"
+            class="ag-btn ag-btn--primary"
             href="https://github.com/Agenta-AI/agenta"
             target="_blank"
             rel="noopener"
-            style="--key-alpha:0.9;display:inline-flex;align-items:center;white-space:nowrap;height:40px;padding:0 18px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);font:600 14px/1 var(--font-sans);color:var(--ink-900);text-decoration:none;"
             >Explore on GitHub</a
           >
           <a
@@ -120,10 +120,14 @@ const ossStrip = [
         <div
           style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.08);"
         >
-          <span
-            style="font:400 12px/1 'Geist Mono',monospace;color:rgba(255,255,255,0.4);"
-            >self-host — with your coding agent</span
+          <!-- The terminal card's title: an <h3> under the section's <h2>, so
+               the outline has real depth. Styling is unchanged (margin:0 + the
+               same inline font shorthand). -->
+          <h3
+            style="margin:0;font:400 12px/1 'Geist Mono',monospace;color:rgba(255,255,255,0.4);"
           >
+            self-host — with your coding agent
+          </h3>
           <CopyPromptButton client:visible />
         </div>
         <div
@@ -172,4 +176,4 @@ const ossStrip = [
       </div>
     )
   }
-</section>
+</Section>

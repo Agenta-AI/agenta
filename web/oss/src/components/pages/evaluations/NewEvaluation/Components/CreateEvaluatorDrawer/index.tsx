@@ -180,7 +180,6 @@ const CreateEvaluatorDrawer = ({onEvaluatorCreated}: CreateEvaluatorDrawerProps)
             destroyOnHidden
             title={null}
             closable={false}
-            closeOnLayoutClick={false}
             styles={{body: {padding: 0}}}
         >
             {isOpen && entityId && (

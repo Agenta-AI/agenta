@@ -14,18 +14,12 @@ SharedEditor provides:
 ## Quick Start
 
 ```tsx
-import { SharedEditor } from '@agenta/ui'
+import {SharedEditor} from "@agenta/ui"
 
 function MyEditor() {
-  const [value, setValue] = useState('Hello World')
+    const [value, setValue] = useState("Hello World")
 
-  return (
-    <SharedEditor
-      initialValue={value}
-      handleChange={setValue}
-      placeholder="Enter text..."
-    />
-  )
+    return <SharedEditor initialValue={value} handleChange={setValue} placeholder="Enter text..." />
 }
 ```
 
@@ -33,18 +27,18 @@ function MyEditor() {
 
 ### SharedEditor
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `id` | `string` | auto-generated | Unique editor ID |
-| `initialValue` | `string` | `""` | Initial content |
-| `handleChange` | `(value: string) => void` | - | Change callback (debounced) |
-| `placeholder` | `string` | - | Placeholder text |
-| `state` | `"filled" \| "default"` | `"default"` | Visual state |
-| `disabled` | `boolean` | `false` | Disable editing |
-| `debounceDelay` | `number` | `300` | Debounce delay in ms |
-| `containerVariant` | `"bordered" \| "borderless" \| "textarea"` | `"bordered"` | Container style |
-| `editorProps` | `Partial<EditorProps>` | - | Props passed to Editor |
-| `maxPasteChars` | `number` | `50000` for non-code editors | Blocks paste operations that would make the content exceed this many characters |
+| Prop               | Type                                       | Default                      | Description                                                                     |
+| ------------------ | ------------------------------------------ | ---------------------------- | ------------------------------------------------------------------------------- |
+| `id`               | `string`                                   | auto-generated               | Unique editor ID                                                                |
+| `initialValue`     | `string`                                   | `""`                         | Initial content                                                                 |
+| `handleChange`     | `(value: string) => void`                  | -                            | Change callback (debounced)                                                     |
+| `placeholder`      | `string`                                   | -                            | Placeholder text                                                                |
+| `state`            | `"filled" \| "default"`                    | `"default"`                  | Visual state                                                                    |
+| `disabled`         | `boolean`                                  | `false`                      | Disable editing                                                                 |
+| `debounceDelay`    | `number`                                   | `300`                        | Debounce delay in ms                                                            |
+| `containerVariant` | `"bordered" \| "borderless" \| "textarea"` | `"bordered"`                 | Container style                                                                 |
+| `editorProps`      | `Partial<EditorProps>`                     | -                            | Props passed to Editor                                                          |
+| `maxPasteChars`    | `number`                                   | `50000` for non-code editors | Blocks paste operations that would make the content exceed this many characters |
 
 ### Container Variants
 
@@ -59,13 +53,13 @@ function MyEditor() {
 Re-exported from `@agenta/shared`. Handles debounced input state.
 
 ```tsx
-import { useDebounceInput } from '@agenta/ui'
+import {useDebounceInput} from "@agenta/ui"
 
 const [localValue, setLocalValue] = useDebounceInput(
-  value,           // External value
-  onChange,        // Change callback
-  300,             // Debounce delay (ms)
-  ''               // Default value
+    value, // External value
+    onChange, // Change callback
+    300, // Debounce delay (ms)
+    "", // Default value
 )
 ```
 

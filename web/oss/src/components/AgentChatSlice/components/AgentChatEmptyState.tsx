@@ -1,18 +1,15 @@
-import {useMemo} from "react"
-
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
+import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {isHarnessBuiltinTool} from "@agenta/entity-ui/tool-utils"
+import {AgentIntroCard, useAgentIconChrome} from "@agenta/entity-ui/agent"
+import {Tag} from "@agenta/ui/components/presentational"
+import {Button} from "@agenta/ui/ui"
 import {ArrowRight, Play, Robot} from "@phosphor-icons/react"
-import {Button, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 // Safe: assets/constants is a leaf (imports only dynamicEnv), unlike the agent-home components.
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 import Reveal from "@/oss/components/pages/agent-home/PlaygroundOnboarding/Reveal"
-
-import {chatPanelMaximizedAtom} from "../state/panelLayout"
-
-const {Text} = Typography
 
 /** Copy for the onboarding ("what do you want to build?") empty state — kept local to avoid a circular
  * import with the agent-home module (which itself imports from this slice). */
@@ -42,44 +39,24 @@ const BUILD_STARTERS = [
 ]
 
 /** Read the agent config shape (same layout as ContextTab / buildAgentRequest). */
-const agentModel = (config: unknown): string | null => {
-    const a = (config as {agent?: {llm?: {model?: unknown}; model?: unknown}} | null)?.agent
-    const m = a?.llm?.model ?? a?.model
-    return typeof m === "string" && m ? m : null
-}
 
-const agentSummary = (config: unknown): string | null => {
-    const md = (config as {agent?: {instructions?: {agents_md?: unknown}}} | null)?.agent
-        ?.instructions?.agents_md
-    if (typeof md !== "string" || !md.trim()) return null
-    const line = md
-        .trim()
-        .split("\n")[0]
-        .replace(/^#+\s*/, "")
-    return line.length > 140 ? `${line.slice(0, 140)}…` : line
-}
+const Bot = ({size = 44, workflowId}: {size?: number; workflowId?: string | null}) => {
+    const glyph = Math.round(size * 0.5)
+    const chrome = useAgentIconChrome(workflowId, {
+        size: glyph,
+        fallbackGlyph: <Robot size={glyph} className="text-colorTextSecondary" />,
+        fallbackClassName: "bg-colorFillTertiary",
+    })
 
-export const capabilityLabel = (config: unknown): string | null => {
-    const a = (config as {agent?: {tools?: unknown[]; skills?: unknown[]}} | null)?.agent
-    // Legacy harness built-in entries are ignored and render nowhere, so they must not be counted.
-    const tools = Array.isArray(a?.tools)
-        ? a!.tools!.filter((tool) => !isHarnessBuiltinTool(tool)).length
-        : 0
-    const skills = Array.isArray(a?.skills) ? a!.skills!.length : 0
-    const parts: string[] = []
-    if (tools) parts.push(`${tools} tool${tools === 1 ? "" : "s"}`)
-    if (skills) parts.push(`${skills} skill${skills === 1 ? "" : "s"}`)
-    return parts.length ? parts.join(" · ") : null
+    return (
+        <div
+            className={`flex shrink-0 items-center justify-center rounded-full ${chrome.className}`}
+            style={{width: size, height: size, ...chrome.style}}
+        >
+            {chrome.glyph}
+        </div>
+    )
 }
-
-const Bot = ({size = 44}: {size?: number}) => (
-    <div
-        className="flex shrink-0 items-center justify-center rounded-full bg-colorFillTertiary"
-        style={{width: size, height: size}}
-    >
-        <Robot size={Math.round(size * 0.5)} className="text-colorTextSecondary" />
-    </div>
-)
 
 /**
  * The agent chat empty state, adapting to the playground mode:
@@ -94,6 +71,7 @@ const AgentChatEmptyState = ({
     entityId,
     onStart,
     firstRunPrompt,
+    showTemplateStrip = false,
     canStart = true,
     onboarding = false,
     onPrefill,
@@ -102,6 +80,12 @@ const AgentChatEmptyState = ({
     onStart: (text: string) => void
     /** A just-created agent's starting prompt — surfaced here instead of pre-filling the composer. */
     firstRunPrompt?: string | null
+    /**
+     * The composer-docked template strip is rendering (flag owned by AgentConversation, which hands
+     * the same value to the dock) — it replaces the starter pills. When it is NOT rendering, the
+     * pills stay, so a blank session on an existing agent never lands on an actionless empty state.
+     */
+    showTemplateStrip?: boolean
     /** Whether the Start CTA is enabled (false when the model isn't connected). */
     canStart?: boolean
     /**
@@ -113,11 +97,11 @@ const AgentChatEmptyState = ({
     /** Prefill the composer with a quick-start prompt (onboarding "Try" chips). */
     onPrefill?: (text: string) => void
 }) => {
+    const rawWorkflowId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
+    // A draft agent has no persisted id to key an icon by.
+    const workflowId = rawWorkflowId && !isLocalDraftId(rawWorkflowId) ? rawWorkflowId : null
+
     const buildMode = !useAtomValue(chatPanelMaximizedAtom)
-    const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId))
-    const config = useAtomValue(
-        useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
-    )
 
     if (onboarding && TEMPLATE_STRIP_MODE) {
         // Strip era: no tour video, no "Agent builder" eyebrow, no left-panel hint/starters — the
@@ -127,12 +111,12 @@ const AgentChatEmptyState = ({
         return (
             <div className="relative flex w-full flex-col py-6">
                 <Reveal className="mx-auto flex w-full max-w-[880px] flex-col gap-3">
-                    <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
+                    <h2 className="m-0 text-[30px] font-semibold leading-tight text-colorText">
                         {ONBOARDING_COPY.title}
-                    </Typography.Title>
-                    <Text className="!text-base !text-[var(--ag-colorTextSecondary)]">
+                    </h2>
+                    <span className="text-[15px] text-[var(--ag-colorTextSecondary)]">
                         {ONBOARDING_COPY.subtitleStrip}
-                    </Text>
+                    </span>
                 </Reveal>
             </div>
         )
@@ -177,21 +161,20 @@ const AgentChatEmptyState = ({
                 <Reveal className="mx-auto flex w-full max-w-[880px] flex-col gap-3">
                     <div className="flex items-center gap-2">
                         <Tag
-                            color="processing"
-                            className="!m-0 !rounded !px-1.5 !py-0 !text-[12px] !font-semibold !uppercase !leading-5"
-                        >
-                            {ONBOARDING_COPY.eyebrowNew}
-                        </Tag>
+                            tone="processing"
+                            label={ONBOARDING_COPY.eyebrowNew}
+                            className="m-0 rounded px-1.5 py-0 text-[12px] font-semibold uppercase leading-5"
+                        />
                         <span className="text-xs font-medium text-[var(--ag-colorTextSecondary)]">
                             {ONBOARDING_COPY.eyebrow}
                         </span>
                     </div>
-                    <Typography.Title level={2} className="!m-0 !text-[30px] !leading-tight">
+                    <h2 className="m-0 text-[30px] font-semibold leading-tight text-colorText">
                         {ONBOARDING_COPY.title}
-                    </Typography.Title>
-                    <Text className="!text-base !text-[var(--ag-colorTextSecondary)]">
+                    </h2>
+                    <span className="text-[15px] text-[var(--ag-colorTextSecondary)]">
                         {ONBOARDING_COPY.subtitle}
-                    </Text>
+                    </span>
                     <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                         {ONBOARDING_COPY.hint}
                     </span>
@@ -217,83 +200,46 @@ const AgentChatEmptyState = ({
     if (!buildMode) {
         return (
             <div className="m-auto flex max-w-sm flex-col items-center gap-2.5 text-center">
-                <Bot />
-                <Text className="!text-base !font-medium">What can I help you with?</Text>
-                <Text type="secondary" className="!text-xs !leading-relaxed">
+                <Bot workflowId={workflowId} />
+                <span className="text-base font-medium text-colorText">
+                    What can I help you with?
+                </span>
+                <span className="text-xs leading-relaxed text-colorTextSecondary">
                     Ask a question, or describe a task you want this agent to run.
-                </Text>
+                </span>
             </div>
         )
     }
 
-    const model = agentModel(config)
-    const capabilities = capabilityLabel(config)
-    const summary = agentSummary(config)
-
     return (
         <div className="m-auto w-full max-w-[420px]">
-            <div className="flex flex-col gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-4">
-                <div className="flex items-center gap-2.5">
-                    <Bot size={34} />
-                    <div className="min-w-0">
-                        <Text
-                            className="!text-sm !font-medium block truncate"
-                            title={name || "Agent"}
-                        >
-                            {name || "Agent"}
-                        </Text>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                            {model ? (
-                                <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px font-mono text-xs text-colorTextSecondary">
-                                    {model}
-                                </span>
-                            ) : null}
-                            {capabilities ? (
-                                <span className="rounded-full border border-solid border-colorBorderSecondary bg-colorBgContainer px-1.5 py-px text-xs text-colorTextSecondary">
-                                    {capabilities}
-                                </span>
-                            ) : null}
-                        </div>
-                    </div>
-                </div>
-
-                {summary ? (
-                    <Text type="secondary" className="!text-xs !leading-relaxed">
-                        {summary}
-                    </Text>
-                ) : null}
-
+            <AgentIntroCard entityId={entityId} />
+            <div className="mt-3 flex flex-col gap-3">
                 {firstRunPrompt ? (
                     <div className="flex flex-col gap-2">
-                        <Text
-                            type="secondary"
-                            className="!text-xs !font-medium uppercase tracking-wide"
-                        >
+                        <span className="text-xs font-medium uppercase tracking-wide text-colorTextSecondary">
                             We'll start with
-                        </Text>
+                        </span>
                         <div className="whitespace-pre-wrap break-words rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer px-3 py-2 text-xs leading-relaxed text-colorText">
                             {firstRunPrompt}
                         </div>
                         <Button
-                            type="primary"
                             disabled={!canStart}
                             onClick={() => onStart(firstRunPrompt)}
-                            className="!inline-flex items-center gap-1.5 self-start !shadow-none"
+                            className="self-start shadow-none"
                         >
                             Start
                             <ArrowRight size={14} />
                         </Button>
                         {canStart ? null : (
-                            <Text type="secondary" className="!text-xs">
+                            <span className="text-xs text-colorTextSecondary">
                                 Connect a model below to start.
-                            </Text>
+                            </span>
                         )}
                     </div>
-                ) : TEMPLATE_STRIP_MODE ? null : ( // Strip era: the composer-docked strip replaces the starter pills.
+                ) : showTemplateStrip ? null : ( // The composer-docked strip is up; it replaces the starter pills.
                     <div className="flex flex-col items-start gap-1.5">
-                        <Text type="secondary" className="!text-xs">
-                            Try
-                        </Text>
+                        <span className="text-xs text-colorTextSecondary">Try</span>
                         {BUILD_STARTERS.map((starter) => (
                             <button
                                 key={starter}

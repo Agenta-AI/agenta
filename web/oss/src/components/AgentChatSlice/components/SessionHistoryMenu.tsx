@@ -1,7 +1,17 @@
 import {useState} from "react"
 
+import {sessionMessagesAtom} from "@agenta/chat/state"
 import {killSession} from "@agenta/entities/session"
-import {message} from "@agenta/ui/app-message"
+import {timeAgo} from "@agenta/shared/utils"
+import {message, modal} from "@agenta/ui/app-message"
+import {
+    Button,
+    EmptyState,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
 import {
     Archive,
     ArrowCounterClockwise,
@@ -11,7 +21,6 @@ import {
     Trash,
 } from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
-import {Button, Empty, Popconfirm, Popover, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -27,14 +36,10 @@ import {
     firstUserText,
     openSessionAtomFamily,
     sessionHistoryAtomFamily,
-    sessionMessagesAtom,
-    timeAgo,
     unarchiveSessionAtomFamily,
 } from "../state/sessions"
 
 import {SessionStatusDot} from "./SessionTagBar"
-
-const {Text} = Typography
 
 /**
  * One history row. Reads this session's backend liveness so it can (a) show the same status dot as
@@ -94,10 +99,10 @@ const SessionHistoryRow = ({
         >
             <SessionStatusDot sessionId={session.id} />
             <div className="flex min-w-0 flex-1 flex-col">
-                <Text className="!text-xs" ellipsis={{tooltip: label}}>
+                <span className="truncate text-xs text-colorText" title={label}>
                     {label}
-                </Text>
-                <Text type="secondary" className="flex items-center gap-1.5 !text-xs">
+                </span>
+                <span className="flex items-center gap-1.5 text-xs text-colorTextSecondary">
                     {archived && (
                         <span className="rounded bg-colorFillTertiary px-1 text-[12px] leading-4">
                             Archived
@@ -109,70 +114,76 @@ const SessionHistoryRow = ({
                         </span>
                     )}
                     {timeAgo(session.lastMessageAt ?? session.createdAt)}
-                </Text>
+                </span>
             </div>
             {!archived && nest.isAlive && (
-                <Popconfirm
-                    title="End this session?"
-                    description="The agent's sandbox will be torn down."
-                    okText="End session"
-                    okButtonProps={{danger: true, loading: killing}}
-                    onConfirm={endSession}
-                >
-                    <Tooltip title="End session">
-                        <Button
-                            type="text"
-                            size="small"
-                            aria-label="End session"
-                            className="!opacity-0 group-hover:!opacity-100"
-                            icon={<Power size={14} />}
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                    </Tooltip>
-                </Popconfirm>
+                <SimpleTooltip title="End session">
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="End session"
+                        disabled={killing}
+                        className="opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            modal.confirm({
+                                title: "End this session?",
+                                content: "The agent's sandbox will be torn down.",
+                                okText: "End session",
+                                okButtonProps: {danger: true},
+                                onOk: endSession,
+                            })
+                        }}
+                    >
+                        <Power size={14} />
+                    </Button>
+                </SimpleTooltip>
             )}
             {archived ? (
-                <Tooltip title="Unarchive session">
+                <SimpleTooltip title="Unarchive session">
                     <Button
-                        type="text"
-                        size="small"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label="Unarchive session"
-                        className="!opacity-0 group-hover:!opacity-100"
-                        icon={<ArrowCounterClockwise size={14} />}
+                        className="opacity-0 group-hover:opacity-100"
                         onClick={(e) => {
                             e.stopPropagation()
                             onUnarchive()
                         }}
-                    />
-                </Tooltip>
+                    >
+                        <ArrowCounterClockwise size={14} />
+                    </Button>
+                </SimpleTooltip>
             ) : (
-                <Tooltip title="Archive session">
+                <SimpleTooltip title="Archive session">
                     <Button
-                        type="text"
-                        size="small"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label="Archive session"
-                        className="!opacity-0 group-hover:!opacity-100"
-                        icon={<Archive size={14} />}
+                        className="opacity-0 group-hover:opacity-100"
                         onClick={(e) => {
                             e.stopPropagation()
                             onArchive()
                         }}
-                    />
-                </Tooltip>
+                    >
+                        <Archive size={14} />
+                    </Button>
+                </SimpleTooltip>
             )}
-            <Tooltip title="Delete session">
+            <SimpleTooltip title="Delete session">
                 <Button
-                    type="text"
-                    size="small"
+                    variant="ghost"
+                    size="icon-sm"
                     aria-label="Delete session"
-                    className="!opacity-0 group-hover:!opacity-100"
-                    icon={<Trash size={14} />}
+                    className="opacity-0 group-hover:opacity-100"
                     onClick={(e) => {
                         e.stopPropagation()
                         onDelete()
                     }}
-                />
-            </Tooltip>
+                >
+                    <Trash size={14} />
+                </Button>
+            </SimpleTooltip>
         </div>
     )
 }
@@ -199,10 +210,10 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
 
     if (history.length === 0 && archivedHistory.length === 0) {
         return (
-            <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
+            <EmptyState
+                image="simple"
                 description={<span className="text-xs">No sessions yet</span>}
-                className="!my-2"
+                className="my-2"
             />
         )
     }
@@ -244,7 +255,10 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
                                 session={session}
                                 label={labelOf(session)}
                                 archived
-                                onOpen={() => undefined}
+                                onOpen={() => {
+                                    openSession(session.id)
+                                    onPicked()
+                                }}
                                 onDelete={() => deleteSession(session.id)}
                                 onArchive={() => archiveSession(session.id)}
                                 onUnarchive={() => unarchiveSession(session.id)}
@@ -264,22 +278,16 @@ const SessionHistoryList = ({onPicked}: {onPicked: () => void}) => {
 const SessionHistoryMenu = () => {
     const [open, setOpen] = useState(false)
     return (
-        <Popover
-            open={open}
-            onOpenChange={setOpen}
-            trigger="click"
-            placement="bottomRight"
-            title={<span className="text-xs font-medium">Session history</span>}
-            content={<SessionHistoryList onPicked={() => setOpen(false)} />}
-        >
-            <Tooltip title="Session history">
-                <Button
-                    type="text"
-                    size="small"
-                    aria-label="Session history"
-                    icon={<ClockCounterClockwise size={16} />}
-                />
-            </Tooltip>
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label="Session history">
+                    <ClockCounterClockwise size={16} />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="flex flex-col gap-1 p-2">
+                <span className="px-2 pt-1 text-xs font-medium">Session history</span>
+                <SessionHistoryList onPicked={() => setOpen(false)} />
+            </PopoverContent>
         </Popover>
     )
 }

@@ -1,6 +1,5 @@
+import {timeAgo} from "@agenta/shared/utils"
 import {Skeleton, Tooltip} from "antd"
-
-import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 
 import {useAgentLastSession} from "./useAgentActivity"
 

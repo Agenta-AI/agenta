@@ -1,6 +1,11 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {NotFoundScreen} from "@agenta/auth-ui"
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
+import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
+import {ProjectWatch} from "@agenta/sessions/watch"
+import AppMessageContext from "@agenta/ui/app-message"
+import {useVisualViewportHeight} from "@agenta/ui/hooks"
 import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"
@@ -11,11 +16,12 @@ import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 
 import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
+import {refreshSession} from "@/oss/lib/helpers/auth/refreshSession"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
-import {getProjectValues, useProjectData} from "@/oss/state/project"
+import {getProjectValues, routeContextAtom, useProjectData} from "@/oss/state/project"
 import {
     cacheLastUsedProjectId,
     demoReturnHintDismissedAtom,
@@ -27,7 +33,6 @@ import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
-import {SETTINGS_SIDEBAR_SCOPE_ID} from "../Sidebar/scopes/constants"
 import {resolveSidebarLastPath} from "../Sidebar/scopes/sidebarLastPath"
 import {resolveSidebarView} from "../Sidebar/scopes/viewRegistry"
 import type {SidebarView} from "../Sidebar/types"
@@ -36,7 +41,6 @@ import {useStyles} from "./assets/styles"
 import AuthUpgradeHost from "./AuthUpgradeHost"
 import ErrorFallback from "./ErrorFallback"
 import PostHogThemeCapture from "./PostHogThemeCapture"
-import ProjectWatch from "./ProjectWatch"
 import {SidebarIsland} from "./SidebarIsland"
 import {useAppTheme} from "./ThemeContextProvider"
 
@@ -65,11 +69,6 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isAnnotations = pathname.includes("/annotations")
     const isRegistry = pathname.includes("/variants")
     const isObservability = pathname.includes("/observability") || pathname.includes("/traces")
-    // The Audit Log settings tab hosts a full-height InfiniteVirtualTable.
-    // Scoped to the `tab` query param so other settings tabs keep the default
-    // (content-flow) layout.
-    const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab
-    const isAuditLog = pathname.includes("/settings") && tab === "auditLog"
     // The agent-templates gallery has its own fixed header + rail with an
     // internally-scrolling card grid, so it needs the bounded full-height frame.
     const isAgentTemplates = pathname.includes("/agent-templates")
@@ -93,7 +92,6 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isAnnotations ||
             isRegistry ||
             isObservability ||
-            isAuditLog ||
             isAgentTemplates ||
             isAgents ||
             isSessions ||
@@ -405,7 +403,7 @@ const AppWithVariants = memo(
                                             <ConfigProvider theme={contentThemeConfig}>
                                                 <div
                                                     className={clsx("w-full", {
-                                                        "flex min-h-0 flex-col gap-6 h-[calc(100dvh-29px)] overflow-hidden":
+                                                        "flex min-h-0 flex-col gap-6 h-[calc(var(--ag-viewport-height,100dvh)-29px)] overflow-hidden":
                                                             isFullHeight,
                                                         "flex flex-col":
                                                             !isFullHeight && !isAppRoute,
@@ -431,22 +429,41 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const classes = useStyles({themeMode: appTheme})
     const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator, isFullHeight} =
         useCommittedLayoutFlags()
+    // From the router, not the flags atom: that atom is keyed on the parsed URL and goes
+    // stale on the hop off a 404. /404 renders bare like the auth screens.
+    const router = useRouter()
+    // An address naming a workspace or project that does not exist is a 404, and it is owned here
+    // rather than per page: every route under /w carries those ids, so one guard covers them all.
+    const {isNotFound: isRouteNotFound} = useAtomValue(routeContextAtom)
+    const isBareRoute = isAuthRoute || router.pathname === "/404" || isRouteNotFound
+
+    // One owner for the whole app. A phone keyboard opens over the page, so every frame sized
+    // against the layout viewport hides its bottom edge behind it. This publishes the visible
+    // height as `--ag-viewport-height`, and each full-height frame reads it with a `100dvh`
+    // fallback. Mounting it here rather than per page means the playground, the agent overview,
+    // sessions, annotations and the auth screens are all covered by one call. Idle on desktop.
+    useVisualViewportHeight()
 
     const [, contextHolder] = Modal.useModal()
 
     return (
         <>
             <PostHogThemeCapture />
-            {typeof window === "undefined" ? null : isAuthRoute ? (
+            <AppMessageContext />
+            {typeof window === "undefined" ? null : isBareRoute ? (
                 <Layout className={classes.layout}>
                     <ErrorBoundary FallbackComponent={ErrorFallback}>
-                        {children}
+                        {isRouteNotFound ? (
+                            <NotFoundScreen onBack={() => router.back()} path={router.asPath} />
+                        ) : (
+                            children
+                        )}
                         {contextHolder}
                     </ErrorBoundary>
                 </Layout>
             ) : (
                 <ProtectedRoute shell="app">
-                    <ProjectWatch />
+                    <ProjectWatch refreshSession={refreshSession} />
                     <AppWithVariants
                         isAppRoute={isAppRoute}
                         classes={classes}

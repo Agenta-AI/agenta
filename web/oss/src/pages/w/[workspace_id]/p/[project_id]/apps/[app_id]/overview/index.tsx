@@ -1,10 +1,10 @@
-import {memo, useState} from "react"
+import {memo, useEffect, useState} from "react"
 
+import {AgentActionsMenu, AgentOverviewSkeleton} from "@agenta/entity-ui/agent"
 import {PageLayout} from "@agenta/ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
-import {MoreOutlined} from "@ant-design/icons"
-import {Copy, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Space, Typography} from "antd"
+import {SkeletonBlock} from "@agenta/ui/ui"
+import {Space, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -19,9 +19,9 @@ import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsO
 import WorkflowPageTitle from "@/oss/components/PageTitle/WorkflowPageTitle"
 import RequireWorkflowKind from "@/oss/components/RequireWorkflowKind"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {useAppsData} from "@/oss/state/app"
-import {currentWorkflowAtom} from "@/oss/state/workflow"
+import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
+import {currentWorkflowAtom, playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 const CustomWorkflowHistory: any = dynamic(
     () => import("@/oss/components/pages/app-management/drawers/CustomWorkflowHistory"),
@@ -53,82 +53,35 @@ const AppDetailsSection = memo(() => {
     return (
         <>
             <Space className="flex items-center gap-3">
-                <Title level={3} className="!m-0">
-                    {workflowName}
-                </Title>
+                {/* An empty <h3> is a title-shaped hole; hold the line's height until the name lands. */}
+                {workflowName ? (
+                    <Title level={3} className="!m-0">
+                        {workflowName}
+                    </Title>
+                ) : (
+                    <SkeletonBlock active className="h-7 w-48" />
+                )}
 
-                <Dropdown
-                    trigger={["click"]}
-                    styles={{
-                        root: {
-                            width: 180,
-                        },
+                <AgentActionsMenu
+                    agent={{
+                        id: workflowId,
+                        name: workflowName,
+                        slug: currentWorkflow?.slug,
                     }}
-                    menu={{
-                        items: [
-                            ...(currentWorkflow?.flags?.is_custom
-                                ? [
-                                      {
-                                          key: "configure",
-                                          label: "Configure",
-                                          icon: <PencilSimple size={16} />,
-                                          onClick: openModal,
-                                      },
-                                      //   {
-                                      //       key: "history",
-                                      //       label: "History",
-                                      //       icon: <ClockCounterClockwise size={16} />,
-                                      //       onClick: () =>
-                                      //           setIsCustomWorkflowHistoryDrawerOpen(true),
-                                      //   },
-                                  ]
-                                : [
-                                      {
-                                          key: "rename_app",
-                                          label: "Rename",
-                                          icon: <PencilSimple size={16} />,
-                                          onClick: () =>
-                                              openEditAppModal({
-                                                  id: workflowId,
-                                                  name: workflowName,
-                                                  onRenamed: async () => {
-                                                      await mutateApps?.()
-                                                  },
-                                              }),
-                                      },
-                                  ]),
-                            {
-                                key: "copy_id",
-                                label: "Copy ID",
-                                icon: <Copy size={16} />,
-                                onClick: () => copyToClipboard(workflowId),
+                    // The desktop keeps its app-management modals: they validate, and the edit
+                    // flow refreshes the apps cache the rest of this app reads.
+                    onRename={() =>
+                        openEditAppModal({
+                            id: workflowId,
+                            name: workflowName,
+                            onRenamed: async () => {
+                                await mutateApps?.()
                             },
-                            ...(currentWorkflow?.slug
-                                ? [
-                                      {
-                                          key: "copy_slug",
-                                          label: "Copy Slug",
-                                          icon: <Copy size={16} />,
-                                          onClick: () => copyToClipboard(currentWorkflow.slug!),
-                                      },
-                                  ]
-                                : []),
-                            {
-                                key: "delete_app",
-                                label: "Delete",
-                                icon: <Trash size={16} />,
-                                danger: true,
-                                onClick: () =>
-                                    openDeleteAppModal({
-                                        id: workflowId,
-                                        name: workflowName,
-                                    }),
-                            },
-                        ],
-                    }}
-                >
-                    <Button type="text" icon={<MoreOutlined />} />
-                </Dropdown>
+                        })
+                    }
+                    onDelete={() => openDeleteAppModal({id: workflowId, name: workflowName})}
+                    onConfigure={currentWorkflow?.flags?.is_custom ? openModal : undefined}
+                />
             </Space>
         </>
     )
@@ -152,6 +105,21 @@ const OverviewContent = () => {
     const agents = useAtomValue(agentsWorkflowsAtom)
     const agentsLoading = useAtomValue(agentsWorkflowsLoadingAtom)
     const isAgent = Boolean(appId) && agents.some((agent) => agent.workflowId === appId)
+    // Which SKELETON to hold the page with while the list above resolves — never which branch
+    // renders. Revision-derived like the list, but answered by the lightweight latest-revision
+    // query (with a persisted fallback), so it lands first. A prompt app must not be shown an
+    // agent's surface, so only a workflow this does not rule out gets the agent placeholder.
+    const earlyAgentState = useAtomValue(playgroundEarlyAgentStateAtom)
+    const skeletonIsAgentShaped = agentsLoading && earlyAgentState !== "non-agent"
+    // The agent layout scrolls INSIDE itself, so it needs the bounded frame. Requested here
+    // rather than inside `AgentOverview` so the placeholder gets the same frame as the body it
+    // stands in for — asking only once the body mounted made the page reflow at the handoff.
+    const needsFullHeight = isAgent || skeletonIsAgentShaped
+    const requestFullHeight = useSetAtom(layoutFullHeightRequestAtom)
+    useEffect(() => {
+        requestFullHeight(needsFullHeight)
+        return () => requestFullHeight(false)
+    }, [needsFullHeight, requestFullHeight])
     // An agent's overview is about its work, not its prompt revisions or evaluation runs.
     // Held while the list resolves so those sections never flash in and then vanish.
     const showWorkflowSections = !isAgent && !agentsLoading
@@ -161,12 +129,12 @@ const OverviewContent = () => {
     return (
         <>
             <WorkflowPageTitle title="Overview" />
-            {/* The agent branch runs inside the layout's bounded frame (it asks for it), so the
-                page column must be allowed to shrink or its children can't take a definite
-                height and the per-column scrolls collapse back into one page scroll. It also
-                takes the shared centred column, like Home — the prompt-app/evaluator branch
-                below stays full width for its charts and evaluation tables. */}
-            <PageLayout className={clsx("gap-8", isAgent && [pageContentWidthClass, "min-h-0"])}>
+            {/* The agent branch takes the shared centred column, like Home; the prompt-app and
+                evaluator branch below stays full width for its charts and evaluation tables. The
+                placeholder claims the same column so the page does not change width under it. */}
+            <PageLayout
+                className={clsx("gap-8", needsFullHeight && [pageContentWidthClass, "min-h-0"])}
+            >
                 <AppDetailsSection />
 
                 {/* An agent's overview is its own surface. Charts move into that layout's usage
@@ -176,6 +144,10 @@ const OverviewContent = () => {
                     so neither flashes in and vanishes. */}
                 {isAgent && appId ? (
                     <AgentOverview appId={appId} agentName={currentWorkflow?.name ?? undefined} />
+                ) : skeletonIsAgentShaped ? (
+                    // Waiting is not nothing: this branch rendered null, so the page sat blank
+                    // under its own title for the whole classification.
+                    <AgentOverviewSkeleton />
                 ) : agentsLoading ? null : (
                     <>
                         <ObservabilityOverview />

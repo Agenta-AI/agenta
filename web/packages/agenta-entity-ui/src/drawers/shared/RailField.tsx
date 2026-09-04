@@ -11,6 +11,7 @@
  */
 import type {ReactNode} from "react"
 
+import {cn} from "@agenta/ui/styles"
 import {
     Button,
     Popover,
@@ -37,6 +38,8 @@ export interface RailFieldProps {
      * something did. Opt-in: without a path (or a provider) the row renders exactly as before.
      */
     path?: string
+    /** Drop the `max-w-prose` cap — for full-width lists rather than form inputs. @default false */
+    wide?: boolean
     children: ReactNode
 }
 
@@ -116,7 +119,7 @@ function ChangedDetail({
     )
 }
 
-export function RailField({label, align = "top", path, children}: RailFieldProps) {
+export function RailField({label, align = "top", path, wide, children}: RailFieldProps) {
     const changed = useChangedPath(path)
     const detail = useChangedDetail(path)
     const revert = useRevertPath(path)
@@ -153,7 +156,12 @@ export function RailField({label, align = "top", path, children}: RailFieldProps
                     label
                 )}
             </div>
-            <div className="flex min-w-0 max-w-prose flex-1 flex-col border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
+            <div
+                className={cn(
+                    "flex min-w-0 flex-1 flex-col border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3",
+                    !wide && "max-w-prose",
+                )}
+            >
                 {children}
             </div>
         </div>
