@@ -199,35 +199,33 @@ export const LiveConversation = ({
     const stopWatchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
     const retryStopRef = useRef(false)
-    const parkedStopRef = useRef(false)
+    const stopSessionIdRef = useRef(sessionId)
+    stopSessionIdRef.current = sessionId
     const settleParkedStop = useCallback(() => {
-        if (!parkedStopRef.current) return
-        parkedStopRef.current = false
         if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
         stopWatchdogTimerRef.current = null
         retryStopRef.current = false
         expectedStopExecutionIdRef.current = undefined
-        // The server has cancelled the parked turn. The engine's stop is now only the local latch:
-        // it hides the dead gate and renders the neutral Stopped/Resend state.
+        // Server acceptance makes the local stop a render-only latch.
         stop()
         setStoppingHere(false)
     }, [stop])
-    // A records refetch can remove the pending gate before the cancel request resolves.
-    useEffect(() => {
-        if (!conversation.hitlPending) settleParkedStop()
-    }, [conversation.hitlPending, settleParkedStop])
 
-    // Push-invalidation: a records change (another device's turn, a steer resume) folds into
-    // the engine's transcript under its adopt guards. An interaction change also settles a Stop
-    // that began while the turn was parked, where no streaming busy edge can arrive.
+    useEffect(() => {
+        if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
+        stopWatchdogTimerRef.current = null
+        retryStopRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        setStoppingHere(false)
+    }, [sessionId])
+
+    // Push invalidation folds cross-device changes into the guarded transcript.
     const watch = useSessionWatch({
         sessionId,
         projectId,
         onRecordsChanged: revalidate,
-        onInteractionChanged: settleParkedStop,
     })
-    // The watch relay is the primary cross-device signal; when it cannot connect, fall back to a
-    // slow revalidate poll only while the backend says the session is running elsewhere.
+    // Poll slowly while a cross-device run cannot be watched live.
     useEffect(() => {
         if (watch.connected || !running) return
         const timer = setInterval(() => revalidate(), 7_500)
@@ -244,39 +242,33 @@ export const LiveConversation = ({
     useEffect(
         () => () => {
             if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
-            parkedStopRef.current = false
         },
         [],
     )
 
-    // The engine's own dock latches the shown set; the mobile dock renders the raw pending list
-    // (same source function, same index-0 ordering) and acts through the engine.
-    // The composer's Stop must reach the SERVER, not just abort this device's fetch. It used to do
-    // only the latter, so the run kept going and billing and the only server-calling Stop was the
-    // one on the running-elsewhere strip — the button you see when the turn is NOT yours. Same call
-    // and same refusal handling as the desktop.
+    // Composer Stop cancels on the server before changing local presentation.
     const stopHere = useCallback(() => {
         if (stoppingHere) return
         if (!projectId || !sessionId) return
         setStoppingHere(true)
-        parkedStopRef.current = !streamingHereRef.current && conversation.hitlPending
+        const wasParked = !streamingHereRef.current && conversation.hitlPending
         const isRetry = retryStopRef.current
         const expectedExecutionId = isRetry
             ? expectedStopExecutionIdRef.current
             : getSessionTurnId(sessionId)
         retryStopRef.current = false
         expectedStopExecutionIdRef.current = expectedExecutionId
-        // Name the turn when the stream told this device which one it is. Absent means the runner
-        // did not emit it, and the server falls back to its own arrival-time check.
+        // Missing execution ids select the server's arrival-time guard.
         void cancelSessionStream({
             sessionId,
             projectId,
             expectedExecutionId,
         })
             .then((outcome) => {
+                if (stopSessionIdRef.current !== sessionId) return
                 if (outcome.status === "cancelled") {
                     const action = cancelledStopAction({
-                        parked: parkedStopRef.current,
+                        parked: wasParked,
                         streaming: streamingHereRef.current,
                         retry: isRetry,
                     })
@@ -303,7 +295,6 @@ export const LiveConversation = ({
                     return
                 }
                 if (isRetry) retryStopRef.current = true
-                parkedStopRef.current = false
                 setStoppingHere(false)
                 if (outcome.status === "idle") {
                     retryStopRef.current = false
@@ -313,8 +304,8 @@ export const LiveConversation = ({
                 message.warning(outcome.message)
             })
             .catch((error: unknown) => {
+                if (stopSessionIdRef.current !== sessionId) return
                 if (isRetry) retryStopRef.current = true
-                parkedStopRef.current = false
                 setStoppingHere(false)
                 message.warning(
                     error instanceof Error
@@ -324,8 +315,7 @@ export const LiveConversation = ({
             })
     }, [projectId, sessionId, stop, stoppingHere, conversation.hitlPending, settleParkedStop])
 
-    // Emptied after a user stop, matching the desktop and the two docks below: Stop cancels the
-    // stopped turn's gates server-side, so an approve pressed after it answers a turn that is gone.
+    // A stopped turn has no live approval actions.
     const pendingApprovals = useMemo(
         () => getLivePendingApprovals(conversation.messages, {stopped: conversation.stopped}),
         [conversation.messages, conversation.stopped],

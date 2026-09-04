@@ -20,7 +20,7 @@ export const reduceStopPhase = (phase: StopPhase, event: StopEvent): StopPhase =
         case "timeout":
             return phase === "accepted" ? "retryable" : phase
         case "terminal":
-            if (phase === "idle" || phase === "requesting") return "terminal"
+            if (phase === "requesting") return "terminal"
             if (phase === "accepted" || phase === "retryable") return "stopped"
             return phase
         case "failed":

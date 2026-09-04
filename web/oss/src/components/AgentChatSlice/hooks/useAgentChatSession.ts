@@ -131,13 +131,6 @@ export const useAgentChatSession = ({
     )
     const [stopPhase, dispatchStop] = useReducer(reduceStopPhase, "idle")
     const stopping = isStoppingPhase(stopPhase)
-    // A parked interaction has no busy falling edge when Stop succeeds. Remember that shape so
-    // either the interaction relay, the refreshed transcript, or the cancel response can provide
-    // the terminal evidence instead of leaving the composer on "Stopping" for the watchdog.
-    const parkedStopRef = useRef(false)
-    const settleParkedStop = useCallback(() => {
-        if (parkedStopRef.current) dispatchStop({type: "cancelled", parked: true})
-    }, [])
 
     const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
@@ -281,8 +274,7 @@ export const useAgentChatSession = ({
 
     useEffect(() => {
         dispatchStopped({type: "transcript", messages})
-        if (!isHitlPending(messages)) settleParkedStop()
-    }, [messages, settleParkedStop])
+    }, [messages])
 
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
@@ -304,7 +296,6 @@ export const useAgentChatSession = ({
         persistMessages,
         intent,
         pendingResumeRef: liveGateInteractionRef,
-        onInteractionChanged: settleParkedStop,
     })
 
     // A decision made in THIS mount marks the resume as live — a restored approval-requested tail
@@ -540,11 +531,9 @@ export const useAgentChatSession = ({
 
     const handleStop = useCallback(() => {
         if (stopping) return
-        parkedStopRef.current = !busyRef.current && isHitlPending(messagesRef.current)
-        const wasParked = parkedStopRef.current
+        const wasParked = !busyRef.current && isHitlPending(messagesRef.current)
         dispatchStop({type: "request"})
         if (!projectId || !sessionId) {
-            parkedStopRef.current = false
             dispatchStop({type: "failed"})
             message.warning("Could not stop the run. It may still be running.")
             return
@@ -603,7 +592,6 @@ export const useAgentChatSession = ({
                     return
                 }
                 if (outcome && !outcome.conflict && outcome.execution.state === "idle") {
-                    parkedStopRef.current = false
                     abortAfterAcceptedRef.current = false
                     expectedStopExecutionIdRef.current = undefined
                     dispatchStop({type: "already_idle"})
@@ -611,7 +599,6 @@ export const useAgentChatSession = ({
                     return
                 }
                 if (abortAfterAcceptedRef.current) retryStopRef.current = true
-                parkedStopRef.current = false
                 abortAfterAcceptedRef.current = false
                 dispatchStop({type: "failed"})
                 message.warning(
@@ -623,7 +610,6 @@ export const useAgentChatSession = ({
             })
             .catch((error: unknown) => {
                 if (abortAfterAcceptedRef.current) retryStopRef.current = true
-                parkedStopRef.current = false
                 abortAfterAcceptedRef.current = false
                 dispatchStop({type: "failed"})
                 message.warning(
@@ -632,7 +618,7 @@ export const useAgentChatSession = ({
                         : "Could not stop the run. It may still be running.",
                 )
             })
-    }, [stopping, projectId, sessionId, queryClient, stop, settleParkedStop])
+    }, [stopping, projectId, sessionId, queryClient, stop])
 
     useEffect(() => {
         if (stopPhase !== "accepted") return
@@ -662,7 +648,6 @@ export const useAgentChatSession = ({
         retryStopRef.current = false
         abortAfterAcceptedRef.current = false
         expectedStopExecutionIdRef.current = undefined
-        parkedStopRef.current = false
         dispatchStop({type: "reset"})
     }, [stopPhase])
 
