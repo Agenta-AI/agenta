@@ -40,6 +40,12 @@ The runner chooses the channel from the harness instead of receiving a carrier
 choice from the SDK. Keep runner-owned environment guidance and its existing
 file/native delivery unchanged. Do not add a second composer or adapter protocol.
 
+For Claude and Codex, the rendered file contains SDK text, then author text, then
+the existing fenced environment guidance. Pi keeps SDK text before the authored
+append text and retains its existing environment guidance delivery. Claude's native
+mount appendix also stays unchanged. Environment guidance does not consume or
+repeat the SDK field.
+
 ## Refresh behavior
 
 Preserve the behavior of today's `gatewayGuidance`: compose generated text when an
@@ -56,7 +62,9 @@ conversations. It does not add a digest or persist instruction metadata.
 
 1. Deploy runner support for `platformInstructions` first. Retain the old
    `gatewayGuidance` input for SDKs still using it. Prefer the new field when present,
-   so a request carrying both does not duplicate guidance.
+   so a request carrying both does not duplicate guidance. An explicitly empty new
+   field suppresses the old field. For legacy requests, consume `text` once and
+   derive delivery from the harness, ignoring the old `carrier` hint.
 2. Deploy the SDK that emits only `platformInstructions`.
 
 Keep the temporary compatibility read at the runner boundary; do not maintain two

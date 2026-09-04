@@ -17,14 +17,23 @@ mechanisms are out of scope.
 - Independent correctness and maintainability reviews found no blocking issues.
 - SDK adapter/wire checks: 110 passed. Full SDK agent unit suite: 1,194 passed,
   4 skipped. These ran with the existing development virtual environment; its lock
-  differs from the release snapshot, so this is not locked-environment validation.
+  differs from the release snapshot. The subsequent locked SDK CI suite also passed.
 - Runner unit suite: 2,617 passed. TypeScript checks passed. Runner dependency lock
   matches the existing installed development dependencies.
 - Documentation production build passed. Changed runner files formatted with the
   repository's installed Prettier.
-- Focused live QA in progress in isolated runner/service containers. Both processes
-  load the changed source. Existing managed-provider test keys were rejected by the
-  available test deployments; a Pi subscription check is being attempted.
+- Locked CI passed SDK, API, services, and runner unit suites, plus runner integration
+  and acceptance suites, at implementation commit `cff860e45e`.
+- Pi live QA passed on the changed SDK and runner: fresh author instructions,
+  unchanged continuation, edited author instructions, and a fresh control. No stream
+  errors or silent turns occurred. Runner logs confirmed warm reuse for the unchanged
+  turn and a rebuild for the author edit. Session: `1ce65cf6-32e9-47d1-be68-fd3b9fe0d287`.
+- Claude, Codex, and gateway live QA remain unverified because existing test keys were
+  rejected by the available deployments. Automatic approval review blocked copying
+  provider keys into a new test vault without explicit permission. No keys were copied.
+- The two isolated QA containers were stopped and removed, and three QA workflows
+  were archived. The empty ephemeral account/project remains because the existing
+  account fixture has no teardown. Existing deployments were not changed.
 
 ## Workspace
 
