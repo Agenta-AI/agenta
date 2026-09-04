@@ -102,6 +102,7 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionTransition,
 )
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.interactions.references import resolve_interaction_references
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.attachments.dtos import Attachment
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
@@ -1076,12 +1077,16 @@ class InteractionsRouter:
         # it so both paths share ONE answer-composition implementation.
         interactions_dispatcher: Optional[Any] = None,
         commands_service: Optional[SessionCommandsService] = None,
+        turns_service: Optional[SessionTurnsService] = None,
+        streams_service: Optional[SessionStreamsService] = None,
     ) -> None:
         self.interactions_service = interactions_service
         self.workflows_service = workflows_service
         self.respond_task = respond_task
         self.interactions_dispatcher = interactions_dispatcher
         self.commands_service = commands_service
+        self.turns_service = turns_service
+        self.streams_service = streams_service
 
         self.router = APIRouter()
 
@@ -1491,13 +1496,11 @@ class InteractionsRouter:
                 answer=answer,
             )
         else:
-            references = (
-                {
-                    k: v.model_dump(mode="json")
-                    for k, v in interaction.data.references.items()
-                }
-                if interaction.data and interaction.data.references
-                else None
+            references = await resolve_interaction_references(
+                project_id=UUID(str(project_id)),
+                interaction=interaction,
+                turns_service=self.turns_service,
+                streams_service=self.streams_service,
             )
             selector = (
                 interaction.data.selector.model_dump(mode="json")
@@ -2634,6 +2637,8 @@ class SessionsRouter:
             respond_task=respond_task,
             interactions_dispatcher=interactions_dispatcher,
             commands_service=commands_service,
+            turns_service=turns_service,
+            streams_service=streams_service,
         )
         self.attachments = SessionAttachmentsRouter(
             attachments_service=attachments_service,

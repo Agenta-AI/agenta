@@ -829,7 +829,6 @@ async def test_resume_falls_back_to_the_turn_references_when_the_gate_row_has_no
 
     turns_service = _turns_service(
         [
-            _session_turn(project_id, references=None),
             _session_turn(
                 project_id,
                 references=[
@@ -860,6 +859,9 @@ async def test_resume_falls_back_to_the_turn_references_when_the_gate_row_has_no
     assert invoke_request.references["workflow"].slug == "wf-1"
     # `key` names the family in the stored list; it is not a field of a wire Reference.
     assert not hasattr(invoke_request.references["workflow"], "key")
+    turn_query = turns_service.query_turns.await_args.kwargs
+    assert turn_query["query"].session_id == interaction.session_id
+    assert turn_query["windowing"].limit == 1
 
 
 async def test_resume_falls_back_to_the_stream_references_when_no_turn_carries_any():
