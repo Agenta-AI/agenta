@@ -14,6 +14,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 import {
     applyManualOrder,
+    applyManualOrderByActivity,
     SIDEBAR_AGENT_GROUP_ZONE,
     SIDEBAR_AGENT_ORDER_ZONE,
     SIDEBAR_STATUS_GROUP_ZONE,
@@ -677,9 +678,15 @@ const applyManualSessionOrder = (
     const out: SessionSidebarRef[] = []
     for (const [key, bucket] of buckets) {
         const order = orderFor(sidebarSessionZone(key))
-        // A session the arrangement has not seen leads: you just started it.
+        // Unseen rows place by activity: a newer one is a session you just started and leads; the
+        // older ones a later page brings in trail, instead of hoisting over the arrangement.
         const sorted = order.length
-            ? applyManualOrder(bucket, (row) => row.sessionId, order, "lead")
+            ? applyManualOrderByActivity(
+                  bucket,
+                  (row) => row.sessionId,
+                  (row) => row.activityAt,
+                  order,
+              )
             : bucket
         if (sorted.some((row, index) => row !== bucket[index])) changed = true
         out.push(...sorted)

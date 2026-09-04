@@ -2,6 +2,8 @@ import {describe, expect, it} from "vitest"
 
 import {
     applyManualOrder,
+    applyManualOrderByActivity,
+    capManualOrder,
     mergeManualOrder,
     movedManualOrder,
     withManualAgentRanks,
@@ -193,5 +195,98 @@ describe("SESSION_REORDER_ZONES", () => {
             "sessions:status:running",
         )
         expect(SESSION_REORDER_ZONES.status?.rowZone?.("pinned")).toBeUndefined()
+    })
+})
+
+describe("capManualOrder", () => {
+    const order = ["a", "b", "c", "d", "e"]
+
+    it("returns the order untouched when it fits", () => {
+        expect(capManualOrder(order, ["a"], 5)).toEqual(order)
+    })
+
+    // The bug this exists for: a blind slice drops whatever sits past the cap, which after paging
+    // is a row on screen — and an unknown row then leads its bucket, reordering the list.
+    it("evicts off-screen ids before any visible one", () => {
+        // b and c are off screen and nearest the tail, so they go; a keeps its slot.
+        expect(capManualOrder(order, ["d", "e"], 3)).toEqual(["a", "d", "e"])
+    })
+
+    it("never drops a visible id", () => {
+        const capped = capManualOrder(order, ["c", "e"], 3)
+        expect(capped).toContain("c")
+        expect(capped).toContain("e")
+    })
+
+    it("falls back to trimming the tail when everything is visible", () => {
+        expect(capManualOrder(order, order, 3)).toEqual(["a", "b", "c"])
+    })
+})
+
+describe("applyManualOrderByActivity", () => {
+    interface Row {
+        id: string
+        at: string | null
+    }
+    const idOf = (row: Row) => row.id
+    const atOf = (row: Row) => row.at
+    const arranged = ["b", "a"]
+
+    it("sorts the arranged rows by the saved order", () => {
+        const rows: Row[] = [
+            {id: "a", at: "2026-09-02T00:00:00Z"},
+            {id: "b", at: "2026-09-01T00:00:00Z"},
+        ]
+        expect(applyManualOrderByActivity(rows, idOf, atOf, arranged).map(idOf)).toEqual(["b", "a"])
+    })
+
+    it("leads an unseen row that is newer than everything arranged", () => {
+        const rows: Row[] = [
+            {id: "a", at: "2026-09-02T00:00:00Z"},
+            {id: "b", at: "2026-09-01T00:00:00Z"},
+            {id: "new", at: "2026-09-03T00:00:00Z"},
+        ]
+        expect(applyManualOrderByActivity(rows, idOf, atOf, arranged).map(idOf)).toEqual([
+            "new",
+            "b",
+            "a",
+        ])
+    })
+
+    // A later page is OLDER than the head. Leading it would hoist stale rows over the arrangement.
+    it("trails the older rows a later page brings in", () => {
+        const rows: Row[] = [
+            {id: "a", at: "2026-09-02T00:00:00Z"},
+            {id: "b", at: "2026-09-01T00:00:00Z"},
+            {id: "old1", at: "2026-08-20T00:00:00Z"},
+            {id: "old2", at: "2026-08-19T00:00:00Z"},
+        ]
+        expect(applyManualOrderByActivity(rows, idOf, atOf, arranged).map(idOf)).toEqual([
+            "b",
+            "a",
+            "old1",
+            "old2",
+        ])
+    })
+
+    it("trails a row that cannot prove it is newer", () => {
+        const rows: Row[] = [
+            {id: "a", at: "2026-09-02T00:00:00Z"},
+            {id: "b", at: "2026-09-01T00:00:00Z"},
+            {id: "undated", at: null},
+        ]
+        expect(applyManualOrderByActivity(rows, idOf, atOf, arranged).map(idOf)).toEqual([
+            "b",
+            "a",
+            "undated",
+        ])
+    })
+
+    it("leaves the rows alone when nothing is arranged", () => {
+        const rows: Row[] = [
+            {id: "x", at: "2026-09-02T00:00:00Z"},
+            {id: "y", at: "2026-09-01T00:00:00Z"},
+        ]
+        expect(applyManualOrderByActivity(rows, idOf, atOf, []).map(idOf)).toEqual(["x", "y"])
     })
 })
