@@ -1221,7 +1221,7 @@ export async function runTurn(
     // still make the teardown treat the run as aborted, which DESTROYS the warm environment
     // instead of parking it. Marked here rather than where the caller awaits this function,
     // because that window is precisely what lies between the two.
-    if (request.sessionId && request.turnId) {
+    if (stopReason !== "paused" && request.sessionId && request.turnId) {
       noteExecutionSettled(request.sessionId, request.turnId);
     }
     // Terminalization drains queued gates, classifies pause-time completions, and gives allowed

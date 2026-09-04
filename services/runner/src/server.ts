@@ -380,7 +380,8 @@ const runAgent: RunAgent = (request, emit, signal, options) => {
     onScopeResolved: (projectId) => {
       const sessionId = request.sessionId?.trim();
       const turnId = request.turnId?.trim();
-      if (sessionId && turnId) noteExecutionProject(sessionId, turnId, projectId);
+      if (sessionId && turnId)
+        noteExecutionProject(sessionId, turnId, projectId);
     },
   });
 };
@@ -499,29 +500,6 @@ async function runAndStreamWithApiBaseResolved(
     });
   }
 
-  // Make this execution reachable by a control command. Registered as early as the abort
-  // controller exists, so a Stop that arrives while the environment is still being acquired
-  // still aborts the run rather than waiting for the heartbeat to notice.
-  //
-  // A run with no project scope is not registered. `poolKeyFor` forms no key for it either, so
-  // it can never park, and Stop falls back to the heartbeat path exactly as it did before.
-  if (sessionOwned) {
-    registerExecution({
-      // Usually undefined here: `runContext.project.id` is empty on the live invoke path, and
-      // the real scope comes from the signed mount. The coordinator fills it in through
-      // `onScopeResolved` a moment later.
-      projectId: projectScopeFor(request, undefined)?.id,
-      sessionId,
-      turnId,
-      startedAt: Date.now(),
-      // Labelled, because a command from the control plane IS a cooperative user Stop and
-      // `shouldPark` parks only an abort the runner can prove was one. An unlabelled abort here
-      // would end the turn `cancelled` and then DESTROY the sandbox, which is the exact failure
-      // Stop exists to avoid. See `sessions/stop-signal.ts`.
-      abort: () => controller.abort(USER_STOP_ABORT_REASON),
-    });
-  }
-
   const writeRecord = (record: StreamRecord): void => {
     if (res.writableEnded) return;
     res.write(JSON.stringify(record) + "\n");
@@ -538,6 +516,18 @@ async function runAndStreamWithApiBaseResolved(
     return;
   }
 
+  // Register only a request that passed synchronous admission validation.
+  if (sessionOwned) {
+    registerExecution({
+      // The coordinator fills in project scope once it has verified the signed mount.
+      projectId: projectScopeFor(request, undefined)?.id,
+      sessionId,
+      turnId,
+      startedAt: Date.now(),
+      abort: () => controller.abort(USER_STOP_ABORT_REASON),
+    });
+  }
+
   // For session-owned runs: wrap the live emitter so every event is also persisted
   // producer-side, independent of whether the client is still connected.
   let emitFn: EmitEvent = liveEmit;
@@ -552,149 +542,156 @@ async function runAndStreamWithApiBaseResolved(
       }
     | undefined;
 
-  if (sessionOwned) {
-    // The request's api base (if any) is already scoped for this call via
-    // runWithRequestApiBase in the outer runAndStream — apiBase() below sees it.
-    // The runner authenticates session calls AS the invoke caller (the run credential),
-    // refreshing it for the turn's lifetime — never the admin key. Project scope is
-    // resolved server-side from the credential, so no project_id rides the request.
-    //
-    // onInterrupted (W7.4): a cancel/steer/kill against this session (via
-    // `POST /sessions/streams/` or the runner's own `/kill`) drops this turn's alive lock.
-    // The next heartbeat surfaces that as `is_current_turn: false`; wiring it to
-    // `controller.abort()` is what makes the control-plane signal actually reach this
-    // in-flight run — before this, a session-owned run's controller was never aborted.
-    // Awaited (WP3) so the first heartbeat's stream_id is ready before the turn starts.
-    //
-    // The beat also proposes the two things a headless session otherwise never gets: a name
-    // (no browser ever renders it, and the browser is the only other title writer) and the
-    // run's workflow references (they ride only a fire-and-forget turn append today, so a
-    // dropped append leaves a row the UI cannot open). Both are fill-once server-side.
-    const watchdog = await startAliveWatchdog(
-      sessionId,
-      turnId,
-      platformCredentialForRequest(request),
-      // LABELLED, not a bare abort: `shouldPark` parks only an abort it can prove was a
-      // cooperative Stop. See `sessions/stop-signal.ts`.
-      () => controller.abort(USER_STOP_ABORT_REASON),
-      {
-        name: proposeSessionName(request),
-        references: buildWorkflowReferenceList(request.runContext?.workflow),
-      },
-    );
-    aliveWatchdog = watchdog;
-    // The heartbeat response already carries the session_streams row id — free, no extra
-    // round-trip. Thread it onto the request so the engine's turn-append write has it.
-    request.streamId = watchdog.streamId();
-
-    // ADMISSION. That first beat asked the platform's atomic `nx` acquire whether this turn may
-    // run, and `admitted: false` means a DIFFERENT turn already holds the session. Stop here.
-    //
-    // Everything below this point has a side effect that a refused turn must not have:
-    // `cancelStaleInteractions` would cancel the LIVE turn's unanswered approval gate, the
-    // persisting emitter would write this message into the durable transcript, and `run()` would
-    // reach the keepalive pool and destroy the live turn's warm environment. That last one is
-    // the double-send bug (#6417, #5539, #5538): the arbiter's answer was already correct, the
-    // runner simply never read it before acting.
-    //
-    // The refusal travels as an `error` EVENT with a stable code plus a failed terminal result,
-    // which is the path every runner failure already takes to the browser. Nothing is persisted,
-    // so the refused message never appears in the session's history — the client keeps the text.
-    if (!watchdog.admitted) {
-      process.stderr.write(
-        `[sessions] admission REFUSED session=${sessionId} turn=${turnId}; ` +
-          `another turn owns this session. No pool resolve, no eviction.\n`,
-      );
-      // Stops the heartbeat interval and releases the credential lease. Its final
-      // `is_running: false` beat is owner-scoped server-side, so it cannot clear the live
-      // turn's `running` lock or stamp its own turn id on the session row.
-      await watchdog.release().catch(() => {});
-      liveEmit({
-        type: "error",
-        message: SESSION_TURN_IN_USE_MESSAGE,
-        code: SESSION_TURN_IN_USE_CODE,
-      });
-      writeRecord({
-        kind: "result",
-        result: { ok: false, error: SESSION_TURN_IN_USE_MESSAGE, events: [] },
-      });
-      res.end();
-      return;
-    }
-
-    // Admitted. Tell the client which execution it is watching, before anything else streams.
-    //
-    // The runner mints the turn id (`resolveTurnId`), and until now it never told anyone: the
-    // client's `start` frame is built and sent before the runner replies at all, so it cannot
-    // carry a runner-minted id. That is why `expected_execution_id` on the public Cancel has had
-    // no first-party caller able to fill it — a Stop could only mean "whatever is running now",
-    // never "the turn I was watching". This is the earliest frame that can carry it.
-    //
-    // Deliberately on `liveEmit`, not the persisting emitter that replaces it below: this is
-    // transport correlation, not conversation, and it must never become a session record.
-    liveEmit({ type: "turn", turnId });
-
-    // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
-    // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
-    // the resume resolves that one). Best-effort, never blocks the turn.
-    const answeredTokens = inBandAnswerTokens(request);
-    void cancelStaleInteractions(
-      sessionId,
-      turnId,
-      answeredTokens,
-      watchdog.credential,
-    );
-    // Deny-set from THIS run's typed credential material (model connection credentials +
-    // materialized environment values + MCP connection credentials) and the run credential —
-    // not process env, which never holds them. A credential value a model echoes back must
-    // never reach the durable session records unredacted.
-    const {
-      emit: persistingEmit,
-      persist,
-      flush,
-    } = buildPersistingEmitter(
-      sessionId,
-      watchdog.credential,
-      liveEmit,
-      seedForRun(request),
-      turnId,
-      request.runContext?.trace?.span_id,
-    );
-    // Record the inbound user turn first so the session record is the full conversation, not just
-    // agent output. Guard on `tailIsFreshUserMessage`: an approval RESUME's tail is the tool_result
-    // envelope, so it must not re-persist the ORIGINAL prompt as a duplicate user row. The guard
-    // writes the prompt only on the turn that first introduced it.
-    if (tailIsFreshUserMessage(request)) {
-      persist(
-        { type: "message", text: turn.text, attachments: turn.attachments },
-        "user",
-      );
-      if (turn.attachments.length > 0) {
-        // A failed claim is accepted as graceful loss: the worst case is that the sweeper
-        // reclaims the attachment and cold replay renders it as no longer available.
-        await claimAttachments(
-          sessionId,
-          turn.attachments.map((attachment) => attachment.attachmentId),
-          watchdog.credential,
-        );
-      }
-    }
-    emitFn = (event) => {
-      if (event.type === "done") terminalRecordEmitted = true;
-      persistingEmit(event);
-    };
-    flushPersist = flush;
-    persistError = (message) => persist({ type: "error", message }, "agent");
-    persistTerminal = (stopReason) => {
-      terminalRecordEmitted = true;
-      persist(
+  try {
+    if (sessionOwned) {
+      // The request's api base (if any) is already scoped for this call via
+      // runWithRequestApiBase in the outer runAndStream — apiBase() below sees it.
+      // The runner authenticates session calls AS the invoke caller (the run credential),
+      // refreshing it for the turn's lifetime — never the admin key. Project scope is
+      // resolved server-side from the credential, so no project_id rides the request.
+      //
+      // onInterrupted (W7.4): a cancel/steer/kill against this session (via
+      // `POST /sessions/streams/` or the runner's own `/kill`) drops this turn's alive lock.
+      // The next heartbeat surfaces that as `is_current_turn: false`; wiring it to
+      // `controller.abort()` is what makes the control-plane signal actually reach this
+      // in-flight run — before this, a session-owned run's controller was never aborted.
+      // Awaited (WP3) so the first heartbeat's stream_id is ready before the turn starts.
+      //
+      // The beat also proposes the two things a headless session otherwise never gets: a name
+      // (no browser ever renders it, and the browser is the only other title writer) and the
+      // run's workflow references (they ride only a fire-and-forget turn append today, so a
+      // dropped append leaves a row the UI cannot open). Both are fill-once server-side.
+      const watchdog = await startAliveWatchdog(
+        sessionId,
+        turnId,
+        platformCredentialForRequest(request),
+        // LABELLED, not a bare abort: `shouldPark` parks only an abort it can prove was a
+        // cooperative Stop. See `sessions/stop-signal.ts`.
+        () => controller.abort(USER_STOP_ABORT_REASON),
         {
-          type: "done",
-          ...(stopReason === "cancelled" ? { stopReason } : {}),
+          name: proposeSessionName(request),
+          references: buildWorkflowReferenceList(request.runContext?.workflow),
         },
-        "agent",
       );
-    };
+      aliveWatchdog = watchdog;
+      // The heartbeat response already carries the session_streams row id — free, no extra
+      // round-trip. Thread it onto the request so the engine's turn-append write has it.
+      request.streamId = watchdog.streamId();
+
+      // ADMISSION. That first beat asked the platform's atomic `nx` acquire whether this turn may
+      // run, and `admitted: false` means a DIFFERENT turn already holds the session. Stop here.
+      //
+      // Everything below this point has a side effect that a refused turn must not have:
+      // `cancelStaleInteractions` would cancel the LIVE turn's unanswered approval gate, the
+      // persisting emitter would write this message into the durable transcript, and `run()` would
+      // reach the keepalive pool and destroy the live turn's warm environment. That last one is
+      // the double-send bug (#6417, #5539, #5538): the arbiter's answer was already correct, the
+      // runner simply never read it before acting.
+      //
+      // The refusal travels as an `error` EVENT with a stable code plus a failed terminal result,
+      // which is the path every runner failure already takes to the browser. Nothing is persisted,
+      // so the refused message never appears in the session's history — the client keeps the text.
+      if (!watchdog.admitted) {
+        process.stderr.write(
+          `[sessions] admission REFUSED session=${sessionId} turn=${turnId}; ` +
+            `another turn owns this session. No pool resolve, no eviction.\n`,
+        );
+        // Stops the heartbeat interval and releases the credential lease. Its final
+        // `is_running: false` beat is owner-scoped server-side, so it cannot clear the live
+        // turn's `running` lock or stamp its own turn id on the session row.
+        await watchdog.release().catch(() => {});
+        unregisterExecution(sessionId, turnId);
+        liveEmit({
+          type: "error",
+          message: SESSION_TURN_IN_USE_MESSAGE,
+          code: SESSION_TURN_IN_USE_CODE,
+        });
+        writeRecord({
+          kind: "result",
+          result: { ok: false, error: SESSION_TURN_IN_USE_MESSAGE, events: [] },
+        });
+        res.end();
+        return;
+      }
+
+      // Admitted. Tell the client which execution it is watching, before anything else streams.
+      //
+      // The runner mints the turn id (`resolveTurnId`), and until now it never told anyone: the
+      // client's `start` frame is built and sent before the runner replies at all, so it cannot
+      // carry a runner-minted id. That is why `expected_execution_id` on the public Cancel has had
+      // no first-party caller able to fill it — a Stop could only mean "whatever is running now",
+      // never "the turn I was watching". This is the earliest frame that can carry it.
+      //
+      // Deliberately on `liveEmit`, not the persisting emitter that replaces it below: this is
+      // transport correlation, not conversation, and it must never become a session record.
+      liveEmit({ type: "turn", turnId });
+
+      // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
+      // interactions (sparing this turn's own, plus a parked gate this turn answers in-band —
+      // the resume resolves that one). Best-effort, never blocks the turn.
+      const answeredTokens = inBandAnswerTokens(request);
+      void cancelStaleInteractions(
+        sessionId,
+        turnId,
+        answeredTokens,
+        watchdog.credential,
+      );
+      // Deny-set from THIS run's typed credential material (model connection credentials +
+      // materialized environment values + MCP connection credentials) and the run credential —
+      // not process env, which never holds them. A credential value a model echoes back must
+      // never reach the durable session records unredacted.
+      const {
+        emit: persistingEmit,
+        persist,
+        flush,
+      } = buildPersistingEmitter(
+        sessionId,
+        watchdog.credential,
+        liveEmit,
+        seedForRun(request),
+        turnId,
+        request.runContext?.trace?.span_id,
+      );
+      // Record the inbound user turn first so the session record is the full conversation, not just
+      // agent output. Guard on `tailIsFreshUserMessage`: an approval RESUME's tail is the tool_result
+      // envelope, so it must not re-persist the ORIGINAL prompt as a duplicate user row. The guard
+      // writes the prompt only on the turn that first introduced it.
+      if (tailIsFreshUserMessage(request)) {
+        persist(
+          { type: "message", text: turn.text, attachments: turn.attachments },
+          "user",
+        );
+        if (turn.attachments.length > 0) {
+          // A failed claim is accepted as graceful loss: the worst case is that the sweeper
+          // reclaims the attachment and cold replay renders it as no longer available.
+          await claimAttachments(
+            sessionId,
+            turn.attachments.map((attachment) => attachment.attachmentId),
+            watchdog.credential,
+          );
+        }
+      }
+      emitFn = (event) => {
+        if (event.type === "done") terminalRecordEmitted = true;
+        persistingEmit(event);
+      };
+      flushPersist = flush;
+      persistError = (message) => persist({ type: "error", message }, "agent");
+      persistTerminal = (stopReason) => {
+        terminalRecordEmitted = true;
+        persist(
+          {
+            type: "done",
+            ...(stopReason === "cancelled" ? { stopReason } : {}),
+          },
+          "agent",
+        );
+      };
+    }
+  } catch (error) {
+    if (aliveWatchdog) await aliveWatchdog.release().catch(() => {});
+    if (sessionOwned) unregisterExecution(sessionId, turnId);
+    throw error;
   }
 
   let result: AgentRunResult;
@@ -848,9 +845,10 @@ function readRequiredId(value: unknown): string | null {
  * control channel at all today: a parked session stops heartbeating, so the only existing Stop
  * signal never reaches it.
  */
-function isSessionParked(sessionId: string): boolean {
+function isSessionParked(projectId: string, sessionId: string): boolean {
+  const key = `${projectId}:${sessionId}`;
   return Object.values(keepalivePools).some(
-    (pool) => pool.awaitingApproval(sessionId) !== undefined,
+    (pool) => pool.get(key)?.state === "awaiting_approval",
   );
 }
 
@@ -972,7 +970,9 @@ export function createRequestListener(
             expectedTurnId: null,
           },
           createdAt:
-            typeof cancelBody.createdAt === "string" ? cancelBody.createdAt : "",
+            typeof cancelBody.createdAt === "string"
+              ? cancelBody.createdAt
+              : "",
         };
         if (!holdsSession(cancelProjectId, cancelSessionId, isSessionParked)) {
           // 404 is ambiguous on purpose and the API disambiguates it: a `not_held` for a
@@ -981,7 +981,9 @@ export function createRequestListener(
         }
         // Answer before the outcome. The applier reports it separately, and a Stop that takes
         // seconds to settle must not hold this request open.
-        void applyCommand(command, { isParked: isSessionParked }).catch(() => {});
+        void applyCommand(command, { isParked: isSessionParked }).catch(
+          () => {},
+        );
         return send(res, 202, { ok: true, replicaId: REPLICA_ID });
       }
 

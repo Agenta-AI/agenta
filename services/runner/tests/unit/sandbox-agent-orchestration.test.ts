@@ -53,6 +53,11 @@ import {
   flushPromises,
   type FakeOptions,
 } from "../utils/sandbox-agent-harness.ts";
+import {
+  findExecution,
+  registerExecution,
+  resetExecutionsForTest,
+} from "../../src/sessions/execution-registry.ts";
 
 // Orchestration cases include Daytona runs: enable it (with a provisioning credential) on top of
 // the hermetic scrub, then drop the memoized config so the run plan reads the enabled set.
@@ -63,6 +68,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  resetExecutionsForTest();
   vi.unstubAllGlobals();
 });
 
@@ -2598,6 +2604,40 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     if (!result.ok) return;
     assert.equal(result.stopReason, "paused");
     assert.deepEqual(calls.permissionReplies, []);
+  });
+
+  it("keeps a paused turn cancellable while it waits for approval", async () => {
+    const { deps } = depsWithDefaultResponder();
+    const sessionId = "conv-paused-registry";
+    const turnId = "turn-paused-registry";
+    registerExecution({
+      projectId: "11111111-1111-4111-8111-111111111111",
+      sessionId,
+      turnId,
+      startedAt: Date.now(),
+      abort: () => {},
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId,
+        turnId,
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+    assert.equal(
+      findExecution("11111111-1111-4111-8111-111111111111", sessionId)?.settled,
+      undefined,
+    );
   });
 
   it("effective ask with no decision pauses the tool, no harness reply (F-024)", async () => {

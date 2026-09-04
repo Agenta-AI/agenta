@@ -67,7 +67,7 @@ export interface ControlOutcome {
 
 /** How the runner reaches a parked session. Injected so tests need no pool. */
 export interface ParkedLookup {
-  (sessionId: string): boolean;
+  (projectId: string, sessionId: string): boolean;
 }
 
 export interface ApplyCommandDeps {
@@ -87,7 +87,7 @@ export function holdsSession(
   isParked?: ParkedLookup,
 ): boolean {
   if (findExecution(projectId, sessionId)) return true;
-  return isParked ? isParked(sessionId) : false;
+  return isParked ? isParked(projectId, sessionId) : false;
 }
 
 /**
@@ -246,6 +246,7 @@ export async function reportOutcome(
   const url = `${apiBase()}/sessions/control/commands/${encodeURIComponent(command.id)}/outcome`;
   const res = await fetch(url, {
     method: "POST",
+    redirect: "error",
     headers: {
       "content-type": "application/json",
       "x-agenta-runner-token": token,

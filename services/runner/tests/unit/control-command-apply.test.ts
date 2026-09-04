@@ -21,6 +21,7 @@ import { beforeEach, describe, it } from "vitest";
 import {
   applyCommand,
   holdsSession,
+  reportOutcome,
   type ControlCommand,
   type ControlOutcome,
 } from "../../src/sessions/control-channel.ts";
@@ -407,12 +408,56 @@ describe("holdsSession", () => {
     // heartbeating, so the existing Stop signal never reaches it.
     assert.equal(holdsSession(PROJECT, SESSION), false);
     assert.equal(
-      holdsSession(PROJECT, SESSION, (id) => id === SESSION),
+      holdsSession(
+        PROJECT,
+        SESSION,
+        (projectId, sessionId) =>
+          projectId === PROJECT && sessionId === SESSION,
+      ),
       true,
+    );
+  });
+
+  it("does not match a parked session with the same id in another project", () => {
+    assert.equal(
+      holdsSession(
+        PROJECT,
+        SESSION,
+        (projectId, sessionId) =>
+          projectId === "22222222-2222-4222-8222-222222222222" &&
+          sessionId === SESSION,
+      ),
+      false,
     );
   });
 
   it("is false for a session this process does not hold, which is what answers 404", () => {
     assert.equal(holdsSession(PROJECT, "other-session", () => false), false);
+  });
+});
+
+describe("reportOutcome", () => {
+  it("rejects redirects so the runner token cannot be forwarded", async () => {
+    const previousToken = process.env.AGENTA_RUNNER_TOKEN;
+    const previousFetch = globalThis.fetch;
+    let captured: RequestInit | undefined;
+    process.env.AGENTA_RUNNER_TOKEN = "shared-secret";
+    globalThis.fetch = (async (_input, init) => {
+      captured = init;
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      await reportOutcome(command(), {
+        result: "applied",
+        execution: { id: TURN, state: "stopped" },
+      });
+    } finally {
+      globalThis.fetch = previousFetch;
+      if (previousToken === undefined) delete process.env.AGENTA_RUNNER_TOKEN;
+      else process.env.AGENTA_RUNNER_TOKEN = previousToken;
+    }
+
+    assert.equal(captured?.redirect, "error");
   });
 });

@@ -26,6 +26,10 @@ import {
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import { HEARTBEAT_INTERVAL_SECONDS } from "../../src/sessions/contract.ts";
+import {
+  liveExecutions,
+  resetExecutionsForTest,
+} from "../../src/sessions/execution-registry.ts";
 
 const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 const previousToken = process.env[TOKEN_ENV];
@@ -34,6 +38,7 @@ const LIMIT_ENV = "AGENTA_RUNNER_CONCURRENCY_LIMIT";
 const previousLimit = process.env[LIMIT_ENV];
 
 afterEach(() => {
+  resetExecutionsForTest();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   if (previousToken === undefined) delete process.env[TOKEN_ENV];
@@ -796,15 +801,18 @@ describe("createAgentServer", () => {
       const endings = ingested.filter(
         (record) => record.record_type === "done",
       );
-      assert.equal(endings.length, 1, "the server must not duplicate runTurn's ending");
+      assert.equal(
+        endings.length,
+        1,
+        "the server must not duplicate runTurn's ending",
+      );
       assert.deepEqual(endings[0].attributes, {
         type: "done",
         stopReason: "cancelled",
       });
       assert.equal(
         records.filter(
-          (record) =>
-            record.kind === "event" && record.event?.type === "done",
+          (record) => record.kind === "event" && record.event?.type === "done",
         ).length,
         1,
         "the normal Stop still streams its one done event",
@@ -940,6 +948,7 @@ describe("createAgentServer", () => {
         records[0].result.error,
         "A user turn may carry at most 2 attachments.",
       );
+      assert.deepEqual(liveExecutions(), []);
     } finally {
       delete process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN;
       fetchSpy.mockRestore();
