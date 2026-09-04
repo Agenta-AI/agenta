@@ -293,7 +293,16 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                             SessionCommandDBE.state
                             == SessionCommandState.applied.value,
                             SessionCommandDBE.outcome == "started",
-                            SessionExecutionDBE.state == "recoverable",
+                            # `running` belongs here beside `recoverable`. A delivered
+                            # continuation that is still executing OWNS the session's next turn,
+                            # and `resume_recoverable_continuation` already says exactly that:
+                            # its `state == running` branch returns True without redelivering.
+                            # That branch was unreachable while this filter dropped `running`, so
+                            # the Send preflight answered "nobody owns this" and the browser
+                            # invoked the runner directly — which supersedes the continuation,
+                            # tears down its warm sandbox mid-call and returns the tool call the
+                            # user had just approved as aborted.
+                            SessionExecutionDBE.state.in_(("recoverable", "running")),
                         ),
                     ),
                     SessionCommandDBE.deleted_at.is_(None),

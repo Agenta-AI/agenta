@@ -45,6 +45,7 @@ from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
+from oss.src.utils.env import env
 
 
 pytestmark = pytest.mark.integration
@@ -1075,7 +1076,7 @@ async def test_full_service_concurrent_same_key_conflicting_answer_is_409_domain
     assert isinstance(conflict, IdempotencyKeyReused)
 
 
-async def test_parked_running_continuation_is_steerable_and_reopens_after_recovery(
+async def test_live_continuation_is_a_send_candidate_and_reopens_after_recovery(
     command_scope,
 ):
     commands = SessionCommandsDAO(engine=command_scope["engine"])
@@ -1117,11 +1118,25 @@ async def test_parked_running_continuation_is_steerable_and_reopens_after_recove
             transaction=transaction,
         )
 
+    # A `running` continuation row now REACHES the service, which decides between the two live
+    # shapes `running` covers. The DAO deliberately does not: the discriminator is the Redis
+    # `running` lock, which only the service reads.
+    #
+    #   * PARKED on its own approval — no Redis `running` lock. A Send is a steer and is
+    #     allowed. This is review finding N2 and it stays.
+    #   * EXECUTING inside a tool call — the lock names this execution. A Send starts a second
+    #     turn, the runner supersedes, the warm sandbox is destroyed mid-call and the tool the
+    #     user had just approved returns "Command aborted" (increment-6 browser pass, round 8,
+    #     session 9d40cfcc-6485-4250-8d2e-17f1f12f55f4). It is refused.
+    #
+    # Both are covered by the two `resume_recoverable_continuation` tests below.
     blocker = await commands.fetch_resumable_continuation(
         project_id=command_scope["project_id"],
         session_id=command_scope["session_id"],
     )
-    assert blocker is None
+    assert blocker is not None and blocker.id == command.id
+    # Being a Send candidate is not the same as being retargetable: only a recovered execution
+    # reopens.
     assert (
         await commands.reopen_continuation(
             project_id=command_scope["project_id"],
@@ -1163,6 +1178,106 @@ async def test_parked_running_continuation_is_steerable_and_reopens_after_recove
     assert reopened.state == SessionCommandState.pending
     assert reopened.claimed_by is None
     assert reopened.target_turn_id == "continuation-retry"
+
+
+async def _park_continuation_on_its_own_gate(command_scope, *, token: str) -> None:
+    """The shape a continuation leaves when it raises its OWN approval and stops on the user."""
+    async with command_scope["engine"].session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO session_interactions "
+                "(project_id, id, session_id, turn_id, token, kind, status) "
+                "VALUES (:project_id, :id, :session_id, 'continuation-live', :token, "
+                "'user_approval', 'pending')"
+            ),
+            {
+                "project_id": command_scope["project_id"],
+                "id": uuid.uuid4(),
+                "session_id": command_scope["session_id"],
+                "token": token,
+            },
+        )
+
+
+async def _seed_live_continuation(command_scope, *, token: str) -> None:
+    commands = SessionCommandsDAO(engine=command_scope["engine"])
+    executions = SessionExecutionsDAO(engine=command_scope["engine"])
+    interaction_id = await _insert_pending_interaction(command_scope, token=token)
+    async with commands.transaction() as transaction:
+        await executions.create_continuation(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="continuation-live",
+            parent_execution_id="turn-A",
+            source_interaction_id=interaction_id,
+            transaction=transaction,
+        )
+        await commands.create_command(
+            user_id=command_scope["user_id"],
+            command=_create(
+                command_scope,
+                kind=SessionCommandKind.continue_interaction,
+                target_turn_id="continuation-live",
+                expected_turn_id="turn-A",
+                data={
+                    "interaction_id": str(interaction_id),
+                    "continuation_execution_id": "continuation-live",
+                },
+                state=SessionCommandState.applied,
+                outcome=SessionCommandOutcome.started,
+                settled_at=datetime.now(timezone.utc),
+            ),
+            transaction=transaction,
+        )
+        await executions.set_state(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="continuation-live",
+            state=SessionExecutionState.running,
+            transaction=transaction,
+        )
+
+
+async def test_executing_continuation_refuses_a_competing_send(
+    command_scope, monkeypatch
+):
+    """The continuation is inside a tool call: Send must be refused, not superseded.
+
+    Its execution holds no pending gate of its own, which is exactly the state the runner was
+    in when a released message tore down the warm sandbox and turned the approved call into
+    "Command aborted".
+    """
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+    await _seed_live_continuation(command_scope, token="live-executing")
+    service = _commands_service(command_scope)
+
+    assert (
+        await service.resume_recoverable_continuation(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+        )
+        is True
+    )
+
+
+async def test_parked_continuation_still_accepts_a_send(command_scope, monkeypatch):
+    """The continuation raised its own approval gate: a Send is a steer and stays allowed.
+
+    The park writes a pending interaction row against the continuation's own execution, so the
+    same `running` row in Postgres must not be read as ownership. This is review finding N2.
+    """
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+    await _seed_live_continuation(command_scope, token="live-parked")
+    await _park_continuation_on_its_own_gate(command_scope, token="live-parked-gate")
+    service = _commands_service(command_scope)
+
+    assert (
+        await service.resume_recoverable_continuation(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+        )
+        is False
+    )
 
 
 async def test_stop_and_answer_have_one_postgres_serialized_winner(command_scope):

@@ -726,6 +726,26 @@ class SessionCommandsService:
             return True
         return applied is not None
 
+    async def _execution_is_parked_on_a_gate(
+        self, *, project_id: UUID, session_id: str, execution_id: str
+    ) -> bool:
+        """Has this execution raised its own gate and stopped to wait on the user?
+
+        Read from the interaction rows, not from the Redis `running` lock. The lock says the
+        right thing about a healthy runner and the wrong thing about a partitioned one: it is
+        absent both when a turn parks AND when the runner goes quiet mid-tool-call, and those
+        two must not be answered the same way (see
+        `test_stale_heartbeat_never_replays_an_admitted_continuation`). A pending row is a
+        durable fact that only the park writes, so the unknown case falls to "executing",
+        which is the safe side.
+        """
+        rows = await self._interactions.fetch_turn_interactions(
+            project_id=project_id,
+            session_id=session_id,
+            turn_id=execution_id,
+        )
+        return any(row.status == SessionInteractionStatus.pending for row in rows)
+
     async def resume_recoverable_continuation(
         self, *, project_id: UUID, session_id: str
     ) -> bool:
@@ -752,7 +772,21 @@ class SessionCommandsService:
             # executing the approved side effect. Only the watchdog may turn `running` into
             # `recoverable`, after it has collapsed and tombstoned the old ownership. Until
             # then this durable continuation still owns Send, but it is never redelivered.
-            return True
+            #
+            # `running` covers two live shapes, and only one of them owns Send:
+            #
+            #   * EXECUTING — the continuation is inside a tool call. A Send here starts a
+            #     second turn for the session, and the runner resolves that by superseding:
+            #     it destroys the warm sandbox mid-call and the tool the user had just
+            #     approved returns aborted. Both turns are lost. Refuse.
+            #   * PARKED on its own approval — the continuation raised a new gate and stopped
+            #     to wait on the user. Nothing is in flight to destroy, so a Send is a steer
+            #     and stays allowed. Allow.
+            return not await self._execution_is_parked_on_a_gate(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+            )
         if (
             command.state
             in (
