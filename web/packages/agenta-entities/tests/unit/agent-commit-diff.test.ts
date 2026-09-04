@@ -196,6 +196,43 @@ describe("an edited skill shows its prose, the way Instructions does", () => {
     })
 })
 
+describe("renaming a skill in place is an edit, not a swap", () => {
+    // Regression: identity is the name, so a rename read as "1 added, 1 removed" and the body
+    // diff behind it was never computed — exactly the change you most want to see.
+    const skill = (over: Record<string, unknown>) => ({
+        name: "stop-slop-1",
+        description: "Trims slop",
+        body: "Cut the filler.",
+        ...over,
+    })
+    const item = (local: unknown, remote: unknown) =>
+        classifyAgentChanges({agent: {skills: [local]}}, {agent: {skills: [remote]}})?.find(
+            (s) => s.id === "skills",
+        )
+
+    it("pairs the rename and diffs the body behind it", () => {
+        const section = item(
+            skill({name: "stop-slop-2", body: "Cut every filler word."}),
+            skill({}),
+        )
+
+        expect(section?.tags).toEqual([{kind: "edited", label: "1 edited"}])
+        expect(section?.items?.[0].label).toBe("stop-slop-1 → stop-slop-2")
+        expect(section?.items?.[0].detail).toBe("name & instructions changed")
+        expect(section?.items?.[0].textDiff?.hunks.some((h) => h.type === "added")).toBe(true)
+    })
+
+    it("leaves a genuine add and remove alone when they sit in different slots", () => {
+        const sections = classifyAgentChanges(
+            {agent: {skills: [skill({}), skill({name: "extra", body: "New one."})]}},
+            {agent: {skills: [skill({})]}},
+        ).find((s) => s.id === "skills")
+
+        expect(sections?.tags).toEqual([{kind: "added", label: "1 added"}])
+        expect(sections?.items?.map((i) => i.label)).toEqual(["extra"])
+    })
+})
+
 describe("permission rules read as rules, not as JSON", () => {
     // Regression: the row printed `Harness › permissions › allow  —  ["Bash"]`.
     const row = (local: Record<string, unknown>, remote: Record<string, unknown>) =>

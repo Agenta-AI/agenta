@@ -295,6 +295,7 @@ const entryField = (entry: unknown, field: string): string => {
  */
 function entryEdit(before: unknown, after: unknown): Pick<ChangeItem, "detail" | "textDiff"> {
     const parts: string[] = []
+    if (entryField(before, "name") !== entryField(after, "name")) parts.push("name")
     if (entryField(before, "description") !== entryField(after, "description")) {
         parts.push("description")
     }
@@ -325,6 +326,12 @@ function entryLabel(entry: unknown): string {
  * {@link agentItemIdentity} (collision-free), while the row's display label comes from
  * {@link entryLabel} — so two id-less entries never collapse the way a shared label would.
  */
+interface ListEntry {
+    key: string
+    entry: unknown
+    index: number
+}
+
 function listSection(
     id: "mcps" | "skills",
     title: string,
@@ -332,29 +339,53 @@ function listSection(
     remote: unknown[],
 ): ChangeSection | null {
     const kind: AgentItemKind = id === "mcps" ? "mcp" : "skill"
-    const lMap = new Map(local.map((e, i) => [agentItemIdentity(kind, e, i), e] as const))
-    const rMap = new Map(remote.map((e, i) => [agentItemIdentity(kind, e, i), e] as const))
-    const added: [string, unknown][] = []
-    const removed: [string, unknown][] = []
-    const edited: [string, unknown][] = []
-    for (const [key, entry] of lMap) {
-        const prev = rMap.get(key)
-        if (prev === undefined) added.push([key, entry])
-        else if (stableStringify(prev) !== stableStringify(entry)) edited.push([key, entry])
+    const read = (list: unknown[]): ListEntry[] =>
+        list.map((entry, index) => ({key: agentItemIdentity(kind, entry, index), entry, index}))
+    const lEntries = read(local)
+    const rEntries = read(remote)
+    const lMap = new Map(lEntries.map((e) => [e.key, e]))
+    const rMap = new Map(rEntries.map((e) => [e.key, e]))
+
+    const added: ListEntry[] = []
+    const removed: ListEntry[] = []
+    const edited: {key: string; before: unknown; after: unknown}[] = []
+    for (const entry of lEntries) {
+        const prev = rMap.get(entry.key)
+        if (!prev) added.push(entry)
+        else if (stableStringify(prev.entry) !== stableStringify(entry.entry)) {
+            edited.push({key: entry.key, before: prev.entry, after: entry.entry})
+        }
     }
-    for (const [key, entry] of rMap) if (!lMap.has(key)) removed.push([key, entry])
+    for (const entry of rEntries) if (!lMap.has(entry.key)) removed.push(entry)
+
+    // Identity is the name, so renaming an entry in place would read as a removal plus an
+    // unrelated addition — and the body diff behind it would never be computed. Pair whatever is
+    // left over by the slot it occupies before concluding they are different entries.
+    for (let i = added.length - 1; i >= 0; i -= 1) {
+        const match = removed.findIndex((r) => r.index === added[i].index)
+        if (match === -1) continue
+        edited.push({key: added[i].key, before: removed[match].entry, after: added[i].entry})
+        removed.splice(match, 1)
+        added.splice(i, 1)
+    }
 
     const total = added.length + removed.length + edited.length
     if (total === 0) return null
 
-    const rows = (pairs: [string, unknown][], kindTag: ChangeItem["kind"]) =>
-        pairs.map(([key, entry]) => ({
+    const plain = (entries: ListEntry[], kindTag: ChangeItem["kind"]) =>
+        entries.map(({key, entry}) => ({id: key, label: entryLabel(entry), kind: kindTag}))
+    const editedRows = edited.map(({key, before, after}) => {
+        const beforeLabel = entryLabel(before)
+        const afterLabel = entryLabel(after)
+        return {
             id: key,
-            label: entryLabel(entry),
-            kind: kindTag,
-            ...(kindTag === "edited" ? entryEdit(rMap.get(key), entry) : {}),
-        }))
-    const items = [...rows(added, "added"), ...rows(edited, "edited"), ...rows(removed, "removed")]
+            // A rename is only legible as both names; one of them alone hides what happened.
+            label: beforeLabel === afterLabel ? afterLabel : `${beforeLabel} → ${afterLabel}`,
+            kind: "edited" as const,
+            ...entryEdit(before, after),
+        }
+    })
+    const items = [...plain(added, "added"), ...editedRows, ...plain(removed, "removed")]
     const tags = []
     if (added.length) tags.push({kind: "added" as const, label: `${added.length} added`})
     if (edited.length) tags.push({kind: "edited" as const, label: `${edited.length} edited`})
