@@ -7,11 +7,13 @@ write a terminal outcome, and it is the same pattern
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select, update as sa_update
 from sqlalchemy.exc import IntegrityError
+
+from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.sessions.commands.dtos import (
     SessionCommand,
@@ -36,7 +38,40 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
 )
 
+log = get_module_logger(__name__)
+
 _OPEN_STATES = (SessionCommandState.pending.value, SessionCommandState.claimed.value)
+
+
+def _map_settle_candidates(rows: List[SessionCommandDBE]) -> List[SessionCommand]:
+    """Map an abandoned-command batch to DTOs, skipping any row this API cannot map.
+
+    A newer API replica can write a command `kind` (or state, or outcome) an older replica's
+    enums do not know; `map_command_dbe_to_dto` then raises `ValueError` on that row. The
+    watchdog reads the whole abandoned batch before it settles any of it, so one such row used
+    to poison the entire pass -- the ValueError escaped the list comprehension and no command
+    was ever settled. Skip the rows this API cannot act on, warn once per pass with their kinds
+    and count, and settle the rest. The unknown row is left untouched for a replica that knows
+    its kind; this never changes the enum or the write path.
+    """
+    mapped: List[SessionCommand] = []
+    skipped: Dict[str, int] = {}
+    for dbe in rows:
+        try:
+            mapped.append(map_command_dbe_to_dto(dbe))
+        except ValueError:
+            kind = str(dbe.kind)
+            skipped[kind] = skipped.get(kind, 0) + 1
+    if skipped:
+        by_kind = ", ".join(
+            f"{kind}={count}" for kind, count in sorted(skipped.items())
+        )
+        log.warning(
+            "commands: skipped %d abandoned row(s) this API cannot map (by kind: %s)",
+            sum(skipped.values()),
+            by_kind,
+        )
+    return mapped
 
 
 class SessionCommandsDAO(SessionCommandsDAOInterface):
@@ -449,7 +484,7 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             )
             result = await session.execute(stmt)
             rows = result.scalars().all()
-        return [map_command_dbe_to_dto(dbe) for dbe in rows]
+        return _map_settle_candidates(rows)
 
     async def count_open(self, *, project_id: UUID, session_id: str) -> int:
         """Open commands for a session. Diagnostics and tests only."""
