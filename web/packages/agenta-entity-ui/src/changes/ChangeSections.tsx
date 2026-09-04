@@ -130,7 +130,7 @@ export function StatusTags({tags, small}: {tags: ChangeSection["tags"]; small?: 
                     key={i}
                     variant={KIND_COLOR[t.kind] ?? "default"}
                     className={cn(
-                        "rounded-full",
+                        "rounded",
                         small ? "px-1.5 text-[12px] leading-[18px]" : "px-2 text-[12px]",
                     )}
                 >
