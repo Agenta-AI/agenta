@@ -82,6 +82,17 @@ describe("build-kit UI state persistence", () => {
         expect(createStore().get(reloaded.workflowBuildKitEnabledAtomFamily(REVISION))).toBe(false)
     })
 
+    it("falls back to defaults when the persisted record is the wrong shape", async () => {
+        backing.set(
+            "agenta:playground:build-kit",
+            JSON.stringify({[REVISION]: {enabled: "yes", disabledOps: "read_file"}}),
+        )
+        const mod = await loadStore(backing)
+        const store = createStore()
+        expect(store.get(mod.workflowBuildKitEnabledAtomFamily(REVISION))).toBe(true)
+        expect(store.get(mod.workflowBuildKitDisabledOpsAtomFamily(REVISION))).toEqual([])
+    })
+
     it("keeps each revision's state independent", async () => {
         const first = await loadStore(backing)
         const writeStore = createStore()

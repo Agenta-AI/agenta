@@ -1478,26 +1478,58 @@ const buildKitUiStateByRevisionAtom = atomWithStorage<Record<string, BuildKitUiS
     {getOnInit: true},
 )
 
+/**
+ * Read one revision's UI state, normalizing whatever localStorage held. jotai already falls back to
+ * the default record on invalid JSON, but valid-JSON-of-the-wrong-shape (tampering, a future shape
+ * change) still passes through, so guard each field: a non-array `disabledOps` would otherwise throw
+ * in the switches' `.filter`.
+ */
+const readBuildKitUiState = (get: Getter, revisionId: string): BuildKitUiState => {
+    const entry: unknown = get(buildKitUiStateByRevisionAtom)[revisionId]
+    if (!entry || typeof entry !== "object") return DEFAULT_BUILD_KIT_UI_STATE
+    const {enabled, disabledOps} = entry as Partial<BuildKitUiState>
+    return {
+        enabled: typeof enabled === "boolean" ? enabled : true,
+        disabledOps: Array.isArray(disabledOps)
+            ? disabledOps.filter((op): op is string => typeof op === "string")
+            : [],
+    }
+}
+
+const writeBuildKitUiState = (
+    get: Getter,
+    set: (next: Record<string, BuildKitUiState>) => void,
+    revisionId: string,
+    patch: Partial<BuildKitUiState>,
+) => {
+    const all = get(buildKitUiStateByRevisionAtom)
+    set({...all, [revisionId]: {...readBuildKitUiState(get, revisionId), ...patch}})
+}
+
 export const workflowBuildKitEnabledAtomFamily = atomFamily((revisionId: string) =>
     atom(
-        (get) => get(buildKitUiStateByRevisionAtom)[revisionId]?.enabled ?? true,
-        (get, set, next: boolean) => {
-            const all = get(buildKitUiStateByRevisionAtom)
-            const prev = all[revisionId] ?? DEFAULT_BUILD_KIT_UI_STATE
-            set(buildKitUiStateByRevisionAtom, {...all, [revisionId]: {...prev, enabled: next}})
-        },
+        (get) => readBuildKitUiState(get, revisionId).enabled,
+        (get, set, next: boolean) =>
+            writeBuildKitUiState(
+                get,
+                (value) => set(buildKitUiStateByRevisionAtom, value),
+                revisionId,
+                {enabled: next},
+            ),
     ),
 )
 
 /** Platform ops switched off individually, by `op`. Empty = all on. Persisted like the master flag. */
 export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((revisionId: string) =>
     atom(
-        (get) => get(buildKitUiStateByRevisionAtom)[revisionId]?.disabledOps ?? [],
-        (get, set, next: string[]) => {
-            const all = get(buildKitUiStateByRevisionAtom)
-            const prev = all[revisionId] ?? DEFAULT_BUILD_KIT_UI_STATE
-            set(buildKitUiStateByRevisionAtom, {...all, [revisionId]: {...prev, disabledOps: next}})
-        },
+        (get) => readBuildKitUiState(get, revisionId).disabledOps,
+        (get, set, next: string[]) =>
+            writeBuildKitUiState(
+                get,
+                (value) => set(buildKitUiStateByRevisionAtom, value),
+                revisionId,
+                {disabledOps: next},
+            ),
     ),
 )
 
