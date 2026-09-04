@@ -13,7 +13,14 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig, to_messages
+from pydantic import ValidationError
+
+from agenta.sdk.agents.dtos import (
+    AgentTemplate,
+    AgentTemplateValidationError,
+    SessionConfig,
+    to_messages,
+)
 from agenta.sdk.agents.interfaces import Backend, Environment
 from agenta.sdk.agents.capabilities import (
     harness_allows_deployment,
@@ -230,9 +237,11 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         session_id = request.session_id
 
         params = parameters or {}
-        agent_template = AgentTemplate.from_params(
-            params, defaults=comp.default_template()
-        )
+        defaults = comp.default_template()
+        try:
+            agent_template = AgentTemplate.from_params(params, defaults=defaults)
+        except ValidationError as exc:
+            raise AgentTemplateValidationError(str(exc)) from exc
 
         # SVC-1: select the backend BEFORE resolving. select_backend carries the sandbox gate
         # (a `local` run on a shared deployment is refused), and it reads only agent_template,
