@@ -738,6 +738,7 @@ export const LiveConversation = ({
                             </ContentRail>
                         ) : null}
                         <Composer
+                            entityId={entityId}
                             sessionId={sessionId}
                             onSend={async ({text, parts}) => {
                                 setStoppingHere(false)

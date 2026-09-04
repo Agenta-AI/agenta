@@ -1,7 +1,8 @@
 # Slash-command panels
 
 The panels the composer's `/` palette drills into. `SlashCommandPlugin` (in `@agenta/ui`) owns the
-palette itself; these are the surfaces a command opens.
+palette itself; these are the surfaces a command opens. Both hosts render them: the desktop dock
+(`AgentComposerDock`) and `/m`'s `Composer`.
 
 ## Keyboard contract
 
@@ -52,7 +53,7 @@ Some commands just act (`/new` starts a session). Give those `kind: "action"` ra
 An action still has to clear the `/` it consumed. Pickers get that from `onPickerOpen`, which also
 blurs; an action must NOT blur, since focus should stay in the composer for the next message. That
 is what `onCommandRun` is for. If the equivalent button elsewhere in the UI is gated, gate the row
-the same way — `/new` hides itself under `onboarding.newSessionLocked`, matching the session rail's
+the same way — `/new` hides itself under the host's `newSessionLocked`, matching the session rail's
 `+`, so the palette can never be a way around a disabled control.
 
 ## Checklist for a new command
@@ -62,5 +63,7 @@ the same way — `/new` hides itself under `onboarding.newSessionLocked`, matchi
 2. A panel here using `useRovingList`, with `onDismiss(reason)` and `onBackToCommands`.
 3. A pure config patcher in `@agenta/entity-ui`'s `agentConfigPatch.ts` — the write must preserve
    everything it does not own — plus its unit tests.
-4. Mount it in `AgentComposerDock` beside the others, wired to `dismissPicker` and `backToCommands`.
+4. Mount it in BOTH hosts' composers beside the others, wired to `dismissPicker` and
+   `backToCommands`. A row whose action only one host can perform takes an optional callback and
+   hides itself when the host omits it — that is how `/new` stays desktop-only.
 5. Add it to the Storybook `SlashCommands` story and drive the flow keyboard-only.
