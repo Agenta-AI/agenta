@@ -183,7 +183,9 @@ export function HunkRows({
                         className={cn("flex", padX, line.type === "context" && textColors.tertiary)}
                         style={style}
                     >
-                        <span className="w-3.5 shrink-0 opacity-70">
+                        {/* Content can start with its own "-" (a Markdown bullet), so the gutter
+                            needs a visible step or the two read as one doubled marker. */}
+                        <span className="mr-2 w-2 shrink-0 opacity-60">
                             {isAdd ? "+" : isDel ? "−" : " "}
                         </span>
                         <span className="whitespace-pre-wrap break-words">{line.content}</span>
