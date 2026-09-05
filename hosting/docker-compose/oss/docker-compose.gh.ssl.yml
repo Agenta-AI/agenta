@@ -355,6 +355,9 @@ services:
             # Worst-case turn duration. Keep AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS (API) above it
             # plus 60s of skew, or every dispatch rebuilds the environment cold.
             AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS: ${AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS:-}
+            # Defaults: 30 min without progress; 30 min for one tool call.
+            AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS: ${AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS:-}
+            AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS: ${AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS:-}
             AGENTA_RUNNER_DAYTONA_API_KEY: ${AGENTA_RUNNER_DAYTONA_API_KEY:-}
             AGENTA_RUNNER_DAYTONA_API_URL: ${AGENTA_RUNNER_DAYTONA_API_URL:-}
             AGENTA_RUNNER_DAYTONA_TARGET: ${AGENTA_RUNNER_DAYTONA_TARGET:-}

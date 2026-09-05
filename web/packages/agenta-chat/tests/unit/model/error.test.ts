@@ -2,7 +2,10 @@ import {describe, expect, it} from "vitest"
 
 import {
     isTransportFailure,
+    isSessionBusyRefusal,
     parseAgentRunError,
+    SESSION_TURN_IN_USE_CODE,
+    SESSION_TURN_IN_USE_MESSAGE,
     TRANSPORT_ERROR_MESSAGE,
 } from "../../../src/model/error"
 
@@ -77,5 +80,31 @@ describe("parseAgentRunError", () => {
         })
         expect(isTransportFailure("")).toBe(false)
         expect(isTransportFailure("The agent run failed.")).toBe(false)
+    })
+})
+
+describe("single-turn admission refusal", () => {
+    // The runner refusal message is the browser recovery contract.
+
+    it("recognises the refusal and carries its stable class", () => {
+        expect(parseAgentRunError(new Error(SESSION_TURN_IN_USE_MESSAGE))).toEqual({
+            message: SESSION_TURN_IN_USE_MESSAGE,
+            code: SESSION_TURN_IN_USE_CODE,
+        })
+        expect(isSessionBusyRefusal(new Error(SESSION_TURN_IN_USE_MESSAGE))).toBe(true)
+    })
+
+    it("recognises it through surrounding whitespace, as the wire may add", () => {
+        expect(isSessionBusyRefusal(`  ${SESSION_TURN_IN_USE_MESSAGE}\n`)).toBe(true)
+    })
+
+    it("does NOT claim an ordinary run failure, which must keep the failure bubble", () => {
+        expect(isSessionBusyRefusal(new Error("The model provider timed out."))).toBe(false)
+        expect(isSessionBusyRefusal(undefined)).toBe(false)
+        expect(parseAgentRunError("The model provider timed out.").code).toBeUndefined()
+    })
+
+    it("keeps the message one line, or the SDK truncates it at the first newline", () => {
+        expect(SESSION_TURN_IN_USE_MESSAGE).not.toContain("\n")
     })
 })

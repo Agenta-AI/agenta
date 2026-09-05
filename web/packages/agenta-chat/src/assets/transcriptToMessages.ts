@@ -71,6 +71,8 @@ interface DraftMessage {
     runError?: string
     /** That error's stable failure class (`error.code`), so a reload keeps the callout's action. */
     runErrorCode?: string
+    /** The terminal `done` carried `stopReason:"cancelled"` — a user Stop, not a failure. */
+    runStopped?: boolean
 }
 
 interface TranscriptIndex {
@@ -579,6 +581,20 @@ export function transcriptToMessages(
                 current.paused = true
                 continue
             }
+            if (p.stopReason === "cancelled") {
+                // Keep a carrier so a content-free cancellation can still render Stopped.
+                if (!current || current.role !== "assistant") {
+                    current = newDraft(row.id, "assistant")
+                    drafts.push(current)
+                }
+                current.runStopped = true
+                current.paused = false
+                for (const part of current.parts) {
+                    if (part.state === "approval-requested") part.state = "output-denied"
+                }
+                current = null
+                continue
+            }
             // A resumed-then-completed turn is no longer paused.
             if (current?.paused) current.resumed = true
             if (current) current.paused = false
@@ -597,13 +613,7 @@ export function transcriptToMessages(
     // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
     applyInteractionRowStates(index, options?.interactionRowStates)
 
-    // A RESUMED turn's gate was answered by definition — the runner only emits post-pause records
-    // once the user responded (a deny settles its own part via `tool_result denied`). The durable
-    // log doesn't always persist the `interaction_response`, so settle whatever is left awaiting:
-    // otherwise a completed turn replays as still parked and the reload keeps the approval dock up.
-    // Runs AFTER the rows on purpose: this sweep knows only THAT a gate was answered, never how, so
-    // ahead of them it consumed the `approval-requested` state the row's verdict is applied to, and
-    // every denied gate replayed as approved.
+    // A resumed turn's remaining approval gate was answered even when its response row is absent.
     for (const d of drafts) {
         if (!d.resumed) continue
         for (const part of d.parts) {
@@ -613,7 +623,7 @@ export function transcriptToMessages(
 
     const messages = drafts
         // A turn whose only content was the failure has no parts — keep it, or the error vanishes.
-        .filter((d) => d.parts.length > 0 || d.runError)
+        .filter((d) => d.parts.length > 0 || d.runError || d.runStopped)
         .map((d) => {
             // `getMessageTraceId`/`getMessageUsage` read exactly these, so the hover trace actions
             // and metrics bar light up on reload. traceId stays absent until the backend stamps one;
@@ -622,7 +632,8 @@ export function transcriptToMessages(
             if (d.traceId) metadata.traceId = d.traceId
             if (d.usage) metadata.usage = d.usage
             if (d.paused) metadata.paused = true
-            if (d.runError)
+            if (d.runStopped) metadata.runStopped = true
+            if (d.runError && !d.runStopped)
                 metadata.runError = {
                     message: d.runError,
                     ...(d.runErrorCode ? {code: d.runErrorCode} : {}),

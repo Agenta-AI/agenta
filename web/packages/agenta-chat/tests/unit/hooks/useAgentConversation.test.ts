@@ -14,6 +14,11 @@ import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
+const approvalRecord = vi.hoisted(() => ({
+    defer: false,
+    resolve: undefined as (() => void) | undefined,
+}))
+
 vi.mock("@agenta/playground/agent-chat", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/playground/agent-chat")>()
     return {
@@ -37,6 +42,12 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
         ...actual,
         revalidateSessionMountsAtom: atom(null, () => {}),
         revalidateSessionRecordsAtom: atom(null, () => {}),
+        recordInteractionAnswerAtom: atom(null, async () => {
+            if (!approvalRecord.defer) return
+            await new Promise<void>((resolve) => {
+                approvalRecord.resolve = resolve
+            })
+        }),
         // The hydration seam's records fetch: "no server history" for these tests.
         fetchSessionRecordsAtom: atom(null, () => ({records: null, refreshed: null})),
         fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
@@ -48,10 +59,14 @@ vi.mock("@agenta/entities/trace", () => ({
 }))
 
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
-import {markSessionFresh} from "../../../src/state/sessionEphemera"
+import {
+    getSessionTurnId,
+    markSessionFresh,
+    setSessionTurnId,
+} from "../../../src/state/sessionEphemera"
 import {sessionMessagesAtom, sessionStatusAtomFamily} from "../../../src/state/sessionMessages"
 
-const sseBody = (text: string): string => {
+const sseBody = (text: string, finishReason?: string): string => {
     const chunks = [
         {type: "start", messageId: `assist-${Math.random().toString(36).slice(2)}`},
         {type: "start-step"},
@@ -59,7 +74,7 @@ const sseBody = (text: string): string => {
         {type: "text-delta", id: "t1", delta: text},
         {type: "text-end", id: "t1"},
         {type: "finish-step"},
-        {type: "finish"},
+        {type: "finish", ...(finishReason ? {finishReason} : {})},
     ]
     return chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n"
 }
@@ -69,6 +84,22 @@ const streamResponse = (text: string): Response =>
         status: 200,
         headers: {"content-type": "text/event-stream"},
     })
+
+const approvalResponse = (): Response => {
+    const chunks = [
+        {type: "start", messageId: "approval-assistant"},
+        {type: "start-step"},
+        {type: "tool-input-start", toolCallId: "call-1", toolName: "shell"},
+        {type: "tool-input-available", toolCallId: "call-1", toolName: "shell", input: {}},
+        {type: "tool-approval-request", approvalId: "approval-1", toolCallId: "call-1"},
+        {type: "finish-step"},
+        {type: "finish", finishReason: "tool-calls"},
+    ]
+    return new Response(
+        chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("") + "data: [DONE]\n\n",
+        {status: 200, headers: {"content-type": "text/event-stream"}},
+    )
+}
 
 const errorResponse = (): Response =>
     new Response(JSON.stringify({status: {code: 500, message: "boom"}}), {
@@ -93,6 +124,8 @@ const mount = (store: ReturnType<typeof createStore>, entityId: string, sessionI
     )
 
 beforeEach(() => {
+    approvalRecord.defer = false
+    approvalRecord.resolve = undefined
     fetchMock.mockReset()
     vi.mocked(buildAgentRequest).mockClear()
     // Restore the ready-workflow build: one test replaces it with a not-yet-loaded one, and
@@ -150,6 +183,74 @@ describe("useAgentConversation", () => {
         expect(store.get(sessionStatusAtomFamily(sessionId))).toBe("idle")
         expect(result.current.runStatus).toBe("idle")
         expect(result.current.isEmpty).toBe(false)
+    })
+
+    it("clears the previous execution guard before a second send", async () => {
+        fetchMock.mockImplementation(async () => streamResponse("answer"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "first"})
+        })
+        await waitFor(() => expect(result.current.status).toBe("ready"), {timeout: 5000})
+        setSessionTurnId(sessionId, "turn-old")
+
+        await act(async () => {
+            await result.current.send({text: "second"})
+        })
+
+        expect(getSessionTurnId(sessionId)).toBeUndefined()
+    })
+
+    it("clears the parked turn guard when an approval automatically resumes", async () => {
+        fetchMock
+            .mockResolvedValueOnce(approvalResponse())
+            .mockResolvedValueOnce(streamResponse("done"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "needs approval"})
+        })
+        await waitFor(() => expect(result.current.approvals.open).toBe(true), {timeout: 5000})
+        setSessionTurnId(sessionId, "parked-turn")
+
+        act(() => result.current.approvals.respond(true))
+
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2), {timeout: 5000})
+        expect(getSessionTurnId(sessionId)).toBeUndefined()
+    })
+
+    it("voids an approval resume before its delayed interaction write releases", async () => {
+        approvalRecord.defer = true
+        fetchMock
+            .mockResolvedValueOnce(approvalResponse())
+            .mockResolvedValueOnce(streamResponse("unexpected resume"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "needs approval"})
+        })
+        await waitFor(() => expect(result.current.approvals.open).toBe(true), {timeout: 5000})
+
+        act(() => result.current.approvals.respond(true))
+        await waitFor(() => expect(approvalRecord.resolve).toBeTypeOf("function"), {timeout: 5000})
+        act(() => result.current.voidPendingResume())
+        await act(async () => {
+            approvalRecord.resolve?.()
+            await Promise.resolve()
+        })
+        await new Promise((resolve) => setTimeout(resolve, 100))
+
+        expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
     it("survives a revision switch mid-stream instead of aborting the turn", async () => {
@@ -351,5 +452,27 @@ describe("useAgentConversation", () => {
             expect(last.status.errorText).toBe("boom")
             expect(last.status.isError).toBe(true)
         })
+    })
+
+    it("maps a stream-delivered user Stop to the neutral stopped state", async () => {
+        fetchMock.mockResolvedValue(
+            new Response(sseBody("partial answer", "other"), {
+                status: 200,
+                headers: {"content-type": "text/event-stream"},
+            }),
+        )
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "start"})
+        })
+        await waitFor(() => expect(result.current.status).toBe("ready"), {timeout: 5000})
+
+        expect(result.current.stopped).toBe(true)
+        expect(result.current.error).toBeUndefined()
+        expect(result.current.runStatus).toBe("idle")
     })
 })

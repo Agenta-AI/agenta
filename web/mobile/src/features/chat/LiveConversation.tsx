@@ -5,6 +5,9 @@ import {
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
     jumpGateOpen,
+    latestTurnId,
+    resolveStopExecution,
+    shouldShowStopControl,
 } from "@agenta/chat/assets"
 import {
     ConnectionDock,
@@ -20,9 +23,16 @@ import {
     useConnectionDock,
     useElicitationDock,
 } from "@agenta/chat/hooks"
-import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
+import {
+    getInteractionAvailability,
+    getLivePendingApprovals,
+    isSessionTurnStopping,
+    type TurnViewModel,
+} from "@agenta/chat/model"
+import {getSessionTurnId} from "@agenta/chat/state"
+import {cancelSessionExecution} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
-import {modal} from "@agenta/ui/app-message"
+import {message, modal} from "@agenta/ui/app-message"
 import {
     ChatBubble,
     ChatBubbleAvatar,
@@ -49,6 +59,7 @@ import {
 } from "./pendingTaskPolicy"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
+import {cancelledStopAction} from "./stopHereState"
 import {TurnRow} from "./TurnRow"
 import {showTrailingWorkingPulse} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
@@ -73,6 +84,9 @@ export const LiveConversation = ({
     projectId,
     workspaceId,
     running,
+    stopStateLoading,
+    sessionTurnId,
+    stoppingTurnId,
     agentId,
     embedded = false,
 }: {
@@ -82,6 +96,10 @@ export const LiveConversation = ({
     workspaceId: string
     /** Backend liveness (cross-device) — shows the running strip even when this device idles. */
     running: boolean
+    /** Initial liveness load and durable Stop ownership for remount recovery. */
+    stopStateLoading: boolean
+    sessionTurnId?: string | null
+    stoppingTurnId?: string | null
     /** Scopes the session tab rail to this agent's sessions. */
     agentId?: string | null
     /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
@@ -155,7 +173,7 @@ export const LiveConversation = ({
     const takePendingTask = useSetAtom(takePendingTaskAtom)
     const sentPendingTaskFor = useRef<string | null>(null)
     const [pendingTaskError, setPendingTaskError] = useState<string | null>(null)
-    const {isHydrating, send} = conversation
+    const {isHydrating, revalidate, send, stop, voidPendingResume} = conversation
     useEffect(() => {
         const decision = pendingTaskDecision({
             sessionId,
@@ -188,22 +206,209 @@ export const LiveConversation = ({
         takePendingTask,
     ])
 
-    // Push-invalidation: a records change (another device's turn, a steer resume) folds into
-    // the engine's transcript under its adopt guards.
-    const watch = useSessionWatch({sessionId, projectId, onRecordsChanged: conversation.revalidate})
-    // The watch relay is the primary cross-device signal; when it cannot connect, fall back to a
-    // slow revalidate poll only while the backend says the session is running elsewhere.
+    const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
+    const streamingHereRef = useRef(streamingHere)
+    streamingHereRef.current = streamingHere
+    const hitlPendingRef = useRef(conversation.hitlPending)
+    hitlPendingRef.current = conversation.hitlPending
+    const [stoppingHere, setStoppingHere] = useState(false)
+    const stopWatchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
+    const retryStopRef = useRef(false)
+    const stopSessionIdRef = useRef(sessionId)
+    stopSessionIdRef.current = sessionId
+    const stopping =
+        stoppingHere ||
+        isSessionTurnStopping({
+            currentTurnId: sessionTurnId ?? latestTurnId(conversation.messages),
+            stoppingTurnId,
+        }) ||
+        (stopStateLoading && conversation.hitlPending)
+    const settleParkedStop = useCallback(() => {
+        if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
+        stopWatchdogTimerRef.current = null
+        retryStopRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        // Server acceptance makes the local stop a render-only latch.
+        stop()
+        setStoppingHere(false)
+    }, [stop])
+
+    useEffect(() => {
+        if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
+        stopWatchdogTimerRef.current = null
+        retryStopRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        setStoppingHere(false)
+    }, [sessionId])
+
+    // Push invalidation folds cross-device changes into the guarded transcript.
+    const watch = useSessionWatch({
+        sessionId,
+        projectId,
+        onRecordsChanged: revalidate,
+    })
+    // Poll slowly while a cross-device run cannot be watched live.
     useEffect(() => {
         if (watch.connected || !running) return
-        const timer = setInterval(() => conversation.revalidate(), 7_500)
+        const timer = setInterval(() => revalidate(), 7_500)
         return () => clearInterval(timer)
-    }, [watch.connected, running, conversation.revalidate])
+    }, [watch.connected, running, revalidate])
+    useEffect(() => {
+        if (streamingHere || !stopWatchdogTimerRef.current) return
+        clearTimeout(stopWatchdogTimerRef.current)
+        stopWatchdogTimerRef.current = null
+        retryStopRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        setStoppingHere(false)
+    }, [streamingHere])
+    useEffect(
+        () => () => {
+            if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
+        },
+        [],
+    )
+    const stopResolutionRef = useRef<AbortController | null>(null)
+    useEffect(
+        () => () => {
+            stopResolutionRef.current?.abort()
+        },
+        [sessionId],
+    )
 
-    // The engine's own dock latches the shown set; the mobile dock renders the raw pending list
-    // (same source function, same index-0 ordering) and acts through the engine.
+    // Composer Stop cancels on the server before changing local presentation.
+    const stopHere = useCallback(() => {
+        if (stopping) return
+        // Fence a delayed approval release even when cancellation cannot be requested yet.
+        voidPendingResume()
+        if (!projectId || !sessionId) return
+        setStoppingHere(true)
+        const wasParked = !streamingHereRef.current && conversation.hitlPending
+        const isRetry = retryStopRef.current
+        const expectedExecutionId = isRetry
+            ? expectedStopExecutionIdRef.current
+            : getSessionTurnId(sessionId)
+        retryStopRef.current = false
+        let resolutionController: AbortController | null = null
+        const cancel = async () => {
+            let resolvedExecutionId = expectedExecutionId
+            if (!isRetry && !resolvedExecutionId && streamingHereRef.current) {
+                const controller = new AbortController()
+                resolutionController = controller
+                stopResolutionRef.current?.abort()
+                stopResolutionRef.current = controller
+                const resolution = await resolveStopExecution({
+                    readExecutionId: () => getSessionTurnId(sessionId),
+                    isRunActive: () => streamingHereRef.current,
+                    signal: controller.signal,
+                })
+                if (stopResolutionRef.current === controller) stopResolutionRef.current = null
+                if (resolution.status !== "resolved") return {resolution} as const
+                resolvedExecutionId = resolution.executionId
+            }
+            expectedStopExecutionIdRef.current = resolvedExecutionId
+            const outcome = await cancelSessionExecution({
+                sessionId,
+                projectId,
+                expectedExecutionId: resolvedExecutionId,
+            })
+            return {outcome} as const
+        }
+        void cancel()
+            .then((result) => {
+                if ("resolution" in result && result.resolution) {
+                    if (result.resolution.status === "settled") {
+                        setStoppingHere(false)
+                    } else if (result.resolution.status === "timed_out") {
+                        setStoppingHere(false)
+                        message.warning("Could not identify the run to stop. Please try again.")
+                    }
+                    return
+                }
+                const {outcome} = result
+                if (stopSessionIdRef.current !== sessionId) return
+                if (outcome?.accepted) {
+                    const action = cancelledStopAction({
+                        parkedAtRequest: wasParked,
+                        parkedAtResponse: !streamingHereRef.current && hitlPendingRef.current,
+                        streaming: streamingHereRef.current,
+                        retry: isRetry,
+                        executionState: outcome.execution.state,
+                    })
+                    if (action === "settle-parked") {
+                        settleParkedStop()
+                        return
+                    }
+                    if (action === "settle-idle") {
+                        setStoppingHere(false)
+                        expectedStopExecutionIdRef.current = undefined
+                        return
+                    }
+                    if (action === "abort-settled" || action === "abort-retry") {
+                        stop()
+                        setStoppingHere(false)
+                        expectedStopExecutionIdRef.current = undefined
+                        return
+                    }
+                    stopWatchdogTimerRef.current = setTimeout(() => {
+                        retryStopRef.current = true
+                        stopWatchdogTimerRef.current = null
+                        setStoppingHere(false)
+                    }, 30_000)
+                    return
+                }
+                setStoppingHere(false)
+                if (outcome && !outcome.conflict && outcome.execution.state === "idle") {
+                    retryStopRef.current = false
+                    expectedStopExecutionIdRef.current = undefined
+                    return
+                }
+                if (outcome?.conflict) {
+                    retryStopRef.current = false
+                    expectedStopExecutionIdRef.current = undefined
+                } else if (isRetry) {
+                    retryStopRef.current = true
+                }
+                message.warning(
+                    outcome?.conflict
+                        ? "That run had already finished. The session is running something else now."
+                        : "Could not stop the run. It may still be running.",
+                )
+            })
+            .catch((error: unknown) => {
+                if (stopResolutionRef.current === resolutionController) {
+                    stopResolutionRef.current = null
+                }
+                if (stopSessionIdRef.current !== sessionId) return
+                if (isRetry) retryStopRef.current = true
+                setStoppingHere(false)
+                message.warning(
+                    error instanceof Error
+                        ? error.message
+                        : "Could not stop the run. It may still be running.",
+                )
+            })
+    }, [
+        projectId,
+        sessionId,
+        stop,
+        stopping,
+        conversation.hitlPending,
+        settleParkedStop,
+        voidPendingResume,
+    ])
+
+    const interactionAvailability = getInteractionAvailability({
+        stopped: conversation.stopped,
+        stopping,
+        streaming: streamingHere,
+    })
     const pendingApprovals = useMemo(
-        () => getPendingApprovals(conversation.messages),
-        [conversation.messages],
+        () =>
+            getLivePendingApprovals(conversation.messages, {
+                stopped: !interactionAvailability.approvals,
+            }),
+        [conversation.messages, interactionAvailability.approvals],
     )
     // Steer keeps the detached resume dispatcher; plain approve/deny go through the engine.
     const steerActions = useApprovalActions({
@@ -239,20 +444,19 @@ export const LiveConversation = ({
     )
     const autoScroll = useTranscriptAutoScroll(visibleTurns)
 
-    const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
     // Parked connect interactions → the dock above the composer owns their actions, so a paused
     // run can't scroll out of reach. Gated the same way desktop gates it.
     // Parked question forms → the docked card owns the questions and the answers; the transcript
     // rows are passive markers.
     const elicits = useElicitationDock({
         messages: conversation.messages,
-        enabled: !streamingHere && !conversation.stopped,
+        enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         onOutput: conversation.sendToolOutput,
     })
     const connects = useConnectionDock({
         messages: conversation.messages,
-        enabled: !streamingHere && !conversation.stopped,
+        enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
@@ -477,6 +681,7 @@ export const LiveConversation = ({
                         <Composer
                             sessionId={sessionId}
                             onSend={({text, parts}) => {
+                                setStoppingHere(false)
                                 // An open edit rewrites its held message instead of sending. The
                                 // input clears on submit, so the displaced draft goes back after.
                                 if (!conversation.editingId) {
@@ -494,8 +699,12 @@ export const LiveConversation = ({
                                 modelBlocked ? "Connect a model to start chatting…" : undefined
                             }
                             waitingOnUser={conversation.hitlPending}
-                            streaming={streamingHere}
-                            onStop={conversation.stop}
+                            streaming={shouldShowStopControl({
+                                busy: streamingHere,
+                                hitlPending: conversation.hitlPending,
+                            })}
+                            stopping={stopping}
+                            onStop={stopHere}
                             inputRef={composerRef}
                         />
                     </div>

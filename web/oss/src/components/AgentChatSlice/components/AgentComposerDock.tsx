@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, type RefObject} from "react"
 
-import {CHAT_COLUMN} from "@agenta/chat/assets"
+import {CHAT_COLUMN, shouldShowStopControl} from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {
     ChatComposer,
@@ -73,6 +73,7 @@ const AgentComposerDock = ({
     onClientToolOutput,
     onSubmit,
     onStop,
+    stopping,
     richInputRef,
     composer,
     attachments,
@@ -109,6 +110,7 @@ const AgentComposerDock = ({
     onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
     onStop: () => void
+    stopping: boolean
     richInputRef: RefObject<RichChatInputHandle | null>
     composer: ReturnType<typeof useComposerDraft>
     attachments: ReturnType<typeof useComposerAttachments>
@@ -446,7 +448,8 @@ const AgentComposerDock = ({
                         initialMarkdown={composer.initialDraft}
                         slashCommands={slash.sections}
                         onChange={composer.handleComposerChange}
-                        streaming={busy}
+                        streaming={shouldShowStopControl({busy, hitlPending})}
+                        stopping={stopping}
                         onStop={onStop}
                         attachments={attachments}
                         attachmentsBlocked={attachmentsBlocked}

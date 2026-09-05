@@ -501,11 +501,20 @@ export const useSessionHydration = ({
         sessionId,
         projectId,
         // #5919 relay; this surface re-reads records on any interaction change.
-        onInteractionChanged: () => revalidateSessionRecords(sessionId),
+        onInteractionChanged: () => {
+            revalidateSessionRecords(sessionId)
+        },
         enabled: activeSessionId === sessionId,
         onReady: refreshOnReady,
         onRecordsChanged: refreshFromRecords,
     })
 
-    return {isHydrating, hydratedEmpty, runningElsewhere}
+    return {
+        isHydrating,
+        hydratedEmpty,
+        runningElsewhere,
+        stopStateLoading: liveness.isLoading,
+        sessionTurnId: liveness.turnId,
+        stoppingTurnId: liveness.stoppingTurnId,
+    }
 }

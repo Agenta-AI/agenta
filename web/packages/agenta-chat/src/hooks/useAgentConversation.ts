@@ -14,7 +14,7 @@
 // Deliberately omitted (desktop-only): first-seen timestamp stamping (display metadata for the desktop rows) — the desktop host keeps its own implementation until the re-plumb.
 // Deliberately omitted (desktop-only): session auto-titling and the first-run seed auto-send — the desktop host keeps its own implementation until the re-plumb.
 // Deliberately omitted (desktop-only): the model-key composer gate — compose `useAgentModelKeyStatus` in the skin instead.
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useReducer, useRef, useState} from "react"
 
 import {
     invalidateSessionListQueries,
@@ -39,6 +39,7 @@ import {useChat} from "@ai-sdk/react"
 import type {FileUIPart, UIMessage} from "ai"
 import {useSetAtom, useStore} from "jotai"
 
+import {latestTurnId} from "../assets/agentTurn"
 import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {filesToParts} from "../assets/files"
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
@@ -54,6 +55,7 @@ import {
     type ClientToolPartPredicate,
     type TurnViewModel,
 } from "../model/turnViewModel"
+import {createUserStoppedState, reduceUserStoppedState} from "../model/userStop"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
 import {stampMessagesCreatedAtAtom} from "../state/messageStamps"
 import {
@@ -62,7 +64,13 @@ import {
     isChatBusy,
     type SessionChatHooks,
 } from "../state/sessionChats"
-import {clearSessionFresh, composerDraftBySession, isSessionFresh} from "../state/sessionEphemera"
+import {
+    clearSessionFresh,
+    clearSessionTurnId,
+    composerDraftBySession,
+    isSessionFresh,
+    setSessionTurnId,
+} from "../state/sessionEphemera"
 import {
     persistSessionMessagesAtom,
     sessionMessagesAtom,
@@ -131,6 +139,8 @@ export interface AgentConversation {
     turns: TurnViewModel[]
     /** Send a user message (routes through the queue: sends now, or holds while busy/paused). */
     send: (input: SendInput) => Promise<void>
+    /** Prevent an approval decision still being recorded from starting its delayed resume. */
+    voidPendingResume: () => void
     /** Abort the in-flight stream and tag the last assistant turn as user-stopped. */
     stop: () => void
     /** Re-run an assistant turn by message id (also the "Resend" action after a stop). */
@@ -194,12 +204,19 @@ export const useAgentConversation = ({
     const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
     const clearTurnClock = useSetAtom(clearTurnClockAtom)
 
-    // Whether the LAST assistant turn was user-stopped. You can only cancel the in-flight (last)
-    // turn, so this is a single boolean gated on position at render time. Cleared on the next
-    // send/resend.
-    const [stopped, setStopped] = useState(false)
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
     const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
+    // Only the last assistant turn can carry the current stopped state.
+    const [userStoppedState, dispatchStopped] = useReducer(
+        reduceUserStoppedState,
+        initialMessages,
+        createUserStoppedState,
+    )
+    const stopped = userStoppedState.stopped
+    const setStopped = useCallback(
+        (next: boolean) => dispatchStopped({type: next ? "user-stop" : "reset"}),
+        [],
+    )
     // Restored (not live-streamed) message ids — the orphaned-resume detection reads this, and a
     // skin can use it to skip entrance animations for restored rows.
     const restoredIdsRef = useRef<Set<string>>(new Set(initialMessages.map((m) => m.id)))
@@ -232,9 +249,11 @@ export const useAgentConversation = ({
 
     // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
     const busyRef = useRef(false)
+    const messagesRef = useRef(initialMessages)
 
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
+            clearSessionTurnId(sessionId)
             // Bounded, not instant. A null build means the workflow entity has not loaded its
             // invocation URL YET — the first send to a freshly created agent races that fetch, and
             // failing on the first null made a new user's first message fail (#6042 on the desktop;
@@ -266,7 +285,12 @@ export const useAgentConversation = ({
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
         },
-        onFinish: ({message}) => {
+        onFinish: ({message, messages: finishedMessages, finishReason}) => {
+            dispatchStopped({
+                type: "stream-terminal",
+                messages: finishedMessages,
+                finishReason,
+            })
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
@@ -288,13 +312,10 @@ export const useAgentConversation = ({
             }
         },
         onError: () => {
-            // Clear the marker but do NOT void the resume. A gateway approval is answered while the
-            // stream is still open, so the SDK skips its own dispatch and only re-evaluates when the
-            // stream ends — often by erroring, right here. `null` made that last evaluation return
-            // false and stranded the answer; `undefined` lets the tail heuristics decide.
-            // Adoption is unaffected: the hydration guard reads this ref as a boolean.
-            // The registry logs the error for the dev overlay (F-033) before calling this.
-            liveGateInteractionRef.current = undefined
+            // Preserve null after resume/Stop; only a live marker may fall back to tail detection.
+            if (liveGateInteractionRef.current !== null) {
+                liveGateInteractionRef.current = undefined
+            }
         },
     }
 
@@ -327,12 +348,20 @@ export const useAgentConversation = ({
     })
 
     const busy = isChatBusy(status)
-
     // `messages`/`busy` change every commit; consumers that must stay referentially stable
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
-    const messagesRef = useRef(messages)
     messagesRef.current = messages
     busyRef.current = busy
+
+    useEffect(() => {
+        dispatchStopped({type: "transcript", messages})
+    }, [messages])
+
+    // Keep only the newest turn id observed from this session's live stream.
+    useEffect(() => {
+        const turnId = latestTurnId(messages)
+        if (turnId) setSessionTurnId(sessionId, turnId)
+    }, [messages, sessionId])
 
     // Hybrid history: localStorage holds the cached conversation; the durable content lives in
     // the backend record log. Cache-first — when this session opens with no locally-cached
@@ -461,8 +490,8 @@ export const useAgentConversation = ({
             // A real send means this session has run — drop the never-run marker so a later
             // cache-cleared reopen hydrates from the server.
             clearSessionFresh(sessionId)
-            // Any actual send supersedes a prior user-stop, so clear the marker here (covers the
-            // queue-release path; the manual path also clears it in `send`).
+            clearSessionTurnId(sessionId)
+            // Any actual send supersedes a prior user-stop.
             setStopped(false)
             sendMessage(
                 item.fileParts && item.fileParts.length
@@ -693,15 +722,20 @@ export const useAgentConversation = ({
         void loadSessionMessages(sessionId, adoptServerTranscript).then(adoptServerTranscript)
     }, [adoptServerTranscript, sessionId])
 
+    // Fence a delayed approval release before the host's durable cancel request settles.
+    const voidPendingResume = useCallback(() => {
+        liveGateInteractionRef.current = null
+    }, [])
+
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const handleStop = useCallback(() => {
         const last = messagesRef.current[messagesRef.current.length - 1]
         if (last && last.role === "assistant") setStopped(true)
         // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
         // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
-        liveGateInteractionRef.current = null
+        voidPendingResume()
         stop()
-    }, [stop])
+    }, [stop, voidPendingResume])
 
     // ── D9 teardown: `useSessionChat` releases this mount's claim on the session's chat ──
     // No `stop()` here: a streaming run is preserved past the unmount on purpose (#5724), and
@@ -730,7 +764,7 @@ export const useAgentConversation = ({
                     files: encoded.rejections.map((r) => r.name),
                 })
             }
-            // Clear any prior "stopped" marker — it's resolved by asking again.
+            clearSessionTurnId(sessionId)
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the release gate.
             submit({text: trimmed, fileParts})
@@ -742,10 +776,11 @@ export const useAgentConversation = ({
 
     const regenerateTurn = useCallback(
         (id: string) => {
+            clearSessionTurnId(sessionId)
             setStopped(false)
             regenerate({messageId: id}).catch(ignoreStreamRejection)
         },
-        [regenerate],
+        [regenerate, sessionId],
     )
 
     // Rewind scan: pure side-effect detection + a deferred `confirm()`. The skin owns the
@@ -769,12 +804,13 @@ export const useAgentConversation = ({
                     if (at < 0) return
                     setMessages(current.slice(0, at))
                 } else {
+                    clearSessionTurnId(sessionId)
                     regenerate({messageId: message.id}).catch(ignoreStreamRejection)
                 }
             }
             return {sideEffects, restoreText: isUser ? messageText(message) : undefined, confirm}
         },
-        [regenerate, setMessages],
+        [regenerate, sessionId, setMessages],
     )
 
     // Per-mount executed-identity cache — the desktop's per-message toolSignature memo,
@@ -800,6 +836,7 @@ export const useAgentConversation = ({
         error: parsedError,
         turns,
         send,
+        voidPendingResume,
         stop: handleStop,
         regenerate: regenerateTurn,
         rewind,

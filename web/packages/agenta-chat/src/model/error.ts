@@ -1,6 +1,7 @@
 export interface ParsedRunError {
     message: string
-    code?: number
+    /** An HTTP-ish status from a JSON error envelope, or a stable runner failure class string. */
+    code?: number | string
     /** The request never reached Agenta: no server verdict behind it, and retryable as-is. */
     transport?: boolean
 }
@@ -45,6 +46,17 @@ export const isTransportFailure = (raw: string): boolean => {
     return TRANSPORT_MESSAGES.includes(bare)
 }
 
+// Keep this refusal contract byte-identical to the runner message.
+export const SESSION_TURN_IN_USE_CODE = "session_turn_in_use"
+
+export const SESSION_TURN_IN_USE_MESSAGE =
+    "This session is already running a turn. Your message was not sent. Wait for the reply, or stop the turn, then send again."
+
+/** True when a `useChat` error is the single-turn admission refusal. */
+export const isSessionBusyRefusal = (err: unknown): boolean =>
+    parseAgentRunError(err).message.trim() === SESSION_TURN_IN_USE_MESSAGE
+
+// Keep byte parity with the desktop parser until its duplicate is removed.
 /**
  * Best-effort human reason from a useChat stream error: a plain string or a `{status:{…}}`
  * envelope. An engine's own wording is translated — "Failed to fetch" under "The agent run
@@ -72,8 +84,11 @@ export const parseAgentRunError = (err: unknown): ParsedRunError => {
     } catch {
         // raw isn't JSON — it's already the human message.
     }
-    // After the envelope: a server that reports those words means them, and its code is worth more
-    // than this translation. A bare engine string has no envelope to lose.
+    if (fallback.trim() === SESSION_TURN_IN_USE_MESSAGE) {
+        // Carry the class so the bubble can say "not sent" rather than "the agent run failed".
+        return {message: fallback, code: SESSION_TURN_IN_USE_CODE}
+    }
+    // A server envelope outranks transport-phrase translation.
     if (isTransportFailure(fallback)) return {message: TRANSPORT_ERROR_MESSAGE, transport: true}
     return {message: fallback}
 }

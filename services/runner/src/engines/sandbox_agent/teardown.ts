@@ -31,6 +31,8 @@ export type TeardownReason =
   | "kill"
   | "failed-turn"
   | "aborted"
+  /** A user Stop whose harness cancel SETTLED. The daemon is idle and sound, so park it. */
+  | "cancelled"
   /** @deprecated Name the failing layer instead. Kept so an unclassified call site fails safe. */
   | "compatibility-mismatch"
   | "session-incompatible"
@@ -61,6 +63,10 @@ const PARKABLE_REASONS: ReadonlySet<TeardownReason> = new Set<TeardownReason>([
   "idle-expiry",
   "capacity-eviction",
   "shutdown-idle",
+  // A settled Stop. The harness answered its cancelled prompt, so nothing inside the daemon is
+  // mid-flight and nothing baked into it is stale. An UNSETTLED Stop never reaches this reason:
+  // it stays `aborted`, which deletes.
+  "cancelled",
   // The two incompatibilities whose daemon is still sound. See the module comment.
   "session-incompatible",
   "continuity-invalid",

@@ -99,10 +99,12 @@ class RecordsRetentionDAO:
                 type_=ARRAY(PG_UUID(as_uuid=True)),
             )
 
+            # The key is (project_id, record_id). `RecordDBE.id` does not exist, so the
+            # earlier version of this statement raised before it deleted anything.
             expired = (
                 select(
                     RecordDBE.project_id.label("project_id"),
-                    RecordDBE.id.label("id"),
+                    RecordDBE.record_id.label("record_id"),
                 )
                 .where(
                     RecordDBE.project_id == any_(project_ids_param),
@@ -116,8 +118,8 @@ class RecordsRetentionDAO:
             deleted = (
                 delete(RecordDBE)
                 .where(
-                    tuple_(RecordDBE.project_id, RecordDBE.id).in_(
-                        select(expired.c.project_id, expired.c.id)
+                    tuple_(RecordDBE.project_id, RecordDBE.record_id).in_(
+                        select(expired.c.project_id, expired.c.record_id)
                     )
                 )
                 .returning(literal(1).label("deleted"))

@@ -59,7 +59,14 @@ export interface OpenSessionInput {
     createSession: (request: unknown) => Promise<{ id: string }>;
   };
   /** The session persist driver. Typed loosely so this unit does not restate the SDK's record. */
-  persist: { updateSession: (record: never) => Promise<unknown> };
+  persist: {
+    updateSession: (record: never) => Promise<unknown>;
+    listEvents?: (request: {
+      sessionId: string;
+      cursor?: string;
+      limit?: number;
+    }) => Promise<{ items: unknown[]; nextCursor?: string }>;
+  };
   acpAgent: string;
   harness: string;
   cwd: string;
@@ -67,6 +74,8 @@ export interface OpenSessionInput {
   sessionInit: Record<string, unknown>;
   /** The native session id to resume, when the store says one is eligible. */
   priorAgentSessionId: string | undefined;
+  /** Whether the native transcript path is backed by durable storage for this acquire. */
+  nativeHistoryDurable: boolean;
   /** The runner-local key both modes use for the persist record. */
   localSessionId: string | undefined;
   /** For the continuity log line only. */
@@ -87,7 +96,54 @@ export interface OpenSessionResult {
    * reopen may claim continuity; this unit reports what it can observe and no more.
    */
   loadedFromContinuity: boolean;
+  /** Whether `session/load` emitted prior conversation content, not merely accepted the id. */
+  nativeHistoryVerified: boolean;
   mode: "load" | "create";
+}
+
+const HISTORY_SESSION_UPDATES = new Set([
+  "user_message_chunk",
+  "agent_message_chunk",
+  "agent_thought_chunk",
+  "tool_call",
+  "tool_call_update",
+]);
+
+/**
+ * `sandbox-agent` persists every ACP envelope observed while `session/load` runs. A real native
+ * replay therefore leaves at least one conversation update behind; an adapter that merely accepts
+ * the id leaves none. This is the positive proof the id comparison cannot provide.
+ */
+async function loadedHistoryWasObserved(
+  persist: OpenSessionInput["persist"],
+  localSessionId: string,
+  eventCountBeforeLoad: number,
+): Promise<boolean> {
+  if (!persist.listEvents) return false;
+  const items: unknown[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await persist.listEvents({
+      sessionId: localSessionId,
+      cursor,
+      limit: 100,
+    });
+    items.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor);
+  return items.slice(eventCountBeforeLoad).some((item) => {
+    const event = item as {
+      sender?: unknown;
+      payload?: { method?: unknown; params?: { update?: { sessionUpdate?: unknown } } };
+    };
+    return (
+      event.sender === "agent" &&
+      event.payload?.method === "session/update" &&
+      HISTORY_SESSION_UPDATES.has(
+        String(event.payload.params?.update?.sessionUpdate ?? ""),
+      )
+    );
+  });
 }
 
 /**
@@ -102,6 +158,7 @@ export async function openSession(
 ): Promise<OpenSessionResult> {
   let session: { id: string; agentSessionId?: string } | undefined;
   let loadedFromContinuity = false;
+  let nativeHistoryVerified = false;
 
   if (input.priorAgentSessionId && input.localSessionId) {
     await input.persist.updateSession({
@@ -114,12 +171,55 @@ export async function openSession(
     } as never);
     const createSessionStartedAt = Date.now();
     try {
+      let eventCountBeforeLoad: number | undefined;
+      if (input.nativeHistoryDurable && input.persist.listEvents) {
+        try {
+          const page = await input.persist.listEvents({
+            sessionId: input.localSessionId,
+            limit: 100,
+          });
+          eventCountBeforeLoad = page.items.length;
+          let cursor = page.nextCursor;
+          while (cursor) {
+            const next = await input.persist.listEvents({
+              sessionId: input.localSessionId,
+              cursor,
+              limit: 100,
+            });
+            eventCountBeforeLoad += next.items.length;
+            cursor = next.nextCursor;
+          }
+        } catch (err) {
+          input.log(
+            `[continuity] native history baseline failed: ${conciseError(err, input.harness)}`,
+          );
+        }
+      }
       session = await input.sandbox.resumeSession(input.localSessionId);
       loadedFromContinuity =
         session.agentSessionId === input.priorAgentSessionId;
+      if (
+        loadedFromContinuity &&
+        input.nativeHistoryDurable &&
+        eventCountBeforeLoad !== undefined
+      ) {
+        try {
+          nativeHistoryVerified = await loadedHistoryWasObserved(
+            input.persist,
+            input.localSessionId,
+            eventCountBeforeLoad,
+          );
+        } catch (err) {
+          input.log(
+            `[continuity] native history verification failed: ${conciseError(err, input.harness)}`,
+          );
+        }
+      }
       input.log(
         `[continuity] session/load attempted session=${input.continuitySessionKey} ` +
-          `harness=${input.harness} loaded=${loadedFromContinuity}`,
+          `harness=${input.harness} loaded=${loadedFromContinuity} ` +
+          `historyDurable=${input.nativeHistoryDurable} ` +
+          `historyVerified=${nativeHistoryVerified}`,
       );
     } catch (err) {
       input.log(
@@ -143,10 +243,20 @@ export async function openSession(
     } finally {
       input.timingLog("create_session", createSessionStartedAt, " mode=create");
     }
-    return { session, loadedFromContinuity, mode: "create" };
+    return {
+      session,
+      loadedFromContinuity,
+      nativeHistoryVerified,
+      mode: "create",
+    };
   }
 
-  return { session, loadedFromContinuity, mode: "load" };
+  return {
+    session,
+    loadedFromContinuity,
+    nativeHistoryVerified,
+    mode: "load",
+  };
 }
 
 /**
@@ -222,6 +332,7 @@ export type ReopenResult =
       ok: true;
       session: { id: string; agentSessionId?: string };
       loadedFromContinuity: boolean;
+      nativeHistoryVerified: boolean;
     }
   | { ok: false; reason: "history-unverifiable" | "reopen-failed" };
 
@@ -251,6 +362,7 @@ export async function reopen(input: ReopenInput): Promise<ReopenResult> {
       ok: true,
       session: opened.session,
       loadedFromContinuity: opened.loadedFromContinuity,
+      nativeHistoryVerified: opened.nativeHistoryVerified,
     };
   } catch (err) {
     input.log(`reopen failed: ${conciseError(err, input.harness)}`);
