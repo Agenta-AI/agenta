@@ -173,11 +173,6 @@ const selectAutoEvaluationModalTableInput = async ({
 }) => {
     const activePane = modal.locator(".ant-tabs-tabpane-active").last()
     const searchInput = activePane.locator('input[placeholder="Search"]').first()
-    const inputSelector =
-        'input[type="checkbox"], input[type="radio"], .ant-checkbox-input, .ant-radio-input'
-    const controlSelector =
-        '.ant-checkbox, .ant-checkbox-wrapper, .ant-radio, .ant-radio-wrapper, [role="checkbox"], [role="radio"]'
-    const selectedTags = modal.locator(".ant-tabs-tab .ant-tag")
 
     if (rowText && (await pollLocatorState(() => searchInput.isVisible()))) {
         await typeIntoLocator(searchInput, rowText)
@@ -200,41 +195,16 @@ const selectAutoEvaluationModalTableInput = async ({
     const stableRow = targetRowKey
         ? modal.locator(`[data-row-key="${targetRowKey}"]`).first()
         : targetRow
+    const selectionControl = stableRow
+        .getByRole("checkbox", {includeHidden: true})
+        .or(stableRow.getByRole("radio", {includeHidden: true}))
+        .first()
     await expect(stableRow).toBeVisible({timeout: 30000})
 
-    const isSelected = async () => {
-        const rowClassName = await stableRow.getAttribute("class").catch(() => null)
-        if (rowClassName?.includes("ant-table-row-selected")) {
-            return true
-        }
-
-        const ariaSelected = await stableRow.getAttribute("aria-selected").catch(() => null)
-        if (ariaSelected === "true") {
-            return true
-        }
-
-        const selectionInput = stableRow.locator(inputSelector).first()
-        if ((await selectionInput.count().catch(() => 0)) > 0) {
-            return await pollLocatorState(() => selectionInput.isChecked())
-        }
-
-        if (typeof rowText === "string") {
-            return (await selectedTags.filter({hasText: rowText}).count()) > 0
-        }
-
-        return false
+    if (!(await selectionControl.isChecked())) {
+        await selectionControl.click()
     }
-
-    if (!(await isSelected())) {
-        const selectionControl = stableRow.locator(controlSelector).first()
-        if ((await selectionControl.count().catch(() => 0)) > 0) {
-            await selectionControl.click({force: true})
-        } else {
-            await stableRow.click({force: true})
-        }
-    }
-
-    await expect.poll(isSelected, {timeout: 30000}).toBe(true)
+    await expect(selectionControl).toBeChecked({timeout: 30000})
 }
 
 const waitForAutoResultsPage = async (page: Page, appId: string) => {

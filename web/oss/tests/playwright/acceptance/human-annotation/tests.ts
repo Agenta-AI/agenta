@@ -548,11 +548,6 @@ const selectHumanEvaluationModalTableInput = async ({
 }) => {
     const activePane = getActiveHumanEvaluationPane(modal)
     const searchInput = activePane.locator('input[placeholder="Search"]').first()
-    const inputSelector =
-        'input[type="checkbox"], input[type="radio"], .ant-checkbox-input, .ant-radio-input'
-    const controlSelector =
-        '.ant-checkbox, .ant-checkbox-wrapper, .ant-radio, .ant-radio-wrapper, [role="checkbox"], [role="radio"]'
-    const selectedTags = modal.locator(".ant-tabs-tab .ant-tag")
 
     if (typeof rowText === "string" && (await pollLocatorState(() => searchInput.isVisible()))) {
         await typeIntoLocator(searchInput, rowText)
@@ -571,62 +566,19 @@ const selectHumanEvaluationModalTableInput = async ({
         : activePane.locator("[data-row-key]").first()
     await expect(targetRow).toBeVisible({timeout: 30000})
     const targetRowKey = await targetRow.getAttribute("data-row-key")
-    const stableSelectionInput = targetRowKey
-        ? modal.locator(`[data-row-key="${targetRowKey}"]`).locator(inputSelector).first()
-        : targetRow.locator(inputSelector).first()
     const stableRow = targetRowKey
         ? modal.locator(`[data-row-key="${targetRowKey}"]`).first()
         : targetRow
+    const selectionControl = stableRow
+        .getByRole("checkbox", {includeHidden: true})
+        .or(stableRow.getByRole("radio", {includeHidden: true}))
+        .first()
     await expect(stableRow).toBeVisible({timeout: 30000})
 
-    const isSelected = async () => {
-        const rowClassName = await stableRow.getAttribute("class").catch(() => null)
-        if (rowClassName?.includes("ant-table-row-selected")) {
-            return true
-        }
-
-        const ariaSelected = await stableRow.getAttribute("aria-selected").catch(() => null)
-        if (ariaSelected === "true") {
-            return true
-        }
-
-        if ((await stableSelectionInput.count().catch(() => 0)) > 0) {
-            return await pollLocatorState(() => stableSelectionInput.isChecked())
-        }
-
-        if (typeof rowText === "string") {
-            return (await selectedTags.filter({hasText: rowText}).count()) > 0
-        }
-
-        return false
+    if (!(await selectionControl.isChecked())) {
+        await selectionControl.click()
     }
-
-    if (!(await isSelected())) {
-        const selectionControl = stableRow.locator(controlSelector).first()
-        if ((await selectionControl.count().catch(() => 0)) > 0) {
-            await selectionControl.click({force: true})
-        } else {
-            await stableRow.click({force: true})
-        }
-    }
-
-    if (_inputType === "radio" && typeof rowText === "string") {
-        await expect
-            .poll(
-                async () => {
-                    if (await isSelected()) {
-                        return true
-                    }
-
-                    return (await selectedTags.filter({hasText: rowText}).count()) > 0
-                },
-                {timeout: 30000},
-            )
-            .toBe(true)
-        return
-    }
-
-    await expect.poll(isSelected, {timeout: 30000}).toBe(true)
+    await expect(selectionControl).toBeChecked({timeout: 30000})
 }
 
 const waitForHumanEvaluatorPane = async (modal: Locator) => {
