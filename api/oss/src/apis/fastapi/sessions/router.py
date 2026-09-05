@@ -207,8 +207,6 @@ from oss.src.apis.fastapi.sessions.models import (
     PendingInputAdmissionResponse,
     SessionCapabilities,
     SessionExecutionSnapshot,
-    SessionPendingSnapshot,
-    SessionSnapshotResponse,
 )
 from oss.src.apis.fastapi.sessions.utils import (
     compute_session_response_windowing,
@@ -2129,15 +2127,8 @@ class SessionsRootRouter:
             tags=["Sessions"],
         )
         if inputs_service is not None:
-            self.router.add_api_route(
-                "/sessions/{session_id}",
-                self.fetch_session_snapshot,
-                methods=["GET"],
-                operation_id="fetch_session_snapshot",
-                response_model=SessionSnapshotResponse,
-                response_model_exclude_none=True,
-                tags=["Sessions"],
-            )
+            # The snapshot itself is `get_session_snapshot`, registered below: one route serves
+            # both the reconnect watermark and the durable queue.
             self.router.add_api_route(
                 "/sessions/{session_id}/inputs/{input_id}",
                 self.remove_pending_input,
@@ -2227,11 +2218,35 @@ class SessionsRootRouter:
                 status=SessionInteractionStatus.pending,
             ),
         )
+        # The durable queue half. It is optional: a deployment without the inputs service still
+        # gets the reconnect half, and reports an empty queue rather than failing the snapshot.
+        inputs = (
+            await self.inputs_service.list_pending(
+                project_id=project_id,
+                session_id=session_id,
+            )
+            if self.inputs_service is not None
+            else []
+        )
+        # Derived from the stream row, not from `execution`: that names the last turn, this says
+        # whether anything is running right now, which is what the queue admits against.
+        execution_state = SessionExecutionSnapshot(
+            id=session.stopping_turn_id or session.turn_id,
+            state=(
+                "stopping"
+                if session.stopping_turn_id
+                else "running"
+                if session.flags.is_running
+                else "idle"
+            ),
+        )
         return SessionSnapshotResponse(
             session=sanitize_session_stream(session),
             execution=execution,
-            pending=SessionSnapshotPending(interactions=interactions),
+            execution_state=execution_state,
+            pending=SessionSnapshotPending(inputs=inputs, interactions=interactions),
             read=read,
+            capabilities=_session_capabilities(),
         )
 
     @intercept_exceptions()
@@ -2288,45 +2303,6 @@ class SessionsRootRouter:
             total=page.total,
             sessions=sessions,
             windowing=response_windowing,
-        )
-
-    @intercept_exceptions()
-    async def fetch_session_snapshot(
-        self, request: Request, session_id: str
-    ) -> SessionSnapshotResponse:
-        _validate_session_id_http(session_id)
-        project_id = UUID(str(request.state.project_id))
-        user_id = request.state.user_id
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.VIEW_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
-        stream = await self.streams_service.fetch_header(
-            project_id=project_id, session_id=session_id
-        )
-        interactions = await self.interactions_service.query_interactions(
-            project_id=project_id,
-            query=SessionInteractionQuery(
-                session_id=session_id, status=SessionInteractionStatus.pending
-            ),
-        )
-        inputs = await self.inputs_service.list_pending(
-            project_id=project_id, session_id=session_id
-        )
-        state = "idle"
-        execution_id = stream.turn_id if stream else None
-        if stream and stream.stopping_turn_id:
-            state = "stopping"
-            execution_id = stream.stopping_turn_id
-        elif stream and stream.flags.is_running:
-            state = "running"
-        return SessionSnapshotResponse(
-            session=stream,
-            execution=SessionExecutionSnapshot(id=execution_id, state=state),
-            pending=SessionPendingSnapshot(inputs=inputs, interactions=interactions),
-            capabilities=_session_capabilities(),
         )
 
     @intercept_exceptions()

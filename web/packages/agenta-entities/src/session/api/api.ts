@@ -24,7 +24,6 @@ import {
     sessionStreamSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
-    sessionSnapshotResponseSchema,
     sessionStreamsResponseSchema,
     type MountFile,
     type Mount,
@@ -37,7 +36,6 @@ import {
     type SessionOrigin,
     type SessionStream,
     type SessionStreamCommandResponse,
-    type SessionSnapshotResponse,
     type SessionsQueryResponse,
     type SessionWindowing,
 } from "../core/schema"
@@ -154,24 +152,29 @@ export interface SessionScopedParams {
     abortSignal?: AbortSignal
 }
 
+/**
+ * The one snapshot read. It carries the reconnect half (the stream row, the last turn, the
+ * durable watermark) and the queue half (the current lifecycle, the pending inputs, the feature
+ * capabilities), so the live preview and the durable queue never ask two endpoints that can
+ * disagree.
+ */
 export async function fetchSessionSnapshot({
     sessionId,
     projectId,
     appId,
     abortSignal,
-}: SessionScopedParams): Promise<SessionSnapshotResponse | null> {
+}: SessionScopedParams): Promise<SessionSnapshot | null> {
     if (!projectId || !sessionId) return null
 
     const data = await callFern("[fetchSessionSnapshot]", () =>
-        getSessionsClient().fetchSessionSnapshot(
+        getSessionsClient().getSessionSnapshot(
             {session_id: sessionId},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
     if (!data) return null
-    return (
-        safeParseWithLogging(sessionSnapshotResponseSchema, data, "[fetchSessionSnapshot]") ?? null
-    )
+
+    return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]") ?? null
 }
 
 export async function removePendingSessionInput({

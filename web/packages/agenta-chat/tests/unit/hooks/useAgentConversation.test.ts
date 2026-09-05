@@ -300,8 +300,14 @@ afterEach(() => vi.useRealTimers())
 describe("useAgentConversation", () => {
     it("keeps a Steer draft when durable admission is refused", async () => {
         snapshotViaAtom.mockResolvedValue({
-            session: null,
-            execution: {id: "turn-1", state: "running"},
+            session: {
+                id: "11111111-1111-4111-8111-111111111111",
+                project_id: "22222222-2222-4222-8222-222222222222",
+                session_id: "session-1",
+            },
+            execution: null,
+            execution_state: {id: "turn-1", state: "running"},
+            read: {latest_sequence: 0, history_complete: true},
             pending: {inputs: [], interactions: []},
             capabilities: {durable_approvals: true, queue: true, steer: true},
         })

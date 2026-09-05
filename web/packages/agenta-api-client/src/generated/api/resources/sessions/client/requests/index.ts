@@ -8,7 +8,6 @@ export type { DownloadSessionAttachmentContentRequest } from "./DownloadSessionA
 export type { DownloadSessionMountFileRequest } from "./DownloadSessionMountFileRequest.js";
 export type { FetchInteractionRequest } from "./FetchInteractionRequest.js";
 export type { FetchSessionMountsRequest } from "./FetchSessionMountsRequest.js";
-export type { FetchSessionSnapshotRequest } from "./FetchSessionSnapshotRequest.js";
 export type { FetchSessionStreamRequest } from "./FetchSessionStreamRequest.js";
 export type { FetchTurnRequest } from "./FetchTurnRequest.js";
 export type { GetSessionSnapshotRequest } from "./GetSessionSnapshotRequest.js";

@@ -82,10 +82,17 @@ interface PendingInput {
     promoted_execution_id: null
 }
 
+/** The unified snapshot: the reconnect half plus the queue half, as the API now returns it. */
 const runningSnapshot = (inputs: PendingInput[] = []) => ({
-    session: null,
-    execution: {id: "turn-1", state: "running" as const},
+    session: {
+        id: "11111111-1111-4111-8111-111111111111",
+        project_id: "22222222-2222-4222-8222-222222222222",
+        session_id: "session-1",
+    },
+    execution: null,
+    execution_state: {id: "turn-1", state: "running" as const},
     pending: {inputs, interactions: []},
+    read: {latest_sequence: 0, history_complete: true},
     capabilities: {durable_approvals: true, queue: true, steer: true},
 })
 
@@ -263,8 +270,14 @@ const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolea
 describe("useServerSessionInputs", () => {
     it("reads queue support from the snapshot and submits durable admission", async () => {
         fetchSnapshot.mockResolvedValue({
-            session: null,
-            execution: {id: "turn-1", state: "running"},
+            session: {
+                id: "11111111-1111-4111-8111-111111111111",
+                project_id: "22222222-2222-4222-8222-222222222222",
+                session_id: "session-1",
+            },
+            execution: null,
+            execution_state: {id: "turn-1", state: "running"},
+            read: {latest_sequence: 0, history_complete: true},
             pending: {inputs: [], interactions: []},
             capabilities: {durable_approvals: true, queue: true, steer: true},
         })
@@ -316,8 +329,14 @@ describe("useServerSessionInputs", () => {
 
     it("releases admission after a fresh run's headers while its response keeps streaming", async () => {
         fetchSnapshot.mockResolvedValue({
-            session: null,
-            execution: {id: "turn-1", state: "running"},
+            session: {
+                id: "11111111-1111-4111-8111-111111111111",
+                project_id: "22222222-2222-4222-8222-222222222222",
+                session_id: "session-1",
+            },
+            execution: null,
+            execution_state: {id: "turn-1", state: "running"},
+            read: {latest_sequence: 0, history_complete: true},
             pending: {inputs: [], interactions: []},
             capabilities: {durable_approvals: true, queue: true, steer: true},
         })
@@ -356,8 +375,14 @@ describe("useServerSessionInputs", () => {
 
     it("rejects a refused Steer admission", async () => {
         fetchSnapshot.mockResolvedValue({
-            session: null,
-            execution: {id: "turn-1", state: "running"},
+            session: {
+                id: "11111111-1111-4111-8111-111111111111",
+                project_id: "22222222-2222-4222-8222-222222222222",
+                session_id: "session-1",
+            },
+            execution: null,
+            execution_state: {id: "turn-1", state: "running"},
+            read: {latest_sequence: 0, history_complete: true},
             pending: {inputs: [], interactions: []},
             capabilities: {durable_approvals: true, queue: true, steer: true},
         })

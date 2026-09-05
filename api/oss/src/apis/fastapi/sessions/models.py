@@ -134,20 +134,6 @@ class SessionExecutionSnapshot(BaseModel):
     state: Literal["idle", "running", "stopping"] = "idle"
 
 
-class SessionPendingSnapshot(BaseModel):
-    inputs: List[PendingInput] = Field(default_factory=list)
-    interactions: List[SessionInteraction] = Field(default_factory=list)
-
-
-class SessionSnapshotResponse(BaseModel):
-    session: Optional[SessionStream] = None
-    execution: SessionExecutionSnapshot = Field(
-        default_factory=SessionExecutionSnapshot
-    )
-    pending: SessionPendingSnapshot = Field(default_factory=SessionPendingSnapshot)
-    capabilities: SessionCapabilities = Field(default_factory=SessionCapabilities)
-
-
 class PendingInputResponse(BaseModel):
     input: PendingInput
 
@@ -215,15 +201,32 @@ class SessionRecordsQueryResponse(BaseModel):
 
 
 class SessionSnapshotPending(BaseModel):
-    inputs: List[Any] = Field(default_factory=list)
+    inputs: List[PendingInput] = Field(default_factory=list)
     interactions: List[SessionInteraction] = Field(default_factory=list)
 
 
 class SessionSnapshotResponse(BaseModel):
+    """One snapshot for every reader of an open session.
+
+    `session`, `execution` and `read` are the reconnect half: the stream row, the latest turn
+    (whose `end_time` says whether that turn is still live), and the durable sequence watermark
+    a reader replays from.
+
+    `execution_state` and `pending.inputs` are the queue half. `execution_state` is the
+    session's CURRENT lifecycle derived from the stream row, which is a different question from
+    `execution`: that names the last turn, this says whether anything is running right now.
+    `capabilities` reports the same flags the streams endpoint reports, from the same helper, so
+    a client never sees the two disagree.
+    """
+
     session: SessionStream
     execution: Optional[SessionTurn] = None
+    execution_state: SessionExecutionSnapshot = Field(
+        default_factory=SessionExecutionSnapshot
+    )
     pending: SessionSnapshotPending
     read: SessionRecordsReadState
+    capabilities: SessionCapabilities = Field(default_factory=SessionCapabilities)
 
 
 class SessionRecordResponse(BaseModel):

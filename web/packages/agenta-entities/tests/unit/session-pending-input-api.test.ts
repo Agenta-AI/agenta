@@ -7,7 +7,7 @@ const {fetchSnapshot, removeInput} = vi.hoisted(() => ({
 
 vi.mock("@agenta/sdk/resources", () => ({
     getSessionsClient: () => ({
-        fetchSessionSnapshot: fetchSnapshot,
+        getSessionSnapshot: fetchSnapshot,
         removePendingSessionInput: removeInput,
     }),
     getLowPrioritySessionsClient: vi.fn(),
@@ -28,9 +28,15 @@ beforeEach(() => {
 describe("session pending-input API", () => {
     it("reads the shared snapshot through the scoped Fern client", async () => {
         fetchSnapshot.mockResolvedValue({
-            session: null,
-            execution: {state: "running"},
+            session: {
+                id: "11111111-1111-4111-8111-111111111111",
+                project_id: "22222222-2222-4222-8222-222222222222",
+                session_id: "session/1",
+            },
+            execution: null,
+            execution_state: {state: "running"},
             pending: {inputs: [], interactions: []},
+            read: {latest_sequence: 0, history_complete: true},
             capabilities: {queue: true, steer: false},
         })
 

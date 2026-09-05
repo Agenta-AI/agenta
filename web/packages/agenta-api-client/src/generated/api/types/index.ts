@@ -402,7 +402,6 @@ export * from "./SessionInteractionStatus.js";
 export * from "./SessionInteractionsResponse.js";
 export * from "./SessionListItem.js";
 export * from "./SessionMessagePreview.js";
-export * from "./SessionPendingSnapshot.js";
 export * from "./SessionMount.js";
 export * from "./SessionMountQuery.js";
 export * from "./SessionMountsResponse.js";

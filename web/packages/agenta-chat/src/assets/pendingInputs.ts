@@ -1,4 +1,4 @@
-import type {PendingSessionInput, SessionSnapshotResponse} from "@agenta/entities/session"
+import type {PendingSessionInput, SessionSnapshot} from "@agenta/entities/session"
 import type {FileUIPart} from "ai"
 
 import type {QueuedMessage} from "../hooks/useAgentChatQueue"
@@ -81,13 +81,13 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
 }
 
 export const reduceSessionPendingInputs = (
-    snapshot: SessionSnapshotResponse | null,
+    snapshot: SessionSnapshot | null,
 ): SessionPendingInputView => ({
     capabilities: {
         queue: snapshot?.capabilities.queue ?? false,
         steer: snapshot?.capabilities.steer ?? false,
     },
-    executionState: snapshot?.execution.state ?? "idle",
+    executionState: snapshot?.execution_state.state ?? "idle",
     queued: (snapshot?.pending.inputs ?? [])
         .filter((input) => input.state === "pending" || input.state === "promoted")
         .sort((left, right) => left.position - right.position)
