@@ -449,7 +449,14 @@ export const useSessionHydration = ({
     const projectId = useAtomValue(projectIdAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const refreshFromRecords = useCallback(
-        async (transcript?: SessionTranscript) => {
+        async (transcript?: SessionTranscript): Promise<boolean> => {
+            const adoptOrConfirm = (candidate: SessionTranscript | null): boolean => {
+                if (!candidate) return false
+                return (
+                    adoptServerTranscriptRef.current(candidate, {armJump: false}) ||
+                    (recordWatermarkRef.current ?? 0) >= candidate.recordCount
+                )
+            }
             // Entry check: skip while THIS tab streams (already the live truth, `onFinish`
             // revalidates) OR a client-tool settle is already waiting on its resume dispatch — see
             // `shouldSkipRecordsRefresh`.
@@ -459,10 +466,9 @@ export const useSessionHydration = ({
                     pendingResume: !!pendingResumeRef.current,
                 })
             )
-                return
+                return false
             if (transcript) {
-                adoptServerTranscriptRef.current(transcript, {armJump: false})
-                return
+                return adoptOrConfirm(transcript)
             }
             // A tick usually lands inside the records query's stale window, so the shared cache would
             // resolve unchanged; invalidate first, then adopt through the SAME guard as every other path.
@@ -478,11 +484,18 @@ export const useSessionHydration = ({
                     pendingResume: !!pendingResumeRef.current,
                 })
             )
-                return
+                return false
             // A background catch-up must not yank a reader who scrolled up — as with the poll.
-            adoptServerTranscriptRef.current(refreshed, {armJump: false})
+            return adoptOrConfirm(refreshed)
         },
-        [sessionId, busyRef, pendingResumeRef, revalidateSessionRecords, readLog],
+        [
+            sessionId,
+            busyRef,
+            pendingResumeRef,
+            recordWatermarkRef,
+            revalidateSessionRecords,
+            readLog,
+        ],
     )
     // `ready` fires on every connect — each tab activation, each return to the foreground — so it
     // must not repeat a read the mount is already doing. A change that lands after the subscribe
