@@ -18,30 +18,30 @@ export const useAgentEntity = (
     projectId: string,
     fallbackAgentId?: string | null,
 ) => {
-    const agentQuery = useQuery({
-        queryKey: ["mobile", "session-agent", projectId, sessionId],
+    // Keyed by PROJECT, not session. The response is the same whole-project list whichever
+    // session asks for it, so a per-session key refetched all of it once per session opened.
+    const sessionsQuery = useQuery({
+        queryKey: ["mobile", "project-sessions", projectId],
         queryFn: async () => {
             // `/sessions/query` rows carry the latest turn's workflow references (WP0-R3);
             // the raw stream row does NOT — references are stamped per turn.
-            // NOT `sessionIds: [sessionId]`. That filter matches the row's `session_id`, which is
-            // a different value from the `id` the route carries (v4 vs v7), so filtering by the
-            // route's id returns ZERO rows — measured against the running API.
-            const rows = await querySessions({projectId})
-            // Match on `id` — the session STREAM id, which is what the route carries. A row also
-            // has a `session_id`, and it is a different value entirely (v4 where `id` is v7), so
-            // matching on that never hit. It went unnoticed because the miss fell through to
-            // `?? rows[0]`: every session silently resolved the FIRST row's agent and revision.
-            const row = rows?.find(
-                (candidate) => candidate.id === sessionId || candidate.session_id === sessionId,
-            )
-            // No row is a real answer for a session with no turns yet. Another session's row is not.
-            return row?.references?.find((ref) => ref.id && isValidUUID(ref.id))?.id ?? null
+            // NOT `sessionIds`. That filter matches the row's `session_id`, which is a different
+            // value from the `id` the route carries (v4 vs v7), so it returns ZERO rows.
+            return (await querySessions({projectId})) ?? []
         },
-        enabled: Boolean(sessionId && projectId),
+        enabled: Boolean(projectId),
         staleTime: 60_000,
         refetchOnWindowFocus: false,
     })
-    const agentId = agentQuery.data ?? fallbackAgentId ?? null
+    // Match on `id` — the session STREAM id, which is what the route carries. A row also has a
+    // `session_id`, and it is a different value entirely (v4 where `id` is v7), so matching on
+    // that never hit; the miss used to fall through to `rows[0]` and resolve the WRONG agent.
+    const row = sessionsQuery.data?.find(
+        (candidate) => candidate.id === sessionId || candidate.session_id === sessionId,
+    )
+    // No row is a real answer for a session with no turns yet. Another session's row is not.
+    const listedAgentId = row?.references?.find((ref) => ref.id && isValidUUID(ref.id))?.id ?? null
+    const agentId = listedAgentId ?? fallbackAgentId ?? null
 
     const revisionQuery = useQuery({
         queryKey: ["mobile", "agent-latest-revision", projectId, agentId],
@@ -57,9 +57,13 @@ export const useAgentEntity = (
         refetchOnWindowFocus: false,
     })
 
+    // A route-supplied agent IS the answer, so do not gate the screen on a list fetch that by
+    // definition cannot contain a session the client minted a moment ago.
+    const awaitingList = sessionsQuery.isPending && !fallbackAgentId
+
     return {
         agentId,
         entityId: revisionQuery.data ?? null,
-        resolving: agentQuery.isPending || (Boolean(agentId) && revisionQuery.isPending),
+        resolving: awaitingList || (Boolean(agentId) && revisionQuery.isPending),
     }
 }
