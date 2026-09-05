@@ -272,12 +272,7 @@ export const useAgentChatQueue = ({
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const message: QueuedMessage = {...item, id: generateId()}
             if (server?.capabilities.queue) {
-                void server.submit(message, "queue").catch(() => {
-                    // The server did not accept ownership. Preserve the input in the original
-                    // page-session queue so a transient admission failure never clears user work.
-                    setQueued((q) => [...q, message])
-                })
-                return
+                return server.submit(message, "queue")
             }
             if (recoverable && retryContinuation) {
                 setQueued((q) => [...q, message])

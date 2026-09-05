@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, type RefObject} from "react"
 
 import {
     CHAT_COLUMN,
-    shouldShowStopControl,
+    isComposerRunStoppable,
     type ApprovalSubmissionOutcome,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
@@ -150,6 +150,11 @@ const AgentComposerDock = ({
     attachmentsBlocked: () => boolean
 }) => {
     const inputBusy = busy || queue.serverBusy
+    const stoppable = isComposerRunStoppable({
+        localStreaming: busy,
+        serverBusy: queue.serverBusy,
+        waitingOnUser: hitlPending,
+    })
     const {
         onboarding,
         onboardingActive,
@@ -474,7 +479,7 @@ const AgentComposerDock = ({
                         initialMarkdown={composer.initialDraft}
                         slashCommands={slash.sections}
                         onChange={composer.handleComposerChange}
-                        streaming={shouldShowStopControl({busy: inputBusy, hitlPending})}
+                        streaming={stoppable}
                         stopping={stopping}
                         onStop={onStop}
                         stopShortcutEnabled={stopShortcutEnabled}

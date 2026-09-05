@@ -131,7 +131,7 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued).toHaveLength(0)
     })
 
-    it("hands busy Queue and Steer submissions to the durable server adapter", async () => {
+    it("hands the primary composer submit and explicit Steer to durable admission", async () => {
         const server: ServerQueueAdapter = {
             capabilities: {queue: true, steer: true},
             busy: true,
@@ -181,6 +181,26 @@ describe("useAgentChatQueue", () => {
         expect(sendQueued).not.toHaveBeenCalled()
     })
 
+    it("never reports a failed durable admission as a client-only queued message", async () => {
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: true,
+            queued: [],
+            submit: vi.fn().mockRejectedValue(new Error("admission unavailable")),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result, sendQueued} = setup({...settledEmpty, server})
+
+        await act(async () => {
+            await expect(result.current.submit({text: "keep this draft"})).rejects.toThrow(
+                "admission unavailable",
+            )
+        })
+
+        expect(result.current.queued).toHaveLength(0)
+        expect(sendQueued).not.toHaveBeenCalled()
+    })
+
     it("moves a client-held input behind the durable queue when its continuation starts", async () => {
         const durable = {
             id: "already-queued",
@@ -192,41 +212,34 @@ describe("useAgentChatQueue", () => {
             capabilities: {queue: true, steer: true},
             busy: false,
             queued: [durable],
-            submit: vi
-                .fn()
-                .mockRejectedValueOnce(new Error("admission unavailable"))
-                .mockResolvedValueOnce(undefined),
+            submit: vi.fn().mockResolvedValue(undefined),
             remove: vi.fn().mockResolvedValue(undefined),
         }
         const paused: HarnessProps = {
             status: "ready",
             messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
             stopped: false,
-            server,
         }
         const {result, rerender, sendQueued} = setup(paused)
 
         await act(async () => {
-            result.current.submit({text: "held by this tab"})
-            await Promise.resolve()
+            await result.current.submit({text: "held by this tab"})
         })
-        expect(server.submit).toHaveBeenCalledOnce()
-        expect(result.current.queued).toEqual([
-            durable,
-            expect.objectContaining({text: "held by this tab"}),
-        ])
+        expect(server.submit).not.toHaveBeenCalled()
+        expect(result.current.queued).toEqual([expect.objectContaining({text: "held by this tab"})])
 
         await act(async () => {
             rerender({
                 ...paused,
-                continuationExecutionId: "continuation-1",
+                server,
+                continuationExecutionId: "a1-continuation-execution",
                 messages: [userTurn("u1", "go"), assistantContinuation("a1", "running")],
             })
             await Promise.resolve()
         })
 
-        expect(server.submit).toHaveBeenCalledTimes(2)
-        expect(server.submit).toHaveBeenLastCalledWith(
+        expect(server.submit).toHaveBeenCalledOnce()
+        expect(server.submit).toHaveBeenCalledWith(
             expect.objectContaining({text: "held by this tab"}),
             "queue",
         )
@@ -256,7 +269,7 @@ describe("useAgentChatQueue", () => {
         }
         const {result, rerender, sendQueued} = setup(paused)
 
-        act(() => result.current.submit({text: "held by this tab"}))
+        act(() => void result.current.submit({text: "held by this tab"}))
         rerender({
             ...paused,
             continuationExecutionId: "a1-continuation-execution",

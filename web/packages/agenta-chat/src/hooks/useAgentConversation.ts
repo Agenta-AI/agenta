@@ -1123,7 +1123,7 @@ export const useAgentConversation = ({
             clearSessionTurnId(sessionId)
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the release gate.
-            submit({text: trimmed, fileParts})
+            await submit({text: trimmed, fileParts})
             // The message left the composer — drop its persisted draft (per-session store).
             composerDraftBySession.delete(sessionId)
         },

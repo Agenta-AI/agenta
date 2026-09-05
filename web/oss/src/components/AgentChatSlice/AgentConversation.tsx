@@ -669,7 +669,7 @@ const AgentConversation = ({
         useVirtuoso,
     })
 
-    const finishSubmit = (
+    const finishSubmit = async (
         trimmed: string,
         fileParts: FileUIPart[] | undefined,
         consumedUids: string[],
@@ -689,7 +689,7 @@ const AgentConversation = ({
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the shared release gate.
             if (policy === "steer") steer({text: trimmed, fileParts, stagedFiles})
-            else submit({text: trimmed, fileParts, stagedFiles})
+            else await submit({text: trimmed, fileParts, stagedFiles})
         }
         // The message left the composer — drop its persisted draft (and any pending capture).
         composer.clearDraft()
@@ -734,7 +734,7 @@ const AgentConversation = ({
                     }
                     fileParts = parts
                 }
-                finishSubmit(trimmed, fileParts, stagedUids, files, policy)
+                await finishSubmit(trimmed, fileParts, stagedUids, files, policy)
                 return
             }
 
@@ -747,7 +747,10 @@ const AgentConversation = ({
             const fileParts = outboundFiles.length
                 ? stagedFilesToParts(outboundFiles, sessionId)
                 : undefined
-            finishSubmit(trimmed, fileParts, stagedUids, outboundFiles, policy)
+            await finishSubmit(trimmed, fileParts, stagedUids, outboundFiles, policy)
+        }).catch(() => {
+            richInputRef.current?.setMarkdown(text)
+            attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
         })
 
     handleSubmitRef.current = handleSubmit
