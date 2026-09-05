@@ -327,6 +327,68 @@ async def test_admission_rechecks_settlement_under_the_execution_lock(
     )
 
 
+async def test_admission_queues_behind_input_promoted_by_settlement(
+    input_scope, monkeypatch
+):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    inputs = SessionInputsDAO(engine=input_scope["engine"])
+    older = await inputs.create_input(
+        user_id=input_scope["user_id"],
+        pending_input=_input(input_scope, key="older", message="older"),
+    )
+    executions = SessionExecutionsDAO(engine=input_scope["engine"])
+    streams = _SettlementRaceStreams()
+    admission_service = SessionInputsService(
+        inputs_dao=inputs,
+        streams_service=streams,
+        executions_dao=executions,
+    )
+    settlement_service = _settlement_service(input_scope, inputs)
+    async with input_scope["engine"].session() as transaction:
+        await executions.lock_for_control(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+            execution_id="source-turn",
+            transaction=transaction,
+        )
+
+    admission_task = asyncio.create_task(
+        admission_service.admit(
+            project_id=input_scope["project_id"],
+            user_id=input_scope["user_id"],
+            session_id=input_scope["session_id"],
+            content={"message": "arrived during settlement"},
+            policy="queue",
+            idempotency_key="settlement-race",
+        )
+    )
+    await streams.observed_busy.wait()
+
+    assert await settlement_service.settle_execution_completed(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        execution_id="source-turn",
+    )
+    streams.allow_admission.set()
+    admission = await admission_task
+
+    promoted = await inputs.fetch_input(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        input_id=older.id,
+    )
+    assert promoted.state == PendingInputState.promoted
+    assert admission.action == "pending"
+    assert admission.execution_id == promoted.promoted_execution_id
+    assert [
+        item.id
+        for item in await inputs.list_pending(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+        )
+    ] == [older.id, admission.input.id]
+
+
 async def test_manual_stop_commits_without_promoting_pending_input(
     input_scope, monkeypatch
 ):

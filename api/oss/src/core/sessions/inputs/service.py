@@ -99,6 +99,7 @@ class SessionInputsService:
 
         async with self._dao.transaction() as transaction:
             source_execution = None
+            successor_execution_id = None
             if self._executions is not None and current_execution_id is not None:
                 source_execution = await self._executions.lock_for_control(
                     project_id=project_id,
@@ -124,7 +125,22 @@ class SessionInputsService:
                 source_execution is not None
                 and source_execution.terminal_outcome is not None
             ):
-                return PendingInputAdmission(action="execute")
+                pending = await self._dao.list_pending(
+                    project_id=project_id,
+                    session_id=session_id,
+                    transaction=transaction,
+                )
+                successor_execution_id = next(
+                    (
+                        item.promoted_execution_id
+                        for item in pending
+                        if item.state == PendingInputState.promoted
+                        and item.promoted_execution_id is not None
+                    ),
+                    None,
+                )
+                if successor_execution_id is None:
+                    return PendingInputAdmission(action="execute")
             item = await self._dao.create_input(
                 user_id=user_id,
                 pending_input=PendingInputCreate(
@@ -143,7 +159,9 @@ class SessionInputsService:
             if item.request_fingerprint != fingerprint:
                 raise SessionInputIdempotencyConflict()
         return PendingInputAdmission(
-            action="pending", input=item, execution_id=current_execution_id
+            action="pending",
+            input=item,
+            execution_id=successor_execution_id or current_execution_id,
         )
 
     async def list_pending(

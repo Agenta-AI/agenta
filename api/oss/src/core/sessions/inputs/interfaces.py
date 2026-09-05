@@ -34,7 +34,11 @@ class SessionInputsDAOInterface(ABC):
 
     @abstractmethod
     async def list_pending(
-        self, *, project_id: UUID, session_id: str
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        transaction: Optional[Any] = None,
     ) -> List[PendingInput]:
         pass
 
