@@ -2666,18 +2666,24 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method post",
+          className: "api-method put",
         },
         {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method put",
+          className: "api-method post",
         },
         {
           type: "doc",
           id: "reference/api/watch-session-stream",
           label: "Watch Session Stream",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/watch-session-events",
+          label: "Session Events",
           className: "api-method get",
         },
         {
@@ -2835,6 +2841,12 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/unarchive-session",
           label: "Unarchive Session",
           className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/get-session-snapshot",
+          label: "Get Session Snapshot",
+          className: "api-method get",
         },
         {
           type: "doc",
