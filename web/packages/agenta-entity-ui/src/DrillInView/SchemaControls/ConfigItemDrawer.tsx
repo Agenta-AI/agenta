@@ -123,7 +123,7 @@ export function ConfigItemDrawer({
                 // One line: title · subtitle. Stacked, the subtitle doubled the header height for
                 // a few muted words, and the leading icon repeated the row the drawer opened from.
                 <div className="flex min-w-0 items-center gap-2">
-                    <span className="shrink-0 truncate text-sm font-medium">{title}</span>
+                    <span className="min-w-0 truncate text-sm font-medium">{title}</span>
                     {badge ? (
                         <Badge
                             variant={badgeVariantFor(badge.color)}
@@ -144,7 +144,7 @@ export function ConfigItemDrawer({
             }
             extra={headerExtra ?? null}
             footer={
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center justify-between gap-3">
                     {footerNote ? (
                         <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
                             {footerNote}

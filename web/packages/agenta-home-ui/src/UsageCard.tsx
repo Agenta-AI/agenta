@@ -27,9 +27,10 @@ const formatPercent = (value: number | null | undefined) =>
     value == null ? EMPTY : `${(value * 100).toFixed(1)}%`
 
 const Stat = ({label, value}: {label: string; value: string}) => (
-    <div className="flex flex-col gap-0.5">
+    // min-w-0 + truncate: a grid cell is ~136px on a phone, and a long figure overflowed it.
+    <div className="flex min-w-0 flex-col gap-0.5">
         <span className="text-xs text-colorTextSecondary">{label}</span>
-        <span className="text-xs font-semibold text-colorText">{value}</span>
+        <span className="truncate text-xs font-semibold text-colorText">{value}</span>
     </div>
 )
 

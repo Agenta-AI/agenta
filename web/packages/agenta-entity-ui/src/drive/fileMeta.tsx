@@ -181,7 +181,7 @@ export function DriveFileMetaList({
     // (Content vs Dimensions vs Duration), so `auto` resized the columns and slid the right half
     // sideways as you paged. 4.5rem fits the longest label ("Dimensions").
     const grid = (
-        <dl className="grid grid-cols-[4.5rem_1fr_4.5rem_1fr] gap-x-4 gap-y-1.5 text-xs">
+        <dl className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-xs sm:grid-cols-[4.5rem_1fr_4.5rem_1fr]">
             <MetaRow label="Type" value={fileTypeLabel(path)} />
             <MetaRow label="MIME" value={mimeFor(path)} />
             <MetaRow

@@ -427,7 +427,7 @@ export function ConfigAccordionSection({
                     {summary && (!summaryCollapsedOnly || !isOpen) ? (
                         // antd `Text type="secondary"` is colorTextDescription, not colorTextSecondary.
                         // Capped tighter below `sm`: 220px of summary left a phone's title 20px.
-                        <span className="min-w-0 max-w-[120px] truncate text-right text-xs text-colorTextDescription sm:max-w-[220px]">
+                        <span className="min-w-0 max-w-[55%] truncate text-right text-xs text-colorTextDescription sm:max-w-[220px]">
                             {summary}
                         </span>
                     ) : null}

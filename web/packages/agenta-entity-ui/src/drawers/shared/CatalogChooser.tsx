@@ -359,7 +359,7 @@ function ConnectionSwitcher<I, T, C>({
                     {connections.length} accounts
                 </span>
             </div>
-            <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]">
+            <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr))]">
                 {connections.map((c) => {
                     const id = props.connection.id(c)
                     const name = props.connection.name(c)?.trim()
@@ -713,7 +713,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
         <div className={`flex h-full min-h-[260px] ${fullBleedRail ? "" : "gap-3"}`}>
             {railPresent && (
                 <div
-                    className={`ag-drawer-rail flex min-h-0 w-[220px] shrink-0 flex-col ${
+                    className={`ag-drawer-rail flex min-h-0 w-[150px] shrink-0 flex-col sm:w-[220px] ${
                         fullBleedRail ? "py-4 pl-3 pr-1" : "py-1"
                     }`}
                 >
@@ -935,7 +935,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                         </div>
                         <div
                             ref={setGridEl}
-                            className="grid min-h-0 flex-1 auto-rows-min gap-2 overflow-y-auto [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
+                            className="grid min-h-0 flex-1 auto-rows-min gap-2 overflow-y-auto [grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr))]"
                         >
                             {isLoading && integrations.length === 0 ? (
                                 <CatalogGridSkeleton />

@@ -400,7 +400,8 @@ export const AgentIconPicker = ({value, onChange}: AgentIconPickerProps) => {
     const chipStyle = agentIconChipStyle(color)
 
     return (
-        <div className="w-[300px]">
+        // Clamped: 300px overflowed a 320px viewport after collision padding.
+        <div className="w-[min(300px,calc(100vw-2rem))]">
             <div className="flex items-center gap-2.5 p-3 pb-2.5">
                 <span
                     className={cn(
