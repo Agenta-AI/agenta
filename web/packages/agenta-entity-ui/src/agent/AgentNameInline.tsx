@@ -1,9 +1,28 @@
-import {useRef, useState} from "react"
+import {useRef, useState, type ElementType} from "react"
 
 import {Input} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
 
+import {AGENT_FOCUS_RING} from "./chrome"
 import {useRenameAgent} from "./useAgentActions"
+
+/** `bar` is the playground header's rung; `title` the page-heading one every /m screen title uses. */
+export type AgentNameSize = "bar" | "title"
+
+const NAME_SIZE: Record<AgentNameSize, {label: string; input: string}> = {
+    bar: {
+        label: "text-sm font-[600] leading-[18px] sm:text-[16px]",
+        input: "h-6 w-32 text-[14px] font-[600]",
+    },
+    title: {
+        label: "text-[24px] font-semibold leading-[1.3333333333333333]",
+        input: "h-8 w-48 text-[20px] font-semibold",
+    },
+}
+
+/** The label's classes on their own, for a host that shows the name without the rename affordance. */
+export const agentNameLabelClass = (size: AgentNameSize = "bar") =>
+    `m-0 min-w-0 truncate whitespace-nowrap text-colorText ${NAME_SIZE[size].label}`
 
 export interface AgentNameInlineProps {
     /** Workflow (artifact) id — the rename target. */
@@ -15,6 +34,10 @@ export interface AgentNameInlineProps {
     onRename?: (id: string, name: string) => Promise<boolean>
     /** True when `name` already belongs to a different agent — blocks the commit without a modal. */
     isDuplicateName?: (name: string, selfId?: string) => boolean
+    /** Type rung. */
+    size?: AgentNameSize
+    /** Element for the label — a page title needs a heading, the playground bar a span. */
+    as?: ElementType
 }
 
 /**
@@ -28,6 +51,8 @@ export const AgentNameInline = ({
     onRenamed,
     onRename,
     isDuplicateName,
+    size = "bar",
+    as: Label = "span",
 }: AgentNameInlineProps) => {
     const renameAgent = useRenameAgent()
     const commitRename = onRename ?? renameAgent
@@ -84,7 +109,7 @@ export const AgentNameInline = ({
                         }
                     }}
                     onFocus={(e) => e.target.select()}
-                    className="h-6 w-32 text-[14px] font-[600]"
+                    className={NAME_SIZE[size].input}
                 />
                 {error && <span className="mt-0.5 text-xs text-colorError">{error}</span>}
             </div>
@@ -93,14 +118,15 @@ export const AgentNameInline = ({
 
     return (
         <div className="group/name flex min-w-0 items-center gap-1">
-            {/* Type matches AgentPageHeader's own string branch, so the slot reads identically. */}
-            <span
-                className="truncate whitespace-nowrap text-sm font-[600] leading-[18px] text-colorText cursor-pointer sm:text-[16px]"
+            {/* At `bar` the type matches AgentPageHeader's own string branch, so the slot reads
+                identically. */}
+            <Label
+                className={`${agentNameLabelClass(size)} cursor-pointer`}
                 onDoubleClick={startEditing}
                 title="Double-click to rename"
             >
                 {name || "Agent"}
-            </span>
+            </Label>
 
             {/* A real button, so the rename is reachable without a double-click. Hidden until hover
                 only where there IS a hover: on touch it stays visible, as double-click never fires. */}
@@ -108,7 +134,7 @@ export const AgentNameInline = ({
             <button
                 type="button"
                 aria-label="Rename agent"
-                className="relative flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 opacity-60 transition-opacity after:absolute after:inset-[-9px] after:content-[''] hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring group-hover/name:opacity-100 [@media(hover:hover)]:opacity-0"
+                className={`relative flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 opacity-60 transition-opacity after:absolute after:inset-[-9px] after:content-[''] hover:opacity-100 focus-visible:opacity-100 group-hover/name:opacity-100 [@media(hover:hover)]:opacity-0 ${AGENT_FOCUS_RING}`}
                 onClick={(e) => {
                     e.stopPropagation()
                     startEditing()

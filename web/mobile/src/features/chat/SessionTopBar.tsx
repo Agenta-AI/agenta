@@ -1,16 +1,9 @@
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {AgentNameInline, useAgentIconChrome} from "@agenta/entity-ui/agent"
-import {
-    AGENT_CHIP_BOX,
-    AGENT_CHIP_FALLBACK,
-    AgentPageHeader,
-    AgentRevisionStatus,
-} from "@agenta/playground-ui/agent-page-header"
+import {AgentIdentity} from "@agenta/entity-ui/agent"
+import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {useAtomValue} from "jotai"
-import {Bot} from "lucide-react"
 
-import {AgentIconPopover} from "../agents/AgentIconPopover"
 import {NavDrawer} from "../nav/NavDrawer"
 
 /**
@@ -38,19 +31,6 @@ export const SessionTopBar = ({
 }) => {
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
-    const chrome = useAgentIconChrome(agentId, {size: 15, fallbackGlyph: null})
-
-    // The chip is always drawn here rather than deferred to the bar's own: on this surface it is the
-    // picker's trigger, so it has to exist before the agent has an icon.
-    const chip = chrome.customised ? (
-        <span className={`${AGENT_CHIP_BOX} ${chrome.className}`} style={chrome.style}>
-            {chrome.glyph}
-        </span>
-    ) : (
-        <span className={`${AGENT_CHIP_BOX} ${AGENT_CHIP_FALLBACK}`}>
-            <Bot className="size-[15px]" />
-        </span>
-    )
 
     return (
         <AgentPageHeader
@@ -59,14 +39,9 @@ export const SessionTopBar = ({
             // the agent icon exactly like the desktop playground's. Getting back to the sessions
             // list is the drawer's Sessions entry, or the tab rail above the conversation.
             leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
-            name={
-                agentId ? (
-                    <AgentNameInline workflowId={agentId} name={name || "Agent"} />
-                ) : (
-                    name || "Agent"
-                )
-            }
-            icon={agentId ? <AgentIconPopover workflowId={agentId}>{chip}</AgentIconPopover> : chip}
+            // One slot for both halves: the shared identity owns the chip and the inline rename,
+            // and falls back to a plain chip + label when no agent is resolved yet.
+            identity={<AgentIdentity workflowId={agentId} name={name || "Agent"} />}
             revision={
                 entityId ? (
                     <AgentRevisionStatus revisionId={entityId} historyWorkflowId={agentId} />

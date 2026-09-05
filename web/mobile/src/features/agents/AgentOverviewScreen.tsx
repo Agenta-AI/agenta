@@ -2,12 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {
-    AgentActionsMenu,
-    AgentOverviewBody,
-    agentAvatar,
-    useAgentIconChrome,
-} from "@agenta/entity-ui/agent"
+import {AgentActionsMenu, AgentIdentity, AgentOverviewBody} from "@agenta/entity-ui/agent"
 import {UsageCard} from "@agenta/home-ui"
 import {sessionRouteModes} from "@agenta/sessions/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
@@ -25,7 +20,6 @@ import {SessionAutomationDrawers} from "../sessions/SessionAutomationDrawers"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {AgentComposer} from "./AgentComposer"
-import {AgentIconPopover} from "./AgentIconPopover"
 
 /**
  * One agent's overview — the mobile face of the desktop agent overview page: this agent's
@@ -49,12 +43,6 @@ export const AgentOverviewScreen = ({
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
     const agent = agents.find((candidate) => candidate.id === agentId)
     const name = agent?.name || agent?.slug || "Agent"
-    const avatar = agentAvatar(name, agentId)
-    const chrome = useAgentIconChrome(agentId, {
-        size: 16,
-        fallbackGlyph: avatar.initials,
-        fallbackClassName: "text-white",
-    })
     const agentNames = useMemo(
         () => new Map(agents.map((entry) => [entry.id, entry.name || entry.slug || "Agent"])),
         [agents],
@@ -96,34 +84,24 @@ export const AgentOverviewScreen = ({
                                 {/* Nav is the drawer, as on every other screen — not a per-screen
                                     back button. Home is one drawer entry away. */}
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                {/* The one place the icon is editable. /m is a read-only host for
-                                    agent CONFIG, but the icon is a local display preference, not
-                                    configuration. */}
-                                {/* The same popover the session top bar anchors. */}
-                                <AgentIconPopover workflowId={agentId}>
-                                    <span
-                                        // ::after hit extender — 28px is under the touch guideline.
-                                        className={`relative flex size-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold after:absolute after:-inset-1.5 after:content-[''] ${chrome.className}`}
-                                        style={chrome.style ?? {backgroundColor: avatar.color}}
-                                    >
-                                        {chrome.glyph}
-                                    </span>
-                                </AgentIconPopover>
+                                {/* THE shared identity the session top bar renders: icon picker +
+                                    inline rename. Neither is agent CONFIG, which /m still only
+                                    reads, and the kebab beside it already offers this rename. */}
                                 {/* No `flex-1`: the title sizes to its text so the kebab sits
                                     beside it, as on the desktop, instead of being pushed to the
                                     far edge. `min-w-0` still lets a long name truncate. */}
-                                {/* The heading-3 rung (24px/1.3333) every other title in this app
-                                    gets — Sessions, Agents, Templates. At `text-sm` the agent's
-                                    name read as a breadcrumb, so the page had no title at all. */}
-                                {/* The "Agent" fallback is for an agent that never resolves; while
-                                    the roster is still in flight it read as a real name. */}
-                                {agentsQuery.isPending && !agent ? (
-                                    <Skeleton className="h-8 w-40 shrink-0" />
-                                ) : (
-                                    <h1 className="text-colorText m-0 min-w-0 truncate text-[24px] font-semibold leading-[1.3333333333333333]">
-                                        {name}
-                                    </h1>
-                                )}
+                                {/* The placeholder stands in while the roster is in flight; the
+                                    "Agent" fallback is for an agent that never resolves. */}
+                                <AgentIdentity
+                                    workflowId={agentId}
+                                    name={name}
+                                    size="title"
+                                    namePlaceholder={
+                                        agentsQuery.isPending && !agent ? (
+                                            <Skeleton className="h-8 w-40 shrink-0" />
+                                        ) : undefined
+                                    }
+                                />
                                 {/* The same verbs the desktop header offers; rename and delete
                                     fall through to the shared implementations here, since /m has
                                     no app-management modals of its own.

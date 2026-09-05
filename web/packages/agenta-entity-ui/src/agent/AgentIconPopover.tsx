@@ -1,11 +1,11 @@
 import {type ReactNode} from "react"
 
 import {agentIconAtomFamily} from "@agenta/entities/workflow"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {Popover, PopoverContent, PopoverTrigger} from "@/components/ui/popover"
-import {FOCUS_RING} from "@/lib/interactive"
+import {AGENT_FOCUS_RING} from "./chrome"
 
 // The picker carries the virtualizer, the colour maths and the lazy icon catalog. Only this
 // trigger reaches it, and only once opened — every screen renders agent icons and must not pay.
@@ -39,14 +39,13 @@ export const AgentIconPopover = ({
                 <button
                     type="button"
                     aria-label="Change agent icon"
-                    className={`flex shrink-0 cursor-pointer items-center rounded-lg border-0 bg-transparent p-0 ${FOCUS_RING}`}
+                    className={`flex shrink-0 cursor-pointer items-center rounded-lg border-0 bg-transparent p-0 ${AGENT_FOCUS_RING}`}
                 >
                     {children}
                 </button>
             </PopoverTrigger>
-            {/* `w-auto p-0`: the panel sizes and pads itself, and the popover's own w-72 would
-                otherwise clip it. The max-height is inert at phone heights and only engages in
-                landscape, where the panel would run off the screen. */}
+            {/* `w-auto p-0`: the panel sizes and pads itself. The max-height is inert at phone
+                heights and only engages in landscape, where the panel would run off the screen. */}
             <PopoverContent
                 align="start"
                 collisionPadding={12}
