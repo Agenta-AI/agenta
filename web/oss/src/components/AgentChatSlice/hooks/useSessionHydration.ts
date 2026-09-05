@@ -1,6 +1,7 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
-import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
+import {isSessionTranscript, loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
+import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
 import {
     fetchSessionRecordsAtom,
@@ -106,9 +107,11 @@ export const useSessionHydration = ({
     seenIdsRef,
     restoredIdsRef,
     recordWatermarkRef,
+    sequenceWatermarkRef,
     busy,
     setMessages,
     persistMessages,
+    clearRunError,
     intent,
     pendingResumeRef,
 }: {
@@ -120,10 +123,14 @@ export const useSessionHydration = ({
     restoredIdsRef: MutableRefObject<Set<string>>
     /** Records the rendered transcript was built from; `undefined` once a live turn supersedes it. */
     recordWatermarkRef: MutableRefObject<number | undefined>
+    /** Durable sequence coverage for sequenced reconnect snapshots; never a row count. */
+    sequenceWatermarkRef: MutableRefObject<number | undefined>
     /** THIS browser is streaming the turn — reactive, so the catch-up poll can start/stop on it. */
     busy: boolean
     setMessages: (messages: UIMessage[]) => void
     persistMessages: (args: {id: string; messages: UIMessage[]; recordCount?: number}) => void
+    /** Drop the stream error `useChat` is holding. Adopting the log supersedes it. */
+    clearRunError: () => void
     intent: ScrollIntent
     /**
      * Non-null while a client-tool settle (connect Not-now/Connect, an elicitation answer) has
@@ -161,14 +168,18 @@ export const useSessionHydration = ({
      * record log has grown past what we're rendering. Returns whether it adopted.
      */
     const adoptServerTranscript = useCallback(
-        (transcript: SessionTranscript | null, {armJump = true} = {}): boolean => {
-            if (!transcript) return false
-            const {messages: serverMsgs, recordCount, interactionRows} = transcript
+        (transcript: unknown, {armJump = true} = {}): boolean => {
+            if (!isSessionTranscript(transcript)) return false
+            const {messages: serverMsgs, recordCount, sequenceCursor, interactionRows} = transcript
             const adopt = shouldAdoptServerTranscript({
-                serverRecordCount: recordCount,
+                serverRecordCount: sequenceCursor ?? recordCount,
                 serverMessageCount: serverMsgs.length,
-                localMessageCount: messagesRef.current.length,
-                watermark: recordWatermarkRef.current,
+                localMessageCount: withoutSharedSenderAcceptanceMessages(messagesRef.current)
+                    .length,
+                watermark:
+                    sequenceCursor === undefined
+                        ? recordWatermarkRef.current
+                        : sequenceWatermarkRef.current,
                 busy: busyRef.current,
                 // #5942: a card still parked on the user outranks the log — adopting over it
                 // discards whatever they typed into its form.
@@ -193,6 +204,11 @@ export const useSessionHydration = ({
             // length, that keeps the guard order-independent and stops an older snapshot from
             // clobbering a newer one.
             recordWatermarkRef.current = recordCount
+            if (sequenceCursor !== undefined) sequenceWatermarkRef.current = sequenceCursor
+            // The log just superseded what this tab was rendering, a failed request of our own
+            // included. `useChat` holds that error until the next send and the session dot reads
+            // it, so without this the dot stays red beside a finished turn.
+            clearRunError()
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
             return true
@@ -208,8 +224,10 @@ export const useSessionHydration = ({
             seenIdsRef,
             restoredIdsRef,
             recordWatermarkRef,
+            sequenceWatermarkRef,
             setMessages,
             persistMessages,
+            clearRunError,
             intent.armJump,
             intent.stickRef,
         ],
@@ -319,11 +337,7 @@ export const useSessionHydration = ({
     }, [sessionId, readLog])
 
     // ── Follow a run happening somewhere else (#5530) ──────────────────────────
-    // There is no push channel to browsers: the runner publishes every event to Redis, but the only
-    // consumer is the ingest worker that writes them to the DB. So a session driven from another tab
-    // or device is followed by re-reading the durable log on a timer, and the adoption guard above
-    // decides whether anything actually changed. `isRunning` also covers OUR stream, so the atom
-    // excludes every case where this browser is the one driving (#5844).
+    // Live frames display immediately; durable polling converges events outside the frame subset.
     //
     // The settle stamp the derivation needs is written here rather than inside the package's
     // `setSessionStatusAtom`: this hook is mounted for the whole life of a session tab, which is
@@ -332,6 +346,7 @@ export const useSessionHydration = ({
     // `busy` stays as a second guard: it flips on the SEND commit, one commit before the status
     // atom the derivation reads, so it hides the strip a frame earlier when a local send takes over
     // a session that genuinely was running elsewhere.
+    const liveness = useAtomValue(sessionLivenessAtomFamily(sessionId))
     const runningElsewhere = useAtomValue(sessionRunningElsewhereAtomFamily(sessionId)) && !busy
 
     useEffect(() => {
@@ -398,7 +413,6 @@ export const useSessionHydration = ({
     // CONCLUSIVE: `records: []` is a confirmed-empty log and stamps; `records: null` is a failed
     // fetch and never stamps — it retries a bounded burst, then re-arms so a later dependency
     // change can try again instead of latching the recovery out for the rest of the mount.
-    const liveness = useAtomValue(sessionLivenessAtomFamily(sessionId))
     const strandedCheckRef = useRef<"idle" | "pending" | "done">("idle")
     useEffect(() => {
         if (strandedCheckRef.current !== "idle" || isHydrating || busy) return
@@ -452,37 +466,66 @@ export const useSessionHydration = ({
     const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
     const projectId = useAtomValue(projectIdAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
-    const refreshFromRecords = useCallback(() => {
-        // Entry check: skip while THIS tab streams (already the live truth, `onFinish`
-        // revalidates) OR a client-tool settle is already waiting on its resume dispatch — see
-        // `shouldSkipRecordsRefresh`.
-        if (
-            shouldSkipRecordsRefresh({
-                busy: busyRef.current,
-                pendingResume: !!pendingResumeRef.current,
-            })
-        )
-            return
-        // A tick usually lands inside the records query's stale window, so the shared cache would
-        // resolve unchanged; invalidate first, then adopt through the SAME guard as every other path.
-        revalidateSessionRecords(sessionId)
-        void readLog().then((transcript) => {
-            // Adoption-point recheck: the entry check above only covers the window BEFORE this
-            // fetch started. `loadSessionMessages` is a real network round trip, and a client-tool
-            // settle can land while it's in flight — without re-checking here, that settle arrives
-            // busy=false/pendingResume=true, passes nothing, and this `.then` still clobbers it
-            // with the (now stale) transcript it fetched before the settle happened.
+    const refreshFromRecords = useCallback(
+        async (transcript?: SessionTranscript): Promise<boolean> => {
+            const adoptOrConfirm = (candidate: unknown): boolean => {
+                if (!isSessionTranscript(candidate)) return false
+                const candidateWatermark = candidate.sequenceCursor ?? candidate.recordCount
+                const currentWatermark =
+                    candidate.sequenceCursor === undefined
+                        ? recordWatermarkRef.current
+                        : sequenceWatermarkRef.current
+                return (
+                    adoptServerTranscriptRef.current(candidate, {armJump: false}) ||
+                    (currentWatermark ?? 0) >= candidateWatermark
+                )
+            }
+            // Entry check: skip while THIS tab streams (already the live truth, `onFinish`
+            // revalidates) OR a client-tool settle is already waiting on its resume dispatch — see
+            // `shouldSkipRecordsRefresh`.
             if (
                 shouldSkipRecordsRefresh({
                     busy: busyRef.current,
                     pendingResume: !!pendingResumeRef.current,
                 })
             )
-                return
+                return false
+            if (isSessionTranscript(transcript)) {
+                return adoptOrConfirm(transcript)
+            }
+            // A tick usually lands inside the records query's stale window, so the shared cache would
+            // resolve unchanged; invalidate first, then adopt through the SAME guard as every other path.
+            revalidateSessionRecords(sessionId)
+            let refreshed: SessionTranscript | null
+            try {
+                refreshed = await readLog()
+            } catch {
+                return false
+            }
+            // Adoption-point recheck: the entry check above only covers the window BEFORE this
+            // fetch started. `loadSessionMessages` is a real network round trip, and a client-tool
+            // settle can land while it's in flight — without re-checking here, that settle arrives
+            // busy=false/pendingResume=true, passes nothing, and this still clobbers it with stale data.
+            if (
+                shouldSkipRecordsRefresh({
+                    busy: busyRef.current,
+                    pendingResume: !!pendingResumeRef.current,
+                })
+            )
+                return false
             // A background catch-up must not yank a reader who scrolled up — as with the poll.
-            adoptServerTranscriptRef.current(transcript, {armJump: false})
-        })
-    }, [sessionId, busyRef, pendingResumeRef, revalidateSessionRecords, readLog])
+            return adoptOrConfirm(refreshed)
+        },
+        [
+            sessionId,
+            busyRef,
+            pendingResumeRef,
+            recordWatermarkRef,
+            sequenceWatermarkRef,
+            revalidateSessionRecords,
+            readLog,
+        ],
+    )
     // `ready` fires on every connect — each tab activation, each return to the foreground — so it
     // must not repeat a read the mount is already doing. A change that lands after the subscribe
     // arrives as `records-changed`, which is never skipped (#6296).
@@ -506,7 +549,10 @@ export const useSessionHydration = ({
         },
         enabled: activeSessionId === sessionId,
         onReady: refreshOnReady,
-        onRecordsChanged: refreshFromRecords,
+        onRecordsChanged: () => {
+            void refreshFromRecords()
+        },
+        sharedReaderAdvertised: liveness.sharedReader,
     })
 
     return {
@@ -516,5 +562,7 @@ export const useSessionHydration = ({
         stopStateLoading: liveness.isLoading,
         sessionTurnId: liveness.turnId,
         stoppingTurnId: liveness.stoppingTurnId,
+        sharedReaderAdvertised: liveness.sharedReader,
+        refreshFromRecords,
     }
 }

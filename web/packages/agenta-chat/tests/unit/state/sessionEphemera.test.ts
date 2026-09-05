@@ -12,6 +12,7 @@ import {
     isSessionFresh,
     markSessionFresh,
     setSessionTurnId,
+    setAcceptedSessionTurnId,
 } from "../../../src/state/sessionEphemera"
 
 const attachment = (uid: string): PendingAttachment => ({
@@ -55,6 +56,20 @@ describe("fresh-session marker", () => {
 })
 
 describe("turn id freshness", () => {
+    it("restores a resumed execution only after authoritative acceptance", () => {
+        setSessionTurnId("s1", "older-turn")
+        clearSessionTurnId("s1")
+        setSessionTurnId("s1", "approval-turn")
+        clearSessionTurnId("s1")
+        setSessionTurnId("s1", "approval-turn")
+        expect(getSessionTurnId("s1")).toBeUndefined()
+
+        setAcceptedSessionTurnId("s1", "approval-turn")
+        expect(getSessionTurnId("s1")).toBe("approval-turn")
+        setSessionTurnId("s1", "older-turn")
+        expect(getSessionTurnId("s1")).toBe("approval-turn")
+    })
+
     it("does not resurrect the superseded turn while a resumed execution is starting", () => {
         setSessionTurnId("s1", "turn-parked")
         clearSessionTurnId("s1")

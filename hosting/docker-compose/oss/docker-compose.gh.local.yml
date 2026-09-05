@@ -342,6 +342,7 @@ services:
             AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM: ${AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM:-}
             AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES: ${AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES:-}
             AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS: ${AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS:-}
+            AGENTA_RUNNER_LIVE_FRAMES: ${AGENTA_RUNNER_LIVE_FRAMES:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network

@@ -1,4 +1,4 @@
-import {type SessionRunStatus} from "@agenta/chat/model"
+import {deriveRemoteTurnPresentation, type SessionRunStatus} from "@agenta/chat/model"
 import {sessionLocalSettledAtAtomFamily, sessionStatusAtomFamily} from "@agenta/chat/state"
 import {
     deriveSessionLifecycle,
@@ -51,6 +51,8 @@ export interface SessionLiveness {
     turnId: string | null
     stoppingTurnId: string | null
     isLoading: boolean
+    /** Server-advertised temporary frame relay for non-owning readers. */
+    sharedReader: boolean
 }
 
 /**
@@ -66,6 +68,7 @@ export const sessionLivenessAtomFamily = atomFamily((sessionId: string) =>
             turnId: stream?.turn_id ?? null,
             stoppingTurnId: stream?.stopping_turn_id ?? null,
             isLoading: get(aliveStreamsQueryAtom).isLoading,
+            sharedReader: Boolean(stream?.capabilities?.shared_reader),
         }
     }),
 )
@@ -121,6 +124,9 @@ export const isRunningElsewhere = ({
     if (!isRunning) return false
     return localSettledAt === undefined || livenessUpdatedAt > localSettledAt
 }
+
+/** Desktop presentation for a remote/shared-path run. The strip is only the disconnected fallback. */
+export const deriveSessionRemoteTurnPresentation = deriveRemoteTurnPresentation
 
 /** `isRunningElsewhere` bound to this session's local status and the shared liveness query. */
 export const sessionRunningElsewhereAtomFamily = atomFamily((sessionId: string) =>

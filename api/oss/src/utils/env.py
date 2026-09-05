@@ -1553,8 +1553,13 @@ class SessionsRedisConfig(BaseModel):
     Defaults mirror the golden fixture (services/runner/tests/fixtures/sessions/
     redis_contract.json) shared with the TypeScript runner. Do not change a default
     without updating that fixture and the TS side in lockstep.
+
+    AGENTA_SESSIONS_SEQUENCE_WRITES independently gates atomic record sequencing.
     """
 
+    sequence_writes: bool = (
+        os.getenv("AGENTA_SESSIONS_SEQUENCE_WRITES") or "false"
+    ).lower() in _TRUTHY
     alive_ttl_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ALIVE_TTL_SECONDS")
         or 3600
@@ -1586,6 +1591,25 @@ class SessionsRedisConfig(BaseModel):
     concurrency_limit: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT")
         or 1000
+    )
+    live_stream_maxlen: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_STREAM_MAXLEN")
+        or 100_000
+    )
+    live_frame_max_age_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_FRAME_MAX_AGE_SECONDS")
+        or 900
+    )
+    shared_reader: bool = (
+        os.getenv("AGENTA_SESSIONS_SHARED_READER") or "false"
+    ).lower() in _TRUTHY
+    live_auth_recheck_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_AUTH_RECHECK_SECONDS")
+        or 60
+    )
+    live_reader_buffer_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_READER_BUFFER_LIMIT")
+        or 256
     )
     # API-side only (SSE watch endpoint keep-alive cadence) — NOT part of the
     # runner golden fixture; safe to tune without touching the TS side.

@@ -7,9 +7,12 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
     true
 
 const state = vi.hoisted(() => ({
+    acceptedRunBySession: new Map<string, string | null>(),
+    turnDeliverySourceBySession: new Map<string, "legacy" | "shared">(),
     capturedHooks: undefined as
         | {
               prepareRequest: (args: {messages: UIMessage[]; id?: string}) => Promise<unknown>
+              onData: (part: {type: string; data?: unknown}) => void
               onError: () => void
               sendAutomaticallyWhen: (args: {messages: UIMessage[]}) => boolean
           }
@@ -64,9 +67,11 @@ vi.mock("@agenta/chat/model", () => ({
         if (event.type === "reset" && current.stopped) return {...current, stopped: false}
         return current
     },
+    withoutSharedSenderAcceptanceMessages: (messages: UIMessage[]) => messages,
 }))
 
 vi.mock("@agenta/chat/state", () => ({
+    acceptedRunBySession: state.acceptedRunBySession,
     clearSessionTurnId: (sessionId: string) => state.turnIds.delete(sessionId),
     clearTurnClockAtom: "clear-turn-clock",
     expandedKeysForMessages: () => [],
@@ -78,8 +83,11 @@ vi.mock("@agenta/chat/state", () => ({
     sessionRecordCountsReadAtom: "record-counts",
     setSessionStatusAtom: "set-session-status",
     setSessionTurnId: (sessionId: string, turnId: string) => state.turnIds.set(sessionId, turnId),
+    setAcceptedSessionTurnId: (sessionId: string, turnId: string) =>
+        state.turnIds.set(sessionId, turnId),
     stampMessagesCreatedAtAtom: "stamp-created-at",
     startTurnClockAtom: "start-turn-clock",
+    turnDeliverySourceBySession: state.turnDeliverySourceBySession,
 }))
 
 vi.mock("@agenta/entities/session", () => ({
@@ -184,6 +192,8 @@ import {useAgentChatSession} from "./useAgentChatSession"
 
 describe("useAgentChatSession execution guard", () => {
     beforeEach(() => {
+        state.acceptedRunBySession.clear()
+        state.turnDeliverySourceBySession.clear()
         state.turnIds.clear()
         state.sendMessage.mockClear()
         state.regenerate.mockClear()
@@ -271,6 +281,43 @@ describe("useAgentChatSession execution guard", () => {
             })
             await Promise.resolve()
         })
+        act(() => root.unmount())
+    })
+
+    it("stops an accepted shared turn before transcript metadata arrives", async () => {
+        state.busy = true
+        state.cancelSessionExecution.mockResolvedValue({
+            accepted: true,
+            conflict: false,
+            execution: {id: "accepted-turn", state: "stopping"},
+        })
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+        await act(() => state.capturedHooks!.prepareRequest({messages: [], id: "session-1"}))
+        act(() =>
+            state.capturedHooks!.onData({
+                type: "data-session-accepted",
+                data: {executionId: "accepted-turn"},
+            }),
+        )
+        await act(async () => result!.handleStop())
+        expect(state.cancelSessionExecution).toHaveBeenCalledWith({
+            sessionId: "session-1",
+            projectId: "project-id",
+            expectedExecutionId: "accepted-turn",
+        })
+        expect(state.resolveStopExecution).not.toHaveBeenCalled()
         act(() => root.unmount())
     })
 

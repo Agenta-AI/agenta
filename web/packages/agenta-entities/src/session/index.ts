@@ -7,6 +7,8 @@
  */
 export {
     querySessionRecords,
+    querySessionTranscript,
+    fetchSessionSnapshot,
     queryInteractions,
     fetchInteraction,
     respondInteraction,
@@ -34,6 +36,7 @@ export {
     type MountFilesPage,
     type LatestMountFilesParams,
     type QueryRecordsParams,
+    type QuerySessionTranscriptParams,
     type QuerySessionsPageParams,
     type QuerySessionsParams,
     type SessionScopedParams,
@@ -57,6 +60,11 @@ export {
     sessionRecordsQueryResponseSchema,
     sessionInteractionSchema,
     sessionStreamSchema,
+    sessionLiveFrameSchema,
+    sessionDurableEventSchema,
+    sessionDurableEventTypeSchema,
+    sessionRecordsReadStateSchema,
+    sessionSnapshotSchema,
     sessionsQueryResponseSchema,
     type SessionRecord,
     type SessionRecordsQueryResponse,
@@ -64,6 +72,11 @@ export {
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionStream,
+    type SessionLiveFrame,
+    type SessionDurableEvent,
+    type SessionDurableEventType,
+    type SessionRecordsReadState,
+    type SessionSnapshot,
     type SessionsQueryResponse,
     type SessionReference,
     type SessionReferenceKey,
@@ -113,6 +126,14 @@ export {
     sessionRecordsQueryKey,
     type SessionRecordsFetchResult,
 } from "./state/records"
+export {
+    sessionLivePreviewAtomFamily,
+    clearSessionLivePreviewAtom,
+    createSessionLivePreviewState,
+    type SessionLivePreviewExecution,
+    type SessionLivePreviewEntityState,
+    type SessionLivePreviewState,
+} from "./state/livePreview"
 export {
     fetchSessionInteractionStatesAtom,
     hasWaitingInteraction,

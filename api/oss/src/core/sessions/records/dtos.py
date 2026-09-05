@@ -1,14 +1,16 @@
 from datetime import datetime
-from typing import Optional, Any, Dict
+from typing import Annotated, Optional, Any, Dict, Literal, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from orjson import dumps
+from pydantic import BaseModel, Field, model_validator
 
 from oss.src.core.shared.dtos import Lifecycle, OTelSpanId
 
 # The DAO truncates at the SQL level (`left(attributes->>'text', ...)`) — this bound
 # just keeps the DTO honest about that contract for any other producer.
 SESSION_MESSAGE_PREVIEW_TEXT_LIMIT = 240
+MAX_LIVE_FRAME_BYTES = 64 * 1024
 
 # The runner's terminal per-turn record type, mirrored from
 # services/runner/src/protocol.ts (`{ type: "done" }`). Also spelled in the records DAO and
@@ -48,11 +50,174 @@ class SessionRecordEvent(BaseModel):
     quarantined_at: Optional[datetime] = None
 
 
+class SessionLiveFrame(BaseModel):
+    version: Literal[1]
+    kind: Literal["frame"]
+    session_id: str
+    execution_id: str
+    frame_or_event_id: str
+    frame_index: int = Field(ge=0)
+    entity_id: str
+    type: str
+    payload: Dict[str, Any]
+    created_at: datetime
+
+    @model_validator(mode="after")
+    def validate_serialized_size(self) -> "SessionLiveFrame":
+        size = len(dumps(self.model_dump(mode="json")))
+        if size > MAX_LIVE_FRAME_BYTES:
+            raise ValueError(
+                f"serialized live frame exceeds {MAX_LIVE_FRAME_BYTES} bytes"
+            )
+        return self
+
+
+class SessionExecutionError(BaseModel):
+    code: str
+    message: str
+    retryable: bool
+    details: Optional[Dict[str, Any]] = None
+
+
+class ExecutionStartedPayload(BaseModel):
+    started_at: datetime
+
+
+class ExecutionStoppedPayload(BaseModel):
+    stopped_at: datetime
+    reason: str
+    command_id: Optional[str] = None
+
+
+class ExecutionFailedPayload(BaseModel):
+    failed_at: datetime
+    error: SessionExecutionError
+
+
+class ExecutionLostPayload(BaseModel):
+    lost_at: datetime
+    reason: str
+    history_complete: Literal[False]
+
+
+class MessageCompletedPayload(BaseModel):
+    message_id: str
+    role: str
+    content: Any
+    finish_reason: Optional[str] = None
+
+
+class ToolCompletedPayload(BaseModel):
+    tool_call_id: str
+    name: str
+    input: Any
+    output: Any = None
+    error: Any = None
+    status: str
+
+
+class InteractionChangedPayload(BaseModel):
+    interaction_id: str
+    kind: Optional[str] = None
+
+
+class SessionDurableEventBase(BaseModel):
+    """Durable relay wire envelope.
+
+    ``watermark`` is a non-negative integer. On a live event it is the highest sequence
+    committed for that session in the publishing records-worker batch; on the SSE ``ready``
+    frame the same field name is the authoritative session sequence cursor after replay. A
+    client that receives a ready frame without it keeps the requested ``after`` cursor.
+    """
+
+    version: Literal[1] = 1
+    kind: Literal["event"] = "event"
+    session_id: str
+    execution_id: str
+    frame_or_event_id: str
+    entity_id: str
+    sequence: Optional[int] = Field(default=None, ge=1)
+    watermark: int = Field(ge=0)
+    created_at: datetime
+
+
+class ExecutionStartedEvent(SessionDurableEventBase):
+    type: Literal["execution.started"]
+    payload: ExecutionStartedPayload
+
+
+class ExecutionStoppedEvent(SessionDurableEventBase):
+    type: Literal["execution.stopped"]
+    payload: ExecutionStoppedPayload
+
+
+class ExecutionFailedEvent(SessionDurableEventBase):
+    type: Literal["execution.failed"]
+    payload: ExecutionFailedPayload
+
+
+class ExecutionLostEvent(SessionDurableEventBase):
+    type: Literal["execution.lost"]
+    payload: ExecutionLostPayload
+
+
+class MessageCompletedEvent(SessionDurableEventBase):
+    type: Literal["message.completed"]
+    payload: MessageCompletedPayload
+
+
+class ToolCompletedEvent(SessionDurableEventBase):
+    type: Literal["tool.completed"]
+    payload: ToolCompletedPayload
+
+
+class InteractionRequestedEvent(SessionDurableEventBase):
+    type: Literal["interaction.requested"]
+    payload: InteractionChangedPayload
+
+
+class InteractionRespondedEvent(SessionDurableEventBase):
+    type: Literal["interaction.responded"]
+    payload: InteractionChangedPayload
+
+
+SessionDurableEvent = Annotated[
+    Union[
+        ExecutionStartedEvent,
+        ExecutionStoppedEvent,
+        ExecutionFailedEvent,
+        ExecutionLostEvent,
+        MessageCompletedEvent,
+        ToolCompletedEvent,
+        InteractionRequestedEvent,
+        InteractionRespondedEvent,
+    ],
+    Field(discriminator="type"),
+]
+
+
+class SessionDurableEventsReplay(BaseModel):
+    events: list[SessionDurableEvent]
+    watermark: int = Field(ge=0)
+
+
+SESSION_DURABLE_EVENT_TYPES = {
+    "execution.started",
+    "execution.stopped",
+    "execution.failed",
+    "execution.lost",
+    "message.completed",
+    "tool.completed",
+}
+
+
 class SessionRecord(Lifecycle):
     record_id: UUID
 
     session_id: str
     project_id: UUID
+
+    sequence: Optional[int] = None
 
     record_index: Optional[int] = None
     timestamp: Optional[datetime] = None
@@ -86,3 +251,21 @@ class SessionMessagePreview(BaseModel):
 
 class SessionRecordQuery(BaseModel):
     session_id: str
+
+
+class SessionRecordsReadState(BaseModel):
+    latest_sequence: int = Field(ge=0)
+    history_complete: bool
+
+
+class SessionRecordsPage(BaseModel):
+    records: list[SessionRecord]
+    offset: int = Field(ge=0)
+    limit: int = Field(ge=1)
+    next_offset: Optional[int] = Field(default=None, ge=0)
+    through_sequence: int = Field(ge=0)
+
+
+class SessionRecordsReplay(BaseModel):
+    records: list[SessionRecord]
+    watermark: int = Field(ge=0)
