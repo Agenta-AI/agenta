@@ -127,7 +127,14 @@ async def session_heartbeat_guard(
     finally:
         renewal.cancel()
         await asyncio.gather(renewal, return_exceptions=True)
-        await engine.eval(RELEASE_IF_OWNER_LUA, 1, key.encode(), token)
+        try:
+            await engine.eval(RELEASE_IF_OWNER_LUA, 1, key.encode(), token)
+        except Exception:
+            log.warning(
+                "heartbeat guard release failed; lease will expire",
+                session_id=session_id,
+                exc_info=True,
+            )
 
 
 async def acquire_alive(
