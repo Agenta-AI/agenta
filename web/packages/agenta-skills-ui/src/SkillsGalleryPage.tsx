@@ -3,28 +3,18 @@
  * uses) with a source rail — All / This project / Agenta / one entry per imported repo —
  * search, and sectioned card grids. Purely presentational; the host owns data and routing.
  */
-import {useMemo} from "react"
-
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {EmptyState, SearchInput} from "@agenta/ui/ui"
+import {SearchInput} from "@agenta/ui/ui"
 
 import {NewSkillMenuButton, type NewSkillMenuButtonProps} from "./NewSkillMenuButton"
-import {SkillCard} from "./SkillCard"
+import {SkillGallerySections, type SkillGallerySection} from "./SkillGallerySections"
 import type {SkillListItem} from "./types"
 
 export interface SkillSourceNavEntry {
     key: string
     label: string
     count: number
-}
-
-export interface SkillGallerySection {
-    key: string
-    label: string
-    /** e.g. "synced 3d ago" on an imported repo section. */
-    tag?: string
-    skills: SkillListItem[]
 }
 
 export interface SkillsGalleryPageProps {
@@ -79,9 +69,6 @@ export function SkillsGalleryPage({
     createActions,
     loading,
 }: SkillsGalleryPageProps) {
-    const visibleSections = useMemo(() => sections.filter((s) => s.skills.length > 0), [sections])
-    const empty = !loading && visibleSections.length === 0
-
     return (
         <FilterRailLayout
             rail={
@@ -112,39 +99,12 @@ export function SkillsGalleryPage({
                     <NewSkillMenuButton {...createActions} />
                 </div>
 
-                {empty ? (
-                    <EmptyState
-                        title={search.trim() ? "No skills match your search" : "No skills yet"}
-                        description={
-                            search.trim()
-                                ? "Try a different name or description."
-                                : "Write one from scratch, upload a folder, or import from a repo."
-                        }
-                    />
-                ) : (
-                    visibleSections.map((section) => (
-                        <section key={section.key} className="flex flex-col gap-2.5">
-                            <div className="flex items-center gap-2">
-                                <h2 className="m-0 text-xs font-semibold uppercase tracking-wide text-[var(--ag-colorTextSecondary)]">
-                                    {section.label}
-                                </h2>
-                                <span className="text-xs tabular-nums text-[var(--ag-colorTextTertiary)]">
-                                    {section.skills.length}
-                                </span>
-                                {section.tag ? (
-                                    <span className="rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
-                                        {section.tag}
-                                    </span>
-                                ) : null}
-                            </div>
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                                {section.skills.map((skill) => (
-                                    <SkillCard key={skill.id} skill={skill} onOpen={onOpenSkill} />
-                                ))}
-                            </div>
-                        </section>
-                    ))
-                )}
+                <SkillGallerySections
+                    sections={sections}
+                    onOpenSkill={onOpenSkill}
+                    search={search}
+                    loading={loading}
+                />
             </div>
         </FilterRailLayout>
     )

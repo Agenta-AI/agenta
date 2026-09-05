@@ -8,9 +8,13 @@ export {SkillCard, SkillAvatar, VersionTag, type SkillCardProps} from "./SkillCa
 export {
     SkillsGalleryPage,
     type SkillsGalleryPageProps,
-    type SkillGallerySection,
     type SkillSourceNavEntry,
 } from "./SkillsGalleryPage"
+export {
+    SkillGallerySections,
+    type SkillGallerySectionsProps,
+    type SkillGallerySection,
+} from "./SkillGallerySections"
 export {VersionsRailCard, type VersionsRailCardProps} from "./VersionsRailCard"
 export {
     SkillPickerDrawer,

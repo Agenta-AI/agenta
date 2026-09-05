@@ -430,6 +430,12 @@ importers:
       '@agenta/shared':
         specifier: workspace:../packages/agenta-shared
         version: link:../packages/agenta-shared
+      '@agenta/skills':
+        specifier: workspace:../packages/agenta-skills
+        version: link:../packages/agenta-skills
+      '@agenta/skills-ui':
+        specifier: workspace:../packages/agenta-skills-ui
+        version: link:../packages/agenta-skills-ui
       '@agenta/ui':
         specifier: workspace:../packages/agenta-ui
         version: link:../packages/agenta-ui

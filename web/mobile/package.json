@@ -38,6 +38,8 @@
         "@agenta/settings": "workspace:../packages/agenta-settings",
         "@agenta/settings-ui": "workspace:../packages/agenta-settings-ui",
         "@agenta/shared": "workspace:../packages/agenta-shared",
+        "@agenta/skills": "workspace:../packages/agenta-skills",
+        "@agenta/skills-ui": "workspace:../packages/agenta-skills-ui",
         "@agenta/ui": "workspace:../packages/agenta-ui",
         "@ai-sdk/react": "3.0.0-beta.153",
         "@tanstack/react-query": "^5.90.21",

@@ -9,6 +9,7 @@ import {
     SIDEBAR_AGENT_ORDER_ZONE,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
+    SKILLS_SIDEBAR_KEY,
     sidebarAgentRanksAtomFamily,
     sidebarSessionToggledGroupsAtomFamily,
     sidebarSessionGroupKey,
@@ -36,6 +37,7 @@ import {
     Github,
     House,
     MessagesSquare,
+    Puzzle,
     ScrollText,
     Settings,
     Slack,
@@ -172,6 +174,12 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 // there", and a long popover is a list to read rather than a menu to pick from.
                 hideChildrenWhenCollapsed: true,
                 submenu: resolveChildren(mobileAgentsEntity, agentsSource, projectURL),
+            },
+            {
+                key: SKILLS_SIDEBAR_KEY,
+                title: "Skills",
+                icon: createElement(Puzzle, {size: 16}),
+                link: `${projectURL}/skills`,
             },
             {
                 key: SESSIONS_SIDEBAR_KEY,
