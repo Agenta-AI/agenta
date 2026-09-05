@@ -53,11 +53,19 @@ export interface LiveExecution {
    * environment that was about to be parked. So the applier reads this flag and does nothing.
    */
   settled?: boolean;
+  /** Resolves after teardown and the final ownership release, not merely prompt settlement. */
+  released?: Promise<boolean>;
   /** Stop the run. Aborting is what makes the turn end `cancelled`. */
   abort: () => void;
 }
 
 const executions = new Map<string, LiveExecution>();
+const releases = new Map<
+  string,
+  { promise: Promise<boolean>; resolve: (safeToContinue: boolean) => void }
+>();
+const releaseKey = (sessionId: string, turnId: string) =>
+  JSON.stringify([sessionId, turnId]);
 
 /**
  * Register a run as live. A second registration for the same session REPLACES the first,
@@ -65,6 +73,17 @@ const executions = new Map<string, LiveExecution>();
  * time a replacement turn starts.
  */
 export function registerExecution(execution: LiveExecution): void {
+  const key = releaseKey(execution.sessionId, execution.turnId);
+  let completion = releases.get(key);
+  if (!completion) {
+    let resolve!: (safeToContinue: boolean) => void;
+    const promise = new Promise<boolean>((done) => {
+      resolve = done;
+    });
+    completion = { promise, resolve };
+    releases.set(key, completion);
+  }
+  execution.released = completion.promise;
   executions.set(execution.sessionId, execution);
 }
 
@@ -98,7 +117,14 @@ export function noteExecutionSettled(sessionId: string, turnId: string): void {
  * Remove a run, but only if it is still the one registered. A turn that finishes after its
  * successor registered must not unregister the successor.
  */
-export function unregisterExecution(sessionId: string, turnId: string): void {
+export function unregisterExecution(
+  sessionId: string,
+  turnId: string,
+  safeToContinue = true,
+): void {
+  const key = releaseKey(sessionId, turnId);
+  releases.get(key)?.resolve(safeToContinue);
+  releases.delete(key);
   const current = executions.get(sessionId);
   if (current && current.turnId === turnId) executions.delete(sessionId);
 }
@@ -129,5 +155,7 @@ export function liveExecutions(): LiveExecution[] {
 
 /** Test seam: drop everything. Never called by the server. */
 export function resetExecutionsForTest(): void {
+  for (const completion of releases.values()) completion.resolve(false);
+  releases.clear();
   executions.clear();
 }

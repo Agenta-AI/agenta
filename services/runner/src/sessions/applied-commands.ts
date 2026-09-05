@@ -23,6 +23,8 @@ export interface AppliedCommand {
   executionId: string | null;
   result: "applied" | "obsolete";
   appliedAt: number;
+  /** Duplicate deliveries must respect the original execution's teardown boundary. */
+  settled?: Promise<void>;
 }
 
 /**

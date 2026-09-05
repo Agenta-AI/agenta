@@ -57,6 +57,7 @@ import {
 } from "../utils/sandbox-agent-harness.ts";
 import {
   findExecution,
+  unregisterExecution,
   registerExecution,
   resetExecutionsForTest,
 } from "../../src/sessions/execution-registry.ts";
@@ -2698,7 +2699,7 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     );
 
     await pauseTeardownStarted;
-    const outcome = await applyCommand(
+    const stopped = applyCommand(
       {
         id: "command-stop-during-pause-teardown",
         projectId,
@@ -2709,8 +2710,7 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
       },
       { report: async () => {} },
     );
-    assert.equal(outcome.execution.state, "stopped");
-
+    assert.equal(controller.signal.aborted, true);
     releasePauseTeardown();
     const result = await turn;
 
@@ -2719,6 +2719,8 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     assert.equal(result.stopReason, "cancelled");
     assert.equal(result.cancelSettled, true);
     assert.equal(findExecution(projectId, sessionId)?.settled, true);
+    unregisterExecution(sessionId, turnId);
+    assert.equal((await stopped).execution.state, "stopped");
   });
 
   it("effective ask with no decision pauses the tool, no harness reply (F-024)", async () => {
