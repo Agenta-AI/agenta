@@ -154,6 +154,31 @@ def test_root_mutation_serialization_strips_only_reserved_tags(path, service_met
     assert stream.tags == ALL_TAGS
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"header": {"name": "Wrapped"}},
+    ],
+)
+def test_stream_header_rejects_noop_bodies_before_calling_service(payload):
+    service = AsyncMock()
+    app = _app(
+        SessionStreamsRouter(
+            service=service,
+            interactions_service=AsyncMock(),
+        )
+    )
+
+    response = TestClient(app).put(
+        "/sessions/streams/header?session_id=session-a",
+        json=payload,
+    )
+
+    assert response.status_code == 422
+    service.set_header.assert_not_awaited()
+
+
 def test_plain_stream_response_families_strip_only_reserved_tags():
     stream = _stream()
     untagged = _stream(tags=None, session_id="session-b")
