@@ -135,6 +135,8 @@ const AgentConversation = ({
         busy,
         error,
         connectionWarning,
+        acceptedRunPending,
+        settleAcceptedRun,
         sendMessage,
         regenerate,
         setMessages,
@@ -162,9 +164,11 @@ const AgentConversation = ({
         runningElsewhere: livenessRunningElsewhere,
         sender: true,
         onReadyChange: setSharedSenderReady,
+        onExecutionSettled: settleAcceptedRun,
         onDisconnect: refreshFromRecords,
     })
-    const runningElsewhere = livenessRunningElsewhere || (runningFromSnapshot && !busy)
+    const runningElsewhere =
+        livenessRunningElsewhere || (runningFromSnapshot && !busy && !acceptedRunPending)
     const transcriptMessages = useMemo(() => {
         const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
         return previewMessages.length ? [...durableMessages, ...previewMessages] : durableMessages
@@ -373,6 +377,7 @@ const AgentConversation = ({
     } = useAgentChatQueue({
         status,
         messages,
+        acceptedRunPending,
         stopped,
         resumeOrphaned,
         sendQueued,
@@ -705,6 +710,7 @@ const AgentConversation = ({
     )
     const handleResend = useCallback(
         (messageId: string) => {
+            if (busyRef.current) return
             const msgs = messagesRef.current
             const idx = msgs.findIndex((m) => m.id === messageId)
             // Same hazard as rewind (#6362 review): regenerating drops the failed assistant
@@ -772,7 +778,7 @@ const AgentConversation = ({
                 // busy): keeps the turn from reading as finished while the queue holds sends.
                 showWaiting={isLast && isAssistantTurn && !busy && hitlPending}
                 showStopped={stopped && isLast && isAssistantTurn}
-                resendDisabled={busy}
+                resendDisabled={busy || acceptedRunPending}
                 onResend={handleResend}
                 onRewind={handleRewind}
                 onClientToolOutput={handleClientToolOutput}

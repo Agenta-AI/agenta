@@ -70,6 +70,7 @@ import {
     type SessionChatHooks,
 } from "../state/sessionChats"
 import {
+    acceptedRunBySession,
     clearSessionFresh,
     clearSessionTurnId,
     composerDraftBySession,
@@ -193,6 +194,8 @@ export interface AgentConversation {
     revalidate: () => void
     /** Atomic snapshot says an unfinished backend execution is still running after refresh. */
     runningFromSnapshot: boolean
+    /** This browser's accepted turn is still owned by the shared session path. */
+    acceptedRunPending: boolean
 }
 
 /**
@@ -272,7 +275,13 @@ export const useAgentConversation = ({
     // `onData` and never the transcript — this is the only place the answer survives. A stream that
     // dies after it is a lost connection, not a lost turn; one that dies before it may be a send
     // that never started, and that failure has to stay on screen and in the cache.
-    const turnAcceptedRef = useRef(false)
+    const turnAcceptedRef = useRef(acceptedRunBySession.has(sessionId))
+    const acceptedExecutionIdRef = useRef<string | null>(
+        acceptedRunBySession.get(sessionId) ?? null,
+    )
+    const [acceptedRunPending, setAcceptedRunPending] = useState(() =>
+        acceptedRunBySession.has(sessionId),
+    )
     // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
     const busyRef = useRef(false)
     const messagesRef = useRef(initialMessages)
@@ -281,6 +290,9 @@ export const useAgentConversation = ({
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
             clearSessionTurnId(sessionId)
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
             // Bounded, not instant. A null build means the workflow entity has not loaded its
             // invocation URL YET — the first send to a freshly created agent races that fetch, and
             // failing on the first null made a new user's first message fail (#6042 on the desktop;
@@ -310,7 +322,14 @@ export const useAgentConversation = ({
         // #6047 startup states: the runner narrates what it is doing while the environment boots,
         // so a 15s cold start reads as progress instead of a stalled session.
         onData: (part) => {
-            if (part.type === "data-session-accepted") turnAcceptedRef.current = true
+            if (part.type === "data-session-accepted") {
+                turnAcceptedRef.current = true
+                const data = part.data as {executionId?: unknown} | undefined
+                acceptedExecutionIdRef.current =
+                    typeof data?.executionId === "string" ? data.executionId : null
+                acceptedRunBySession.set(sessionId, acceptedExecutionIdRef.current)
+                setAcceptedRunPending(true)
+            }
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
         },
@@ -394,7 +413,7 @@ export const useAgentConversation = ({
     // `messages`/`busy` change every commit; consumers that must stay referentially stable
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
     messagesRef.current = messages
-    busyRef.current = busy
+    busyRef.current = busy || acceptedRunPending
 
     useEffect(() => {
         dispatchStopped({type: "transcript", messages})
@@ -582,6 +601,7 @@ export const useAgentConversation = ({
     } = useAgentChatQueue({
         status,
         messages,
+        acceptedRunPending,
         stopped,
         resumeOrphaned,
         sendQueued,
@@ -676,7 +696,11 @@ export const useAgentConversation = ({
 
     // Publish this session's run state (single source of truth for session-list status dots).
     // Precedence error > awaiting approval > running > idle.
-    const runStatus = deriveSessionRunStatus({error: !!errorBoundary.runError, hitlPending, busy})
+    const runStatus = deriveSessionRunStatus({
+        error: !!errorBoundary.runError,
+        hitlPending,
+        busy: busy || acceptedRunPending,
+    })
     useEffect(() => {
         setSessionStatus({id: sessionId, status: runStatus})
     }, [runStatus, sessionId, setSessionStatus])
@@ -818,6 +842,13 @@ export const useAgentConversation = ({
         onReadyChange: (ready) => {
             sharedSenderReadyRef.current = ready
         },
+        onExecutionSettled: (executionId?: string) => {
+            const acceptedExecutionId = acceptedExecutionIdRef.current
+            if (executionId && acceptedExecutionId && acceptedExecutionId !== executionId) return
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
+        },
         onDisconnect: revalidate,
     })
     const displayMessages = useMemo(() => {
@@ -877,6 +908,7 @@ export const useAgentConversation = ({
     const regenerateTurn = useCallback(
         (id: string) => {
             clearSessionTurnId(sessionId)
+            if (busyRef.current) return
             setStopped(false)
             regenerate({messageId: id}).catch(ignoreStreamRejection)
         },
@@ -953,5 +985,6 @@ export const useAgentConversation = ({
         sendToolOutput,
         revalidate,
         runningFromSnapshot,
+        acceptedRunPending,
     }
 }

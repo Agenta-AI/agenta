@@ -19,6 +19,7 @@ import {
     withoutSharedSenderAcceptanceMessages,
 } from "@agenta/chat/model"
 import {
+    acceptedRunBySession,
     clearTurnClockAtom,
     stampMessagesCreatedAtAtom,
     startTurnClockAtom,
@@ -157,7 +158,13 @@ export const useAgentChatSession = ({
     // `onData` and never the transcript — this is the only place the answer survives. A stream that
     // dies after it is a lost connection, not a lost turn; one that dies before it may be a send
     // that never started, and that failure has to stay on screen and in the cache.
-    const turnAcceptedRef = useRef(false)
+    const turnAcceptedRef = useRef(acceptedRunBySession.has(sessionId))
+    const acceptedExecutionIdRef = useRef<string | null>(
+        acceptedRunBySession.get(sessionId) ?? null,
+    )
+    const [acceptedRunPending, setAcceptedRunPending] = useState(() =>
+        acceptedRunBySession.has(sessionId),
+    )
     const sharedSenderReadyRef = useRef(false)
     const setSharedSenderReady = useCallback((ready: boolean) => {
         sharedSenderReadyRef.current = ready
@@ -169,6 +176,9 @@ export const useAgentChatSession = ({
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
             clearSessionTurnId(sessionId)
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
             // Bounded: retries while the invocation URL is still loading and rejects if the build
             // hangs, so a failed send surfaces as an error bubble instead of an eternal spinner
             // (#6042). The helper owns the not-ready / timed-out errors.
@@ -183,7 +193,14 @@ export const useAgentChatSession = ({
         },
         // ── #6047 startup states: capture the runner's observed startup boundary as it streams ──
         onData: (part) => {
-            if (part.type === "data-session-accepted") turnAcceptedRef.current = true
+            if (part.type === "data-session-accepted") {
+                turnAcceptedRef.current = true
+                const data = part.data as {executionId?: unknown} | undefined
+                acceptedExecutionIdRef.current =
+                    typeof data?.executionId === "string" ? data.executionId : null
+                acceptedRunBySession.set(sessionId, acceptedExecutionIdRef.current)
+                setAcceptedRunPending(true)
+            }
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
         },
@@ -291,8 +308,8 @@ export const useAgentChatSession = ({
     // `messages`/`busy` change every token; consumers that must stay referentially stable
     // (`handleRewind`, the hydration/SWR adoption guards) read them through refs instead.
     messagesRef.current = messages
-    const busyRef = useRef(busy)
-    busyRef.current = busy
+    const busyRef = useRef(busy || acceptedRunPending)
+    busyRef.current = busy || acceptedRunPending
 
     useEffect(() => {
         dispatchStopped({type: "transcript", messages})
@@ -725,6 +742,14 @@ export const useAgentChatSession = ({
         busy,
         error: errorBoundary.runError,
         connectionWarning: errorBoundary.connectionWarning,
+        acceptedRunPending,
+        settleAcceptedRun: (executionId?: string) => {
+            const acceptedExecutionId = acceptedExecutionIdRef.current
+            if (executionId && acceptedExecutionId && acceptedExecutionId !== executionId) return
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
+        },
         sendMessage: sendMessageWithFreshGuard,
         regenerate: regenerateWithFreshGuard,
         setMessages,

@@ -36,6 +36,7 @@ interface HarnessProps {
     status: string
     messages: UIMessage[]
     stopped: boolean
+    acceptedRunPending?: boolean
     resumeOrphaned?: boolean
     sessionId?: string
 }
@@ -75,6 +76,29 @@ describe("useAgentChatQueue", () => {
         })
         expect(sendQueued).not.toHaveBeenCalled()
         expect(result.current.queued.map((m) => m.text)).toEqual(["first", "second"])
+    })
+
+    it("holds an accepted turn after its sender stream errors until the shared path settles", () => {
+        const acceptedDisconnect: HarnessProps = {
+            status: "error",
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+            acceptedRunPending: true,
+        }
+        const {result, rerender, sendQueued} = setup(acceptedDisconnect)
+
+        act(() => result.current.submit({text: "hold behind the accepted turn"}))
+
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued.map((message) => message.text)).toEqual([
+            "hold behind the accepted turn",
+        ])
+
+        rerender({...acceptedDisconnect, acceptedRunPending: false})
+
+        expect(sendQueued).toHaveBeenCalledTimes(1)
+        expect(sendQueued.mock.calls[0][0]).toMatchObject({text: "hold behind the accepted turn"})
+        expect(result.current.queued).toHaveLength(0)
     })
 
     it("releases held messages one per settle, in FIFO order", () => {

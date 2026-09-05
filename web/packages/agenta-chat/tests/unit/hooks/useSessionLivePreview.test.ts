@@ -32,8 +32,16 @@ class FakeEventSource {
         this.listeners.set(type, listener as (event: Event) => void)
     }
 
-    emit(type: string) {
-        this.listeners.get(type)?.(new Event(type))
+    emit(type: string, data?: unknown) {
+        this.listeners.get(type)?.(
+            data === undefined
+                ? new Event(type)
+                : new MessageEvent(type, {data: JSON.stringify(data)}),
+        )
+    }
+
+    message(data: unknown) {
+        this.onmessage?.(new MessageEvent("message", {data: JSON.stringify(data)}))
     }
 
     close() {
@@ -162,5 +170,43 @@ describe("useSessionLivePreview sender subscription", () => {
         await waitFor(() => expect(result.current.runningFromSnapshot).toBe(false))
         expect(FakeEventSource.instances).toHaveLength(1)
         expect(FakeEventSource.instances[0].closed).toBe(false)
+    })
+
+    it("reports the terminal durable event that releases an accepted sender turn", async () => {
+        vi.mocked(fetchSessionSnapshot).mockResolvedValue(snapshot(true))
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const onExecutionSettled = vi.fn()
+
+        renderHook(
+            () =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: true,
+                    runningElsewhere: false,
+                    sender: true,
+                    onExecutionSettled,
+                    onDisconnect: vi.fn(),
+                }),
+            {wrapper: wrapper(store)},
+        )
+
+        await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1))
+        act(() =>
+            FakeEventSource.instances[0].message({
+                version: 1,
+                kind: "event",
+                session_id: "session-1",
+                execution_id: "execution-1",
+                frame_or_event_id: "event-43",
+                sequence: 43,
+                watermark: 43,
+                type: "execution.stopped",
+                payload: {},
+                created_at: "2026-09-05T12:00:00Z",
+            }),
+        )
+
+        expect(onExecutionSettled).toHaveBeenCalledWith("execution-1")
     })
 })

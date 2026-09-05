@@ -517,7 +517,8 @@ describe("useAgentConversation", () => {
         await waitFor(() => {
             expect(result.current.connectionWarning).toBe(ACCEPTED_SENDER_DISCONNECT_MESSAGE)
             expect(result.current.error).toBeUndefined()
-            expect(result.current.runStatus).not.toBe("error")
+            expect(result.current.acceptedRunPending).toBe(true)
+            expect(result.current.runStatus).toBe("running")
             expect(result.current.turns.some((turn) => turn.status.isError)).toBe(false)
         })
 

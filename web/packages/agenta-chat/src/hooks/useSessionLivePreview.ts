@@ -39,6 +39,7 @@ export const useSessionLivePreview = ({
     runningElsewhere,
     sender,
     onReadyChange,
+    onExecutionSettled,
     onDisconnect,
 }: {
     sessionId: string
@@ -50,6 +51,8 @@ export const useSessionLivePreview = ({
     sender?: boolean
     /** Non-reactive request-pipeline signal: true only while the shared event route is ready. */
     onReadyChange?: (ready: boolean) => void
+    /** Reports the shared path's durable terminal verdict for the current execution. */
+    onExecutionSettled?: (executionId?: string) => void
     /** Adopts a bounded transcript or re-fetches after a later gap/disconnect. */
     onDisconnect: (transcript?: SessionTranscript) => boolean | Promise<boolean>
 }): {messages: UIMessage[]; runningFromSnapshot: boolean} => {
@@ -63,6 +66,8 @@ export const useSessionLivePreview = ({
     const retryHydrationRef = useRef<() => void>(() => undefined)
     const onReadyChangeRef = useRef(onReadyChange)
     onReadyChangeRef.current = onReadyChange
+    const onExecutionSettledRef = useRef(onExecutionSettled)
+    onExecutionSettledRef.current = onExecutionSettled
     const subscribed = shouldSubscribeToSessionLivePreview({
         sharedReaderAdvertised,
         runningElsewhere,
@@ -128,7 +133,9 @@ export const useSessionLivePreview = ({
                 return
             }
             if (disposed || currentGeneration !== generation) return
-            setRunningFromSnapshot(isSessionSnapshotRunning(snapshot ?? undefined))
+            const snapshotRunning = isSessionSnapshotRunning(snapshot ?? undefined)
+            setRunningFromSnapshot(snapshotRunning)
+            if (snapshot && !snapshotRunning) onExecutionSettledRef.current?.()
 
             if (snapshot && projectId) {
                 try {
@@ -191,8 +198,10 @@ export const useSessionLivePreview = ({
                         event.type === "execution.stopped" ||
                         event.type === "execution.failed" ||
                         event.type === "execution.lost"
-                    )
+                    ) {
                         setRunningFromSnapshot(false)
+                        onExecutionSettledRef.current?.(event.execution_id)
+                    }
                     // Completed durable rows replace temporary frames in the transcript source.
                     clearPreview(sessionId)
                     void adoptTranscript().then((adopted) => {

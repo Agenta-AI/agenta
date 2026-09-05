@@ -571,7 +571,9 @@ export const LiveConversation = ({
                         composer, as on the desktop — it used to be a top bar that also appeared for
                         THIS device's own turns, duplicating the composer's Stop and shifting the
                         transcript twice per run. */}
-                        {(running || conversation.runningFromSnapshot) && !streamingHere ? (
+                        {(running || conversation.runningFromSnapshot) &&
+                        !streamingHere &&
+                        !conversation.acceptedRunPending ? (
                             <ContentRail>
                                 <RunningElsewhereStrip
                                     action={
