@@ -120,7 +120,10 @@ class SessionInputsService:
                     input=existing,
                     execution_id=current_execution_id,
                 )
-            if source_execution is not None and source_execution.terminal_outcome is not None:
+            if (
+                source_execution is not None
+                and source_execution.terminal_outcome is not None
+            ):
                 return PendingInputAdmission(action="execute")
             item = await self._dao.create_input(
                 user_id=user_id,

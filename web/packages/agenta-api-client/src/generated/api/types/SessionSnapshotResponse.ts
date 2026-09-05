@@ -6,6 +6,5 @@ export interface SessionSnapshotResponse {
     session?: (AgentaApi.SessionStream | null) | undefined;
     execution?: AgentaApi.SessionExecutionSnapshot | undefined;
     pending?: AgentaApi.SessionPendingSnapshot | undefined;
-    read?: AgentaApi.SessionReadSnapshot | undefined;
     capabilities?: AgentaApi.SessionCapabilities | undefined;
 }

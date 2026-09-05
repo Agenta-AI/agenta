@@ -139,18 +139,12 @@ class SessionPendingSnapshot(BaseModel):
     interactions: List[SessionInteraction] = Field(default_factory=list)
 
 
-class SessionReadSnapshot(BaseModel):
-    latest_sequence: int = 0
-    history_complete: bool = True
-
-
 class SessionSnapshotResponse(BaseModel):
     session: Optional[SessionStream] = None
     execution: SessionExecutionSnapshot = Field(
         default_factory=SessionExecutionSnapshot
     )
     pending: SessionPendingSnapshot = Field(default_factory=SessionPendingSnapshot)
-    read: SessionReadSnapshot = Field(default_factory=SessionReadSnapshot)
     capabilities: SessionCapabilities = Field(default_factory=SessionCapabilities)
 
 

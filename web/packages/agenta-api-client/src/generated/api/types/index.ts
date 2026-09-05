@@ -416,7 +416,6 @@ export * from "./SessionSnapshotPending.js";
 export * from "./SessionSnapshotResponse.js";
 export * from "./SessionReference.js";
 export * from "./SessionResponse.js";
-export * from "./SessionReadSnapshot.js";
 export * from "./SessionStream.js";
 export * from "./SessionStreamCommandResponse.js";
 export * from "./SessionStreamFlags.js";

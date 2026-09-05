@@ -31,7 +31,6 @@ describe("pending input reducer", () => {
                 inputs: [input("older", 20, "queued"), input("steer", 10, "redirect", "steer")],
                 interactions: [],
             },
-            read: {latest_sequence: 0, history_complete: true},
             capabilities: {durable_approvals: true, queue: true, steer: true},
         })
 
@@ -76,7 +75,6 @@ describe("pending input reducer", () => {
             session: null,
             execution: {id: null, state: "idle"},
             pending: {inputs: [recoverable], interactions: []},
-            read: {latest_sequence: 0, history_complete: true},
             capabilities: {durable_approvals: true, queue: true, steer: true},
         })
 

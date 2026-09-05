@@ -208,7 +208,6 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionCapabilities,
     SessionExecutionSnapshot,
     SessionPendingSnapshot,
-    SessionReadSnapshot,
     SessionSnapshotResponse,
 )
 from oss.src.apis.fastapi.sessions.utils import (
@@ -2321,7 +2320,6 @@ class SessionsRootRouter:
             session=stream,
             execution=SessionExecutionSnapshot(id=execution_id, state=state),
             pending=SessionPendingSnapshot(inputs=inputs, interactions=interactions),
-            read=SessionReadSnapshot(),
             capabilities=SessionCapabilities(
                 durable_approvals=env.agenta.sessions.durable_approvals,
                 queue=env.agenta.sessions.queue,

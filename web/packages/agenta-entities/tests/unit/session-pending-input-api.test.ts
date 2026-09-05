@@ -31,7 +31,6 @@ describe("session pending-input API", () => {
             session: null,
             execution: {state: "running"},
             pending: {inputs: [], interactions: []},
-            read: {latest_sequence: 0, history_complete: true},
             capabilities: {queue: true, steer: false},
         })
 

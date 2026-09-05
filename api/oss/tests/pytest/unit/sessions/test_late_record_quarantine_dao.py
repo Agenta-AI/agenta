@@ -176,9 +176,12 @@ async def test_runner_completion_excludes_non_success_terminal_reasons(stop_reas
         ]
     )
 
-    assert await dao.runner_completed_turns(
-        project_id=project_id, keys=[(session_id, turn_id)]
-    ) == set()
+    assert (
+        await dao.runner_completed_turns(
+            project_id=project_id, keys=[(session_id, turn_id)]
+        )
+        == set()
+    )
 
 
 async def test_a_redelivery_keeps_the_first_quarantine_instant():

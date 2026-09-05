@@ -314,12 +314,6 @@ export const sessionSnapshotResponseSchema = z.object({
             interactions: z.array(sessionInteractionSchema).default([]),
         })
         .default({inputs: [], interactions: []}),
-    read: z
-        .object({
-            latest_sequence: z.number().default(0),
-            history_complete: z.boolean().default(true),
-        })
-        .default({latest_sequence: 0, history_complete: true}),
     capabilities: z
         .object({
             durable_approvals: z.boolean().optional().default(false),
