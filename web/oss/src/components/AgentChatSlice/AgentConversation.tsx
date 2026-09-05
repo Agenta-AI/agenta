@@ -624,12 +624,6 @@ const AgentConversation = ({
             // Radix cancels Escape for a layer but still lets it reach us, and it never touches
             // Alt+G, which only the overlay check catches.
             if (e.defaultPrevented || isOverlayOpen()) return
-            // An IME user presses Escape to cancel composition, not to stop the run.
-            if (e.key === "Escape" && !e.isComposing && busyRef.current) {
-                e.preventDefault()
-                handleStop()
-                return
-            }
             // Approve answers ONE gate, never the dock's "Approve all": a mis-press should not
             // grant a tool the user never read.
             if (isAltChord(e) && e.code === "KeyG" && pendingApprovals.length > 0) {
@@ -639,7 +633,7 @@ const AgentConversation = ({
         }
         document.addEventListener("keydown", onKey)
         return () => document.removeEventListener("keydown", onKey)
-    }, [activeSessionId, sessionId, busyRef, handleStop, pendingApprovals, handleApprovalResponse])
+    }, [activeSessionId, sessionId, pendingApprovals, handleApprovalResponse])
 
     // A keyboard switch (Alt+1…9 / Alt+Z / Alt+X) lands the caret here. antd mounts a never-visited
     // pane only on activation, so this effect runs on that mount and a first-visit switch focuses
@@ -1021,6 +1015,7 @@ const AgentConversation = ({
                                         stopping={stopping}
                                         queueEnabled={queueEnabled}
                                         steerEnabled={steerEnabled}
+                                        stopShortcutEnabled={activeSessionId === sessionId}
                                         richInputRef={richInputRef}
                                         composer={{...composer, handleComposerChange}}
                                         attachments={attachments}

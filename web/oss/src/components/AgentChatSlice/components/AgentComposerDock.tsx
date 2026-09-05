@@ -84,6 +84,7 @@ const AgentComposerDock = ({
     stopping,
     queueEnabled,
     steerEnabled,
+    stopShortcutEnabled,
     richInputRef,
     composer,
     attachments,
@@ -135,6 +136,7 @@ const AgentComposerDock = ({
     stopping: boolean
     queueEnabled: boolean
     steerEnabled: boolean
+    stopShortcutEnabled: boolean
     richInputRef: RefObject<RichChatInputHandle | null>
     composer: ReturnType<typeof useComposerDraft>
     attachments: ReturnType<typeof useComposerAttachments>
@@ -472,9 +474,10 @@ const AgentComposerDock = ({
                         initialMarkdown={composer.initialDraft}
                         slashCommands={slash.sections}
                         onChange={composer.handleComposerChange}
-                        streaming={shouldShowStopControl({busy, hitlPending})}
+                        streaming={shouldShowStopControl({busy: inputBusy, hitlPending})}
                         stopping={stopping}
                         onStop={onStop}
+                        stopShortcutEnabled={stopShortcutEnabled}
                         busyActions={
                             inputBusy && queueEnabled
                                 ? [

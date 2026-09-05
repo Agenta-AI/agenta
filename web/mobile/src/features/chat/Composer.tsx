@@ -68,6 +68,7 @@ export const Composer = ({
     const richInputRef = inputRef ?? ownInputRef
     const sending = useRef(false)
     const presets = useMotionPresets()
+    const stoppable = inputBusy && !waitingOnUser
 
     /**
      * `extraFiles` are takes that never entered the tray (a voice message sent outright), so
@@ -200,7 +201,7 @@ export const Composer = ({
                         dictating={dictating}
                         placeholder={placeholder}
                         waitingOnUser={waitingOnUser}
-                        streaming={streaming}
+                        streaming={streaming || stoppable}
                         stopping={stopping}
                         onStop={onStop}
                         busyActions={
