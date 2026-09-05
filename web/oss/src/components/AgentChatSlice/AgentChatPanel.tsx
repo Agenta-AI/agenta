@@ -21,8 +21,8 @@ import {
 import {commandSessionStream} from "@agenta/entities/session"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
-import {workflowRevisionDrawerOpenAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
+import {workflowRevisionDrawerOpenAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {currentSessionParamForScope, writeSessionParamForScope} from "@agenta/sessions/link"
 import {
     pendingSessionOpensAtom,

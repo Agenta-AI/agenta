@@ -146,8 +146,8 @@ export const buildTurnViewModels = (
                 precededByEmptyAssistant,
                 turnTraceId,
                 executed,
-            isClientToolPart,
-        })
+                isClientToolPart,
+            })
         return cache ? cache.reuse(message, key, executed, build) : build()
     })
 }
