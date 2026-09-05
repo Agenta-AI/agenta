@@ -464,19 +464,30 @@ function DrawerTitle({
     const {integration} = useToolIntegrationDetail(target.integration)
     const {connections} = useToolConnectionsQuery()
     const connection = findTargetConnection(connections, target, connectionSlug)
+    const displayName = integration?.name || target.integration
+    const showSlug = displayName.toLowerCase() !== target.integration.toLowerCase()
 
     return (
         // w-full + min-w-0: the title slot will not shrink alone, pushing the badge past the edge.
         <div className="flex w-full min-w-0 items-center gap-2.5">
             <ProviderLogo logo={integration?.logo ?? null} size={22} />
             <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-semibold">
-                    {integration?.name || target.integration}
+                {/* The slug rides beside the name rather than on its own line: "Integration ·
+                    gmail · gmail-main connection" repeated the name twice and labelled what the
+                    logo already says. Dropped where the name IS the slug. */}
+                <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="truncate text-sm font-semibold">{displayName}</span>
+                    {showSlug ? (
+                        <span className="shrink-0 text-xs font-normal text-[var(--ag-colorTextTertiary)]">
+                            {target.integration}
+                        </span>
+                    ) : null}
                 </span>
-                <span className="truncate text-xs font-normal text-[var(--ag-colorTextTertiary)]">
-                    Integration · {target.integration}
-                    {connectionSlug ? ` · ${connectionSlug} connection` : ""}
-                </span>
+                {connectionSlug ? (
+                    <span className="truncate text-xs font-normal text-[var(--ag-colorTextTertiary)]">
+                        {connectionSlug}
+                    </span>
+                ) : null}
             </div>
             {/* Shows Pending and Inactive too, which is exactly what an author needs here. */}
             {connection ? (
