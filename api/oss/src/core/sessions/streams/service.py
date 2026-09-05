@@ -23,16 +23,18 @@ from oss.src.dbs.redis.sessions.contract import (
     CONCURRENCY_LIMIT,
     WATCH_LIFECYCLE_ENDED,
     WATCH_LIFECYCLE_RUNNING,
+    owner_replica_id,
     validate_session_id as _validate_session_id_fn,
 )
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.dbs.redis.sessions.locks import (
-    acquire_alive,
+    acquire_alive_with_start,
     acquire_running,
     claim_owner,
-    clear_running,
+    claim_owner_value,
+    clear_owner,
+    displace_turns,
     release_running,
-    force_cancel_alive,
     force_clear_owner,
     get_alive_owner,
     get_owner,
@@ -40,10 +42,13 @@ from oss.src.dbs.redis.sessions.locks import (
     get_session_liveness,
     is_turn_superseded,
     mark_turn_superseded,
+    record_turn_start,
+    redis_time_ms,
     refresh_alive,
     refresh_running,
     release_alive,
     release_attached,
+    release_owner_value,
     steal_attached,
 )
 
@@ -66,6 +71,7 @@ from oss.src.core.sessions.streams.types import (
     SessionIdInvalid,
     SessionStreamAlreadyExists,
     SessionTurnInUse,
+    SessionTurnMismatch,
 )
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.runner_client import kill_runner_sandbox
@@ -136,6 +142,24 @@ def derive_session_name(inputs: Optional[Dict[str, Any]]) -> Optional[str]:
     return normalize_session_name(_first_user_message_text(messages))
 
 
+def derive_command_mode(request: SessionStreamCommandRequest) -> CommandMode:
+    """The inputs x force matrix, as one function.
+
+    Module-level because the route needs the mode BEFORE the service runs: a cancel must not be
+    refused by the per-project concurrency limit, and that check happens at the route. Keeping the
+    derivation in one place is what stops the two from disagreeing about what a cancel is.
+    """
+    has_inputs = bool(request.data and request.data.inputs)
+
+    if has_inputs and not request.force:
+        return CommandMode.send
+    if has_inputs and request.force:
+        return CommandMode.steer
+    if not has_inputs and not request.force:
+        return CommandMode.cancel
+    return CommandMode.attach
+
+
 class SessionStreamsService:
     def __init__(
         self,
@@ -166,38 +190,34 @@ class SessionStreamsService:
                 turn_id=turn_id,
             )
 
-    async def _displace_turns(self, *, project_id: UUID, session_id: str) -> None:
-        """Tear alive+running off whichever turn holds them, tombstoning it first.
+    async def _displace_turns(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        expected_turn_id: Optional[str] = None,
+        arrived_at_ms: Optional[int] = None,
+        running_only: bool = False,
+    ) -> List[str]:
+        """Atomically guard, tombstone, and clear the alive/running owners."""
+        accepted, actual_turn_id, displaced = await displace_turns(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            expected_turn_id=expected_turn_id,
+            arrived_at_ms=arrived_at_ms,
+            running_only=running_only,
+        )
+        if not accepted:
+            raise SessionTurnMismatch(
+                session_id,
+                actual_turn_id=actual_turn_id,
+                expected_turn_id=expected_turn_id,
+            )
+        return displaced
 
-        The order is the point. Clearing first leaves a window in which the turn being
-        displaced heartbeats, finds `alive` free and nx-acquires it straight back - a
-        cancelled session then reads as alive for a whole ALIVE_TTL. Tombstoning first makes
-        that beat refuse itself. The keys are still re-read after the clear, so a turn that
-        took them inside the window is tombstoned too.
-        """
-        await self._supersede_turns(
-            project_id=project_id,
-            session_id=session_id,
-            turn_ids=(
-                await get_alive_owner(
-                    self._lock, project_id=str(project_id), session_id=session_id
-                ),
-                await get_running_owner(
-                    self._lock, project_id=str(project_id), session_id=session_id
-                ),
-            ),
-        )
-        displaced_alive = await force_cancel_alive(
-            self._lock, project_id=str(project_id), session_id=session_id
-        )
-        displaced_running = await clear_running(
-            self._lock, project_id=str(project_id), session_id=session_id
-        )
-        await self._supersede_turns(
-            project_id=project_id,
-            session_id=session_id,
-            turn_ids=(displaced_alive, displaced_running),
-        )
+    async def clock_ms(self) -> int:
+        return await redis_time_ms(self._lock)
 
     async def _publish_lifecycle(
         self, *, project_id: UUID, session_id: str, state: str
@@ -210,6 +230,19 @@ class SessionStreamsService:
                 state=state,
             )
 
+    async def publish_session_ended(self, *, project_id: UUID, session_id: str) -> None:
+        """Announce that a turn ended, on the channel every open browser already listens to.
+
+        Public because the durable-command plane settles a Stop and has to publish the same
+        notification the ordinary end-of-turn path publishes. There is one `ended` event, not a
+        Stop-shaped one and a turn-shaped one; a client cannot be asked to tell them apart.
+        """
+        await self._publish_lifecycle(
+            project_id=project_id,
+            session_id=session_id,
+            state=WATCH_LIFECYCLE_ENDED,
+        )
+
     async def _publish_changed(self, *, project_id: UUID, session_id: str) -> None:
         if self._watch is None:
             return
@@ -219,6 +252,7 @@ class SessionStreamsService:
                 entity="session",
                 id=session_id,
             )
+
         except Exception:
             log.warning(
                 "[WATCH] session change publish failed",
@@ -226,25 +260,41 @@ class SessionStreamsService:
                 session_id=session_id,
             )
 
+    async def settle_command(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str],
+        mirror_stopped: bool,
+        transaction: Optional[Any] = None,
+    ) -> None:
+        await self._dao.settle_command(
+            project_id=project_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            mirror_stopped=mirror_stopped,
+            transaction=transaction,
+        )
+
     async def command(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         request: SessionStreamCommandRequest,
+        arrived_at_ms: Optional[int] = None,
     ) -> SessionStreamCommandResponse:
         _validate_session_id(request.session_id)
 
-        has_inputs = bool(request.data and request.data.inputs)
+        # When the request reached the process, for the stale-cancel guard. The router stamps it
+        # before its permission and concurrency checks, which are database round trips; stamping
+        # here instead would leave the guard almost no window. Defaulted so a caller that does not
+        # stamp still gets a check, just a narrower one.
+        if arrived_at_ms is None:
+            arrived_at_ms = await self.clock_ms()
 
-        if has_inputs and not request.force:
-            mode = CommandMode.send
-        elif has_inputs and request.force:
-            mode = CommandMode.steer
-        elif not has_inputs and not request.force:
-            mode = CommandMode.cancel
-        else:
-            mode = CommandMode.attach
+        mode = derive_command_mode(request)
 
         session_id = request.session_id
         proposed_name = derive_session_name(
@@ -286,21 +336,33 @@ class SessionStreamsService:
             )
 
         elif mode == CommandMode.cancel:
-            await self._displace_turns(project_id=project_id, session_id=session_id)
-            await self._mark_stream_ended(
-                project_id=project_id,
-                user_id=user_id,
-                session_id=session_id,
-            )
-            await self._publish_lifecycle(
+            cancelled_turn_ids = await self._displace_turns(
                 project_id=project_id,
                 session_id=session_id,
-                state=WATCH_LIFECYCLE_ENDED,
+                expected_turn_id=request.expected_execution_id,
+                arrived_at_ms=arrived_at_ms,
+                running_only=request.expected_execution_id is None,
             )
+            if cancelled_turn_ids:
+                await self._mark_stream_ended(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                )
+                await self._publish_lifecycle(
+                    project_id=project_id,
+                    session_id=session_id,
+                    state=WATCH_LIFECYCLE_ENDED,
+                )
             return SessionStreamCommandResponse(
                 mode=mode,
                 session_id=session_id,
+                # The turn this cancel actually ended. The caller (the router) needs it to
+                # cancel that turn's pending gates, and it is the id a client should echo back
+                # as `expected_execution_id` on a retry.
+                turn_id=cancelled_turn_ids[0] if cancelled_turn_ids else None,
                 detached=True,
+                cancelled_turn_ids=cancelled_turn_ids,
             )
 
         else:  # ATTACH
@@ -403,6 +465,87 @@ class SessionStreamsService:
             session_id=session_id,
         )
 
+    async def _reclaim_affinity_from_a_departed_replica(
+        self,
+        *,
+        project_id: UUID,
+        request: SessionHeartbeatRequest,
+        incumbent_value: str,
+    ) -> str:
+        """Take `owner:session:<id>` from a replica that holds no running turn on it.
+
+        `owner` exists to say which box is SERVING the session, and only an in-flight turn's
+        heartbeat ever refreshes it. So a claim held by a replica with no running turn is not
+        protecting anything: it is the residue of a runner that stopped beating. A runner that
+        dies without a graceful shutdown (SIGKILL, OOM, a crashed node, `docker restart -t 0`)
+        always leaves exactly that, because nothing releases the key on its way out and
+        `claim_owner` never steals. The replacement replica then loses every beat for the rest
+        of OWNER_TTL_SECONDS, and the runner reads that refusal as "another turn owns this
+        session" and refuses the user's next message for two minutes.
+
+        `running` is the discriminator, the same one the alive-lock handover below uses. A live
+        turn holds it under its own id for the whole turn and re-arms it every beat, so a
+        replica that is genuinely serving the session can never be mistaken for a departed one.
+        A `running` lock held by the CALLER's own turn is not an obstacle: `_start_turn` arms
+        alive and running before the runner's first beat, so an API-minted turn legitimately
+        arrives here with its own lock already in place.
+
+        Only the beat of a real, running turn may reclaim. A turn-end beat asserts nothing
+        about who should serve the session next, and a beat with no turn id proves no work.
+
+        KNOWN LIMIT. A turn parked awaiting an approval also holds `alive` with no `running`,
+        so on a MULTI-replica deployment a second replica can take affinity from a live first
+        one and the handover below then tombstones the parked turn, killing the pending
+        approval. That outcome is not new: nothing refreshes `owner` on a parked session, so the
+        key expires after OWNER_TTL_SECONDS and the same handover follows. This only makes it up
+        to that TTL sooner, and only on a topology the direct control adapter cannot route to
+        anyway (`core/sessions/commands/service.py`). On a single replica the caller already
+        equals the owner and this method is never entered.
+
+        Returns the owner after the attempt: the caller when the reclaim landed, otherwise
+        whoever holds the key, which is what the refusal above must report.
+        """
+        incumbent = owner_replica_id(incumbent_value)
+        if not (request.turn_id and request.is_running):
+            return incumbent
+
+        running_owner = await get_running_owner(
+            self._lock,
+            project_id=str(project_id),
+            session_id=request.session_id,
+        )
+        if running_owner is not None and running_owner != request.turn_id:
+            return incumbent
+
+        # Release-if-owner, then the ordinary non-stealing claim. Two atomic steps rather than
+        # one so no new script is needed, and the gap is safe in both directions: a concurrent
+        # claim by a third replica makes the release a no-op and the claim below returns that
+        # replica, so this path can never hand the session to the wrong caller.
+        await release_owner_value(
+            self._lock,
+            project_id=str(project_id),
+            session_id=request.session_id,
+            owner_value=incumbent_value,
+        )
+        owner = await claim_owner(
+            self._lock,
+            project_id=str(project_id),
+            session_id=request.session_id,
+            replica_id=request.replica_id,
+            turn_id=request.turn_id,
+        )
+        if owner == request.replica_id:
+            log.info(
+                "sessions: reclaimed session affinity from a replica with no running turn",
+                extra={
+                    "session_id": request.session_id,
+                    "departed_replica_id": incumbent,
+                    "replica_id": request.replica_id,
+                    "turn_id": request.turn_id,
+                },
+            )
+        return owner
+
     async def heartbeat(
         self,
         *,
@@ -418,6 +561,49 @@ class SessionStreamsService:
         auto-title and `rename_session` all overwrite, so they always win.
         """
         _validate_session_id(request.session_id)
+
+        # The shutdown beat: hand the affinity key back and touch nothing else. It runs FIRST,
+        # before the superseded check and before any lock is read or written, because a
+        # departing runner asserts nothing about turns — it only stops holding the session.
+        # `clear_owner` is release-if-owner, so a beat from a replica that no longer owns the
+        # session is a no-op and can never take affinity from a live one. Without this the
+        # next replica is refused for the rest of OWNER_TTL_SECONDS (`claim_owner` never
+        # steals), which on the local sandbox provider is a two-minute outage after every
+        # runner restart.
+        if request.release_owner:
+            released = await clear_owner(
+                self._lock,
+                project_id=str(project_id),
+                session_id=request.session_id,
+                replica_id=request.replica_id,
+            )
+            stream = await self._dao.get_by_session_id(
+                project_id=project_id,
+                session_id=request.session_id,
+            )
+            owner = await get_owner(
+                self._lock,
+                project_id=str(project_id),
+                session_id=request.session_id,
+            )
+            log.info(
+                "sessions: released session ownership",
+                extra={
+                    "session_id": request.session_id,
+                    "replica_id": request.replica_id,
+                    "released": released,
+                    "owner_after": owner,
+                },
+            )
+            # `replica_id` means "who owns this session now". After a successful release
+            # nobody does, and the caller is the one entitled to hear that, so report the
+            # caller's own id rather than inventing an owner. `is_current_turn` is False
+            # because this beat refreshed no turn.
+            return SessionHeartbeatResult(
+                stream=stream,
+                replica_id=owner or request.replica_id,
+                is_current_turn=False,
+            )
 
         # A turn that was already displaced (handover, cancel, steer, kill, sweep) is dead
         # forever: refuse the beat before it touches ANY lock or the row. This is what keeps
@@ -455,12 +641,23 @@ class SessionStreamsService:
         # replica_id claims affinity without stealing from a live different owner; turn_id
         # separately refreshes the alive/running TTLs. `owner` is the actual winner (this
         # replica if it won or already held it, another replica otherwise).
-        owner = await claim_owner(
+        owner_value = await claim_owner_value(
             self._lock,
             project_id=str(project_id),
             session_id=request.session_id,
             replica_id=request.replica_id,
+            turn_id=request.turn_id,
         )
+        owner = owner_replica_id(owner_value)
+        # A different replica holds affinity. That claim is worth honouring only while it
+        # protects a turn, so before refusing, check whether it still protects one.
+        if owner != request.replica_id:
+            owner = await self._reclaim_affinity_from_a_departed_replica(
+                project_id=project_id,
+                request=request,
+                incumbent_value=owner_value,
+            )
+
         # A replica that lost the claim owns nothing here: mutating the nest would let it
         # overwrite the winner's turn locks and stream row. Report the true owner and stop.
         if owner != request.replica_id:
@@ -510,7 +707,7 @@ class SessionStreamsService:
                 session_id=request.session_id,
                 turn_id=request.turn_id,
             ):
-                acquired = await acquire_alive(
+                acquired = await acquire_alive_with_start(
                     self._lock,
                     project_id=str(project_id),
                     session_id=request.session_id,
@@ -558,7 +755,7 @@ class SessionStreamsService:
                                     session_id=request.session_id,
                                     turn_id=displaced,
                                 )
-                            acquired = await acquire_alive(
+                            acquired = await acquire_alive_with_start(
                                 self._lock,
                                 project_id=str(project_id),
                                 session_id=request.session_id,
@@ -566,6 +763,13 @@ class SessionStreamsService:
                             )
                 if not acquired or turn_was_established:
                     is_current_turn = False
+            if is_current_turn:
+                await record_turn_start(
+                    self._lock,
+                    project_id=str(project_id),
+                    session_id=request.session_id,
+                    turn_id=request.turn_id,
+                )
             if not await refresh_running(
                 self._lock,
                 project_id=str(project_id),
@@ -688,8 +892,21 @@ class SessionStreamsService:
                 project_id=project_id,
                 user_id=None,
                 session_id=request.session_id,
-                stream=SessionStreamEdit(flags=flags, turn_id=durable_turn_id),
+                stream=SessionStreamEdit(
+                    flags=flags,
+                    turn_id=durable_turn_id,
+                    expected_turn_id=request.turn_id if turn_was_established else None,
+                ),
             )
+            if stream is None and turn_was_established:
+                # The guarded row write lost to settlement or to a new generation. Redis may
+                # already have been refreshed, but this beat no longer owns durable state and
+                # must tell the runner to stop.
+                is_current_turn = False
+                stream = await self._dao.get_by_session_id(
+                    project_id=project_id,
+                    session_id=request.session_id,
+                )
 
         # `running` lifecycle for the path that actually runs turns. `_start_turn` publishes it
         # for send/steer, but the runner mints its own turn id and only ever heartbeats, so
@@ -945,7 +1162,7 @@ class SessionStreamsService:
         name: Optional[str] = None,
     ) -> str:
         turn_id = str(uuid.uuid7())
-        acquired = await acquire_alive(
+        acquired = await acquire_alive_with_start(
             self._lock,
             project_id=str(project_id),
             session_id=session_id,
@@ -1040,6 +1257,33 @@ class SessionStreamsService:
         if listed:
             await self._publish_changed(project_id=project_id, session_id=session_id)
         return turn_id
+
+    async def mirror_liveness(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        user_id: Optional[UUID] = None,
+    ) -> None:
+        """Write the Redis nest onto the row, for a caller that changed the nest itself.
+
+        Durable Stop settlement is that caller, and it is the one nest change no heartbeat can
+        mirror. Settlement tombstones the stopped execution BEFORE it releases `running`, so the
+        runner's own final `is_running=false` beat is refused by the tombstone check in
+        `heartbeat` above and returns before the mirror write at the end of that method. The
+        order cannot be swapped: a late beat that found `alive` free would take it straight back
+        under the dead turn's id. Without this method the row therefore keeps `is_running: true`
+        until the orphan sweep collapses it minutes later, and `query_streams` reads Postgres
+        alone, so the tab that pressed Stop sees its own session running somewhere else.
+
+        Re-reads Redis rather than writing a literal `false`, so a newer turn that has already
+        taken `running` is reported, not erased.
+        """
+        await self._mirror_flags(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+        )
 
     async def _mirror_flags(
         self,

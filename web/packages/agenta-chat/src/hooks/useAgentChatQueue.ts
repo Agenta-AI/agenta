@@ -5,10 +5,15 @@ import {canReleaseQueuedMessage, isHitlPending} from "@agenta/playground/agent-c
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
+import {latestTurnId} from "../assets/agentTurn"
+
+import type {ComposerAttachment} from "./useComposerAttachments"
+
 export interface QueuedMessage {
     id: string
     text: string
     fileParts?: FileUIPart[]
+    stagedFiles?: ComposerAttachment[]
 }
 
 interface UseAgentChatQueueArgs {
@@ -83,12 +88,29 @@ export const useAgentChatQueue = ({
         queuedRef.current = queued
     }, [queued])
 
+    // Retained until admission so a refused immediate send can return to the composer.
+    const lastSentRef = useRef<QueuedMessage | undefined>(undefined)
+
+    const admittedTurnId = latestTurnId(messages)
+    useEffect(() => {
+        if (admittedTurnId) lastSentRef.current = undefined
+    }, [admittedTurnId])
+
+    /** Take back the last sent message only after an optional placement succeeds. */
+    const takeLastSent = useCallback((place?: (message: QueuedMessage) => boolean) => {
+        const message = lastSentRef.current
+        if (!message || (place && !place(message))) return undefined
+        lastSentRef.current = undefined
+        return message
+    }, [])
+
     // Send now only if idle, unlatched, and the queue is empty; otherwise append (FIFO).
     const submit = useCallback(
-        (item: {text: string; fileParts?: FileUIPart[]}) => {
+        (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const message: QueuedMessage = {...item, id: generateId()}
             if (!releasingRef.current && queuedRef.current.length === 0 && canReleaseNow) {
                 releasingRef.current = true
+                lastSentRef.current = message
                 sendQueued(message)
             } else {
                 setQueued((q) => [...q, message])
@@ -142,7 +164,7 @@ export const useAgentChatQueue = ({
      * so the text the session displaced has to come back here too or it is lost for good.
      */
     const commitEdit = useCallback(
-        (item: {text: string; fileParts?: FileUIPart[]}) => {
+        (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const id = editingId
             setEditingId(null)
             const draft = takeStash()
@@ -152,6 +174,7 @@ export const useAgentChatQueue = ({
                 return draft
             }
             const fileParts = [...(target.fileParts ?? []), ...(item.fileParts ?? [])]
+            const stagedFiles = [...(target.stagedFiles ?? []), ...(item.stagedFiles ?? [])]
             // Edited down to nothing and carrying no files: there is no message left to hold.
             if (!item.text.trim() && fileParts.length === 0) {
                 setQueued((q) => q.filter((m) => m.id !== id))
@@ -164,6 +187,7 @@ export const useAgentChatQueue = ({
                               ...m,
                               text: item.text,
                               fileParts: fileParts.length ? fileParts : undefined,
+                              stagedFiles: stagedFiles.length ? stagedFiles : undefined,
                           }
                         : m,
                 ),
@@ -187,6 +211,8 @@ export const useAgentChatQueue = ({
         releasingRef.current = true
         const [head, ...rest] = queued
         setQueued(rest)
+        // A released head also needs refusal recovery because it has left the queue.
+        lastSentRef.current = head
         sendQueued(head)
     }, [settled, canReleaseNow, queued, sendQueued])
 
@@ -201,5 +227,7 @@ export const useAgentChatQueue = ({
         beginEdit,
         cancelEdit,
         commitEdit,
+        /** Reclaim the last immediately-sent message (e.g. the backend refused it). */
+        takeLastSent,
     }
 }

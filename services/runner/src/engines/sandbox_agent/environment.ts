@@ -34,6 +34,8 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { apiBase } from "../../apiBase.ts";
+import { abortableSandboxProvider } from "../../environment/abortable-sandbox-provider.ts";
+import { throwIfAcquireAborted } from "../../environment/acquire-abort.ts";
 
 import {
   InMemorySessionPersistDriver,
@@ -49,6 +51,7 @@ import {
 } from "../../protocol.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
+import { createSandboxGoneLatch } from "./sandbox-gone.ts";
 import {
   assert,
   assertRequiredCapabilities,
@@ -426,7 +429,14 @@ async function acquireEnvironmentOnce(
     data: { phase: "environment_starting" },
     transient: true,
   });
-  const setup = await prepareEnvironmentSetup(request, deps, presignedMount);
+  throwIfAcquireAborted(signal);
+  const setup = await prepareEnvironmentSetup(
+    request,
+    deps,
+    presignedMount,
+    signal,
+  );
+  throwIfAcquireAborted(signal);
   if (!setup.ok) return setup;
   const {
     acquireStartedAt,
@@ -592,6 +602,7 @@ async function acquireEnvironmentOnce(
     signMount,
     signAgentMount,
     daytonaPiDir: DAYTONA_PI_DIR,
+    signal,
   };
   const mountLocalDurableCwd = (reason: string) =>
     mountLocalDurableCwdUnit(ctx, mountDeps, reason);
@@ -650,25 +661,49 @@ async function acquireEnvironmentOnce(
     // mount-success path add guidance/env atomically, while a failed mount starts a normal
     // scratch-only harness with no false durable-storage signal.
     if (environment.mountCreds && !plan.isDaytona) {
-      await mountLocalDurableCwd("initial");
+      const mounted = await mountLocalDurableCwd("initial");
+      if (mounted && piSessionDir) environment.nativeHistoryDurable = true;
+      throwIfAcquireAborted(signal);
     }
     if (environment.agentMountCreds && !plan.isDaytona) {
       await mountLocalAgentCwd();
+      throwIfAcquireAborted(signal);
     }
     // INVARIANT 1: the provider takes `env` and `piExtEnv` BY REFERENCE and hands them to the
     // daemon, after which the daemon environment is fixed. Every local mount had to land above
     // this line. From here a `writeDaemonEnv` is a programming-order bug and throws.
     ctx.freezeDaemonEnv();
-    sandboxProvider = (deps.buildSandboxProvider ?? buildSandboxProvider)(
-      plan.sandboxId,
-      env,
-      binaryPath,
-      piExtEnv,
-      plan.credentials.modelEnvironment,
-      plan.sandboxPermission,
-      plan.credentials.daytonaSecretPlan,
-      inheritedLease ? { inheritedLease } : {},
+    sandboxProvider = abortableSandboxProvider(
+      (deps.buildSandboxProvider ?? buildSandboxProvider)(
+        plan.sandboxId,
+        env,
+        binaryPath,
+        piExtEnv,
+        plan.credentials.modelEnvironment,
+        plan.sandboxPermission,
+        plan.credentials.daytonaSecretPlan,
+        inheritedLease ? { inheritedLease } : {},
+      ),
+      signal,
+      logger,
     );
+    // The turn's own socket is the first thing to learn that a remote sandbox was deleted, and it
+    // cannot end a turn by itself (the ACP transport swallows the failure and the pending prompt
+    // never settles). It notes the death here; `run-turn.ts` hands this latch to the liveness
+    // probe, which ends the turn. See `sandbox-gone.ts`.
+    //
+    // ARMED ONLY AFTER ACQUIRE. The same fetch also carries the SDK's health wait, which polls a
+    // sandbox that is still coming up and tolerates a provider error by design. On a warm resume
+    // the provider's proxy can lag its own control plane and answer for a sandbox it has not
+    // finished re-exposing. A report during acquire would latch a HEALTHY sandbox as dead and kill
+    // its first turn, and the latch is one-way, so the window has to be closed before it rather
+    // than reasoned about after. Acquire already has its own failure path for a sandbox that
+    // genuinely never comes up.
+    const sandboxGone = createSandboxGoneLatch();
+    environment.sandboxGone = sandboxGone;
+    const acpFetchOptions = {
+      onSandboxGone: (reason: string) => sandboxGone.note(reason),
+    };
     const startOptions = {
       sandbox: sandboxProvider,
       persist,
@@ -678,8 +713,11 @@ async function acquireEnvironmentOnce(
       // Long-timeout undici dispatcher so a paused HITL turn is not reaped by undici's default
       // headersTimeout; Daytona additionally carries the per-sandbox auth cookie.
       fetch: plan.isDaytona
-        ? (deps.createCookieFetch ?? createCookieFetch)()
-        : (deps.createAcpFetch ?? createAcpFetch)(),
+        ? (deps.createCookieFetch ?? createCookieFetch)(
+            undefined,
+            acpFetchOptions,
+          )
+        : (deps.createAcpFetch ?? createAcpFetch)(undefined, acpFetchOptions),
     };
     // SandboxLifecycle owns the reconnect ladder, the fresh-create fallback, and both
     // `sandbox_start` timing marks. See `environment/sandbox-lifecycle.ts`.
@@ -703,7 +741,11 @@ async function acquireEnvironmentOnce(
       },
     );
     environment.sandbox = acquiredSandbox.sandbox;
+    throwIfAcquireAborted(signal);
     environment.resumable = acquiredSandbox.resumable;
+    // The sandbox is up and the reconnect ladder is done, so a "sandbox not found" from here on is
+    // a real death rather than a proxy that has not caught up. See the latch above.
+    sandboxGone.arm();
     // Read AFTER the sandbox is acquired, because the port is bound to a sandbox: the provider has
     // no allocation to deliver against until create (or reconnect) has settled. Undefined for
     // every provider that cannot deliver a credential to a live sandbox, which is what routes a
@@ -772,6 +814,9 @@ async function acquireEnvironmentOnce(
             return "ok" as const;
           })
         : undefined;
+    // The preflight runs concurrently with the rest of acquire. Attach a rejection observer now
+    // so an early Stop cannot become an unhandled rejection before the final await reaches it.
+    void credentialPreflight?.catch(() => {});
 
     // On Daytona, push the harness login, the extension, and AGENTS.md into the remote sandbox.
     // For a non-Pi harness with executable tools, also push the in-sandbox stdio MCP shim
@@ -864,6 +909,7 @@ async function acquireEnvironmentOnce(
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
               log: logger,
+              signal,
             })) ?? undefined);
         const refusal = mountRefusal(storeEndpoint, endpoint);
         const canMount = !refusal;
@@ -886,6 +932,7 @@ async function acquireEnvironmentOnce(
             {
               endpoint,
               log: logger,
+              signal,
             },
           ))
         ) {
@@ -913,6 +960,7 @@ async function acquireEnvironmentOnce(
               apiBase: apiBase(),
               authorization: runCred,
               log: logger,
+              signal,
             },
           );
         }
@@ -933,6 +981,7 @@ async function acquireEnvironmentOnce(
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
               log: logger,
+              signal,
             })) ?? undefined);
         const refusal = mountRefusal(storeEndpoint, endpoint);
         const canMount = !refusal;
@@ -955,7 +1004,7 @@ async function acquireEnvironmentOnce(
             environment.sandbox,
             mountPath,
             environment.agentMountCreds,
-            { endpoint, log: logger },
+            { endpoint, log: logger, signal },
           ))
         ) {
           environment.agentMountedPath = mountPath;
@@ -975,6 +1024,7 @@ async function acquireEnvironmentOnce(
           logger(`remote agent mount active for artifact=${artifactId}`);
         }
       } catch (err) {
+        throwIfAcquireAborted(signal);
         logger(
           `remote agent mount failed artifact=${artifactId}: ${conciseError(err, plan.harness)}`,
         );
@@ -1231,6 +1281,7 @@ async function acquireEnvironmentOnce(
       cwd: plan.workspace.cwd,
       sessionInit,
       priorAgentSessionId,
+      nativeHistoryDurable: environment.nativeHistoryDurable,
       localSessionId,
       continuitySessionKey,
       log: logger,
@@ -1238,6 +1289,7 @@ async function acquireEnvironmentOnce(
     });
     environment.session = opened.session;
     environment.loadedFromContinuity = opened.loadedFromContinuity;
+    environment.nativeHistoryVerified = opened.nativeHistoryVerified;
     // The reopen capability, captured here because this is the only scope holding the persist
     // driver, the session-init payload and the local session key together. Same pattern as
     // `destroy`: the environment carries a closure rather than the ingredients.
@@ -1250,6 +1302,7 @@ async function acquireEnvironmentOnce(
         cwd: plan.workspace.cwd,
         sessionInit,
         priorAgentSessionId: environment.session?.agentSessionId,
+        nativeHistoryDurable: environment.nativeHistoryDurable,
         localSessionId,
         continuitySessionKey,
         log: logger,
@@ -1260,6 +1313,7 @@ async function acquireEnvironmentOnce(
       if (result.ok) {
         environment.session = result.session;
         environment.loadedFromContinuity = result.loadedFromContinuity;
+        environment.nativeHistoryVerified = result.nativeHistoryVerified;
       }
       return result;
     };
@@ -1333,6 +1387,8 @@ async function acquireEnvironmentOnce(
         throw new SubstitutionStuckError();
       }
     }
+
+    throwIfAcquireAborted(signal);
 
     timingLog("acquire_total", acquireStartedAt);
     emit?.({

@@ -465,6 +465,18 @@ export type AgentEvent =
       total?: number;
       cost?: number;
     }
+  /**
+   * This turn's ADMITTED execution id, emitted once at the start of a session-owned run.
+   *
+   * The runner mints the turn id per execution (`resolveTurnId`), so before this the browser had
+   * no way to learn it: the client's `start` frame is built and sent before the runner replies at
+   * all. Without the id no first-party client can name the execution it means to act on, which is
+   * why `expected_execution_id` on the public Cancel has never had a caller that could fill it.
+   *
+   * Emitted LIVE only, never through the persisting emitter: it is transport correlation, not
+   * conversation, and it must not become a record in the session's history.
+   */
+  | { type: "turn"; turnId: string }
   | {
       type: "error";
       message: string;
@@ -795,6 +807,12 @@ export interface AgentRunResult {
   usage?: AgentUsage;
   /** Why the turn ended (harness-reported when available). */
   stopReason?: string;
+  /**
+   * Only on `stopReason: "cancelled"`. True when the harness was told to stop AND confirmed it
+   * stopped inside the settle budget, which is what lets the sandbox be parked warm instead of
+   * deleted. Absent or false means the harness never confirmed, so the environment is destroyed.
+   */
+  cancelSettled?: boolean;
   /** What the harness was probed to support this run. */
   capabilities?: HarnessCapabilities;
   sessionId?: string;

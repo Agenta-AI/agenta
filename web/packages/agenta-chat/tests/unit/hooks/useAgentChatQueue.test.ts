@@ -362,3 +362,97 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued.map((m) => m.text)).toEqual(["two"])
     })
 })
+
+describe("useAgentChatQueue: reclaiming a sent message", () => {
+    // The host reclaims an immediate send only until the runner confirms admission.
+
+    it("hands back the message that was sent immediately", () => {
+        const {result} = setup(settledEmpty)
+        act(() => {
+            result.current.submit({text: "the refused message"})
+        })
+        expect(result.current.takeLastSent()).toMatchObject({text: "the refused message"})
+    })
+
+    it("hands it back only ONCE, so a re-render cannot re-fill the composer", () => {
+        const {result} = setup(settledEmpty)
+        act(() => {
+            result.current.submit({text: "once"})
+        })
+        expect(result.current.takeLastSent()?.text).toBe("once")
+        expect(result.current.takeLastSent()).toBeUndefined()
+    })
+
+    it("keeps an attachment-only refused send recoverable", () => {
+        const {result} = setup(settledEmpty)
+        const stagedFiles = [{uid: "file-1", name: "brief.pdf", status: "done"}] as never
+        act(() => {
+            result.current.submit({text: "", stagedFiles})
+        })
+
+        expect(result.current.takeLastSent()).toMatchObject({text: "", stagedFiles})
+    })
+
+    it("retains a refused send when the composer cannot place it", () => {
+        const {result} = setup(settledEmpty)
+        const stagedFiles = [{uid: "file-1", name: "brief.pdf", status: "done"}] as never
+        act(() => {
+            result.current.submit({text: "refused message", stagedFiles})
+        })
+
+        expect(result.current.takeLastSent(() => false)).toBeUndefined()
+        expect(result.current.takeLastSent()).toMatchObject({
+            text: "refused message",
+            stagedFiles,
+        })
+    })
+
+    it("does not clear recovery when dispatch only changes the stream status", () => {
+        const {result, rerender} = setup(settledEmpty)
+        act(() => {
+            result.current.submit({text: "sent"})
+        })
+        rerender({status: "streaming", messages: [userTurn("u1", "sent")], stopped: false})
+        expect(result.current.takeLastSent()?.text).toBe("sent")
+    })
+
+    it("clears recovery after a runner turn id confirms admission", () => {
+        const {result, rerender} = setup(settledEmpty)
+        act(() => {
+            result.current.submit({text: "admitted"})
+        })
+        rerender({
+            status: "streaming",
+            messages: [
+                userTurn("u2", "admitted"),
+                {...assistantText("a2", ""), metadata: {turnId: "turn-2"}},
+            ],
+            stopped: false,
+        })
+        expect(result.current.takeLastSent()).toBeUndefined()
+    })
+
+    it("has nothing to hand back for a message that only QUEUED", () => {
+        // A queued message is already safe: it is rendered by the dock and mirrored per session.
+        const {result, sendQueued} = setup({status: "streaming", messages: [], stopped: false})
+        act(() => {
+            result.current.submit({text: "queued, not sent"})
+        })
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued).toHaveLength(1)
+        expect(result.current.takeLastSent()).toBeUndefined()
+    })
+
+    it("tracks the released queue head too, which the release removed from the queue", () => {
+        const {result, rerender} = setup({status: "streaming", messages: [], stopped: false})
+        act(() => {
+            result.current.submit({text: "held"})
+        })
+        expect(result.current.queued).toHaveLength(1)
+        act(() => {
+            rerender({status: "ready", messages: [], stopped: false})
+        })
+        expect(result.current.queued).toHaveLength(0)
+        expect(result.current.takeLastSent()).toMatchObject({text: "held"})
+    })
+})

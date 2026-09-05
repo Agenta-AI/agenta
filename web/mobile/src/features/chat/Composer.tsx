@@ -34,6 +34,7 @@ export const Composer = ({
     disabled = false,
     waitingOnUser = false,
     streaming = false,
+    stopping = false,
     onStop,
     inputRef,
     placeholder,
@@ -46,6 +47,8 @@ export const Composer = ({
     waitingOnUser?: boolean
     /** A run is streaming from this device — the send button becomes Stop. */
     streaming?: boolean
+    /** The durable Stop request has not settled yet. */
+    stopping?: boolean
     onStop?: () => void
     /** Lets the host write into the input — a rewind puts the rewound message back to edit. */
     inputRef?: MutableRefObject<RichChatInputHandle | null>
@@ -181,6 +184,7 @@ export const Composer = ({
                         placeholder={placeholder}
                         waitingOnUser={waitingOnUser}
                         streaming={streaming}
+                        stopping={stopping}
                         onStop={onStop}
                         extraPrefix={
                             <VoiceInputButton

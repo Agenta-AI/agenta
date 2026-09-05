@@ -25,6 +25,7 @@ def map_record_event_to_dbe(
         attributes=event.attributes,
         turn_id=event.turn_id,
         span_id=event.span_id,
+        quarantined_at=event.quarantined_at,
     )
 
 
@@ -40,5 +41,6 @@ def map_record_dbe_to_dto(*, dbe: RecordDBE) -> SessionRecord:
         attributes=dbe.attributes,
         turn_id=dbe.turn_id,
         span_id=dbe.span_id,
+        quarantined_at=dbe.quarantined_at,
         created_at=dbe.created_at,
     )

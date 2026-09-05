@@ -1,12 +1,14 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.core.sessions.records.dtos import (
+    RECORD_SETTLED_BY_ATTRIBUTE,
     SESSION_MESSAGE_PREVIEW_TEXT_LIMIT,
+    TERMINAL_RECORD_TYPE,
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
@@ -94,6 +96,7 @@ class RecordsDAO(RecordsDAOInterface):
         "attributes",
         "turn_id",
         "span_id",
+        "quarantined_at",
     )
 
     @staticmethod
@@ -132,6 +135,14 @@ class RecordsDAO(RecordsDAOInterface):
                 "attributes": stmt.excluded.attributes,
                 "turn_id": stmt.excluded.turn_id,
                 "span_id": stmt.excluded.span_id,
+                # coalesce, not a plain overwrite: quarantine is one-way. A redelivery of a
+                # late record keeps the instant it was FIRST quarantined, so the column is
+                # stable however many times the stream replays the message, and a delivery
+                # that somehow arrives unmarked can never resurrect the row into the
+                # transcript.
+                "quarantined_at": func.coalesce(
+                    RecordDBE.quarantined_at, stmt.excluded.quarantined_at
+                ),
             },
         ).returning(RecordDBE)
 
@@ -147,6 +158,11 @@ class RecordsDAO(RecordsDAOInterface):
                 .where(
                     RecordDBE.project_id == project_id,
                     RecordDBE.session_id == session_id,
+                    # A quarantined record is history the platform refused: it reached ingest
+                    # for a turn the watchdog had already ended. Excluding it HERE is what
+                    # makes one execution render one ending, because this is the read every
+                    # transcript reconstruction goes through.
+                    RecordDBE.quarantined_at.is_(None),
                 )
                 # Producer event time first: it is the only key that is monotonic across
                 # turns. `record_index` restarts at 0 every turn, and the worker can batch
@@ -200,6 +216,7 @@ class RecordsDAO(RecordsDAOInterface):
                     RecordDBE.session_id.in_(session_ids),
                     RecordDBE.record_type == "message",
                     RecordDBE.deleted_at.is_(None),
+                    RecordDBE.quarantined_at.is_(None),
                 )
                 .distinct(RecordDBE.session_id)
                 .order_by(
@@ -224,6 +241,59 @@ class RecordsDAO(RecordsDAOInterface):
                 timestamp=row.timestamp or row.created_at,
             )
         return previews
+
+    async def settled_turns(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+        settled_by: Optional[str] = None,
+    ) -> Set[Tuple[str, str]]:
+        """Which of these `(session_id, turn_id)` pairs already carry a terminal record.
+
+        Two callers ask nearly the same question and mean different things by it, which is
+        why `settled_by` exists rather than a second query.
+
+        * The watchdog asks with no writer, before it writes an ending of its own: ANY
+          terminal record means this turn already ended and must not be given a second,
+          contradictory one.
+        * The ingest guard asks with `settled_by="watchdog"`, and only the watchdog's own
+          ending counts. A runner that wrote its honest ending has not lost the turn to the
+          platform, so nothing arriving afterwards is late in the sense that matters.
+
+        A QUARANTINED terminal record never answers yes to either. It is precisely the
+        second, refused ending both callers exist to keep out of the transcript, so counting
+        it would let one late `done` suppress the real one.
+
+        One query for the whole batch, served by
+        `ix_records_project_id_session_id_turn_id`.
+        """
+        if not keys:
+            return set()
+
+        conditions = [
+            RecordDBE.project_id == project_id,
+            RecordDBE.record_type == TERMINAL_RECORD_TYPE,
+            RecordDBE.deleted_at.is_(None),
+            RecordDBE.quarantined_at.is_(None),
+            tuple_(RecordDBE.session_id, RecordDBE.turn_id).in_(
+                [(session_id, turn_id) for session_id, turn_id in keys]
+            ),
+        ]
+        if settled_by is not None:
+            conditions.append(
+                RecordDBE.attributes[RECORD_SETTLED_BY_ATTRIBUTE].astext == settled_by
+            )
+
+        async with self.engine.session() as session:
+            stmt = (
+                select(RecordDBE.session_id, RecordDBE.turn_id)
+                .where(*conditions)
+                .distinct()
+            )
+            rows = (await session.execute(stmt)).all()
+
+        return {(row.session_id, row.turn_id) for row in rows}
 
     async def get_event(
         self,

@@ -22,8 +22,13 @@ import {
     useVoiceComposer,
 } from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
-import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
-import {getPendingApprovals} from "@agenta/chat/model"
+import {
+    ignoreStreamRejection,
+    isEmptyAssistantTurn,
+    isSessionBusyRefusal,
+    isVisiblePart,
+} from "@agenta/chat/model"
+import {getInteractionAvailability, getLivePendingApprovals} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
 import {
@@ -51,6 +56,7 @@ import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/cons
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
+import {restoreHeldRefusedSend} from "./assets/refusedMessageRecovery"
 import AgentComposerDock from "./components/AgentComposerDock"
 import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
@@ -132,6 +138,7 @@ const AgentConversation = ({
         isHydrating,
         hydratedEmpty,
         stopped,
+        stopping,
         setStopped,
         handleStop,
         handleClientToolOutput,
@@ -236,6 +243,7 @@ const AgentConversation = ({
         attachmentsSettled,
         isDragging,
         addFiles,
+        restoreAttachments,
     } = attachments
 
     // Playground-native onboarding: the hero, Create-agent / Continue-in-IDE, the template strip
@@ -339,6 +347,7 @@ const AgentConversation = ({
         beginEdit,
         cancelEdit,
         commitEdit,
+        takeLastSent,
     } = useAgentChatQueue({
         status,
         messages,
@@ -374,9 +383,11 @@ const AgentConversation = ({
         [answerApproval, markLiveGate, submit],
     )
 
-    // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
-    // composer (not inline in the transcript, so a paused run can't scroll out of reach).
-    const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
+    const interactionAvailability = getInteractionAvailability({stopped, stopping, streaming: busy})
+    const pendingApprovals = useMemo(
+        () => getLivePendingApprovals(messages, {stopped: !interactionAvailability.approvals}),
+        [messages, interactionAvailability.approvals],
+    )
     // Parked connect interactions on the paused turn → the connect dock owns their actions (the
     // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
     // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
@@ -385,13 +396,13 @@ const AgentConversation = ({
     // is already false by the time the dock should open.
     const elicits = useElicitationDock({
         messages,
-        enabled: !busy && !stopped,
+        enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         onOutput: handleClientToolOutput,
     })
     const connects = useConnectionDock({
         messages,
-        enabled: !busy && !stopped,
+        enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
@@ -421,6 +432,28 @@ const AgentConversation = ({
             }),
         [messages],
     )
+    const refusedSendRef = useRef<QueuedMessage | undefined>(undefined)
+    const restoreRefusedSend = useCallback(
+        () => restoreHeldRefusedSend(refusedSendRef, richInputRef.current, restoreAttachments),
+        [restoreAttachments],
+    )
+    // Restore a refused send after the editor's synchronous submit clear.
+    useEffect(() => {
+        if (!error || !isSessionBusyRefusal(error)) return
+        if (!refusedSendRef.current) refusedSendRef.current = takeLastSent()
+        requestAnimationFrame(() => {
+            restoreRefusedSend()
+        })
+    }, [error, restoreRefusedSend, takeLastSent])
+
+    const handleComposerChange = useCallback(
+        (text: string) => {
+            composer.handleComposerChange(text)
+            if (!text.trim()) restoreRefusedSend()
+        },
+        [composer.handleComposerChange, restoreRefusedSend],
+    )
+
     useEffect(() => {
         const status: SessionRunStatus = error
             ? "error"
@@ -515,11 +548,12 @@ const AgentConversation = ({
         trimmed: string,
         fileParts: FileUIPart[] | undefined,
         consumedUids: string[],
+        stagedFiles: typeof files,
     ) => {
         if (editingId) {
             // A rewrite of a held message: nothing is sent, so the transcript must not move.
             // The input clears itself on submit, so the displaced draft goes back after that.
-            const draft = commitEdit({text: trimmed, fileParts})
+            const draft = commitEdit({text: trimmed, fileParts, stagedFiles})
             if (draft) requestAnimationFrame(() => richInputRef.current?.setMarkdown(draft))
         } else {
             // Glide to the bottom; the min-h-full active turn makes that show the new question at the
@@ -528,7 +562,7 @@ const AgentConversation = ({
             scrollIntent.armGlide()
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the shared release gate.
-            submit({text: trimmed, fileParts})
+            submit({text: trimmed, fileParts, stagedFiles})
         }
         // The message left the composer — drop its persisted draft (and any pending capture).
         composer.clearDraft()
@@ -569,7 +603,7 @@ const AgentConversation = ({
                     }
                     fileParts = parts
                 }
-                finishSubmit(trimmed, fileParts, stagedUids)
+                finishSubmit(trimmed, fileParts, stagedUids, files)
                 return
             }
 
@@ -582,7 +616,7 @@ const AgentConversation = ({
             const fileParts = outboundFiles.length
                 ? stagedFilesToParts(outboundFiles, sessionId)
                 : undefined
-            finishSubmit(trimmed, fileParts, stagedUids)
+            finishSubmit(trimmed, fileParts, stagedUids, outboundFiles)
         })
 
     handleSubmitRef.current = handleSubmit
@@ -838,8 +872,9 @@ const AgentConversation = ({
                                         onClientToolOutput={handleClientToolOutput}
                                         onSubmit={handleSubmit}
                                         onStop={handleStop}
+                                        stopping={stopping}
                                         richInputRef={richInputRef}
-                                        composer={composer}
+                                        composer={{...composer, handleComposerChange}}
                                         attachments={attachments}
                                         onboardingChat={onboardingChat}
                                         voice={voice}

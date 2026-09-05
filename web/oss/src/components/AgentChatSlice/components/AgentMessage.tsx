@@ -20,7 +20,7 @@ import {
     StartupActivity,
     TurnFooter,
 } from "@agenta/chat/components"
-import {isToolPart, toolIdentity} from "@agenta/chat/model"
+import {isToolPart, SESSION_TURN_IN_USE_CODE, toolIdentity} from "@agenta/chat/model"
 import {
     errorKey,
     expandedValueAtomFamily,
@@ -157,7 +157,14 @@ const RETRYABLE_CODES = new Set([
     "credential_delivery_failed",
     "starter_credits_unavailable",
     "rate_limited",
+    // The run never produced an outcome of its own and was closed for it — by the runner when
+    // a turn would not unwind, or by the platform's execution watchdog when the runner itself
+    // was gone. Nothing is wrong with the request, so sending it again is the whole fix.
+    "execution_lost",
 ])
+
+// An admission refusal means the message was not sent, not that an agent run failed.
+const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE])
 
 /** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
 const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4
@@ -189,13 +196,17 @@ export const RunErrorBody = ({
     const expanded = stored ?? false
     const big = isBigError(text)
     const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
-    const offerRetry = !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
+    const notSent = !!code && NOT_SENT_CODES.has(code)
+    const offerRetry =
+        !notSent && !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
 
     return (
         <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <span className="text-xs font-medium text-colorError">The agent run failed</span>
+                <span className="text-xs font-medium text-colorError">
+                    {notSent ? "Message not sent" : "The agent run failed"}
+                </span>
                 {big && expanded ? (
                     <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
                         {text}
