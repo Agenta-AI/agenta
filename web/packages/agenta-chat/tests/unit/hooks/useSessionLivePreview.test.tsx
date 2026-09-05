@@ -66,7 +66,11 @@ describe("useSessionLivePreview", () => {
         const records = deferred<[]>()
         const adopted = deferred<boolean>()
         const onDisconnect = vi.fn(() => adopted.promise)
-        mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 7}})
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: false}},
+            execution: null,
+            read: {latest_sequence: 7},
+        })
         mocks.querySessionTranscript.mockReturnValue(records.promise)
         const store = createStore()
         store.set(projectIdAtom, "project-1")
@@ -113,7 +117,11 @@ describe("useSessionLivePreview", () => {
     })
 
     it("does not follow a snapshot cursor the host refused to adopt", async () => {
-        mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 7}})
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: false}},
+            execution: null,
+            read: {latest_sequence: 7},
+        })
         mocks.querySessionTranscript.mockResolvedValue([])
         const store = createStore()
         store.set(projectIdAtom, "project-1")
@@ -139,7 +147,11 @@ describe("useSessionLivePreview", () => {
         "backs off when the bounded transcript read is %s",
         async (failure) => {
             vi.useFakeTimers()
-            mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 7}})
+            mocks.fetchSessionSnapshot.mockResolvedValue({
+                session: {flags: {is_running: false}},
+                execution: null,
+                read: {latest_sequence: 7},
+            })
             if (failure === "rejected") {
                 mocks.querySessionTranscript
                     .mockRejectedValueOnce(new Error("network changed"))
@@ -184,7 +196,11 @@ describe("useSessionLivePreview", () => {
     it.each(["responded", "resolved", "cancelled"] as const)(
         "joins %s interaction lifecycle before adopting the bounded transcript",
         async (status) => {
-            mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 3}})
+            mocks.fetchSessionSnapshot.mockResolvedValue({
+                session: {flags: {is_running: false}},
+                execution: null,
+                read: {latest_sequence: 3},
+            })
             mocks.querySessionTranscript.mockResolvedValue([
                 record("r-call", {
                     type: "tool_call",
@@ -239,7 +255,11 @@ describe("useSessionLivePreview", () => {
 
     it("backs reconnects off and resets the delay only after ready", async () => {
         vi.useFakeTimers()
-        mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 7}})
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: false}},
+            execution: null,
+            read: {latest_sequence: 7},
+        })
         mocks.querySessionTranscript.mockResolvedValue([])
         const store = createStore()
         store.set(projectIdAtom, "project-1")

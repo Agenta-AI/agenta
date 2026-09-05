@@ -13,7 +13,6 @@ import {
     ignoreStreamRejection,
     createUserStoppedState,
     isSessionTurnStopping,
-    parseAgentRunError,
     reduceUserStoppedState,
     type RunErrorMetadata,
     withoutSharedSenderAcceptanceMessages,

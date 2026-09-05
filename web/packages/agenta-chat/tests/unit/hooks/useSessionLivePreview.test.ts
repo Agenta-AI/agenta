@@ -1,16 +1,25 @@
 // @vitest-environment jsdom
 import {createElement, type ReactNode} from "react"
 
-import {fetchSessionSnapshot, type SessionSnapshot} from "@agenta/entities/session"
+import {
+    fetchSessionSnapshot,
+    querySessionTranscript,
+    type SessionSnapshot,
+} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
 import {act, renderHook, waitFor} from "@testing-library/react"
 import {createStore, Provider} from "jotai"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-vi.mock("@agenta/entities/session", async (importOriginal) => ({
-    ...(await importOriginal<typeof import("@agenta/entities/session")>()),
-    fetchSessionSnapshot: vi.fn(),
-}))
+vi.mock("@agenta/entities/session", async (importOriginal) => {
+    const {atom} = await import("jotai")
+    return {
+        ...(await importOriginal<typeof import("@agenta/entities/session")>()),
+        fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
+        fetchSessionSnapshot: vi.fn(),
+        querySessionTranscript: vi.fn(),
+    }
+})
 
 import {useSessionLivePreview} from "../../../src/hooks/useSessionLivePreview"
 
@@ -72,6 +81,8 @@ describe("useSessionLivePreview sender subscription", () => {
         FakeEventSource.instances = []
         vi.stubGlobal("EventSource", FakeEventSource)
         vi.mocked(fetchSessionSnapshot).mockReset()
+        vi.mocked(querySessionTranscript).mockReset()
+        vi.mocked(querySessionTranscript).mockResolvedValue([])
     })
 
     it("subscribes an advertised sender and follows after the snapshot watermark", async () => {
@@ -88,7 +99,7 @@ describe("useSessionLivePreview sender subscription", () => {
                     runningElsewhere: false,
                     sender: true,
                     onReadyChange,
-                    onDisconnect: vi.fn(),
+                    onDisconnect: vi.fn().mockResolvedValue(true),
                 }),
             {wrapper: wrapper(store)},
         )
@@ -111,7 +122,7 @@ describe("useSessionLivePreview sender subscription", () => {
                     sharedReaderAdvertised: false,
                     runningElsewhere: false,
                     sender: true,
-                    onDisconnect: vi.fn(),
+                    onDisconnect: vi.fn().mockResolvedValue(true),
                 }),
             {wrapper: wrapper(store)},
         )
@@ -134,7 +145,7 @@ describe("useSessionLivePreview sender subscription", () => {
                     sharedReaderAdvertised: true,
                     runningElsewhere,
                     sender: true,
-                    onDisconnect: vi.fn(),
+                    onDisconnect: vi.fn().mockResolvedValue(true),
                 }),
             {initialProps: {runningElsewhere: false}, wrapper: wrapper(store)},
         )
@@ -159,7 +170,7 @@ describe("useSessionLivePreview sender subscription", () => {
                     sharedReaderAdvertised: true,
                     runningElsewhere,
                     sender: true,
-                    onDisconnect: vi.fn(),
+                    onDisconnect: vi.fn().mockResolvedValue(true),
                 }),
             {initialProps: {runningElsewhere: true}, wrapper: wrapper(store)},
         )
@@ -186,7 +197,7 @@ describe("useSessionLivePreview sender subscription", () => {
                     runningElsewhere: false,
                     sender: true,
                     onExecutionSettled,
-                    onDisconnect: vi.fn(),
+                    onDisconnect: vi.fn().mockResolvedValue(true),
                 }),
             {wrapper: wrapper(store)},
         )

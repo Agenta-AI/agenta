@@ -8,8 +8,14 @@
 // persist-on-settle → run-status publish, plus error stamping and the rewind plan.
 import {createElement, type ReactNode} from "react"
 
-import {sessionLivePreviewAtomFamily} from "@agenta/entities/session"
+import {
+    fetchSessionSnapshot,
+    querySessionTranscript,
+    sessionLivePreviewAtomFamily,
+    type SessionSnapshot,
+} from "@agenta/entities/session"
 import {buildAgentRequest} from "@agenta/playground/agent-chat"
+import {projectIdAtom} from "@agenta/shared/state"
 import {act, renderHook, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
@@ -41,6 +47,8 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
         // The hydration seam's records fetch: "no server history" for these tests.
         fetchSessionRecordsAtom: atom(null, () => ({records: null, refreshed: null})),
         fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
+        fetchSessionSnapshot: vi.fn(),
+        querySessionTranscript: vi.fn(),
     }
 })
 
@@ -248,6 +256,20 @@ beforeEach(() => {
     FakeEventSource.instances = []
     vi.stubGlobal("EventSource", FakeEventSource)
     fetchMock.mockReset()
+    vi.mocked(fetchSessionSnapshot).mockReset()
+    vi.mocked(fetchSessionSnapshot).mockResolvedValue({
+        session: {
+            session_id: "session-1",
+            project_id: "project-1",
+            capabilities: {shared_reader: true},
+            flags: {is_running: false},
+        },
+        execution: null,
+        pending: {inputs: [], interactions: []},
+        read: {latest_sequence: 0, history_complete: true},
+    } as SessionSnapshot)
+    vi.mocked(querySessionTranscript).mockReset()
+    vi.mocked(querySessionTranscript).mockResolvedValue([])
     vi.mocked(buildAgentRequest).mockClear()
     // Restore the ready-workflow build: one test replaces it with a not-yet-loaded one, and
     // `mockClear` keeps the implementation.
@@ -399,6 +421,7 @@ describe("useAgentConversation", () => {
         const legacy = controlledLegacyResponse()
         fetchMock.mockResolvedValue(legacy.response)
         const store = createStore()
+        store.set(projectIdAtom, "project-1")
         const sessionId = nextSessionId()
         markSessionFresh(sessionId)
         const {result} = renderHook(
@@ -741,8 +764,9 @@ describe("useAgentConversation", () => {
                 requestBody: {session_id: opts?.sessionId},
             }))
             .mockRejectedValueOnce(new TypeError("Failed to fetch"))
-        fetchMock.mockResolvedValueOnce(sharedDroppedStreamResponse())
+        fetchMock.mockImplementationOnce(async () => sharedDroppedStreamResponse())
         const store = createStore()
+        store.set(projectIdAtom, "project-1")
         const sessionId = nextSessionId()
         markSessionFresh(sessionId)
         const {result} = renderHook(

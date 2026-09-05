@@ -84,7 +84,11 @@ describe("desktop durable reconnect", () => {
     beforeEach(() => {
         vi.clearAllMocks()
         mocks.openedUrls.length = 0
-        mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 10}})
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: false}},
+            execution: null,
+            read: {latest_sequence: 10},
+        })
         mocks.querySessionTranscript.mockResolvedValue([
             record("record-8", 8, {type: "message", text: "durable reply"}),
             record("record-10", 10, {type: "done"}),
@@ -139,6 +143,7 @@ describe("desktop durable reconnect", () => {
                 busy: false,
                 setMessages,
                 persistMessages,
+                clearRunError: vi.fn(),
                 intent,
                 pendingResumeRef,
             })
