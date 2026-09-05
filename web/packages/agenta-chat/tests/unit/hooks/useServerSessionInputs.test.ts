@@ -251,7 +251,7 @@ const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolea
 
     const inputRef = createRef<RichChatInputHandle>()
     render(createElement(RunningElsewhereAdmissionHarness, {inputRef}))
-    await screen.findByText(/This session is running somewhere else/)
+    await screen.findByText(/This turn is still running/)
     await screen.findByLabelText("Chat message")
     await screen.findByRole("button", {name: "Start fresh run"})
     fireEvent.click(screen.getByRole("button", {name: "Start fresh run"}))
