@@ -59,7 +59,7 @@ const AgentComposerDock = ({
     entityId,
     messages,
     busy,
-    runningElsewhere,
+    showRunningElsewhere,
     connectionWarning,
     hitlPending,
     queue,
@@ -88,8 +88,8 @@ const AgentComposerDock = ({
     entityId: string
     messages: UIMessage[]
     busy: boolean
-    /** The backend reports a live run for this session that this browser is not driving. */
-    runningElsewhere: boolean
+    /** Show the disconnected/flag-off fallback for a run this browser is not driving. */
+    showRunningElsewhere: boolean
     /** The sender request disconnected after the session accepted the turn. */
     connectionWarning?: string
     hitlPending: boolean
@@ -315,7 +315,7 @@ const AgentComposerDock = ({
                 </div>
                 {/* Sits with the other docked strips so a session running in another browser reads
                     as busy instead of frozen (#5530). */}
-                {runningElsewhere && !chromeHidden ? (
+                {showRunningElsewhere && !chromeHidden ? (
                     <RunningElsewhereStrip className={CHAT_COLUMN} />
                 ) : null}
                 {connectionWarning && !chromeHidden ? (

@@ -21,6 +21,26 @@ export const shouldSubscribeToSessionLivePreview = ({
     sender?: boolean
 }): boolean => sharedReaderAdvertised && (sender || runningElsewhere)
 
+/** Choose the live activity treatment only while the shared reader is actually connected. */
+export const deriveRemoteTurnPresentation = ({
+    running,
+    sharedReaderAdvertised,
+    readerReady,
+    ownedContinuation = false,
+}: {
+    running: boolean
+    sharedReaderAdvertised: boolean
+    readerReady: boolean
+    /** This tab answered the gate and owns the continuation even if its invoke stream detached. */
+    ownedContinuation?: boolean
+}): {showActivity: boolean; showStrip: boolean} => {
+    const showActivity = running && sharedReaderAdvertised && readerReady
+    return {
+        showActivity,
+        showStrip: running && !showActivity && !ownedContinuation,
+    }
+}
+
 /** The shared sender still consumes the invoke response for acceptance ids and errors. The AI SDK
  * creates a message carrier for that control-only stream; keep it out of transcript rendering and
  * local persistence unless it also carries a run error. */

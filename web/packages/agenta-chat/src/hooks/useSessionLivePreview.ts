@@ -55,12 +55,13 @@ export const useSessionLivePreview = ({
     onExecutionSettled?: (executionId?: string) => void
     /** Adopts a bounded transcript or re-fetches after a later gap/disconnect. */
     onDisconnect: (transcript?: SessionTranscript) => boolean | Promise<boolean>
-}): {messages: UIMessage[]; runningFromSnapshot: boolean} => {
+}): {messages: UIMessage[]; runningFromSnapshot: boolean; readerReady: boolean} => {
     const projectId = useAtomValue(projectIdAtom)
     const [preview, setPreview] = useAtom(sessionLivePreviewAtomFamily(sessionId))
     const clearPreview = useSetAtom(clearSessionLivePreviewAtom)
     const fetchInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
     const [runningFromSnapshot, setRunningFromSnapshot] = useState(false)
+    const [readerReady, setReaderReady] = useState(false)
     const onDisconnectRef = useRef(onDisconnect)
     onDisconnectRef.current = onDisconnect
     const retryHydrationRef = useRef<() => void>(() => undefined)
@@ -80,6 +81,7 @@ export const useSessionLivePreview = ({
 
     useEffect(() => {
         clearPreview(sessionId)
+        setReaderReady(false)
         onReadyChangeRef.current?.(false)
         if (!sharedReaderAdvertised || !sessionId) return
         setRunningFromSnapshot(false)
@@ -96,6 +98,7 @@ export const useSessionLivePreview = ({
         const close = () => {
             connection?.close()
             connection = null
+            setReaderReady(false)
             onReadyChangeRef.current?.(false)
             clearPreview(sessionId)
         }
@@ -211,6 +214,7 @@ export const useSessionLivePreview = ({
                 onReady: ({watermark}) => {
                     durable = completeSessionDurableEventReplay(durable, watermark)
                     reconnectDelayMs = RECONNECT_INITIAL_DELAY_MS
+                    setReaderReady(true)
                     onReadyChangeRef.current?.(true)
                 },
                 onDisconnect: ({reconnect}) => {
@@ -262,5 +266,6 @@ export const useSessionLivePreview = ({
     return {
         messages: useMemo(() => sessionLivePreviewMessages(preview), [preview]),
         runningFromSnapshot: sharedReaderAdvertised && runningFromSnapshot,
+        readerReady: sharedReaderAdvertised && subscribed && readerReady,
     }
 }

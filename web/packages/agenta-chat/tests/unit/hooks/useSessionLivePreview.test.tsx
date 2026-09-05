@@ -266,7 +266,7 @@ describe("useSessionLivePreview", () => {
         const wrapper = ({children}: {children: ReactNode}) =>
             createElement(Provider, {store}, children)
 
-        renderHook(
+        const {result} = renderHook(
             () =>
                 useSessionLivePreview({
                     sessionId: "session-1",
@@ -281,6 +281,7 @@ describe("useSessionLivePreview", () => {
             await Promise.resolve()
             await Promise.resolve()
         })
+        expect(result.current.readerReady).toBe(false)
         expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(1)
 
         const first = mocks.connectSessionLiveEvents.mock.calls[0][0]
@@ -299,7 +300,9 @@ describe("useSessionLivePreview", () => {
 
         const third = mocks.connectSessionLiveEvents.mock.calls[2][0]
         act(() => third.onReady({watermark: 7}))
+        expect(result.current.readerReady).toBe(true)
         act(() => third.onDisconnect({reason: "connection_lost", reconnect: true}))
+        expect(result.current.readerReady).toBe(false)
         await act(async () => vi.advanceTimersByTimeAsync(4_999))
         expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(3)
         await act(async () => vi.advanceTimersByTimeAsync(1))

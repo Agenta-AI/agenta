@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     createSessionLivePreviewState,
+    deriveRemoteTurnPresentation,
     isSessionSnapshotRunning,
     reduceSessionLivePreview,
     sessionLivePreviewMessages,
@@ -227,4 +228,36 @@ describe("session live preview subscription", () => {
             ).toBe(expected)
         },
     )
+})
+
+describe("remote turn presentation", () => {
+    it.each([
+        {
+            name: "uses turn activity once the advertised reader is ready",
+            input: {running: true, sharedReaderAdvertised: true, readerReady: true},
+            expected: {showActivity: true, showStrip: false},
+        },
+        {
+            name: "uses the fallback strip before the reader is ready",
+            input: {running: true, sharedReaderAdvertised: true, readerReady: false},
+            expected: {showActivity: false, showStrip: true},
+        },
+        {
+            name: "uses the fallback strip when the feature is off",
+            input: {running: true, sharedReaderAdvertised: false, readerReady: false},
+            expected: {showActivity: false, showStrip: true},
+        },
+        {
+            name: "never gives an owned continuation the fallback strip",
+            input: {
+                running: true,
+                sharedReaderAdvertised: true,
+                readerReady: false,
+                ownedContinuation: true,
+            },
+            expected: {showActivity: false, showStrip: false},
+        },
+    ])("$name", ({input, expected}) => {
+        expect(deriveRemoteTurnPresentation(input)).toEqual(expected)
+    })
 })

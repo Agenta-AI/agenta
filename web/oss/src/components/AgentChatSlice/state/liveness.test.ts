@@ -8,7 +8,7 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {isRunningElsewhere} from "./liveness"
+import {deriveSessionRemoteTurnPresentation, isRunningElsewhere} from "./liveness"
 
 /** A session this browser has never run: no settle stamp, so the flag is trusted as-is. */
 const neverRanHere = {localStatus: "idle", localSettledAt: undefined} as const
@@ -81,5 +81,37 @@ describe("isRunningElsewhere", () => {
                 livenessUpdatedAt: 5_001,
             }),
         ).toBe(true)
+    })
+})
+
+describe("deriveSessionRemoteTurnPresentation", () => {
+    it.each([
+        {
+            name: "renders activity and no strip for a ready reader",
+            input: {running: true, sharedReaderAdvertised: true, readerReady: true},
+            expected: {showActivity: true, showStrip: false},
+        },
+        {
+            name: "renders the strip while the reader is not ready",
+            input: {running: true, sharedReaderAdvertised: true, readerReady: false},
+            expected: {showActivity: false, showStrip: true},
+        },
+        {
+            name: "renders the strip when the feature is off",
+            input: {running: true, sharedReaderAdvertised: false, readerReady: false},
+            expected: {showActivity: false, showStrip: true},
+        },
+        {
+            name: "does not render the strip in the tab that owns a continuation",
+            input: {
+                running: true,
+                sharedReaderAdvertised: true,
+                readerReady: false,
+                ownedContinuation: true,
+            },
+            expected: {showActivity: false, showStrip: false},
+        },
+    ])("$name", ({input, expected}) => {
+        expect(deriveSessionRemoteTurnPresentation(input)).toEqual(expected)
     })
 })

@@ -75,6 +75,7 @@ import {useScrollIntent} from "./hooks/useScrollIntent"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
+import {deriveSessionRemoteTurnPresentation} from "./state/liveness"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -159,7 +160,11 @@ const AgentConversation = ({
         refreshFromRecords,
         setSharedSenderReady,
     } = useAgentChatSession({entityId, sessionId, initialMessages, intent: scrollIntent})
-    const {messages: previewMessages, runningFromSnapshot} = useSessionLivePreview({
+    const {
+        messages: previewMessages,
+        runningFromSnapshot,
+        readerReady,
+    } = useSessionLivePreview({
         sessionId,
         sharedReaderAdvertised,
         runningElsewhere: livenessRunningElsewhere,
@@ -168,14 +173,21 @@ const AgentConversation = ({
         onExecutionSettled: settleSharedTurn,
         onDisconnect: refreshFromRecords,
     })
-    const runningElsewhere =
-        livenessRunningElsewhere || (runningFromSnapshot && !busy && !acceptedRunPending)
+    const remoteTurn = deriveSessionRemoteTurnPresentation({
+        running: livenessRunningElsewhere || runningFromSnapshot || acceptedRunPending,
+        sharedReaderAdvertised,
+        readerReady,
+        ownedContinuation: acceptedRunPending,
+    })
     const transcriptMessages = useMemo(() => {
         const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
         if (turnDeliverySource === "legacy" || previewMessages.length === 0) return durableMessages
         return [...durableMessages, ...previewMessages]
     }, [messages, previewMessages, turnDeliverySource])
-    const transcriptBusy = busy || (turnDeliverySource !== "legacy" && previewMessages.length > 0)
+    const transcriptBusy =
+        busy ||
+        remoteTurn.showActivity ||
+        (turnDeliverySource !== "legacy" && previewMessages.length > 0)
 
     // Turn Inspector: open state, the focused turn, and the assistant → turn-number mapping.
     const {
@@ -890,7 +902,7 @@ const AgentConversation = ({
                                         entityId={entityId}
                                         messages={messages}
                                         busy={busy}
-                                        runningElsewhere={runningElsewhere}
+                                        showRunningElsewhere={remoteTurn.showStrip}
                                         connectionWarning={connectionWarning}
                                         hitlPending={hitlPending}
                                         queue={{

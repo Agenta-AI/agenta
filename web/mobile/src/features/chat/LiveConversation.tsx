@@ -61,7 +61,7 @@ import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {cancelledStopAction} from "./stopHereState"
 import {TurnRow} from "./TurnRow"
-import {showTrailingWorkingPulse} from "./turnStatus"
+import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
@@ -219,6 +219,13 @@ export const LiveConversation = ({
     ])
 
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
+    const remoteTurn = deriveMobileRemoteTurnPresentation({
+        running: running || conversation.runningFromSnapshot || conversation.acceptedRunPending,
+        sharedReaderAdvertised: sharedReader,
+        readerReady: conversation.readerReady,
+        ownedContinuation: conversation.acceptedRunPending,
+    })
+    const showingTurnActivity = streamingHere || remoteTurn.showActivity
     const streamingHereRef = useRef(streamingHere)
     streamingHereRef.current = streamingHere
     const hitlPendingRef = useRef(conversation.hitlPending)
@@ -515,7 +522,7 @@ export const LiveConversation = ({
                     far below the turn it described. It falls back to here for the one case that
                     turn cannot cover: the request is submitted and no assistant turn exists yet. */}
                 <TurnStatusLine
-                    working={showTrailingWorkingPulse(streamingHere, visibleTurns)}
+                    working={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
                     waitingForInput={conversation.hitlPending}
                 />
             </ContentRail>
@@ -571,9 +578,7 @@ export const LiveConversation = ({
                         composer, as on the desktop — it used to be a top bar that also appeared for
                         THIS device's own turns, duplicating the composer's Stop and shifting the
                         transcript twice per run. */}
-                        {(running || conversation.runningFromSnapshot) &&
-                        !streamingHere &&
-                        !conversation.acceptedRunPending ? (
+                        {remoteTurn.showStrip && !streamingHere ? (
                             <ContentRail>
                                 <RunningElsewhereStrip
                                     action={
