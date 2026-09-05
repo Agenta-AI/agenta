@@ -4,7 +4,9 @@ import {
     buildRequestWithinDeadline,
     getMessageTraceId,
     latestTurnId,
+    prepareAfterContinuationPreflight,
     startupLabelFromDataPart,
+    submitApprovalForCapability,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
@@ -42,6 +44,10 @@ import {
     invalidateSessionListQueries,
     killSession,
     recordInteractionAnswerAtom,
+    respondInteractionAnswerAtom,
+    respondInteractionAnswersAtom,
+    resumeSessionContinuationAtom,
+    sessionDurableApprovalsCapabilityAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
 } from "@agenta/entities/session"
@@ -145,6 +151,10 @@ export const useAgentChatSession = ({
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
+    const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
+    const respondInteractionAnswers = useSetAtom(respondInteractionAnswersAtom)
+    const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
+    const supportsDurableApprovals = useSetAtom(sessionDurableApprovalsCapabilityAtom)
     const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     // `null` means "no live gate" — voided by a stop, or spent once a resume really went out;
@@ -173,32 +183,42 @@ export const useAgentChatSession = ({
     const setSharedSenderReady = useCallback((ready: boolean) => {
         sharedSenderReadyRef.current = ready
     }, [])
+    const retryContinuation = useCallback(
+        () => resumeSessionContinuation(sessionId),
+        [resumeSessionContinuation, sessionId],
+    )
 
     // Rebuilt every render and bound to the chat on every commit (below), so they always see the live
     // values — `entityId` included, which is why a run follows a revision switch or a self-commit
     // instead of sticking to the revision this session first mounted on.
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
-            clearSessionTurnId(sessionId)
-            turnAcceptedRef.current = false
-            acceptedExecutionIdRef.current = null
-            acceptedRunBySession.delete(sessionId)
-            setAcceptedRunPending(false)
-            const sharedResponse = sharedSenderReadyRef.current
-            const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
-            turnDeliverySourceBySession.set(sessionId, deliverySource)
-            setTurnDeliverySource(deliverySource)
-            // Bounded: retries while the invocation URL is still loading and rejects if the build
-            // hangs, so a failed send surfaces as an error bubble instead of an eternal spinner
-            // (#6042). The helper owns the not-ready / timed-out errors.
-            const req = await buildRequestWithinDeadline(() =>
-                buildAgentRequest(entityId, messages, {
-                    sessionId: id ?? sessionId,
-                    sharedResponse,
-                }),
+            return prepareAfterContinuationPreflight(
+                resumeSessionContinuation,
+                id ?? sessionId,
+                async () => {
+                    clearSessionTurnId(sessionId)
+                    turnAcceptedRef.current = false
+                    acceptedExecutionIdRef.current = null
+                    acceptedRunBySession.delete(sessionId)
+                    setAcceptedRunPending(false)
+                    const sharedResponse = sharedSenderReadyRef.current
+                    const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
+                    turnDeliverySourceBySession.set(sessionId, deliverySource)
+                    setTurnDeliverySource(deliverySource)
+                    // Bounded: retries while the invocation URL is still loading and rejects if
+                    // the build hangs, so a failed send surfaces as an error bubble instead of an
+                    // eternal spinner (#6042).
+                    const req = await buildRequestWithinDeadline(() =>
+                        buildAgentRequest(entityId, messages, {
+                            sessionId: id ?? sessionId,
+                            sharedResponse,
+                        }),
+                    )
+                    captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
+                    return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
+                },
             )
-            captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
-            return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
         },
         // ── #6047 startup states: capture the runner's observed startup boundary as it streams ──
         onData: (part) => {
@@ -377,26 +397,69 @@ export const useAgentChatSession = ({
         liveGateInteractionRef.current = interaction
     }, [])
 
-    /**
-     * Answer an approval: record the decision on the row the runner parked, THEN flip the part.
-     *
-     * Ordered, not raced. This hook dispatches no resume of its own — the park stream ends with a
-     * clean finish, so the SDK's `sendAutomaticallyWhen` sends it — but the flip is what lets the
-     * SDK dispatch, and that resume's stale sweep cancels rows still `pending`, this one included.
-     * Released early, the sweep reached the API first and cancelled the row being answered.
-     */
+    /** Choose the durable dispatcher only when the server advertises it. */
     const answerApproval = useCallback(
-        (approvalId: string, approved: boolean) =>
-            recordAnswerThenRelease({
-                record: () =>
+        async (approvalId: string, approved: boolean) => {
+            return submitApprovalForCapability({
+                durableApprovals: await supportsDurableApprovals(sessionId),
+                submitDurable: () =>
+                    respondInteractionAnswer({
+                        sessionId,
+                        toolCallId: approvalId,
+                        approved,
+                    }),
+                retireDurable: () => {
+                    // A lost HTTP response may still follow a committed continuation.
+                    liveGateInteractionRef.current = null
+                },
+                recordLegacy: () =>
                     recordInteractionAnswer({
                         sessionId,
                         toolCallId: approvalId,
                         resolution: approvalResolution(approvalId, approved),
                     }),
-                release: () => addToolApprovalResponse({id: approvalId, approved}),
-            }),
-        [addToolApprovalResponse, recordInteractionAnswer, sessionId],
+                releaseLegacy: () => addToolApprovalResponse({id: approvalId, approved}),
+            })
+        },
+        [
+            addToolApprovalResponse,
+            recordInteractionAnswer,
+            respondInteractionAnswer,
+            sessionId,
+            supportsDurableApprovals,
+        ],
+    )
+
+    const answerApprovals = useCallback(
+        async (toolCallIds: string[], approved: boolean) => {
+            return submitApprovalForCapability({
+                durableApprovals: await supportsDurableApprovals(sessionId),
+                submitDurable: () => respondInteractionAnswers({sessionId, toolCallIds, approved}),
+                retireDurable: () => {
+                    liveGateInteractionRef.current = null
+                },
+                recordLegacy: () =>
+                    Promise.all(
+                        toolCallIds.map((approvalId) =>
+                            recordInteractionAnswer({
+                                sessionId,
+                                toolCallId: approvalId,
+                                resolution: approvalResolution(approvalId, approved),
+                            }),
+                        ),
+                    ).then(() => undefined),
+                releaseLegacy: () => {
+                    for (const id of toolCallIds) addToolApprovalResponse({id, approved})
+                },
+            })
+        },
+        [
+            addToolApprovalResponse,
+            recordInteractionAnswer,
+            respondInteractionAnswers,
+            sessionId,
+            supportsDurableApprovals,
+        ],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
@@ -785,6 +848,8 @@ export const useAgentChatSession = ({
         handleClientToolOutput,
         markLiveGate,
         answerApproval,
+        answerApprovals,
+        retryContinuation,
         resumeOrphaned,
         isSeen,
     }

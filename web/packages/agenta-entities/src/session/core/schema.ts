@@ -26,6 +26,7 @@ export const sessionRecordSchema = z
         record_source: z.string().nullish(),
         record_type: z.string().nullish(),
         attributes: z.record(z.string(), z.unknown()).nullish(),
+        turn_id: z.string().nullish(),
         timestamp: z.string().nullish(),
         created_at: z.string().nullish(),
     })
@@ -38,6 +39,7 @@ export const sessionRecordSchema = z
         sender: r.record_source ?? null,
         session_update: r.record_type ?? null,
         payload: r.attributes ?? null,
+        turn_id: r.turn_id ?? null,
         created_at: r.created_at ?? r.timestamp ?? null,
     }))
 
@@ -88,6 +90,13 @@ export const sessionInteractionsResponseSchema = z.object({
 export const sessionInteractionResponseSchema = z.object({
     count: z.number().nullish(),
     interaction: sessionInteractionSchema.nullish(),
+})
+
+export const sessionInteractionWatchEventSchema = z.object({
+    type: z.literal("interaction"),
+    session_id: z.string(),
+    status: z.string(),
+    interactions: z.array(sessionInteractionSchema).nullish(),
 })
 
 export type SessionInteraction = z.infer<typeof sessionInteractionSchema>
@@ -272,6 +281,12 @@ export const sessionsQueryResponseSchema = z.object({
 
 export const sessionStreamResponseSchema = z.object({
     stream: sessionStreamSchema.nullish(),
+    capabilities: z
+        .object({
+            durable_approvals: z.boolean().optional().default(false),
+        })
+        .optional()
+        .default({durable_approvals: false}),
 })
 
 /** Control-call result for the prompt × force command matrix. */

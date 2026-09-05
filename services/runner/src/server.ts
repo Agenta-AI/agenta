@@ -98,10 +98,13 @@ import {
 import {
   applyCommand,
   holdsSession,
+  reportContinuationAdmission,
   type ControlCommand,
   type ParkedSessionControl,
 } from "./sessions/control-channel.ts";
+import { claimContinuationAdmission } from "./sessions/continuation-admission.ts";
 import {
+  findExecution,
   noteExecutionProject,
   registerExecution,
   unregisterExecution,
@@ -475,10 +478,119 @@ async function runAndStreamWithApiBaseResolved(
   const sessionOwned = isSessionOwned(request);
   const detached = sessionOwned && request.detached === true;
   const sessionId = request.sessionId!;
+  const requestedTurnId = request.turnId?.trim();
   const turnId = resolveTurnId(request);
   // Write the resolved id back: every downstream reader of `request.turnId` (the turns-ledger
   // append, interaction rows) must see the SAME execution id the alive-lock and records use.
   request.turnId = turnId;
+
+  const writeRecord = (record: StreamRecord): void => {
+    if (res.writableEnded) return;
+    res.write(JSON.stringify(record) + "\n");
+  };
+  const liveEmit: EmitEvent = (event) => writeRecord({ kind: "event", event });
+  const turn = currentUserTurn(request);
+  const attachmentError = attachmentCountError(turn.attachments.length);
+  if (attachmentError) {
+    writeRecord({
+      kind: "result",
+      result: { ok: false, error: attachmentError, events: [] },
+    });
+    res.end();
+    return;
+  }
+
+  const rawControlCommandId = request.controlCommandId;
+  const controlCommandId =
+    typeof rawControlCommandId === "string"
+      ? rawControlCommandId.trim()
+      : undefined;
+  if (
+    rawControlCommandId !== undefined &&
+    (!controlCommandId || !sessionOwned || !requestedTurnId)
+  ) {
+    writeRecord({
+      kind: "result",
+      result: {
+        ok: false,
+        error: "A continuation command requires explicit sessionId and turnId.",
+        events: [],
+      },
+    });
+    res.end();
+    return;
+  }
+
+  // This is the continuation's exactly-once admission boundary. Everything above it is pure
+  // request validation and remains retryable. A duplicate never creates a controller, never
+  // replaces the live-execution registry entry, and never calls the engine.
+  let continuationAdmission = controlCommandId
+    ? claimContinuationAdmission(controlCommandId, turnId)
+    : undefined;
+  let continuationAlreadyAdmitted = false;
+  if (continuationAdmission?.role === "duplicate") {
+    const priorGenerationAdmitted = await continuationAdmission.admitted;
+    if (!priorGenerationAdmitted) {
+      writeRecord({
+        kind: "result",
+        result: {
+          ok: false,
+          error:
+            "Continuation admission failed before execution started; retry delivery.",
+          events: [],
+        },
+      });
+      res.end();
+      return;
+    }
+    try {
+      const admitted = await reportContinuationAdmission({
+        commandId: controlCommandId!,
+        sessionId,
+        executionId: turnId,
+      });
+      if (!admitted) {
+        const live = findExecution(
+          projectScopeFor(request, undefined)?.id ?? "",
+          sessionId,
+        );
+        if (!live || live.turnId !== turnId) {
+          continuationAdmission.forget();
+        }
+        writeRecord({
+          kind: "result",
+          result: {
+            ok: true,
+            output: "",
+            stopReason: "control_command_duplicate",
+            events: [],
+            sessionId,
+          },
+        });
+        res.end();
+        return;
+      }
+      const promoted = continuationAdmission.promote();
+      if (!promoted) {
+        throw new Error(
+          "Continuation admission changed while recovering; retry delivery.",
+        );
+      }
+      continuationAdmission = promoted;
+      continuationAlreadyAdmitted = true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(
+        `[control] duplicate continuation report failed command=${controlCommandId}: ${message}\n`,
+      );
+      writeRecord({
+        kind: "result",
+        result: { ok: false, error: message, events: [] },
+      });
+      res.end();
+      return;
+    }
+  }
 
   // Diagnostic: surface whether the session-owned persist/alive path is entered and whether the
   // invoke credential arrived. Empty cred => heartbeat/persist would 401. The two empty cases have
@@ -504,6 +616,16 @@ async function runAndStreamWithApiBaseResolved(
   const interrupted = new Promise<string>((resolve) => {
     markInterrupted = resolve;
   });
+  let aliveWatchdog:
+    | {
+        release: () => Promise<void>;
+        abandon: () => void;
+        credential: () => string;
+        streamId: () => string | undefined;
+        firstBeatOwned: boolean;
+        admitted: boolean;
+      }
+    | undefined;
   if (!sessionOwned && !detached) {
     // Listen on the response, not the request: the request body is already fully read, so
     // its `close` can fire early on a keep-alive connection. `res` `close` fires when the
@@ -521,11 +643,6 @@ async function runAndStreamWithApiBaseResolved(
     });
   }
 
-  const writeRecord = (record: StreamRecord): void => {
-    if (res.writableEnded) return;
-    res.write(JSON.stringify(record) + "\n");
-  };
-  const liveEmit: EmitEvent = (event) => writeRecord({ kind: "event", event });
   if (detached) {
     // The invoke stream's sole positive payload in shared mode: correlation/acceptance. Live
     // text and tools arrive through /sessions/{id}/events and are filtered from invoke client-side.
@@ -536,15 +653,115 @@ async function runAndStreamWithApiBaseResolved(
       transient: true,
     });
   }
-  const turn = currentUserTurn(request);
-  const attachmentError = attachmentCountError(turn.attachments.length);
-  if (attachmentError) {
-    writeRecord({
-      kind: "result",
-      result: { ok: false, error: attachmentError, events: [] },
-    });
-    res.end();
-    return;
+
+  // The Stop handle is registered only AFTER admission succeeds, further down. A contender that
+  // the coordination plane refuses must never replace the admitted turn's handle, or a Stop for
+  // the live turn reaches the refused one and the live turn keeps running.
+  //
+  // A run with no project scope is not registered. `poolKeyFor` forms no key for it either, so
+  // it can never park, and Stop falls back to the heartbeat path exactly as it did before.
+
+  if (sessionOwned) {
+    try {
+      // Await ownership before a durable continuation reports `started`. An ordinary run keeps
+      // its historical fail-open heartbeat behavior; only a continuation requires the first beat
+      // to affirm that this exact turn owns the coordination row.
+      aliveWatchdog = await startAliveWatchdog(
+        sessionId,
+        turnId,
+        platformCredentialForRequest(request),
+        () => {
+          markInterrupted?.(
+            "the platform reported this turn is no longer current (stopped, taken over, or " +
+              "declared lost)",
+          );
+          controller.abort(USER_STOP_ABORT_REASON);
+        },
+        {
+          name: proposeSessionName(request),
+          references: buildWorkflowReferenceList(request.runContext?.workflow),
+        },
+      );
+      request.streamId = aliveWatchdog.streamId();
+    } catch (error) {
+      if (continuationAdmission?.role !== "leader") throw error;
+      continuationAdmission.release();
+      unregisterExecution(sessionId, turnId);
+      const message = error instanceof Error ? error.message : String(error);
+      writeRecord({
+        kind: "result",
+        result: { ok: false, error: message, events: [] },
+      });
+      res.end();
+      return;
+    }
+
+    if (
+      continuationAdmission?.role === "leader" &&
+      !aliveWatchdog.firstBeatOwned
+    ) {
+      continuationAdmission.release();
+      aliveWatchdog.abandon();
+      unregisterExecution(sessionId, turnId);
+      writeRecord({
+        kind: "result",
+        result: {
+          ok: false,
+          error:
+            "Continuation could not establish alive ownership; retry delivery.",
+          events: [],
+        },
+      });
+      res.end();
+      return;
+    }
+  }
+
+  if (continuationAdmission?.role === "leader") {
+    try {
+      // The API settles the durable command and marks this execution running before the harness
+      // can observe the approval. If the callback fails, release the process-local claim and live
+      // registry entry: no engine work started, so redelivery is safe.
+      const admitted = continuationAlreadyAdmitted
+        ? true
+        : await reportContinuationAdmission({
+            commandId: controlCommandId!,
+            sessionId,
+            executionId: turnId,
+          });
+      if (!admitted) {
+        continuationAdmission.release();
+        aliveWatchdog?.abandon();
+        unregisterExecution(sessionId, turnId);
+        writeRecord({
+          kind: "result",
+          result: {
+            ok: true,
+            output: "",
+            stopReason: "control_command_duplicate",
+            events: [],
+            sessionId,
+          },
+        });
+        res.end();
+        return;
+      }
+      continuationAdmission.admit();
+    } catch (error) {
+      continuationAdmission.release();
+      aliveWatchdog?.abandon();
+      unregisterExecution(sessionId, turnId);
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(
+        `[control] continuation admission failed command=${controlCommandId}: ${message}\n`,
+      );
+      writeRecord({
+        kind: "result",
+        result: { ok: false, error: message, events: [] },
+      });
+      res.end();
+      return;
+    }
   }
 
   // For session-owned runs: wrap the live emitter so every event is also persisted
@@ -564,50 +781,27 @@ async function runAndStreamWithApiBaseResolved(
     | undefined;
   let persistTerminal: ((stopReason?: string) => void) | undefined;
   let terminalRecordEmitted = false;
-  let aliveWatchdog:
-    | {
-        release: () => Promise<void>;
-        credential: () => string;
-      }
-    | undefined;
 
   try {
     if (sessionOwned) {
-      // The request's api base (if any) is already scoped for this call via
-      // runWithRequestApiBase in the outer runAndStream — apiBase() below sees it.
-      // The runner authenticates session calls AS the invoke caller (the run credential),
-      // refreshing it for the turn's lifetime — never the admin key. Project scope is
-      // resolved server-side from the credential, so no project_id rides the request.
-      //
-      // onInterrupted (W7.4): a cancel/steer/kill against this session (via
-      // `POST /sessions/streams/` or the runner's own `/kill`) drops this turn's alive lock.
-      // The next heartbeat surfaces that as `is_current_turn: false`; wiring it to
-      // `controller.abort()` is what makes the control-plane signal actually reach this
-      // in-flight run — before this, a session-owned run's controller was never aborted.
-      // Awaited (WP3) so the first heartbeat's stream_id is ready before the turn starts.
-      //
-      // The beat also proposes the two things a headless session otherwise never gets: a name
-      // (no browser ever renders it, and the browser is the only other title writer) and the
-      // run's workflow references (they ride only a fire-and-forget turn append today, so a
-      // dropped append leaves a row the UI cannot open). Both are fill-once server-side.
-      const watchdog = await startAliveWatchdog(
-        sessionId,
-        turnId,
-        platformCredentialForRequest(request),
-        () => {
-          markInterrupted?.(
-            "the platform reported this turn is no longer current (stopped, taken over, or " +
-              "declared lost)",
-          );
-          // LABELLED, not a bare abort: `shouldPark` parks only an abort it can prove was a
-          // cooperative Stop. See `sessions/stop-signal.ts`.
-          controller.abort(USER_STOP_ABORT_REASON);
-        },
-        {
-          name: proposeSessionName(request),
-          references: buildWorkflowReferenceList(request.runContext?.workflow),
-        },
-      );
+    // The request's api base (if any) is already scoped for this call via
+    // runWithRequestApiBase in the outer runAndStream — apiBase() below sees it.
+    // The runner authenticates session calls AS the invoke caller (the run credential),
+    // refreshing it for the turn's lifetime — never the admin key. Project scope is
+    // resolved server-side from the credential, so no project_id rides the request.
+    //
+    // onInterrupted (W7.4): a cancel/steer/kill against this session (via
+    // `POST /sessions/streams/` or the runner's own `/kill`) drops this turn's alive lock.
+    // The next heartbeat surfaces that as `is_current_turn: false`; wiring it to
+    // `controller.abort()` is what makes the control-plane signal actually reach this
+    // in-flight run — before this, a session-owned run's controller was never aborted.
+    // Awaited (WP3) so the first heartbeat's stream_id is ready before the turn starts.
+    //
+    // The beat also proposes the two things a headless session otherwise never gets: a name
+    // (no browser ever renders it, and the browser is the only other title writer) and the
+    // run's workflow references (they ride only a fire-and-forget turn append today, so a
+    // dropped append leaves a row the UI cannot open). Both are fill-once server-side.
+    const watchdog = aliveWatchdog!;
       aliveWatchdog = watchdog;
       // The heartbeat response already carries the session_streams row id — free, no extra
       // round-trip. Thread it onto the request so the engine's turn-append write has it.
@@ -944,11 +1138,7 @@ function parkedSessionControl(
                 keepaliveConfigs[provider].ttlMs,
             ),
           teardown: () =>
-            pool.evictIfCurrent(
-              live,
-              "stop-approval-failed",
-              "failed-turn",
-            ),
+            pool.evictIfCurrent(live, "stop-approval-failed", "failed-turn"),
         });
       },
     };
@@ -1143,11 +1333,7 @@ export function createRequestListener(
               : "",
         };
         if (
-          !holdsSession(
-            cancelProjectId,
-            cancelSessionId,
-            parkedSessionControl,
-          )
+          !holdsSession(cancelProjectId, cancelSessionId, parkedSessionControl)
         ) {
           // 404 is ambiguous on purpose and the API disambiguates it: a `not_held` for a
           // session whose row is alive and beating means the call reached the wrong replica.

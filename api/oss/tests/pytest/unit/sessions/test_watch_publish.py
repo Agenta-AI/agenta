@@ -183,6 +183,44 @@ async def test_publisher_publishes_on_watch_channel():
 
 
 @pytest.mark.asyncio
+async def test_publisher_carries_committed_interaction_resolution():
+    import fakeredis
+
+    redis = fakeredis.FakeAsyncRedis()
+    pubsub = redis.pubsub()
+    project_id = str(uuid4())
+    channel = watch_channel(project_id, "sess-1")
+    await pubsub.subscribe(channel)
+    await pubsub.get_message(timeout=1)
+
+    publisher = SessionsWatchPublisher(redis_client=redis)
+    interaction = {
+        "id": str(uuid4()),
+        "session_id": "sess-1",
+        "turn_id": "turn-1",
+        "token": "approval-1",
+        "kind": "user_approval",
+        "status": "responded",
+        "data": {"resolution": {"verdict": "approved"}},
+    }
+    await publisher.interaction(
+        project_id=project_id,
+        session_id="sess-1",
+        status="resolved",
+        interactions=[interaction],
+    )
+
+    message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
+    assert message is not None
+    assert json.loads(message["data"]) == {
+        "type": "interaction",
+        "session_id": "sess-1",
+        "status": "resolved",
+        "interactions": [interaction],
+    }
+
+
+@pytest.mark.asyncio
 async def test_publisher_swallows_redis_failure():
     broken = AsyncMock()
     broken.publish = AsyncMock(side_effect=ConnectionError("redis gone"))

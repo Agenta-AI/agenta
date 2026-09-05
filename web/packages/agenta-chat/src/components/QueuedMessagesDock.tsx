@@ -217,7 +217,7 @@ const QueuedMessagesDock = ({
                 <Stack size={14} className="shrink-0 text-colorTextTertiary" aria-hidden />
                 <span className="min-w-0 truncate text-[13px] text-colorTextSecondary">
                     {queued.length} queued message{queued.length === 1 ? "" : "s"}
-                    {held ? " · waiting on you" : ""}
+                    {held ? " · waits for your answer" : ""}
                 </span>
                 <span className="flex-1" />
                 {/* Not `CollapseToggleButton`: it carries a tooltip, and a caret in a two-item

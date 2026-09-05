@@ -9,4 +9,9 @@
 export interface SessionInteractionRespondRequest {
     interaction_id: string;
     answer?: Record<string, unknown> | null;
+    answers?: Array<{
+        interaction_id: string;
+        answer: Record<string, unknown>;
+    }> | null;
+    expected_execution_id?: string | null;
 }

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.core.sessions.records.dtos import (
     RECORD_SETTLED_BY_ATTRIBUTE,
+    SETTLED_BY_WATCHDOG,
     SESSION_MESSAGE_PREVIEW_TEXT_LIMIT,
     TERMINAL_RECORD_TYPE,
     SessionMessagePreview,
@@ -520,6 +521,36 @@ class RecordsDAO(RecordsDAOInterface):
             )
             rows = (await session.execute(stmt)).all()
 
+        return {(row.session_id, row.turn_id) for row in rows}
+
+    async def runner_completed_turns(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+    ) -> Set[Tuple[str, str]]:
+        if not keys:
+            return set()
+        async with self.engine.session() as session:
+            stmt = (
+                select(RecordDBE.session_id, RecordDBE.turn_id)
+                .where(
+                    RecordDBE.project_id == project_id,
+                    RecordDBE.record_type == TERMINAL_RECORD_TYPE,
+                    RecordDBE.deleted_at.is_(None),
+                    RecordDBE.quarantined_at.is_(None),
+                    func.coalesce(
+                        RecordDBE.attributes[RECORD_SETTLED_BY_ATTRIBUTE].astext,
+                        "",
+                    )
+                    != SETTLED_BY_WATCHDOG,
+                    func.coalesce(RecordDBE.attributes["stopReason"].astext, "")
+                    != "paused",
+                    tuple_(RecordDBE.session_id, RecordDBE.turn_id).in_(keys),
+                )
+                .distinct()
+            )
+            rows = (await session.execute(stmt)).all()
         return {(row.session_id, row.turn_id) for row in rows}
 
     async def get_event(

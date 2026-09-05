@@ -92,3 +92,12 @@ class RecordsDAOInterface:
         """
 
         raise NotImplementedError
+
+    async def runner_completed_turns(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+    ) -> Set[Tuple[str, str]]:
+        """Turns with an effective, non-paused runner terminal record."""
+        raise NotImplementedError

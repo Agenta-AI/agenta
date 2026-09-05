@@ -108,4 +108,14 @@ describe("shouldProtectRenderedInteraction", () => {
         ]) as SessionInteractionRowStates
         expect(shouldProtectRenderedInteraction([approval], settledRows)).toBe(false)
     })
+
+    it("does not protect a stale desktop card from a terminal server transcript", () => {
+        const finished = {
+            id: "a1",
+            role: "assistant",
+            parts: [{type: "text", text: "finished"}],
+        } as unknown as UIMessage
+
+        expect(shouldProtectRenderedInteraction([approval], pendingRows, [finished])).toBe(false)
+    })
 })

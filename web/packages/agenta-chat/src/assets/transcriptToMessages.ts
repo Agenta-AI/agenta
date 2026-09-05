@@ -66,6 +66,17 @@ interface DraftMessage {
     paused?: boolean
     /** The turn paused for approval and then RESUMED to completion (a second, non-paused `done`). */
     resumed?: boolean
+    /** A non-paused durable `done` closed this turn. */
+    recordTerminal?: boolean
+    /** The durable approval resumed under a separate execution; queue release follows this one. */
+    approvalContinuation?: {
+        sourceExecutionId: string
+        executionId: string
+        state: "running" | "done" | "error"
+        approvalIds: string[]
+    }
+    /** Execution id of the paused approval turn, kept internal while replay associates its resume. */
+    pausedExecutionId?: string
     /** The turn's persisted `error` event — replayed through the same `metadata.runError` channel
      *  the live stream stamps, so a failure renders as the error bubble, not as body text. */
     runError?: string
@@ -122,6 +133,14 @@ const newDraft = (id: string, role: "user" | "assistant"): DraftMessage => ({
     text: new Map(),
     reasoning: new Map(),
 })
+
+const pendingApprovalIds = (draft: DraftMessage): string[] =>
+    draft.parts.flatMap((part) => {
+        const approval = part.approval as {id?: unknown} | undefined
+        return part.state === "approval-requested" && typeof approval?.id === "string"
+            ? [approval.id]
+            : []
+    })
 
 const toolPartType = (name?: string | null): string => (name ? `tool-${name}` : "dynamic-tool")
 
@@ -196,8 +215,8 @@ const isRunnerSentinelError = (part: Part): boolean => {
     )
 }
 
-function settleClientToolPart(part: Part, row: SessionInteractionRowState): void {
-    if (part.state !== "input-available") return
+function settleClientToolPart(part: Part, row: SessionInteractionRowState): boolean {
+    if (part.state !== "input-available") return false
 
     if (row.resolution) {
         if (row.resolution.outcome === "error") {
@@ -213,13 +232,15 @@ function settleClientToolPart(part: Part, row: SessionInteractionRowState): void
                     ? output
                     : {...CLIENT_TOOL_INTERACTION_ENDED_OUTPUT}
         }
-        return
+        return true
     }
 
     if (row.status === "cancelled" || row.status === "responded" || row.status === "resolved") {
         part.state = "output-available"
         part.output = {...CLIENT_TOOL_INTERACTION_ENDED_OUTPUT}
+        return true
     }
+    return false
 }
 
 /**
@@ -230,27 +251,32 @@ function settleClientToolPart(part: Part, row: SessionInteractionRowState): void
  * a dead gate left `approval-requested` holds the message queue forever once the scans that read
  * it cover the whole transcript.
  */
-function settleApprovalPart(part: Part, row: SessionInteractionRowState): void {
-    if (part.state !== "approval-requested") return
+function settleApprovalPart(part: Part, row: SessionInteractionRowState): boolean {
+    if (part.state !== "approval-requested") return false
 
     const verdict = row.resolution?.verdict
     if (verdict === "approved" || verdict === "denied") {
         part.state = "approval-responded"
         part.approval = {id: row.token, approved: verdict === "approved"}
-        return
+        return true
     }
     if (row.status === "cancelled") {
         part.state = "output-denied"
-        return
+        return true
     }
-    if (row.status === "responded" || row.status === "resolved") part.state = "approval-responded"
+    if (row.status === "responded" || row.status === "resolved") {
+        part.state = "approval-responded"
+        return true
+    }
+    return false
 }
 
 function applyInteractionRowStates(
     index: TranscriptIndex,
     interactionRowStates: SessionInteractionRowStates | undefined,
-): void {
-    if (!interactionRowStates || interactionRowStates.size === 0) return
+): boolean {
+    if (!interactionRowStates || interactionRowStates.size === 0) return false
+    let changed = false
     for (const row of interactionRowStates.values()) {
         // Token equality supports rows written before the runner stamped the tool-call id; an
         // approval gate is also indexed under its interaction id, which IS the row token.
@@ -258,10 +284,38 @@ function applyInteractionRowStates(
         const part = index.tools.get(toolCallId) ?? index.approvals.get(row.token)
         if (!part) continue
 
-        if (row.kind === "user_approval") settleApprovalPart(part, row)
+        if (row.kind === "user_approval") changed = settleApprovalPart(part, row) || changed
         else if (row.kind === "client_tool" || row.kind === "user_input")
-            settleClientToolPart(part, row)
+            changed = settleClientToolPart(part, row) || changed
     }
+    return changed
+}
+
+/** Apply row lifecycle changes to an already-rendered transcript without waiting for a record. */
+export function reconcileInteractionRowStates(
+    messages: UIMessage[],
+    interactionRowStates: SessionInteractionRowStates | undefined,
+): UIMessage[] {
+    if (!interactionRowStates || interactionRowStates.size === 0) return messages
+
+    const cloned = messages.map((message) => ({
+        ...message,
+        parts: message.parts.map((part) => ({...part})) as UIMessage["parts"],
+    }))
+    const index: TranscriptIndex = {tools: new Map(), approvals: new Map()}
+    for (const message of cloned) {
+        for (const rawPart of message.parts) {
+            const part = rawPart as Part
+            const toolCallId = part.toolCallId
+            if (typeof toolCallId === "string" && toolCallId) index.tools.set(toolCallId, part)
+            const approval = part.approval as {id?: unknown} | undefined
+            if (typeof approval?.id === "string" && approval.id) {
+                index.approvals.set(approval.id, part)
+            }
+        }
+    }
+
+    return applyInteractionRowStates(index, interactionRowStates) ? cloned : messages
 }
 
 /**
@@ -553,6 +607,11 @@ export function transcriptToMessages(
 ): UIMessage[] | null {
     const drafts: DraftMessage[] = []
     let current: DraftMessage | null = null
+    let latestPaused: DraftMessage | null = null
+    const draftsByExecution = new Map<
+        string,
+        {user?: DraftMessage; assistant?: DraftMessage; hasUser: boolean}
+    >()
     // Paused resumes close the draft, but later answers and results still target its tool part.
     const index: TranscriptIndex = {tools: new Map(), approvals: new Map()}
 
@@ -560,6 +619,7 @@ export function transcriptToMessages(
         const payload = row.payload
         if (!payload || typeof payload !== "object") continue
         const p = payload as Record<string, unknown>
+        const executionId = row.turn_id ?? undefined
         // Speculative trace link (no-op until the backend stamps one) — the id can ride the `done`
         // row too, so read it before the turn closes.
         const traceId = extractTraceId(row, p)
@@ -567,21 +627,33 @@ export function transcriptToMessages(
         // this every turn folds into one assistant bubble; closing the draft here starts a
         // fresh message per turn.
         if (row.session_update === "done" || p.type === "done") {
+            const target: DraftMessage | null =
+                (executionId ? draftsByExecution.get(executionId)?.assistant : undefined) ?? current
             // Last-wins: a paused turn folds into its resume (below), and that turn has two `done`s
             // with two traceIds — prefer the RESUME trace, where the approved tool actually executed.
             // A normal turn has a single `done`, so this is unchanged for it.
-            if (current && traceId) current.traceId = traceId
-            if (current && p.stopReason === "paused") {
+            if (target && traceId) target.traceId = traceId
+            if (target && p.stopReason === "paused") {
                 // Paused mid-approval: the resume turn's records (the re-emitted call, its result,
                 // the follow-up text) belong to the SAME assistant turn the user saw live, so keep
                 // the draft OPEN and let them fold into it instead of splitting into a dangling
                 // "awaiting approval" bubble + a resumed bubble. A paused turn blocks the session,
                 // so it's always followed by its own resume or is the last (abandoned) turn. Mark it
                 // paused for the adoption heuristic; the normal `done` below clears it on resume.
-                current.paused = true
+                target.paused = true
+                target.pausedExecutionId = executionId
+                latestPaused = target
                 continue
             }
             if (p.stopReason === "cancelled") {
+                // A cancelled continuation is still a TERMINAL record for that execution. Settle it
+                // here too, or the durable-continuation hold waits for a `done` that never comes.
+                if (
+                    target?.approvalContinuation &&
+                    target.approvalContinuation.executionId === executionId
+                ) {
+                    target.approvalContinuation.state = "done"
+                }
                 // Keep a carrier so a content-free cancellation can still render Stopped.
                 if (!current || current.role !== "assistant") {
                     current = newDraft(row.id, "assistant")
@@ -596,28 +668,86 @@ export function transcriptToMessages(
                 continue
             }
             // A resumed-then-completed turn is no longer paused.
-            if (current?.paused) current.resumed = true
-            if (current) current.paused = false
-            current = null
+            if (
+                target?.approvalContinuation &&
+                target.approvalContinuation.executionId === executionId
+            ) {
+                target.approvalContinuation.state = "done"
+            }
+            if (target?.paused) target.resumed = true
+            if (target) {
+                target.paused = false
+                target.recordTerminal = true
+            }
+            if (latestPaused === target) latestPaused = null
+            if (current === target) current = null
             continue
         }
         const role = roleOf(row.sender)
-        if (!current || current.role !== role) {
+        if (executionId) {
+            let execution = draftsByExecution.get(executionId)
+            if (!execution) {
+                execution = {hasUser: false}
+                draftsByExecution.set(executionId, execution)
+            }
+            if (role === "user") execution.hasUser = true
+            current = execution[role] ?? null
+            if (!current && role === "assistant" && latestPaused && !execution.hasUser) {
+                current = latestPaused
+                execution.assistant = current
+                if (
+                    latestPaused.pausedExecutionId &&
+                    latestPaused.pausedExecutionId !== executionId
+                ) {
+                    latestPaused.approvalContinuation = {
+                        sourceExecutionId: latestPaused.pausedExecutionId,
+                        executionId,
+                        state: "running",
+                        approvalIds: pendingApprovalIds(latestPaused),
+                    }
+                }
+            }
+            if (!current) {
+                current = newDraft(row.id, role)
+                execution[role] = current
+                drafts.push(current)
+            }
+        } else if (!current || current.role !== role) {
             current = newDraft(row.id, role)
             drafts.push(current)
         }
         if (traceId && !current.traceId) current.traceId = traceId
         applyEvent(current, p, index, row.session_id)
+        if (
+            p.type === "error" &&
+            current.approvalContinuation &&
+            current.approvalContinuation.executionId === executionId
+        ) {
+            current.approvalContinuation.state = "error"
+        }
     }
 
     // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
     applyInteractionRowStates(index, options?.interactionRowStates)
 
     // A resumed turn's remaining approval gate was answered even when its response row is absent.
+    // A continuation turn proves the same thing: the runner emits no records under its new
+    // execution before the durable answer owns it, so an observer retires the card on the first
+    // continuation frame instead of waiting for that optional event or `done`.
     for (const d of drafts) {
-        if (!d.resumed) continue
+        if (!d.resumed && !d.approvalContinuation) continue
+        const continuationApprovalIds = d.approvalContinuation
+            ? new Set(d.approvalContinuation.approvalIds)
+            : null
         for (const part of d.parts) {
-            if (part.state === "approval-requested") part.state = "approval-responded"
+            const approval = part.approval as {id?: unknown} | undefined
+            if (
+                part.state === "approval-requested" &&
+                (!continuationApprovalIds ||
+                    (typeof approval?.id === "string" && continuationApprovalIds.has(approval.id)))
+            ) {
+                part.state = "approval-responded"
+            }
         }
     }
 
@@ -633,6 +763,8 @@ export function transcriptToMessages(
             if (d.usage) metadata.usage = d.usage
             if (d.paused) metadata.paused = true
             if (d.runStopped) metadata.runStopped = true
+            if (d.recordTerminal) metadata.recordTerminal = true
+            if (d.approvalContinuation) metadata.approvalContinuation = d.approvalContinuation
             if (d.runError && !d.runStopped)
                 metadata.runError = {
                     message: d.runError,

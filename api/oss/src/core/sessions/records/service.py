@@ -79,9 +79,10 @@ class RecordsService:
             return []
 
         guarded = await self._handle_late_events(events=events)
-        appended = await self.records_dao.append_many(events=guarded)
+        records = await self.records_dao.append_many(events=guarded)
+        await self._settle_completed_continuations(records=records)
         await self._mark_endings_written(events=guarded)
-        return appended
+        return records
 
     async def _mark_endings_written(
         self,
@@ -113,6 +114,69 @@ class RecordsService:
                 log.warning(
                     "[RECORDS] Execution ending marker update failed; record remains appended",
                     project_id=str(project_id),
+                    exc_info=True,
+                )
+
+    async def _settle_completed_continuations(
+        self,
+        *,
+        records: List[SessionRecord],
+    ) -> None:
+        """Make a runner's durable ending the continuation's durable outcome.
+
+        The runner flushes its terminal record before releasing its heartbeat. Without this
+        bridge, an admitted continuation remained ``running`` forever; once its heartbeat went
+        stale, recovery could replay work that had already completed. Only an effective runner
+        ending qualifies: paused turns remain continuable, watchdog endings are not successful
+        completion, and quarantined late endings already lost the Stop/watchdog race.
+
+        Record persistence is the source of truth and happened immediately above. Settlement is
+        best effort here because records and executions use different database engines; the
+        watchdog repeats the reconciliation before it collapses stale ownership.
+        """
+        if self.executions_dao is None or not env.agenta.sessions.durable_approvals:
+            return
+
+        candidates = {
+            (record.project_id, record.session_id, record.turn_id)
+            for record in records
+            if record.record_type == TERMINAL_RECORD_TYPE
+            and record.turn_id
+            and record.quarantined_at is None
+            and (record.attributes or {}).get(RECORD_SETTLED_BY_ATTRIBUTE)
+            != SETTLED_BY_WATCHDOG
+            and (record.attributes or {}).get("stopReason")
+            not in ("paused", "cancelled")
+        }
+        for project_id, session_id, execution_id in candidates:
+            try:
+                execution = await self.executions_dao.fetch_execution(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=execution_id,
+                )
+                if (
+                    execution is None
+                    or (
+                        execution.source_interaction_id is None
+                        and execution.parent_execution_id is None
+                    )
+                    or execution.terminal_outcome is not None
+                ):
+                    continue
+                await self.executions_dao.settle(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=execution_id,
+                    terminal_outcome="completed",
+                    settled_by="runner",
+                )
+            except Exception:
+                log.warning(
+                    "[RECORDS] Continuation completion settlement failed",
+                    project_id=str(project_id),
+                    session_id=session_id,
+                    turn_id=execution_id,
                     exc_info=True,
                 )
 
@@ -380,4 +444,15 @@ class RecordsService:
             project_id=project_id,
             keys=keys,
             settled_by=settled_by,
+        )
+
+    async def runner_completed_turns(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+    ) -> Set[Tuple[str, str]]:
+        return await self.records_dao.runner_completed_turns(
+            project_id=project_id,
+            keys=keys,
         )

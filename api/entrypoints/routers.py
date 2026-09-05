@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 import asyncio
 import time
+from uuid import UUID
 
 import agenta as ag
 from fastapi import FastAPI
@@ -868,11 +869,12 @@ triggers_service = TriggersService(
 
 # Detached workflow start: hand the run to the runner and return on the started handshake
 # (no awaiting the run). Shared by both detached consumers (triggers + interactions respond).
-async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
+async def _dispatch_detached_run(*, project_id, user_id, request, run_id=None) -> str:
     result = await workflows_service.invoke_workflow_detached(
         project_id=project_id,
         user_id=user_id,
         request=request,
+        run_id=run_id,
     )
     return result.run_id
 
@@ -891,6 +893,10 @@ _interactions_dispatcher = InteractionsDispatcher(
     workflows_service=workflows_service,
     interactions_service=interactions_service,
     records_service=records_service,
+    # Read-only: the resume's reference fallback, for a gate row whose own `data.references` is
+    # empty. Without it the invoke has nothing to resolve a service URL from.
+    turns_service=session_turns_service,
+    streams_service=session_streams_service,
     dispatch_fn=_dispatch_detached_run,
 )
 
@@ -1148,8 +1154,22 @@ session_commands_service = SessionCommandsService(
     streams_service=session_streams_service,
     interactions_service=interactions_service,
     lock_engine=_lock_engine,
-    delivery=DirectControlDelivery(),
+    delivery=DirectControlDelivery(
+        continue_interaction=lambda command: _interactions_dispatcher.respond_many(
+            project_id=command.project_id,
+            user_id=command.created_by_id,
+            interaction_answers=[
+                (UUID(item["interaction_id"]), item["answer"])
+                for item in command.data["answers"]
+            ],
+            control_command_id=command.id,
+            continuation_execution_id=command.target_turn_id,
+        )
+    ),
     executions_dao=session_executions_dao,
+)
+workflows_service.set_session_continuation_resumer(
+    session_commands_service.resume_recoverable_continuation
 )
 
 sessions = SessionsRouter(

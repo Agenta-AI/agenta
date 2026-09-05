@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Optional, List, Union, TYPE_CHECKING
+from typing import Any, Awaitable, Callable, Dict, Optional, List, Union, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import httpx
@@ -277,6 +277,31 @@ class WorkflowsService:
         self.embeds_service = embeds_service
         self.static_catalog = static_catalog
         self._watch = watch_publisher
+        self._session_continuation_resumer: Optional[Callable[..., Awaitable[bool]]] = (
+            None
+        )
+
+    def set_session_continuation_resumer(
+        self, callback: Callable[..., Awaitable[bool]]
+    ) -> None:
+        self._session_continuation_resumer = callback
+
+    async def _resume_pending_session_continuation(
+        self, *, project_id: UUID, request: WorkflowServiceRequest
+    ) -> bool:
+        session_id = request.session_id
+        meta = request.meta or {}
+        if (
+            not env.agenta.sessions.durable_approvals
+            or not session_id
+            or meta.get("control_command_id")
+            or self._session_continuation_resumer is None
+        ):
+            return False
+        return await self._session_continuation_resumer(
+            project_id=project_id,
+            session_id=session_id,
+        )
 
     @staticmethod
     def _artifact_cache_key(artifact_id: UUID) -> str:
@@ -727,15 +752,21 @@ class WorkflowsService:
         credentials: str,
         payload: dict,
         run_id: str,
+        strict_first_record: bool = False,
     ) -> WorkflowServiceDetachedResponse:
         """Stream the service ``/invoke`` and return on the FIRST record (the started handshake).
 
-        The runner emits NDJSON ``{"kind": "event"|"result", ...}`` records the moment each is
-        built; the first one means the run is accepted and owned (the alive-held handshake). We
-        return then and close the connection — the runner owns the run (alive watchdog) and
-        persists independently (producer-driven ingest), so draining to completion is unnecessary.
-        The read timeout is generous (sandbox cold-start can take seconds); we are NOT awaiting
-        the whole run, so it is not the batch 60s-whole-run budget.
+        The deployed workflow service emits one NDJSON record the moment each is built; the first
+        one means the run is accepted and owned (the alive-held handshake). We return then and
+        close the connection — the runner owns the run (alive watchdog) and persists independently
+        (producer-driven ingest), so draining to completion is unnecessary. The read timeout is
+        generous (sandbox cold-start can take seconds); we are NOT awaiting the whole run, so it
+        is not the batch 60s-whole-run budget.
+
+        ``strict_first_record`` (a durable control command) surfaces an explicit failure frame
+        instead of reporting it as a start. It does NOT require a particular record shape: see
+        ``_detached_start_failure`` for why the two producers on this stream disagree about the
+        vocabulary, and why anything unrecognised is a start.
         """
         headers = inject(
             {
@@ -777,8 +808,22 @@ class WorkflowsService:
                     # exiting the context closes the connection (run keeps going on the runner).
                     try:
                         record = json.loads(line)
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as error:
+                        if strict_first_record:
+                            raise WorkflowDetachedStartFailed(
+                                "Workflow service emitted malformed NDJSON before detached start."
+                            ) from error
                         record = None
+                    if strict_first_record and not isinstance(record, dict):
+                        raise WorkflowDetachedStartFailed(
+                            "Workflow service emitted a non-object record before detached start."
+                        )
+                    if strict_first_record and isinstance(record, dict):
+                        failure = WorkflowsService._detached_start_failure(record)
+                        if failure is not None:
+                            raise WorkflowDetachedStartFailed(
+                                f"Workflow service rejected detached start: {failure}"
+                            )
                     record_run_id = (
                         record.get("run_id") if isinstance(record, dict) else None
                     )
@@ -793,6 +838,48 @@ class WorkflowsService:
         raise WorkflowDetachedStartFailed(
             "Workflow service closed the stream before emitting a started record."
         )
+
+    @staticmethod
+    def _detached_start_failure(record: dict) -> Optional[str]:
+        """Read an explicit failure out of the FIRST record, in either wire vocabulary.
+
+        Two producers can answer this stream and they do not share a vocabulary.
+
+        * The deployed workflow SERVICE is the ordinary case. It streams agenta event frames,
+          ``{"type": ..., "data": {...}}``, and its failure frame is ``{"type": "error"}``. There
+          is no ``kind`` anywhere on that wire.
+        * The agent RUNNER's own NDJSON, ``{"kind": "event"|"result"}``, reaches this parser only
+          where a deployment forwards the runner stream verbatim. Its failure is a terminal
+          ``{"kind": "result", "result": {"ok": false}}``.
+
+        Everything else is the started handshake. Rejecting an unrecognised record instead is what
+        made EVERY durable continuation report `unreachable` while the runner was in fact already
+        running the turn: the service's first frame carries ``type``, never ``kind``.
+
+        A runner that refuses a continuation outright never reaches here at all. The SDK turns its
+        ``ok: false`` result into an exception inside the already-committed ASGI response, so the
+        service closes the stream having written nothing, and the caller raises the
+        "closed the stream" failure above.
+        """
+        if record.get("kind") == "result":
+            result = record.get("result")
+            if isinstance(result, dict) and result.get("ok") is True:
+                return None
+            detail = (
+                result.get("error")
+                if isinstance(result, dict)
+                else "malformed result record"
+            )
+            return str(detail or "the runner rejected the run")
+
+        if record.get("type") == "error":
+            data = record.get("data")
+            message = data.get("message") if isinstance(data, dict) else None
+            code = data.get("code") if isinstance(data, dict) else None
+            detail = str(message or "the service reported an error")
+            return f"{detail} ({code})" if code else detail
+
+        return None
 
     @staticmethod
     def _coerce_invoke_response(
@@ -2875,6 +2962,19 @@ class WorkflowsService:
         WorkflowServiceBatchResponse,
         WorkflowServiceStreamResponse,
     ]:
+        if await self._resume_pending_session_continuation(
+            project_id=project_id, request=request
+        ):
+            return WorkflowServiceBatchResponse(
+                status=WorkflowServiceStatus(
+                    type="https://agenta.ai/docs/errors#continuation-resumed",
+                    code=409,
+                    message=(
+                        "A durable approval continuation already owns this session; "
+                        "it was redelivered instead of starting a competing turn."
+                    ),
+                )
+            )
         credentials, service_url = await self._prepare_invoke(
             project_id=project_id,
             user_id=user_id,
@@ -2949,6 +3049,7 @@ class WorkflowsService:
                 exclude_none=True,
             ),
             run_id=run_id,
+            strict_first_record=bool(meta.get("control_command_id")),
         )
 
     async def inspect_workflow(

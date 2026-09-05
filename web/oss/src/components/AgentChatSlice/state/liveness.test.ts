@@ -39,6 +39,25 @@ describe("isRunningElsewhere", () => {
         }
     })
 
+    it("hides an owned continuation in the answering tab but shows it in an observer", () => {
+        const continuationPoll = {isRunning: true, livenessUpdatedAt: 16_000} as const
+
+        expect(
+            isRunningElsewhere({
+                ...continuationPoll,
+                localStatus: "running",
+                localSettledAt: undefined,
+            }),
+        ).toBe(false)
+        expect(
+            isRunningElsewhere({
+                ...continuationPoll,
+                localStatus: "idle",
+                localSettledAt: undefined,
+            }),
+        ).toBe(true)
+    })
+
     it("distrusts stale liveness after a local error", () => {
         expect(
             isRunningElsewhere({

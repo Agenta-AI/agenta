@@ -19,11 +19,14 @@ export {
     querySessions,
     setSessionHeader,
     fetchSessionStream,
+    fetchSessionDurableApprovalsCapability,
+    invalidateSessionDurableApprovalsCapability,
     commandSessionStream,
     cancelSessionExecution,
     cancelSessionStream,
     type CancelSessionOutcome,
     type CancelSessionStreamParams,
+    resumeSessionContinuation,
     killSession,
     deleteSession as deleteSessionRemote,
     archiveSession as archiveSessionRemote,
@@ -47,6 +50,7 @@ export {
     type CommandSessionStreamParams,
     type CancelSessionExecutionParams,
     type CancelSessionExecutionResult,
+    type ResumeSessionContinuationParams,
 } from "./api/api"
 export {
     getSessionsClient,
@@ -137,11 +141,19 @@ export {
 export {
     fetchSessionInteractionStatesAtom,
     hasWaitingInteraction,
+    interactionStatesFromRows,
+    interactionStatesFromWatchEvent,
     revalidateSessionInteractionsAtom,
     type SessionInteractionRowState,
     type SessionInteractionRowStates,
 } from "./state/interactionStatus"
-export {recordInteractionAnswerAtom} from "./state/interactionAnswer"
+export {
+    recordInteractionAnswerAtom,
+    respondInteractionAnswerAtom,
+    respondInteractionAnswersAtom,
+    resumeSessionContinuationAtom,
+    sessionDurableApprovalsCapabilityAtom,
+} from "./state/interactionAnswer"
 export {
     sessionMountsQueryFamily,
     mountFilesQueryFamily,

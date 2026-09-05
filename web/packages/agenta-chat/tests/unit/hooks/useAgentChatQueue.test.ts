@@ -32,21 +32,49 @@ const assistantAwaitingApproval = (id: string): UIMessage =>
         ],
     }) as unknown as UIMessage
 
+const assistantContinuation = (id: string, state: "running" | "done" | "error"): UIMessage =>
+    ({
+        ...assistantAwaitingApproval(id),
+        metadata: {
+            ...(state === "done" ? {recordTerminal: true} : {}),
+            approvalContinuation: {
+                sourceExecutionId: `${id}-source-execution`,
+                executionId: `${id}-continuation-execution`,
+                state,
+                approvalIds: [`${id}-approval`],
+            },
+        },
+        parts: [
+            {
+                type: "tool-send_email",
+                state: "approval-responded",
+                toolCallId: `${id}-call`,
+                input: {to: "a@b.c"},
+                approval: {id: `${id}-approval`, approved: true},
+            },
+        ],
+    }) as unknown as UIMessage
+
 interface HarnessProps {
     status: string
     messages: UIMessage[]
     stopped: boolean
     acceptedRunPending?: boolean
     resumeOrphaned?: boolean
+    recoverable?: boolean
     sessionId?: string
 }
 
 const setup = (initial: HarnessProps) => {
     const sendQueued = vi.fn()
-    const view = renderHook((props: HarnessProps) => useAgentChatQueue({...props, sendQueued}), {
-        initialProps: initial,
-    })
-    return {sendQueued, ...view}
+    const markRunOwned = vi.fn()
+    const retryContinuation = vi.fn(() => Promise.resolve(true))
+    const view = renderHook(
+        (props: HarnessProps) =>
+            useAgentChatQueue({...props, markRunOwned, sendQueued, retryContinuation}),
+        {initialProps: initial},
+    )
+    return {markRunOwned, sendQueued, retryContinuation, ...view}
 }
 
 const settledEmpty: HarnessProps = {status: "ready", messages: [], stopped: false}
@@ -140,6 +168,24 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued.map((m) => m.text)).toEqual(["while paused"])
     })
 
+    it("keeps a recoverable Send visible and retries the saved continuation", () => {
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+            recoverable: true,
+        }
+        const {result, sendQueued, retryContinuation} = setup(paused)
+
+        act(() => result.current.submit({text: "send after the approval"}))
+
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(retryContinuation).toHaveBeenCalledOnce()
+        expect(result.current.queued.map((message) => message.text)).toEqual([
+            "send after the approval",
+        ])
+    })
+
     it("releases a held message once the approval gate resolves", () => {
         const paused: HarnessProps = {
             status: "ready",
@@ -156,6 +202,56 @@ describe("useAgentChatQueue", () => {
         expect(sendQueued).toHaveBeenCalledTimes(1)
         expect(sendQueued.mock.calls[0][0]).toMatchObject({text: "held"})
         expect(result.current.queued).toHaveLength(0)
+    })
+
+    it("marks a released send as locally owned before dispatching it", () => {
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+        }
+        const {result, rerender, markRunOwned, sendQueued} = setup(paused)
+        act(() => result.current.submit({text: "held during the continuation"}))
+
+        rerender({...paused, messages: [userTurn("u1", "go"), assistantText("a2", "done")]})
+
+        expect(markRunOwned).toHaveBeenCalledOnce()
+        expect(sendQueued).toHaveBeenCalledOnce()
+        expect(markRunOwned.mock.invocationCallOrder[0]).toBeLessThan(
+            sendQueued.mock.invocationCallOrder[0],
+        )
+    })
+
+    it("holds through a different continuation execution and drains once after its terminal", () => {
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+        }
+        const {result, rerender, sendQueued} = setup(paused)
+        act(() => result.current.submit({text: "after continuation"}))
+
+        rerender({
+            ...paused,
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "running")],
+        })
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued).toHaveLength(1)
+
+        rerender({
+            ...paused,
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "done")],
+        })
+
+        expect(sendQueued).toHaveBeenCalledOnce()
+        expect(sendQueued.mock.calls[0][0]).toMatchObject({text: "after continuation"})
+        expect(result.current.queued).toHaveLength(0)
+
+        rerender({
+            ...paused,
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "done")],
+        })
+        expect(sendQueued).toHaveBeenCalledOnce()
     })
 
     it("a user stop voids the HITL hold: settled sends go immediately and hitlPending clears", () => {

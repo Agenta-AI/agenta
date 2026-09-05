@@ -2,6 +2,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     deriveMobileRemoteTurnPresentation,
+    showRunningElsewhere,
     showTrailingWorkingPulse,
 } from "@/features/chat/turnStatus"
 
@@ -83,5 +84,19 @@ describe("deriveMobileRemoteTurnPresentation", () => {
                 readerReady: true,
             }).showStrip,
         ).toBe(false)
+    })
+})
+
+describe("showRunningElsewhere", () => {
+    it("hides the strip for the tab that owns a detached continuation", () => {
+        expect(showRunningElsewhere({running: true, localStatus: "running"})).toBe(false)
+    })
+
+    it("shows the strip for an idle observer of the same backend run", () => {
+        expect(showRunningElsewhere({running: true, localStatus: "idle"})).toBe(true)
+    })
+
+    it("keeps a locally parked gate from being labeled remote", () => {
+        expect(showRunningElsewhere({running: true, localStatus: "awaiting"})).toBe(false)
     })
 })

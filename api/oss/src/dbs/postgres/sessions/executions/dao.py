@@ -2,10 +2,11 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
-from sqlalchemy import and_, literal_column, or_, select, tuple_, update as sa_update
+from sqlalchemy import and_, or_, select, tuple_, update as sa_update
 from sqlalchemy.dialects.postgresql import insert
 
 from oss.src.core.sessions.executions.dtos import (
+    SessionExecutionState,
     SessionExecutionSettlement,
     SessionExecutionSettlementResult,
 )
@@ -22,6 +23,10 @@ def _to_dto(row: SessionExecutionDBE) -> SessionExecutionSettlement:
         project_id=row.project_id,
         session_id=row.session_id,
         execution_id=row.execution_id,
+        state=SessionExecutionState(row.state),
+        parent_execution_id=row.parent_execution_id,
+        source_interaction_id=row.source_interaction_id,
+        error=row.error,
         terminal_outcome=row.terminal_outcome,
         settled_by=row.settled_by,
         settled_at=row.settled_at,
@@ -33,6 +38,124 @@ def _to_dto(row: SessionExecutionDBE) -> SessionExecutionSettlement:
 class SessionExecutionsDAO(SessionExecutionsDAOInterface):
     def __init__(self, engine: Optional[TransactionsEngine] = None):
         self.engine = engine or get_transactions_engine()
+
+    async def fetch_execution(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        transaction: Optional[Any] = None,
+    ) -> Optional[SessionExecutionSettlement]:
+        async def execute(session: Any) -> Optional[SessionExecutionSettlement]:
+            row = (
+                await session.execute(
+                    select(SessionExecutionDBE).where(
+                        SessionExecutionDBE.project_id == project_id,
+                        SessionExecutionDBE.session_id == session_id,
+                        SessionExecutionDBE.execution_id == execution_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            return _to_dto(row) if row is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
+
+    async def lock_for_control(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        transaction: Any,
+    ) -> SessionExecutionSettlement:
+        await transaction.execute(
+            insert(SessionExecutionDBE)
+            .values(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+                state=SessionExecutionState.active.value,
+            )
+            .on_conflict_do_nothing(
+                index_elements=["project_id", "session_id", "execution_id"]
+            )
+        )
+        row = (
+            await transaction.execute(
+                select(SessionExecutionDBE)
+                .where(
+                    SessionExecutionDBE.project_id == project_id,
+                    SessionExecutionDBE.session_id == session_id,
+                    SessionExecutionDBE.execution_id == execution_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one()
+        return _to_dto(row)
+
+    async def create_continuation(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        parent_execution_id: str,
+        source_interaction_id: Optional[UUID],
+        transaction: Any,
+    ) -> SessionExecutionSettlement:
+        row = SessionExecutionDBE(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+            state=SessionExecutionState.pending_delivery.value,
+            parent_execution_id=parent_execution_id,
+            source_interaction_id=source_interaction_id,
+        )
+        transaction.add(row)
+        await transaction.flush()
+        return _to_dto(row)
+
+    async def set_state(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        state: SessionExecutionState,
+        error: Optional[dict] = None,
+        expected_states: Optional[Sequence[SessionExecutionState]] = None,
+        transaction: Optional[Any] = None,
+    ) -> Optional[SessionExecutionSettlement]:
+        async def execute(session: Any) -> Optional[SessionExecutionSettlement]:
+            stmt = sa_update(SessionExecutionDBE).where(
+                SessionExecutionDBE.project_id == project_id,
+                SessionExecutionDBE.session_id == session_id,
+                SessionExecutionDBE.execution_id == execution_id,
+                SessionExecutionDBE.terminal_outcome.is_(None),
+            )
+            if expected_states is not None:
+                stmt = stmt.where(
+                    SessionExecutionDBE.state.in_(
+                        [expected.value for expected in expected_states]
+                    )
+                )
+            row = (
+                await session.execute(
+                    stmt.values(state=state.value, error=error).returning(
+                        SessionExecutionDBE
+                    )
+                )
+            ).scalar_one_or_none()
+            return _to_dto(row) if row is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def settle(
         self,
@@ -46,29 +169,34 @@ class SessionExecutionsDAO(SessionExecutionsDAOInterface):
         transaction: Optional[Any] = None,
     ) -> SessionExecutionSettlementResult:
         settled_at = settled_at or datetime.now(timezone.utc)
-        stmt = (
-            insert(SessionExecutionDBE)
-            .values(
+
+        async def execute(session: Any) -> SessionExecutionSettlementResult:
+            stored = await self.lock_for_control(
                 project_id=project_id,
                 session_id=session_id,
                 execution_id=execution_id,
-                terminal_outcome=terminal_outcome,
-                settled_by=settled_by,
-                settled_at=settled_at,
+                transaction=session,
             )
-            .on_conflict_do_update(
-                index_elements=["project_id", "session_id", "execution_id"],
-                set_={"terminal_outcome": SessionExecutionDBE.terminal_outcome},
-            )
-            .returning(
-                SessionExecutionDBE,
-                literal_column("xmax = 0").label("won"),
-            )
-        )
-
-        async def execute(session: Any) -> SessionExecutionSettlementResult:
-            stored, won = (await session.execute(stmt)).one()
-            return SessionExecutionSettlementResult(settlement=_to_dto(stored), won=won)
+            if stored.terminal_outcome is not None:
+                return SessionExecutionSettlementResult(settlement=stored, won=False)
+            row = (
+                await session.execute(
+                    sa_update(SessionExecutionDBE)
+                    .where(
+                        SessionExecutionDBE.project_id == project_id,
+                        SessionExecutionDBE.session_id == session_id,
+                        SessionExecutionDBE.execution_id == execution_id,
+                    )
+                    .values(
+                        state=SessionExecutionState.terminal.value,
+                        terminal_outcome=terminal_outcome,
+                        settled_by=settled_by,
+                        settled_at=settled_at,
+                    )
+                    .returning(SessionExecutionDBE)
+                )
+            ).scalar_one()
+            return SessionExecutionSettlementResult(settlement=_to_dto(row), won=True)
 
         if transaction is not None:
             return await execute(transaction)
@@ -97,6 +225,7 @@ class SessionExecutionsDAO(SessionExecutionsDAOInterface):
                 await session.execute(
                     select(SessionExecutionDBE).where(
                         SessionExecutionDBE.project_id == project_id,
+                        SessionExecutionDBE.terminal_outcome.is_not(None),
                         key_filter,
                     )
                 )

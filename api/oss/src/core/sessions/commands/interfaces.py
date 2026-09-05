@@ -42,9 +42,12 @@ class DeliveryReceipt(BaseModel):
       settlement sweep recovers it.
     * `not_held` — a reachable runner said it does not hold that session, which lets the
       service settle at once instead of waiting for the deadline.
+    * `exhausted` — the bounded delivery budget is spent, so the transport was never called.
+      Nothing retries the command on its own after this, which is why it is not `unreachable`:
+      the caller must tell the user the truth rather than promise a redelivery.
     """
 
-    status: str  # "accepted" | "unreachable" | "not_held"
+    status: str  # "accepted" | "unreachable" | "not_held" | "exhausted"
     detail: Optional[str] = None
     # Which runner process took it, when the transport learned that. The service uses it as the
     # claim owner, so the outcome route's guard reads the same way on every transport.
@@ -80,9 +83,21 @@ class SessionCommandsDAOInterface(ABC):
         user_id: Optional[UUID],
         command: SessionCommandCreate,
         stopping_turn_id: Optional[str] = None,
+        transaction: Optional[Any] = None,
     ) -> SessionCommand:
         """Insert one command and, in the SAME transaction, stamp the session row's
         `stopping_turn_id`. Idempotent on `(project_id, session_id, idempotency_key)`."""
+
+    @abstractmethod
+    async def fetch_by_idempotency_key(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        idempotency_key: str,
+        transaction: Optional[Any] = None,
+    ) -> Optional[SessionCommand]:
+        """The command previously created for this session-scoped retry key."""
 
     @abstractmethod
     async def create_command_with_status(
@@ -95,16 +110,6 @@ class SessionCommandsDAOInterface(ABC):
         """Create a command and report whether this call inserted it."""
 
     @abstractmethod
-    async def fetch_by_idempotency_key(
-        self,
-        *,
-        project_id: UUID,
-        session_id: str,
-        idempotency_key: str,
-    ) -> Optional[SessionCommand]:
-        """The command previously created for this session-scoped retry key."""
-
-    @abstractmethod
     async def fetch_open_command(
         self,
         *,
@@ -112,9 +117,31 @@ class SessionCommandsDAOInterface(ABC):
         session_id: str,
         kind: SessionCommandKind,
         target_turn_id: Optional[str],
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
         """The open (`pending` or `claimed`) command for this exact target, if one exists.
         This is what collapses two Stops in a row onto one command."""
+
+    async def fetch_resumable_continuation(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[SessionCommand]:
+        """The continuation whose open/recoverable execution owns the next turn."""
+        raise NotImplementedError
+
+    async def reopen_continuation(
+        self,
+        *,
+        project_id: UUID,
+        command_id: UUID,
+        target_turn_id: str,
+        replacement_turn_id: str,
+        transaction: Optional[Any] = None,
+    ) -> Optional[SessionCommand]:
+        """Atomically retarget an exhausted continuation to a fresh execution attempt."""
+        raise NotImplementedError
 
     @abstractmethod
     async def fetch_command(

@@ -82,7 +82,16 @@ export const parseAgentRunError = (err: unknown, serverErrorProvenance = false):
                   ? (obj.message as string)
                   : null
         if (message) {
-            return {message, code: typeof status?.code === "number" ? status.code : undefined}
+            const type = typeof status?.type === "string" ? status.type : undefined
+            const code = type?.endsWith("#continuation-resumed")
+                ? "continuation_resumed"
+                : typeof status?.code === "number" || typeof status?.code === "string"
+                  ? status.code
+                  : undefined
+            return {
+                message,
+                code,
+            }
         }
     } catch {
         // raw isn't JSON — it's already the human message.

@@ -82,6 +82,7 @@ from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.commands.types import (
     ExecutionExpectationFailed,
     SessionCommandIdempotencyConflict,
+    InteractionResponseConflict,
     SessionCommandNotClaimable,
     SessionCommandNotFound,
 )
@@ -90,6 +91,7 @@ from oss.src.core.sessions.records.dtos import (
     MAX_LIVE_FRAME_BYTES,
     SessionLiveFrame,
     SessionRecordEvent,
+    TERMINAL_RECORD_TYPE,
 )
 from oss.src.core.sessions.records.streaming import publish_live_frame, publish_record
 from oss.src.core.sessions.interactions.dtos import (
@@ -100,6 +102,7 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionTransition,
 )
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.interactions.references import resolve_interaction_references
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.attachments.dtos import Attachment
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
@@ -147,11 +150,13 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionCommandSettlement,
     SessionControlOutcomeRequest,
     SessionControlOutcomeResponse,
+    SessionContinuationResumeResponse,
     SessionExecutionRef,
     # streams
     SessionDetachRequest,
     SessionStreamQueryRequest,
     SessionStreamResponse,
+    SessionCapabilities,
     SessionStreamsResponse,
     # records
     SessionRecordIngestBody,
@@ -166,6 +171,8 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionInteractionCreateRequest,
     SessionInteractionQueryRequest,
     SessionInteractionRespondRequest,
+    SessionInteractionContinuationExecution,
+    SessionInteractionContinuationResponse,
     SessionInteractionResolution,
     SessionInteractionResponse,
     SessionInteractionsResponse,
@@ -201,6 +208,19 @@ _MAX_IDEMPOTENCY_KEY_CHARACTERS = 255
 
 # matches the streams contract allowlist (dbs/redis/sessions/contract.py)
 _SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
+
+
+def _idempotency_key_too_long_response() -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "code": "validation_error",
+            "message": "Idempotency-Key is too long.",
+            "retryable": False,
+            "details": {"field": "Idempotency-Key", "reason": "too_long"},
+            "next_step": "Use an Idempotency-Key of at most 255 characters.",
+        },
+    )
 
 
 def _validate_session_id_http(session_id: str) -> None:
@@ -498,7 +518,12 @@ class SessionStreamsRouter:
             project_id=UUID(str(project_id)),
             session_id=session_id,
         )
-        return SessionStreamResponse(stream=sanitize_session_stream(stream))
+        return SessionStreamResponse(
+            stream=sanitize_session_stream(stream),
+            capabilities=SessionCapabilities(
+                durable_approvals=env.agenta.sessions.durable_approvals
+            ),
+        )
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -810,8 +835,13 @@ class SessionStreamsRouter:
 class RecordsRouter:
     """Records sub-router — /sessions/records/*"""
 
-    def __init__(self, records_service: RecordsService):
+    def __init__(
+        self,
+        records_service: RecordsService,
+        commands_service: Optional[SessionCommandsService] = None,
+    ):
         self.records_service = records_service
+        self.commands_service = commands_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -992,7 +1022,24 @@ class RecordsRouter:
             return {"ok": True}
 
         assert not isinstance(body, list)
-        await publish_record(
+        # For a finished continuation, commit the core execution outcome before accepting its
+        # terminal record into the asynchronous tracing stream. This closes the cross-database
+        # window where the watchdog could see no `done`, expose recovery, and replay work that
+        # had already finished while the records worker was still settling core state.
+        if (
+            env.agenta.sessions.durable_approvals
+            and self.commands_service is not None
+            and body.record_type == TERMINAL_RECORD_TYPE
+            and body.turn_id
+            and (body.attributes or {}).get("stopReason") not in ("paused", "cancelled")
+        ):
+            await self.commands_service.settle_execution_completed(
+                project_id=UUID(project_id),
+                session_id=body.session_id,
+                execution_id=body.turn_id,
+            )
+
+        published = await publish_record(
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(project_id),
             record_event=SessionRecordEvent(
@@ -1008,6 +1055,11 @@ class RecordsRouter:
                 span_id=body.span_id,
             ),
         )
+        if not published:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Record ingestion is temporarily unavailable.",
+            )
         return {"ok": True}
 
 
@@ -1024,11 +1076,17 @@ class InteractionsRouter:
         # import the tasks layer). When present, the no-worker respond fallback goes through
         # it so both paths share ONE answer-composition implementation.
         interactions_dispatcher: Optional[Any] = None,
+        commands_service: Optional[SessionCommandsService] = None,
+        turns_service: Optional[SessionTurnsService] = None,
+        streams_service: Optional[SessionStreamsService] = None,
     ) -> None:
         self.interactions_service = interactions_service
         self.workflows_service = workflows_service
         self.respond_task = respond_task
         self.interactions_dispatcher = interactions_dispatcher
+        self.commands_service = commands_service
+        self.turns_service = turns_service
+        self.streams_service = streams_service
 
         self.router = APIRouter()
 
@@ -1259,7 +1317,7 @@ class InteractionsRouter:
         request: Request,
         interaction_id: UUID,
         body: SessionInteractionRespondRequest,
-    ) -> SessionInteractionResponse:
+    ) -> Any:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
@@ -1270,6 +1328,116 @@ class InteractionsRouter:
         )
         if not authorized:
             raise FORBIDDEN_EXCEPTION
+
+        if body.answers is not None and interaction_id not in {
+            item.interaction_id for item in body.answers
+        }:
+            return JSONResponse(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                content={
+                    "code": "validation_error",
+                    "message": "The path interaction must be included in answers.",
+                    "retryable": False,
+                    "details": {"field": "answers", "reason": "anchor_missing"},
+                },
+            )
+
+        if env.agenta.sessions.durable_approvals and self.commands_service is not None:
+            idempotency_key = (request.headers.get("Idempotency-Key") or "").strip()
+            if not idempotency_key:
+                return JSONResponse(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    content={
+                        "code": "validation_error",
+                        "message": "Idempotency-Key is required for a durable response.",
+                        "retryable": False,
+                        "details": {"field": "Idempotency-Key", "reason": "required"},
+                        "next_step": "Retry with a stable Idempotency-Key header.",
+                    },
+                )
+            if len(idempotency_key) > _MAX_IDEMPOTENCY_KEY_CHARACTERS:
+                return _idempotency_key_too_long_response()
+            if body.answer is None and body.answers is None:
+                return JSONResponse(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    content={
+                        "code": "validation_error",
+                        "message": "answer is required for a durable response.",
+                        "retryable": False,
+                        "details": {"field": "answer", "reason": "required"},
+                    },
+                )
+            interaction_answers = (
+                [(item.interaction_id, item.answer) for item in body.answers]
+                if body.answers is not None
+                else [(interaction_id, body.answer)]
+            )
+            try:
+                if body.answers is not None:
+                    admission = await self.commands_service.respond_interactions(
+                        project_id=UUID(str(project_id)),
+                        user_id=UUID(str(user_id)),
+                        interaction_answers=interaction_answers,
+                        expected_execution_id=body.expected_execution_id,
+                        idempotency_key=idempotency_key,
+                    )
+                else:
+                    admission = await self.commands_service.respond_interaction(
+                        project_id=UUID(str(project_id)),
+                        user_id=UUID(str(user_id)),
+                        interaction_id=interaction_id,
+                        answer=body.answer,
+                        expected_execution_id=body.expected_execution_id,
+                        idempotency_key=idempotency_key,
+                    )
+            except InteractionResponseConflict as error:
+                return JSONResponse(
+                    status_code=(
+                        status.HTTP_422_UNPROCESSABLE_ENTITY
+                        if error.code == "validation_error"
+                        else status.HTTP_409_CONFLICT
+                    ),
+                    content={
+                        "code": error.code,
+                        "message": error.message,
+                        "retryable": False,
+                        **({"details": error.details} if error.details else {}),
+                    },
+                )
+
+            response = SessionInteractionContinuationResponse(
+                interaction=admission.interaction,
+                command=(
+                    SessionCommandRef(
+                        id=admission.command.id,
+                        state=admission.command.state.value,
+                    )
+                    if admission.command is not None
+                    else None
+                ),
+                execution=SessionInteractionContinuationExecution(
+                    id=admission.execution_id,
+                    state=(
+                        "awaiting_interactions"
+                        if getattr(admission, "waiting_for_interactions", False)
+                        else admission.execution_state.value
+                    ),
+                ),
+            )
+            return JSONResponse(
+                status_code=status.HTTP_202_ACCEPTED,
+                content=response.model_dump(mode="json"),
+            )
+
+        if body.answers is not None:
+            responses = {}
+            for item in body.answers:
+                responses[item.interaction_id] = await self.respond_interaction(
+                    request=request,
+                    interaction_id=item.interaction_id,
+                    body=SessionInteractionRespondRequest(answer=item.answer),
+                )
+            return responses[interaction_id]
 
         try:
             interaction = await self.interactions_service.fetch_interaction(
@@ -1328,13 +1496,11 @@ class InteractionsRouter:
                 answer=answer,
             )
         else:
-            references = (
-                {
-                    k: v.model_dump(mode="json")
-                    for k, v in interaction.data.references.items()
-                }
-                if interaction.data and interaction.data.references
-                else None
+            references = await resolve_interaction_references(
+                project_id=UUID(str(project_id)),
+                interaction=interaction,
+                turns_service=self.turns_service,
+                streams_service=self.streams_service,
             )
             selector = (
                 interaction.data.selector.model_dump(mode="json")
@@ -2208,6 +2374,16 @@ def _handle_command_exceptions():
                     status_code=status.HTTP_409_CONFLICT,
                     detail={"message": e.message, "state": e.state},
                 ) from e
+            except InteractionResponseConflict as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": e.code,
+                        "message": e.message,
+                        "retryable": False,
+                        **({"details": e.details} if e.details else {}),
+                    },
+                ) from e
 
         return wrapper
 
@@ -2241,6 +2417,13 @@ class SessionControlRouter:
             self.cancel_session_execution,
             methods=["POST"],
             operation_id="cancel_session_execution",
+            tags=["Sessions"],
+        )
+        self.router.add_api_route(
+            "/sessions/{session_id}/continuations/resume",
+            self.resume_session_continuation,
+            methods=["POST"],
+            operation_id="resume_session_continuation",
             tags=["Sessions"],
         )
         self.router.add_api_route(
@@ -2287,9 +2470,10 @@ class SessionControlRouter:
 
         idempotency_key = request.headers.get("Idempotency-Key")
         if idempotency_key is not None:
-            idempotency_key = (
-                idempotency_key.strip()[:_MAX_IDEMPOTENCY_KEY_CHARACTERS] or None
-            )
+            idempotency_key = idempotency_key.strip()
+            if len(idempotency_key) > _MAX_IDEMPOTENCY_KEY_CHARACTERS:
+                return _idempotency_key_too_long_response()
+            idempotency_key = idempotency_key or None
 
         admission = await self._service.request_cancel(
             project_id=UUID(str(project_id)),
@@ -2320,6 +2504,32 @@ class SessionControlRouter:
 
     @intercept_exceptions()
     @_handle_command_exceptions()
+    async def resume_session_continuation(
+        self,
+        request: Request,
+        session_id: str,
+    ) -> SessionContinuationResumeResponse:
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        has_permission = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        resumed = False
+        if env.agenta.sessions.durable_approvals:
+            resumed = await self._service.resume_recoverable_continuation(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
+            )
+        return SessionContinuationResumeResponse(resumed=resumed)
+
+    @intercept_exceptions()
+    @_handle_command_exceptions()
     async def report_command_outcome(
         self,
         request: Request,
@@ -2328,7 +2538,7 @@ class SessionControlRouter:
     ) -> SessionControlOutcomeResponse:
         _assert_runner_token(request)
 
-        settled = await self._service.report_outcome(
+        report = await self._service.report_outcome(
             command_id=command_id,
             replica_id=payload.replica_id,
             result=payload.result,
@@ -2338,11 +2548,14 @@ class SessionControlRouter:
         )
         return SessionControlOutcomeResponse(
             command=SessionCommandSettlement(
-                id=settled.id,
-                state=settled.state.value,
-                outcome=settled.outcome.value if settled.outcome else "failed",
-                settled_at=settled.settled_at,
-            )
+                id=report.command.id,
+                state=report.command.state.value,
+                outcome=(
+                    report.command.outcome.value if report.command.outcome else "failed"
+                ),
+                settled_at=report.command.settled_at,
+            ),
+            admitted=report.admitted,
         )
 
 
@@ -2414,12 +2627,18 @@ class SessionsRouter:
             interactions_service=interactions_service,
             records_service=records_service,
         )
-        self.records = RecordsRouter(records_service=records_service)
+        self.records = RecordsRouter(
+            records_service=records_service,
+            commands_service=commands_service,
+        )
         self.interactions = InteractionsRouter(
             interactions_service=interactions_service,
             workflows_service=workflows_service,
             respond_task=respond_task,
             interactions_dispatcher=interactions_dispatcher,
+            commands_service=commands_service,
+            turns_service=turns_service,
+            streams_service=streams_service,
         )
         self.attachments = SessionAttachmentsRouter(
             attachments_service=attachments_service,

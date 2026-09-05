@@ -7,6 +7,7 @@ Each one is a state the locks alone cannot distinguish, so each is pinned by a t
 than by a comment.
 """
 
+from contextlib import asynccontextmanager
 from typing import Optional
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -20,6 +21,7 @@ from oss.src.core.sessions.streams.dtos import (
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.dbs.redis.sessions.locks import (
+    SessionHeartbeatGuardLost,
     force_clear_owner,
     get_alive_owner,
     get_owner,
@@ -88,6 +90,37 @@ async def _superseded(lock_engine, turn: str) -> bool:
 # --------------------------------------------------------------------------- #
 # Replica affinity
 # --------------------------------------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_returns_committed_result_when_guard_lease_is_lost(lock_engine):
+    dao = _FakeStreamsDAO()
+    svc = _service(lock_engine, dao)
+
+    class _LostGuard:
+        def ensure_held(self):
+            raise SessionHeartbeatGuardLost("lease expired")
+
+    @asynccontextmanager
+    async def _lost_guard(*_args, **_kwargs):
+        yield _LostGuard()
+
+    with (
+        patch(
+            "oss.src.core.sessions.streams.service.session_heartbeat_guard",
+            new=_lost_guard,
+        ),
+        patch("oss.src.core.sessions.streams.service.log.warning") as warning,
+    ):
+        result = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a"))
+
+    assert result.is_current_turn is True
+    assert dao.row is result.stream
+    assert dao.row is not None and dao.row.turn_id == "turn-a"
+    warning.assert_called_once_with(
+        "sessions: heartbeat guard lease lost after heartbeat committed",
+        session_id=_SESSION,
+    )
 
 
 @pytest.mark.asyncio

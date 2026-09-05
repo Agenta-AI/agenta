@@ -32,6 +32,12 @@ export const selectApprovalTargets = (
     target: ApprovalTarget,
 ): SessionInteraction[] => {
     const pending = (rows ?? []).filter((row) => row.kind === "user_approval" && !!row.id)
-    if (target.all) return pending
+    if (target.all) {
+        const executionIds = new Set(pending.map((row) => row.turn_id ?? null))
+        if (executionIds.size > 1) {
+            throw new Error("Approve all can only answer approvals from one execution.")
+        }
+        return pending
+    }
     return pending.filter((row) => row.token === target.approvalId)
 }
