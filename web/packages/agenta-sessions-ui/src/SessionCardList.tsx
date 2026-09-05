@@ -156,8 +156,11 @@ const Row = ({
                         {pendingGateLabel(vm.pending?.kinds)}
                     </span>
                 ) : null}
+                {/* Hidden on a phone: with the chip, time and pin all shrink-0, this 96px column
+                    starved the title to 0px. The agent overview already proves the row reads fine
+                    without it — it passes showAgent={false}. */}
                 {showAgent ? (
-                    <span className="w-24 shrink-0 truncate text-right">
+                    <span className="hidden w-24 shrink-0 truncate text-right sm:block">
                         <SessionAgentName agentId={vm.agentId} />
                     </span>
                 ) : null}
