@@ -434,7 +434,14 @@ describe("buildPersistingEmitter turn/span tagging", () => {
     emit({ type: "tool_result", id: "call_1", output: "ok" });
     await flush();
 
-    const bodies = postedBodies as Array<Record<string, unknown>>;
+    const liveBatches = postedBodies.filter(Array.isArray);
+    assert.equal(liveBatches.length, 1);
+    for (const frame of liveBatches[0]) {
+      assert.equal(frame.execution_id, "turn-tc");
+    }
+    const bodies = (postedBodies as Array<Record<string, unknown>>).filter(
+      (body) => "record_type" in body,
+    );
     assert.equal(bodies.length, 3);
     for (const body of bodies) {
       assert.equal(body["turn_id"], "turn-tc");
