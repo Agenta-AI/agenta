@@ -101,6 +101,7 @@ class FakeBackend(Backend):
         self.created_session_ids: list[Optional[str]] = []
         self.created_secrets: list[Optional[Mapping[str, str]]] = []
         self.created_run_contexts: list = []
+        self.created_detached: list = []
 
     async def setup(self) -> None:
         self.setup_calls += 1
@@ -131,6 +132,7 @@ class FakeBackend(Backend):
         self.created_session_ids.append(session_id)
         self.created_secrets.append(secrets)
         self.created_run_contexts.append(run_context)
+        self.created_detached.append(detached)
         return _FakeSession(self._result)
 
 
