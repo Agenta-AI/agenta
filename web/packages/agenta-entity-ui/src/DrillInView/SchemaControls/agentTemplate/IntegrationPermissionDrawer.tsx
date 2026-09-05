@@ -471,20 +471,17 @@ function DrawerTitle({
         // w-full + min-w-0: the title slot will not shrink alone, pushing the badge past the edge.
         <div className="flex w-full min-w-0 items-center gap-2.5">
             <ProviderLogo logo={integration?.logo ?? null} size={22} />
-            <div className="flex min-w-0 flex-1 flex-col">
-                {/* The slug rides beside the name rather than on its own line: "Integration ·
-                    gmail · gmail-main connection" repeated the name twice and labelled what the
-                    logo already says. Dropped where the name IS the slug. */}
-                <span className="flex min-w-0 items-baseline gap-1.5">
-                    <span className="truncate text-sm font-semibold">{displayName}</span>
-                    {showSlug ? (
-                        <span className="shrink-0 text-xs font-normal text-[var(--ag-colorTextTertiary)]">
-                            {target.integration}
-                        </span>
-                    ) : null}
-                </span>
+            {/* One line: "Integration · gmail · gmail-main connection" repeated the name and
+                labelled what the logo already says. The slug is dropped where the name IS it. */}
+            <div className="flex min-w-0 flex-1 items-baseline gap-1.5">
+                <span className="truncate text-sm font-semibold">{displayName}</span>
+                {showSlug ? (
+                    <span className="shrink-0 text-xs font-normal text-[var(--ag-colorTextTertiary)]">
+                        {target.integration}
+                    </span>
+                ) : null}
                 {connectionSlug ? (
-                    <span className="truncate text-xs font-normal text-[var(--ag-colorTextTertiary)]">
+                    <span className="min-w-0 truncate text-xs font-normal text-[var(--ag-colorTextTertiary)]">
                         {connectionSlug}
                     </span>
                 ) : null}
