@@ -28,16 +28,30 @@ import {
 } from "@agenta/sessions/state"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Skeleton, SimpleTooltip} from "@agenta/ui/ui"
-import {ArrowLineRightIcon, XIcon, XSquareIcon} from "@phosphor-icons/react"
+import {ArrowLineRightIcon, PencilSimpleIcon, XIcon, XSquareIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
+import InlineRenameInput from "./InlineRenameInput"
 import {type SessionMenuEntry} from "./menu"
 import {withShortcutKey} from "./menuShortcut"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
 import {SessionTabStrip} from "./SessionTabStrip"
+import {useInlineRename} from "./useInlineRename"
+
+/** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
+const renameTabRequestAtom = atom<{sessionId: string; nonce: number} | null>(null)
+
+/** Opens a tab's inline rename editor from a surface that does not render the rail. */
+export const useRequestSessionTabRename = () => {
+    const request = useSetAtom(renameTabRequestAtom)
+    return useCallback((sessionId: string) => request({sessionId, nonce: Date.now()}), [request])
+}
+
+/** No commit path wired: renaming is off, so the editor never opens to call this. */
+const renameUnavailable = async () => false
 
 export interface SessionTabRailProps extends UseSessionCardListArgs {
     /** The session on screen — its chip is the active one. */
@@ -58,6 +72,11 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
      */
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
+    /**
+     * Persists a rename. Given this, a tab renames IN PLACE — pencil, double-click, the menu's
+     * "Rename" and Alt+R all open the same editor; without it none of them mount.
+     */
+    onRenameTab?: (vm: SessionRowVm, name: string) => Promise<boolean>
     /**
      * Close one tab. The rail supplies the RENDERED order alongside it, because the survivor a
      * host routes to is defined over what is on screen and only the rail knows that. Omit and no
@@ -92,6 +111,7 @@ const RailTab = ({
     draggable,
     divided,
     onClose,
+    onRename,
 }: {
     vm: SessionRowVm
     active: boolean
@@ -100,6 +120,8 @@ const RailTab = ({
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
     /** Omit where tabs are not closeable — then no × mounts. */
     onClose?: () => void
+    /** Omit where tabs are not renameable — then no pencil mounts and no editor opens. */
+    onRename?: (name: string) => Promise<boolean>
     /** A drag slot only inside a reorder group — a lone `Reorder.Item` has no context to drag in. */
     draggable: boolean
     /** Hairline before this tab. Suppressed either side of the filled active chip. */
@@ -127,28 +149,93 @@ const RailTab = ({
         }
     }, [active])
     const handleSelect = useCallback(() => onSelect(vm), [onSelect, vm])
+    // The SAME rename machine the session rows use, so Enter/blur commit and Escape abandons here
+    // exactly as they do in a list — and the commit lands on the host's one rename path.
+    const rename = useInlineRename({current: vm.title, onCommit: onRename ?? renameUnavailable})
+    const startRename = rename.start
+    // Alt+R is raised outside the rail, so the request arrives as state. The nonce is consumed once.
+    const request = useAtomValue(renameTabRequestAtom)
+    const consumedNonceRef = useRef<number | null>(null)
+    useEffect(() => {
+        if (!onRename || request?.sessionId !== vm.id) return
+        if (consumedNonceRef.current === request.nonce) return
+        consumedNonceRef.current = request.nonce
+        startRename()
+    }, [onRename, request, startRename, vm.id])
 
     const chip = (
-        <SessionRowContextMenu entries={menuFor?.(vm)} onSelect={(key) => onMenuSelect?.(vm, key)}>
+        <SessionRowContextMenu
+            entries={menuFor?.(vm)}
+            onSelect={(key) => {
+                if (key === "rename" && onRename) {
+                    startRename()
+                    return
+                }
+                onMenuSelect?.(vm, key)
+            }}
+        >
             <SessionTab
                 active={active}
-                label={vm.title}
+                label={
+                    rename.renaming ? (
+                        // The editor owns its own events: a click here must not select the tab and
+                        // Space/Enter must reach the input, not the chip's activation handler.
+                        <span
+                            className="block w-full"
+                            onClick={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                            }}
+                            onDoubleClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => event.stopPropagation()}
+                        >
+                            <InlineRenameInput
+                                rename={rename}
+                                className="h-5 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-xs leading-5 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+                            />
+                        </span>
+                    ) : (
+                        <span className="block" onDoubleClick={onRename ? startRename : undefined}>
+                            {vm.title}
+                        </span>
+                    )
+                }
                 onSelect={handleSelect}
                 renderActions={
-                    onClose
-                        ? () => (
-                              <button
-                                  type="button"
-                                  aria-label={`Close ${vm.title}`}
-                                  onClick={(event) => {
-                                      event.stopPropagation()
-                                      onClose()
-                                  }}
-                                  className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                              >
-                                  <XIcon size={12} />
-                              </button>
-                          )
+                    onClose || onRename
+                        ? () =>
+                              rename.renaming ? null : (
+                                  <>
+                                      {onRename ? (
+                                          <button
+                                              type="button"
+                                              aria-label={`Rename ${vm.title}`}
+                                              onClick={(event) => {
+                                                  event.stopPropagation()
+                                                  startRename()
+                                              }}
+                                              // Hover-revealed where there IS a hover; on touch the
+                                              // chip's actions are always mounted, so it stays visible.
+                                              className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none transition-opacity focus-visible:opacity-100 focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                                          >
+                                              <PencilSimpleIcon size={12} />
+                                          </button>
+                                      ) : null}
+                                      {onClose ? (
+                                          <button
+                                              type="button"
+                                              aria-label={`Close ${vm.title}`}
+                                              onClick={(event) => {
+                                                  event.stopPropagation()
+                                                  onClose()
+                                              }}
+                                              className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                          >
+                                              <XIcon size={12} />
+                                          </button>
+                                      ) : null}
+                                  </>
+                              )
                         : undefined
                 }
                 statusDot={
@@ -256,6 +343,7 @@ export const SessionTabRail = ({
     onMenuSelect,
     onClose,
     onCloseMany,
+    onRenameTab,
     reorderable = true,
     className,
     ...listArgs
@@ -323,6 +411,7 @@ export const SessionTabRail = ({
                           onSelect={onSelect}
                           draggable={reorderable}
                           onClose={onClose ? () => onClose(vm, orderedIds) : undefined}
+                          onRename={onRenameTab ? (name) => onRenameTab(vm, name) : undefined}
                           menuFor={(row) => [
                               ...(menuFor?.(row) ?? []),
                               ...(onClose

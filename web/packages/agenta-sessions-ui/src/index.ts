@@ -49,7 +49,11 @@ export {SessionListPanel, type SessionListPanelProps} from "./SessionListPanel"
 export {SessionTab, type SessionTabProps} from "./SessionTab"
 export {SessionTabStrip, type SessionTabStripProps} from "./SessionTabStrip"
 export {SessionTabDragItem, type SessionTabDragItemProps} from "./SessionTabDragItem"
-export {SessionTabRail, type SessionTabRailProps} from "./SessionTabRail"
+export {
+    SessionTabRail,
+    useRequestSessionTabRename,
+    type SessionTabRailProps,
+} from "./SessionTabRail"
 export {withShortcutKey} from "./menuShortcut"
 export {
     useSessionActions,

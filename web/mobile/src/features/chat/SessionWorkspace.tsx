@@ -16,7 +16,7 @@ import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {renderedSessionTabsAtomFamily, sessionTabScope} from "@agenta/sessions/state"
-import {useSessionActions} from "@agenta/sessions-ui"
+import {useRequestSessionTabRename, useSessionActions} from "@agenta/sessions-ui"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {useSessionShortcuts} from "@agenta/ui/shortcuts"
 import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
@@ -40,9 +40,6 @@ import {useStartBlankSession} from "./useStartBlankSession"
 const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane), {
     ssr: false,
 })
-
-/** Alt+R has nothing to open here: the rail renames nowhere yet. */
-const noop = () => undefined
 
 /**
  * The playground's two-pane frame, on the SAME kit `SplitPane` the desktop drives it with and the
@@ -170,6 +167,8 @@ export const SessionWorkspace = ({
     const startBlank = useStartBlankSession(base)
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
     const sessionActions = useSessionActions()
+    // Alt+R opens the active TAB's inline editor — the rail listens for this request.
+    const requestTabRename = useRequestSessionTabRename()
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
     useSessionShortcuts({
         sessions: shortcutSessions,
@@ -180,7 +179,7 @@ export const SessionWorkspace = ({
             },
             [base, router, sessionId],
         ),
-        onRename: noop,
+        onRename: requestTabRename,
         onArchive: useCallback(
             (id: string) =>
                 void sessionActions.setArchived({

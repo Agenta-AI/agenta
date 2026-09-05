@@ -75,18 +75,23 @@ export const SessionTabs = ({
                 withPinned
                 activeSessionId={sessionId}
                 activeFallbackTitle={query.data?.name}
-                // Alt+A archives the session on this surface, so its menu row names the key —
-                // rename does not, because Alt+R opens nothing here.
+                // Both keys work on this surface, so both menu rows name theirs.
                 menuFor={(vm) =>
-                    menu
-                        .menuFor(vm)
-                        .map((entry) =>
-                            "key" in entry && entry.key === "archive"
-                                ? {...entry, label: withShortcutKey(entry.label, "session.archive")}
-                                : entry,
-                        )
+                    menu.menuFor(vm).map((entry) => {
+                        if (!("key" in entry)) return entry
+                        if (entry.key === "archive")
+                            return {
+                                ...entry,
+                                label: withShortcutKey(entry.label, "session.archive"),
+                            }
+                        if (entry.key === "rename")
+                            return {...entry, label: withShortcutKey(entry.label, "session.rename")}
+                        return entry
+                    })
                 }
                 onMenuSelect={menu.onMenuSelect}
+                // "Rename" and the tab's pencil open the rail's own editor; this only persists it.
+                onRenameTab={menu.onRenameRow}
                 // Closing drops the tab from this device's open set — never from the server.
                 onClose={(vm, ordered) => closeTabs([vm.id], ordered)}
                 onCloseMany={closeTabs}
