@@ -9,6 +9,7 @@ from oss.src.apis.fastapi.sessions.models import SessionRecordIngestRequest
 from oss.src.apis.fastapi.sessions.router import RecordsRouter
 from oss.src.core.sessions.records.dtos import (
     MAX_LIVE_FRAME_BYTES,
+    MessageCompletedEvent,
     SessionLiveFrame,
     SessionRecordEvent,
 )
@@ -16,6 +17,7 @@ from oss.src.core.sessions.records.streaming import (
     LIVE_FRAME_STREAM_NAME,
     MAXLEN_STREAMS_RECORDS,
     RECORD_STREAM_NAME,
+    publish_durable_event,
     publish_live_frame,
     publish_record,
     trim_live_stream,
@@ -217,6 +219,38 @@ async def test_publish_frame_uses_dedicated_bounded_stream():
     assert xadd["maxlen"] == 4
     assert xadd["approximate"] is False
     redis.xtrim.assert_awaited_once()
+
+
+async def test_publish_durable_event_uses_dedicated_bounded_stream():
+    redis = AsyncMock()
+    event = MessageCompletedEvent.model_validate(
+        {
+            "session_id": "session-1",
+            "execution_id": "execution-1",
+            "frame_or_event_id": "event-1",
+            "entity_id": "message-1",
+            "sequence": 1,
+            "watermark": 1,
+            "type": "message.completed",
+            "payload": {
+                "message_id": "message-1",
+                "role": "assistant",
+                "content": "hello",
+            },
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
+    with (
+        patch("oss.src.core.sessions.records.streaming._get_redis", return_value=redis),
+        patch.object(env.sessions, "live_stream_maxlen", 4),
+    ):
+        assert await publish_durable_event(project_id=uuid4(), event=event)
+
+    xadd = redis.xadd.await_args.kwargs
+    assert xadd["name"] == LIVE_FRAME_STREAM_NAME
+    assert xadd["name"] != RECORD_STREAM_NAME
+    assert xadd["maxlen"] == 4
+    assert xadd["approximate"] is False
 
 
 async def test_publish_record_preserves_flag_off_retention_bound():

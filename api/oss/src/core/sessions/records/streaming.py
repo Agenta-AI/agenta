@@ -147,6 +147,15 @@ def deserialize_record(*, payload: bytes) -> RecordMessage:
     return RecordMessage.model_validate(loads(zlib.decompress(payload)))
 
 
+async def _append_live_relay_message(redis, *, message: dict) -> None:
+    await redis.xadd(
+        name=LIVE_FRAME_STREAM_NAME,
+        fields={"data": zlib.compress(dumps(message, default=_orjson_default))},
+        maxlen=env.sessions.live_stream_maxlen,
+        approximate=False,
+    )
+
+
 async def publish_live_frame(
     *,
     organization_id: Optional[UUID] = None,
@@ -174,13 +183,7 @@ async def publish_live_frame(
             "kind": "frame",
             "frame": frame.model_dump(mode="json"),
         }
-        event_bytes = zlib.compress(dumps(message, default=_orjson_default))
-        await redis.xadd(
-            name=LIVE_FRAME_STREAM_NAME,
-            fields={"data": event_bytes},
-            maxlen=env.sessions.live_stream_maxlen,
-            approximate=False,
-        )
+        await _append_live_relay_message(redis, message=message)
         if frame.frame_index % _FRAME_TRIM_INTERVAL == 0:
             try:
                 await trim_live_stream(redis)
@@ -218,12 +221,7 @@ async def publish_durable_event(
             "kind": "event",
             "event": event.model_dump(mode="json"),
         }
-        await redis.xadd(
-            name=LIVE_FRAME_STREAM_NAME,
-            fields={"data": zlib.compress(dumps(message, default=_orjson_default))},
-            maxlen=env.sessions.live_stream_maxlen,
-            approximate=False,
-        )
+        await _append_live_relay_message(redis, message=message)
         return True
     except Exception:
         log.error(

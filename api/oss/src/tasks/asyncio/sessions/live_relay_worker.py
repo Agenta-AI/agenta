@@ -4,7 +4,6 @@ from typing import Dict, List, Tuple
 from orjson import dumps
 
 from oss.src.core.sessions.records.streaming import (
-    DurableEventMessage,
     LiveFrameMessage,
     deserialize_live_relay_message,
 )
