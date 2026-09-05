@@ -16,6 +16,7 @@ from oss.src.core.sessions.inputs.types import (
     SessionInputNotFound,
     SessionInputNotRemovable,
 )
+from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.utils.env import env
 
@@ -36,10 +37,12 @@ class SessionInputsService:
         *,
         inputs_dao: SessionInputsDAOInterface,
         streams_service: SessionStreamsService,
+        executions_dao: Optional[SessionExecutionsDAOInterface] = None,
         continuation_resumer: Optional[Callable[..., Awaitable[bool]]] = None,
     ) -> None:
         self._dao = inputs_dao
         self._streams = streams_service
+        self._executions = executions_dao
         self._continuation_resumer = continuation_resumer
 
     async def admit(
@@ -95,6 +98,14 @@ class SessionInputsService:
             raise ValueError("Idempotency-Key is required when queueing input.")
 
         async with self._dao.transaction() as transaction:
+            source_execution = None
+            if self._executions is not None and current_execution_id is not None:
+                source_execution = await self._executions.lock_for_control(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=current_execution_id,
+                    transaction=transaction,
+                )
             existing = await self._dao.fetch_by_idempotency_key(
                 project_id=project_id,
                 session_id=session_id,
@@ -109,6 +120,8 @@ class SessionInputsService:
                     input=existing,
                     execution_id=current_execution_id,
                 )
+            if source_execution is not None and source_execution.terminal_outcome is not None:
+                return PendingInputAdmission(action="execute")
             item = await self._dao.create_input(
                 user_id=user_id,
                 pending_input=PendingInputCreate(

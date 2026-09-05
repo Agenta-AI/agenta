@@ -161,6 +161,17 @@ class _BusyStreams:
         )
 
 
+class _SettlementRaceStreams(_BusyStreams):
+    def __init__(self):
+        self.observed_busy = asyncio.Event()
+        self.allow_admission = asyncio.Event()
+
+    async def fetch_header(self, **_kwargs):
+        self.observed_busy.set()
+        await self.allow_admission.wait()
+        return await super().fetch_header()
+
+
 class _UnreachableDelivery:
     async def deliver(self, **_kwargs):
         return DeliveryReceipt(status="unreachable")
@@ -244,6 +255,53 @@ async def test_completion_promotes_one_fifo_input_in_the_settlement_transaction(
             project_id=input_scope["project_id"], session_id=input_scope["session_id"]
         )
     ] == [second.id]
+
+
+async def test_admission_rechecks_settlement_under_the_execution_lock(
+    input_scope, monkeypatch
+):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    inputs = SessionInputsDAO(engine=input_scope["engine"])
+    executions = SessionExecutionsDAO(engine=input_scope["engine"])
+    streams = _SettlementRaceStreams()
+    admission_service = SessionInputsService(
+        inputs_dao=inputs,
+        streams_service=streams,
+        executions_dao=executions,
+    )
+    settlement_service = _settlement_service(input_scope, inputs)
+    async with input_scope["engine"].session() as transaction:
+        await executions.lock_for_control(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+            execution_id="source-turn",
+            transaction=transaction,
+        )
+
+    admission_task = asyncio.create_task(
+        admission_service.admit(
+            project_id=input_scope["project_id"],
+            user_id=input_scope["user_id"],
+            session_id=input_scope["session_id"],
+            content={"message": "arrived during settlement"},
+            policy="queue",
+            idempotency_key="settlement-race",
+        )
+    )
+    await streams.observed_busy.wait()
+
+    assert await settlement_service.settle_execution_completed(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        execution_id="source-turn",
+    )
+    streams.allow_admission.set()
+    admission = await admission_task
+
+    assert admission.action == "execute"
+    assert await inputs.list_pending(
+        project_id=input_scope["project_id"], session_id=input_scope["session_id"]
+    ) == []
 
 
 async def test_manual_stop_commits_without_promoting_pending_input(

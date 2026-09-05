@@ -1184,6 +1184,7 @@ session_commands_service = SessionCommandsService(
 session_inputs_service = SessionInputsService(
     inputs_dao=session_inputs_dao,
     streams_service=session_streams_service,
+    executions_dao=session_executions_dao,
     continuation_resumer=session_commands_service.resume_recoverable_continuation,
 )
 workflows_service.set_session_continuation_resumer(
