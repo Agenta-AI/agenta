@@ -117,6 +117,29 @@ const sharedErrorResponse = (): Response => {
     })
 }
 
+const sharedBrowserPhraseServerErrorResponse = (): Response => {
+    const chunks = [
+        {type: "start", messageId: "shared-browser-phrase-error"},
+        {type: "start-step"},
+        {
+            type: "data-session-accepted",
+            data: {sessionId: "session-1", turnId: "turn-1", executionId: "turn-1"},
+        },
+        {
+            type: "data-agent-error",
+            data: {code: "runner_error", errorText: "Failed to fetch"},
+        },
+        {type: "error", errorText: "Failed to fetch"},
+        {type: "finish-step"},
+        {type: "finish"},
+    ]
+    const body = chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("")
+    return new Response(`${body}data: [DONE]\n\n`, {
+        status: 200,
+        headers: {"content-type": "text/event-stream"},
+    })
+}
+
 /** The shared sender's invoke stream accepted the turn, then the connection died — what a
  * backgrounded tab sees while the runner carries the turn on to completion. */
 const sharedDroppedStreamResponse = (): Response => {
@@ -803,5 +826,35 @@ describe("useAgentConversation", () => {
         const last = result.current.turns[result.current.turns.length - 1]
         expect(last.status.errorText).toBe("shared provider failed")
         expect(last.status.isError).toBe(true)
+    })
+
+    it("keeps a runner failure whose text matches a browser disconnect phrase as a run error", async () => {
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "content-type": "application/json",
+                "x-ag-session-response": "shared",
+            },
+            requestBody: {session_id: opts?.sessionId},
+        }))
+        fetchMock.mockResolvedValue(sharedBrowserPhraseServerErrorResponse())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "surface the runner failure"})
+        })
+        await waitFor(() => expect(result.current.runStatus).toBe("error"), {timeout: 5000})
+
+        expect(result.current.connectionWarning).toBeUndefined()
+        expect(result.current.error).toEqual({message: "Failed to fetch"})
+        await waitFor(() => {
+            const last = result.current.turns[result.current.turns.length - 1]
+            expect(last.status.errorText).toBe("Failed to fetch")
+            expect(last.status.isError).toBe(true)
+        })
     })
 })

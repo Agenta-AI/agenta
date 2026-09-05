@@ -65,7 +65,7 @@ export const isSessionBusyRefusal = (err: unknown): boolean =>
  * envelope. An engine's own wording is translated — "Failed to fetch" under "The agent run
  * failed" read as a fault in the agent.
  */
-export const parseAgentRunError = (err: unknown): ParsedRunError => {
+export const parseAgentRunError = (err: unknown, serverErrorProvenance = false): ParsedRunError => {
     const raw =
         err instanceof Error ? err.message : typeof err === "string" ? err : String(err ?? "")
     const fallback = raw.trim() || "The agent run failed."
@@ -92,7 +92,8 @@ export const parseAgentRunError = (err: unknown): ParsedRunError => {
         return {message: fallback, code: SESSION_TURN_IN_USE_CODE}
     }
     // A server envelope outranks transport-phrase translation.
-    if (isTransportFailure(fallback)) return {message: TRANSPORT_ERROR_MESSAGE, transport: true}
+    if (!serverErrorProvenance && isTransportFailure(fallback))
+        return {message: TRANSPORT_ERROR_MESSAGE, transport: true}
     return {message: fallback}
 }
 
@@ -114,8 +115,9 @@ export interface AgentRunErrorBoundary {
 export const classifyAgentRunError = (
     error: unknown,
     turnAccepted: boolean,
+    serverErrorProvenance = false,
 ): AgentRunErrorBoundary => {
-    const parsed = parseAgentRunError(error)
+    const parsed = parseAgentRunError(error, serverErrorProvenance)
     return turnAccepted && parsed.transport
         ? {connectionWarning: ACCEPTED_SENDER_DISCONNECT_MESSAGE}
         : {runError: parsed}

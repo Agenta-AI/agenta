@@ -308,9 +308,16 @@ export const useAgentChatSession = ({
         },
         [regenerateChatMessage, sessionId],
     )
+    const lastMessage = messages[messages.length - 1]
+    const serverErrorProvenance =
+        lastMessage?.role === "assistant" &&
+        lastMessage.parts.some((part) => part.type === "data-agent-error")
     const errorBoundary = useMemo(
-        () => (error ? classifyAgentRunError(error, turnAcceptedRef.current) : {}),
-        [error],
+        () =>
+            error
+                ? classifyAgentRunError(error, turnAcceptedRef.current, serverErrorProvenance)
+                : {},
+        [error, serverErrorProvenance],
     )
 
     const busy = isChatBusy(status)
@@ -451,7 +458,6 @@ export const useAgentChatSession = ({
     // response, tool output, stream finish) — never on mount — so this resume can't fire and
     // must not hold the queue. Short-circuits cheap on the streaming hot path: any live send
     // makes the tail non-restored.
-    const lastMessage = messages[messages.length - 1]
     const resumeOrphaned =
         !liveGateInteractionRef.current &&
         !!lastMessage &&

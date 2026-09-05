@@ -130,4 +130,10 @@ describe("classifyAgentRunError", () => {
             runError: {message: "no usable credential", code: 422},
         })
     })
+
+    it("lets server-error provenance override a browser transport phrase", () => {
+        expect(classifyAgentRunError(new TypeError("Failed to fetch"), true, true)).toEqual({
+            runError: {message: "Failed to fetch"},
+        })
+    })
 })

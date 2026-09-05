@@ -224,6 +224,7 @@ const sharedAcceptanceChunk = (chunk: AnyChunk): AnyChunk | undefined => {
         chunk.type === "start-step" ||
         chunk.type === "finish-step" ||
         chunk.type === "error" ||
+        chunk.type === "data-agent-error" ||
         chunk.type === "data-session-accepted"
     )
         return chunk

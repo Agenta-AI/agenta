@@ -409,9 +409,16 @@ export const useAgentConversation = ({
     })
 
     const busy = isChatBusy(status)
+    const lastMessage = messages[messages.length - 1]
+    const serverErrorProvenance =
+        lastMessage?.role === "assistant" &&
+        lastMessage.parts.some((part) => part.type === "data-agent-error")
     const errorBoundary = useMemo(
-        () => (error ? classifyAgentRunError(error, turnAcceptedRef.current) : {}),
-        [error],
+        () =>
+            error
+                ? classifyAgentRunError(error, turnAcceptedRef.current, serverErrorProvenance)
+                : {},
+        [error, serverErrorProvenance],
     )
     // Require liveness newer than the local settle before classifying a run as remote.
     const previousBusyForReaderRef = useRef(busy)
@@ -589,7 +596,6 @@ export const useAgentConversation = ({
     // mount never streamed it) shaped like "auto-resume imminent", and no gate was settled live
     // in this mount. The SDK only evaluates `sendAutomaticallyWhen` on live events — never on
     // mount — so this resume can't fire and must not hold the queue (AGE-3937).
-    const lastMessage = messages[messages.length - 1]
     const resumeOrphaned =
         !liveGateInteractionRef.current &&
         !!lastMessage &&
