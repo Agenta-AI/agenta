@@ -254,6 +254,26 @@ async def test_completion_promotes_one_fifo_input_in_the_settlement_transaction(
         for item in await inputs.list_pending(
             project_id=input_scope["project_id"], session_id=input_scope["session_id"]
         )
+    ] == [first.id, second.id]
+
+    await SessionExecutionsDAO(engine=input_scope["engine"]).set_state(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        execution_id=(
+            await inputs.fetch_input(
+                project_id=input_scope["project_id"],
+                session_id=input_scope["session_id"],
+                input_id=first.id,
+            )
+        ).promoted_execution_id,
+        state=SessionExecutionState.running,
+        expected_states=[SessionExecutionState.recoverable],
+    )
+    assert [
+        item.id
+        for item in await inputs.list_pending(
+            project_id=input_scope["project_id"], session_id=input_scope["session_id"]
+        )
     ] == [second.id]
 
 

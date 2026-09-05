@@ -10,15 +10,16 @@ const input = (
     position: number,
     content: unknown,
     policy: "queue" | "steer" = "queue",
+    state: "pending" | "promoted" = "pending",
 ) => ({
     id,
     session_id: "session-1",
     content: {data: {inputs: {messages: [{role: "user", content}]}}},
     position,
-    state: "pending" as const,
+    state,
     policy,
     created_at: null,
-    promoted_execution_id: null,
+    promoted_execution_id: state === "promoted" ? "continuation-1" : null,
 })
 
 describe("pending input reducer", () => {
@@ -65,6 +66,22 @@ describe("pending input reducer", () => {
                 mediaType: "image/png",
                 filename: undefined,
             },
+        ])
+    })
+
+    it("keeps a promoted input visible while its continuation is recoverable", () => {
+        const recoverable = input("input-1", 1, "retry me", "queue", "promoted")
+
+        const view = reduceSessionPendingInputs({
+            session: null,
+            execution: {id: null, state: "idle"},
+            pending: {inputs: [recoverable], interactions: []},
+            read: {latest_sequence: 0, history_complete: true},
+            capabilities: {durable_approvals: true, queue: true, steer: true},
+        })
+
+        expect(view.queued).toEqual([
+            expect.objectContaining({id: "input-1", text: "retry me", source: "server"}),
         ])
     })
 

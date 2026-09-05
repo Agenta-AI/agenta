@@ -89,7 +89,7 @@ export const reduceSessionPendingInputs = (
     },
     executionState: snapshot?.execution.state ?? "idle",
     queued: (snapshot?.pending.inputs ?? [])
-        .filter((input) => input.state === "pending")
+        .filter((input) => input.state === "pending" || input.state === "promoted")
         .sort((left, right) => left.position - right.position)
         .map(pendingInputToQueuedMessage)
         .filter((input): input is QueuedMessage => input !== null),

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any, List, Optional
 from uuid import UUID
 
-from sqlalchemy import func, select, text, update as sa_update
+from sqlalchemy import and_, func, or_, select, text, update as sa_update
 
 from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputCreate
 from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
@@ -11,6 +11,7 @@ from oss.src.dbs.postgres.sessions.inputs.mappings import (
     new_input_row,
     to_pending_input,
 )
+from oss.src.dbs.postgres.sessions.executions.dbes import SessionExecutionDBE
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
@@ -120,10 +121,29 @@ class SessionInputsDAO(SessionInputsDAOInterface):
             rows = (
                 await session.execute(
                     select(SessionInputDBE)
+                    .outerjoin(
+                        SessionExecutionDBE,
+                        and_(
+                            SessionExecutionDBE.project_id
+                            == SessionInputDBE.project_id,
+                            SessionExecutionDBE.session_id
+                            == SessionInputDBE.session_id,
+                            SessionExecutionDBE.execution_id
+                            == SessionInputDBE.promoted_execution_id,
+                        ),
+                    )
                     .where(
                         SessionInputDBE.project_id == project_id,
                         SessionInputDBE.session_id == session_id,
-                        SessionInputDBE.state == "pending",
+                        or_(
+                            SessionInputDBE.state == "pending",
+                            and_(
+                                SessionInputDBE.state == "promoted",
+                                SessionExecutionDBE.state.in_(
+                                    ("pending_delivery", "recoverable")
+                                ),
+                            ),
+                        ),
                     )
                     .order_by(SessionInputDBE.position, SessionInputDBE.created_at)
                 )
