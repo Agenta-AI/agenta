@@ -640,7 +640,8 @@ export const useAgentChatSession = ({
                 void invalidateSessionInspector(queryClient, sessionId)
                 if (outcome?.accepted) {
                     dispatchStop({type: "cancelled", parked: wasParked})
-                    if (abortAfterAcceptedRef.current) {
+                    const legacyStopSettled = outcome.execution.state === "idle"
+                    if (legacyStopSettled || abortAfterAcceptedRef.current) {
                         stop()
                         dispatchStop({type: "terminal"})
                     }

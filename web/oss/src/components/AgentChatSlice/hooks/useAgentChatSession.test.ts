@@ -24,6 +24,7 @@ const state = vi.hoisted(() => ({
     sendMessage: vi.fn(() => Promise.resolve()),
     turnIds: new Map<string, string>(),
     busy: false,
+    stop: vi.fn(),
 }))
 
 vi.mock("@agenta/chat/assets", () => ({
@@ -125,7 +126,7 @@ vi.mock("@ai-sdk/react", () => ({
         sendMessage: state.sendMessage,
         setMessages: vi.fn(),
         status: "ready",
-        stop: vi.fn(),
+        stop: state.stop,
     }),
 }))
 vi.mock("@tanstack/react-query", () => ({
@@ -184,6 +185,7 @@ describe("useAgentChatSession execution guard", () => {
         state.regenerate.mockClear()
         state.cancelSessionExecution.mockReset()
         state.resolveStopExecution.mockReset()
+        state.stop.mockReset()
         state.resolveStopExecution.mockImplementation(async ({readExecutionId}) => {
             const executionId = readExecutionId()
             return executionId ? {status: "resolved", executionId} : {status: "settled"}
@@ -274,6 +276,45 @@ describe("useAgentChatSession execution guard", () => {
         expect(result!.stopping).toBe(false)
 
         act(() => remountRoot.unmount())
+    })
+
+    it("settles an acknowledged legacy Stop without entering the retry deadline", async () => {
+        vi.useFakeTimers()
+        const sessionId = "session-1"
+        state.busy = true
+        state.turnIds.set(sessionId, "turn-1")
+        state.cancelSessionExecution.mockResolvedValue({
+            accepted: true,
+            conflict: false,
+            execution: {id: "turn-1", state: "idle"},
+        })
+
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        await act(async () => {
+            result!.handleStop()
+            await Promise.resolve()
+        })
+        act(() => vi.advanceTimersByTime(30_000))
+
+        expect(state.stop).toHaveBeenCalledOnce()
+        expect(state.cancelSessionExecution).toHaveBeenCalledOnce()
+        expect(result!.stopping).toBe(false)
+
+        act(() => root.unmount())
+        vi.useRealTimers()
     })
 
     it("drops a stale retry fence after conflict so the next Stop targets the observed run", async () => {
