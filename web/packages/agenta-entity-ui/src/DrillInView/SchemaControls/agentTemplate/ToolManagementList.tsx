@@ -5,7 +5,6 @@ import {type CSSProperties, type ReactNode, useMemo} from "react"
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {humanizeActionKey} from "@agenta/shared/utils"
 
-import {integrationPermissionSummary} from "../integrationPolicy"
 import {ProviderLogo} from "../sectionGroups"
 import {integrationRowIndices, isHarnessBuiltinTool, type IntegrationRow} from "../toolUtils"
 
@@ -17,7 +16,6 @@ import {
 } from "./itemDescriptors"
 import {ITEM_KINDS} from "./itemKinds"
 import {ItemRow, type ItemRowStatus, type ItemRowStatusTone} from "./ItemRow"
-import {PolicyGlyph} from "./PermissionGlyph"
 
 /** Per-tool draft/validation status, keyed by the tool's index in the flat `tools` array. */
 type ToolStatusFor = (item: unknown, index: number) => ItemRowStatus | undefined
@@ -56,24 +54,6 @@ function rollupRowStatus(
     }
     if (!worst) return undefined
     return count > 1 ? {...worst, tooltip: `${count} entries — open the integration.`} : worst
-}
-
-/** Glyph plus short label for a row's saved policy. Custom appends its override count. */
-function PermissionSummary({row}: {row: IntegrationRow}) {
-    if (!row.entry) return null
-    const {preset, label} = integrationPermissionSummary(row.entry.permissions)
-    return (
-        <span
-            className={`flex items-center gap-1.5 text-xs ${
-                preset === "custom"
-                    ? "text-[var(--ag-colorWarningText)]"
-                    : "text-[var(--ag-colorTextSecondary)]"
-            }`}
-        >
-            <PolicyGlyph value={preset} />
-            {label}
-        </span>
-    )
 }
 
 function IntegrationListRow({
@@ -117,7 +97,6 @@ function IntegrationListRow({
             onEdit={onOpen}
             onRemove={onRemove}
             disabled={disabled}
-            extra={<PermissionSummary row={row} />}
             status={status}
         />
     )
