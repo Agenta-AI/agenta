@@ -646,6 +646,14 @@ export function transcriptToMessages(
                 continue
             }
             if (p.stopReason === "cancelled") {
+                // A cancelled continuation is still a TERMINAL record for that execution. Settle it
+                // here too, or the durable-continuation hold waits for a `done` that never comes.
+                if (
+                    target?.approvalContinuation &&
+                    target.approvalContinuation.executionId === executionId
+                ) {
+                    target.approvalContinuation.state = "done"
+                }
                 // Keep a carrier so a content-free cancellation can still render Stopped.
                 if (!current || current.role !== "assistant") {
                     current = newDraft(row.id, "assistant")
