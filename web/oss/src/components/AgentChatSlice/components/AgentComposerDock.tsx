@@ -351,9 +351,6 @@ const AgentComposerDock = ({
                         <AgentSetupCard
                             accounts={onboardingSetup.accounts}
                             suggestions={onboardingSetup.suggestions}
-                            skippedSlugs={onboardingSetup.skippedSlugs}
-                            onSkip={onboardingSetup.skip}
-                            onUndoSkip={onboardingSetup.undoSkip}
                             onAddAccount={onboardingSetup.addAccount}
                             permission={onboardingSetup.permission}
                             onPermissionChange={onboardingSetup.setPermission}
