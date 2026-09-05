@@ -9,7 +9,12 @@
  * Pure and network-free, so a backend that plans the account list pre-commit can replace the
  * text half wholesale behind this same return type.
  */
-import {PROVIDERS, templateConnections, type AgentStarterTemplate} from "./agentTemplates"
+import {
+    PROVIDERS,
+    connectionNeedLabel,
+    templateConnections,
+    type AgentStarterTemplate,
+} from "./agentTemplates"
 
 export interface DetectedAccount {
     /** `PROVIDERS` key / Composio integration slug. */
@@ -26,6 +31,13 @@ export interface DetectedAccount {
      * one of them settles the row, so a GitLab user is never asked to connect GitHub.
      */
     alternatives?: string[]
+    /**
+     * The NEED's short name ("CRM", "Email") for a template slot — what a row is titled instead
+     * of a provider's name: a choice slot titled "HubSpot" misleads, and even a single-provider
+     * slot is really a need ("Email") answered by a provider (Gmail). Absent for text-detected
+     * accounts (the user named the provider themselves) and mixed-category choices.
+     */
+    needLabel?: string
 }
 
 /**
@@ -172,10 +184,16 @@ const toAccount = (
  * "or" read as two things to connect, which is the opposite of what a choice means.
  */
 export function detectAccountsFromTemplate(template: AgentStarterTemplate): DetectedAccount[] {
-    return templateConnections(template).map((slot) => ({
-        ...toAccount(slot.primary, slot.required),
-        ...(slot.alternatives?.length ? {alternatives: slot.alternatives} : {}),
-    }))
+    return templateConnections(template).map((slot) => {
+        // Single-provider slots too: the row is titled "Email", and Gmail is the answer
+        // inside it — the need is the template's, the provider is the means.
+        const needLabel = connectionNeedLabel([slot.primary.slug, ...(slot.alternatives ?? [])])
+        return {
+            ...toAccount(slot.primary, slot.required),
+            ...(slot.alternatives?.length ? {alternatives: slot.alternatives} : {}),
+            ...(needLabel ? {needLabel} : {}),
+        }
+    })
 }
 
 /**

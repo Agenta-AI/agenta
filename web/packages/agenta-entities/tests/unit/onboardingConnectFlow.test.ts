@@ -26,20 +26,17 @@ const runStep = ({
     description,
     template,
     connect = [],
-    skip = [],
     permission = DEFAULT_PERMISSION,
 }: {
     description?: string
     template?: AgentStarterTemplate
     connect?: string[]
-    skip?: string[]
     permission?: typeof DEFAULT_PERMISSION
 }) => {
     const accounts = detectAccounts({description, template})
     const selection = {
         accounts,
         connectedSlugs: connect,
-        skippedSlugs: skip,
         permission,
     }
     return {
@@ -60,15 +57,16 @@ describe("free-text onboarding", () => {
 
     it("never blocks create, however the user leaves the step", () => {
         expect(runStep({description}).canCreate).toBe(true)
-        expect(runStep({description, skip: ["github", "slack"]}).canCreate).toBe(true)
         expect(runStep({description, connect: ["github"]}).canCreate).toBe(true)
     })
 
-    it("tells the agent what is connected and what was declined", () => {
-        const {seed} = runStep({description, connect: ["github"], skip: ["slack"]})
+    it("tells the agent what is connected, and nothing about what was left alone", () => {
+        // An unconnected optional account IS the skip — the builder asks when it needs it,
+        // and the seed carries no line about it.
+        const {seed} = runStep({description, connect: ["github"]})
         expect(seed).toContain(description)
         expect(seed).toContain("I've connected GitHub.")
-        expect(seed).toContain("I've skipped Slack for now")
+        expect(seed).not.toContain("skipped")
     })
 
     it("leaves the seed untouched when the user connects nothing and keeps the default posture", () => {
@@ -106,8 +104,8 @@ describe("template onboarding", () => {
         expect(runStep({template, connect: [declared[0]]}).canCreate).toBe(false)
     })
 
-    it("cannot be unblocked by skipping — a required account has no skip", () => {
-        expect(runStep({template, skip: declared}).canCreate).toBe(false)
+    it("cannot be unblocked by anything short of connecting", () => {
+        expect(runStep({template}).canCreate).toBe(false)
     })
 
     it("merges the template's accounts with ones named in the builder message", () => {

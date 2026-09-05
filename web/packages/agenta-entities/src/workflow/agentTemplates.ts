@@ -142,6 +142,48 @@ export const PROVIDERS: Record<string, {label: string; logo: string}> = {
     posthog: {label: "PostHog", logo: composioLogo("posthog")},
 }
 
+/**
+ * What KIND of service each provider is — the vocabulary for naming a connection slot by its
+ * NEED. A slot titled by its primary provider misleads the moment it offers alternatives
+ * ("HubSpot · Optional" over a HubSpot/Salesforce/Attio choice), so a slot whose options all
+ * share one category is named by the category instead.
+ */
+const PROVIDER_CATEGORY: Record<string, string> = {
+    github: "Source control",
+    gitlab: "Source control",
+    slack: "Team chat",
+    discord: "Team chat",
+    telegram: "Team chat",
+    notion: "Docs",
+    confluence: "Docs",
+    googledrive: "Docs",
+    linear: "Issue tracking",
+    jira: "Issue tracking",
+    datadog: "Monitoring",
+    newrelic: "Monitoring",
+    sentry: "Monitoring",
+    pagerduty: "On-call",
+    hubspot: "CRM",
+    salesforce: "CRM",
+    attio: "CRM",
+    intercom: "Support desk",
+    zendesk: "Support desk",
+    gmail: "Email",
+    googlecalendar: "Calendar",
+    posthog: "Analytics",
+}
+
+/**
+ * The need's short name for a slot with a CHOICE of provider — the category the options share,
+ * or nothing when they span categories (a mixed slot is honestly named by its preferred
+ * provider, the existing behavior).
+ */
+export const connectionNeedLabel = (slugs: string[]): string | undefined => {
+    const categories = slugs.map((slug) => PROVIDER_CATEGORY[slug])
+    if (categories.some((category) => !category)) return undefined
+    return new Set(categories).size === 1 ? categories[0] : undefined
+}
+
 /** What the template needs connected. */
 export function templateConnections(template: AgentStarterTemplate): TemplateConnection[] {
     return template.connections

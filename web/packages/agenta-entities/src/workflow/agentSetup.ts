@@ -5,6 +5,7 @@
  * Pure — no React, no network — so both halves are unit-testable and neither the card
  * (`@agenta/entity-ui/onboarding`) nor the create hooks own a copy of the logic.
  */
+import {PROVIDERS} from "./agentTemplates"
 import type {DetectedAccount} from "./detectAccounts"
 
 /** How much the agent may do on its own. Asked once, in the setup step's footer. */
@@ -31,13 +32,15 @@ export const PERMISSION_OPTIONS: {
 
 export const DEFAULT_PERMISSION: AgentPermission = "ask"
 
-/** Everything the step has decided, at the moment Create is pressed. */
+/**
+ * Everything the step has decided, at the moment Create is pressed. There is deliberately no
+ * skip state: an optional slot left unconnected IS the skip — the builder asks when it needs
+ * it, and no button had to say so.
+ */
 export interface AgentSetupSelection {
     accounts: DetectedAccount[]
     /** Slugs with a live workspace connection. */
     connectedSlugs: string[]
-    /** Suggested slugs the user dismissed. A required account can never be skipped. */
-    skippedSlugs: string[]
     permission: AgentPermission
 }
 
@@ -67,7 +70,7 @@ export type AgentSetupStatus =
     | "blocked"
     /** Every offered account is connected. */
     | "all-set"
-    /** Something is still unconnected or skipped, but nothing blocks create. */
+    /** An optional account is still unconnected, but nothing blocks create. */
     | "ready"
     /** Nothing was detected and nothing added. */
     | "empty"
@@ -75,25 +78,37 @@ export type AgentSetupStatus =
 export const setupStatus = ({
     accounts,
     connectedSlugs,
-    skippedSlugs,
-}: Pick<AgentSetupSelection, "accounts" | "connectedSlugs" | "skippedSlugs">): AgentSetupStatus => {
+}: Pick<AgentSetupSelection, "accounts" | "connectedSlugs">): AgentSetupStatus => {
     if (accounts.length === 0) return "empty"
     if (outstandingRequired({accounts, connectedSlugs}).length > 0) return "blocked"
     const connected = new Set(connectedSlugs)
-    const skipped = new Set(skippedSlugs)
-    const unresolved = accounts.filter(
-        (account) => !isAccountSatisfied(account, connected) && !skipped.has(account.slug),
-    )
-    return unresolved.length === 0 && skipped.size === 0 ? "all-set" : "ready"
+    const unresolved = accounts.filter((account) => !isAccountSatisfied(account, connected))
+    return unresolved.length === 0 ? "all-set" : "ready"
 }
+
+const providerLabel = (slug: string): string => PROVIDERS[slug]?.label ?? slug
+
+/**
+ * How each account's need was actually met — by its own provider, or by the alternative the
+ * user chose instead. A GitHub|GitLab slot connected via GitLab must SAY GitLab, or the builder
+ * wires the wrong provider's tools.
+ */
+const resolveVia = (
+    accounts: DetectedAccount[],
+    slugs: Set<string>,
+): {account: DetectedAccount; via: string}[] =>
+    accounts.flatMap((account) => {
+        const via = [account.slug, ...(account.alternatives ?? [])].find((slug) => slugs.has(slug))
+        return via ? [{account, via}] : []
+    })
 
 const labelsFor = (accounts: DetectedAccount[], slugs: Set<string>): string[] => {
     const seen = new Set<string>()
     const labels: string[] = []
-    for (const account of accounts) {
-        if (!slugs.has(account.slug) || seen.has(account.slug)) continue
-        seen.add(account.slug)
-        labels.push(account.label)
+    for (const {account, via} of resolveVia(accounts, slugs)) {
+        if (seen.has(via)) continue
+        seen.add(via)
+        labels.push(via === account.slug ? account.label : providerLabel(via))
     }
     return labels
 }
@@ -118,18 +133,19 @@ const readableList = (items: string[]): string => {
  * Returns `""` when there is nothing to say, so the seed is left untouched.
  */
 export const buildSetupPreamble = (selection: AgentSetupSelection): string => {
-    const {accounts, connectedSlugs, skippedSlugs, permission} = selection
+    const {accounts, connectedSlugs, permission} = selection
     const connected = labelsFor(accounts, new Set(connectedSlugs))
-    const skipped = labelsFor(accounts, new Set(skippedSlugs))
 
     const sentences: string[] = []
     if (connected.length > 0) sentences.push(`I've connected ${readableList(connected)}.`)
-    if (skipped.length > 0) {
-        sentences.push(
-            `I've skipped ${readableList(skipped)} for now — ask me when you need ${
-                skipped.length > 1 ? "them" : "it"
-            }.`,
-        )
+
+    // The choice of an ALTERNATIVE travels only as prose, and prose loses to the template's
+    // own vocabulary (a PR-reviewer prompt reads as GitHub) — especially when BOTH providers
+    // hold live connections and tool discovery offers each. So a non-primary choice is stated
+    // as an instruction, not left implied by the connected list.
+    for (const {account, via} of resolveVia(accounts, new Set(connectedSlugs))) {
+        if (via === account.slug) continue
+        sentences.push(`Use ${providerLabel(via)}, not ${account.label}.`)
     }
 
     // The permission answer is worth sending on its own — "read only" constrains an agent that

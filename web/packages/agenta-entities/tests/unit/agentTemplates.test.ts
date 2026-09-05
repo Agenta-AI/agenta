@@ -2,6 +2,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     AGENT_TEMPLATES,
+    connectionNeedLabel,
     templateConnections,
     templatePrimaryProvider,
     templateProviderSlugs,
@@ -92,6 +93,33 @@ describe("AGENT_TEMPLATES", () => {
     it("has seedMessage equal to builderMessage", () => {
         for (const template of AGENT_TEMPLATES) {
             expect(template.seedMessage, template.key).toBe(template.builderMessage)
+        }
+    })
+})
+
+describe("connectionNeedLabel", () => {
+    it("names a same-category choice by the category", () => {
+        expect(connectionNeedLabel(["hubspot", "salesforce", "attio"])).toBe("CRM")
+        expect(connectionNeedLabel(["github", "gitlab"])).toBe("Source control")
+    })
+
+    it("declines a mixed-category choice — the primary's own name is honest there", () => {
+        expect(connectionNeedLabel(["linear", "jira", "github"])).toBeUndefined()
+    })
+
+    it("declines when an option has no category", () => {
+        expect(connectionNeedLabel(["github", "somethingnew"])).toBeUndefined()
+    })
+
+    it("covers every choice slot in the catalogue or declines it deliberately", () => {
+        // Every alternatives-bearing slot either resolves to a category name or falls back to
+        // the primary's label — no slot may THROW or resolve to an empty string.
+        for (const template of AGENT_TEMPLATES) {
+            for (const slot of templateConnections(template)) {
+                if (!slot.alternatives?.length) continue
+                const label = connectionNeedLabel([slot.primary.slug, ...slot.alternatives])
+                expect(label === undefined || label.length > 0, template.key).toBe(true)
+            }
         }
     })
 })

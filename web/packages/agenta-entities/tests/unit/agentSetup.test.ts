@@ -22,7 +22,6 @@ const account = (slug: string, required: boolean): DetectedAccount => ({
 const selection = (over: Partial<AgentSetupSelection> = {}): AgentSetupSelection => ({
     accounts: [],
     connectedSlugs: [],
-    skippedSlugs: [],
     permission: DEFAULT_PERMISSION,
     ...over,
 })
@@ -48,11 +47,8 @@ describe("gating", () => {
         expect(setupStatus(sel)).toBe("ready")
     })
 
-    it("allows create with every suggested account skipped", () => {
-        const sel = selection({
-            accounts: [account("slack", false)],
-            skippedSlugs: ["slack"],
-        })
+    it("allows create with a suggested account left unconnected — that IS the skip", () => {
+        const sel = selection({accounts: [account("slack", false)]})
         expect(canCreateAgent(sel)).toBe(true)
         expect(setupStatus(sel)).toBe("ready")
     })
@@ -62,7 +58,7 @@ describe("gating", () => {
         expect(canCreateAgent(selection())).toBe(true)
     })
 
-    it("is all-set only when nothing is unresolved and nothing was skipped", () => {
+    it("is all-set only when every offered account is connected", () => {
         expect(
             setupStatus(
                 selection({
@@ -76,7 +72,6 @@ describe("gating", () => {
                 selection({
                     accounts: [account("github", true), account("slack", false)],
                     connectedSlugs: ["github"],
-                    skippedSlugs: ["slack"],
                 }),
             ),
         ).toBe("ready")
@@ -92,12 +87,10 @@ describe("buildSetupPreamble", () => {
         expect(text).toContain("Ask me before you write or send anything.")
     })
 
-    it("names the skipped ones so the agent doesn't immediately re-ask", () => {
-        const text = buildSetupPreamble(
-            selection({accounts, connectedSlugs: ["github"], skippedSlugs: ["gmail"]}),
-        )
+    it("says nothing about unconnected accounts — the builder asks when it needs them", () => {
+        const text = buildSetupPreamble(selection({accounts, connectedSlugs: ["github"]}))
         expect(text).toContain("I've connected Github.")
-        expect(text).toContain("I've skipped Gmail for now — ask me when you need it.")
+        expect(text).not.toContain("skipped")
     })
 
     it("keeps the order of the account list, not the slug list", () => {
@@ -116,6 +109,35 @@ describe("buildSetupPreamble", () => {
         expect(buildSetupPreamble(selection({permission: "auto"}))).toContain(
             "You can act without asking me for approval.",
         )
+    })
+
+    it("states a non-primary choice as an instruction, so the builder can't drift back", () => {
+        // "I've connected GitLab." alone loses to a prompt soaked in GitHub vocabulary — and
+        // says nothing at all when BOTH providers hold live connections.
+        const sel = selection({
+            accounts: [{...account("github", true), alternatives: ["gitlab"]}],
+            connectedSlugs: ["gitlab"],
+        })
+        expect(buildSetupPreamble(sel)).toContain("Use GitLab, not Github.")
+    })
+
+    it("adds no instruction when the primary itself was chosen", () => {
+        const sel = selection({
+            accounts: [{...account("github", true), alternatives: ["gitlab"]}],
+            connectedSlugs: ["github"],
+        })
+        expect(buildSetupPreamble(sel)).not.toContain("Use ")
+    })
+
+    it("names the alternative that satisfied the slot, not the slot's own provider", () => {
+        // A GitHub|GitLab slot connected via GitLab must say GitLab — the preamble is the only
+        // channel telling the builder WHICH provider's tools this agent uses.
+        const sel = selection({
+            accounts: [{...account("github", true), alternatives: ["gitlab"]}],
+            connectedSlugs: ["gitlab"],
+        })
+        expect(buildSetupPreamble(sel)).toContain("I've connected GitLab.")
+        expect(buildSetupPreamble(sel)).not.toContain("I've connected Github")
     })
 
     it("ignores a connected slug that is not on the card", () => {
