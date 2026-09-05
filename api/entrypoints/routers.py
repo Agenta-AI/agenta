@@ -125,6 +125,8 @@ from oss.src.apis.fastapi.applications.router import ApplicationsRouter
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
+from oss.src.apis.fastapi.skills.router import SkillsRouter
+from oss.src.core.skills.service import SkillsService
 from oss.src.apis.fastapi.workflows.router import SimpleWorkflowsRouter
 from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
@@ -1040,6 +1042,14 @@ simple_workflows = SimpleWorkflowsRouter(
     simple_workflows_service=simple_workflows_service,
 )
 
+skills_service = SkillsService(
+    workflows_service=workflows_service,
+)
+
+skills = SkillsRouter(
+    skills_service=skills_service,
+)
+
 evaluators = EvaluatorsRouter(
     evaluators_service=evaluators_service,
     environments_service=environments_service,
@@ -1443,6 +1453,19 @@ app.include_router(
     router=simple_workflows.router,
     prefix="/preview/simple/workflows",
     tags=["Workflows"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=skills.router,
+    prefix="/skills",
+    tags=["Skills"],
+)
+
+app.include_router(
+    router=skills.router,
+    prefix="/preview/skills",
+    tags=["Skills"],
     include_in_schema=False,
 )
 

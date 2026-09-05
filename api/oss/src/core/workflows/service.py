@@ -2094,6 +2094,79 @@ class WorkflowsService:
 
         return _workflow_revisions
 
+    async def query_workflow_head_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        workflow_revision_query: Optional[WorkflowRevisionQuery] = None,
+        #
+        artifact_search: Optional[str] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[WorkflowRevision]:
+        """Head (latest) revision per variant, revision-flag-filtered in SQL —
+        the correct-pagination path for revision-derived listings (skills)."""
+        _revision_query = (
+            RevisionQuery(
+                **workflow_revision_query.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude={"flags"},
+                ),
+                flags=self._drop_default_server_owned_query_flags(
+                    self._dump_flags(
+                        self._revision_query_flags_from_any(
+                            workflow_revision_query.flags,
+                        )
+                    )
+                )
+                or None,
+            )
+            if workflow_revision_query
+            else RevisionQuery()
+        )
+
+        revisions = await self.workflows_dao.query_head_revisions(
+            project_id=project_id,
+            #
+            revision_query=_revision_query,
+            #
+            artifact_search=artifact_search,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        _workflow_revisions = []
+
+        workflows_by_id: Dict[UUID, Optional[Workflow]] = {}
+        for revision in revisions:
+            if revision.artifact_id not in workflows_by_id:
+                workflows_by_id[revision.artifact_id] = await self.fetch_workflow(
+                    project_id=project_id,
+                    #
+                    workflow_ref=Reference(id=revision.artifact_id),
+                    #
+                    include_archived=include_archived,
+                )
+
+        for revision in revisions:
+            workflow_revision = await self._normalize_revision_for_read(
+                project_id=project_id,
+                revision=WorkflowRevision(
+                    **revision.model_dump(mode="json"),
+                ),
+                include_archived=include_archived,
+                workflow=workflows_by_id[revision.artifact_id],
+            )
+            _workflow_revisions.append(workflow_revision)
+
+        return _workflow_revisions
+
     async def read_workflow_revision_config(
         self,
         *,

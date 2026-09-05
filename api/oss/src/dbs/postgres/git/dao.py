@@ -1591,6 +1591,112 @@ class GitDAO(GitDAOInterface):
 
             return revisions
 
+    async def query_head_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        revision_query: RevisionQuery,
+        #
+        artifact_search: Optional[str] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[Revision]:
+        """One revision per variant — the head — with filters applied in SQL
+        BEFORE pagination (unlike `query_revisions` + Python refiltering).
+
+        Head selection rides the UUID7 `id` (time-ordered), so
+        `DISTINCT ON (variant_id) ... ORDER BY variant_id, id DESC` picks the
+        newest matching revision without casting the nullable string `version`
+        column. Flag/tag filters apply inside the head selection, so the head
+        is "newest revision that matches", and windowing runs on the outer
+        query — cursors stay correct.
+        """
+        async with self.engine.session() as session:
+            head_ids_stmt = (
+                select(self.RevisionDBE.id)  # type: ignore
+                .distinct(self.RevisionDBE.variant_id)  # type: ignore
+                .filter(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                )
+                .order_by(
+                    self.RevisionDBE.variant_id,  # type: ignore
+                    self.RevisionDBE.id.desc(),  # type: ignore
+                )
+            )
+
+            if revision_query.flags:
+                head_ids_stmt = head_ids_stmt.filter(
+                    self.RevisionDBE.flags.contains(revision_query.flags)  # type: ignore
+                )
+
+            if revision_query.tags:
+                head_ids_stmt = head_ids_stmt.filter(
+                    self.RevisionDBE.tags.contains(revision_query.tags)  # type: ignore
+                )
+
+            if include_archived is not True:
+                head_ids_stmt = head_ids_stmt.filter(
+                    self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+                )
+
+            if artifact_search:
+                artifact_ids_subquery = select(self.ArtifactDBE.id).filter(  # type: ignore
+                    self.ArtifactDBE.project_id == project_id,  # type: ignore
+                    or_(
+                        self.ArtifactDBE.name.ilike(f"%{artifact_search}%"),  # type: ignore
+                        self.ArtifactDBE.description.ilike(  # type: ignore
+                            f"%{artifact_search}%"
+                        ),
+                    ),
+                )
+                head_ids_stmt = head_ids_stmt.filter(
+                    self.RevisionDBE.artifact_id.in_(artifact_ids_subquery)  # type: ignore
+                )
+
+            stmt = (
+                select(self.RevisionDBE)
+                .options(
+                    selectinload(self.RevisionDBE.artifact),  # type: ignore
+                    selectinload(self.RevisionDBE.variant),  # type: ignore
+                )
+                .filter(
+                    self.RevisionDBE.project_id == project_id,  # type: ignore
+                    self.RevisionDBE.id.in_(head_ids_stmt.scalar_subquery()),  # type: ignore
+                )
+            )
+
+            if windowing:
+                stmt = apply_windowing(
+                    stmt=stmt,
+                    DBE=self.RevisionDBE,
+                    attribute="id",  # UUID7
+                    order="descending",
+                    windowing=windowing,
+                )
+
+            result = await session.execute(stmt)
+
+            revision_dbes = result.scalars().all()
+
+            revisions = []
+            for revision_dbe in revision_dbes:
+                revision = map_dbe_to_dto(
+                    DTO=Revision,
+                    dbe=revision_dbe,  # type: ignore
+                )
+                revision.artifact_slug = (
+                    revision_dbe.artifact.slug if revision_dbe.artifact else None
+                )
+                revision.variant_slug = (
+                    revision_dbe.variant.slug if revision_dbe.variant else None
+                )
+                revisions.append(revision)
+
+            return revisions
+
     # --------------------------------------------------------------------------
 
     # A refusal is an ANSWER, not a failure: suppression would turn a 409, a 503, or a 404
