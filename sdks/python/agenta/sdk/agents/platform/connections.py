@@ -580,12 +580,45 @@ def _candidate_pool(
     return []
 
 
+def _default_candidate_pool(
+    candidates: Sequence[_ConnectionCandidate], model: ModelRef
+) -> List[_ConnectionCandidate]:
+    """Candidate pool for slug-less default resolution.
+
+    A ``provider_key`` candidate carries no model list at all — ``_provider_key_candidate``
+    populates neither ``model_slugs`` nor ``model_keys`` — so ``matches_model`` is structurally
+    always ``False`` for a standard key. Without the ranking below, any custom provider that
+    happens to advertise the requested model id makes ``_candidate_pool``'s model-match list
+    non-empty, and its ``model.provider`` fallback is therefore never reached: the standard key is
+    not merely out-ranked, it is excluded from consideration. For a slug-less *default*
+    connection the standard key for the model's own provider family is the likelier intent, so it
+    is ranked ahead of a custom provider's model-name match.
+
+    Only the ranking changes. Whatever pool is returned still goes through ``_choose_default``'s
+    existing single-candidate, ``default``-slug and ambiguity rules unchanged — so two standard
+    keys for the same family stay ambiguous rather than silently picking one.
+
+    Named resolution keeps ``_candidate_pool``'s semantics on purpose (see ``_choose_named``):
+    when a user names a connection by slug, narrowing that slug's records by model id is correct.
+    """
+    if model.provider:
+        provider_keys = [
+            candidate
+            for candidate in candidates
+            if candidate.kind == "provider_key"
+            and candidate.matches_provider(model.provider)
+        ]
+        if provider_keys:
+            return provider_keys
+    return _candidate_pool(candidates, model)
+
+
 def _choose_default(
     candidates: Sequence[_ConnectionCandidate],
     model: ModelRef,
     harness: Optional[str] = None,
 ) -> _ConnectionCandidate:
-    pool = _candidate_pool(candidates, model)
+    pool = _default_candidate_pool(candidates, model)
     if not pool and not model.provider:
         # A bare model id (no provider prefix) matched nothing by model id, so there is no
         # provider to look a credential up against. Fail loud with an actionable message rather
