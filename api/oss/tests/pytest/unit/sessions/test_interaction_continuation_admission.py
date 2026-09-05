@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from time import monotonic
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -1079,6 +1080,7 @@ async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
         executions_dao=executions,
         inputs_dao=items,
     )
+    service._reconcile_stopped_redis = AsyncMock()
 
     assert await service.settle_execution_completed(
         project_id=project_id,
@@ -1103,6 +1105,63 @@ async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_done_record_admits_promoted_input_within_one_second(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    project_id = uuid4()
+    source_reconciled = False
+    admitted_at = None
+
+    class _ReleaseAwareDelivery:
+        async def deliver(self, **kwargs):
+            nonlocal admitted_at
+            if not source_reconciled:
+                return DeliveryReceipt(
+                    status="unreachable", detail="source execution still owns running"
+                )
+            admitted_at = monotonic()
+            return DeliveryReceipt(status="accepted", replica_id="runner-1")
+
+        async def acknowledge(self, **kwargs):
+            return None
+
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    items = _Inputs([_pending_input(project_id, policy="queue", position=1)])
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_ReleaseAwareDelivery(),
+        executions_dao=executions,
+        inputs_dao=items,
+    )
+
+    async def reconcile_source(**kwargs):
+        nonlocal source_reconciled
+        source_reconciled = True
+
+    service._reconcile_stopped_redis = AsyncMock(side_effect=reconcile_source)
+    done_record_at = monotonic()
+
+    assert await service.settle_execution_completed(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="source-1",
+    )
+
+    assert items.items[0].state == PendingInputState.promoted
+    service._reconcile_stopped_redis.assert_awaited_once_with(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="source-1",
+    )
+    assert admitted_at is not None
+    assert admitted_at - done_record_at < 1
+
+
+@pytest.mark.asyncio
 async def test_completion_handles_a_lost_input_delivery_reservation(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "queue", True)
     project_id = uuid4()
@@ -1121,6 +1180,7 @@ async def test_completion_handles_a_lost_input_delivery_reservation(monkeypatch)
         executions_dao=executions,
         inputs_dao=items,
     )
+    service._reconcile_stopped_redis = AsyncMock()
 
     assert await service.settle_execution_completed(
         project_id=project_id,

@@ -1521,6 +1521,14 @@ class SessionCommandsService:
                 )
 
         if admission is not None:
+            # The terminal record can arrive before the runner's final `is_running=false` beat.
+            # Release and fence that completed generation first, or the promoted continuation's
+            # first heartbeat sees the old `running` owner and rejects immediate delivery.
+            await self._reconcile_stopped_redis(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+            )
             receipt = await self._deliver(admission.command)
             if receipt is None or receipt.status != "accepted":
                 await self._mark_continuation_recoverable(admission, receipt)
