@@ -15,8 +15,12 @@
  */
 import {useCallback, useState, type ComponentProps, type CSSProperties, type ReactNode} from "react"
 
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {PushPin} from "@phosphor-icons/react"
 import clsx from "clsx"
+
+/** No hover to reveal the actions with, so they stay mounted — the pencil is the touch path. */
+const NO_HOVER_QUERY = "(hover: none)"
 
 /** The label's tail dissolves into the chip's own fill — never an ellipsis, never a painted
  * patch, so it works on any theme. Hover widens the fade to clear the action icons; the label
@@ -37,8 +41,8 @@ export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" 
     /** Pinned: a leading pin glyph, and why this chip leads the strip. */
     pinned?: boolean
     /**
-     * Called only while the chip is hovered or holds focus. Return null to suppress (the desktop
-     * does while its rename input owns the row).
+     * Called while the chip is hovered or holds focus — and always on a device with no hover, where
+     * nothing would ever reveal them. Return null to suppress (a rename input owns the row).
      */
     renderActions?: () => ReactNode
     onSelect: () => void
@@ -73,7 +77,8 @@ export const SessionTab = ({
         [onSelect],
     )
 
-    const actions = hot ? renderActions?.() : null
+    const noHover = useMediaQuery(NO_HOVER_QUERY)
+    const actions = hot || noHover ? renderActions?.() : null
 
     return (
         <div
