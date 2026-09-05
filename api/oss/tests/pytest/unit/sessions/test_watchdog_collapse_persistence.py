@@ -200,6 +200,7 @@ async def wd_engine(monkeypatch):
     monkeypatch.setattr(env.postgres, "uri_core", _sqlalchemy_url_for(db_name))
     engine = TransactionsEngine()
     try:
+        engine._wd_db_name = db_name
         yield engine
     finally:
         await engine.close()
@@ -474,7 +475,9 @@ async def test_c_heartbeat_blocked_on_sweep_cannot_revive_collapsed_row(
     project_id = await _seed_scenario(wd_engine, session_id=session_id, turn_id=turn_id)
 
     parsed = urlparse(env.postgres.uri_core)
-    dsn = urlunparse(("postgresql", parsed.netloc, parsed.path, "", "", ""))
+    dsn = urlunparse(
+        ("postgresql", parsed.netloc, f"/{wd_engine._wd_db_name}", "", "", "")
+    )
     sweep = await asyncpg.connect(dsn=dsn)
     observer = await asyncpg.connect(dsn=dsn)
     sweep_transaction = sweep.transaction()
