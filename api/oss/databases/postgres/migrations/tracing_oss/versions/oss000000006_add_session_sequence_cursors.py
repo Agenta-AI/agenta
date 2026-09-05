@@ -25,11 +25,20 @@ def upgrade() -> None:
         sa.Column("session_id", sa.String(), nullable=False),
         sa.Column("latest_sequence", sa.BigInteger(), nullable=False),
         sa.Column(
-            "updated_at",
+            "created_at",
             sa.TIMESTAMP(timezone=True),
             server_default=sa.text("CURRENT_TIMESTAMP"),
-            nullable=False,
+            nullable=True,
         ),
+        sa.Column(
+            "updated_at",
+            sa.TIMESTAMP(timezone=True),
+            nullable=True,
+        ),
+        sa.Column("deleted_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column("created_by_id", sa.UUID(), nullable=True),
+        sa.Column("updated_by_id", sa.UUID(), nullable=True),
+        sa.Column("deleted_by_id", sa.UUID(), nullable=True),
         sa.PrimaryKeyConstraint("project_id", "session_id"),
     )
     op.add_column("records", sa.Column("sequence", sa.BigInteger(), nullable=True))
