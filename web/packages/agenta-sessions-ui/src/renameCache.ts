@@ -6,15 +6,18 @@ export const NAMED_SESSION_QUERY_KEYS = [
     "sidebar-sessions-pinned",
     "session-list",
     "internal-reconciliation",
+    // One session, not a list — `/m` feeds the browser title from it.
+    "session-stream",
 ]
 
 /**
  * Rewrites one session's name wherever a cached list holds it.
  *
- * Three shapes carry sessions: the rail's flat `SessionStream[]`, a single query page
- * (`{sessions}`), and an infinite query's `{pages}`. Anything else is handed back untouched, so
- * an unrecognised cache entry is left alone rather than corrupted. Returns the SAME object when
- * the session is not in it — a fresh identity would re-render every list that never held it.
+ * Four shapes carry sessions: the rail's flat `SessionStream[]`, a single query page
+ * (`{sessions}`), an infinite query's `{pages}`, and one bare session. Anything else is handed
+ * back untouched, so an unrecognised cache entry is left alone rather than corrupted. Returns the
+ * SAME object when the session is not in it — a fresh identity would re-render every list that
+ * never held it.
  */
 export const withRenamedSession = (data: unknown, sessionId: string, name: string): unknown => {
     if (Array.isArray(data)) {
@@ -37,5 +40,7 @@ export const withRenamedSession = (data: unknown, sessionId: string, name: strin
         const next = withRenamedSession(sessions, sessionId, name)
         return next === sessions ? data : {...data, sessions: next}
     }
+    // One session on its own, the shape `/m`'s per-session stream query caches.
+    if ((data as {session_id?: string}).session_id === sessionId) return {...data, name}
     return data
 }

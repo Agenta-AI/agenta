@@ -31,6 +31,7 @@ import {
 import {getSessionTurnId} from "@agenta/chat/state"
 import {cancelSessionExecution} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
+import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {
     ChatBubble,
@@ -39,6 +40,7 @@ import {
     turnRowClass,
 } from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {isAltChord} from "@agenta/ui/shortcuts"
 import {useAtomValue, useSetAtom} from "jotai"
 import {User} from "lucide-react"
 
@@ -522,6 +524,31 @@ export const LiveConversation = ({
         },
         [rewind],
     )
+
+    // The desktop's run-level shortcuts, with its guards — what makes Stop's `Escape` true here.
+    const scrollerRef = autoScroll.ref
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            // Radix lets a cancelled Escape through and never touches Alt+G; the pane can hide us.
+            if (e.defaultPrevented || isOverlayOpen()) return
+            if (!isOnScreen(scrollerRef.current)) return
+            if (e.key === "Escape" && !e.isComposing && streamingHere) {
+                e.preventDefault()
+                stop()
+                return
+            }
+            // ONE gate, never "Approve all" — a mis-press must not grant a tool nobody read.
+            if (isAltChord(e) && e.code === "KeyG" && pendingApprovals.length > 0) {
+                e.preventDefault()
+                approvalActions.respond({
+                    approved: true,
+                    approvalId: pendingApprovals[0].approvalId,
+                })
+            }
+        }
+        document.addEventListener("keydown", onKey)
+        return () => document.removeEventListener("keydown", onKey)
+    }, [scrollerRef, streamingHere, stop, pendingApprovals, approvalActions])
 
     let body
     if (conversation.isHydrating) {
