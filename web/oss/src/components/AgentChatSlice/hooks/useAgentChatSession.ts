@@ -181,6 +181,7 @@ export const useAgentChatSession = ({
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
             clearSessionTurnId(sessionId)
+            turnAcceptedRef.current = false
             acceptedExecutionIdRef.current = null
             acceptedRunBySession.delete(sessionId)
             setAcceptedRunPending(false)
@@ -510,8 +511,6 @@ export const useAgentChatSession = ({
             recordWatermarkRef.current = undefined
             sequenceWatermarkRef.current = undefined
         }
-        // A new turn has its own acceptance to earn; `streaming` is the same turn continuing.
-        if (status === "submitted") turnAcceptedRef.current = false
     }, [status])
 
     // Persist the conversation whenever its stream settles (skip mid-stream).
