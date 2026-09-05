@@ -37,6 +37,7 @@ const state = vi.hoisted(() => ({
     regenerate: vi.fn(() => Promise.resolve()),
     sendMessage: vi.fn(() => Promise.resolve()),
     turnIds: new Map<string, string>(),
+    hydrationBusyRef: undefined as {current: boolean} | undefined,
     busy: false,
     stop: vi.fn(),
 }))
@@ -195,14 +196,17 @@ vi.mock("./useFileActivityDetector", () => ({
     useFileActivityDetector: vi.fn(),
 }))
 vi.mock("./useSessionHydration", () => ({
-    useSessionHydration: () => ({
-        hydratedEmpty: false,
-        isHydrating: false,
-        runningElsewhere: false,
-        sessionTurnId: state.sessionTurnId,
-        stoppingTurnId: state.stoppingTurnId,
-        stopStateLoading: state.stopStateLoading,
-    }),
+    useSessionHydration: ({busyRef}: {busyRef: {current: boolean}}) => {
+        state.hydrationBusyRef = busyRef
+        return {
+            hydratedEmpty: false,
+            isHydrating: false,
+            runningElsewhere: false,
+            sessionTurnId: state.sessionTurnId,
+            stoppingTurnId: state.stoppingTurnId,
+            stopStateLoading: state.stopStateLoading,
+        }
+    },
 }))
 vi.mock("./useToolCacheInvalidation", () => ({
     useToolCacheInvalidation: vi.fn(),
@@ -231,6 +235,39 @@ describe("useAgentChatSession execution guard", () => {
         state.stoppingTurnId = null
         state.stopStateLoading = false
         state.busy = false
+    })
+
+    it("allows durable hydration for an accepted shared sender while protecting local streaming", async () => {
+        state.busy = true
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const root = createRoot(document.createElement("div"))
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+        expect(state.hydrationBusyRef!.current).toBe(true)
+
+        await act(() => state.capturedHooks!.prepareRequest({messages: [], id: "session-1"}))
+        act(() =>
+            state.capturedHooks!.onData({
+                type: "data-session-accepted",
+                data: {executionId: "accepted-turn"},
+            }),
+        )
+        expect(result!.acceptedRunPending).toBe(true)
+        expect(state.hydrationBusyRef!.current).toBe(false)
+
+        state.busy = false
+        act(() => root.render(createElement(Probe)))
+        expect(result!.acceptedRunPending).toBe(true)
+        expect(state.hydrationBusyRef!.current).toBe(false)
+        act(() => root.unmount())
     })
 
     it("settles a desktop accepted turn when its shared invoke stream finishes", () => {

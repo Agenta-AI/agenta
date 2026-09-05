@@ -15,7 +15,6 @@ import {
     ConnectionWarningStrip,
     ElicitationDock,
     QueuedMessagesDock,
-    RunningElsewhereStrip,
 } from "@agenta/chat/components"
 import type {QueuedMessage} from "@agenta/chat/hooks"
 import {
@@ -41,6 +40,7 @@ import {
     turnRowClass,
 } from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 import {User} from "lucide-react"
 
@@ -49,6 +49,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {pendingTasksAtom, takePendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
+import {livenessQueryKey} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {Composer} from "./Composer"
@@ -223,10 +224,18 @@ export const LiveConversation = ({
         takePendingTask,
     ])
 
+    const queryClient = useQueryClient()
+    useEffect(() => {
+        if (conversation.sharedSettledAt) {
+            void queryClient.invalidateQueries({queryKey: livenessQueryKey(projectId)})
+        }
+    }, [conversation.sharedSettledAt, projectId, queryClient])
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
     const remoteTurn = deriveMobileRemoteTurnPresentation({
         livenessRunning: running,
-        snapshotRunning: conversation.runningFromSnapshot || conversation.acceptedRunPending,
+        livenessUpdatedAt,
+        sharedSettledAt: conversation.sharedSettledAt,
+        snapshotRunning: conversation.runningFromSnapshot,
         sharedReaderAdvertised: sharedReader,
         readerReady: conversation.readerReady,
         ownedContinuation: conversation.acceptedRunPending,
@@ -646,20 +655,14 @@ export const LiveConversation = ({
                                 </ContentRail>
                             </div>
                         ) : null}
-                        {/* A run this device is not driving. Docked with the other strips above the
-                        composer, as on the desktop — it used to be a top bar that also appeared for
-                        THIS device's own turns, duplicating the composer's Stop and shifting the
-                        transcript twice per run. */}
                         {showRunningElsewhere({
-                            running: remoteTurn.showStrip,
+                            running: remoteTurn.showRemoteStop,
                             localStatus: conversation.runStatus,
                         }) && !streamingHere ? (
                             <ContentRail>
-                                <RunningElsewhereStrip
-                                    action={
-                                        <StopButton sessionId={sessionId} projectId={projectId} />
-                                    }
-                                />
+                                <div className="flex justify-end pb-2">
+                                    <StopButton sessionId={sessionId} projectId={projectId} />
+                                </div>
                             </ContentRail>
                         ) : null}
                         {conversation.connectionWarning ? (

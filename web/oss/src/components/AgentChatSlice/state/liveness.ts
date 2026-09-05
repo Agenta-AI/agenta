@@ -34,6 +34,9 @@ const aliveStreamsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => {
     }
 })
 
+export const sessionLivenessUpdatedAtAtom = atom((get) => get(aliveStreamsQueryAtom).dataUpdatedAt)
+export const refreshSessionLivenessAtom = atom(null, (get) => get(aliveStreamsQueryAtom).refetch())
+
 /** `session_id → live stream` map for O(1) per-dot lookup off the single shared query. */
 const aliveStreamsMapAtom = atom((get) => {
     const streams = get(aliveStreamsQueryAtom).data ?? []
@@ -125,7 +128,7 @@ export const isRunningElsewhere = ({
     return localSettledAt === undefined || livenessUpdatedAt > localSettledAt
 }
 
-/** Desktop presentation for a remote/shared-path run. The strip is only the disconnected fallback. */
+/** Desktop presentation for a remote/shared-path run. */
 export const deriveSessionRemoteTurnPresentation = deriveRemoteTurnPresentation
 
 /**

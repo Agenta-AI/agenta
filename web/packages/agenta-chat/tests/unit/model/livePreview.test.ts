@@ -6,6 +6,8 @@ import {
     deriveRemoteTurnPresentation,
     isSessionSnapshotRunning,
     reduceSessionLivePreview,
+    retireSessionLivePreview,
+    markSessionLivePreviewTerminal,
     sessionLivePreviewMessages,
     shouldRefreshLegacyObserverLiveness,
     shouldSubscribeToSessionLivePreview,
@@ -129,7 +131,7 @@ describe("session live preview reducer", () => {
         expect(sessionLivePreviewMessages(stale)[0].parts).toEqual([{type: "text", text: "newer"}])
     })
 
-    it("accepts a late join and enforces contiguous indexes after its first frame", () => {
+    it("accepts a late join cursor without rendering a missing text prefix", () => {
         const joined = reduceSessionLivePreview(
             createSessionLivePreviewState(),
             frame(2, "text-delta", {delta: "tail"}),
@@ -137,12 +139,12 @@ describe("session live preview reducer", () => {
         const later = reduceSessionLivePreview(joined, frame(3, "text-delta", {delta: " later"}))
 
         expect(joined.gapDetected).toBe(false)
-        expect(sessionLivePreviewMessages(later)[0].parts).toEqual([
-            {type: "text", text: "tail later"},
-        ])
+        expect(sessionLivePreviewMessages(joined)).toEqual([])
+        expect(sessionLivePreviewMessages(later)).toEqual([])
+        expect(later.byExecution["turn-1"].lastFrameIndex).toBe(3)
     })
 
-    it("clears and suppresses a preview after an internal frame gap", () => {
+    it("preserves a preview and suppresses further deltas after an internal frame gap", () => {
         const first = reduceSessionLivePreview(
             createSessionLivePreviewState(),
             frame(0, "text-delta", {delta: "hello"}),
@@ -151,8 +153,8 @@ describe("session live preview reducer", () => {
         const missing = reduceSessionLivePreview(gapped, frame(1, "text-delta", {delta: " world"}))
 
         expect(gapped.gapDetected).toBe(true)
-        expect(gapped.executionOrder).toEqual([])
-        expect(sessionLivePreviewMessages(gapped)).toEqual([])
+        expect(gapped.executionOrder).toEqual(["turn-1"])
+        expect(sessionLivePreviewMessages(gapped)).toEqual(sessionLivePreviewMessages(first))
         expect(missing).toBe(gapped)
     })
 
@@ -257,32 +259,348 @@ describe("legacy observer liveness refresh", () => {
     })
 })
 
+describe("durable preview handoff", () => {
+    it("retires only adopted tool output while preserving text and the next frame cursor", () => {
+        let state = createSessionLivePreviewState()
+        state = reduceSessionLivePreview(state, frame(0, "text-start", {}))
+        state = reduceSessionLivePreview(state, frame(1, "text-delta", {delta: "Still writing"}))
+        state = reduceSessionLivePreview(
+            state,
+            frame(
+                2,
+                "tool-input-available",
+                {
+                    toolCallId: "tool-1",
+                    toolName: "shell",
+                    input: {},
+                },
+                "tool-1",
+            ),
+        )
+        state = retireSessionLivePreview(state, {
+            version: 1,
+            kind: "event",
+            session_id: "session-1",
+            execution_id: "turn-1",
+            frame_or_event_id: "record-1",
+            sequence: 1,
+            watermark: 1,
+            type: "tool.completed",
+            payload: {tool_call_id: "tool-1"},
+            created_at: "2026-09-06T00:00:00Z",
+        })
+        expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
+            {type: "text", text: "Still writing"},
+        ])
+        state = reduceSessionLivePreview(state, frame(3, "text-delta", {delta: " more"}))
+        expect(state.gapDetected).toBe(false)
+        expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
+            {type: "text", text: "Still writing more"},
+        ])
+        state = reduceSessionLivePreview(
+            state,
+            frame(
+                4,
+                "tool-output-available",
+                {
+                    toolCallId: "tool-1",
+                    output: "done",
+                },
+                "tool-1",
+            ),
+        )
+        expect(sessionLivePreviewMessages(state)[0].parts).toHaveLength(1)
+    })
+
+    it("renders a resumed execution whose paused turn had no preview frames", () => {
+        let state = markSessionLivePreviewTerminal(createSessionLivePreviewState(), {
+            execution_id: "turn-1", created_at: "2026-09-06T00:00:00Z",
+        })
+        state = reduceSessionLivePreview(state, {...frame(0, "text-delta", {delta: "Resumed"}), created_at: "2026-09-06T00:00:01Z"})
+        expect(sessionLivePreviewMessages(state)[0].parts).toEqual([{type: "text", text: "Resumed"}])
+    })
+
+    it("preserves a same-execution resumed prompt when paused adoption finishes late", () => {
+        let state = reduceSessionLivePreview(
+            createSessionLivePreviewState(),
+            frame(0, "text-delta", {delta: "Before approval"}),
+        )
+        const boundary = state
+        state = markSessionLivePreviewTerminal(state, {
+            execution_id: "turn-1",
+            created_at: "2026-09-06T00:00:00Z",
+        })
+        const marked = state
+        state = reduceSessionLivePreview(state, {
+            ...frame(12, "text-delta", {delta: "Delayed old text"}, "late-old-entity"),
+            created_at: "2026-09-05T23:59:59Z",
+        })
+        expect(state).toBe(marked)
+        state = reduceSessionLivePreview(state, {
+            ...frame(0, "text-start", {}, "resumed-text"),
+            created_at: "2026-09-06T00:00:01Z",
+        })
+        state = reduceSessionLivePreview(state, {
+            ...frame(1, "text-delta", {delta: "Resumed"}, "resumed-text"),
+            created_at: "2026-09-06T00:00:01Z",
+        })
+        state = retireSessionLivePreview(
+            state,
+            {
+                version: 1,
+                kind: "event",
+                session_id: "session-1",
+                execution_id: "turn-1",
+                frame_or_event_id: "paused-record",
+                sequence: 2,
+                watermark: 2,
+                type: "execution.stopped",
+                payload: {reason: "paused"},
+                created_at: "2026-09-06T00:00:00Z",
+            },
+            boundary,
+        )
+        state = reduceSessionLivePreview(state, {
+            ...frame(2, "text-delta", {delta: " successfully"}, "resumed-text"),
+            created_at: "2026-09-06T00:00:01Z",
+        })
+        expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
+            {type: "text", text: "Resumed successfully"},
+        ])
+        expect(state.gapDetected).toBe(false)
+    })
+
+    it("retires only reasoning actually present in the adopted durable transcript", () => {
+        let state = reduceSessionLivePreview(
+            createSessionLivePreviewState(),
+            frame(0, "reasoning-start", {}, "reason-1"),
+        )
+        state = reduceSessionLivePreview(
+            state,
+            frame(1, "reasoning-delta", {delta: "Earlier thought"}, "reason-1"),
+        )
+        state = reduceSessionLivePreview(state, frame(2, "reasoning-end", {}, "reason-1"))
+        state = reduceSessionLivePreview(state, frame(3, "text-start", {}, "text-1"))
+        state = reduceSessionLivePreview(state, frame(4, "text-delta", {delta: "Answer"}, "text-1"))
+        const boundary = state
+        state = reduceSessionLivePreview(state, frame(5, "reasoning-start", {}, "reason-2"))
+        state = reduceSessionLivePreview(
+            state,
+            frame(6, "reasoning-delta", {delta: "Still thinking"}, "reason-2"),
+        )
+        const durable = [
+            {
+                id: "durable",
+                role: "assistant" as const,
+                parts: [
+                    {type: "reasoning" as const, text: "Earlier thought"},
+                    {type: "text" as const, text: "Answer"},
+                ],
+            },
+        ]
+        state = retireSessionLivePreview(
+            state,
+            {
+                version: 1,
+                kind: "event",
+                session_id: "session-1",
+                execution_id: "turn-1",
+                frame_or_event_id: "text-record",
+                sequence: 2,
+                watermark: 2,
+                type: "message.completed",
+                payload: {message_id: "text-1"},
+                created_at: "2026-09-06T00:00:00Z",
+            },
+            boundary,
+            durable,
+        )
+        expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
+            {type: "reasoning", text: "Still thinking"},
+        ])
+        expect(
+            [...durable, ...sessionLivePreviewMessages(state)]
+                .flatMap((message) => message.parts)
+                .filter((part) => part.type === "reasoning" && part.text === "Earlier thought"),
+        ).toHaveLength(1)
+    })
+
+    it("continues new complete entities after a gap without joining incomplete text", () => {
+        let state = reduceSessionLivePreview(
+            createSessionLivePreviewState(),
+            frame(0, "text-delta", {delta: "Prefix"}),
+        )
+        state = reduceSessionLivePreview(state, frame(2, "text-delta", {delta: "missing middle"}))
+        state = {...state, gapDetected: false}
+        state = reduceSessionLivePreview(state, frame(5, "text-start", {}, "new-text"))
+        state = reduceSessionLivePreview(
+            state,
+            frame(6, "text-delta", {delta: "New complete message"}, "new-text"),
+        )
+        expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
+            {type: "text", text: "Prefix"},
+            {type: "text", text: "New complete message"},
+        ])
+    })
+
+    it("retires a terminal execution without erasing another live execution", () => {
+        let state = reduceSessionLivePreview(
+            createSessionLivePreviewState(),
+            frame(0, "text-delta", {delta: "Finished"}),
+        )
+        state = reduceSessionLivePreview(state, {
+            ...frame(0, "text-delta", {delta: "Next turn"}),
+            execution_id: "turn-2",
+        })
+        state = retireSessionLivePreview(state, {
+            version: 1,
+            kind: "event",
+            session_id: "session-1",
+            execution_id: "turn-1",
+            frame_or_event_id: "record-done",
+            sequence: 2,
+            watermark: 2,
+            type: "execution.stopped",
+            payload: {},
+            created_at: "2026-09-06T00:00:00Z",
+        })
+        expect(sessionLivePreviewMessages(state).map((message) => message.parts)).toEqual([
+            [{type: "text", text: "Next turn"}],
+        ])
+        const late = reduceSessionLivePreview(state, frame(1, "text-delta", {delta: "late"}))
+        expect(sessionLivePreviewMessages(late)).toEqual(sessionLivePreviewMessages(state))
+    })
+
+    it("retains visible text when a missing frame requires durable catch-up", () => {
+        let state = reduceSessionLivePreview(
+            createSessionLivePreviewState(),
+            frame(0, "text-start", {}),
+        )
+        state = reduceSessionLivePreview(state, frame(1, "text-delta", {delta: "Visible prefix"}))
+        state = reduceSessionLivePreview(state, frame(3, "text-delta", {delta: "after gap"}))
+        expect(state.gapDetected).toBe(true)
+        expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
+            {type: "text", text: "Visible prefix"},
+        ])
+    })
+})
+
 describe("remote turn presentation", () => {
+    it("ignores liveness cached before shared completion", () => {
+        expect(
+            deriveRemoteTurnPresentation({
+                livenessRunning: true,
+                snapshotRunning: false,
+                sharedSettledAt: 20,
+                livenessUpdatedAt: 10,
+                sharedReaderAdvertised: true,
+                readerReady: true,
+            }),
+        ).toEqual({showActivity: false, showRemoteStop: false})
+    })
+
+    it("keeps an accepted continuation active before its first shared event", () => {
+        expect(
+            deriveRemoteTurnPresentation({
+                livenessRunning: false,
+                snapshotRunning: false,
+                sharedSettledAt: 20,
+                livenessUpdatedAt: 10,
+                sharedReaderAdvertised: true,
+                readerReady: true,
+                ownedContinuation: true,
+            }),
+        ).toEqual({showActivity: true, showRemoteStop: false})
+    })
+
+    it("allows a new remote run after liveness is refreshed", () => {
+        expect(
+            deriveRemoteTurnPresentation({
+                livenessRunning: true,
+                livenessUpdatedAt: 30,
+                sharedSettledAt: 20,
+                snapshotRunning: false,
+                sharedReaderAdvertised: true,
+                readerReady: true,
+            }).showActivity,
+        ).toBe(true)
+    })
+
+    it("uses liveness until any shared completion is known", () => {
+        expect(
+            deriveRemoteTurnPresentation({
+                livenessRunning: true,
+                snapshotRunning: false,
+                sharedSettledAt: 0,
+                livenessUpdatedAt: 10,
+                sharedReaderAdvertised: true,
+                readerReady: true,
+            }).showActivity,
+        ).toBe(true)
+    })
+
+    it("keeps activity across reader connection changes and clears when the execution settles", () => {
+        for (const readerReady of [false, true, false]) {
+            expect(
+                deriveRemoteTurnPresentation({
+                    livenessRunning: false,
+                    snapshotRunning: true,
+                    sharedReaderAdvertised: true,
+                    readerReady,
+                }).showActivity,
+            ).toBe(true)
+        }
+        for (const sharedReaderAdvertised of [false, true]) {
+            for (const readerReady of [false, true]) {
+                expect(
+                    deriveRemoteTurnPresentation({
+                        livenessRunning: false,
+                        snapshotRunning: false,
+                        sharedReaderAdvertised,
+                        readerReady,
+                    }),
+                ).toEqual({showActivity: false, showRemoteStop: false})
+            }
+        }
+    })
+
+    it("shows activity for accepted sender ownership before snapshot liveness catches up", () => {
+        expect(
+            deriveRemoteTurnPresentation({
+                livenessRunning: false,
+                snapshotRunning: true,
+                sharedReaderAdvertised: true,
+                readerReady: false,
+                ownedContinuation: true,
+            }),
+        ).toEqual({showActivity: true, showRemoteStop: false})
+    })
+
     it.each([
         {
             name: "uses turn activity once the advertised reader is ready",
             input: {livenessRunning: true, sharedReaderAdvertised: true, readerReady: true},
-            expected: {showActivity: true, showStrip: false},
+            expected: {showActivity: true, showRemoteStop: false},
         },
         {
-            name: "uses the fallback strip before the reader is ready",
+            name: "keeps activity while the reader connects and offers remote Stop",
             input: {livenessRunning: true, sharedReaderAdvertised: true, readerReady: false},
-            expected: {showActivity: false, showStrip: true},
+            expected: {showActivity: true, showRemoteStop: true},
         },
         {
-            name: "uses the fallback strip when the feature is off",
+            name: "keeps activity for a legacy observer and offers remote Stop",
             input: {livenessRunning: true, sharedReaderAdvertised: false, readerReady: false},
-            expected: {showActivity: false, showStrip: true},
+            expected: {showActivity: true, showRemoteStop: true},
         },
         {
-            name: "never gives an owned continuation the fallback strip",
+            name: "shows activity for an owned continuation without remote Stop",
             input: {
                 livenessRunning: true,
                 sharedReaderAdvertised: true,
                 readerReady: false,
                 ownedContinuation: true,
             },
-            expected: {showActivity: false, showStrip: false},
+            expected: {showActivity: true, showRemoteStop: false},
         },
     ])("$name", ({input, expected}) => {
         expect(deriveRemoteTurnPresentation(input)).toEqual(expected)
@@ -296,16 +614,16 @@ describe("remote turn presentation", () => {
         }
 
         expect(deriveRemoteTurnPresentation({...base, livenessRunning: true})).toEqual({
-            showActivity: false,
-            showStrip: true,
+            showActivity: true,
+            showRemoteStop: true,
         })
         expect(deriveRemoteTurnPresentation({...base, livenessRunning: false})).toEqual({
             showActivity: false,
-            showStrip: false,
+            showRemoteStop: false,
         })
     })
 
-    it("uses activity instead of the banner when the shared reader is ready", () => {
+    it("uses snapshot activity when the shared reader is ready", () => {
         expect(
             deriveRemoteTurnPresentation({
                 livenessRunning: false,
@@ -313,6 +631,6 @@ describe("remote turn presentation", () => {
                 sharedReaderAdvertised: true,
                 readerReady: true,
             }),
-        ).toEqual({showActivity: true, showStrip: false})
+        ).toEqual({showActivity: true, showRemoteStop: false})
     })
 })

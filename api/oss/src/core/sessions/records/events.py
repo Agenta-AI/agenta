@@ -126,6 +126,23 @@ def durable_events_from_records(
         if base is None:
             continue
 
+        # Runner completion is persisted as `done`, including paused and cancelled turns.
+        if record.record_type == "done":
+            stop_reason = attributes.get("stopReason")
+            event = _validated_event(
+                base=base,
+                event_type="execution.stopped",
+                payload={
+                    "stopped_at": base["created_at"],
+                    "reason": stop_reason
+                    if isinstance(stop_reason, str) and stop_reason
+                    else "completed",
+                },
+            )
+            if event is not None:
+                events.append(event)
+            continue
+
         if record.record_type in {"interaction_request", "interaction_response"}:
             payload = {
                 "interaction_id": entity_id,
