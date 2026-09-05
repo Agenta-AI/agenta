@@ -154,7 +154,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionStreamResponse,
     SessionStreamsResponse,
     # records
-    SessionRecordIngestRequest,
+    SessionRecordIngestBody,
     SessionRecordQueryRequest,
     SessionRecordResponse,
     SessionRecordsQueryResponse,
@@ -912,7 +912,7 @@ class RecordsRouter:
     async def ingest_record_event(
         self,
         request: Request,
-        body: SessionRecordIngestRequest,
+        body: SessionRecordIngestBody,
     ) -> dict:
         project_id = request.state.project_id
         if not await check_action_access(
@@ -922,8 +922,28 @@ class RecordsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        if body.kind == "frame":
-            _validate_session_id_http(body.session_id)
+        if isinstance(body, list):
+            if not body or any(item.kind != "frame" for item in body):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Batched record ingest accepts live frames only.",
+                )
+            frames = body
+        else:
+            frames = [body] if body.kind == "frame" else []
+
+        if frames:
+            first = frames[0]
+            _validate_session_id_http(first.session_id)
+            if any(
+                frame.session_id != first.session_id
+                or frame.execution_id != first.execution_id
+                for frame in frames[1:]
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="A live frame batch must share one session and execution.",
+                )
             content_length = request.headers.get("content-length")
             if content_length is not None:
                 try:
@@ -948,28 +968,30 @@ class RecordsRouter:
             current_execution_id = await get_running_owner(
                 get_lock_engine(),
                 project_id=str(project_id),
-                session_id=body.session_id,
+                session_id=first.session_id,
             )
-            if current_execution_id != body.execution_id:
+            if current_execution_id != first.execution_id:
                 raise FORBIDDEN_EXCEPTION
-            await publish_live_frame(
-                organization_id=UUID(request.state.organization_id),
-                project_id=UUID(project_id),
-                frame=SessionLiveFrame(
-                    version=body.version,
-                    kind="frame",
-                    session_id=body.session_id,
-                    execution_id=body.execution_id,
-                    frame_or_event_id=body.frame_or_event_id,
-                    frame_index=body.frame_index,
-                    entity_id=body.entity_id,
-                    type=body.type,
-                    payload=body.payload,
-                    created_at=body.created_at,
-                ),
-            )
+            for frame in frames:
+                await publish_live_frame(
+                    organization_id=UUID(request.state.organization_id),
+                    project_id=UUID(project_id),
+                    frame=SessionLiveFrame(
+                        version=frame.version,
+                        kind="frame",
+                        session_id=frame.session_id,
+                        execution_id=frame.execution_id,
+                        frame_or_event_id=frame.frame_or_event_id,
+                        frame_index=frame.frame_index,
+                        entity_id=frame.entity_id,
+                        type=frame.type,
+                        payload=frame.payload,
+                        created_at=frame.created_at,
+                    ),
+                )
             return {"ok": True}
 
+        assert not isinstance(body, list)
         await publish_record(
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(project_id),

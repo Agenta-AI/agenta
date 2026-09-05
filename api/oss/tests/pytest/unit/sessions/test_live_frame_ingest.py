@@ -4,8 +4,11 @@ from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import ValidationError
-from oss.src.apis.fastapi.sessions.models import SessionRecordIngestRequest
+from pydantic import TypeAdapter, ValidationError
+from oss.src.apis.fastapi.sessions.models import (
+    SessionRecordIngestBody,
+    SessionRecordIngestRequest,
+)
 from oss.src.apis.fastapi.sessions.router import RecordsRouter
 from oss.src.core.sessions.records.dtos import (
     MAX_LIVE_FRAME_BYTES,
@@ -51,14 +54,15 @@ def _frame(
     session_id: str = "session-1",
     execution_id: str = "execution-1",
     payload: dict | None = None,
+    frame_index: int = 0,
 ):
     return SessionRecordIngestRequest(
         version=1,
         kind="frame",
         session_id=session_id,
         execution_id=execution_id,
-        frame_or_event_id=f"{execution_id}:0",
-        frame_index=0,
+        frame_or_event_id=f"{execution_id}:{frame_index}",
+        frame_index=frame_index,
         entity_id="message-1",
         type="text-delta",
         payload=payload or {"id": "message-1", "delta": "hello"},
@@ -99,6 +103,46 @@ async def test_frame_ingest_checks_current_execution_and_publishes():
     published = publish.await_args.kwargs["frame"]
     assert published.execution_id == "execution-1"
     assert published.type == "text-delta"
+
+
+async def test_frame_ingest_accepts_a_batch_and_publishes_in_order():
+    project_id = uuid4()
+    user_id = uuid4()
+    organization_id = uuid4()
+    router = RecordsRouter(records_service=AsyncMock())
+    payload = [_frame(frame_index=index).model_dump(mode="json") for index in range(3)]
+    body = TypeAdapter(SessionRecordIngestBody).validate_python(payload)
+
+    assert isinstance(body, list)
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.get_running_owner",
+            new_callable=AsyncMock,
+            return_value="execution-1",
+        ) as current,
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_live_frame",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as publish,
+    ):
+        result = await router.ingest_record_event(
+            request=_request(project_id, user_id, organization_id),
+            body=body,
+        )
+
+    assert result == {"ok": True}
+    current.assert_awaited_once()
+    assert [call.kwargs["frame"].frame_index for call in publish.await_args_list] == [
+        0,
+        1,
+        2,
+    ]
 
 
 async def test_frame_ingest_rejects_a_stale_execution():
