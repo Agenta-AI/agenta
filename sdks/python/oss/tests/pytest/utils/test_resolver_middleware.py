@@ -74,31 +74,36 @@ class TestHasEmbedMarkers:
         assert _has_embed_markers(config) is True
 
     # -------------------------------------------------------------------------
-    # String embed (substring token)
+    # String embed (snippet token). Literal "@ag.embed" is documentation.
     # -------------------------------------------------------------------------
 
-    def test_string_embed_token_in_value(self):
-        config = {
-            "text": "Use this: @ag.embed[@ag.references[workflow_revision.version=v1]]"
-        }
+    def test_snippet_token_in_value(self):
+        config = {"text": "Use this: @{{workflow_revision.slug=my-skill}}"}
         assert _has_embed_markers(config) is True
 
-    def test_string_embed_token_in_list(self):
+    def test_snippet_token_in_list(self):
         config = {
             "items": [
                 "normal",
-                "@ag.embed[@ag.references[workflow_revision.version=v1]]",
+                "@{{workflow_revision.slug=my-skill}}",
             ]
         }
         assert _has_embed_markers(config) is True
 
-    def test_string_embed_token_at_root(self):
-        assert (
-            _has_embed_markers(
-                "@ag.embed[@ag.references[workflow_revision.version=v1]]"
-            )
-            is True
-        )
+    def test_snippet_token_at_root(self):
+        assert _has_embed_markers("@{{workflow_revision.slug=my-skill}}") is True
+
+    def test_literal_ag_embed_text_is_not_a_marker(self):
+        config = {
+            "body": "A real unresolved embed is a mapping keyed @ag.embed, not this sentence."
+        }
+        assert _has_embed_markers(config) is False
+
+    def test_legacy_bracket_string_is_not_a_marker(self):
+        config = {
+            "text": "Use this: @ag.embed[@ag.references[workflow_revision.version=v1]]"
+        }
+        assert _has_embed_markers(config) is False
 
     # -------------------------------------------------------------------------
     # Configs without embeds
@@ -169,6 +174,48 @@ class TestResolverMiddlewareEmbedGate:
                         "uri": "test://uri",
                         "parameters": {"model": "gpt-4", "temperature": 0.7},
                     }
+                }
+            ),
+        )
+
+        with (
+            patch(
+                "agenta.sdk.middlewares.running.resolver.resolve_handler",
+                new_callable=AsyncMock,
+                return_value=MagicMock(),
+            ),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.resolve_embeds",
+                new_callable=AsyncMock,
+            ) as mock_resolve_embeds,
+        ):
+            mw = ResolverMiddleware()
+            call_next = AsyncMock(return_value="result")
+            with tracing_context_manager(TracingContext()):
+                await mw(request, call_next)
+
+        mock_resolve_embeds.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skips_resolve_when_parameters_only_mention_ag_embed(self):
+        from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
+        )
+
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            flags={"resolve": True},
+            data=WorkflowRequestData(
+                parameters={
+                    "skills": [
+                        {
+                            "name": "docs",
+                            "description": "Explain @ag.embed.",
+                            "body": "A mapping keyed @ag.embed is an unresolved embed.",
+                        }
+                    ]
                 }
             ),
         )
