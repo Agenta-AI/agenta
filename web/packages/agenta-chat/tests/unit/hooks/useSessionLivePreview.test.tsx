@@ -145,7 +145,9 @@ describe("useSessionLivePreview", () => {
                     .mockRejectedValueOnce(new Error("network changed"))
                     .mockResolvedValueOnce([])
             } else {
-                mocks.querySessionTranscript.mockResolvedValueOnce(undefined).mockResolvedValueOnce([])
+                mocks.querySessionTranscript
+                    .mockResolvedValueOnce(undefined)
+                    .mockResolvedValueOnce([])
             }
             const store = createStore()
             store.set(projectIdAtom, "project-1")
