@@ -28,7 +28,15 @@ vi.mock("@agenta/chat/assets", () => ({
     buildRequestWithinDeadline: (build: () => Promise<unknown>) => build(),
     getMessageTraceId: () => undefined,
     latestTurnId: () => state.latestTurnId,
+    // The continuation preflight is a pass-through here: this suite drives the execution guard,
+    // not the durable retry, so the request builder must simply run.
+    prepareAfterContinuationPreflight: (
+        _resume: unknown,
+        _sessionId: string,
+        build: () => Promise<unknown>,
+    ) => build(),
     startupLabelFromDataPart: () => undefined,
+    submitApprovalForCapability: vi.fn(),
 }))
 
 vi.mock("@agenta/chat/hooks", () => ({
@@ -83,6 +91,10 @@ vi.mock("@agenta/entities/session", () => ({
     invalidateSessionListQueries: vi.fn(),
     killSession: vi.fn(),
     recordInteractionAnswerAtom: "record-interaction-answer",
+    respondInteractionAnswerAtom: "respond-interaction-answer",
+    respondInteractionAnswersAtom: "respond-interaction-answers",
+    resumeSessionContinuationAtom: "resume-session-continuation",
+    sessionDurableApprovalsCapabilityAtom: "session-durable-approvals-capability",
     revalidateSessionMountsAtom: "revalidate-mounts",
     revalidateSessionRecordsAtom: "revalidate-records",
 }))
