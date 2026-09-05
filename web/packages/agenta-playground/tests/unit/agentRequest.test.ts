@@ -188,6 +188,28 @@ describe("buildAgentRequest", () => {
         store.set(executionHeadersAtom, () => async () => ({Authorization: "Bearer jwt-abc"}))
     })
 
+    it("advertises secret setup only in capable hosts without changing the saved tools", async () => {
+        const config = {agent: {instructions: "help", tools: []}}
+        seed(store, "e", {config})
+        const plain = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const interactive = await buildAgentRequest("e", [], {
+            sessionId: "s1",
+            store,
+            secretSetup: true,
+        })
+        expect(JSON.stringify(plain?.requestBody)).not.toContain("__ag__request_secret")
+        expect(
+            (interactive?.requestBody.data as {parameters: {agent: {tools: unknown[]}}}).parameters
+                .agent.tools,
+        ).toContainEqual({
+            "@ag.embed": {
+                "@ag.references": {workflow: {slug: "__ag__request_secret"}},
+                "@ag.selector": {path: "parameters.tool"},
+            },
+        })
+        expect(config.agent.tools).toEqual([])
+    })
+
     it("returns null when the entity has no invocation URL", async () => {
         seed(store, "e", {url: null})
         expect(await buildAgentRequest("e", [], {sessionId: "s1", store})).toBeNull()

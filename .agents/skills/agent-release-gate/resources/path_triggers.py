@@ -32,6 +32,7 @@ import subprocess
 # matrix cell (`matrix_gw1_gateway_tools.py`). The driver runs the first kind itself and records
 # the second kind as required, because a standalone cell is a separate process it cannot observe.
 GATEWAY_TOOLS = ("matrix_gw1_gateway_tools.py",)
+CUSTOM_SECRETS = ("matrix_s1_custom_secrets.py",)
 
 # The standing session-control regression cells: Stop, durable commands, and the runner's
 # recovery paths (owner release, park/resume, watchdog quarantine). A separate standalone driver
@@ -72,6 +73,24 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "sdks/python/agenta/sdk/agents/tools/gateway_policy.py": GATEWAY_TOOLS,
     "services/runner/src/tools/**": GATEWAY_TOOLS,
     "services/runner/src/engines/sandbox_agent/gateway-gate.ts": GATEWAY_TOOLS,
+    # Custom-secret authoring, resolution, transport, sandbox injection, and lifecycle identity.
+    "web/packages/agenta-entities/src/secret/**": CUSTOM_SECRETS,
+    "web/packages/agenta-entities/src/workflow/state/agentCredentials.ts": CUSTOM_SECRETS,
+    "web/packages/agenta-entity-ui/src/secret/**": CUSTOM_SECRETS,
+    "web/packages/agenta-entity-ui/src/clientTools/SecretRequest*": CUSTOM_SECRETS,
+    "web/packages/agenta-chat/src/clientTools/secretInteractions.ts": CUSTOM_SECRETS,
+    "api/oss/src/core/secrets/**": CUSTOM_SECRETS,
+    "api/oss/src/apis/fastapi/vault/router.py": CUSTOM_SECRETS,
+    "api/oss/src/apis/fastapi/workflows/router.py": CUSTOM_SECRETS,
+    "api/oss/src/core/workflows/static_catalog.py": CUSTOM_SECRETS,
+    "sdks/python/agenta/sdk/agents/sandbox_credentials.py": CUSTOM_SECRETS,
+    "sdks/python/agenta/sdk/agents/wire_models.py": CUSTOM_SECRETS,
+    "sdks/python/agenta/sdk/agents/utils/wire.py": CUSTOM_SECRETS,
+    "services/runner/src/engines/sandbox_agent/sandbox-credentials.ts": CUSTOM_SECRETS,
+    "services/runner/src/engines/sandbox_agent/run-plan.ts": CUSTOM_SECRETS,
+    "services/runner/src/engines/sandbox_agent/session-identity.ts": CUSTOM_SECRETS,
+    "services/runner/src/environment/runtime-lifecycle.ts": CUSTOM_SECRETS,
+    "services/runner/src/redaction.ts": CUSTOM_SECRETS,
     # The sandbox engine and the Daytona provider: sandbox creation, the secret plan, the
     # credential preflight, and the one retry the runner does when a first model call is refused.
     # A fault here shows up only when many sandboxes start at once, which is what `burst` and

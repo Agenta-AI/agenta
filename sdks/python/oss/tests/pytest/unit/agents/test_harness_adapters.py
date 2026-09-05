@@ -1,11 +1,9 @@
 """Harness adapters: the neutral ``SessionConfig`` -> per-harness config translation.
 
 Pi and Claude genuinely differ (Pi takes built-ins and never gates tool use; Claude has no
-built-ins, delivers tools over MCP, and gates on a permission policy). Agenta is Pi with a
-fixed opinion: a forced preamble, persona, tools, and platform skills. The author's resolved
-inline skills ride the neutral config and the forced platform skill(s) are unioned in. These
-tests lock that the translation honors those differences and that ``make_harness`` validates
-support.
+built-ins, delivers tools over MCP, and gates on a permission policy). The author's resolved
+inline skills and instructions ride the neutral config unchanged. These tests lock that the
+translation honors those differences and that ``make_harness`` validates support.
 """
 
 from __future__ import annotations
@@ -22,12 +20,18 @@ from agenta.sdk.agents import (
     HarnessKind,
     PiAgentTemplate,
     PiHarness,
+    ResolvedSandboxCredential,
     SessionConfig,
     ToolCallback,
     UnsupportedHarnessError,
     make_harness,
 )
-from agenta.sdk.agents.adapters.agenta_builtins import gateway_guidance
+from agenta.sdk.agents.connections import EnvironmentCredentialBinding
+from agenta.sdk.agents.platform_instructions import (
+    AGENTA_PLATFORM_BASE,
+    compose_platform_instructions,
+    gateway_guidance,
+)
 from agenta.sdk.agents.adapters.harnesses import _normalize_tool_specs, _opt_str
 from agenta.sdk.agents.tools import (
     CompiledTool,
@@ -318,15 +322,13 @@ _GATEWAY_POLICY = ResolvedGatewayPolicy(
     }
 )
 
-# Which prompt layer each harness puts the guidance in, and the author's own text on that
-# layer. Pi's AGENTS.md stays purely authored, so its carrier is `append_system`; the
-# file-based harnesses carry it in the instructions file.
+# Author fields stay unchanged while every harness gets the same platform instruction value.
 _AUTHOR_APPEND = "Be terse."
 _AUTHOR_INSTRUCTIONS = "My project rules."
 _HARNESS_CASES = [
-    (PiHarness, HarnessKind.PI, "append_system", "appendSystemPrompt", _AUTHOR_APPEND),
-    (ClaudeHarness, HarnessKind.CLAUDE, "agents_md", "agentsMd", _AUTHOR_INSTRUCTIONS),
-    (CodexHarness, HarnessKind.CODEX, "agents_md", "agentsMd", _AUTHOR_INSTRUCTIONS),
+    (PiHarness, HarnessKind.PI),
+    (ClaudeHarness, HarnessKind.CLAUDE),
+    (CodexHarness, HarnessKind.CODEX),
 ]
 
 
@@ -338,9 +340,7 @@ def test_every_registered_harness_declares_a_guidance_carrier():
     """
     from agenta.sdk.agents.adapters.harnesses import _HARNESSES
 
-    assert {kind for _cls, kind, _field, _carrier, _author in _HARNESS_CASES} == set(
-        _HARNESSES
-    )
+    assert {kind for _cls, kind in _HARNESS_CASES} == set(_HARNESSES)
 
 
 def _guidance_agent() -> AgentTemplate:
@@ -351,54 +351,59 @@ def _guidance_agent() -> AgentTemplate:
     )
 
 
-@pytest.mark.parametrize(
-    "harness_cls,kind,prompt_field,carrier,author_text", _HARNESS_CASES
-)
-def test_gateway_guidance_reaches_every_harness(
-    make_env, harness_cls, kind, prompt_field, carrier, author_text
-):
+@pytest.mark.parametrize("harness_cls,kind", _HARNESS_CASES)
+def test_platform_instructions_reach_every_harness(make_env, harness_cls, kind):
     """Every harness gets the same two derived tools, so every one gets the instructions.
 
-    The guidance now rides its own `gatewayGuidance` wire field (spliced by the runner at
-    environment build, so integration adds stop evicting warm sessions); the adapter's job
-    is to emit the field with the right carrier and keep the prompt strings purely authored.
+    The adapter emits one common string and keeps every author prompt field unchanged.
     """
     harness = harness_cls(make_env(supported=[kind]))
-    config = _session_config(agent=_guidance_agent(), gateway_policy=_GATEWAY_POLICY)
+    config = _session_config(
+        agent=_guidance_agent(),
+        gateway_policy=_GATEWAY_POLICY,
+        sandbox_credentials=[
+            ResolvedSandboxCredential(
+                binding=EnvironmentCredentialBinding(name="GITHUB_TOKEN"),
+                value="never-render-this-secret",
+            )
+        ],
+    )
 
     result = harness._to_harness_config(config)
 
-    guidance = result.gateway_guidance
-    assert guidance is not None
-    assert guidance.carrier == carrier
-    assert "search_tools" in guidance.text
-    assert "run_tool" in guidance.text
+    instructions = result.platform_instructions
+    assert instructions.startswith(AGENTA_PLATFORM_BASE)
+    assert "search_tools" in instructions
+    assert "run_tool" in instructions
     # The configured integration names read as EXAMPLES, so a stale list stays honest.
-    assert "github, slack" in guidance.text
-    assert "Others may exist" in guidance.text
-    # The prompt strings stay purely authored: the runner does the splice, not the adapter.
-    assert getattr(result, prompt_field) == author_text
-    assert result.wire_gateway_guidance() == {
-        "gatewayGuidance": {"text": guidance.text, "carrier": carrier}
-    }
+    assert "github, slack" in instructions
+    assert "Others may exist" in instructions
+    assert "`GITHUB_TOKEN`" in instructions
+    assert "never-render-this-secret" not in instructions
+    assert "Do not inspect or enumerate the environment" in instructions
+    assert (
+        "do not request that secret again unless the user asks to retry" in instructions
+    )
+    assert result.agents_md == _AUTHOR_INSTRUCTIONS
+    if isinstance(result, PiAgentTemplate):
+        assert result.append_system == _AUTHOR_APPEND
+    assert result.wire_platform_instructions() == {"platformInstructions": instructions}
 
 
-@pytest.mark.parametrize(
-    "harness_cls,kind,prompt_field,carrier,author_text", _HARNESS_CASES
-)
-def test_no_gateway_guidance_without_a_connection(
-    make_env, harness_cls, kind, prompt_field, carrier, author_text
-):
-    """G6's prompt half: an agent with no connection entry gets no gateway section."""
+@pytest.mark.parametrize("harness_cls,kind", _HARNESS_CASES)
+def test_platform_base_without_a_connection(make_env, harness_cls, kind):
+    """Every harness gets the common base without an inapplicable gateway section."""
     harness = harness_cls(make_env(supported=[kind]))
     config = _session_config(agent=_guidance_agent())
 
     result = harness._to_harness_config(config)
 
-    assert result.gateway_guidance is None
-    assert result.wire_gateway_guidance() == {}
-    text = getattr(result, prompt_field) or ""
-    assert "search_tools" not in text
+    assert result.platform_instructions == AGENTA_PLATFORM_BASE
+    assert result.wire_platform_instructions() == {
+        "platformInstructions": AGENTA_PLATFORM_BASE
+    }
+    assert "search_tools" not in result.platform_instructions
+    assert result.agents_md == _AUTHOR_INSTRUCTIONS
 
 
 def test_pi_prompt_strings_stay_purely_authored(make_env):
@@ -412,8 +417,8 @@ def test_pi_prompt_strings_stay_purely_authored(make_env):
 
     assert result.agents_md == _AUTHOR_INSTRUCTIONS
     assert result.append_system == _AUTHOR_APPEND
-    assert result.gateway_guidance is not None
-    assert result.gateway_guidance.carrier == "appendSystemPrompt"
+    assert result.platform_instructions is not None
+    assert "search_tools" in result.platform_instructions
 
 
 def test_gateway_guidance_is_never_stored_in_the_revision(make_env):
@@ -424,8 +429,8 @@ def test_gateway_guidance_is_never_stored_in_the_revision(make_env):
 
     result = harness._to_harness_config(config)
 
-    assert result.gateway_guidance is not None
-    assert "search_tools" in result.gateway_guidance.text
+    assert result.platform_instructions is not None
+    assert "search_tools" in result.platform_instructions
     assert agent.instructions == _AUTHOR_INSTRUCTIONS
     assert agent.harness_extras == {"append_system": _AUTHOR_APPEND}
 
@@ -471,12 +476,23 @@ def test_gateway_guidance_is_absent_for_an_empty_policy():
     assert gateway_guidance([]) is None
 
 
-@pytest.mark.parametrize(
-    "harness_cls,kind,prompt_field,carrier,author_text", _HARNESS_CASES
-)
-def test_gateway_policy_stays_out_of_every_harness_config(
-    make_env, harness_cls, kind, prompt_field, carrier, author_text
-):
+def test_platform_instruction_composition_is_deterministic():
+    expected = compose_platform_instructions(
+        ["github", "slack"], ["Z_TOKEN", "A_TOKEN"]
+    )
+    assert (
+        compose_platform_instructions(
+            ["slack", "github"], ["A_TOKEN", "Z_TOKEN", "A_TOKEN"]
+        )
+        == expected
+    )
+    assert expected.index("`A_TOKEN`, `Z_TOKEN`") < expected.index(
+        "## Connected integrations"
+    )
+
+
+@pytest.mark.parametrize("harness_cls,kind", _HARNESS_CASES)
+def test_gateway_policy_stays_out_of_every_harness_config(make_env, harness_cls, kind):
     """Runner policy stays neutral while harnesses receive only names for guidance."""
     harness = harness_cls(make_env(supported=[kind]))
     config = _session_config(gateway_policy=_GATEWAY_POLICY)

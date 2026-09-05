@@ -19,12 +19,20 @@ import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
  * state on the desktop side, and the header takes them as slots precisely so a surface that
  * cannot offer them simply does not.
  */
-export const ConfigPane = ({entityId, sessionId}: {entityId: string; sessionId: string}) => {
+export const ConfigPane = ({
+    entityId,
+    sessionId,
+    projectId,
+}: {
+    entityId: string
+    sessionId: string
+    projectId: string
+}) => {
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
 
     return (
         <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
-            <DrillInBridgeProvider>
+            <DrillInBridgeProvider sessionId={sessionId} projectId={projectId}>
                 <AgentBuildPanel
                     revisionId={entityId}
                     stickyHeaderTop={48}

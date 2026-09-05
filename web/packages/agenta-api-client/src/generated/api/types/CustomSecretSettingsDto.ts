@@ -4,6 +4,7 @@ import type * as AgentaApi from "../index.js";
 
 export interface CustomSecretSettingsDto {
     format: AgentaApi.CustomSecretFormat;
+    default_env_var?: (string | null) | undefined;
     content?: (CustomSecretSettingsDto.Content | null) | undefined;
 }
 

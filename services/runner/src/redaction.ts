@@ -444,6 +444,8 @@ export function seedFromEnv(options?: {
 /** The shape `seedForRun` reads off an `AgentRunRequest` (structural, to avoid importing the
  * wire types into the redaction primitive). */
 export interface RunSeedSource {
+  /** Resolved custom credentials injected into the sandbox environment. */
+  sandboxCredentials?: Array<{ value?: string }>;
   /** Resolved model routing. Approved `environment` bindings are public config; unknown legacy
    * bindings remain fail-safe. `credentials` carries secrets and provider-SDK locators. */
   modelConnection?: {
@@ -472,6 +474,7 @@ export function requestSecretValues(
   request: RunSeedSource,
 ): Array<string | undefined> {
   return [
+    ...(request.sandboxCredentials ?? []).map((credential) => credential.value),
     ...modelEnvironmentSecretValues(request.modelConnection?.environment),
     ...(request.modelConnection?.credentials ?? [])
       .filter(

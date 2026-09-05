@@ -412,6 +412,109 @@ describe("useAgentConversation", () => {
         expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
+    it("resumes a secret request with the adopted revision even before the host prop catches up", async () => {
+        const chunks = [
+            {type: "start", messageId: "secret-assistant"},
+            {type: "start-step"},
+            {type: "tool-input-start", toolCallId: "secret-call", toolName: "request_secret"},
+            {
+                type: "tool-input-available",
+                toolCallId: "secret-call",
+                toolName: "request_secret",
+                input: {name: "Deploy token", env_var: "DEPLOY_TOKEN", reason: "Deploy the app"},
+            },
+            {type: "finish-step"},
+            {type: "finish"},
+        ]
+        fetchMock.mockResolvedValueOnce(
+            new Response(
+                chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n",
+                {headers: {"content-type": "text/event-stream"}},
+            ),
+        )
+        fetchMock.mockResolvedValue(streamResponse("Continuing with the secret"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result, rerender} = mount(store, "rev-before", sessionId)
+        await act(async () => {
+            await result.current.send({text: "Deploy it"})
+        })
+        await waitFor(() => expect(result.current.hitlPending).toBe(true))
+        act(() => {
+            result.current.adoptRevision("rev-with-secret")
+        })
+        rerender({entityId: "rev-before"})
+        act(() => {
+            result.current.sendToolOutput({
+                toolName: "request_secret",
+                toolCallId: "secret-call",
+                output: {
+                    status: "configured",
+                    secret: {slug: "deploy-token"},
+                    env_var: "DEPLOY_TOKEN",
+                    revision_id: "rev-with-secret",
+                },
+            })
+        })
+        await waitFor(() => expect(vi.mocked(buildAgentRequest)).toHaveBeenCalledTimes(2))
+        expect(vi.mocked(buildAgentRequest).mock.calls[1][0]).toBe("rev-with-secret")
+        expect(vi.mocked(buildAgentRequest).mock.calls[1][2]?.sessionId).toBe(sessionId)
+        await waitFor(() => expect(result.current.status).toBe("ready"))
+        expect(result.current.hitlPending).toBe(false)
+    })
+
+    it("surfaces and retries a failed secret resume with the adopted revision and session", async () => {
+        const chunks = [
+            {type: "start", messageId: "secret-error-assistant"},
+            {type: "start-step"},
+            {type: "tool-input-start", toolCallId: "secret-error-call", toolName: "request_secret"},
+            {
+                type: "tool-input-available",
+                toolCallId: "secret-error-call",
+                toolName: "request_secret",
+                input: {name: "Deploy token", env_var: "DEPLOY_TOKEN", reason: "Deploy the app"},
+            },
+            {type: "finish-step"},
+            {type: "finish"},
+        ]
+        fetchMock.mockResolvedValueOnce(
+            new Response(
+                chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n",
+                {headers: {"content-type": "text/event-stream"}},
+            ),
+        )
+        fetchMock.mockResolvedValueOnce(new Response("Service unavailable", {status: 503}))
+        fetchMock.mockResolvedValueOnce(streamResponse("Recovered"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-before", sessionId)
+        await act(async () => {
+            await result.current.send({text: "Deploy it"})
+        })
+        await waitFor(() => expect(result.current.hitlPending).toBe(true))
+        act(() => {
+            result.current.adoptRevision("rev-with-secret")
+            result.current.sendToolOutput({
+                toolName: "request_secret",
+                toolCallId: "secret-error-call",
+                output: {
+                    status: "configured",
+                    secret: {slug: "deploy-token"},
+                    env_var: "DEPLOY_TOKEN",
+                    revision_id: "rev-with-secret",
+                },
+            })
+        })
+        await waitFor(() => expect(result.current.error?.message).toContain("Service unavailable"))
+        await waitFor(() => expect(result.current.turns.at(-1)?.status.showError).toBe(true))
+        act(() => result.current.regenerate(result.current.messages.at(-1)!.id))
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+        expect(vi.mocked(buildAgentRequest).mock.calls.at(-1)?.[0]).toBe("rev-with-secret")
+        expect(vi.mocked(buildAgentRequest).mock.calls.at(-1)?.[2]?.sessionId).toBe(sessionId)
+    })
+
     it("survives a revision switch mid-stream instead of aborting the turn", async () => {
         // Auto-commit (#6126) mints a new revision while the agent is running, and the surface
         // follows it. If that arrives as a REMOUNT the unmount teardown calls stop() and kills the

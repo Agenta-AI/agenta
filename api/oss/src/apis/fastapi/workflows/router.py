@@ -1,5 +1,5 @@
 from inspect import isawaitable
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Request, status, HTTPException, Depends
@@ -114,6 +114,60 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 
 log = get_module_logger(__name__)
+
+
+def _changes_sandbox_credentials(value: Any, path: tuple[str, ...] = ()) -> bool:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            segments = tuple(
+                part for part in str(key).replace("/", ".").split(".") if part
+            )
+            next_path = (*path, *segments)
+            if len(next_path) >= 2 and next_path[-2:] == ("sandbox", "credentials"):
+                return True
+            if _changes_sandbox_credentials(child, next_path):
+                return True
+    elif isinstance(value, list):
+        if (
+            path[-1:] == ("path",)
+            and value
+            and all(isinstance(item, str) for item in value)
+        ):
+            joined = ".".join(value).replace("/", ".")
+            if "sandbox.credentials" in joined:
+                return True
+        return any(_changes_sandbox_credentials(item, path) for item in value)
+    return False
+
+
+async def _require_secret_attachment_access(request: Request, payload: Any) -> None:
+    serialized = (
+        payload.model_dump(mode="json", exclude_none=True)
+        if hasattr(payload, "model_dump")
+        else payload
+    )
+    if not _changes_sandbox_credentials(serialized):
+        return
+    if not await check_action_access(  # type: ignore
+        user_uid=request.state.user_id,
+        project_id=request.state.project_id,
+        permission=Permission.EDIT_SECRET,  # type: ignore
+    ):
+        raise FORBIDDEN_EXCEPTION  # type: ignore
+
+
+async def _require_fork_secret_attachment_access(
+    request: Request,
+    workflows_service: WorkflowsService,
+    workflow_fork_request: WorkflowVariantForkRequest,
+) -> None:
+    source_revision = await workflows_service.fetch_workflow_revision(
+        project_id=UUID(request.state.project_id),
+        workflow_variant_ref=workflow_fork_request.workflow_variant_ref,
+        workflow_revision_ref=workflow_fork_request.workflow_revision_ref,
+    )
+    if source_revision is not None:
+        await _require_secret_attachment_access(request, source_revision)
 
 
 class WorkflowsRouter:
@@ -1251,6 +1305,12 @@ class WorkflowsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        await _require_fork_secret_attachment_access(
+            request,
+            self.workflows_service,
+            workflow_fork_request,
+        )
+
         workflow_variant = await self.workflows_service.fork_workflow_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1287,6 +1347,10 @@ class WorkflowsRouter:
             permission=Permission.EDIT_WORKFLOWS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        await _require_secret_attachment_access(
+            request, workflow_revision_create_request.workflow_revision
+        )
 
         workflow_revision = await self.workflows_service.commit_workflow_revision(
             project_id=UUID(request.state.project_id),
@@ -1555,6 +1619,10 @@ class WorkflowsRouter:
             permission=Permission.EDIT_WORKFLOWS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        await _require_secret_attachment_access(
+            request, workflow_revision_commit_request.workflow_revision
+        )
 
         if workflow_variant_id is not None and str(workflow_variant_id) != str(
             workflow_revision_commit_request.workflow_revision.workflow_variant_id

@@ -171,6 +171,15 @@ export const useAgentChatSession = ({
     const [turnDeliverySource, setTurnDeliverySource] = useState<TurnDeliverySource | null>(
         () => turnDeliverySourceBySession.get(sessionId) ?? null,
     )
+    const entityIdRef = useRef(entityId)
+    const entityPropRef = useRef(entityId)
+    if (entityPropRef.current !== entityId) {
+        entityIdRef.current = entityId
+        entityPropRef.current = entityId
+    }
+    const adoptRevision = useCallback((next: string) => {
+        entityIdRef.current = next
+    }, [])
     const sharedSenderReadyRef = useRef(false)
     const setSharedSenderReady = useCallback((ready: boolean) => {
         sharedSenderReadyRef.current = ready
@@ -194,9 +203,10 @@ export const useAgentChatSession = ({
             // hangs, so a failed send surfaces as an error bubble instead of an eternal spinner
             // (#6042). The helper owns the not-ready / timed-out errors.
             const req = await buildRequestWithinDeadline(() =>
-                buildAgentRequest(entityId, messages, {
+                buildAgentRequest(entityIdRef.current, messages, {
                     sessionId: id ?? sessionId,
                     sharedResponse,
+                    secretSetup: true,
                 }),
             )
             captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
@@ -838,6 +848,7 @@ export const useAgentChatSession = ({
         setStopped,
         handleStop,
         handleClientToolOutput,
+        adoptRevision,
         markLiveGate,
         answerApproval,
         resumeOrphaned,

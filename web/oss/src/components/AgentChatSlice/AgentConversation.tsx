@@ -8,6 +8,7 @@ import {
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
 import {getMessageTraceId} from "@agenta/chat/assets"
+import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {AttachmentDropOverlay, ConnectionFocusProvider} from "@agenta/chat/components"
 import {
     stagedFilesToParts,
@@ -39,6 +40,7 @@ import {
     modalitiesForModel,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {ContextRail} from "@agenta/entity-ui/drive"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
@@ -54,6 +56,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
 import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
@@ -109,6 +112,7 @@ const AgentConversation = ({
     /** Shared across the panel's session panes: the composer entrance plays only once. */
     revealPlayedRef: MutableRefObject<boolean>
 }) => {
+    const {hasPermission} = useProjectPermissions()
     const store = useStore()
     // Workflow artifact id for this conversation — the key for the agent's durable `agent-files`
     // mount, folded into the session drive by the Drive surfaces below (via the drive context).
@@ -151,6 +155,7 @@ const AgentConversation = ({
         setStopped,
         handleStop,
         handleClientToolOutput,
+        adoptRevision,
         markLiveGate,
         answerApproval,
         resumeOrphaned,
@@ -426,6 +431,7 @@ const AgentConversation = ({
     )
 
     const interactionAvailability = getInteractionAvailability({stopped, stopping, streaming: busy})
+    const pendingSecret = useMemo(() => getPendingSecretInteractions(messages)[0], [messages])
     const pendingApprovals = useMemo(
         () => getLivePendingApprovals(messages, {stopped: !interactionAvailability.approvals}),
         [messages, interactionAvailability.approvals],
@@ -452,7 +458,7 @@ const AgentConversation = ({
     // arriving below to jump to.
     const gateOpen = jumpGateOpen({
         approvals: pendingApprovals.length,
-        elicitationOpen: false,
+        elicitationOpen: Boolean(pendingSecret),
         connectionOpen: connects.open,
     })
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
@@ -922,6 +928,18 @@ const AgentConversation = ({
                                         onApprovalResponse={handleApprovalResponse}
                                         connects={connects}
                                         elicits={elicits}
+                                        secretDock={
+                                            !busy && !stopped && pendingSecret ? (
+                                                <SecretRequestDock
+                                                    key={pendingSecret.toolCallId}
+                                                    meta={pendingSecret}
+                                                    revisionId={entityId}
+                                                    canEditSecrets={hasPermission("edit_secret")}
+                                                    onAdoptRevision={adoptRevision}
+                                                    onOutput={handleClientToolOutput}
+                                                />
+                                            ) : null
+                                        }
                                         onClientToolOutput={handleClientToolOutput}
                                         onSubmit={handleSubmit}
                                         onStop={handleStop}

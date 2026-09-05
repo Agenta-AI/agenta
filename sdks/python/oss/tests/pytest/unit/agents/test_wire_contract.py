@@ -45,7 +45,9 @@ from agenta.sdk.agents import (
     ToolResolver,
     TraceContext,
 )
-from agenta.sdk.agents.adapters.agenta_builtins import gateway_guidance_field
+from agenta.sdk.agents.platform_instructions import compose_platform_instructions
+from agenta.sdk.agents.connections import EnvironmentCredentialBinding
+from agenta.sdk.agents.dtos import ResolvedSandboxCredential
 from agenta.sdk.agents.platform.gateway import _derived_tool_specs
 from agenta.sdk.agents.tools import (
     CompiledTool,
@@ -83,6 +85,7 @@ KNOWN_REQUEST_KEYS = {
     "harnessMode",
     "modelCapabilities",
     "modelConnection",
+    "sandboxCredentials",
     "messages",
     "context",
     "telemetry",
@@ -93,7 +96,7 @@ KNOWN_REQUEST_KEYS = {
     "toolCallback",
     "permissions",
     "gatewayPolicy",
-    "gatewayGuidance",
+    "platformInstructions",
     "systemPrompt",
     "appendSystemPrompt",
     "skills",
@@ -285,6 +288,12 @@ def _codex_payload():
             ],
             endpoint=Endpoint(base_url="https://api.openai.com/v1"),
         ),
+        sandbox_credentials=[
+            ResolvedSandboxCredential(
+                binding=EnvironmentCredentialBinding(name="GITHUB_TOKEN"),
+                value="github-secret",
+            )
+        ],
     )
     return request_to_wire(
         harness=HarnessKind.CODEX,
@@ -326,8 +335,8 @@ def _gateway_connection_payload():
         tool_callback=_CALLBACK,
         # Straight from the same producer path the adapters use, so the golden pins the
         # separate-field form (the guidance is spliced runner-side at environment build).
-        gateway_guidance=gateway_guidance_field(
-            list(gateway_policy.integrations), "appendSystemPrompt"
+        platform_instructions=compose_platform_instructions(
+            list(gateway_policy.integrations)
         ),
     )
     return request_to_wire(

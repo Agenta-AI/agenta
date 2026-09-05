@@ -281,3 +281,41 @@ def test_run_selection_honors_defaults():
     config = AgentTemplate.from_params({}, defaults=defaults)
     assert config.harness == "claude"
     assert config.sandbox == "daytona"
+
+
+def test_from_params_parses_sandbox_credentials():
+    config = AgentTemplate.from_params(
+        {
+            "agent": {
+                "sandbox": {
+                    "credentials": [
+                        {
+                            "secret": {"slug": "github-token"},
+                            "binding": {"type": "env", "name": "GITHUB_TOKEN"},
+                        }
+                    ]
+                }
+            }
+        }
+    )
+    assert config.sandbox_credentials[0].secret.slug == "github-token"
+    assert config.sandbox_credentials[0].binding.name == "GITHUB_TOKEN"
+
+
+def test_from_params_rejects_unknown_sandbox_credential_fields():
+    with pytest.raises(Exception, match="sandbox.credentials is invalid"):
+        AgentTemplate.from_params(
+            {
+                "agent": {
+                    "sandbox": {
+                        "credentials": [
+                            {
+                                "secret": {"slug": "x"},
+                                "binding": {"type": "env", "name": "X"},
+                                "value": "no",
+                            }
+                        ]
+                    }
+                }
+            }
+        )

@@ -24,7 +24,7 @@ from pydantic import (
 
 from agenta.sdk.engines.running.errors import ERRORS_BASE_URL, ErrorStatus
 
-from .connections import ModelRef, ResolvedConnection
+from .connections import EnvironmentCredentialBinding, ModelRef, ResolvedConnection
 from .mcp import (
     MCPServerConfig,
     ResolvedMCPServer,
@@ -619,6 +619,32 @@ class AgentResult(BaseModel):
     trace_id: Optional[str] = None
 
 
+class SandboxSecretReference(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    slug: str
+
+
+class SandboxEnvironmentBinding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["env"]
+    name: str
+
+
+class SandboxCredentialConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    secret: SandboxSecretReference
+    binding: SandboxEnvironmentBinding
+
+
+class ResolvedSandboxCredential(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    binding: EnvironmentCredentialBinding
+    value: str = Field(repr=False, min_length=1)
+
+    def to_wire(self) -> Dict[str, Any]:
+        return {"binding": self.binding.to_wire(), "value": self.value}
+
+
 # ---------------------------------------------------------------------------
 # The neutral agent definition + run selection
 # ---------------------------------------------------------------------------
@@ -663,6 +689,7 @@ class AgentTemplate(BaseModel):
     harness_permissions: Dict[str, Any] = Field(default_factory=dict)
     harness_extras: Dict[str, Any] = Field(default_factory=dict)
     sandbox_permission: Optional[SandboxPermission] = None
+    sandbox_credentials: List[SandboxCredentialConfig] = Field(default_factory=list)
     # The execution selectors: the coding agent to drive, where it runs, and the runner-enforced
     # default permission mode (sourced from ``runner.permissions.default``).
     harness: str = "pi_core"
@@ -722,6 +749,7 @@ class AgentTemplate(BaseModel):
             harness_permissions=harness_permissions,
             harness_extras=harness_extras,
             sandbox_permission=_parse_sandbox_permission(params, base),
+            sandbox_credentials=_parse_sandbox_credentials(params, base),
             harness=harness,
             sandbox=sandbox,
             permission_default=permission_default,
@@ -731,26 +759,6 @@ class AgentTemplate(BaseModel):
 # ---------------------------------------------------------------------------
 # Per-harness configs (what an adapter consumes)
 # ---------------------------------------------------------------------------
-
-
-class GatewayGuidance(BaseModel):
-    """The derived gateway-tools instruction section, carried as its own wire field.
-
-    It used to be composed INTO the prompt strings (``append_system`` for Pi, ``agents_md``
-    for the file-based harnesses). That put the integration NAMES inside the session
-    fingerprint, so adding a second integration evicted a warm session for a one-word prompt
-    change. As a separate field the runner splices it into ``carrier`` when it BUILDS an
-    environment, and deliberately excludes it from the fingerprint: the text refreshes
-    whenever a session is built or reopened, and never evicts one on its own. The wording
-    presents the names as examples ("for instance"), so a list that goes stale mid-session
-    stays honest.
-    """
-
-    text: str
-    carrier: Literal["appendSystemPrompt", "agentsMd"]
-
-    def to_wire(self) -> Dict[str, Any]:
-        return {"text": self.text, "carrier": self.carrier}
 
 
 class HarnessAgentTemplate(BaseModel):
@@ -780,15 +788,18 @@ class HarnessAgentTemplate(BaseModel):
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
     skills: List[SkillTemplate] = Field(default_factory=list)
     sandbox_permission: Optional[SandboxPermission] = None
+    sandbox_credentials: List[ResolvedSandboxCredential] = Field(
+        default_factory=list, repr=False
+    )
     permission_default: PermissionMode = "allow_reads"
     # The selected harness's first-class allow/ask/deny posture, carried verbatim from
     # ``AgentTemplate.harness_permissions`` by the harness adapter. A gating harness's CONFIG renders
     # it into files for the wire (see :meth:`wire_harness_files`); the raw slice does not ride the
     # wire.
     harness_permissions: Dict[str, Any] = Field(default_factory=dict)
-    # The derived gateway-tools guidance, set by the adapter when the agent has at least one
-    # gateway connection. Rides the wire as ``gatewayGuidance``; see :class:`GatewayGuidance`.
-    gateway_guidance: Optional[GatewayGuidance] = None
+    # Agenta-owned static and configuration-derived guidance. The runner chooses the existing
+    # delivery channel from the harness and keeps this value outside lifecycle fingerprints.
+    platform_instructions: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -832,13 +843,11 @@ class HarnessAgentTemplate(BaseModel):
         by default; a harness that exposes prompt overrides (Pi) emits them here."""
         return {}
 
-    def wire_gateway_guidance(self) -> Dict[str, Any]:
-        """The ``gatewayGuidance`` field for the ``/run`` payload. Omitted when the agent has
-        no gateway connection so a connection-free payload is unchanged (the golden wire
-        contract)."""
-        if not self.gateway_guidance:
+    def wire_platform_instructions(self) -> Dict[str, Any]:
+        """The internal ``platformInstructions`` field for the ``/run`` payload."""
+        if not self.platform_instructions:
             return {}
-        return {"gatewayGuidance": self.gateway_guidance.to_wire()}
+        return {"platformInstructions": self.platform_instructions}
 
     def wire_mcp(self) -> Dict[str, Any]:
         """The ``mcpServers`` field for the ``/run`` payload. Omitted when none are declared so
@@ -863,6 +872,13 @@ class HarnessAgentTemplate(BaseModel):
         if self.sandbox_permission is None:
             return {}
         return {"sandboxPermission": self.sandbox_permission.to_wire()}
+
+    def wire_sandbox_credentials(self) -> Dict[str, Any]:
+        if not self.sandbox_credentials:
+            return {}
+        return {
+            "sandboxCredentials": [item.to_wire() for item in self.sandbox_credentials]
+        }
 
     def wire_harness_files(self) -> Dict[str, Any]:
         """The generic ``harnessFiles`` field for the ``/run`` payload: files this harness's config
@@ -1185,6 +1201,9 @@ class SessionConfig(BaseModel):
     # /run serializer. ``None`` when the agent has no connection entry.
     gateway_policy: Optional[ResolvedGatewayPolicy] = None
     mcp_servers: List[ResolvedMCPServer] = Field(default_factory=list)
+    sandbox_credentials: List[ResolvedSandboxCredential] = Field(
+        default_factory=list, repr=False
+    )
 
     @field_validator("tool_specs", mode="before")
     @classmethod
@@ -1303,7 +1322,7 @@ _LEGACY_FLAT_TEMPLATE_KEYS: Dict[str, str] = {
 # for forward-compat; only these three objects are locked down.
 _SELECTOR_ALLOWED_KEYS: Dict[str, frozenset] = {
     "harness": frozenset({"kind", "permissions", "extras"}),
-    "sandbox": frozenset({"kind", "permissions"}),
+    "sandbox": frozenset({"kind", "permissions", "credentials"}),
     "runner": frozenset({"kind", "permissions"}),
 }
 
@@ -1501,6 +1520,27 @@ def _model_from_llm(llm: Dict[str, Any]) -> Any:
     if extras:
         ref["extras"] = extras
     return ref
+
+
+def _parse_sandbox_credentials(
+    params: Dict[str, Any], defaults: AgentTemplate
+) -> List[SandboxCredentialConfig]:
+    sandbox = _section(params, "sandbox")
+    if "credentials" not in sandbox:
+        return list(defaults.sandbox_credentials)
+    raw = sandbox.get("credentials")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise AgentTemplateShapeError(
+            "agent template sandbox.credentials must be a list"
+        )
+    try:
+        return [SandboxCredentialConfig.model_validate(item) for item in raw]
+    except Exception as exc:
+        raise AgentTemplateShapeError(
+            f"agent template sandbox.credentials is invalid: {exc}"
+        ) from exc
 
 
 def _parse_agent_fields(
