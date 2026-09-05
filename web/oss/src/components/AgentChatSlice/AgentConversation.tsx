@@ -22,8 +22,13 @@ import {
     useVoiceComposer,
 } from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
-import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
-import {getPendingApprovals} from "@agenta/chat/model"
+import {
+    ignoreStreamRejection,
+    isEmptyAssistantTurn,
+    isSessionBusyRefusal,
+    isVisiblePart,
+} from "@agenta/chat/model"
+import {getLivePendingApprovals} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
 import {
@@ -132,6 +137,7 @@ const AgentConversation = ({
         isHydrating,
         hydratedEmpty,
         stopped,
+        stopping,
         setStopped,
         handleStop,
         handleClientToolOutput,
@@ -339,6 +345,7 @@ const AgentConversation = ({
         beginEdit,
         cancelEdit,
         commitEdit,
+        takeLastSent,
     } = useAgentChatQueue({
         status,
         messages,
@@ -376,7 +383,15 @@ const AgentConversation = ({
 
     // Pending HITL gates for the paused turn, surfaced in the persistent ApprovalDock above the
     // composer (not inline in the transcript, so a paused run can't scroll out of reach).
-    const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
+    // Emptied after a user stop, for the same reason the two docks below are: Stop now cancels the
+    // stopped turn's gates server-side, so an approve/deny pressed after it answers a turn that no
+    // longer exists (#6315). Replay already renders a cancelled gate as closed
+    // (`settleApprovalPart` in @agenta/chat maps `cancelled` to `output-denied`); this is the live
+    // path catching up without waiting for a refetch. `stopped` clears on the next send.
+    const pendingApprovals = useMemo(
+        () => getLivePendingApprovals(messages, {stopped}),
+        [messages, stopped],
+    )
     // Parked connect interactions on the paused turn → the connect dock owns their actions (the
     // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
     // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
@@ -421,6 +436,21 @@ const AgentConversation = ({
             }),
         [messages],
     )
+    // Single-turn admission (#6417, #5539, #5538): the backend refuses a message sent while
+    // another turn is already running on this session. Nothing ran and nothing was sent, so the
+    // user's text goes back into the composer instead of vanishing. Without this the refusal is
+    // worse than the bug for the person typing: they lose what they wrote and have no way to get
+    // it back.
+    //
+    // The rAF mirrors the edit-stash restore above it: `submitEditorAsMarkdown` clears the editor
+    // synchronously after `onSubmit` returns, so a restore has to land after that clear.
+    useEffect(() => {
+        if (!error || !isSessionBusyRefusal(error)) return
+        const sent = takeLastSent()
+        if (!sent?.text) return
+        requestAnimationFrame(() => richInputRef.current?.setMarkdown(sent.text))
+    }, [error, takeLastSent])
+
     useEffect(() => {
         const status: SessionRunStatus = error
             ? "error"
@@ -838,6 +868,7 @@ const AgentConversation = ({
                                         onClientToolOutput={handleClientToolOutput}
                                         onSubmit={handleSubmit}
                                         onStop={handleStop}
+                                        stopping={stopping}
                                         richInputRef={richInputRef}
                                         composer={composer}
                                         attachments={attachments}

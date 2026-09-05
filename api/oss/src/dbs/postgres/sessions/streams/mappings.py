@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from uuid import UUID
 
@@ -135,6 +136,10 @@ def map_stream_dto_to_dbe_create(
         tags=stream.tags,
         meta=stream.meta,
         turn_id=stream.turn_id,
+        # A create that already names a turn IS that turn's start. Without this, the first row a
+        # `_start_turn` writes carries no start time and the stale-Stop guard cannot fire on the
+        # very first turn of a session.
+        turn_started_at=datetime.now(timezone.utc) if stream.turn_id else None,
         references=references_to_json(stream.references),
     )
 
@@ -157,8 +162,11 @@ def map_stream_dbe_to_dto(
         name=stream_dbe.name,
         description=stream_dbe.description,
         turn_id=stream_dbe.turn_id,
+        turn_started_at=stream_dbe.turn_started_at,
+        stopping_turn_id=stream_dbe.stopping_turn_id,
         references=references_from_json(stream_dbe.references),
         archived_at=stream_dbe.archived_at,
+        history_incomplete=stream_dbe.history_incomplete,
         flags=SessionStreamFlags.model_validate(stream_dbe.flags)
         if stream_dbe.flags
         else SessionStreamFlags(),
@@ -199,6 +207,11 @@ def map_stream_dto_to_dbe_edit(
     if stream.meta is not None:
         stream_dbe.meta = stream.meta
     if stream.turn_id is not None:
+        # Stamp the start time only when the id actually CHANGES. A heartbeat restamps the same
+        # id every 30 seconds, and a start time that moved with each beat would make every Stop
+        # look like it arrived before its own turn began.
+        if stream_dbe.turn_id != stream.turn_id:
+            stream_dbe.turn_started_at = datetime.now(timezone.utc)
         stream_dbe.turn_id = stream.turn_id
 
 

@@ -5,18 +5,13 @@ from redis.asyncio import Redis
 
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
+from oss.src.core.sessions.records.types import RecordContentConflict
 from oss.src.core.sessions.records.streaming import deserialize_record
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 
 log = get_module_logger(__name__)
-
-if is_ee():
-    from ee.src.core.access.entitlements.service import check_entitlements, scope_from
-    from ee.src.core.access.entitlements.types import Counter
-
 
 # The runner's terminal per-turn record, and the marker it stamps on that record when the turn
 # stopped to wait for a human instead of finishing (services/runner/src/tracing/otel.ts: the
@@ -55,10 +50,9 @@ class RecordsWorker(StreamConsumer):
     1. Read batch from stream (XREADGROUP) — StreamConsumer
     2. Deserialize messages
     3. Group by project_id
-    4. EE: L2 quota check per org (Counter.RECORDS_INGESTED)
-    5. Append record events to DB
-    6. Reconcile HITL gates orphaned by a finished turn
-    7. ACK + DEL messages — StreamConsumer
+    4. Append record events to DB (session history is quota-exempt)
+    5. Reconcile HITL gates orphaned by a finished turn
+    6. ACK + DEL only messages whose write committed or whose stable id was rejected
     """
 
     log_prefix = "[RECORDS]"
@@ -76,6 +70,8 @@ class RecordsWorker(StreamConsumer):
         max_batch_mb: int = 50,
         watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
         interactions_service: Optional[SessionInteractionsService] = None,
+        reclaim_min_idle_ms: int = 30_000,
+        max_deliveries: int = 5,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -86,12 +82,22 @@ class RecordsWorker(StreamConsumer):
             max_block_ms=max_block_ms,
             max_delay_ms=max_delay_ms,
             max_batch_mb=max_batch_mb,
+            reclaim_pending=True,
+            reclaim_min_idle_ms=reclaim_min_idle_ms,
+            max_deliveries=max_deliveries,
         )
         self.service = service
         self.watch_publisher = watch_publisher
         # Absent disables gate reconciliation (minimal test compositions), which only loses the
         # safety net — never the append.
         self.interactions_service = interactions_service
+
+    def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
+        try:
+            record = deserialize_record(payload=data[b"data"]).record_event
+            return f"{record.session_id}:{record.record_id}:{record.record_type}"
+        except Exception:
+            return None
 
     async def reconcile_orphaned_gates(
         self,
@@ -151,9 +157,9 @@ class RecordsWorker(StreamConsumer):
         self,
         batch: List[Tuple[bytes, Dict[bytes, bytes]]],
     ) -> Tuple[int, List[bytes]]:
-        """Process batch — deserialize, group by org for EE quota, append to DB."""
+        """Process batch and acknowledge only durable or explicitly rejected records."""
         groups: Dict[UUID, Dict[str, Any]] = {}
-        processed_ids: List[bytes] = []
+        acknowledged_ids: List[bytes] = []
         batch_bytes = 0
 
         for msg_id, data in batch:
@@ -170,109 +176,153 @@ class RecordsWorker(StreamConsumer):
                     group = {
                         "organization_id": msg.organization_id,
                         "project_id": msg.project_id,
-                        "events": [],
+                        "entries": [],
                     }
                     groups[msg.project_id] = group
-                group["events"].append(msg)
-                processed_ids.append(msg_id)
+                group["entries"].append((msg_id, msg))
             except Exception:
                 log.error(
                     "[RECORDS] Failed to deserialize message",
                     msg_id=repr(msg_id),
                     exc_info=True,
                 )
-                processed_ids.append(msg_id)
+                self.dropped_messages += 1
+                acknowledged_ids.append(msg_id)
 
         batches = list(groups.values())
         total_appended = 0
 
-        org_allowed: Dict[UUID, bool] = {}
-        events_per_org: Dict[UUID, int] = {}
-
-        if is_ee():
-            for project_batch in batches:
-                org_id = project_batch["organization_id"]
-                if org_id is None:
-                    continue
-                events_per_org[org_id] = events_per_org.get(org_id, 0) + len(
-                    project_batch["events"]
-                )
-
-            for org_id, delta in events_per_org.items():
-                if delta <= 0:
-                    org_allowed[org_id] = True
-                    continue
-
-                try:
-                    quota_allowed, _, _ = await check_entitlements(  # type: ignore
-                        key=Counter.RECORDS_INGESTED,  # type: ignore
-                        delta=delta,
-                        scope=scope_from(organization_id=org_id),  # type: ignore
-                    )
-                except Exception:
-                    log.error(
-                        "[RECORDS] L2 quota check failed",
-                        organization_id=str(org_id),
-                        exc_info=True,
-                    )
-                    org_allowed[org_id] = False
-                    continue
-
-                if not quota_allowed:
-                    log.warning(
-                        "[RECORDS] Quota exceeded, dropping org batch",
-                        organization_id=str(org_id),
-                        delta=delta,
-                    )
-                    org_allowed[org_id] = False
-                    continue
-
-                org_allowed[org_id] = True
-
         for project_batch in batches:
-            org_id = project_batch["organization_id"]
-            if is_ee() and org_id and not org_allowed.get(org_id, True):
-                continue
-
+            entries: List[Tuple[bytes, Any]] = project_batch["entries"]
             try:
-                results = await self.service.append_many(
-                    events=[msg.record_event for msg in project_batch["events"]],
+                result = await self.service.append_many(
+                    events=[msg.record_event for _, msg in entries],
                 )
-                total_appended += len(results)
+                total_appended += len(result.records)
+                self.mark_committed()
+            except RecordContentConflict as exc:
+                log.error(
+                    "[RECORDS] Rejected conflicting stable record ids",
+                    project_id=str(project_batch["project_id"]),
+                    record_ids=[str(item.record_id) for item in exc.conflicts],
+                )
+                if len(entries) == 1:
+                    acknowledged_ids.append(entries[0][0])
+                else:
+                    for entry in entries:
+                        (
+                            appended,
+                            committed_ids,
+                            committed_events,
+                        ) = await self._append_one(
+                            project_id=project_batch["project_id"],
+                            entry=entry,
+                        )
+                        total_appended += appended
+                        acknowledged_ids.extend(committed_ids)
+                        await self._after_commit(
+                            project_id=project_batch["project_id"],
+                            events=committed_events,
+                        )
+                continue
             except Exception:
                 log.error(
                     "[RECORDS] Failed to append event batch",
                     project_id=str(project_batch["project_id"]),
                     exc_info=True,
                 )
+                if len(entries) > 1:
+                    for entry in entries:
+                        (
+                            appended,
+                            committed_ids,
+                            committed_events,
+                        ) = await self._append_one(
+                            project_id=project_batch["project_id"],
+                            entry=entry,
+                        )
+                        total_appended += appended
+                        acknowledged_ids.extend(committed_ids)
+                        await self._after_commit(
+                            project_id=project_batch["project_id"],
+                            events=committed_events,
+                        )
                 continue
 
-            # Strictly post-append, and BEFORE the relay tee: a client woken by the records
-            # notification below must already see the cancelled gate, not re-render it.
-            await self.reconcile_orphaned_gates(
+            acknowledged_ids.extend(msg_id for msg_id, _ in entries)
+            conflicts = set(result.conflicting_record_ids)
+            committed_events = [
+                msg
+                for _, msg in entries
+                if (msg.record_event.record_id or msg.record_event.producer_id)
+                not in conflicts
+            ]
+            await self._after_commit(
                 project_id=project_batch["project_id"],
-                events=project_batch["events"],
+                events=committed_events,
             )
 
-            # Relay tee (M3): strictly post-append so a notified client that
-            # revalidates always sees the new rows. One publish per distinct
-            # session in the project batch; failures never re-drive the append.
-            if self.watch_publisher is not None:
-                project_id = str(project_batch["project_id"])
-                session_ids = {
-                    msg.record_event.session_id for msg in project_batch["events"]
-                }
-                for session_id in sorted(session_ids):
-                    try:
-                        await self.watch_publisher.records_changed(
-                            project_id=project_id,
-                            session_id=session_id,
-                        )
-                    except Exception:
-                        log.warning(
-                            "[RECORDS] Watch publish failed",
-                            project_id=project_id,
-                            session_id=session_id,
-                        )
+        return total_appended, acknowledged_ids
 
-        return total_appended, processed_ids
+    async def _append_one(
+        self,
+        *,
+        project_id: UUID,
+        entry: Tuple[bytes, Any],
+    ) -> Tuple[int, List[bytes], List[Any]]:
+        msg_id, msg = entry
+        try:
+            result = await self.service.append_many(events=[msg.record_event])
+        except RecordContentConflict as exc:
+            log.error(
+                "[RECORDS] Rejected conflicting stable record ids",
+                project_id=str(project_id),
+                record_ids=[str(item.record_id) for item in exc.conflicts],
+            )
+            return 0, [msg_id], []
+        except Exception:
+            log.error(
+                "[RECORDS] Failed to append event",
+                project_id=str(project_id),
+                msg_id=repr(msg_id),
+                exc_info=True,
+            )
+            return 0, [], []
+
+        conflict_ids = set(result.conflicting_record_ids)
+        record_id = msg.record_event.record_id or msg.record_event.producer_id
+        committed_events = [] if record_id in conflict_ids else [msg]
+        self.mark_committed()
+        return len(result.records), [msg_id], committed_events
+
+    async def _after_commit(
+        self,
+        *,
+        project_id: UUID,
+        events: List[Any],
+    ) -> None:
+        if not events:
+            return
+
+        # Strictly post-append, and BEFORE the relay tee: a client woken by the records
+        # notification below must already see the cancelled gate, not re-render it.
+        await self.reconcile_orphaned_gates(project_id=project_id, events=events)
+
+        # Relay tee (M3): strictly post-append so a notified client that
+        # revalidates always sees the new rows. One publish per distinct
+        # session in the project batch; failures never re-drive the append.
+        if self.watch_publisher is not None:
+            project_id_str = str(project_id)
+            session_ids = {msg.record_event.session_id for msg in events}
+            for session_id in sorted(session_ids):
+                try:
+                    await self.watch_publisher.records_changed(
+                        project_id=project_id_str,
+                        session_id=session_id,
+                    )
+                except Exception:
+                    log.warning(
+                        "[RECORDS] Watch publish failed",
+                        project_id=project_id_str,
+                        session_id=session_id,
+                    )

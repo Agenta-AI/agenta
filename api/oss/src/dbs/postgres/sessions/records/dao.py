@@ -1,23 +1,31 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.core.sessions.records.dtos import (
+    RECORD_SETTLED_BY_ATTRIBUTE,
     SESSION_MESSAGE_PREVIEW_TEXT_LIMIT,
+    TERMINAL_RECORD_TYPE,
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
+    SessionRecordsAppendResult,
 )
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
+from oss.src.core.sessions.records.types import (
+    RecordContentConflict,
+    RecordContentConflictDetails,
+)
 from oss.src.dbs.postgres.sessions.records.dbes import RecordDBE
 from oss.src.dbs.postgres.sessions.records.mappings import (
     map_record_event_to_dbe,
     map_record_dbe_to_dto,
 )
 from oss.src.dbs.postgres.shared.engine import AnalyticsEngine, get_analytics_engine
+from oss.src.utils.env import env
 
 
 class RecordsDAO(RecordsDAOInterface):
@@ -46,11 +54,20 @@ class RecordsDAO(RecordsDAOInterface):
         event: SessionRecordEvent,
         session: AsyncSession,
     ) -> Optional[SessionRecord]:
-        stmt = RecordsDAO._upsert_stmt(values_list=[RecordsDAO._values(event=event)])
+        immutable = env.sessions.history_writes
+        values = RecordsDAO._values(event=event, immutable=immutable)
+        stmt = (
+            RecordsDAO._immutable_stmt(values_list=[values])
+            if immutable
+            else RecordsDAO._upsert_stmt(values_list=[values])
+        )
         result = await session.execute(stmt)
         await session.flush()
 
         row = result.scalars().first()
+        if row is None and immutable:
+            conflict = RecordsDAO._conflict_details(values)
+            raise RecordContentConflict([conflict])
         if row is None:
             return None
         return map_record_dbe_to_dto(dbe=row)
@@ -59,26 +76,55 @@ class RecordsDAO(RecordsDAOInterface):
         self,
         *,
         events: List[SessionRecordEvent],
-    ) -> List[SessionRecord]:
+    ) -> SessionRecordsAppendResult:
         """Upsert all events via one batched statement in one session, not one
         connection (or one round trip) per event."""
         if not events:
-            return []
+            return SessionRecordsAppendResult()
 
-        values_list = self._dedupe_values(
-            values_list=[self._values(event=event) for event in events]
-        )
+        immutable = env.sessions.history_writes
+        raw_values = [
+            self._values(event=event, immutable=immutable) for event in events
+        ]
+        conflicting_record_ids: List[UUID] = []
+        if immutable:
+            values_list, conflicting_record_ids = self._dedupe_immutable_values(
+                values_list=raw_values
+            )
+        else:
+            values_list = self._dedupe_values(values_list=raw_values)
 
         async with self.engine.session() as session:
-            stmt = self._upsert_stmt(values_list=values_list)
+            stmt = (
+                self._immutable_stmt(values_list=values_list)
+                if immutable
+                else self._upsert_stmt(values_list=values_list)
+            )
             result = await session.execute(stmt)
-            await session.commit()
+            rows = result.scalars().all()
 
-            return [map_record_dbe_to_dto(dbe=row) for row in result.scalars().all()]
+            if immutable and len(rows) != len(values_list):
+                returned_keys = {(row.project_id, row.record_id) for row in rows}
+                database_conflicts = [
+                    values["record_id"]
+                    for values in values_list
+                    if (values["project_id"], values["record_id"]) not in returned_keys
+                ]
+                conflicting_record_ids.extend(database_conflicts)
+
+            await session.commit()
+            return SessionRecordsAppendResult(
+                records=[map_record_dbe_to_dto(dbe=row) for row in rows],
+                conflicting_record_ids=list(dict.fromkeys(conflicting_record_ids)),
+            )
 
     @staticmethod
-    def _values(*, event: SessionRecordEvent) -> dict:
-        dbe = map_record_event_to_dbe(event=event)
+    def _values(*, event: SessionRecordEvent, immutable: Optional[bool] = None) -> dict:
+        immutable = env.sessions.history_writes if immutable is None else immutable
+        record_id = event.record_id or (event.producer_id if immutable else None)
+        dbe = map_record_event_to_dbe(
+            event=event.model_copy(update={"record_id": record_id})
+        )
         return {
             c.name: getattr(dbe, c.name)
             for c in RecordDBE.__table__.columns
@@ -94,7 +140,48 @@ class RecordsDAO(RecordsDAOInterface):
         "attributes",
         "turn_id",
         "span_id",
+        "quarantined_at",
     )
+
+    _IMMUTABLE_CONTENT_COLUMNS = (
+        "session_id",
+        "record_type",
+        "record_source",
+        "attributes",
+        "turn_id",
+        "span_id",
+    )
+
+    @staticmethod
+    def _conflict_details(values: dict) -> RecordContentConflictDetails:
+        return RecordContentConflictDetails(
+            project_id=values["project_id"],
+            record_id=values["record_id"],
+            session_id=values["session_id"],
+        )
+
+    @staticmethod
+    def _same_immutable_content(left: dict, right: dict) -> bool:
+        return all(
+            left.get(column) == right.get(column)
+            for column in RecordsDAO._IMMUTABLE_CONTENT_COLUMNS
+        )
+
+    @staticmethod
+    def _dedupe_immutable_values(
+        *, values_list: List[dict]
+    ) -> tuple[List[dict], List[UUID]]:
+        deduped: dict = {}
+        conflicting_record_ids: List[UUID] = []
+        for values in values_list:
+            key = (values["project_id"], values["record_id"])
+            previous = deduped.get(key)
+            if previous is None:
+                deduped[key] = values
+                continue
+            if not RecordsDAO._same_immutable_content(previous, values):
+                conflicting_record_ids.append(values["record_id"])
+        return list(deduped.values()), list(dict.fromkeys(conflicting_record_ids))
 
     @staticmethod
     def _dedupe_values(*, values_list: List[dict]) -> List[dict]:
@@ -132,7 +219,29 @@ class RecordsDAO(RecordsDAOInterface):
                 "attributes": stmt.excluded.attributes,
                 "turn_id": stmt.excluded.turn_id,
                 "span_id": stmt.excluded.span_id,
+                # Quarantine is one-way. A redelivery keeps the instant it was first
+                # quarantined, and an unmarked retry cannot resurrect a hidden row.
+                "quarantined_at": func.coalesce(
+                    RecordDBE.quarantined_at, stmt.excluded.quarantined_at
+                ),
             },
+        ).returning(RecordDBE)
+
+    @staticmethod
+    def _immutable_stmt(*, values_list: List[dict]):
+        stmt = insert(RecordDBE).values(values_list)
+        unchanged = and_(
+            *(
+                getattr(RecordDBE, column).is_not_distinct_from(
+                    getattr(stmt.excluded, column)
+                )
+                for column in RecordsDAO._IMMUTABLE_CONTENT_COLUMNS
+            )
+        )
+        return stmt.on_conflict_do_update(
+            index_elements=["project_id", "record_id"],
+            set_={"record_id": stmt.excluded.record_id},
+            where=unchanged,
         ).returning(RecordDBE)
 
     async def get_records(
@@ -147,6 +256,7 @@ class RecordsDAO(RecordsDAOInterface):
                 .where(
                     RecordDBE.project_id == project_id,
                     RecordDBE.session_id == session_id,
+                    RecordDBE.quarantined_at.is_(None),
                 )
                 # Producer event time first: it is the only key that is monotonic across
                 # turns. `record_index` restarts at 0 every turn, and the worker can batch
@@ -200,6 +310,7 @@ class RecordsDAO(RecordsDAOInterface):
                     RecordDBE.session_id.in_(session_ids),
                     RecordDBE.record_type == "message",
                     RecordDBE.deleted_at.is_(None),
+                    RecordDBE.quarantined_at.is_(None),
                 )
                 .distinct(RecordDBE.session_id)
                 .order_by(
@@ -224,6 +335,41 @@ class RecordsDAO(RecordsDAOInterface):
                 timestamp=row.timestamp or row.created_at,
             )
         return previews
+
+    async def settled_turns(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+        settled_by: Optional[str] = None,
+    ) -> Set[Tuple[str, str]]:
+        """Which `(session_id, turn_id)` pairs already carry an effective ending."""
+        if not keys:
+            return set()
+
+        conditions = [
+            RecordDBE.project_id == project_id,
+            RecordDBE.record_type == TERMINAL_RECORD_TYPE,
+            RecordDBE.deleted_at.is_(None),
+            RecordDBE.quarantined_at.is_(None),
+            tuple_(RecordDBE.session_id, RecordDBE.turn_id).in_(
+                [(session_id, turn_id) for session_id, turn_id in keys]
+            ),
+        ]
+        if settled_by is not None:
+            conditions.append(
+                RecordDBE.attributes[RECORD_SETTLED_BY_ATTRIBUTE].astext == settled_by
+            )
+
+        async with self.engine.session() as session:
+            stmt = (
+                select(RecordDBE.session_id, RecordDBE.turn_id)
+                .where(*conditions)
+                .distinct()
+            )
+            rows = (await session.execute(stmt)).all()
+
+        return {(row.session_id, row.turn_id) for row in rows}
 
     async def get_event(
         self,

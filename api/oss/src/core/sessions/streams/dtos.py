@@ -41,12 +41,18 @@ class SessionStream(Identifier, Header, Lifecycle):
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None
+    # When `turn_id` started. Stamped only when the id changes, so repeated heartbeats never
+    # move it. The stale-Stop guard compares a cancel request's arrival time against this.
+    turn_started_at: Optional[datetime] = None
+    # The execution an accepted Stop is waiting on. Null when nothing is stopping.
+    stopping_turn_id: Optional[str] = None
     # What this session runs. Filled once, from the first beat that knows — turn appends
     # are fire-and-forget, so a session whose only reference carrier was a dropped append
     # is unopenable forever.
     references: Optional[List[SessionReference]] = None
     # Set = archived (hidden but restorable); distinct from `deleted_at` (killed, still listed).
     archived_at: Optional[datetime] = None
+    history_incomplete: Optional[bool] = None
     origin: Optional[SessionOrigin] = None
     trigger: Optional[SessionTrigger] = None
     delivery: Optional[SessionDelivery] = None
@@ -143,6 +149,23 @@ class SessionStreamCommandRequest(BaseModel):
     data: Optional[WorkflowServiceRequestData] = None
     force: bool = False
     detached: bool = False  # fire-and-forget mode
+    # A stale-request guard for cancel mode only; send, steer, and attach ignore it.
+    expected_execution_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional stale-request guard honored only in cancel mode; ignored for send, "
+            "steer, and attach."
+        ),
+    )
+
+    @field_validator("expected_execution_id")
+    @classmethod
+    def _blank_expected_execution_id_means_absent(
+        cls, value: Optional[str]
+    ) -> Optional[str]:
+        if value is None:
+            return None
+        return value.strip() or None
 
 
 class SessionStreamCommandResponse(BaseModel):
@@ -151,6 +174,9 @@ class SessionStreamCommandResponse(BaseModel):
     turn_id: Optional[str] = None
     watcher_id: Optional[str] = None
     detached: bool = False
+    # Cancel only: every turn this cancel tombstoned. Usually one. It is a list because
+    # `alive` and `running` can be held by different turns during a handover, and both die.
+    cancelled_turn_ids: List[str] = Field(default_factory=list)
 
 
 class SessionHeartbeatRequest(BaseModel):
@@ -169,6 +195,14 @@ class SessionHeartbeatRequest(BaseModel):
     is_running: bool = True
     name: Optional[str] = None
     references: Optional[List[SessionReference]] = None
+    # The INVERSE beat, sent once per session as a runner shuts down: hand the affinity key
+    # back instead of renewing it. `claim_owner` never steals, so a replica that dies still
+    # holding `owner:session:<id>` locks the session out of every other replica for the rest
+    # of OWNER_TTL_SECONDS — a local-provider session then refuses every message until the
+    # lease expires. The release is conditional on still being the owner, so it can never
+    # take a session from a live replica. Everything else about the beat is skipped: a
+    # departing runner asserts no liveness and no turn.
+    release_owner: bool = False
 
 
 class SessionLiveness(BaseModel):

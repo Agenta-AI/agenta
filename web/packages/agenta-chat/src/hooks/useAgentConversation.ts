@@ -14,7 +14,7 @@
 // Deliberately omitted (desktop-only): first-seen timestamp stamping (display metadata for the desktop rows) — the desktop host keeps its own implementation until the re-plumb.
 // Deliberately omitted (desktop-only): session auto-titling and the first-run seed auto-send — the desktop host keeps its own implementation until the re-plumb.
 // Deliberately omitted (desktop-only): the model-key composer gate — compose `useAgentModelKeyStatus` in the skin instead.
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useReducer, useRef, useState} from "react"
 
 import {
     invalidateSessionListQueries,
@@ -39,6 +39,7 @@ import {useChat} from "@ai-sdk/react"
 import type {FileUIPart, UIMessage} from "ai"
 import {useSetAtom, useStore} from "jotai"
 
+import {latestTurnId} from "../assets/agentTurn"
 import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {filesToParts} from "../assets/files"
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
@@ -54,6 +55,7 @@ import {
     type ClientToolPartPredicate,
     type TurnViewModel,
 } from "../model/turnViewModel"
+import {lastTurnWasUserStopped, reduceUserStoppedState} from "../model/userStop"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
 import {stampMessagesCreatedAtAtom} from "../state/messageStamps"
 import {
@@ -62,7 +64,12 @@ import {
     isChatBusy,
     type SessionChatHooks,
 } from "../state/sessionChats"
-import {clearSessionFresh, composerDraftBySession, isSessionFresh} from "../state/sessionEphemera"
+import {
+    clearSessionFresh,
+    composerDraftBySession,
+    isSessionFresh,
+    setSessionTurnId,
+} from "../state/sessionEphemera"
 import {
     persistSessionMessagesAtom,
     sessionMessagesAtom,
@@ -194,12 +201,20 @@ export const useAgentConversation = ({
     const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
     const clearTurnClock = useSetAtom(clearTurnClockAtom)
 
+    // Seed once from the persisted store (read imperatively so our own writes don't feed back).
+    const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
     // Whether the LAST assistant turn was user-stopped. You can only cancel the in-flight (last)
     // turn, so this is a single boolean gated on position at render time. Cleared on the next
     // send/resend.
-    const [stopped, setStopped] = useState(false)
-    // Seed once from the persisted store (read imperatively so our own writes don't feed back).
-    const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
+    const [stopped, dispatchStopped] = useReducer(
+        reduceUserStoppedState,
+        initialMessages,
+        lastTurnWasUserStopped,
+    )
+    const setStopped = useCallback(
+        (next: boolean) => dispatchStopped({type: next ? "user-stop" : "reset"}),
+        [],
+    )
     // Restored (not live-streamed) message ids — the orphaned-resume detection reads this, and a
     // skin can use it to skip entrance animations for restored rows.
     const restoredIdsRef = useRef<Set<string>>(new Set(initialMessages.map((m) => m.id)))
@@ -232,6 +247,7 @@ export const useAgentConversation = ({
 
     // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
     const busyRef = useRef(false)
+    const messagesRef = useRef(initialMessages)
 
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
@@ -266,7 +282,12 @@ export const useAgentConversation = ({
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
         },
-        onFinish: ({message}) => {
+        onFinish: ({message, messages: finishedMessages, finishReason}) => {
+            dispatchStopped({
+                type: "stream-terminal",
+                messages: finishedMessages,
+                finishReason,
+            })
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
@@ -327,12 +348,23 @@ export const useAgentConversation = ({
     })
 
     const busy = isChatBusy(status)
-
     // `messages`/`busy` change every commit; consumers that must stay referentially stable
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
-    const messagesRef = useRef(messages)
     messagesRef.current = messages
     busyRef.current = busy
+
+    useEffect(() => {
+        dispatchStopped({type: "transcript", messages})
+    }, [messages])
+
+    // The runner names the turn it just started, in the streaming message's metadata. Remembering
+    // it is what lets Stop say WHICH turn to cancel instead of "whatever is running" (#6417).
+    // Only ids seen streaming in this page are kept: the store is in memory, so a reload starts
+    // empty and Stop falls back to sending no guard rather than naming a turn from a past session.
+    useEffect(() => {
+        const turnId = latestTurnId(messages)
+        if (turnId) setSessionTurnId(sessionId, turnId)
+    }, [messages, sessionId])
 
     // Hybrid history: localStorage holds the cached conversation; the durable content lives in
     // the backend record log. Cache-first — when this session opens with no locally-cached

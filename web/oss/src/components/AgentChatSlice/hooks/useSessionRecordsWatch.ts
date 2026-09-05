@@ -1,4 +1,5 @@
 import {useWatchEventSource} from "@agenta/sessions/watch"
+import {useQueryClient} from "@tanstack/react-query"
 
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {refreshSession} from "@/oss/lib/helpers/auth/refreshSession"
@@ -32,6 +33,7 @@ export const useSessionRecordsWatch = ({
     onRecordsChanged: () => void
     onInteractionChanged: () => void
 }): void => {
+    const queryClient = useQueryClient()
     const url = sessionId && projectId ? sessionWatchUrl(sessionId, projectId) : null
     useWatchEventSource({
         url,
@@ -41,6 +43,14 @@ export const useSessionRecordsWatch = ({
             ready: onReady,
             "records-changed": onRecordsChanged,
             interaction: onInteractionChanged,
+            // A session that ends without this tab running it — a Stop from elsewhere, or the
+            // execution watchdog settling a turn whose runner went silent. The records arrive
+            // on their own event; this is the half that stops the session still LOOKING alive,
+            // which otherwise waits out the 15s liveness poll. Mobile already does this
+            // (web/mobile/src/features/chat/useSessionWatch.ts).
+            lifecycle: () => {
+                void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+            },
         },
     })
 }

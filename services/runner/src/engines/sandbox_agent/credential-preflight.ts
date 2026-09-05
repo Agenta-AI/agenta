@@ -108,6 +108,11 @@
  * runner call that the provider's own auth endpoint answered with 200.
  */
 
+import {
+  throwIfAcquireAborted,
+  waitForAcquire,
+} from "../../environment/acquire-abort.ts";
+
 /**
  * Does this acquire deliver the run's MODEL credential as a Daytona Secret?
  *
@@ -508,6 +513,8 @@ function createFetchControlProbe(fetchImpl: typeof fetch): ControlProbe {
 export async function awaitCredentialSubstitution(
   input: CredentialPreflightInput,
 ): Promise<CredentialPreflightVerdict> {
+  const signal = input.signal;
+  throwIfAcquireAborted(signal);
   const now = input.now ?? Date.now;
   const sleep =
     input.sleep ??
@@ -600,15 +607,23 @@ export async function awaitCredentialSubstitution(
       const script = sandboxProbeScript(shape, input.apiKeyVar, probeSeconds);
       let stdout: string | undefined;
       try {
-        const result = await input.sandbox.runProcess({
-          command: "sh",
-          args: ["-c", script],
-          // Capped by the same deadline. The exec channel gets its usual slack over curl's
-          // own ceiling only while the grace can pay for it.
-          timeoutMs: Math.max(1, Math.min((probeSeconds + 4) * 1000, leftMs)),
-        });
+        const result = await waitForAcquire(
+          () =>
+            input.sandbox.runProcess({
+              command: "sh",
+              args: ["-c", script],
+              // Capped by the same deadline. The exec channel gets its usual slack over curl's
+              // own ceiling only while the grace can pay for it.
+              timeoutMs: Math.max(
+                1,
+                Math.min((probeSeconds + 4) * 1000, leftMs),
+              ),
+            }),
+          signal,
+        );
         stdout = result?.stdout;
       } catch (error) {
+        throwIfAcquireAborted(signal);
         // The exec channel itself failed (sandbox tearing down, daemon hiccup): fail open.
         log(
           `[credential-preflight] probe errored, proceeding: ${String(
@@ -623,7 +638,9 @@ export async function awaitCredentialSubstitution(
       // other step spends. Otherwise a call that took most of the grace would leave the loop
       // thinking it still had time for several more probes.
       const reading =
-        !masked && status === 401 && control ? await control : undefined;
+        !masked && status === 401 && control
+          ? await waitForAcquire(() => control, signal)
+          : undefined;
       const elapsedMs = now() - startedAt;
       const elapsed = (elapsedMs / 1000).toFixed(1);
 
@@ -701,7 +718,10 @@ export async function awaitCredentialSubstitution(
         return "stuck";
       }
       log(`[credential-preflight] ${evidence.probeLine}`);
-      await sleep(Math.min(pollMs, remainingMs()));
+      await waitForAcquire(
+        () => sleep(Math.min(pollMs, remainingMs())),
+        signal,
+      );
     }
   } finally {
     // Nothing reads the runner's call after this point, on any exit path.

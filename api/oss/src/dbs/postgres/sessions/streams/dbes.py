@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    Boolean,
     Column,
     ForeignKeyConstraint,
     Index,
@@ -62,6 +63,28 @@ class SessionStreamDBE(
     # Archive is distinct from kill: `deleted_at` (LifecycleDBA) marks a killed/ended session
     # (resumable, still listed); `archived_at` marks a deliberately-hidden one (restorable).
     archived_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
+    # The execution an accepted Stop is waiting on. Written in the same transaction as the
+    # command insert, cleared at settlement. Null means nothing is stopping.
+    #
+    # A column and not a bit inside `flags`, because `flags` is the Redis mirror and every
+    # heartbeat rewrites it whole (`streams/service.py`, the unconditional mirror write), so a
+    # value stored there would be erased on the next beat. `SessionStreamEdit` carries only
+    # flags/tags/meta/turn_id, so the heartbeat path cannot touch this column by accident.
+    stopping_turn_id = Column(String, nullable=True)
+
+    # When the row's CURRENT `turn_id` started. It exists for the stale-Stop guard, which has to
+    # compare a Stop's arrival time with the running execution's start time, and there was
+    # nowhere to read that: `updated_at` is the heartbeat timestamp and moves every 30 seconds,
+    # runner-minted turn ids are uuid4 and carry no time, the Redis lock value is a bare turn id
+    # that a Lua compare reads whole, and the `session_turns` append is fire-and-forget so a
+    # running turn may have no row. Stamped only when the id actually changes, so the repeated
+    # heartbeats that restamp the same id never move it.
+    turn_started_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
+    # Null/false means no loss has been observed; true is permanent because an
+    # acknowledged record gap cannot be repaired from this table.
+    history_incomplete = Column(Boolean, nullable=True)
 
     __table_args__ = (
         ForeignKeyConstraint(

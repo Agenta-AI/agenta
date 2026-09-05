@@ -98,6 +98,42 @@ const OPENROUTER: HarnessOptions = {
 };
 
 describe("awaitCredentialSubstitution", () => {
+  it("cancels a slow probe promptly when the turn is Stopped", async () => {
+    const controller = new AbortController();
+    let probeStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      probeStarted = resolve;
+    });
+    const run = awaitCredentialSubstitution({
+      sandbox: {
+        runProcess: async () => {
+          probeStarted();
+          return new Promise(() => {});
+        },
+      },
+      baseUrl: "https://gateway.example/",
+      apiKeyVar: "OPENAI_API_KEY",
+      log: () => {},
+      signal: controller.signal,
+    });
+
+    await started;
+    controller.abort();
+    await assert.rejects(
+      () =>
+        Promise.race([
+          run,
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("preflight did not cancel")),
+              4_000,
+            ),
+          ),
+        ]),
+      /acquisition was aborted/,
+    );
+  });
+
   it("returns ok immediately when the first probe substitutes", async () => {
     const { run, logs, commands } = harness([
       '{"error":{"message":"you must provide a model parameter"}}',

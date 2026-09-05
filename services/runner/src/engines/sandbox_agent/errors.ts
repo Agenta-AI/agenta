@@ -57,13 +57,45 @@ function keyHintFor(
  * `runner_error` is the catch-all every unclassified failure keeps, matching what the SDK stamped
  * on runner-reported errors before the runner had a say.
  */
+/**
+ * Markers the runner puts in an error message so `classifyRunError` can set the class.
+ *
+ * Both are strings only this runner produces, so a match needs no corroboration. They live
+ * here, next to the codes they map to, and are imported by the modules that raise them.
+ */
+export const SANDBOX_GONE_MARKER = "sandbox is gone";
+export const ABANDONED_TURN_MARKER = "execution abandoned";
+
+/** The line the user reads when the machine running their turn disappeared. */
+export const SANDBOX_GONE_MESSAGE =
+  "The sandbox running this session stopped responding, so the run was ended. " +
+  "Send the message again to start a fresh sandbox.";
+
+/** The line the user reads when the run never produced an outcome of its own. */
+export const EXECUTION_LOST_MESSAGE =
+  "The agent stopped responding and the run was closed. Send the message again to retry.";
+
 export type RunErrorCode =
   | "runner_error"
   | "starter_credits_exhausted"
   | "starter_credits_program_paused"
   | "starter_credits_unavailable"
   | "credential_delivery_failed"
-  | "rate_limited";
+  | "rate_limited"
+  // Not a failure: the turn was REFUSED before it started because another turn already owns
+  // this session. Nothing ran, nothing was destroyed, and the user's message was never sent.
+  // Clients render it as a "not sent, try again" state and keep the text, never as a run error.
+  // Produced by `sessions/admission.ts`, not by this module's classifier.
+  | "session_turn_in_use"
+  // The sandbox died under a running turn: its liveness probe stopped answering, so the turn
+  // was ended rather than left holding a machine that no longer exists. See
+  // `sandbox-liveness.ts`.
+  | "sandbox_gone"
+  // The execution never produced an outcome of its own, so one was written for it. Two
+  // producers: this runner, when a turn will not unwind after its abort (`sessions/
+  // turn-settle.ts`), and the platform's execution watchdog, when the runner itself is gone
+  // (`api/oss/src/tasks/asyncio/sessions/orphan_sweep.py`).
+  | "execution_lost";
 
 /** One failed run, condensed: the line the user reads plus the class a client can act on. */
 export interface ClassifiedRunError {
@@ -325,16 +357,20 @@ export function classifyRunError(
   const raw = err instanceof Error ? err.message : String(err);
   const msg = raw.split("\n")[0].trim();
   const keyHint = keyHintFor(provider, harness, options.connection);
-  // FIRST, and matched on the ERROR CLASS rather than on any text. Every sandbox this run built
-  // was convicted by the credential preflight, which means the model key never reached the model:
-  // the same failure class as the two placeholder branches below, arrived at by proof instead of
-  // by pattern. Its own message names probes and placeholders and is written for the runner log,
-  // so it must not be what the person in the chat reads. See `credential-preflight.ts`.
+  // Self-evidencing runner markers must not be re-read as provider faults.
   if (err instanceof SubstitutionStuckError) {
     return {
       message: CREDENTIAL_DELIVERY_FAILED_MESSAGE,
       code: "credential_delivery_failed",
     };
+  }
+  // First, and self-evidencing: this marker is produced by our own liveness probe and by
+  // nothing else, so it needs no corroboration and must not be re-read as a provider fault.
+  if (raw.includes(SANDBOX_GONE_MARKER)) {
+    return { message: SANDBOX_GONE_MESSAGE, code: "sandbox_gone" };
+  }
+  if (raw.includes(ABANDONED_TURN_MARKER)) {
+    return { message: EXECUTION_LOST_MESSAGE, code: "execution_lost" };
   }
   // A budget refusal is checked first: it is the most specific reading of a 429, and its body also
   // trips the rate-limit and quota matchers below.

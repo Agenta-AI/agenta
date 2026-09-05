@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 import uuid_utils.compat as uuid
@@ -94,6 +94,42 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         if engine is None:
             engine = get_transactions_engine()
         self.engine = engine
+
+    async def settle_command(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str],
+        mirror_stopped: bool,
+        transaction: Optional[Any] = None,
+    ) -> None:
+        now = datetime.now(timezone.utc)
+        values = {"stopping_turn_id": None, "updated_at": now}
+        if mirror_stopped:
+            values["flags"] = func.coalesce(SessionStreamDBE.flags, cast({}, JSONB)).op(
+                "||"
+            )(cast({"is_running": False}, JSONB))
+        stmt = sa_update(SessionStreamDBE).where(
+            SessionStreamDBE.project_id == project_id,
+            SessionStreamDBE.session_id == session_id,
+        )
+        if turn_id is not None:
+            stmt = stmt.where(
+                or_(
+                    SessionStreamDBE.stopping_turn_id == turn_id,
+                    SessionStreamDBE.stopping_turn_id.is_(None),
+                )
+            )
+
+        async def execute(session: Any) -> None:
+            await session.execute(stmt.values(**values))
+
+        if transaction is not None:
+            await execute(transaction)
+            return
+        async with self.engine.session() as session:
+            await execute(session)
 
     async def create(
         self,
@@ -629,6 +665,29 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             await session.commit()
             await session.refresh(dbe)
         return map_stream_dbe_to_dto(stream_dbe=dbe)
+
+    async def mark_history_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+    ) -> int:
+        if not session_ids:
+            return 0
+
+        async with self.engine.session() as session:
+            stmt = (
+                sa_update(SessionStreamDBE)
+                .where(
+                    SessionStreamDBE.project_id == project_id,
+                    SessionStreamDBE.session_id.in_(session_ids),
+                    SessionStreamDBE.history_incomplete.is_not(True),
+                )
+                .values(history_incomplete=True)
+            )
+            result = await session.execute(stmt)
+            await session.commit()
+        return int(result.rowcount)
 
     async def delete_by_session_id(
         self,

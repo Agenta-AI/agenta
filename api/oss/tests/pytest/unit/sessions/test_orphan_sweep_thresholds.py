@@ -80,6 +80,10 @@ def _evaluate(node, row) -> Optional[bool]:
         left, right = _value(node.left, row), _value(node.right, row)
         if node.operator is operators.is_:
             return left is right
+        if node.operator is operators.is_not:
+            # `turn_id IS NOT NULL`, from the ending-only selection. Postgres `IS NOT` is a
+            # total predicate: it never returns NULL, so neither does this.
+            return left is not right
         if node.operator is operators.lt:
             return None if left is None or right is None else left < right
         if getattr(node.operator, "opstring", None) == "@>":
@@ -113,10 +117,18 @@ def _value(node, row):
 
 
 class _FakeRow:
-    def __init__(self, *, session_id: str, flags: Optional[dict], age_seconds: int):
+    def __init__(
+        self,
+        *,
+        session_id: str,
+        flags: Optional[dict],
+        age_seconds: int,
+        turn_id: Optional[str] = None,
+    ):
         self.session_id = session_id
         self.project_id = _PROJECT_ID
         self.id = session_id
+        self.turn_id = turn_id
         self.deleted_at = None
         self.flags = flags
         self.created_at = datetime.now(timezone.utc) - timedelta(days=1)
@@ -192,6 +204,32 @@ def anyio_backend():
     return "asyncio"
 
 
+class _OrderedCommandsService:
+    def __init__(self) -> None:
+        self.calls = []
+
+    async def settle_abandoned_commands(self, *, now):
+        self.calls.append("settle")
+        return 0
+
+    async def repair_terminal_redis(self):
+        self.calls.append("repair")
+        return 0
+
+
+@pytest.mark.anyio
+async def test_redis_repair_runs_after_the_sweeps_main_work(anyio_backend):
+    commands = _OrderedCommandsService()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([]),
+        _FakeRedis(),
+        commands_service=commands,
+    )
+
+    assert commands.calls == ["settle", "repair"]
+
+
 @pytest.mark.anyio
 async def test_running_row_is_swept_at_the_short_threshold(anyio_backend):
     row = _FakeRow(
@@ -241,8 +279,16 @@ async def test_idle_row_is_swept_at_the_long_threshold(anyio_backend):
 
 
 @pytest.mark.anyio
-async def test_thresholds_are_five_and_thirty_minutes(anyio_backend):
-    assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (300, 1800)
+async def test_the_running_threshold_is_three_missed_heartbeats(anyio_backend):
+    """90 seconds of heartbeat age, not lease expiry.
+
+    The Redis alive/running keys carry a ONE HOUR TTL, so a rule phrased as "shortly after the
+    lease expires" would leave a dead turn running for an hour. The runner beats every 30
+    seconds and mirrors the beat onto `updated_at`, so three missed beats is the signal. The
+    old value was 300s, which was defensible while the sweep only collapsed flags and nobody
+    ever saw the result; it is too long now that the sweep writes a real ending.
+    """
+    assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (90, 1800)
 
 
 @pytest.mark.anyio

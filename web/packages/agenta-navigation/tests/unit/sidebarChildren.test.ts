@@ -478,9 +478,16 @@ describe("livePollInterval", () => {
         flags.map((f) => ({session_id: "s1", flags: f})) as Parameters<typeof livePollInterval>[0] &
             object[]
 
-    it("polls fast while a session is alive or running", () => {
-        expect(livePollInterval(rows({is_alive: true}))).toBe(15_000)
-        expect(livePollInterval(rows({is_running: true}))).toBe(15_000)
+    it("polls fast only while a session is RUNNING", () => {
+        expect(livePollInterval(rows({is_alive: true, is_running: true}))).toBe(15_000)
+        expect(livePollInterval(rows({}, {is_running: true}))).toBe(15_000)
+    })
+
+    // The Stop case. Stop ends the work and leaves the session alive so it resumes warm, exactly
+    // as an ordinary turn end does, so a cadence keyed on `is_alive` would sit at 15s for the
+    // whole hour that lock lives — in every open tab, for one session nobody is running.
+    it("drops to the slow baseline for a session that is alive but not running", () => {
+        expect(livePollInterval(rows({is_alive: true}))).toBe(60_000)
     })
 
     it("keeps a slow baseline when every row looks idle", () => {

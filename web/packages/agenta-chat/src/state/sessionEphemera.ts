@@ -30,6 +30,31 @@ export const composerDraftBySession = new Map<string, string>()
 /** Pending (not yet sent) attachments per session — same lifetime as the drafts. */
 export const attachmentsBySession = new Map<string, StagedUpload<unknown>[]>()
 
+/**
+ * The turn id of the run this browser is watching, per session, read off the streaming message's
+ * metadata (see `latestTurnId`). Stop sends it as `expected_execution_id` so the server cancels
+ * THAT turn or nothing.
+ *
+ * In memory on purpose, not persisted with the messages. A reload starts empty, so Stop falls back
+ * to sending no guard rather than naming a turn from a past page load — a stale id would refuse a
+ * Stop that is correct, which is worse than the bug it guards.
+ *
+ * Here rather than in an atom because nothing renders it: it is written once per turn and read
+ * once, when the user presses Stop. A new turn overwrites it, so the stored id is always the last
+ * turn this browser saw begin. Kept past the end of the turn on purpose — a turn parked on an
+ * approval has finished streaming and is still the turn a Stop means.
+ */
+export const turnIdBySession = new Map<string, string>()
+
+/** Remember the turn this browser is watching. */
+export const setSessionTurnId = (sessionId: string, turnId: string) => {
+    turnIdBySession.set(sessionId, turnId)
+}
+
+/** The turn this browser is watching, or undefined when the stream never named one. */
+export const getSessionTurnId = (sessionId: string): string | undefined =>
+    turnIdBySession.get(sessionId)
+
 // The fresh-session registry moved to @agenta/entities/session — the drive needs the same
 // predicate, and this package sits ABOVE entity-ui so it cannot be imported from there.
 export {freshSessionIds}
@@ -39,5 +64,6 @@ export {clearSessionFresh, isSessionFresh, markSessionFresh} from "@agenta/entit
 export const clearSessionEphemera = (sessionId: string) => {
     composerDraftBySession.delete(sessionId)
     attachmentsBySession.delete(sessionId)
+    turnIdBySession.delete(sessionId)
     freshSessionIds.delete(sessionId)
 }

@@ -23,13 +23,15 @@ import pytest_asyncio
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
+from oss.src.apis.fastapi.sessions.models import SessionCancelRequest
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
     SessionStream,
     SessionStreamCommandRequest,
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
-from oss.src.core.sessions.streams.types import SessionTurnInUse
+from oss.src.core.sessions.streams.types import SessionTurnInUse, SessionTurnMismatch
+from oss.src.dbs.redis.sessions.locks import get_alive_owner, get_running_owner
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 
@@ -156,6 +158,56 @@ async def test_no_inputs_no_force_is_cancel(lock_engine):
     )
 
     assert result.mode == CommandMode.cancel
+
+
+@pytest.mark.asyncio
+async def test_cancel_with_a_stale_execution_guard_touches_no_holder(lock_engine):
+    svc = _service(lock_engine)
+    session_id = _session_id()
+    started = await svc.command(
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=SessionStreamCommandRequest(
+            session_id=session_id,
+            data=WorkflowServiceRequestData(inputs={"messages": ["first"]}),
+        ),
+    )
+
+    with pytest.raises(SessionTurnMismatch):
+        await svc.command(
+            project_id=_PROJECT,
+            user_id=_USER,
+            request=SessionStreamCommandRequest(
+                session_id=session_id,
+                expected_execution_id="another-turn",
+            ),
+        )
+
+    assert (
+        await get_alive_owner(
+            lock_engine,
+            project_id=str(_PROJECT),
+            session_id=session_id,
+        )
+        == started.turn_id
+    )
+    assert (
+        await get_running_owner(
+            lock_engine,
+            project_id=str(_PROJECT),
+            session_id=session_id,
+        )
+        == started.turn_id
+    )
+
+
+def test_expected_execution_id_schema_documents_cancel_only_guard():
+    description = SessionCancelRequest.model_json_schema()["properties"][
+        "expected_execution_id"
+    ]["description"]
+
+    assert "only in cancel mode" in description
+    assert "ignored for send, steer, and attach" in description
 
 
 @pytest.mark.asyncio
