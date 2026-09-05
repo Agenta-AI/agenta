@@ -1006,7 +1006,15 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
             console.log(
                 "[global-setup] Ephemeral project disabled (AGENTA_TEST_EPHEMERAL_PROJECT=false)",
             )
-            writeProjectMetadata(projectMetadataPath, defaultProject, page, null)
+            writeProjectMetadata(projectMetadataPath, defaultProject, page, null, false)
+            return
+        }
+
+        if (!originalDefaultProjectId) {
+            console.warn(
+                "[global-setup] No original default project found, skipping ephemeral project creation",
+            )
+            writeProjectMetadata(projectMetadataPath, defaultProject, page, null, false)
             return
         }
 
@@ -1022,7 +1030,7 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
             console.warn(
                 `[global-setup] Failed to create ephemeral project (${response.status()}): ${text}`,
             )
-            writeProjectMetadata(projectMetadataPath, defaultProject, page, null)
+            writeProjectMetadata(projectMetadataPath, defaultProject, page, null, false)
             return
         }
 
@@ -1031,12 +1039,12 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
             `[global-setup] Created ephemeral project: ${projectName} (${project.project_id})`,
         )
 
-        writeProjectMetadata(projectMetadataPath, project, page, originalDefaultProjectId)
+        writeProjectMetadata(projectMetadataPath, project, page, originalDefaultProjectId, true)
     } catch (error) {
         console.warn("[global-setup] Failed to create ephemeral project, using default:", error)
         try {
             const projectMetadataPath = getProjectMetadataPath()
-            writeProjectMetadata(projectMetadataPath, null, page, null)
+            writeProjectMetadata(projectMetadataPath, null, page, null, false)
         } catch (writeError) {
             console.warn("[global-setup] Could not write fallback project metadata:", writeError)
         }
@@ -1048,6 +1056,7 @@ function writeProjectMetadata(
     project: any,
     page: Page,
     originalDefaultProjectId: string | null,
+    ephemeral: boolean,
 ): void {
     let metadata: Record<string, unknown> | null = null
 
@@ -1056,6 +1065,7 @@ function writeProjectMetadata(
             project_id: project.project_id,
             project_name: project.project_name ?? null,
             workspace_id: project.workspace_id,
+            ephemeral,
             ...(originalDefaultProjectId !== null
                 ? {original_default_project_id: originalDefaultProjectId}
                 : {}),
@@ -1070,6 +1080,7 @@ function writeProjectMetadata(
                 metadata = {
                     workspace_id: match[1],
                     project_id: match[2],
+                    ephemeral,
                     created_at: new Date().toISOString(),
                 }
                 console.log("[global-setup] Derived project metadata from page URL")
