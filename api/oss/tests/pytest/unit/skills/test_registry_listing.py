@@ -120,3 +120,75 @@ def test_skill_payload_tolerates_non_skill_data():
         data=WorkflowRevisionData(parameters={"agent": {}}),
     )
     assert _skill_payload(revision) == {}
+
+
+def _agent_head(*, slug: str, skills: list) -> WorkflowRevision:
+    revision = WorkflowRevision(
+        id=uuid4(),
+        workflow_id=uuid4(),
+        workflow_variant_id=uuid4(),
+        slug=slug,
+        data=WorkflowRevisionData(parameters={"agent": {"skills": skills}}),
+    )
+    revision.artifact_id = revision.workflow_id
+    revision.artifact_slug = slug
+    return revision
+
+
+def _embed(references: dict, name: str = "pdf-tools") -> dict:
+    return {
+        "name": name,
+        "@ag.embed": {
+            "@ag.references": references,
+            "@ag.selector": {"path": "parameters.skill"},
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_skill_usage_classifies_latest_and_pinned():
+    from oss.src.core.skills.dtos import SkillUsageQuery
+
+    follower = _agent_head(
+        slug="agent-x",
+        skills=[_embed({"workflow": {"slug": "pdf-tools"}})],
+    )
+    pinner = _agent_head(
+        slug="docs-writer",
+        skills=[_embed({"workflow_revision": {"slug": "pdf-tools", "version": "2"}})],
+    )
+    bystander = _agent_head(
+        slug="unrelated",
+        skills=[_embed({"workflow": {"slug": "brand-voice"}}, name="brand-voice")],
+    )
+    inline_only = _agent_head(slug="inline", skills=[{"name": "inline-skill"}])
+
+    workflows_by_id = {
+        head.artifact_id: Workflow(
+            id=head.artifact_id, slug=head.artifact_slug, name=head.artifact_slug
+        )
+        for head in (follower, pinner, bystander, inline_only)
+    }
+
+    service = SkillsService(
+        workflows_service=_StubWorkflowsService(
+            revisions=[follower, pinner, bystander, inline_only],
+            workflows_by_id=workflows_by_id,
+        )
+    )
+
+    usage = await service.get_skill_usage(
+        project_id=uuid4(),
+        query=SkillUsageQuery(workflow_slug="pdf-tools"),
+    )
+
+    by_slug = {item.agent_slug: item for item in usage}
+    assert set(by_slug) == {"agent-x", "docs-writer"}
+    assert by_slug["agent-x"].mode == "latest"
+    assert by_slug["docs-writer"].mode == "pinned"
+    assert by_slug["docs-writer"].pinned_version == "2"
+    assert by_slug["agent-x"].agent_name == "agent-x"
+
+    # the head query asked for agents, not skills
+    stub = service.workflows_service
+    assert stub.head_query_kwargs["workflow_revision_query"].flags.is_agent is True

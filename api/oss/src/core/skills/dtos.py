@@ -53,3 +53,18 @@ class SkillRegistryList(BaseModel):
     # semantics.
     builtin: List[SkillRegistryItem] = []
     windowing: Optional[Windowing] = None
+
+
+class SkillUsageItem(BaseModel):
+    agent_workflow_id: Optional[UUID] = None
+    agent_slug: Optional[str] = None
+    agent_name: Optional[str] = None
+    # "latest" — artifact-level embed, follows the head.
+    # "pinned" — revision-level embed with an explicit version.
+    mode: str = "latest"
+    pinned_version: Optional[str] = None
+
+
+class SkillUsageQuery(BaseModel):
+    workflow_id: Optional[UUID] = None
+    workflow_slug: Optional[str] = None

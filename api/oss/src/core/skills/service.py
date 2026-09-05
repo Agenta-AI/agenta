@@ -14,7 +14,10 @@ from oss.src.core.skills.dtos import (
     SkillRegistryItem,
     SkillRegistryQuery,
     SkillRegistryList,
+    SkillUsageItem,
+    SkillUsageQuery,
 )
+from oss.src.core.embeds.utils import find_object_embeds
 
 log = get_module_logger(__name__)
 
@@ -116,6 +119,108 @@ class SkillsService:
             builtin=builtin,
             windowing=query.windowing,
         )
+
+    async def get_skill_usage(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query: SkillUsageQuery,
+    ) -> List[SkillUsageItem]:
+        """Which agents embed this skill, and how (follow-latest vs pinned).
+
+        Walks the HEAD revision of every agent in the project (bounded by
+        agent count via the head-revision query, not total revisions) and
+        classifies each matching embed by its reference level. Revision-level
+        refs that carry only an opaque revision id (no artifact slug) are not
+        matched in v1.
+        """
+        target_id = query.workflow_id
+        target_slug = query.workflow_slug
+
+        if target_id and not target_slug:
+            workflow = await self.workflows_service.fetch_workflow(
+                project_id=project_id,
+                workflow_ref=Reference(id=target_id),
+            )
+            target_slug = workflow.slug if workflow else None
+
+        agent_heads = await self.workflows_service.query_workflow_head_revisions(
+            project_id=project_id,
+            #
+            workflow_revision_query=WorkflowRevisionQuery(
+                flags=WorkflowRevisionQueryFlags(is_agent=True),
+            ),
+        )
+
+        def _matches(reference) -> bool:
+            if reference is None:
+                return False
+            if target_id and reference.id and str(reference.id) == str(target_id):
+                return True
+            if target_slug and reference.slug and reference.slug == target_slug:
+                return True
+            return False
+
+        usage: List[SkillUsageItem] = []
+
+        for head in agent_heads:
+            parameters = None
+            if head.data is not None:
+                parameters = getattr(head.data, "parameters", None)
+                if parameters is None and isinstance(head.data, dict):
+                    parameters = head.data.get("parameters")
+            if not isinstance(parameters, dict):
+                continue
+
+            agent = parameters.get("agent")
+            skills = agent.get("skills") if isinstance(agent, dict) else None
+            if not isinstance(skills, list):
+                continue
+
+            item: Optional[SkillUsageItem] = None
+
+            for embed in find_object_embeds({"skills": skills}):
+                references = embed.references or {}
+
+                revision_ref = references.get("workflow_revision")
+                if revision_ref is not None and _matches(revision_ref):
+                    item = SkillUsageItem(
+                        agent_workflow_id=head.artifact_id,
+                        agent_slug=head.artifact_slug,
+                        mode="pinned",
+                        pinned_version=(
+                            str(revision_ref.version)
+                            if getattr(revision_ref, "version", None) is not None
+                            else None
+                        ),
+                    )
+                    break
+
+                workflow_ref = references.get("workflow")
+                if workflow_ref is not None and _matches(workflow_ref):
+                    item = SkillUsageItem(
+                        agent_workflow_id=head.artifact_id,
+                        agent_slug=head.artifact_slug,
+                        mode="latest",
+                    )
+                    break
+
+            if item is None:
+                continue
+
+            if head.artifact_id:
+                workflow = await self.workflows_service.fetch_workflow(
+                    project_id=project_id,
+                    workflow_ref=Reference(id=head.artifact_id),
+                )
+                if workflow:
+                    item.agent_name = workflow.name or workflow.slug
+                    item.agent_slug = item.agent_slug or workflow.slug
+
+            usage.append(item)
+
+        return usage
 
     def _list_builtin_skills(self) -> List[SkillRegistryItem]:
         catalog = self.workflows_service.static_catalog
