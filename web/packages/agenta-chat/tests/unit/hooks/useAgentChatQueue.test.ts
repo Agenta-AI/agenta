@@ -3,10 +3,7 @@ import {act, renderHook} from "@testing-library/react"
 import type {FileUIPart, UIMessage} from "ai"
 import {describe, expect, it, vi} from "vitest"
 
-import {
-    useAgentChatQueue,
-    type ServerQueueAdapter,
-} from "../../../src/hooks/useAgentChatQueue"
+import {useAgentChatQueue, type ServerQueueAdapter} from "../../../src/hooks/useAgentChatQueue"
 
 // The pure release predicates (`canReleaseQueuedMessage`, `isHitlPending`) are unit-tested in
 // the playground package; these tests cover the HOOK's stateful behavior on top of them:
@@ -65,6 +62,7 @@ interface HarnessProps {
     acceptedRunPending?: boolean
     resumeOrphaned?: boolean
     recoverable?: boolean
+    continuationExecutionId?: string | null
     sessionId?: string
     server?: ServerQueueAdapter
 }
@@ -158,6 +156,96 @@ describe("useAgentChatQueue", () => {
             expect.objectContaining({text: "change direction"}),
             "steer",
         )
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued).toHaveLength(0)
+    })
+
+    it("moves a client-held input behind the durable queue when its continuation starts", async () => {
+        const durable = {
+            id: "already-queued",
+            text: "server first",
+            source: "server" as const,
+            editable: false,
+        }
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: false,
+            queued: [durable],
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+            server,
+        }
+        const {result, rerender, sendQueued} = setup(paused)
+
+        act(() => result.current.submit({text: "held by this tab"}))
+        expect(server.submit).not.toHaveBeenCalled()
+
+        await act(async () => {
+            rerender({
+                ...paused,
+                continuationExecutionId: "continuation-1",
+                messages: [userTurn("u1", "go"), assistantContinuation("a1", "running")],
+            })
+            await Promise.resolve()
+        })
+
+        expect(server.submit).toHaveBeenCalledOnce()
+        expect(server.submit).toHaveBeenCalledWith(
+            expect.objectContaining({text: "held by this tab"}),
+            "queue",
+        )
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued).toEqual([durable])
+    })
+
+    it("does not release a held input while its durable admission is still in flight", async () => {
+        let acceptAdmission: (() => void) | undefined
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: false,
+            queued: [],
+            submit: vi.fn(
+                () =>
+                    new Promise<void>((resolve) => {
+                        acceptAdmission = resolve
+                    }),
+            ),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+            server,
+        }
+        const {result, rerender, sendQueued} = setup(paused)
+
+        act(() => result.current.submit({text: "held by this tab"}))
+        rerender({
+            ...paused,
+            continuationExecutionId: "a1-continuation-execution",
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "running")],
+        })
+        expect(server.submit).toHaveBeenCalledOnce()
+
+        rerender({
+            ...paused,
+            continuationExecutionId: "a1-continuation-execution",
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "done")],
+        })
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued).toHaveLength(1)
+
+        await act(async () => {
+            acceptAdmission?.()
+            await Promise.resolve()
+        })
+
         expect(sendQueued).not.toHaveBeenCalled()
         expect(result.current.queued).toHaveLength(0)
     })

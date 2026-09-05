@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -163,6 +164,81 @@ async def test_idle_input_executes_without_being_queued(monkeypatch):
 
     assert admitted.action == "execute"
     assert dao.items == []
+
+
+@pytest.mark.asyncio
+async def test_detached_executing_continuation_keeps_input_in_the_queue(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    continuation_resumer = AsyncMock(return_value=True)
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(
+        inputs_dao=dao,
+        streams_service=Streams(running=False),
+        continuation_resumer=continuation_resumer,
+    )
+
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "after the continuation"},
+        policy="queue",
+        idempotency_key="key-1",
+    )
+
+    assert admitted.action == "pending"
+    assert admitted.input is not None
+    continuation_resumer.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_parked_continuation_still_allows_input_to_execute(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    continuation_resumer = AsyncMock(return_value=False)
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(
+        inputs_dao=dao,
+        streams_service=Streams(running=False),
+        continuation_resumer=continuation_resumer,
+    )
+
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "steer the parked turn"},
+        policy="queue",
+        idempotency_key="key-1",
+    )
+
+    assert admitted.action == "execute"
+    assert dao.items == []
+
+
+@pytest.mark.asyncio
+async def test_queue_flag_off_keeps_the_idle_path_without_a_continuation_probe(
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "queue", False)
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", False)
+    continuation_resumer = AsyncMock(return_value=True)
+    service = SessionInputsService(
+        inputs_dao=MemoryInputsDAO(),
+        streams_service=Streams(running=False),
+        continuation_resumer=continuation_resumer,
+    )
+
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "old path"},
+        policy="queue",
+        idempotency_key="key-1",
+    )
+
+    assert admitted.action == "execute"
+    continuation_resumer.assert_not_awaited()
 
 
 @pytest.mark.asyncio

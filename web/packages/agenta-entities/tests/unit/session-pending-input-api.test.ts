@@ -15,7 +15,10 @@ vi.mock("@agenta/sdk/resources", () => ({
     getLowPriorityMountsClient: vi.fn(),
 }))
 
-import {fetchSessionSnapshot as readSnapshot, removePendingSessionInput} from "../../src/session/api/api"
+import {
+    fetchSessionSnapshot as readSnapshot,
+    removePendingSessionInput,
+} from "../../src/session/api/api"
 
 beforeEach(() => {
     fetchSnapshot.mockReset()

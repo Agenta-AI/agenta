@@ -1,6 +1,6 @@
 import hashlib
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.inputs.dtos import (
@@ -36,9 +36,11 @@ class SessionInputsService:
         *,
         inputs_dao: SessionInputsDAOInterface,
         streams_service: SessionStreamsService,
+        continuation_resumer: Optional[Callable[..., Awaitable[bool]]] = None,
     ) -> None:
         self._dao = inputs_dao
         self._streams = streams_service
+        self._continuation_resumer = continuation_resumer
 
     async def admit(
         self,
@@ -54,6 +56,15 @@ class SessionInputsService:
             project_id=project_id, session_id=session_id
         )
         busy = bool(stream and stream.flags and stream.flags.is_running)
+        if (
+            not busy
+            and (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
+            and self._continuation_resumer is not None
+        ):
+            busy = await self._continuation_resumer(
+                project_id=project_id,
+                session_id=session_id,
+            )
         if not busy:
             return PendingInputAdmission(action="execute")
 

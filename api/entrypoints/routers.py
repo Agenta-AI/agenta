@@ -1143,11 +1143,6 @@ sessions_service = SessionsService(
     records_service=records_service,
 )
 
-session_inputs_service = SessionInputsService(
-    inputs_dao=session_inputs_dao,
-    streams_service=session_streams_service,
-)
-
 # Durable session commands (Stop). The control-delivery adapter is chosen by one setting.
 # `direct` posts the command to the runner's own /cancel over the hop that already carries hard
 # kill; `long_poll` is not built yet, and naming it fails at boot rather than silently falling
@@ -1185,6 +1180,11 @@ session_commands_service = SessionCommandsService(
     ),
     executions_dao=session_executions_dao,
     inputs_dao=session_inputs_dao,
+)
+session_inputs_service = SessionInputsService(
+    inputs_dao=session_inputs_dao,
+    streams_service=session_streams_service,
+    continuation_resumer=session_commands_service.resume_recoverable_continuation,
 )
 workflows_service.set_session_continuation_resumer(
     session_commands_service.resume_recoverable_continuation

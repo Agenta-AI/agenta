@@ -207,6 +207,66 @@ export const useAgentChatQueue = ({
         return message
     }, [])
 
+    // A message held before an approval answer predates the server-owned continuation. Move it
+    // under the same durable admission before that continuation can promote a different input.
+    const migrationRef = useRef<string | null>(null)
+    const migrationRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const [migrationRetry, setMigrationRetry] = useState(0)
+    useEffect(
+        () => () => {
+            if (migrationRetryTimerRef.current) clearTimeout(migrationRetryTimerRef.current)
+        },
+        [],
+    )
+    useEffect(() => {
+        const head = queued[0]
+        const submitToServer = server?.submit
+        if (
+            !continuationExecutionId ||
+            !continuationHold ||
+            !server?.capabilities.queue ||
+            !submitToServer ||
+            !head ||
+            migrationRef.current
+        ) {
+            return
+        }
+
+        migrationRef.current = head.id
+        void submitToServer(head, "queue")
+            .then(() => {
+                if (sessionId) {
+                    const stored = queuedBySession.get(sessionId)
+                    if (stored) {
+                        const remaining = stored.filter((item) => item.id !== head.id)
+                        if (remaining.length > 0) queuedBySession.set(sessionId, remaining)
+                        else queuedBySession.delete(sessionId)
+                    }
+                }
+                setQueued((items) => items.filter((item) => item.id !== head.id))
+            })
+            .catch(() => {
+                if (migrationRef.current !== head.id) return
+                migrationRef.current = null
+                migrationRetryTimerRef.current = setTimeout(() => {
+                    migrationRetryTimerRef.current = null
+                    migrationRef.current = null
+                    setMigrationRetry((attempt) => attempt + 1)
+                }, 2_000)
+            })
+            .finally(() => {
+                if (migrationRef.current === head.id) migrationRef.current = null
+            })
+    }, [
+        continuationExecutionId,
+        continuationHold,
+        migrationRetry,
+        queued,
+        sessionId,
+        server?.capabilities.queue,
+        server?.submit,
+    ])
+
     // Send now only if idle, unlatched, and the queue is empty; otherwise append (FIFO).
     const submit = useCallback(
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
@@ -348,7 +408,7 @@ export const useAgentChatQueue = ({
             releasingRef.current = false
             return
         }
-        if (releasingRef.current || queued.length === 0) return
+        if (releasingRef.current || migrationRef.current || queued.length === 0) return
         if (!canReleaseNow) return
         releasingRef.current = true
         const [head, ...rest] = queued

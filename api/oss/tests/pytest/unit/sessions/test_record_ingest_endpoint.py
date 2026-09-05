@@ -194,8 +194,9 @@ async def test_terminal_continuation_settles_core_before_stream_acceptance(monke
     )
 
 
-async def test_cancelled_terminal_does_not_settle_continuation_as_completed(
-    monkeypatch,
+@pytest.mark.parametrize("stop_reason", ["cancelled", "error"])
+async def test_non_completing_terminal_does_not_settle_continuation_as_completed(
+    monkeypatch, stop_reason
 ):
     monkeypatch.setattr(
         "oss.src.apis.fastapi.sessions.router.env.agenta.sessions.durable_approvals",
@@ -213,7 +214,7 @@ async def test_cancelled_terminal_does_not_settle_continuation_as_completed(
         record_type="done",
         record_source="agent",
         turn_id="continuation-1",
-        attributes={"stopReason": "cancelled"},
+        attributes={"stopReason": stop_reason},
     )
 
     with (

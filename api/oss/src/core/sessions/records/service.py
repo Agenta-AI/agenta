@@ -146,7 +146,7 @@ class RecordsService:
             and (record.attributes or {}).get(RECORD_SETTLED_BY_ATTRIBUTE)
             != SETTLED_BY_WATCHDOG
             and (record.attributes or {}).get("stopReason")
-            not in ("paused", "cancelled")
+            not in ("paused", "cancelled", "error")
         }
         for project_id, session_id, execution_id in candidates:
             try:
