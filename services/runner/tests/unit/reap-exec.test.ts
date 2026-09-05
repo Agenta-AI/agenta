@@ -13,7 +13,7 @@ import {
   findSandboxAgentServerPid,
   parseProcessTable,
   reapLeakedExecChildren,
-  reapResultAllowsParking,
+  reapResultHasCleanupMiss,
   selectLeakedExecPids,
 } from "../../src/engines/sandbox_agent/reap-exec.ts";
 import {
@@ -23,16 +23,16 @@ import {
 
 const LIVE_PORT = 43_123;
 
-describe("reapResultAllowsParking", () => {
-  it("accepts only a successful reap or a clean inspection", () => {
-    expect(reapResultAllowsParking({ killed: 1 })).toBe(true);
+describe("reapResultHasCleanupMiss", () => {
+  it("flags failed and unknown cleanup for QA", () => {
+    expect(reapResultHasCleanupMiss({ killed: 1 })).toBe(false);
     expect(
-      reapResultAllowsParking({ killed: 0, skipped: "nothing-to-reap" }),
-    ).toBe(true);
-    expect(reapResultAllowsParking({ killed: 0, skipped: "ps-failed" })).toBe(
-      false,
+      reapResultHasCleanupMiss({ killed: 0, skipped: "nothing-to-reap" }),
+    ).toBe(false);
+    expect(reapResultHasCleanupMiss({ killed: 0, skipped: "ps-failed" })).toBe(
+      true,
     );
-    expect(reapResultAllowsParking(undefined)).toBe(false);
+    expect(reapResultHasCleanupMiss(undefined)).toBe(true);
   });
 });
 

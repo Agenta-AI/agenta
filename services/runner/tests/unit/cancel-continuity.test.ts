@@ -42,6 +42,8 @@ interface CancelFakeOpts {
   onPrompt?: () => void;
   /** Model the shell child Codex leaves behind after answering a cancelled prompt. */
   leakedCodexChild?: boolean;
+  /** Force Codex's best-effort post-cancel reap to fail in a known or unexpected way. */
+  codexReapFailure?: "failed" | "unknown";
 }
 
 /**
@@ -100,6 +102,9 @@ function fakeCancellableSandbox(opts: CancelFakeOpts = {}) {
     async runProcess(request: { command: string; args?: string[] }) {
       if (request.command === "ps") {
         calls.lifecycle.push("ps");
+        if (opts.codexReapFailure === "failed") {
+          throw new Error("ps unavailable");
+        }
         return {
           stdout: [
             "100 1 120 /x/bin/sandbox-agent server --port 3000",
@@ -118,6 +123,13 @@ function fakeCancellableSandbox(opts: CancelFakeOpts = {}) {
       return { stdout: "", exitCode: 0 };
     },
   };
+  if (opts.codexReapFailure === "unknown") {
+    Object.defineProperty(sandbox, "runProcess", {
+      get() {
+        throw new Error("reap inspection unavailable");
+      },
+    });
+  }
   if (opts.cancellable !== false) {
     sandbox.cancelSession = async (id: string) => {
       calls.lifecycle.push("cancel");
@@ -316,6 +328,32 @@ describe("a stopped turn's continuity record", () => {
     assert.equal(fake.leakedCodexChildRunning(), false);
     assert.deepEqual(fake.calls.lifecycle, ["cancel", "ps", "kill", "park"]);
   });
+
+  for (const codexReapFailure of ["failed", "unknown"] as const) {
+    it(`keeps a settled Codex Stop warm after a ${codexReapFailure} reap`, async () => {
+      const { calls, continuityStore, deps, signal } = fakeAbortingSandbox({
+        codexReapFailure,
+      });
+
+      const result = await runSandboxAgent(
+        { ...stopRequest, harness: "codex" },
+        undefined,
+        signal,
+        deps,
+      );
+
+      assert.equal(result.ok, true);
+      assert.equal(result.cancelSettled, true);
+      assert.equal(calls.paused, 1, "a settled Stop still parks");
+      assert.equal(calls.destroyed, 0);
+      assert.equal(calls.completed.length, 1, "continuity stays durable");
+      assert.equal(
+        continuityStore.get("sess-stop", "codex")?.agentSessionId,
+        AGENT_SESSION_ID,
+      );
+      assert.ok(calls.logs.some((line) => line.includes("cleanup_miss=true")));
+    });
+  }
 
   it("writes the record even when the abort was not a user Stop and the sandbox is deleted", async () => {
     // A disconnect deletes the sandbox, but the harness still confirmed it is idle and its

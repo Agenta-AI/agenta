@@ -207,9 +207,13 @@ export interface ReapResult {
     | "kill-failed";
 }
 
-/** True only when Codex cleanup proved the sandbox safe to park. */
-export function reapResultAllowsParking(result: ReapResult | undefined): boolean {
-  return Boolean(result && (result.killed > 0 || result.skipped === "nothing-to-reap"));
+/** True when best-effort cleanup needs QA follow-up. */
+export function reapResultHasCleanupMiss(
+  result: ReapResult | undefined,
+): boolean {
+  return (
+    !result || (result.killed === 0 && result.skipped !== "nothing-to-reap")
+  );
 }
 
 /**
