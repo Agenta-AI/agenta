@@ -431,8 +431,9 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         *,
         command_id: UUID,
         project_id: Optional[UUID] = None,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
-        async with self.engine.session() as session:
+        async def execute(session: Any) -> Optional[SessionCommand]:
             stmt = select(SessionCommandDBE).where(
                 SessionCommandDBE.id == command_id,
             )
@@ -440,7 +441,12 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                 stmt = stmt.where(SessionCommandDBE.project_id == project_id)
             result = await session.execute(stmt)
             dbe = result.scalars().first()
-        return map_command_dbe_to_dto(dbe) if dbe is not None else None
+            return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def claim_commands(
         self,

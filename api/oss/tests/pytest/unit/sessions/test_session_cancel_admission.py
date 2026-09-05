@@ -162,7 +162,7 @@ class _FakeCommandsDAO:
             return bound
         raise AssertionError("command to bind was not found")
 
-    async def fetch_command(self, *, command_id, project_id=None):
+    async def fetch_command(self, *, command_id, project_id=None, transaction=None):
         for row in self.rows:
             if row.id == command_id:
                 return row

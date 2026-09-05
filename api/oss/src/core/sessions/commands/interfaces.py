@@ -160,6 +160,7 @@ class SessionCommandsDAOInterface(ABC):
         *,
         command_id: UUID,
         project_id: Optional[UUID] = None,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
         """One command by id. `project_id` is optional because the runner reports an outcome
         with the command id alone and holds no project credential."""

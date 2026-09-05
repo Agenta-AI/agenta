@@ -306,50 +306,46 @@ class SessionCommandsService:
             command = created.command
             return CancelAdmission(command=command, execution_id=None, accepted=False)
 
-        open_command = await self._dao.fetch_open_command(
-            project_id=project_id,
-            session_id=session_id,
-            kind=SessionCommandKind.cancel,
-            target_turn_id=target_turn_id,
-        )
-        if open_command is not None:
-            if steer_input_id is not None:
-                open_command = await self._dao.bind_steer_input(
-                    project_id=project_id,
-                    command_id=open_command.id,
-                    input_id=steer_input_id,
-                )
-            if open_command.state == SessionCommandState.pending:
-                await self._deliver(open_command)
-            return CancelAdmission(
-                command=open_command,
-                execution_id=target_turn_id,
-                accepted=True,
-            )
-
         if self._executions is None or not hasattr(
             self._executions, "lock_for_control"
         ):
-            created = await self._insert(
+            open_command = await self._dao.fetch_open_command(
                 project_id=project_id,
-                user_id=user_id,
                 session_id=session_id,
-                received_at=received_at,
+                kind=SessionCommandKind.cancel,
                 target_turn_id=target_turn_id,
-                expected_turn_id=expected_execution_id,
-                idempotency_key=idempotency_key,
-                data=(
-                    {"steer_input_id": str(steer_input_id)}
-                    if steer_input_id is not None
-                    else None
-                ),
-                state=SessionCommandState.pending,
-                outcome=None,
-                stopping_turn_id=target_turn_id,
             )
-            if not created.inserted:
-                return self._admission_for_existing(created.command)
-            command = created.command
+            if open_command is not None:
+                command = (
+                    await self._dao.bind_steer_input(
+                        project_id=project_id,
+                        command_id=open_command.id,
+                        input_id=steer_input_id,
+                    )
+                    if steer_input_id is not None
+                    else open_command
+                )
+            else:
+                created = await self._insert(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    received_at=received_at,
+                    target_turn_id=target_turn_id,
+                    expected_turn_id=expected_execution_id,
+                    idempotency_key=idempotency_key,
+                    data=(
+                        {"steer_input_id": str(steer_input_id)}
+                        if steer_input_id is not None
+                        else None
+                    ),
+                    state=SessionCommandState.pending,
+                    outcome=None,
+                    stopping_turn_id=target_turn_id,
+                )
+                if not created.inserted:
+                    return self._admission_for_existing(created.command)
+                command = created.command
         else:
             cancelled_interactions = 0
             async with self._dao.transaction() as transaction:
@@ -1809,13 +1805,7 @@ class SessionCommandsService:
             )
             try:
                 async with self._dao.transaction() as transaction:
-                    settled = await self._dao.settle_command(
-                        settle=transition,
-                        transaction=transaction,
-                    )
-                    if settled is None:
-                        raise _SettlementRejected
-
+                    result = None
                     if execution_id and terminal and settled_by:
                         result = await self._executions.settle(
                             project_id=project_id,
@@ -1825,15 +1815,29 @@ class SessionCommandsService:
                             settled_by=settled_by,
                             transaction=transaction,
                         )
+                    stored_command = await self._dao.fetch_command(
+                        command_id=command_id,
+                        project_id=project_id,
+                        transaction=transaction,
+                    )
+                    if stored_command is None:
+                        raise _SettlementRejected
+                    settled = await self._dao.settle_command(
+                        settle=transition,
+                        transaction=transaction,
+                    )
+                    if settled is None:
+                        raise _SettlementRejected
+
+                    if execution_id and terminal and settled_by:
+                        assert result is not None
                         winner = result.settlement
                         if not result.won and (
                             winner.terminal_outcome != outcome.value
                             or winner.settled_by != settled_by
                         ):
                             raise _SettlementRejected
-                        steer_input_id = (stored_command.data or {}).get(
-                            "steer_input_id"
-                        )
+                        steer_input_id = (settled.data or {}).get("steer_input_id")
                         if (
                             result.won
                             and outcome == SessionCommandOutcome.stopped

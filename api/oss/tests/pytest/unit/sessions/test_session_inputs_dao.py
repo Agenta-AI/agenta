@@ -20,7 +20,9 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandState,
 )
 from oss.src.core.sessions.commands.interfaces import DeliveryReceipt
+from oss.src.core.sessions.commands import service as commands_service_module
 from oss.src.core.sessions.commands.service import SessionCommandsService
+from oss.src.core.sessions.commands.types import ExecutionExpectationFailed
 from oss.src.core.sessions.executions.dtos import SessionExecutionState
 from oss.src.core.sessions.inputs.dtos import PendingInputCreate, PendingInputState
 from oss.src.core.sessions.inputs.service import SessionInputsService, input_fingerprint
@@ -157,7 +159,9 @@ def _input(scope, *, key: str, message: str, policy: str = "queue"):
 class _BusyStreams:
     async def fetch_header(self, **_kwargs):
         return SimpleNamespace(
-            flags=SimpleNamespace(is_running=True), turn_id="source-turn"
+            flags=SimpleNamespace(is_running=True),
+            turn_id="source-turn",
+            turn_started_at=None,
         )
 
 
@@ -180,7 +184,7 @@ class _UnreachableDelivery:
         return None
 
 
-def _settlement_service(scope, inputs):
+def _settlement_service(scope, inputs, *, commands=None, executions=None):
     streams = SimpleNamespace(
         settle_command=AsyncMock(),
         publish_session_ended=AsyncMock(),
@@ -190,16 +194,67 @@ def _settlement_service(scope, inputs):
         publish_session_pending_cancelled=AsyncMock(),
     )
     service = SessionCommandsService(
-        commands_dao=SessionCommandsDAO(engine=scope["engine"]),
+        commands_dao=commands or SessionCommandsDAO(engine=scope["engine"]),
         streams_service=streams,
         interactions_service=interactions,
         lock_engine=None,
         delivery=_UnreachableDelivery(),
-        executions_dao=SessionExecutionsDAO(engine=scope["engine"]),
+        executions_dao=executions or SessionExecutionsDAO(engine=scope["engine"]),
         inputs_dao=inputs,
     )
     service._reconcile_stopped_redis = AsyncMock()
     return service
+
+
+def _cancel_service(scope, inputs, *, executions):
+    return SessionCommandsService(
+        commands_dao=SessionCommandsDAO(engine=scope["engine"]),
+        streams_service=_BusyStreams(),
+        interactions_service=SimpleNamespace(
+            cancel_session_pending=AsyncMock(return_value=0),
+            publish_session_pending_cancelled=AsyncMock(),
+        ),
+        lock_engine=None,
+        delivery=_UnreachableDelivery(),
+        executions_dao=executions,
+        inputs_dao=inputs,
+    )
+
+
+class _PausingExecutionsDAO(SessionExecutionsDAO):
+    def __init__(self, *, engine):
+        super().__init__(engine=engine)
+        self.locked = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def lock_for_control(self, **kwargs):
+        execution = await super().lock_for_control(**kwargs)
+        if not self.locked.is_set():
+            self.locked.set()
+            await self.release.wait()
+        return execution
+
+
+class _ObservedExecutionsDAO(SessionExecutionsDAO):
+    def __init__(self, *, engine):
+        super().__init__(engine=engine)
+        self.lock_attempted = asyncio.Event()
+
+    async def lock_for_control(self, **kwargs):
+        self.lock_attempted.set()
+        return await super().lock_for_control(**kwargs)
+
+
+class _ObservedCommandsDAO(SessionCommandsDAO):
+    def __init__(self, *, engine):
+        super().__init__(engine=engine)
+        self.command_observed = asyncio.Event()
+
+    async def fetch_command(self, **kwargs):
+        command = await super().fetch_command(**kwargs)
+        if kwargs.get("transaction") is None:
+            self.command_observed.set()
+        return command
 
 
 async def _pending_command(scope, *, data=None):
@@ -633,3 +688,135 @@ async def test_steer_stop_promotes_only_the_bound_input(input_scope, monkeypatch
         ).promoted_execution_id,
     )
     assert continuation.state == SessionExecutionState.recoverable
+
+
+async def test_steer_bind_wins_before_stop_settlement(input_scope, monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    monkeypatch.setattr(
+        commands_service_module,
+        "get_running_owner",
+        AsyncMock(return_value="source-turn"),
+    )
+    inputs = SessionInputsDAO(engine=input_scope["engine"])
+    steer = await inputs.create_input(
+        user_id=input_scope["user_id"],
+        pending_input=_input(
+            input_scope, key="steer-first", message="steer first", policy="steer"
+        ),
+        prioritize=True,
+    )
+    command = await _pending_command(input_scope)
+    bind_executions = _PausingExecutionsDAO(engine=input_scope["engine"])
+    bind_service = _cancel_service(input_scope, inputs, executions=bind_executions)
+    settlement_commands = _ObservedCommandsDAO(engine=input_scope["engine"])
+    settlement_service = _settlement_service(
+        input_scope,
+        inputs,
+        commands=settlement_commands,
+        executions=SessionExecutionsDAO(engine=input_scope["engine"]),
+    )
+
+    bind_task = asyncio.create_task(
+        bind_service.request_cancel(
+            project_id=input_scope["project_id"],
+            user_id=input_scope["user_id"],
+            session_id=input_scope["session_id"],
+            expected_execution_id="source-turn",
+            steer_input_id=steer.id,
+        )
+    )
+    await asyncio.wait_for(bind_executions.locked.wait(), timeout=5)
+    settlement_task = asyncio.create_task(
+        settlement_service.settle(
+            command_id=command.id,
+            project_id=input_scope["project_id"],
+            replica_id=None,
+            expected_states=[SessionCommandState.pending],
+            state=SessionCommandState.applied,
+            outcome=SessionCommandOutcome.stopped,
+            execution_id="source-turn",
+        )
+    )
+    await asyncio.wait_for(settlement_commands.command_observed.wait(), timeout=5)
+    bind_executions.release.set()
+    admission, settled = await asyncio.wait_for(
+        asyncio.gather(bind_task, settlement_task), timeout=5
+    )
+
+    assert admission.command.data == {"steer_input_id": str(steer.id)}
+    assert settled is not None
+    assert (
+        await inputs.fetch_input(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+            input_id=steer.id,
+        )
+    ).state == PendingInputState.promoted
+
+
+async def test_stop_settlement_wins_before_steer_bind(input_scope, monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    monkeypatch.setattr(
+        commands_service_module,
+        "get_running_owner",
+        AsyncMock(return_value="source-turn"),
+    )
+    inputs = SessionInputsDAO(engine=input_scope["engine"])
+    steer = await inputs.create_input(
+        user_id=input_scope["user_id"],
+        pending_input=_input(
+            input_scope,
+            key="settlement-first",
+            message="settlement first",
+            policy="steer",
+        ),
+        prioritize=True,
+    )
+    command = await _pending_command(input_scope)
+    settlement_executions = _PausingExecutionsDAO(engine=input_scope["engine"])
+    settlement_service = _settlement_service(
+        input_scope, inputs, executions=settlement_executions
+    )
+    bind_executions = _ObservedExecutionsDAO(engine=input_scope["engine"])
+    bind_service = _cancel_service(input_scope, inputs, executions=bind_executions)
+
+    settlement_task = asyncio.create_task(
+        settlement_service.settle(
+            command_id=command.id,
+            project_id=input_scope["project_id"],
+            replica_id=None,
+            expected_states=[SessionCommandState.pending],
+            state=SessionCommandState.applied,
+            outcome=SessionCommandOutcome.stopped,
+            execution_id="source-turn",
+        )
+    )
+    await asyncio.wait_for(settlement_executions.locked.wait(), timeout=5)
+    bind_task = asyncio.create_task(
+        bind_service.request_cancel(
+            project_id=input_scope["project_id"],
+            user_id=input_scope["user_id"],
+            session_id=input_scope["session_id"],
+            expected_execution_id="source-turn",
+            steer_input_id=steer.id,
+        )
+    )
+    await asyncio.wait_for(bind_executions.lock_attempted.wait(), timeout=5)
+    settlement_executions.release.set()
+
+    assert await asyncio.wait_for(settlement_task, timeout=5) is not None
+    with pytest.raises(ExecutionExpectationFailed):
+        await asyncio.wait_for(bind_task, timeout=5)
+    assert (
+        await inputs.fetch_input(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+            input_id=steer.id,
+        )
+    ).state == PendingInputState.pending
+    settled_command = await SessionCommandsDAO(
+        engine=input_scope["engine"]
+    ).fetch_command(command_id=command.id)
+    assert settled_command.data is None
