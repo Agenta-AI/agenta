@@ -1,5 +1,6 @@
 import type {PropsWithChildren} from "react"
 
+import {EntityModalsProvider} from "@agenta/entity-ui/modals"
 import {configureAgentaSdk} from "@agenta/sdk/config"
 import {ProjectWatch} from "@agenta/sessions/watch"
 import {QueryClientProvider} from "@tanstack/react-query"
@@ -39,7 +40,9 @@ export const AppProviders = ({children}: PropsWithChildren) => (
                 <ProjectWatch refreshSession={tryRefreshSession} />
                 <AuthGate />
                 <ExecutionHeaders />
-                {children}
+                {/* useEntityActionDispatch throws without this; the modals stay unmounted
+                    until something dispatches, so nothing renders differently today. */}
+                <EntityModalsProvider>{children}</EntityModalsProvider>
             </HydrateAtoms>
         </Provider>
     </QueryClientProvider>
