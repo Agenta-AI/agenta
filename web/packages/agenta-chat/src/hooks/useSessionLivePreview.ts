@@ -3,13 +3,15 @@ import {useEffect, useMemo, useRef} from "react"
 import {
     clearSessionLivePreviewAtom,
     fetchSessionSnapshot,
+    querySessionTranscript,
     sessionLivePreviewAtomFamily,
-    type SessionSnapshot,
 } from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import type {SessionTranscript} from "../assets/loadSession"
+import {transcriptToMessages} from "../assets/transcriptToMessages"
 import {
     completeSessionDurableEventReplay,
     createSessionDurableEventState,
@@ -37,8 +39,8 @@ export const useSessionLivePreview = ({
     sharedReaderAdvertised: boolean
     /** True only when this browser is not the sender of the running turn. */
     runningElsewhere: boolean
-    /** Re-fetches the durable transcript after any gap; preview frames never fill history. */
-    onDisconnect: (snapshot?: SessionSnapshot) => void
+    /** Adopts a bounded transcript or re-fetches after a later gap/disconnect. */
+    onDisconnect: (transcript?: SessionTranscript) => void | Promise<void>
 }): UIMessage[] => {
     const projectId = useAtomValue(projectIdAtom)
     const [preview, setPreview] = useAtom(sessionLivePreviewAtomFamily(sessionId))
@@ -75,8 +77,22 @@ export const useSessionLivePreview = ({
             const snapshot = projectId ? await fetchSessionSnapshot({sessionId, projectId}) : null
             if (disposed || currentGeneration !== generation) return
 
-            // The host re-reads durable transcript state after the atomic watermark is known.
-            onDisconnectRef.current(snapshot ?? undefined)
+            if (snapshot && projectId) {
+                const records = await querySessionTranscript({
+                    sessionId,
+                    projectId,
+                    throughSequence: snapshot.read.latest_sequence,
+                })
+                if (records === null || disposed || currentGeneration !== generation) return
+                await onDisconnectRef.current({
+                    messages: transcriptToMessages(records) ?? [],
+                    recordCount: records.length,
+                })
+                if (disposed || currentGeneration !== generation) return
+            } else {
+                await onDisconnectRef.current()
+                if (disposed || currentGeneration !== generation) return
+            }
             durable = createSessionDurableEventState(
                 snapshot?.read.latest_sequence ?? durable.latestSequence,
             )

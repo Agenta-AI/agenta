@@ -732,9 +732,18 @@ export const useAgentConversation = ({
 
     // Push-signal revalidation: same guarded adoption as revalidate-on-open, callable at any
     // time (a watch relay tick, app foregrounding). Guards make it idempotent and stream-safe.
-    const revalidate = useCallback(() => {
-        void loadSessionMessages(sessionId, adoptServerTranscript).then(adoptServerTranscript)
-    }, [adoptServerTranscript, sessionId])
+    const revalidate = useCallback(
+        async (transcript?: SessionTranscript) => {
+            if (transcript) {
+                adoptServerTranscript(transcript)
+                return
+            }
+            revalidateSessionRecords(sessionId)
+            const refreshed = await loadSessionMessages(sessionId, adoptServerTranscript)
+            adoptServerTranscript(refreshed)
+        },
+        [adoptServerTranscript, revalidateSessionRecords, sessionId],
+    )
 
     const previewMessages = useSessionLivePreview({
         sessionId,
