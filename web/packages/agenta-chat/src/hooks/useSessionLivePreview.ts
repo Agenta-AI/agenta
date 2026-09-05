@@ -157,9 +157,11 @@ export const useSessionLivePreview = ({
             if (disposed || currentGeneration !== generation) return
             const snapshotRunning = isSessionSnapshotRunning(snapshot ?? undefined)
             setRunningFromSnapshot(snapshotRunning)
-            if (snapshot && !snapshotRunning) onExecutionSettledRef.current?.()
+            if (snapshot?.session && snapshot.read && !snapshotRunning) {
+                onExecutionSettledRef.current?.()
+            }
 
-            if (snapshot && projectId) {
+            if (snapshot?.session && snapshot.read && projectId) {
                 try {
                     const transcript = await readBoundedTranscript(snapshot.read.latest_sequence)
                     if (!transcript) {
@@ -186,7 +188,7 @@ export const useSessionLivePreview = ({
                 }
             }
             durable = createSessionDurableEventState(
-                snapshot?.read.latest_sequence ?? durable.latestSequence,
+                snapshot?.read?.latest_sequence ?? durable.latestSequence,
             )
             connection = connectSessionLiveEvents({
                 sessionId,

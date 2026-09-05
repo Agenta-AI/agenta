@@ -49,6 +49,27 @@ describe("session pending-input API", () => {
         )
     })
 
+    it("accepts a queue snapshot without reconnect data", async () => {
+        fetchSnapshot.mockResolvedValue({
+            session: null,
+            execution: null,
+            execution_state: {state: "idle"},
+            pending: {inputs: [], interactions: []},
+            read: null,
+            capabilities: {queue: true, steer: true},
+        })
+
+        await expect(
+            readSnapshot({projectId: "project-1", sessionId: "session-1"}),
+        ).resolves.toMatchObject({
+            session: null,
+            execution: null,
+            read: null,
+            execution_state: {state: "idle"},
+            capabilities: {queue: true, steer: true},
+        })
+    })
+
     it("removes a pending input through the generated route", async () => {
         removeInput.mockResolvedValue({input: {id: "input-1"}})
 

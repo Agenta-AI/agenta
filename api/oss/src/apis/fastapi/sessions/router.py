@@ -2175,8 +2175,6 @@ class SessionsRootRouter:
         request: Request,
         session_id: str,
     ) -> SessionSnapshotResponse:
-        if not env.sessions.shared_reader:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         _validate_session_id_http(session_id)
         if not await check_action_access(
             user_uid=str(request.state.user_id),
@@ -2184,33 +2182,33 @@ class SessionsRootRouter:
             permission=Permission.VIEW_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
-        if not all(
-            (
-                self.streams_service,
-                self.records_service,
-                self.interactions_service,
-                self.turns_service,
-            )
+        if self.streams_service is None or self.interactions_service is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+        if env.sessions.shared_reader and (
+            self.records_service is None or self.turns_service is None
         ):
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         project_id = UUID(str(request.state.project_id))
-        session = await self.streams_service.fetch(
+        stream = await self.streams_service.fetch(
             project_id=project_id,
             session_id=session_id,
         )
-        if session is None:
-            raise SessionStreamNotFound(session_id)
-        read = await self.records_service.get_read_state(
-            project_id=project_id,
-            session_id=session_id,
-        )
-        if getattr(session, "history_incomplete", False):
-            read = read.model_copy(update={"history_complete": False})
-        execution = await self.turns_service.latest_turn(
-            project_id=project_id,
-            session_id=session_id,
-        )
+        session = None
+        execution = None
+        read = None
+        if env.sessions.shared_reader and stream is not None:
+            session = sanitize_session_stream(stream)
+            read = await self.records_service.get_read_state(
+                project_id=project_id,
+                session_id=session_id,
+            )
+            if getattr(stream, "history_incomplete", False):
+                read = read.model_copy(update={"history_complete": False})
+            execution = await self.turns_service.latest_turn(
+                project_id=project_id,
+                session_id=session_id,
+            )
         interactions = await self.interactions_service.query_interactions(
             project_id=project_id,
             query=SessionInteractionQuery(
@@ -2228,20 +2226,19 @@ class SessionsRootRouter:
             if self.inputs_service is not None
             else []
         )
-        # Derived from the stream row, not from `execution`: that names the last turn, this says
-        # whether anything is running right now, which is what the queue admits against.
+        # The stream remains the lifecycle source even when its reconnect representation is hidden.
         execution_state = SessionExecutionSnapshot(
-            id=session.stopping_turn_id or session.turn_id,
+            id=(stream.stopping_turn_id or stream.turn_id) if stream else None,
             state=(
                 "stopping"
-                if session.stopping_turn_id
+                if stream and stream.stopping_turn_id
                 else "running"
-                if session.flags.is_running
+                if stream and stream.flags.is_running
                 else "idle"
             ),
         )
         return SessionSnapshotResponse(
-            session=sanitize_session_stream(session),
+            session=session,
             execution=execution,
             execution_state=execution_state,
             pending=SessionSnapshotPending(inputs=inputs, interactions=interactions),

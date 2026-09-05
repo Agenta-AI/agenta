@@ -208,9 +208,10 @@ class SessionSnapshotPending(BaseModel):
 class SessionSnapshotResponse(BaseModel):
     """One snapshot for every reader of an open session.
 
-    `session`, `execution` and `read` are the reconnect half: the stream row, the latest turn
-    (whose `end_time` says whether that turn is still live), and the durable sequence watermark
-    a reader replays from.
+    `session`, `execution` and `read` are the nullable reconnect half: the stream row, the
+    latest turn (whose `end_time` says whether that turn is still live), and the durable
+    sequence watermark a reader replays from. They are absent when the shared reader is off or
+    before a fresh session has a stream row.
 
     `execution_state` and `pending.inputs` are the queue half. `execution_state` is the
     session's CURRENT lifecycle derived from the stream row, which is a different question from
@@ -219,13 +220,13 @@ class SessionSnapshotResponse(BaseModel):
     a client never sees the two disagree.
     """
 
-    session: SessionStream
+    session: Optional[SessionStream] = None
     execution: Optional[SessionTurn] = None
     execution_state: SessionExecutionSnapshot = Field(
         default_factory=SessionExecutionSnapshot
     )
     pending: SessionSnapshotPending
-    read: SessionRecordsReadState
+    read: Optional[SessionRecordsReadState] = None
     capabilities: SessionCapabilities = Field(default_factory=SessionCapabilities)
 
 

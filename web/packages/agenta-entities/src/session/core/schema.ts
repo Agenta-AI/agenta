@@ -268,8 +268,8 @@ export const pendingSessionInputSchema = z.object({
 /**
  * Atomic read for every reader of an open session.
  *
- * The reconnect half is `session`, `execution` and `read`: the stream row, the last turn (whose
- * `end_time` says whether it is still live), and the durable watermark to replay from.
+ * The nullable reconnect half is `session`, `execution` and `read`: the stream row, the last turn
+ * (whose `end_time` says whether it is still live), and the durable watermark to replay from.
  *
  * The queue half is `execution_state` and `pending.inputs`. `execution_state` is the session's
  * CURRENT lifecycle, derived server-side from the stream row, which is a different question from
@@ -278,8 +278,8 @@ export const pendingSessionInputSchema = z.object({
  * disagree.
  */
 export const sessionSnapshotSchema = z.object({
-    session: sessionStreamSchema,
-    execution: z.record(z.string(), z.unknown()).nullable().optional(),
+    session: sessionStreamSchema.nullish().default(null),
+    execution: z.record(z.string(), z.unknown()).nullish().default(null),
     execution_state: z
         .object({
             id: z.string().nullish(),
@@ -290,7 +290,7 @@ export const sessionSnapshotSchema = z.object({
         inputs: z.array(pendingSessionInputSchema).default([]),
         interactions: z.array(sessionInteractionSchema).default([]),
     }),
-    read: sessionRecordsReadStateSchema,
+    read: sessionRecordsReadStateSchema.nullish().default(null),
     capabilities: z
         .object({
             durable_approvals: z.boolean().optional().default(false),

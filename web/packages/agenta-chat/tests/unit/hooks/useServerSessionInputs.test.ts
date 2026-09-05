@@ -268,6 +268,30 @@ const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolea
 }
 
 describe("useServerSessionInputs", () => {
+    it("enables Queue from a snapshot without reconnect data", async () => {
+        fetchSnapshot.mockResolvedValue({
+            session: null,
+            execution: null,
+            execution_state: {id: null, state: "idle"},
+            read: null,
+            pending: {inputs: [], interactions: []},
+            capabilities: {durable_approvals: true, queue: true, steer: true},
+        })
+
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: false,
+            }),
+        )
+
+        await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
+        expect(result.current.capabilities.steer).toBe(true)
+        expect(result.current.executionState).toBe("idle")
+    })
+
     it("reads queue support from the snapshot and submits durable admission", async () => {
         fetchSnapshot.mockResolvedValue({
             session: {

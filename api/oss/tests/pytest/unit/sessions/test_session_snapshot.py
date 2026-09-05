@@ -27,6 +27,104 @@ def _request(project_id, user_id) -> Request:
 
 
 @pytest.mark.asyncio
+async def test_snapshot_keeps_queue_capabilities_when_shared_reader_is_off():
+    project_id = uuid4()
+    stream = SessionStream(
+        id=uuid4(),
+        project_id=project_id,
+        session_id="session-1",
+        turn_id="turn-live",
+        flags=SessionStreamFlags(is_alive=True, is_running=True, is_attached=False),
+    )
+    streams = AsyncMock()
+    streams.fetch.return_value = stream
+    records = AsyncMock()
+    interactions = AsyncMock()
+    interactions.query_interactions.return_value = []
+    turns = AsyncMock()
+    inputs = AsyncMock()
+    inputs.list_pending.return_value = []
+    router = SessionsRootRouter(
+        sessions_service=AsyncMock(),
+        streams_service=streams,
+        records_service=records,
+        interactions_service=interactions,
+        turns_service=turns,
+        inputs_service=inputs,
+    )
+
+    with (
+        patch.object(env.sessions, "shared_reader", False),
+        patch.object(env.agenta.sessions, "queue", True),
+        patch.object(env.agenta.sessions, "steer", True),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+    ):
+        snapshot = await router.get_session_snapshot(
+            request=_request(project_id, uuid4()), session_id="session-1"
+        )
+
+    assert snapshot.session is None
+    assert snapshot.execution is None
+    assert snapshot.read is None
+    assert snapshot.execution_state.state == "running"
+    assert snapshot.execution_state.id == "turn-live"
+    assert snapshot.capabilities.queue is True
+    assert snapshot.capabilities.steer is True
+    records.get_read_state.assert_not_awaited()
+    turns.latest_turn.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_snapshot_is_idle_before_a_fresh_session_has_a_stream_row():
+    project_id = uuid4()
+    streams = AsyncMock()
+    streams.fetch.return_value = None
+    records = AsyncMock()
+    interactions = AsyncMock()
+    interactions.query_interactions.return_value = []
+    turns = AsyncMock()
+    inputs = AsyncMock()
+    inputs.list_pending.return_value = []
+    router = SessionsRootRouter(
+        sessions_service=AsyncMock(),
+        streams_service=streams,
+        records_service=records,
+        interactions_service=interactions,
+        turns_service=turns,
+        inputs_service=inputs,
+    )
+
+    with (
+        patch.object(env.sessions, "shared_reader", True),
+        patch.object(env.agenta.sessions, "queue", True),
+        patch.object(env.agenta.sessions, "steer", True),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+    ):
+        snapshot = await router.get_session_snapshot(
+            request=_request(project_id, uuid4()), session_id="session-1"
+        )
+
+    assert snapshot.session is None
+    assert snapshot.execution is None
+    assert snapshot.read is None
+    assert snapshot.execution_state.state == "idle"
+    assert snapshot.execution_state.id is None
+    assert snapshot.pending.inputs == []
+    assert snapshot.capabilities.queue is True
+    assert snapshot.capabilities.steer is True
+    records.get_read_state.assert_not_awaited()
+    turns.latest_turn.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_snapshot_groups_session_execution_pending_and_read_watermark():
     project_id = uuid4()
     stream = SessionStream(
