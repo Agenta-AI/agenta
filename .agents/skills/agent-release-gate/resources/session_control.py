@@ -1006,6 +1006,17 @@ RECOVERY_HEALTH_POLL_S = 2.0
 TERMINAL_RECORD_SETTLE_BUDGET_S = 20.0
 TERMINAL_RECORD_SETTLE_POLL_S = 0.5
 
+# `session_streams.flags.is_running` is set before environment acquisition. It proves only that
+# the turn was admitted, not that a sandbox exists or that the model received the prompt. A Stop
+# test must cross this boundary before it can claim that it interrupted model work or parked a
+# warm sandbox. Five concurrent local acquisitions have taken about 35 s on the gate stack, so
+# keep the wait comfortably above that while still bounding a broken precondition.
+MODEL_DELIVERY_TIMEOUT_S = 120.0
+MODEL_DELIVERY_POLL_S = 0.5
+MODEL_DELIVERY_PRECONDITION = (
+    "the expected sleep tool call or the first assistant/usage record"
+)
+
 
 def _has_watchdog_ending(rows: list) -> bool:
     return any(
@@ -1547,6 +1558,18 @@ def sandbox_ids(session_id: str) -> list[str]:
     )
 
 
+def sandbox_id_for_turn(session_id: str, turn_id: str | None) -> str | None:
+    """The non-empty sandbox id stored for exactly one turn, or None when evidence is absent."""
+    if not turn_id:
+        return None
+    for row in turn_ledger(session_id):
+        if str(row.get("turn_id") or "") != turn_id:
+            continue
+        sandbox_id = row.get("sandbox_id")
+        return sandbox_id if isinstance(sandbox_id, str) and sandbox_id else None
+    return None
+
+
 def session_stream(session_id: str) -> dict:
     r = api("GET", "/sessions/streams/", params={"session_id": session_id})
     if r.status_code != 200:
@@ -1715,6 +1738,70 @@ def wait_for_tool(handle: dict, *, timeout: float = 60.0) -> dict | None:
             return None
         time.sleep(0.1)
     return None
+
+
+def _first_model_delivery_event(
+    rows: list,
+    turn_id: str | None,
+    *,
+    expected_tool_input: str | None = None,
+) -> dict | None:
+    """Return stored proof that the model received this turn.
+
+    The inbound user `message` is persisted before environment acquisition, so only records from
+    the agent count. An assistant `message` or `usage` record proves a model response. A
+    `tool_call` counts only when its stored input contains the command this cell asked the model
+    to run; an unrelated tool call must not satisfy a sleep precondition.
+    """
+    for row in rows:
+        if not isinstance(row, dict) or row.get("record_source") != "agent":
+            continue
+        if turn_id and str(row.get("turn_id") or "") != turn_id:
+            continue
+        record_type = row.get("record_type")
+        attributes = row.get("attributes")
+        attributes = attributes if isinstance(attributes, dict) else {}
+        if record_type in ("message", "usage"):
+            return {
+                "record_type": record_type,
+                "record_index": row.get("record_index"),
+                "turn_id": row.get("turn_id"),
+            }
+        if record_type == "tool_call" and expected_tool_input:
+            stored_input = json.dumps(attributes.get("input"), sort_keys=True)
+            if expected_tool_input in stored_input:
+                return {
+                    "record_type": record_type,
+                    "record_index": row.get("record_index"),
+                    "turn_id": row.get("turn_id"),
+                    "tool_name": attributes.get("name"),
+                }
+    return None
+
+
+def wait_for_model_delivery(
+    session_id: str,
+    turn_id: str | None,
+    *,
+    expected_tool_input: str | None = None,
+    timeout: float = MODEL_DELIVERY_TIMEOUT_S,
+    poll_interval: float = MODEL_DELIVERY_POLL_S,
+    read_records=records,
+    clock=time,
+) -> dict | None:
+    """Wait a bounded interval for stored model-originated evidence for one turn."""
+    deadline = clock.time() + timeout
+    while True:
+        event = _first_model_delivery_event(
+            read_records(session_id),
+            turn_id,
+            expected_tool_input=expected_tool_input,
+        )
+        if event is not None:
+            return event
+        if clock.time() >= deadline:
+            return None
+        clock.sleep(min(poll_interval, max(0.0, deadline - clock.time())))
 
 
 def sleep_prompt(marker: str, seconds: int) -> str:
@@ -1886,7 +1973,19 @@ def cell_stop_warm(cfg, references, args, hooks: OperatorHooks) -> Cell:
     msgs = [user_msg(sleep_prompt(marker, args.sleep_seconds))]
     handle = invoke_async(session_id, msgs, cfg, references, "warm-turn1")
     turn = wait_for_turn(session_id)
-    open_call = wait_for_tool(handle)
+    model_delivery = wait_for_model_delivery(
+        session_id, turn, expected_tool_input=f"sleep {args.sleep_seconds}"
+    )
+    if not turn or model_delivery is None:
+        evidence = {
+            "session_id": session_id,
+            "turn_id": turn,
+            "model_delivery_precondition": model_delivery,
+        }
+        return evidence, _fail(
+            f"precondition not reached within {MODEL_DELIVERY_TIMEOUT_S:.0f}s for session "
+            f"{session_id}: no {MODEL_DELIVERY_PRECONDITION}"
+        )
     stop = cancel(session_id, expected=turn, label="stop-warm")
     settle = assert_command_settled(hooks, session_id, turn)
     handle["thread"].join(timeout=180)
@@ -1899,7 +1998,7 @@ def cell_stop_warm(cfg, references, args, hooks: OperatorHooks) -> Cell:
         "turn_id": turn,
         "marker": marker,
         "stop": stop,
-        "stopped_during_tool": open_call,
+        "model_delivery_precondition": model_delivery,
         "turn1_elapsed_s": t1.get("elapsed_s"),
         "terminal_records": terminal_records(session_id, turn),
         "resume_recalled_marker": marker in (t2.get("text") or ""),
@@ -2793,8 +2892,20 @@ def cell_stale_tail(cfg, references, args, hooks: OperatorHooks) -> Cell:
         )
     ]
     handle = invoke_async(session_id, msgs, cfg, references, "tail-turn1")
-    wait_for_turn(session_id)
-    time.sleep(3)
+    turn = wait_for_turn(session_id)
+    model_delivery = wait_for_model_delivery(
+        session_id, turn, expected_tool_input="sleep 20"
+    )
+    if not turn or model_delivery is None:
+        evidence = {
+            "session_id": session_id,
+            "turn_id": turn,
+            "model_delivery_precondition": model_delivery,
+        }
+        return evidence, _fail(
+            f"precondition not reached within {MODEL_DELIVERY_TIMEOUT_S:.0f}s for session "
+            f"{session_id}: no {MODEL_DELIVERY_PRECONDITION}"
+        )
     hooks.pause_runner()
     try:
         deadline = time.time() + args.sweep_wait
@@ -2813,6 +2924,8 @@ def cell_stale_tail(cfg, references, args, hooks: OperatorHooks) -> Cell:
     endpoint = [r.get("record_type") for r in records(session_id)]
     evidence = {
         "session_id": session_id,
+        "turn_id": turn,
+        "model_delivery_precondition": model_delivery,
         "quarantined": quarantined,
         "endpoint_record_types": endpoint,
     }
@@ -2836,7 +2949,19 @@ def cell_repeat_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
     msgs = [user_msg(sleep_prompt(marker, args.sleep_seconds))]
     handle = invoke_async(session_id, msgs, cfg, references, "repeat-turn1")
     turn = wait_for_turn(session_id)
-    wait_for_tool(handle)
+    model_delivery = wait_for_model_delivery(
+        session_id, turn, expected_tool_input=f"sleep {args.sleep_seconds}"
+    )
+    if not turn or model_delivery is None:
+        evidence = {
+            "session_id": session_id,
+            "turn_id": turn,
+            "model_delivery_precondition": model_delivery,
+        }
+        return evidence, _fail(
+            f"precondition not reached within {MODEL_DELIVERY_TIMEOUT_S:.0f}s for session "
+            f"{session_id}: no {MODEL_DELIVERY_PRECONDITION}"
+        )
     results: list = []
 
     def fire(label: str) -> None:
@@ -2863,6 +2988,7 @@ def cell_repeat_stop(cfg, references, args, hooks: OperatorHooks) -> Cell:
     evidence = {
         "session_id": session_id,
         "turn_id": turn,
+        "model_delivery_precondition": model_delivery,
         "stops": results,
         "terminal_records": terminal_records(session_id, turn),
         "resume_recalled_marker": marker in (t3.get("text") or ""),
@@ -2917,7 +3043,66 @@ def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
         return evidence, _fail(
             f"{len(missing_turn)} of {n} sessions never reported a running turn"
         )
-    time.sleep(2)
+
+    def wait_for_delivery(s: dict) -> None:
+        s["model_delivery_precondition"] = wait_for_model_delivery(
+            s["session_id"],
+            s["turn_id"],
+            expected_tool_input=f"sleep {args.sleep_seconds}",
+        )
+
+    delivery_threads = [
+        threading.Thread(target=wait_for_delivery, args=(s,)) for s in sessions
+    ]
+    for thread in delivery_threads:
+        thread.start()
+    for thread in delivery_threads:
+        thread.join()
+    missing_delivery = [
+        s["session_id"] for s in sessions if s["model_delivery_precondition"] is None
+    ]
+    if missing_delivery:
+        evidence = {
+            "n": n,
+            "missing_model_delivery_sessions": missing_delivery,
+            "sessions": [
+                {
+                    "session_id": s["session_id"],
+                    "turn_id": s["turn_id"],
+                    "model_delivery_precondition": s["model_delivery_precondition"],
+                }
+                for s in sessions
+            ],
+        }
+        return evidence, _fail(
+            f"precondition not reached within {MODEL_DELIVERY_TIMEOUT_S:.0f}s: "
+            f"{len(missing_delivery)} of {n} sessions had no "
+            f"{MODEL_DELIVERY_PRECONDITION}: {missing_delivery}"
+        )
+
+    for s in sessions:
+        s["turn1_sandbox_id"] = sandbox_id_for_turn(s["session_id"], s["turn_id"])
+    missing_turn1_sandbox = [
+        s["session_id"] for s in sessions if not s["turn1_sandbox_id"]
+    ]
+    if missing_turn1_sandbox:
+        evidence = {
+            "n": n,
+            "missing_turn1_sandbox_sessions": missing_turn1_sandbox,
+            "sessions": [
+                {
+                    "session_id": s["session_id"],
+                    "turn_id": s["turn_id"],
+                    "model_delivery_precondition": s["model_delivery_precondition"],
+                    "turn1_sandbox_id": s["turn1_sandbox_id"],
+                }
+                for s in sessions
+            ],
+        }
+        return evidence, _fail(
+            "precondition not reached: the turn-1 ledger had no non-null sandbox id for "
+            f"sessions {missing_turn1_sandbox}"
+        )
 
     def fire(s: dict) -> None:
         s["stop"] = cancel(
@@ -2968,6 +3153,10 @@ def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
         t2 = invoke(
             s["session_id"], msgs2, cfg, references, f"concurrent-turn2-{s['marker']}"
         )
+        s["resume_turn_id"] = t2.get("turn_id")
+        s["resume_sandbox_id"] = sandbox_id_for_turn(
+            s["session_id"], s["resume_turn_id"]
+        )
         s["resume_recalled_marker"] = s["marker"] in (t2.get("text") or "")
         s["resume_text"] = (t2.get("text") or "")[:200]
 
@@ -2978,6 +3167,12 @@ def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
             {
                 "session_id": s["session_id"],
                 "turn_id": s["turn_id"],
+                "model_delivery_precondition": s["model_delivery_precondition"],
+                "turn1_sandbox_id": s["turn1_sandbox_id"],
+                "resume_turn_id": s["resume_turn_id"],
+                "resume_sandbox_id": s["resume_sandbox_id"],
+                "warm_same_sandbox": bool(s["turn1_sandbox_id"])
+                and s["resume_sandbox_id"] == s["turn1_sandbox_id"],
                 "stop_status": s["stop"]["status"],
                 "stop_round_trip_s": s["stop"]["round_trip_s"],
                 "terminal_record_count": len(s["terminal_records"]),
@@ -3011,6 +3206,16 @@ def cell_concurrent_stops(cfg, references, args, hooks: OperatorHooks) -> Cell:
             f"{len(bad_terminal)} of {n} sessions did not read exactly one terminal record: "
             f"{bad_terminal}"
         )
+    cold_or_unproven = [
+        s["session_id"]
+        for s in sessions
+        if not s["turn1_sandbox_id"] or s["resume_sandbox_id"] != s["turn1_sandbox_id"]
+    ]
+    if cold_or_unproven:
+        return evidence, _fail(
+            f"{len(cold_or_unproven)} of {n} sessions did not resume in turn 1's non-null "
+            f"sandbox: {cold_or_unproven}"
+        )
     not_recalled = [
         s["session_id"] for s in sessions if not s["resume_recalled_marker"]
     ]
@@ -3035,6 +3240,17 @@ def cell_stop_during_completion(cfg, references, args, hooks: OperatorHooks) -> 
     ]
     handle = invoke_async(session_id, msgs, cfg, references, "completion-turn1")
     turn = wait_for_turn(session_id)
+    model_delivery = wait_for_model_delivery(session_id, turn)
+    if not turn or model_delivery is None:
+        evidence = {
+            "session_id": session_id,
+            "turn_id": turn,
+            "model_delivery_precondition": model_delivery,
+        }
+        return evidence, _fail(
+            f"precondition not reached within {MODEL_DELIVERY_TIMEOUT_S:.0f}s for session "
+            f"{session_id}: no {MODEL_DELIVERY_PRECONDITION}"
+        )
     # Race the natural finish: poll the live frame count and fire the instant it stops growing,
     # which is the closest an HTTP-only driver can land on "while the execution completes".
     live = handle["live"]
@@ -3070,6 +3286,7 @@ def cell_stop_during_completion(cfg, references, args, hooks: OperatorHooks) -> 
     evidence = {
         "session_id": session_id,
         "turn_id": turn,
+        "model_delivery_precondition": model_delivery,
         "stop": stop,
         "terminal_records": terminal,
         "stream_after_flags": (stream_after or {}).get("flags"),
