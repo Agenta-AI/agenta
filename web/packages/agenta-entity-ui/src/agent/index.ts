@@ -23,6 +23,14 @@ export {AgentFilesCard} from "./AgentFilesCard"
 export {AgentOverviewBody, type AgentOverviewBodyProps} from "./AgentOverviewBody"
 export {AgentOverviewSkeleton} from "./AgentOverviewSkeleton"
 export {AgentActionsMenu, type AgentActionsMenuProps} from "./AgentActionsMenu"
-export {AgentNameInline, type AgentNameInlineProps} from "./AgentNameInline"
+export {
+    AgentNameInline,
+    agentNameLabelClass,
+    type AgentNameInlineProps,
+    type AgentNameSize,
+} from "./AgentNameInline"
+export {AgentIconPopover} from "./AgentIconPopover"
+export {AgentIdentity, type AgentIdentityProps, type AgentIdentitySize} from "./AgentIdentity"
+export {AGENT_CHIP_BOX, AGENT_CHIP_FALLBACK, AGENT_FOCUS_RING} from "./chrome"
 export {useAgentActions, useRenameAgent, type AgentActionTarget} from "./useAgentActions"
 export {AgentIntroCard, capabilityLabel} from "./AgentIntroCard"
