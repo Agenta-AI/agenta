@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {memo, useMemo, useState} from "react"
 
 import {getMessageTraceId, getMessageUsage} from "@agenta/chat/assets"
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
@@ -14,7 +14,7 @@ import {type TurnViewModel} from "@agenta/chat/model"
 import {messageBodyKey, useStartupPhase} from "@agenta/chat/state"
 import {AgentChatAvatar} from "@agenta/entity-ui/agent"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
-import {buildRenderMap} from "@agenta/playground"
+import {buildRenderMap} from "@agenta/playground/agent-chat"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
     ChatBubble,
@@ -154,7 +154,7 @@ const PendingTurn = ({sessionId, workflowId}: {sessionId: string; workflowId?: s
                 placement="start"
                 variant="borderless"
                 avatar={<TurnAvatar workflowId={workflowId} />}
-                className="min-w-0 max-w-[85%]"
+                className="min-w-0 max-w-full sm:max-w-[85%]"
                 content={
                     startupPhase ? <StartupActivity label={startupPhase} /> : <ChatTypingDots />
                 }
@@ -180,7 +180,7 @@ const downloadAttachment = (url: string, name: string) => {
  * canvas, both with the 24px icon avatar; reasoning folds, tool lines with status glyphs, and
  * the red run-failure callout.
  */
-export const TurnRow = ({
+const TurnRowInner = ({
     turn,
     onClientToolOutput,
     onRewind,
@@ -346,7 +346,10 @@ export const TurnRow = ({
                 placement={turn.isUser ? "end" : "start"}
                 variant={turn.isUser && hasBubbleContent ? "filled" : "borderless"}
                 avatar={<TurnAvatar isUser={turn.isUser} workflowId={workflowId} />}
-                className="min-w-0 max-w-[85%]"
+                // The 85% inset is what reads as a user BUBBLE; a borderless agent turn only loses width to it.
+                className={
+                    turn.isUser ? "min-w-0 max-w-[85%]" : "min-w-0 max-w-full sm:max-w-[85%]"
+                }
                 classNames={{
                     content: turn.isUser
                         ? `${userBubbleContentClass} text-xs`
@@ -381,3 +384,10 @@ export const TurnRow = ({
         </div>
     )
 }
+
+/**
+ * Memoized: the conversation commits once per streamed chunk, and without this every turn in the
+ * transcript re-rendered on every one of them. Holds because `buildTurnViewModels` now keeps
+ * unchanged turns identity-stable and the host passes stable callbacks.
+ */
+export const TurnRow = memo(TurnRowInner)

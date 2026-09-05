@@ -495,9 +495,10 @@ export const LiveConversation = ({
     // so the warning about tools that already ran, and putting a rewound user message back into
     // the composer, are this surface's job — same division the desktop uses. `composerRef` is
     // declared above, with the parked task that also refills the input.
+    const {rewind} = conversation
     const handleRewind = useCallback(
         (turn: TurnViewModel) => {
-            const plan = conversation.rewind(turn.message)
+            const plan = rewind(turn.message)
             if (!plan) return
             const run = () => {
                 plan.confirm()
@@ -519,7 +520,7 @@ export const LiveConversation = ({
                 onOk: run,
             })
         },
-        [conversation],
+        [rewind],
     )
 
     let body

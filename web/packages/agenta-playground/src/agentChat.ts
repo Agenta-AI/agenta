@@ -13,6 +13,7 @@ export {
 } from "./state/execution/agentRequest"
 export {
     agentShouldResumeAfterApproval,
+    isPendingClientToolInteraction,
     type LiveAgentInteraction,
 } from "./state/execution/agentApprovalResume"
 export {
@@ -23,3 +24,4 @@ export {
 export {RECORD_ANSWER_TIMEOUT_MS, recordAnswerThenRelease} from "./state/execution/answerOrdering"
 export {canReleaseQueuedMessage, isHitlPending} from "./state/execution/agentMessageQueue"
 export {createNegotiatingFetch, type NegotiatingFetch} from "./state/execution/agentNegotiation"
+export {buildRenderMap, renderKindFor, type RenderHintLike} from "./state/execution/renderMap"
