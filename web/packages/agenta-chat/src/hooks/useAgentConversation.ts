@@ -76,6 +76,7 @@ import {
     composerDraftBySession,
     isSessionFresh,
     setSessionTurnId,
+    setAcceptedSessionTurnId,
     turnDeliverySourceBySession,
     type TurnDeliverySource,
 } from "../state/sessionEphemera"
@@ -354,6 +355,9 @@ export const useAgentConversation = ({
                 const data = part.data as {executionId?: unknown} | undefined
                 acceptedExecutionIdRef.current =
                     typeof data?.executionId === "string" ? data.executionId : null
+                if (acceptedExecutionIdRef.current) {
+                    setAcceptedSessionTurnId(sessionId, acceptedExecutionIdRef.current)
+                }
                 acceptedRunBySession.set(sessionId, acceptedExecutionIdRef.current)
                 setAcceptedRunPending(true)
             }

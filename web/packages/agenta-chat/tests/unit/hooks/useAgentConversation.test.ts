@@ -850,6 +850,9 @@ describe("useAgentConversation", () => {
             expect(result.current.turns.some((turn) => turn.status.isError)).toBe(false)
         })
 
+        // Stop must target the accepted execution even before any transcript turnId arrives.
+        expect(getSessionTurnId(sessionId)).toBe("turn-1")
+
         // Durable: only the user turn. Nothing here can repaint the failure after a reload, and
         // the count the adoption guard compares stays equal to what the log holds.
         await waitFor(() => {

@@ -36,6 +36,7 @@ import {
     sessionRecordCountsReadAtom,
     setSessionStatusAtom,
     setSessionTurnId,
+    setAcceptedSessionTurnId,
     type SessionChatHooks,
 } from "@agenta/chat/state"
 import {
@@ -218,6 +219,9 @@ export const useAgentChatSession = ({
                 const data = part.data as {executionId?: unknown} | undefined
                 acceptedExecutionIdRef.current =
                     typeof data?.executionId === "string" ? data.executionId : null
+                if (acceptedExecutionIdRef.current) {
+                    setAcceptedSessionTurnId(sessionId, acceptedExecutionIdRef.current)
+                }
                 acceptedRunBySession.set(sessionId, acceptedExecutionIdRef.current)
                 setAcceptedRunPending(true)
             }
