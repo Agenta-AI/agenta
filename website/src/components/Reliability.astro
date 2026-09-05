@@ -1,4 +1,5 @@
 ---
+import Section from "./Section.astro";
 // Ported 1:1 from the design source: "Agenta Landing - Agents (Dark).dc.html"
 // (RELIABILITY section, lines 381-437). Static section — no island needed.
 // The .ag-rel grid + its responsive hairline flips (4→2 cols ≤1100px, 1 col
@@ -24,10 +25,10 @@ const relEvalBars = [38, 52, 46, 62, 58, 74, 88].map((h, i) => ({
 }));
 ---
 
-<section
+<Section tone="dark"
   data-screen-label="Reliability"
   class="ag-relsec"
-  style="background:var(--ag-d-bg-2);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:var(--section-pad-y) 0;"
+  style="background:var(--th-darksec-reliability);padding:var(--section-pad-y) 0;"
 >
   <div style="display:flex;flex-direction:column;align-items:center;gap:88px;">
     <SectionTitle
@@ -94,28 +95,28 @@ const relEvalBars = [38, 52, 46, 62, 58, 74, 88].map((h, i) => ({
               cx="30"
               cy="16"
               r="4.5"
-              fill="var(--ag-d-bg-2)"
+              fill="var(--th-darksec-reliability)"
               stroke="rgba(255,255,255,0.35)"
               stroke-width="1.5"></circle>
             <circle
               cx="30"
               cy="56"
               r="4.5"
-              fill="var(--ag-d-bg-2)"
+              fill="var(--th-darksec-reliability)"
               stroke="rgba(255,255,255,0.35)"
               stroke-width="1.5"></circle>
             <circle
               cx="62"
               cy="85"
               r="4.5"
-              fill="var(--ag-d-bg-2)"
+              fill="var(--th-darksec-reliability)"
               stroke="rgba(255,255,255,0.35)"
               stroke-width="1.5"></circle>
             <circle
               cx="30"
               cy="126"
               r="5"
-              fill="var(--ag-d-bg-2)"
+              fill="var(--th-darksec-reliability)"
               stroke="#F7F6F4"
               stroke-width="1.5"></circle>
             <text
@@ -229,4 +230,4 @@ const relEvalBars = [38, 52, 46, 62, 58, 74, 88].map((h, i) => ({
       </div>
     </div>
   </div>
-</section>
+</Section>

@@ -122,7 +122,8 @@ async def get_project_by_workspace(
 ) -> ProjectDB:
     """Get the (default) project for a workspace."""
 
-    assert workspace_id is not None, "Workspace ID is required to retrieve project"
+    if workspace_id is None:
+        raise ValueError("Workspace ID is required to retrieve project")
     engine = get_transactions_engine()
 
     async with engine.session() as session:

@@ -6,6 +6,7 @@ import {
     AGENTS_SIDEBAR_KEY,
     buildHelpDocsNavItem,
     defineSidebarEntity,
+    SIDEBAR_AGENT_ORDER_ZONE,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
     sidebarAgentRanksAtomFamily,
@@ -115,6 +116,8 @@ const mobileAgentsEntity = defineSidebarEntity(MOBILE_NAV_SCOPE_ID, AGENTS_SIDEB
     listAtom: agentWorkflowsListQueryStateAtom,
     getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
     childPath: (workflow) => `/agents/${workflow.id}`,
+    // The same zone the desktop rail writes: one arrangement, both hosts.
+    dragZone: SIDEBAR_AGENT_ORDER_ZONE,
     emptyLabel: "No agents",
     showAllPath: "/agents",
 })

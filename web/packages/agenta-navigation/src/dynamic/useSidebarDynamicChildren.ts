@@ -3,6 +3,7 @@ import {createElement, useEffect, useMemo, useRef, type ReactElement, type React
 import {ArrowRight} from "@phosphor-icons/react"
 import {getDefaultStore, useAtomValue} from "jotai"
 
+import {sidebarReorderActiveAtom} from "../reorder"
 import type {SidebarConfig} from "../types"
 
 import {SIDEBAR_ENTITIES, sidebarEntitySourcesAtom} from "./registry"
@@ -19,7 +20,7 @@ const groupedChildren = (
     entity: SidebarEntity,
     source: SidebarEntitySource,
     refs: SidebarEntityRef[],
-    toRow: (ref: SidebarEntityRef) => SidebarConfig,
+    toRow: (ref: SidebarEntityRef, dragZone?: string) => SidebarConfig,
 ): SidebarConfig[] => {
     const rowsByGroup = new Map<string, SidebarEntityRef[]>()
     for (const ref of refs) {
@@ -35,18 +36,25 @@ const groupedChildren = (
         const groupRefs = rowsByGroup.get(group.key)
         if (!groupRefs?.length) continue
         const isCollapsed = collapsed.has(group.key)
+        const groupZone = source.reorder?.groupZone
+        // A heading opts out by resolving to no id — Pinned is a heading like any other, but it
+        // is not an agent and must never be written into the agent order.
+        const groupId = source.reorder?.groupId ? source.reorder.groupId(group.key) : group.key
         children.push({
             key: `${entity.parentKey}-group-${group.key}`,
             title: group.label,
             isGroupLabel: true,
             isDynamic: true,
             isCollapsed,
+            dragItem:
+                groupZone && groupId ? {kind: "group", id: groupId, zone: groupZone} : undefined,
             onClick: entity.toggleGroupAtom
                 ? () => getDefaultStore().set(entity.toggleGroupAtom!, group.key)
                 : undefined,
         })
         if (isCollapsed) continue
-        children.push(...groupRefs.map(toRow))
+        const rowZone = source.reorder?.rowZone?.(group.key)
+        children.push(...groupRefs.map((ref) => toRow(ref, rowZone)))
     }
     return children
 }
@@ -148,8 +156,9 @@ export const resolveChildren = (
     // not quietly render more rows than an ungrouped one.
     const visibleRefs = refs.slice(0, entity.maxItems)
 
-    const toRow = (ref: SidebarEntityRef): SidebarConfig => ({
+    const toRow = (ref: SidebarEntityRef, dragZone?: string): SidebarConfig => ({
         key: `${entity.parentKey}-${ref.id}`,
+        dragItem: dragZone ? {kind: "row", id: ref.id, zone: dragZone} : undefined,
         title: entity.getLabel(ref),
         // Context the label cannot carry (#5945) — e.g. which agent a session belongs to.
         tooltip: entity.getTooltip?.(ref),
@@ -170,7 +179,8 @@ export const resolveChildren = (
     const children: SidebarConfig[] =
         entity.getGroupKey && source?.groups?.length
             ? groupedChildren(entity, source, visibleRefs, toRow)
-            : visibleRefs.map(toRow)
+            : // An ungrouped entity arranges its whole list in one zone.
+              visibleRefs.map((ref) => toRow(ref, entity.dragZone))
 
     if (entity.showAllLink && refs.length > visibleRefs.length) {
         children.push({
@@ -202,6 +212,7 @@ export const useSidebarDynamicChildren = ({
     rowIcons?: SidebarRowIcons
 }): Record<string, SidebarConfig[]> => {
     const sources = useAtomValue(sidebarEntitySourcesAtom)
+    const reordering = useAtomValue(sidebarReorderActiveAtom)
     const cachedChildrenRef = useRef<
         Record<string, {projectURL: string; children: SidebarConfig[]}>
     >({})
@@ -216,6 +227,13 @@ export const useSidebarDynamicChildren = ({
         for (const [key, entity] of Object.entries(SIDEBAR_ENTITIES)) {
             const source = sourcesByKey[key]
             const cached = cachedChildren[key]
+            // Hold the rows still while a drag is in flight: a poll landing mid-gesture would
+            // otherwise add, remove or reorder a row under the pointer and invalidate the drag
+            // engine's cached rects.
+            if (reordering && cached?.projectURL === resolvedProjectURL) {
+                result[key] = cached.children
+                continue
+            }
             const idleFallback =
                 cached?.projectURL === resolvedProjectURL ? cached.children : undefined
             result[key] = resolveChildren(
@@ -229,11 +247,12 @@ export const useSidebarDynamicChildren = ({
             )
         }
         return result
-    }, [sources, projectURL, kindIcon, rowWrappers, rowIcons])
+    }, [sources, projectURL, kindIcon, rowWrappers, rowIcons, reordering])
 
     // Keep the last non-idle children per group so a group going idle (its query
     // unsubscribing) still renders its previous items instead of the idle placeholder.
     useEffect(() => {
+        if (reordering) return
         const resolvedProjectURL = projectURL ?? ""
         const sourcesByKey = sources ?? {}
         for (const key of Object.keys(SIDEBAR_ENTITIES)) {
@@ -245,7 +264,7 @@ export const useSidebarDynamicChildren = ({
                 }
             }
         }
-    }, [sources, projectURL, childrenByKey])
+    }, [sources, projectURL, childrenByKey, reordering])
 
     return childrenByKey
 }

@@ -1,4 +1,5 @@
 ---
+import Section from "./Section.astro";
 // SiteFooter — dark footer. Content + links from the design's content/site.json
 // (inlined to keep the website package self-contained). External links are real;
 // internal routes point at their intended path (some 404 until those pages ship).
@@ -80,8 +81,9 @@ const columns: { heading: string; links: Link[] }[] = [
 const copyright = `Copyright © 2020 – ${new Date().getFullYear()} Agentatech UG`;
 ---
 
-<footer
-  style="background:var(--ag-d-chrome);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;box-sizing:border-box;"
+<Section as="footer"
+  class="ag-foot"
+  style="background:var(--th-chrome);"
 >
   <div
     class="ag-foot-top"
@@ -89,12 +91,19 @@ const copyright = `Copyright © 2020 – ${new Date().getFullYear()} Agentatech 
   >
     <div style="display:flex;flex-direction:column;align-items:flex-start;gap:18px;max-width:240px;">
       <img
+        class="th-dark-only"
         src="/logos/Agenta-logo-full-dark.svg"
         alt="Agenta"
         style="height:23px;width:fit-content;display:block;"
       />
+      <img
+        class="th-light-only"
+        src="/logos/Agenta-logo-full-light.svg"
+        alt="Agenta"
+        style="height:23px;width:fit-content;display:block;"
+      />
       <span
-        style="font:var(--text-body-sm);line-height:1.5;color:rgba(255,255,255,0.55);text-wrap:pretty;"
+        style="font:var(--text-body-sm);line-height:1.5;color:var(--ft-tagline);text-wrap:pretty;"
         >{blurb}</span
       >
       <div style="display:flex;gap:8px;margin-top:4px;">
@@ -106,12 +115,12 @@ const copyright = `Copyright © 2020 – ${new Date().getFullYear()} Agentatech 
               rel="noopener"
               aria-label={s.platform}
               class="ag-foot-social"
-              style="width:34px;height:34px;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);display:inline-flex;align-items:center;justify-content:center;"
+              style="width:34px;height:34px;border-radius:8px;background:var(--th-ctl-bg);box-shadow:inset 0 0 0 1px var(--ft-soc-ring);display:inline-flex;align-items:center;justify-content:center;"
             >
               <img
                 src={s.icon}
                 alt=""
-                style="width:20px;height:20px;display:block;filter:invert(1) brightness(0.8);"
+                style="width:20px;height:20px;display:block;filter:var(--ft-soc-filter);"
               />
             </a>
           ))
@@ -125,7 +134,7 @@ const copyright = `Copyright © 2020 – ${new Date().getFullYear()} Agentatech 
       {
         columns.map((col) => (
           <div style="display:flex;flex-direction:column;gap:12px;min-width:120px;">
-            <span style="font:var(--text-caption);letter-spacing:0.03em;color:rgba(255,255,255,0.38);">
+            <span style="font:var(--text-caption);letter-spacing:0.03em;color:var(--th-text-dim);">
               {col.heading}
             </span>
             {col.links.map((link) => (
@@ -134,7 +143,7 @@ const copyright = `Copyright © 2020 – ${new Date().getFullYear()} Agentatech 
                 href={link.href}
                 target={link.external ? "_blank" : undefined}
                 rel={link.external ? "noopener" : undefined}
-                style="font:var(--text-label);color:rgba(255,255,255,0.62);cursor:pointer;text-decoration:none;"
+                style="font:var(--text-label);color:var(--ft-link);cursor:pointer;text-decoration:none;"
               >
                 {link.label}
               </a>
@@ -146,9 +155,9 @@ const copyright = `Copyright © 2020 – ${new Date().getFullYear()} Agentatech 
   </div>
   <div
     class="ag-foot-bottom"
-    style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 172px;border-top:1px solid rgba(255,255,255,0.07);"
+    style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;padding:20px 172px;border-top:1px solid var(--th-border-subtle);"
   >
-    <span style="font:var(--text-caption);color:rgba(255,255,255,0.38);"
+    <span style="font:var(--text-caption);color:var(--th-text-dim);"
       >{copyright}</span
     >
     <a
@@ -156,8 +165,25 @@ const copyright = `Copyright © 2020 – ${new Date().getFullYear()} Agentatech 
       href="https://agenta.ai/docs/administration/security/privacy-policy"
       target="_blank"
       rel="noopener"
-      style="font:var(--text-caption);color:rgba(255,255,255,0.38);text-decoration:none;"
+      style="font:var(--text-caption);color:var(--th-text-dim);text-decoration:none;"
       >Privacy policy</a
     >
   </div>
-</footer>
+</Section>
+
+<style is:global>
+  /* Footer text/tile values whose dark literals don't match any --th-* dark
+     value exactly (tagline 0.55, links 0.62, tile ring 0.08). */
+  .ag-foot {
+    --ft-tagline: var(--ink-600);
+    --ft-link: var(--ink-600);
+    --ft-soc-ring: var(--paper-200);
+    --ft-soc-filter: invert(0.35);
+  }
+  [data-theme="dark"] .ag-foot {
+    --ft-tagline: rgba(255, 255, 255, 0.55);
+    --ft-link: rgba(255, 255, 255, 0.62);
+    --ft-soc-ring: rgba(255, 255, 255, 0.08);
+    --ft-soc-filter: invert(1) brightness(0.8);
+  }
+</style>
