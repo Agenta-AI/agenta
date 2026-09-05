@@ -21,7 +21,10 @@ import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {resumeContinuation} = vi.hoisted(() => ({resumeContinuation: vi.fn()}))
+const {snapshotViaAtom, resumeContinuation} = vi.hoisted(() => ({
+    snapshotViaAtom: vi.fn(),
+    resumeContinuation: vi.fn(),
+}))
 
 vi.mock("@agenta/playground/agent-chat", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/playground/agent-chat")>()
@@ -51,6 +54,9 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
         fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
         fetchSessionSnapshot: vi.fn(),
         querySessionTranscript: vi.fn(),
+        fetchSessionSnapshotAtom: atom(null, (_get, _set, sessionId: string) =>
+            snapshotViaAtom(sessionId),
+        ),
         resumeSessionContinuationAtom: atom(null, () => resumeContinuation()),
     }
 })
@@ -62,6 +68,7 @@ vi.mock("@agenta/entities/trace", () => ({
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
 import {ACCEPTED_SENDER_DISCONNECT_MESSAGE, TRANSPORT_ERROR_MESSAGE} from "../../../src/model/error"
 import {
+    composerDraftBySession,
     getSessionTurnId,
     markSessionFresh,
     setSessionTurnId,
@@ -274,6 +281,8 @@ beforeEach(() => {
     } as SessionSnapshot)
     vi.mocked(querySessionTranscript).mockReset()
     vi.mocked(querySessionTranscript).mockResolvedValue([])
+    snapshotViaAtom.mockReset()
+    snapshotViaAtom.mockResolvedValue(null)
     resumeContinuation.mockReset()
     resumeContinuation.mockResolvedValue(false)
     vi.mocked(buildAgentRequest).mockClear()
@@ -289,6 +298,30 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe("useAgentConversation", () => {
+    it("keeps a Steer draft when durable admission is refused", async () => {
+        snapshotViaAtom.mockResolvedValue({
+            session: null,
+            execution: {id: "turn-1", state: "running"},
+            pending: {inputs: [], interactions: []},
+            capabilities: {durable_approvals: true, queue: true, steer: true},
+        })
+        fetchMock.mockResolvedValue(new Response(null, {status: 409}))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        composerDraftBySession.set(sessionId, "keep steering draft")
+        const {result} = mount(store, "rev-1", sessionId)
+        await waitFor(() => expect(result.current.steerEnabled).toBe(true))
+
+        await act(async () => {
+            await expect(result.current.steer({text: "keep steering draft"})).rejects.toThrow(
+                "The input was not accepted (409).",
+            )
+        })
+
+        expect(composerDraftBySession.get(sessionId)).toBe("keep steering draft")
+    })
+
     it("redelivers a durable continuation before request build and suppresses direct invoke", async () => {
         resumeContinuation.mockResolvedValueOnce(true)
         const store = createStore()

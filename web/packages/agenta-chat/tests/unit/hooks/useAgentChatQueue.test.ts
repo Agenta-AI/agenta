@@ -201,6 +201,26 @@ describe("useAgentChatQueue", () => {
         expect(sendQueued).not.toHaveBeenCalled()
     })
 
+    it("propagates a refused Steer without inventing a client-only queued message", async () => {
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: true,
+            queued: [],
+            submit: vi.fn().mockRejectedValue(new Error("steer refused")),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result, sendQueued} = setup({...settledEmpty, server})
+
+        await act(async () => {
+            await expect(result.current.steer({text: "keep steering draft"})).rejects.toThrow(
+                "steer refused",
+            )
+        })
+
+        expect(result.current.queued).toHaveLength(0)
+        expect(sendQueued).not.toHaveBeenCalled()
+    })
+
     it("moves a client-held input behind the durable queue when its continuation starts", async () => {
         const durable = {
             id: "already-queued",

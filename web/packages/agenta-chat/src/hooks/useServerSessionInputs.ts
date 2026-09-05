@@ -109,12 +109,16 @@ export const useServerSessionInputs = ({
                 return
             }
 
-            // The local stream can settle between the click and admission. If the server admits
-            // this as a fresh 200 run, keep its sender-owned response alive, then adopt its durable
-            // transcript through the host's normal guarded revalidation.
-            await response.arrayBuffer()
-            await refresh()
-            onExecutedRef.current?.()
+            // Admission succeeded when the response headers arrived. Keep consuming a fresh 200
+            // run in the background so the composer can admit Queue/Steer while that run streams.
+            void response
+                .arrayBuffer()
+                .catch(() => undefined)
+                .then(async () => {
+                    await refresh()
+                    onExecutedRef.current?.()
+                })
+                .catch(() => undefined)
         },
         [refresh, sessionId],
     )

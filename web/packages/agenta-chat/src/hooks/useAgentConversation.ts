@@ -1138,7 +1138,7 @@ export const useAgentConversation = ({
             if (!trimmed && fileObjs.length === 0 && refParts.length === 0) return
             const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
             const merged = [...(encoded?.parts ?? []), ...refParts]
-            steer({text: trimmed, fileParts: merged.length ? merged : undefined})
+            await steer({text: trimmed, fileParts: merged.length ? merged : undefined})
             composerDraftBySession.delete(sessionId)
         },
         [sessionId, steer],

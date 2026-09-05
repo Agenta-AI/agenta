@@ -89,4 +89,74 @@ describe("useServerSessionInputs", () => {
             }),
         )
     })
+
+    it("releases admission after a fresh run's headers while its response keeps streaming", async () => {
+        fetchSnapshot.mockResolvedValue({
+            session: null,
+            execution: {id: "turn-1", state: "running"},
+            pending: {inputs: [], interactions: []},
+            capabilities: {durable_approvals: true, queue: true, steer: true},
+        })
+        buildAgentRequest.mockResolvedValue({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {Accept: "text/event-stream"},
+            requestBody: {session_id: "session-1", data: {inputs: {messages: []}}},
+        })
+        let closeResponse!: () => void
+        const body = new ReadableStream({
+            start(controller) {
+                closeResponse = () => controller.close()
+            },
+        })
+        fetchMock.mockResolvedValue(new Response(body, {status: 200}))
+        const onExecuted = vi.fn()
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: false,
+                onExecuted,
+            }),
+        )
+        await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
+
+        await act(async () => {
+            await result.current.submit({id: "input-1", text: "start"}, "queue")
+        })
+
+        expect(onExecuted).not.toHaveBeenCalled()
+        closeResponse()
+        await waitFor(() => expect(onExecuted).toHaveBeenCalledOnce())
+    })
+
+    it("rejects a refused Steer admission", async () => {
+        fetchSnapshot.mockResolvedValue({
+            session: null,
+            execution: {id: "turn-1", state: "running"},
+            pending: {inputs: [], interactions: []},
+            capabilities: {durable_approvals: true, queue: true, steer: true},
+        })
+        buildAgentRequest.mockResolvedValue({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {Accept: "text/event-stream"},
+            requestBody: {session_id: "session-1", data: {inputs: {messages: []}}},
+        })
+        fetchMock.mockResolvedValue(new Response(null, {status: 409}))
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: true,
+            }),
+        )
+        await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
+
+        await act(async () => {
+            await expect(
+                result.current.submit({id: "steer-1", text: "redirect"}, "steer"),
+            ).rejects.toThrow("The input was not accepted (409).")
+        })
+    })
 })

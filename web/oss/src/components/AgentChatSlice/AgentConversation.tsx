@@ -693,7 +693,7 @@ const AgentConversation = ({
             scrollIntent.armGlide()
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the shared release gate.
-            if (policy === "steer") steer({text: trimmed, fileParts, stagedFiles})
+            if (policy === "steer") await steer({text: trimmed, fileParts, stagedFiles})
             else await submit({text: trimmed, fileParts, stagedFiles})
         }
         // The message left the composer — drop its persisted draft (and any pending capture).
