@@ -268,6 +268,36 @@ async def test_queue_idempotency_returns_same_input_and_rejects_conflicting_reus
 
 
 @pytest.mark.asyncio
+async def test_idle_retry_returns_the_existing_promoted_input(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    project_id = uuid4()
+    dao = MemoryInputsDAO()
+    streams = Streams()
+    service = SessionInputsService(inputs_dao=dao, streams_service=streams)
+    kwargs = {
+        "project_id": project_id,
+        "user_id": uuid4(),
+        "session_id": "session-1",
+        "content": {"message": "once"},
+        "policy": "queue",
+        "idempotency_key": "key-1",
+    }
+
+    first = await service.admit(**kwargs)
+    first.input.state = PendingInputState.promoted
+    first.input.promoted_execution_id = "execution-2"
+    streams.running = False
+
+    retry = await service.admit(**kwargs)
+
+    assert retry.action == "pending"
+    assert retry.input.id == first.input.id
+    assert retry.execution_id == "execution-2"
+    with pytest.raises(SessionInputIdempotencyConflict):
+        await service.admit(**{**kwargs, "content": {"message": "different"}})
+
+
+@pytest.mark.asyncio
 async def test_steer_is_saved_ahead_of_queued_input(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "queue", True)
     monkeypatch.setattr(env.agenta.sessions, "steer", True)

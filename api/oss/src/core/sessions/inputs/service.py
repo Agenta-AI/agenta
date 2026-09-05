@@ -52,6 +52,22 @@ class SessionInputsService:
         policy: str,
         idempotency_key: Optional[str],
     ) -> PendingInputAdmission:
+        fingerprint = input_fingerprint(content=content, policy=policy)
+        if idempotency_key:
+            existing = await self._dao.fetch_by_idempotency_key(
+                project_id=project_id,
+                session_id=session_id,
+                idempotency_key=idempotency_key,
+            )
+            if existing is not None:
+                if existing.request_fingerprint != fingerprint:
+                    raise SessionInputIdempotencyConflict()
+                return PendingInputAdmission(
+                    action="pending",
+                    input=existing,
+                    execution_id=existing.promoted_execution_id,
+                )
+
         stream = await self._streams.fetch_header(
             project_id=project_id, session_id=session_id
         )
@@ -78,7 +94,6 @@ class SessionInputsService:
         if not idempotency_key:
             raise ValueError("Idempotency-Key is required when queueing input.")
 
-        fingerprint = input_fingerprint(content=content, policy=policy)
         async with self._dao.transaction() as transaction:
             existing = await self._dao.fetch_by_idempotency_key(
                 project_id=project_id,
