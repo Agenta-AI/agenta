@@ -1,6 +1,6 @@
 {
   "name": "@agentaai/api-client",
-  "version": "0.114.8",
+  "version": "0.115.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
