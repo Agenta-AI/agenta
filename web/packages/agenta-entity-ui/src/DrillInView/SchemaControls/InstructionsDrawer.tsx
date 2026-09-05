@@ -12,10 +12,10 @@
  *
  * Built on the shared `EnhancedDrawer`.
  */
-import {useCallback, useState} from "react"
+import {useCallback} from "react"
 
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Segmented} from "@agenta/ui/ui"
+import {Button} from "@agenta/ui/ui"
 import {Lightbulb} from "@phosphor-icons/react"
 
 import {MarkdownEditor} from "./MarkdownEditor"
@@ -36,8 +36,6 @@ export interface InstructionsDrawerProps {
     /** Whether the draft differs from the content the drawer opened with — Save is gated on it. */
     dirty?: boolean
 }
-
-type DrawerMode = "edit" | "preview"
 
 // Suggested section scaffolds — clicking appends a ready-to-edit starting point (a sentence plus a
 // couple of example bullets), not an instruction to the author. Purely additive; nothing is required.
@@ -69,14 +67,10 @@ export function InstructionsDrawer({
     disabled = false,
     dirty = false,
 }: InstructionsDrawerProps) {
-    const [mode, setMode] = useState<DrawerMode>("edit")
-
     const appendSnippet = useCallback(
         (snippet: string) => onChange(`${value}${snippet}`),
         [value, onChange],
     )
-
-    const changeMode = useCallback((next: DrawerMode) => setMode(next), [])
 
     return (
         <EnhancedDrawer
@@ -87,19 +81,6 @@ export function InstructionsDrawer({
             width={920}
             destroyOnClose
             title={<span className="truncate font-mono text-sm font-medium">{filename}</span>}
-            extra={
-                <Segmented
-                    size="sm"
-                    className="[&_[data-slot=segmented-item]]:text-field-sm"
-                    value={mode}
-                    onChange={(v) => changeMode(v as DrawerMode)}
-                    options={[
-                        {label: "Edit", value: "edit"},
-                        {label: "Preview", value: "preview"},
-                    ]}
-                    aria-label="Editor mode"
-                />
-            }
             footer={
                 <div className="flex items-center justify-end gap-2">
                     <Button variant="outline" onClick={onCancel}>
@@ -114,32 +95,18 @@ export function InstructionsDrawer({
         >
             <div className="flex h-full min-h-0 gap-6">
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                    {mode === "edit" ? (
-                        <MarkdownEditor
-                            value={value}
-                            onChange={onChange}
-                            disabled={disabled}
-                            showToolbar
-                            defaultView="rendered"
-                            hideHeader
-                            fill
-                            placeholder={
-                                "# Role\n\nDescribe what the agent does and how it should behave…"
-                            }
-                        />
-                    ) : (
-                        <div className="relative flex-1">
-                            <MarkdownEditor
-                                value={value}
-                                onChange={onChange}
-                                view="rendered"
-                                editable={false}
-                                hideHeader
-                                bordered={false}
-                                fill
-                            />
-                        </div>
-                    )}
+                    <MarkdownEditor
+                        value={value}
+                        onChange={onChange}
+                        disabled={disabled}
+                        showToolbar
+                        defaultView="rendered"
+                        hideHeader
+                        fill
+                        placeholder={
+                            "# Role\n\nDescribe what the agent does and how it should behave…"
+                        }
+                    />
                 </div>
 
                 {/* The drawer is min(920, viewport), so below md this 240px column left the editor
@@ -170,7 +137,7 @@ export function InstructionsDrawer({
                                 <button
                                     key={s.label}
                                     type="button"
-                                    disabled={disabled || mode === "preview"}
+                                    disabled={disabled}
                                     onClick={() => appendSnippet(s.snippet)}
                                     className="cursor-pointer rounded-control border border-solid border-[var(--ag-c-EAEFF5)] bg-transparent px-2.5 py-1 text-xs text-[var(--ag-c-586673)] transition-colors hover:border-[var(--ag-zinc-5)] disabled:cursor-not-allowed disabled:opacity-50"
                                 >
