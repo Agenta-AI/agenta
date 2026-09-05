@@ -440,8 +440,8 @@ const AgentConversation = ({
     // Restore a refused send after the editor's synchronous submit clear.
     useEffect(() => {
         if (!error || !isSessionBusyRefusal(error)) return
+        if (!refusedSendRef.current) refusedSendRef.current = takeLastSent()
         requestAnimationFrame(() => {
-            if (!refusedSendRef.current) refusedSendRef.current = takeLastSent()
             restoreRefusedSend()
         })
     }, [error, restoreRefusedSend, takeLastSent])
