@@ -435,6 +435,8 @@ export {
     ToolManagementList,
     selectSubagentTools,
 } from "./SchemaControls/agentTemplate/ToolManagementList"
+export {CatalogListRow} from "./SchemaControls/agentTemplate/CatalogListRow"
+export type {CatalogListRowProps} from "./SchemaControls/agentTemplate/CatalogListRow"
 export {AddSubagentDrawer} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
 export type {
     SubagentOption,

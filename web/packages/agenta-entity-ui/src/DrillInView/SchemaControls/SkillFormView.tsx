@@ -12,7 +12,7 @@
  * `.zip`, or `.skill` (parsed into the fields) or editing inline. `@ag.embed` reference entries are
  * NOT edited here — the host renders the drawer JSON-only for those so their markers round-trip.
  */
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useRef, useState, type ReactNode} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
@@ -53,6 +53,8 @@ export interface SkillFormViewProps {
     value: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
     disabled?: boolean
+    /** Replaces the upload drop zone at the rail bottom (e.g. a versions card in detail mode). */
+    railBottomSlot?: ReactNode
 }
 
 /** Which file the right pane is editing: the pinned SKILL.md body, or a `files[]` entry by index. */
@@ -159,7 +161,7 @@ function FileRow({
     )
 }
 
-export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
+export function SkillFormView({value, onChange, disabled, railBottomSlot}: SkillFormViewProps) {
     const skill = (value ?? {}) as Record<string, unknown>
     const files: SkillFileEntry[] = Array.isArray(skill.files)
         ? (skill.files as SkillFileEntry[])
@@ -350,7 +352,9 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                     ))}
                 </div>
 
-                {!disabled ? (
+                {railBottomSlot ? (
+                    <div className="shrink-0">{railBottomSlot}</div>
+                ) : !disabled ? (
                     <div className="shrink-0">
                         <SkillUploadZone onParsed={applyParsed} disabled={disabled} />
                     </div>
