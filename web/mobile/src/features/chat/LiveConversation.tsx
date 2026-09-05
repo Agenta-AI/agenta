@@ -220,7 +220,8 @@ export const LiveConversation = ({
 
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
     const remoteTurn = deriveMobileRemoteTurnPresentation({
-        running: running || conversation.runningFromSnapshot || conversation.acceptedRunPending,
+        livenessRunning: running,
+        snapshotRunning: conversation.runningFromSnapshot || conversation.acceptedRunPending,
         sharedReaderAdvertised: sharedReader,
         readerReady: conversation.readerReady,
         ownedContinuation: conversation.acceptedRunPending,
@@ -266,6 +267,7 @@ export const LiveConversation = ({
         sessionId,
         projectId,
         onRecordsChanged: revalidate,
+        sharedReaderAdvertised: sharedReader,
     })
     // Poll slowly while a cross-device run cannot be watched live.
     useEffect(() => {

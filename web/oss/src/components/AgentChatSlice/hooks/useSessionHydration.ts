@@ -552,6 +552,7 @@ export const useSessionHydration = ({
         onRecordsChanged: () => {
             void refreshFromRecords()
         },
+        sharedReaderAdvertised: liveness.sharedReader,
     })
 
     return {

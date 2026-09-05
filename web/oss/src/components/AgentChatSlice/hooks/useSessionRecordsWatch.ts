@@ -1,3 +1,6 @@
+import {useRef} from "react"
+
+import {shouldRefreshLegacyObserverLiveness} from "@agenta/chat/model"
 import {useWatchEventSource} from "@agenta/sessions/watch"
 import {useQueryClient} from "@tanstack/react-query"
 
@@ -23,6 +26,7 @@ export const useSessionRecordsWatch = ({
     onReady,
     onRecordsChanged,
     onInteractionChanged,
+    sharedReaderAdvertised,
 }: {
     sessionId: string
     projectId?: string | null
@@ -32,25 +36,44 @@ export const useSessionRecordsWatch = ({
     onReady: () => void
     onRecordsChanged: () => void
     onInteractionChanged: () => void
+    sharedReaderAdvertised: boolean
 }): void => {
     const queryClient = useQueryClient()
+    const lastLivenessRefreshAtRef = useRef(0)
     const url = sessionId && projectId ? sessionWatchUrl(sessionId, projectId) : null
+    const refreshLiveness = () => {
+        lastLivenessRefreshAtRef.current = Date.now()
+        void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
+    }
+    const refreshLegacyObserverLiveness = () => {
+        const now = Date.now()
+        if (
+            !shouldRefreshLegacyObserverLiveness({
+                sharedReaderAdvertised,
+                lastRefreshAt: lastLivenessRefreshAtRef.current,
+                now,
+            })
+        )
+            return
+        refreshLiveness()
+    }
     useWatchEventSource({
         url,
         enabled,
         refreshSession,
         on: {
             ready: onReady,
-            "records-changed": onRecordsChanged,
+            "records-changed": () => {
+                onRecordsChanged()
+                refreshLegacyObserverLiveness()
+            },
             interaction: onInteractionChanged,
             // A session that ends without this tab running it — a Stop from elsewhere, or the
             // execution watchdog settling a turn whose runner went silent. The records arrive
             // on their own event; this is the half that stops the session still LOOKING alive,
             // which otherwise waits out the 15s liveness poll. Mobile already does this
             // (web/mobile/src/features/chat/useSessionWatch.ts).
-            lifecycle: () => {
-                void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
-            },
+            lifecycle: refreshLiveness,
         },
     })
 }

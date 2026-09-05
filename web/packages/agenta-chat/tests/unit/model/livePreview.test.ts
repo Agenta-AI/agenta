@@ -7,6 +7,7 @@ import {
     isSessionSnapshotRunning,
     reduceSessionLivePreview,
     sessionLivePreviewMessages,
+    shouldRefreshLegacyObserverLiveness,
     shouldSubscribeToSessionLivePreview,
     withoutSharedSenderAcceptanceMessages,
 } from "../../../src/model/livePreview"
@@ -230,27 +231,53 @@ describe("session live preview subscription", () => {
     )
 })
 
+describe("legacy observer liveness refresh", () => {
+    it("refreshes from record notifications only when the reader is off and the throttle is due", () => {
+        expect(
+            shouldRefreshLegacyObserverLiveness({
+                sharedReaderAdvertised: false,
+                lastRefreshAt: 1_000,
+                now: 11_000,
+            }),
+        ).toBe(true)
+        expect(
+            shouldRefreshLegacyObserverLiveness({
+                sharedReaderAdvertised: false,
+                lastRefreshAt: 1_000,
+                now: 10_999,
+            }),
+        ).toBe(false)
+        expect(
+            shouldRefreshLegacyObserverLiveness({
+                sharedReaderAdvertised: true,
+                lastRefreshAt: 1_000,
+                now: 11_000,
+            }),
+        ).toBe(false)
+    })
+})
+
 describe("remote turn presentation", () => {
     it.each([
         {
             name: "uses turn activity once the advertised reader is ready",
-            input: {running: true, sharedReaderAdvertised: true, readerReady: true},
+            input: {livenessRunning: true, sharedReaderAdvertised: true, readerReady: true},
             expected: {showActivity: true, showStrip: false},
         },
         {
             name: "uses the fallback strip before the reader is ready",
-            input: {running: true, sharedReaderAdvertised: true, readerReady: false},
+            input: {livenessRunning: true, sharedReaderAdvertised: true, readerReady: false},
             expected: {showActivity: false, showStrip: true},
         },
         {
             name: "uses the fallback strip when the feature is off",
-            input: {running: true, sharedReaderAdvertised: false, readerReady: false},
+            input: {livenessRunning: true, sharedReaderAdvertised: false, readerReady: false},
             expected: {showActivity: false, showStrip: true},
         },
         {
             name: "never gives an owned continuation the fallback strip",
             input: {
-                running: true,
+                livenessRunning: true,
                 sharedReaderAdvertised: true,
                 readerReady: false,
                 ownedContinuation: true,
@@ -259,5 +286,33 @@ describe("remote turn presentation", () => {
         },
     ])("$name", ({input, expected}) => {
         expect(deriveRemoteTurnPresentation(input)).toEqual(expected)
+    })
+
+    it("uses session-stream liveness for the flag-off observer and clears at turn end", () => {
+        const base = {
+            snapshotRunning: true,
+            sharedReaderAdvertised: false,
+            readerReady: false,
+        }
+
+        expect(deriveRemoteTurnPresentation({...base, livenessRunning: true})).toEqual({
+            showActivity: false,
+            showStrip: true,
+        })
+        expect(deriveRemoteTurnPresentation({...base, livenessRunning: false})).toEqual({
+            showActivity: false,
+            showStrip: false,
+        })
+    })
+
+    it("uses activity instead of the banner when the shared reader is ready", () => {
+        expect(
+            deriveRemoteTurnPresentation({
+                livenessRunning: false,
+                snapshotRunning: true,
+                sharedReaderAdvertised: true,
+                readerReady: true,
+            }),
+        ).toEqual({showActivity: true, showStrip: false})
     })
 })

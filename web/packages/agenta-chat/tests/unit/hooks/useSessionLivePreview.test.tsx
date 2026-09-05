@@ -64,6 +64,30 @@ describe("useSessionLivePreview", () => {
         vi.unstubAllGlobals()
     })
 
+    it("keeps the flag-off path snapshot-free", async () => {
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const wrapper = ({children}: {children: ReactNode}) =>
+            createElement(Provider, {store}, children)
+
+        const {result} = renderHook(
+            () =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: false,
+                    runningElsewhere: true,
+                    onDisconnect: vi.fn(),
+                }),
+            {wrapper},
+        )
+
+        await act(async () => Promise.resolve())
+        expect(mocks.fetchSessionSnapshot).not.toHaveBeenCalled()
+        expect(mocks.connectSessionLiveEvents).not.toHaveBeenCalled()
+        expect(result.current.runningFromSnapshot).toBe(false)
+        expect(result.current.readerReady).toBe(false)
+    })
+
     it("loads and adopts the transcript through the snapshot before following its cursor", async () => {
         const records = deferred<[]>()
         const adopted = deferred<boolean>()

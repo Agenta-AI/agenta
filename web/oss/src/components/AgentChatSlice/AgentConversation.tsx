@@ -174,7 +174,8 @@ const AgentConversation = ({
         onDisconnect: refreshFromRecords,
     })
     const remoteTurn = deriveSessionRemoteTurnPresentation({
-        running: livenessRunningElsewhere || runningFromSnapshot || acceptedRunPending,
+        livenessRunning: livenessRunningElsewhere,
+        snapshotRunning: runningFromSnapshot || acceptedRunPending,
         sharedReaderAdvertised,
         readerReady,
         ownedContinuation: acceptedRunPending,

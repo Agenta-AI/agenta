@@ -88,23 +88,23 @@ describe("deriveSessionRemoteTurnPresentation", () => {
     it.each([
         {
             name: "renders activity and no strip for a ready reader",
-            input: {running: true, sharedReaderAdvertised: true, readerReady: true},
+            input: {livenessRunning: true, sharedReaderAdvertised: true, readerReady: true},
             expected: {showActivity: true, showStrip: false},
         },
         {
             name: "renders the strip while the reader is not ready",
-            input: {running: true, sharedReaderAdvertised: true, readerReady: false},
+            input: {livenessRunning: true, sharedReaderAdvertised: true, readerReady: false},
             expected: {showActivity: false, showStrip: true},
         },
         {
             name: "renders the strip when the feature is off",
-            input: {running: true, sharedReaderAdvertised: false, readerReady: false},
+            input: {livenessRunning: true, sharedReaderAdvertised: false, readerReady: false},
             expected: {showActivity: false, showStrip: true},
         },
         {
             name: "does not render the strip in the tab that owns a continuation",
             input: {
-                running: true,
+                livenessRunning: true,
                 sharedReaderAdvertised: true,
                 readerReady: false,
                 ownedContinuation: true,
@@ -113,5 +113,30 @@ describe("deriveSessionRemoteTurnPresentation", () => {
         },
     ])("$name", ({input, expected}) => {
         expect(deriveSessionRemoteTurnPresentation(input)).toEqual(expected)
+    })
+
+    it("shows the flag-off observer banner only while session-stream liveness is running", () => {
+        const input = {
+            snapshotRunning: true,
+            sharedReaderAdvertised: false,
+            readerReady: false,
+        }
+
+        expect(
+            deriveSessionRemoteTurnPresentation({...input, livenessRunning: true}).showStrip,
+        ).toBe(true)
+        expect(
+            deriveSessionRemoteTurnPresentation({...input, livenessRunning: false}).showStrip,
+        ).toBe(false)
+    })
+
+    it("hides the banner when the advertised reader is ready", () => {
+        expect(
+            deriveSessionRemoteTurnPresentation({
+                livenessRunning: true,
+                sharedReaderAdvertised: true,
+                readerReady: true,
+            }).showStrip,
+        ).toBe(false)
     })
 })
