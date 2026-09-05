@@ -66,19 +66,22 @@ Repeated tool input snapshots keep one `toolCallId`, so the reducer updates one 
 ### Storage and retention
 
 The runner publishes frames asynchronously through a bounded 256-frame buffer. Publication errors
-and buffer overflow do not block the run. Frames enter `streams:session-live-frames`, which has an
-exact 100,000-entry count limit across the deployment and a 15-minute age limit. Concurrent sessions
-share the count limit because frames are disposable.
+and buffer overflow do not block the run. Frames reach the records ingest HTTP route, where the API
+appends frame relay envelopes to `streams:session-live-frames`. The stream has a 15-minute age limit
+and an approximate 100,000-entry count bound by default. Redis may temporarily retain more entries
+because both count and age trimming use `MAXLEN ~` and `MINID ~`. Concurrent sessions share the
+count bound because relay messages are disposable.
 
-The relay worker reads only the live-frame stream. It discards expired frames, publishes accepted
-frames to the project-and-session Pub/Sub channel, then acknowledges and deletes them. The measured
-long case reached 3,161 frames and 201,056 SSE bytes in one turn. At the highest measured average
-rate, the 100,000-entry count bound would fill in about 22 minutes for one active run, but the
-15-minute age limit caps effective retention at 15 minutes.
+The relay worker reads only the live relay stream. It discards expired envelopes, publishes accepted
+frames and durable events to the project-and-session Pub/Sub channel, then acknowledges and deletes
+them. The measured long case reached 3,161 frames and 201,056 SSE bytes in one turn. At the highest
+measured average rate, the default 100,000-entry trim threshold represents about 22 minutes for one
+active run, but the 15-minute age limit caps effective relay retention at 15 minutes.
 
-Durable records remain on `streams:records`. Publication preserves the existing approximate
-100,000-entry retention bound. The records worker persists, acknowledges, and deletes those entries.
-The live relay does not inspect or coordinate with the durable stream.
+Only durable records enter `streams:records`. Publication preserves the existing approximate
+100,000-entry retention bound. After the records worker commits those records, it projects durable
+events and appends their relay envelopes to `streams:session-live-frames`. It then acknowledges and
+deletes the durable-record entries. The live relay never reads `streams:records`.
 
 ### Authorization and reader limits
 
@@ -105,8 +108,11 @@ lifecycle, and errors. It renders text, reasoning, and tool progress from the se
 
 ### Durable event envelope
 
-Temporary frames and durable events reuse the records ingest HTTP endpoint while continuing to use
-separate Redis Streams. `kind` distinguishes the two versioned shapes.
+Temporary frames and durable records reuse the records ingest HTTP endpoint. The API appends frame
+relay envelopes directly, while the records worker projects durable events only after their records
+commit. Both paths call `_append_live_relay_message` to append relay envelopes to
+`streams:session-live-frames`, where `kind` distinguishes the two versioned shapes. Only durable
+records use the separate `streams:records` path.
 
 ```text
 version
