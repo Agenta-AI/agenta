@@ -77,7 +77,7 @@ import {useScrollIntent} from "./hooks/useScrollIntent"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
-import {deriveSessionRemoteTurnPresentation} from "./state/liveness"
+import {deriveSessionRemoteTurnPresentation, shouldShowRunningElsewhere} from "./state/liveness"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -440,6 +440,11 @@ const AgentConversation = ({
         sendQueued,
         sessionId,
         server: serverInputs,
+    })
+    const showRunningElsewhere = shouldShowRunningElsewhere({
+        runningElsewhere,
+        executionState: serverInputs.executionState,
+        pendingInputCount: serverInputs.queued.length,
     })
 
     // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision made
@@ -990,7 +995,9 @@ const AgentConversation = ({
                                         entityId={entityId}
                                         messages={messages}
                                         busy={busy}
-                                        showRunningElsewhere={remoteTurn.showStrip}
+                                        showRunningElsewhere={
+                                            remoteTurn.showStrip && showRunningElsewhere
+                                        }
                                         connectionWarning={connectionWarning}
                                         hitlPending={hitlPending}
                                         queue={{

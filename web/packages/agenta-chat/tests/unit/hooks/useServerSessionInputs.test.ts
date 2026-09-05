@@ -61,6 +61,7 @@ describe("useServerSessionInputs", () => {
         )
 
         await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
+        expect(result.current.executionState).toBe("running")
 
         await act(async () => {
             await result.current.submit(

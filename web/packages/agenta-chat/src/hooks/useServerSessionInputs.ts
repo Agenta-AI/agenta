@@ -11,6 +11,7 @@ import type {QueuedMessage} from "./useAgentChatQueue"
 
 export interface ServerSessionInputs {
     capabilities: SessionPendingInputView["capabilities"]
+    executionState: SessionPendingInputView["executionState"]
     busy: boolean
     queued: QueuedMessage[]
     submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
@@ -130,6 +131,7 @@ export const useServerSessionInputs = ({
 
     return {
         capabilities: view.capabilities,
+        executionState: view.executionState,
         busy: locallyBusy || view.executionState !== "idle",
         queued: view.queued,
         submit,
