@@ -202,14 +202,23 @@ async def acquire_lock(
         # one, so taking it is what makes the two generations exclude each other. Claiming
         # it second would let both generations hold their own key and enter together.
         if legacy_key is not None:
+            # Marked before the await rather than after it. Cancellation can arrive once
+            # Redis has applied the SET but before its reply reaches us, and a flag set
+            # afterwards would never record that this call owns the key — leaving it held
+            # for its whole TTL with nothing to release it. Claiming an obligation that
+            # may not exist is the safe direction: `_release_if_owner` is ownership
+            # checked, so it does nothing when the token is not ours.
+            legacy_claimed = True
             if not await _lock_engine.set(legacy_key, lock_owner, nx=True, ex=ttl):
+                # A confirmed refusal — the key belongs to someone else, so there is
+                # nothing of ours to drop.
+                legacy_claimed = False
                 if LOCK_DEBUG:
                     log.debug(
                         "[lock] BLOCKED",
                         key=legacy_key,
                     )
                 return None
-            legacy_claimed = True
 
         # Atomic SET NX: Returns True if lock acquired, False if already held
         acquired = await _lock_engine.set(lock_key, lock_owner, nx=True, ex=ttl)

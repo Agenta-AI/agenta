@@ -8,6 +8,7 @@ The lock tests use a real in-memory fakeredis instance so they run without an ex
 Redis process; they skip when `fakeredis` is not installed.
 """
 
+import asyncio
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -362,6 +363,75 @@ async def test_acquire_releases_the_legacy_key_when_the_primary_set_raises(fake_
         )
         is not None
     )
+
+
+async def test_acquire_releases_the_legacy_key_when_cancelled_mid_claim(fake_redis):
+    """Cancellation between Redis applying the SET and the reply arriving.
+
+    The claim has taken effect but the caller never learns it, so a flag set after the
+    await would never record the obligation and the key would sit held for its whole
+    TTL — blocking pods on both releases while the section went to nobody.
+    """
+    lock_key, legacy_key = locking._lock_keys(
+        namespace="eval", key="run", project_id=PROJECT_A
+    )
+    assert legacy_key is not None
+
+    real_set = fake_redis.set
+    applied = asyncio.Event()
+
+    async def set_then_suspend(name, *args, **kwargs):
+        result = await real_set(name, *args, **kwargs)
+        if name == legacy_key:
+            # Redis has the key; the reply has not been delivered yet.
+            applied.set()
+            await asyncio.sleep(3600)
+        return result
+
+    with patch.object(locking._lock_engine, "set", side_effect=set_then_suspend):
+        task = asyncio.create_task(
+            locking.acquire_lock(
+                namespace="eval", key="run", project_id=PROJECT_A, ttl=90
+            )
+        )
+        await asyncio.wait_for(applied.wait(), timeout=5)
+        assert await fake_redis.get(legacy_key) is not None
+
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    # Cleanup ran despite the caller never seeing the reply.
+    assert await fake_redis.get(legacy_key) is None
+    assert await fake_redis.get(lock_key) is None
+
+    assert (
+        await locking.acquire_lock(
+            namespace="eval", key="run", project_id=PROJECT_A, ttl=5
+        )
+        is not None
+    )
+
+
+async def test_a_refused_legacy_claim_leaves_the_holders_key_alone(fake_redis):
+    """Marking the obligation before the await must not delete someone else's key.
+
+    `_release_if_owner` is ownership checked, so the broader cleanup window is safe.
+    """
+    _, legacy_key = locking._lock_keys(
+        namespace="eval", key="run", project_id=PROJECT_A
+    )
+    assert legacy_key is not None
+
+    await fake_redis.set(legacy_key, b"another-pod-owner", nx=True, ex=30)
+
+    assert (
+        await locking.acquire_lock(namespace="eval", key="run", project_id=PROJECT_A)
+        is None
+    )
+
+    # Still the other pod's, untouched.
+    assert await fake_redis.get(legacy_key) == b"another-pod-owner"
 
 
 async def test_renew_fails_when_the_primary_key_is_gone(fake_redis):
