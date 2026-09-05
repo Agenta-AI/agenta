@@ -11,7 +11,7 @@
 import type {ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
-import {type SessionRowVm} from "@agenta/sessions/row"
+import {sessionRowStatusMeta, type SessionRowVm} from "@agenta/sessions/row"
 import {
     applySessionTabOrder,
     openSessionTabRows,
@@ -88,6 +88,7 @@ const RailTab = ({
     menuFor,
     onMenuSelect,
     draggable,
+    divided,
     onClose,
 }: {
     vm: SessionRowVm
@@ -99,6 +100,8 @@ const RailTab = ({
     onClose?: () => void
     /** A drag slot only inside a reorder group — a lone `Reorder.Item` has no context to drag in. */
     draggable: boolean
+    /** Hairline before this tab. Suppressed either side of the filled active chip. */
+    divided?: boolean
 }) => {
     const ref = useRef<HTMLDivElement>(null)
     // Reveal the active chip ONLY when it is actually off-screen. Scrolling on every activation
@@ -162,12 +165,13 @@ const RailTab = ({
         </SessionRowContextMenu>
     )
 
+    const wrapper = clsx("mr-1.5 shrink-0", divided && TAB_DIVIDER)
     return draggable ? (
-        <SessionTabDragItem ref={ref} id={vm.id} className="mr-1.5 shrink-0">
+        <SessionTabDragItem ref={ref} id={vm.id} className={wrapper}>
             {chip}
         </SessionTabDragItem>
     ) : (
-        <div ref={ref} className="mr-1.5 shrink-0">
+        <div ref={ref} className={wrapper}>
             {chip}
         </div>
     )
@@ -225,6 +229,14 @@ const moved = (ids: string[], index: number, direction: -1 | 1): string[] => {
     ;[next[index], next[target]] = [next[target], next[index]]
     return next
 }
+
+/** The hairline the tab chips are "separated by" — see SessionTab's own note. Drawn in the gap
+ *  left of a tab, so it never touches the chip's own fill. */
+const TAB_DIVIDER =
+    "relative before:absolute before:-left-[7px] before:top-1/2 before:h-3.5 before:w-px before:-translate-y-1/2 before:bg-colorBorderSecondary before:content-['']"
+
+/** The pending tab has no stream yet, so it wears the same idle chrome every quiet row does. */
+const IDLE_STATUS = sessionRowStatusMeta("idle")
 
 export const SessionTabRail = ({
     activeSessionId,
@@ -291,6 +303,11 @@ export const SessionTabRail = ({
                           key={vm.id}
                           vm={vm}
                           active={vm.id === activeSessionId}
+                          divided={
+                              index > 0 &&
+                              vm.id !== activeSessionId &&
+                              rows[index - 1]?.id !== activeSessionId
+                          }
                           onSelect={onSelect}
                           draggable={reorderable}
                           onClose={onClose ? () => onClose(vm, orderedIds) : undefined}
@@ -332,6 +349,19 @@ export const SessionTabRail = ({
                     <SessionTab
                         active
                         label={activeFallbackTitle || "New session"}
+                        // Idle, like any session with no run yet — the strip reads as one row of
+                        // tabs rather than one tab missing its dot.
+                        statusDot={
+                            <SimpleTooltip title={IDLE_STATUS.label}>
+                                <span
+                                    aria-label={IDLE_STATUS.label}
+                                    className={clsx(
+                                        "h-1.5 w-1.5 shrink-0 rounded-full",
+                                        IDLE_STATUS.dotClassName,
+                                    )}
+                                />
+                            </SimpleTooltip>
+                        }
                         onSelect={noop}
                     />
                 </div>
