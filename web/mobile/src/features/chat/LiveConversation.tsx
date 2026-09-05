@@ -173,7 +173,7 @@ export const LiveConversation = ({
     const takePendingTask = useSetAtom(takePendingTaskAtom)
     const sentPendingTaskFor = useRef<string | null>(null)
     const [pendingTaskError, setPendingTaskError] = useState<string | null>(null)
-    const {isHydrating, revalidate, send, stop} = conversation
+    const {isHydrating, revalidate, send, stop, voidPendingResume} = conversation
     useEffect(() => {
         const decision = pendingTaskDecision({
             sessionId,
@@ -279,6 +279,8 @@ export const LiveConversation = ({
     // Composer Stop cancels on the server before changing local presentation.
     const stopHere = useCallback(() => {
         if (stopping) return
+        // Fence a delayed approval release even when cancellation cannot be requested yet.
+        voidPendingResume()
         if (!projectId || !sessionId) return
         setStoppingHere(true)
         const wasParked = !streamingHereRef.current && conversation.hitlPending
@@ -386,7 +388,15 @@ export const LiveConversation = ({
                         : "Could not stop the run. It may still be running.",
                 )
             })
-    }, [projectId, sessionId, stop, stopping, conversation.hitlPending, settleParkedStop])
+    }, [
+        projectId,
+        sessionId,
+        stop,
+        stopping,
+        conversation.hitlPending,
+        settleParkedStop,
+        voidPendingResume,
+    ])
 
     const interactionAvailability = getInteractionAvailability({
         stopped: conversation.stopped,

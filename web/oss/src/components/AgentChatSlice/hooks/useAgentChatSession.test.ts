@@ -10,9 +10,12 @@ const state = vi.hoisted(() => ({
     capturedHooks: undefined as
         | {
               prepareRequest: (args: {messages: UIMessage[]; id?: string}) => Promise<unknown>
+              onError: () => void
+              sendAutomaticallyWhen: (args: {messages: UIMessage[]}) => boolean
           }
         | undefined,
     messages: [] as UIMessage[],
+    projectId: "project-id" as string | null,
     latestTurnId: undefined as string | undefined,
     hitlPending: false,
     sessionTurnId: null as string | null,
@@ -97,7 +100,8 @@ vi.mock("@agenta/entities/workflow", () => ({
 }))
 
 vi.mock("@agenta/playground", () => ({
-    agentShouldResumeAfterApproval: () => true,
+    agentShouldResumeAfterApproval: ({liveInteraction}: {liveInteraction?: unknown}) =>
+        liveInteraction !== null,
     approvalResolution: vi.fn(),
     buildAgentRequest: vi.fn(async () => ({
         invocationUrl: "https://agent.test/invoke",
@@ -134,7 +138,7 @@ vi.mock("@tanstack/react-query", () => ({
 }))
 
 vi.mock("jotai", () => ({
-    useAtomValue: () => "project-id",
+    useAtomValue: () => state.projectId,
     useSetAtom: () => vi.fn(),
     useStore: () => ({
         get: (atom: string) => {
@@ -190,6 +194,7 @@ describe("useAgentChatSession execution guard", () => {
             const executionId = readExecutionId()
             return executionId ? {status: "resolved", executionId} : {status: "settled"}
         })
+        state.projectId = "project-id"
         state.latestTurnId = undefined
         state.hitlPending = false
         state.sessionTurnId = null
@@ -225,6 +230,73 @@ describe("useAgentChatSession execution guard", () => {
         state.turnIds.set(sessionId, "turn-before-auto-resume")
         await act(() => state.capturedHooks!.prepareRequest({messages: [], id: sessionId}))
         expect(state.turnIds.get(sessionId)).toBeUndefined()
+
+        act(() => root.unmount())
+    })
+
+    it("voids an approval resume before cancellation settles or its stream errors", async () => {
+        const sessionId = "session-1"
+        let resolveCancel: ((value: unknown) => void) | undefined
+        state.cancelSessionExecution.mockReturnValue(
+            new Promise((resolve) => {
+                resolveCancel = resolve
+            }),
+        )
+
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        act(() => result!.markLiveGate({kind: "approval", id: "approval-1"}))
+        act(() => result!.handleStop())
+        act(() => state.capturedHooks!.onError())
+
+        expect(state.capturedHooks!.sendAutomaticallyWhen({messages: []})).toBe(false)
+
+        await act(async () => {
+            resolveCancel?.({
+                accepted: true,
+                conflict: false,
+                execution: {id: "turn-1", state: "stopping"},
+            })
+            await Promise.resolve()
+        })
+        act(() => root.unmount())
+    })
+
+    it("keeps the approval resume void when Stop cannot load the project", () => {
+        state.projectId = null
+        const sessionId = "session-1"
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        act(() => result!.markLiveGate({kind: "approval", id: "approval-1"}))
+        act(() => result!.handleStop())
+        act(() => state.capturedHooks!.onError())
+
+        expect(state.cancelSessionExecution).not.toHaveBeenCalled()
+        expect(state.capturedHooks!.sendAutomaticallyWhen({messages: []})).toBe(false)
 
         act(() => root.unmount())
     })

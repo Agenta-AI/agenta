@@ -212,13 +212,10 @@ export const useAgentChatSession = ({
             if (!mountedRef.current) setSessionStatus({id: sessionId, status: "idle"})
         },
         onError: () => {
-            // Clear the marker but do NOT void the resume. A gateway approval is answered while the
-            // stream is still open, so the SDK skips its own dispatch and only re-evaluates when the
-            // stream ends — often by erroring, right here. `null` made that last evaluation return
-            // false and stranded the answer; `undefined` lets the tail heuristics decide.
-            // Adoption is unaffected: the hydration guard reads this ref as a boolean.
-            // The registry logs the error for the dev overlay (F-033) before calling this.
-            liveGateInteractionRef.current = undefined
+            // Preserve null after resume/Stop; only a live marker may fall back to tail detection.
+            if (liveGateInteractionRef.current !== null) {
+                liveGateInteractionRef.current = undefined
+            }
         },
     }
 
@@ -557,6 +554,8 @@ export const useAgentChatSession = ({
 
     const handleStop = useCallback(() => {
         if (stopping) return
+        // Fence delayed approval release even when cancellation cannot be requested yet.
+        liveGateInteractionRef.current = null
         const wasParked = !busyRef.current && isHitlPending(messagesRef.current)
         const stopAttempt = ++stopAttemptRef.current
         dispatchStop({type: "request"})
@@ -574,7 +573,6 @@ export const useAgentChatSession = ({
                         dispatchStop(
                             wasParked ? {type: "cancelled", parked: true} : {type: "accepted"},
                         )
-                        liveGateInteractionRef.current = null
                         queryClient.invalidateQueries({queryKey: ["session-liveness"]})
                         // Refresh an open Inspector so it reflects the kill immediately.
                         void invalidateSessionInspector(queryClient, sessionId)
@@ -645,7 +643,6 @@ export const useAgentChatSession = ({
                         stop()
                         dispatchStop({type: "terminal"})
                     }
-                    liveGateInteractionRef.current = null
                     queryClient.invalidateQueries({queryKey: ["session-liveness"]})
                     return
                 }
