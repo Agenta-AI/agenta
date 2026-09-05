@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import case, func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,14 +12,21 @@ from oss.src.core.sessions.records.dtos import (
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
+    SessionRecordsPage,
+    SessionRecordsReplay,
+    SessionRecordsReadState,
 )
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
-from oss.src.dbs.postgres.sessions.records.dbes import RecordDBE
+from oss.src.dbs.postgres.sessions.records.dbes import (
+    RecordDBE,
+    SessionSequenceCursorDBE,
+)
 from oss.src.dbs.postgres.sessions.records.mappings import (
     map_record_event_to_dbe,
     map_record_dbe_to_dto,
 )
 from oss.src.dbs.postgres.shared.engine import AnalyticsEngine, get_analytics_engine
+from oss.src.utils.env import env
 
 
 class RecordsDAO(RecordsDAOInterface):
@@ -48,13 +55,64 @@ class RecordsDAO(RecordsDAOInterface):
         event: SessionRecordEvent,
         session: AsyncSession,
     ) -> Optional[SessionRecord]:
-        stmt = RecordsDAO._upsert_stmt(values_list=[RecordsDAO._values(event=event)])
+        values = RecordsDAO._values(event=event)
+        if env.sessions.sequence_writes:
+            return await RecordsDAO._append_sequenced(values=values, session=session)
+
+        stmt = RecordsDAO._upsert_stmt(values_list=[values])
         result = await session.execute(stmt)
         await session.flush()
 
         row = result.scalars().first()
         if row is None:
             return None
+        return map_record_dbe_to_dto(dbe=row)
+
+    @staticmethod
+    async def _append_sequenced(
+        *,
+        values: dict,
+        session: AsyncSession,
+    ) -> Optional[SessionRecord]:
+        insert_stmt = (
+            insert(RecordDBE)
+            .values(values)
+            .on_conflict_do_nothing(index_elements=["project_id", "record_id"])
+            .returning(RecordDBE.record_id)
+        )
+        inserted_id = (await session.execute(insert_stmt)).scalar_one_or_none()
+        if inserted_id is None:
+            result = await session.execute(
+                RecordsDAO._upsert_stmt(values_list=[values])
+            )
+            await session.flush()
+            row = result.scalars().first()
+            return map_record_dbe_to_dto(dbe=row) if row is not None else None
+
+        cursor_insert = insert(SessionSequenceCursorDBE).values(
+            project_id=values["project_id"],
+            session_id=values["session_id"],
+            latest_sequence=1,
+        )
+        cursor_stmt = cursor_insert.on_conflict_do_update(
+            index_elements=["project_id", "session_id"],
+            set_={
+                "latest_sequence": SessionSequenceCursorDBE.latest_sequence + 1,
+                "updated_at": func.now(),
+            },
+        ).returning(SessionSequenceCursorDBE.latest_sequence)
+        sequence = (await session.execute(cursor_stmt)).scalar_one()
+        record_stmt = (
+            update(RecordDBE)
+            .where(
+                RecordDBE.project_id == values["project_id"],
+                RecordDBE.record_id == values["record_id"],
+            )
+            .values(sequence=sequence)
+            .returning(RecordDBE)
+        )
+        row = (await session.execute(record_stmt)).scalars().one()
+        await session.flush()
         return map_record_dbe_to_dto(dbe=row)
 
     async def append_many(
@@ -72,6 +130,25 @@ class RecordsDAO(RecordsDAOInterface):
         )
 
         async with self.engine.session() as session:
+            if env.sessions.sequence_writes:
+                records = []
+                # Stable session order prevents mixed-session transactions from deadlocking.
+                ordered_values = sorted(
+                    values_list,
+                    key=lambda values: (
+                        str(values["project_id"]),
+                        values["session_id"],
+                    ),
+                )
+                for values in ordered_values:
+                    record = await self._append_sequenced(
+                        values=values, session=session
+                    )
+                    if record is not None:
+                        records.append(record)
+                await session.commit()
+                return records
+
             stmt = self._upsert_stmt(values_list=values_list)
             result = await session.execute(stmt)
             await session.commit()
@@ -179,6 +256,156 @@ class RecordsDAO(RecordsDAOInterface):
 
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
+    @staticmethod
+    def _transcript_order():
+        return (
+            case((RecordDBE.sequence.is_(None), 0), else_=1),
+            case((RecordDBE.sequence.is_(None), RecordDBE.timestamp), else_=None)
+            .asc()
+            .nullslast(),
+            case((RecordDBE.sequence.is_(None), RecordDBE.created_at), else_=None)
+            .asc()
+            .nullslast(),
+            case((RecordDBE.sequence.is_(None), RecordDBE.record_index), else_=None)
+            .asc()
+            .nullslast(),
+            RecordDBE.sequence.asc().nullslast(),
+        )
+
+    async def get_records_page(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        offset: int,
+        limit: int,
+        through_sequence: int,
+    ) -> SessionRecordsPage:
+        async with self.engine.session() as session:
+            stmt = (
+                select(RecordDBE)
+                .where(
+                    RecordDBE.project_id == project_id,
+                    RecordDBE.session_id == session_id,
+                    RecordDBE.deleted_at.is_(None),
+                    RecordDBE.quarantined_at.is_(None),
+                    or_(
+                        RecordDBE.sequence.is_(None),
+                        RecordDBE.sequence <= through_sequence,
+                    ),
+                )
+                .order_by(*self._transcript_order())
+                .offset(offset)
+                .limit(limit + 1)
+            )
+            rows = list((await session.execute(stmt)).scalars().all())
+
+        has_more = len(rows) > limit
+        records = [map_record_dbe_to_dto(dbe=row) for row in rows[:limit]]
+        return SessionRecordsPage(
+            records=records,
+            offset=offset,
+            limit=limit,
+            next_offset=offset + limit if has_more else None,
+            through_sequence=through_sequence,
+        )
+
+    async def get_read_state(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> SessionRecordsReadState:
+        async with self.engine.session() as session:
+            latest_sequence = await session.scalar(
+                select(SessionSequenceCursorDBE.latest_sequence).where(
+                    SessionSequenceCursorDBE.project_id == project_id,
+                    SessionSequenceCursorDBE.session_id == session_id,
+                )
+            )
+            record_count, first_sequenced_at = (
+                await session.execute(
+                    select(
+                        func.count(RecordDBE.record_id),
+                        func.min(RecordDBE.created_at).filter(
+                            RecordDBE.sequence.is_not(None)
+                        ),
+                    ).where(
+                        RecordDBE.project_id == project_id,
+                        RecordDBE.session_id == session_id,
+                        RecordDBE.deleted_at.is_(None),
+                    )
+                )
+            ).one()
+            null_after_cutover = False
+            if first_sequenced_at is not None:
+                null_after_cutover = bool(
+                    await session.scalar(
+                        select(func.count(RecordDBE.record_id)).where(
+                            RecordDBE.project_id == project_id,
+                            RecordDBE.session_id == session_id,
+                            RecordDBE.deleted_at.is_(None),
+                            RecordDBE.sequence.is_(None),
+                            RecordDBE.created_at >= first_sequenced_at,
+                        )
+                    )
+                )
+
+        history_complete = record_count == 0 or (
+            latest_sequence is not None and not null_after_cutover
+        )
+        return SessionRecordsReadState(
+            latest_sequence=latest_sequence or 0,
+            history_complete=history_complete,
+        )
+
+    async def get_records_after(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        after: int,
+    ) -> SessionRecordsReplay:
+        async with self.engine.session() as session:
+            watermark = (
+                await session.scalar(
+                    select(SessionSequenceCursorDBE.latest_sequence).where(
+                        SessionSequenceCursorDBE.project_id == project_id,
+                        SessionSequenceCursorDBE.session_id == session_id,
+                    )
+                )
+                or 0
+            )
+            sequence_filter = (
+                or_(
+                    RecordDBE.sequence.is_(None),
+                    RecordDBE.sequence.between(1, watermark),
+                )
+                if after == 0
+                else RecordDBE.sequence.between(after + 1, watermark)
+            )
+            rows = list(
+                (
+                    await session.execute(
+                        select(RecordDBE)
+                        .where(
+                            RecordDBE.project_id == project_id,
+                            RecordDBE.session_id == session_id,
+                            RecordDBE.deleted_at.is_(None),
+                            RecordDBE.quarantined_at.is_(None),
+                            sequence_filter,
+                        )
+                        .order_by(*self._transcript_order())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return SessionRecordsReplay(
+            records=[map_record_dbe_to_dto(dbe=row) for row in rows],
+            watermark=watermark,
+        )
 
     async def latest_message_per_session(
         self,

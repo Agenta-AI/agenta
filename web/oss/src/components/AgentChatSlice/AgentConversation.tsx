@@ -13,6 +13,7 @@ import {
     stagedFilesToParts,
     useComposerAttachments,
     useAgentChatQueue,
+    useSessionLivePreview,
     type QueuedMessage,
 } from "@agenta/chat/hooks"
 import {
@@ -29,6 +30,7 @@ import {
     isVisiblePart,
 } from "@agenta/chat/model"
 import {getInteractionAvailability, getLivePendingApprovals} from "@agenta/chat/model"
+import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
 import {
@@ -73,6 +75,7 @@ import {useScrollIntent} from "./hooks/useScrollIntent"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
+import {deriveSessionRemoteTurnPresentation} from "./state/liveness"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -112,7 +115,9 @@ const AgentConversation = ({
     const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
-    const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
+    const [initialMessages] = useState(() =>
+        withoutSharedSenderAcceptanceMessages(store.get(sessionMessagesAtom)[sessionId] ?? []),
+    )
     const richInputRef = useRef<RichChatInputHandle>(null)
 
     const composer = useComposerDraft({sessionId, richInputRef, revealPlayedRef})
@@ -130,6 +135,10 @@ const AgentConversation = ({
         status,
         busy,
         error,
+        connectionWarning,
+        acceptedRunPending,
+        turnDeliverySource,
+        settleSharedTurn,
         sendMessage,
         regenerate,
         setMessages,
@@ -146,8 +155,40 @@ const AgentConversation = ({
         answerApproval,
         resumeOrphaned,
         isSeen,
-        runningElsewhere,
+        runningElsewhere: livenessRunningElsewhere,
+        sharedReaderAdvertised,
+        refreshFromRecords,
+        setSharedSenderReady,
     } = useAgentChatSession({entityId, sessionId, initialMessages, intent: scrollIntent})
+    const {
+        messages: previewMessages,
+        runningFromSnapshot,
+        readerReady,
+    } = useSessionLivePreview({
+        sessionId,
+        sharedReaderAdvertised,
+        runningElsewhere: livenessRunningElsewhere,
+        sender: true,
+        onReadyChange: setSharedSenderReady,
+        onExecutionSettled: settleSharedTurn,
+        onDisconnect: refreshFromRecords,
+    })
+    const remoteTurn = deriveSessionRemoteTurnPresentation({
+        livenessRunning: livenessRunningElsewhere,
+        snapshotRunning: runningFromSnapshot || acceptedRunPending,
+        sharedReaderAdvertised,
+        readerReady,
+        ownedContinuation: acceptedRunPending,
+    })
+    const transcriptMessages = useMemo(() => {
+        const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
+        if (turnDeliverySource === "legacy" || previewMessages.length === 0) return durableMessages
+        return [...durableMessages, ...previewMessages]
+    }, [messages, previewMessages, turnDeliverySource])
+    const transcriptBusy =
+        busy ||
+        remoteTurn.showActivity ||
+        (turnDeliverySource !== "legacy" && previewMessages.length > 0)
 
     // Turn Inspector: open state, the focused turn, and the assistant → turn-number mapping.
     const {
@@ -351,6 +392,7 @@ const AgentConversation = ({
     } = useAgentChatQueue({
         status,
         messages,
+        acceptedRunPending,
         stopped,
         resumeOrphaned,
         sendQueued,
@@ -535,11 +577,16 @@ const AgentConversation = ({
     // Exactly one scroll engine owns the transcript: Virtuoso when it's enabled in the playground
     // settings, the SC-1..4 DOM engine otherwise (each bails on the other's flag). Both act on the
     // shared `scrollIntent`, so producers never care which is live.
-    const virt = useVirtuosoTranscript({intent: scrollIntent, sessionId, messages, status})
+    const virt = useVirtuosoTranscript({
+        intent: scrollIntent,
+        sessionId,
+        messages: transcriptMessages,
+        status,
+    })
     const useVirtuoso = virt.enabled
     const scroll = useTranscriptScroll({
         intent: scrollIntent,
-        messages,
+        messages: transcriptMessages,
         status,
         useVirtuoso,
     })
@@ -661,10 +708,11 @@ const AgentConversation = ({
     // fill. Keeping the fill on a STABLE element — not hopping it from the user bubble to the assistant
     // bubble when the answer arrives — avoids the mid-stream layout jump.
     const lastUserIndex = (() => {
-        for (let i = messages.length - 1; i >= 0; i--) if (messages[i].role === "user") return i
+        for (let i = transcriptMessages.length - 1; i >= 0; i--)
+            if (transcriptMessages[i].role === "user") return i
         return -1
     })()
-    const activeStart = lastUserIndex >= 0 ? lastUserIndex : messages.length
+    const activeStart = lastUserIndex >= 0 ? lastUserIndex : transcriptMessages.length
     // The fill = min-h-full on the active turn whenever there's PRIOR conversation above it (so the
     // question can sit at the top). Derived from layout, NOT from `busy` — so it persists when the turn
     // settles instead of being yanked away (which clamped the scroll and jumped the view).
@@ -677,6 +725,7 @@ const AgentConversation = ({
     )
     const handleResend = useCallback(
         (messageId: string) => {
+            if (busyRef.current) return
             const msgs = messagesRef.current
             const idx = msgs.findIndex((m) => m.id === messageId)
             // Same hazard as rewind (#6362 review): regenerating drops the failed assistant
@@ -705,7 +754,7 @@ const AgentConversation = ({
     )
 
     const renderMessage = (message: UIMessage, index: number) => {
-        const isLast = index === messages.length - 1
+        const isLast = index === transcriptMessages.length - 1
         const isAssistantTurn = message.role === "assistant"
         const turn = turnNumbers.get(message.id)
         const isInspected = isAssistantTurn && inspectedTurn != null && turn === inspectedTurn
@@ -718,13 +767,14 @@ const AgentConversation = ({
                 // never during render (unsafe under StrictMode's double invoke).
                 enter={!isSeen(message.id)}
                 isLast={isLast}
-                isStreaming={busy && isLast}
-                precededByEmptyAssistant={index > 0 && isEmptyAssistantTurn(messages[index - 1])}
-                // A user turn has no trace of its own; borrow the paired (next) assistant turn's
-                // trace so its timestamp dates from the run, not this browser's first-seen stamp.
+                isStreaming={transcriptBusy && isLast}
+                precededByEmptyAssistant={
+                    index > 0 && isEmptyAssistantTurn(transcriptMessages[index - 1])
+                }
+                // A user turn borrows its paired assistant trace so the timestamp reflects the run.
                 turnTraceId={
-                    message.role === "user" && messages[index + 1]
-                        ? getMessageTraceId(messages[index + 1])
+                    message.role === "user" && transcriptMessages[index + 1]
+                        ? getMessageTraceId(transcriptMessages[index + 1])
                         : undefined
                 }
                 inspected={isInspected}
@@ -735,13 +785,15 @@ const AgentConversation = ({
                 turn={turn}
                 onInspectTurn={handleInspectTurn}
                 showWorking={
-                    isLast && busy && (!isAssistantTurn || message.parts.some(isVisiblePart))
+                    isLast &&
+                    transcriptBusy &&
+                    (!isAssistantTurn || message.parts.some(isVisiblePart))
                 }
                 // Paused on the user (never concurrently with showWorking — hitlPending implies not
                 // busy): keeps the turn from reading as finished while the queue holds sends.
                 showWaiting={isLast && isAssistantTurn && !busy && hitlPending}
                 showStopped={stopped && isLast && isAssistantTurn}
-                resendDisabled={busy}
+                resendDisabled={busy || acceptedRunPending}
                 onResend={handleResend}
                 onRewind={handleRewind}
                 onClientToolOutput={handleClientToolOutput}
@@ -803,7 +855,7 @@ const AgentConversation = ({
                                 {/* Stream errors are surfaced inline on the failing turn (red error bubble with the
                 real reason), stamped in the effect above — no separate top-level banner. */}
                                 <AgentTranscript
-                                    messages={messages}
+                                    messages={transcriptMessages}
                                     activeStart={activeStart}
                                     reserveActive={reserveActive}
                                     renderMessage={renderMessage}
@@ -851,7 +903,8 @@ const AgentConversation = ({
                                         entityId={entityId}
                                         messages={messages}
                                         busy={busy}
-                                        runningElsewhere={runningElsewhere}
+                                        showRunningElsewhere={remoteTurn.showStrip}
+                                        connectionWarning={connectionWarning}
                                         hitlPending={hitlPending}
                                         queue={{
                                             queued,

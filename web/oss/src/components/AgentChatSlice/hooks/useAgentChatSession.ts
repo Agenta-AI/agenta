@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useReducer, useRef} from "react"
+import {useCallback, useEffect, useMemo, useReducer, useRef, useState} from "react"
 
 import {
     buildRequestWithinDeadline,
@@ -10,16 +10,21 @@ import {
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useSessionChat} from "@agenta/chat/hooks"
 import {
+    classifyAgentRunError,
     ignoreStreamRejection,
     createUserStoppedState,
     isSessionTurnStopping,
-    parseAgentRunError,
     reduceUserStoppedState,
+    type RunErrorMetadata,
+    withoutSharedSenderAcceptanceMessages,
 } from "@agenta/chat/model"
 import {
+    acceptedRunBySession,
     clearTurnClockAtom,
     stampMessagesCreatedAtAtom,
     startTurnClockAtom,
+    turnDeliverySourceBySession,
+    type TurnDeliverySource,
 } from "@agenta/chat/state"
 import {expandedKeysForMessages, pruneExpandedAtom} from "@agenta/chat/state"
 import {
@@ -31,6 +36,7 @@ import {
     sessionRecordCountsReadAtom,
     setSessionStatusAtom,
     setSessionTurnId,
+    setAcceptedSessionTurnId,
     type SessionChatHooks,
 } from "@agenta/chat/state"
 import {
@@ -118,6 +124,8 @@ export const useAgentChatSession = ({
     const recordWatermarkRef = useRef<number | undefined>(
         store.get(sessionRecordCountsReadAtom)[sessionId],
     )
+    // Durable sequence coverage is connection-local and must never be stored as a row count.
+    const sequenceWatermarkRef = useRef<number | undefined>(undefined)
     // Whether the LAST assistant turn was user-stopped. You can only cancel the in-flight (last) turn,
     // so this is a single boolean gated on position at render time — independent of message ids (which
     // can be missing/duplicated in restore/error paths and would otherwise smear the tag onto every
@@ -149,6 +157,24 @@ export const useAgentChatSession = ({
     const mountedRef = useRef(false)
     const messagesRef = useRef(initialMessages)
     const setTurnStartupLabel = useSetAtom(startTurnClockAtom)
+    // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
+    // `onData` and never the transcript — this is the only place the answer survives. A stream that
+    // dies after it is a lost connection, not a lost turn; one that dies before it may be a send
+    // that never started, and that failure has to stay on screen and in the cache.
+    const turnAcceptedRef = useRef(acceptedRunBySession.has(sessionId))
+    const acceptedExecutionIdRef = useRef<string | null>(
+        acceptedRunBySession.get(sessionId) ?? null,
+    )
+    const [acceptedRunPending, setAcceptedRunPending] = useState(() =>
+        acceptedRunBySession.has(sessionId),
+    )
+    const [turnDeliverySource, setTurnDeliverySource] = useState<TurnDeliverySource | null>(
+        () => turnDeliverySourceBySession.get(sessionId) ?? null,
+    )
+    const sharedSenderReadyRef = useRef(false)
+    const setSharedSenderReady = useCallback((ready: boolean) => {
+        sharedSenderReadyRef.current = ready
+    }, [])
 
     // Rebuilt every render and bound to the chat on every commit (below), so they always see the live
     // values — `entityId` included, which is why a run follows a revision switch or a self-commit
@@ -156,12 +182,21 @@ export const useAgentChatSession = ({
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
             clearSessionTurnId(sessionId)
+            turnAcceptedRef.current = false
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
+            const sharedResponse = sharedSenderReadyRef.current
+            const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
+            turnDeliverySourceBySession.set(sessionId, deliverySource)
+            setTurnDeliverySource(deliverySource)
             // Bounded: retries while the invocation URL is still loading and rejects if the build
             // hangs, so a failed send surfaces as an error bubble instead of an eternal spinner
             // (#6042). The helper owns the not-ready / timed-out errors.
             const req = await buildRequestWithinDeadline(() =>
                 buildAgentRequest(entityId, messages, {
                     sessionId: id ?? sessionId,
+                    sharedResponse,
                 }),
             )
             captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
@@ -169,6 +204,17 @@ export const useAgentChatSession = ({
         },
         // ── #6047 startup states: capture the runner's observed startup boundary as it streams ──
         onData: (part) => {
+            if (part.type === "data-session-accepted") {
+                turnAcceptedRef.current = true
+                const data = part.data as {executionId?: unknown} | undefined
+                acceptedExecutionIdRef.current =
+                    typeof data?.executionId === "string" ? data.executionId : null
+                if (acceptedExecutionIdRef.current) {
+                    setAcceptedSessionTurnId(sessionId, acceptedExecutionIdRef.current)
+                }
+                acceptedRunBySession.set(sessionId, acceptedExecutionIdRef.current)
+                setAcceptedRunPending(true)
+            }
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
         },
@@ -242,6 +288,7 @@ export const useAgentChatSession = ({
         addToolApprovalResponse,
         addToolOutput,
         error,
+        clearError,
     } = useChat({
         chat,
         // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
@@ -263,13 +310,24 @@ export const useAgentChatSession = ({
         },
         [regenerateChatMessage, sessionId],
     )
+    const lastMessage = messages[messages.length - 1]
+    const serverErrorProvenance =
+        lastMessage?.role === "assistant" &&
+        lastMessage.parts.some((part) => part.type === "data-agent-error")
+    const errorBoundary = useMemo(
+        () =>
+            error
+                ? classifyAgentRunError(error, turnAcceptedRef.current, serverErrorProvenance)
+                : {},
+        [error, serverErrorProvenance],
+    )
 
     const busy = isChatBusy(status)
     // `messages`/`busy` change every token; consumers that must stay referentially stable
     // (`handleRewind`, the hydration/SWR adoption guards) read them through refs instead.
     messagesRef.current = messages
-    const busyRef = useRef(busy)
-    busyRef.current = busy
+    const busyRef = useRef(busy || acceptedRunPending)
+    busyRef.current = busy || acceptedRunPending
 
     useEffect(() => {
         dispatchStopped({type: "transcript", messages})
@@ -289,6 +347,8 @@ export const useAgentChatSession = ({
         stopStateLoading,
         sessionTurnId,
         stoppingTurnId,
+        sharedReaderAdvertised,
+        refreshFromRecords,
     } = useSessionHydration({
         sessionId,
         initialMessages,
@@ -297,9 +357,11 @@ export const useAgentChatSession = ({
         seenIdsRef,
         restoredIdsRef,
         recordWatermarkRef,
+        sequenceWatermarkRef,
         busy,
         setMessages,
         persistMessages,
+        clearRunError: clearError,
         intent,
         pendingResumeRef: liveGateInteractionRef,
     })
@@ -398,7 +460,6 @@ export const useAgentChatSession = ({
     // response, tool output, stream finish) — never on mount — so this resume can't fire and
     // must not hold the queue. Short-circuits cheap on the streaming hot path: any live send
     // makes the tail non-restored.
-    const lastMessage = messages[messages.length - 1]
     const resumeOrphaned =
         !liveGateInteractionRef.current &&
         !!lastMessage &&
@@ -411,23 +472,20 @@ export const useAgentChatSession = ({
         if (turnId) setSessionTurnId(sessionId, turnId)
     }, [messages, sessionId])
 
-    // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
-    // it renders as a red error bubble with the real reason (and persists with the session via the
-    // effect below), instead of a transient top banner + a generic "no response". FE-only — it
-    // uses the error useChat already has; the backend doesn't need to attach it to the trace.
+    // Run failures become conversation content; an accepted transport loss stays connection state.
     useEffect(() => {
-        if (!error) return
-        const parsed = parseAgentRunError(error)
+        const parsed = errorBoundary.runError
+        if (!parsed) return
+        const stamp: RunErrorMetadata = {runError: parsed}
         setMessages((prev) => {
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
-            const existing = (last?.metadata as {runError?: {message?: string}} | undefined)
-                ?.runError
+            const existing = (last?.metadata as RunErrorMetadata | undefined)?.runError
             if (last?.role === "assistant") {
                 if (existing?.message === parsed.message) return prev // already stamped
                 const next = [...prev]
                 next[next.length - 1] = {
                     ...last,
-                    metadata: {...(last.metadata as object | undefined), runError: parsed},
+                    metadata: {...(last.metadata as object | undefined), ...stamp},
                 }
                 return next
             }
@@ -438,11 +496,11 @@ export const useAgentChatSession = ({
                     id: `run-error-${generateId()}`,
                     role: "assistant",
                     parts: [],
-                    metadata: {runError: parsed},
+                    metadata: stamp,
                 } as (typeof prev)[number],
             ]
         })
-    }, [error, setMessages])
+    }, [errorBoundary.runError, setMessages])
 
     // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
     // records the runner logged for it — so drop the watermark and let the next open re-sync from
@@ -450,13 +508,20 @@ export const useAgentChatSession = ({
     // flips to "submitted", effects run in declaration order, so clearing here is what stops the
     // persist below from filing a locally-extended transcript under a server watermark.
     useEffect(() => {
-        if (isChatBusy(status)) recordWatermarkRef.current = undefined
+        if (isChatBusy(status)) {
+            recordWatermarkRef.current = undefined
+            sequenceWatermarkRef.current = undefined
+        }
     }, [status])
 
     // Persist the conversation whenever its stream settles (skip mid-stream).
     useEffect(() => {
         if (status === "streaming") return
-        persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
+        persistMessages({
+            id: sessionId,
+            messages: withoutSharedSenderAcceptanceMessages(messages),
+            recordCount: recordWatermarkRef.current,
+        })
     }, [messages, status, sessionId, persistMessages])
 
     // ── #6047 startup states: one label per in-flight turn ──
@@ -743,7 +808,19 @@ export const useAgentChatSession = ({
         messages,
         status,
         busy,
-        error,
+        error: errorBoundary.runError,
+        connectionWarning: errorBoundary.connectionWarning,
+        acceptedRunPending,
+        turnDeliverySource,
+        settleSharedTurn: (executionId?: string) => {
+            const acceptedExecutionId = acceptedExecutionIdRef.current
+            if (executionId && acceptedExecutionId && acceptedExecutionId !== executionId) return
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
+            turnDeliverySourceBySession.delete(sessionId)
+            setTurnDeliverySource(null)
+        },
         sendMessage: sendMessageWithFreshGuard,
         regenerate: regenerateWithFreshGuard,
         setMessages,
@@ -753,6 +830,9 @@ export const useAgentChatSession = ({
         isHydrating,
         hydratedEmpty,
         runningElsewhere,
+        sharedReaderAdvertised,
+        refreshFromRecords,
+        setSharedSenderReady,
         stopped,
         stopping,
         setStopped,

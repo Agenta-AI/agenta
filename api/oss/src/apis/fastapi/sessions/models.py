@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -13,7 +13,11 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStream,
     SessionStreamQueryFlags,
 )
-from oss.src.core.sessions.records.dtos import SessionRecord
+from oss.src.core.sessions.records.dtos import (
+    SessionLiveFrame,
+    SessionRecord,
+    SessionRecordsReadState,
+)
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionData,
@@ -148,13 +152,41 @@ class SessionStreamsResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class SessionTranscriptWindowing(BaseModel):
+    """Deliberate exception to the shared cursor `Windowing`.
+
+    `through_sequence` pins the snapshot, so offset paging over an append-only log inside that
+    bound is stable: a concurrent append raises `latest_sequence`, never the page contents. The
+    transcript reader also needs to seek within one pinned snapshot, which a forward-only cursor
+    cannot express.
+    """
+
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=100, ge=1, le=200)
+    through_sequence: int = Field(ge=0)
+
+
 class SessionRecordQueryRequest(BaseModel):
     session_id: str
+    windowing: Optional[SessionTranscriptWindowing] = None
 
 
 class SessionRecordsQueryResponse(BaseModel):
     count: int
     records: List[SessionRecord]
+    windowing: Optional[SessionTranscriptWindowing] = None
+
+
+class SessionSnapshotPending(BaseModel):
+    inputs: List[Any] = Field(default_factory=list)
+    interactions: List[SessionInteraction] = Field(default_factory=list)
+
+
+class SessionSnapshotResponse(BaseModel):
+    session: SessionStream
+    execution: Optional[SessionTurn] = None
+    pending: SessionSnapshotPending
+    read: SessionRecordsReadState
 
 
 class SessionRecordResponse(BaseModel):
@@ -335,6 +367,7 @@ class SessionTurnsResponse(BaseModel):
 class SessionRecordIngestRequest(BaseModel):
     # project scope comes from the caller's credential, never the body
     session_id: str
+    kind: Optional[Literal["frame"]] = None
     # Optional stable id (uuid5) from the producer; absent when it has no stable key.
     record_id: Optional[UUID] = None
     record_index: Optional[int] = None
@@ -346,6 +379,55 @@ class SessionRecordIngestRequest(BaseModel):
     # Both forward-fill only (tracing-DB rule) — absent on producers that predate this.
     turn_id: Optional[str] = None
     span_id: Optional[OTelSpanId] = None
+    version: Optional[Literal[1]] = None
+    execution_id: Optional[str] = None
+    frame_or_event_id: Optional[str] = None
+    frame_index: Optional[int] = Field(default=None, ge=0)
+    entity_id: Optional[str] = None
+    type: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+
+    @model_validator(mode="after")
+    def validate_live_frame(self) -> "SessionRecordIngestRequest":
+        if self.kind != "frame":
+            return self
+        required = (
+            "version",
+            "execution_id",
+            "frame_or_event_id",
+            "frame_index",
+            "entity_id",
+            "type",
+            "payload",
+            "created_at",
+        )
+        missing = [name for name in required if getattr(self, name) is None]
+        if missing:
+            raise ValueError(f"frame fields missing: {', '.join(missing)}")
+        SessionLiveFrame(
+            version=self.version,
+            kind="frame",
+            session_id=self.session_id,
+            execution_id=self.execution_id,
+            frame_or_event_id=self.frame_or_event_id,
+            frame_index=self.frame_index,
+            entity_id=self.entity_id,
+            type=self.type,
+            payload=self.payload,
+            created_at=self.created_at,
+        )
+        return self
+
+
+SessionRecordIngestBatch = Annotated[
+    List[SessionRecordIngestRequest],
+    Field(min_length=1),
+]
+SessionRecordIngestBody = Union[
+    SessionRecordIngestRequest,
+    SessionRecordIngestBatch,
+]
 
 
 # ---------------------------------------------------------------------------

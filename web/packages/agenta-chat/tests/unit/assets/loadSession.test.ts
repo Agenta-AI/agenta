@@ -20,6 +20,7 @@ const record = (id: string, payload: Record<string, unknown>, sender = "agent"):
     id,
     session_id: "session-1",
     project_id: "project-1",
+    sequence: null,
     event_index: null,
     sender,
     session_update: String(payload.type),
@@ -65,6 +66,21 @@ describe("loadSessionMessages", () => {
         const transcript = await loadSessionMessages("session-1")
         expect(transcript?.messages).toHaveLength(1)
         expect(transcript?.recordCount).toBe(3)
+    })
+
+    it("keeps a sparse sequence cursor distinct from the retained row count", async () => {
+        fetchResult = {
+            records: [
+                {...record("r1", {type: "message", text: "hi"}), sequence: 3},
+                {...record("r2", {type: "thought", text: "work"}), sequence: 6},
+                {...record("r3", {type: "done"}), sequence: 9},
+            ],
+        }
+
+        const transcript = await loadSessionMessages("session-1")
+
+        expect(transcript?.recordCount).toBe(3)
+        expect(transcript?.sequenceCursor).toBe(9)
     })
 
     it("delivers a refreshed transcript via onRefreshed once the background revalidation resolves", async () => {

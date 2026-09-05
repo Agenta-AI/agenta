@@ -7,9 +7,8 @@ import {cn} from "@agenta/ui/ui"
  * session while THIS browser isn't the one streaming it (another tab, another device).
  *
  * Issue #5530: a second browser gave no sign at all that anything was happening, so a session that
- * was mid-turn looked identical to an idle one. There is no push channel to browsers today, so the
- * transcript catches up by polling the durable record log — this strip is what makes that
- * legible instead of looking frozen.
+ * was mid-turn looked identical to an idle one. This is now the fallback while the shared reader
+ * is disabled or disconnected; a ready reader streams the transcript and shows turn activity.
  *
  * NOT shown while this browser is the one streaming: the composer's send button is already a Stop
  * and the transcript already shows the turn working, so a second "running" banner is noise — and
@@ -47,8 +46,8 @@ export const RunningElsewhereStrip = ({
             <span className="bg-colorInfo relative inline-flex size-2 rounded-full" />
         </span>
         <span className="text-colorTextSecondary text-xs">
-            This session is running somewhere else — the transcript updates as the turn progresses.
-            If it stays still, the run may have already ended.
+            This turn is still running — the transcript updates as it progresses. If it stays still,
+            the run may have already ended.
         </span>
         {action ? <span className="ml-auto shrink-0">{action}</span> : null}
     </div>

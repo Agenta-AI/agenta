@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
+import {shouldRefreshLegacyObserverLiveness} from "@agenta/chat/model"
 import {useQueryClient} from "@tanstack/react-query"
 
 import {tryRefreshSession} from "@/lib/auth"
@@ -34,11 +35,13 @@ export const useSessionWatch = ({
     projectId,
     onRecordsChanged,
     onInteractionChanged,
+    sharedReaderAdvertised = true,
 }: {
     sessionId: string
     projectId: string
     onRecordsChanged: () => void
     onInteractionChanged?: () => void
+    sharedReaderAdvertised?: boolean
 }): {connected: boolean} => {
     const [connected, setConnected] = useState(false)
     const queryClient = useQueryClient()
@@ -56,6 +59,7 @@ export const useSessionWatch = ({
         let disposed = false
         let attempt = 0
         let lastNotifiedAt = 0
+        let lastLivenessRefreshAt = 0
 
         /** Reconnect coverage only — real `records-changed` events are never throttled. */
         const notifyOnConnect = () => {
@@ -65,8 +69,13 @@ export const useSessionWatch = ({
             onRecordsChangedRef.current()
         }
 
-        const invalidateBadges = () => {
+        const invalidateLiveness = (trackLegacyRefresh = false) => {
+            if (trackLegacyRefresh) lastLivenessRefreshAt = Date.now()
             void queryClient.invalidateQueries({queryKey: livenessQueryKey(projectId)})
+        }
+
+        const invalidateBadges = (trackLegacyRefresh = false) => {
+            invalidateLiveness(trackLegacyRefresh)
             void queryClient.invalidateQueries({
                 queryKey: actionableInteractionsQueryKey(projectId),
             })
@@ -114,8 +123,20 @@ export const useSessionWatch = ({
                 notifyOnConnect()
                 invalidateBadges()
             })
-            es.addEventListener("records-changed", () => onRecordsChangedRef.current())
-            es.addEventListener("lifecycle", invalidateBadges)
+            es.addEventListener("records-changed", () => {
+                onRecordsChangedRef.current()
+                const now = Date.now()
+                if (
+                    shouldRefreshLegacyObserverLiveness({
+                        sharedReaderAdvertised,
+                        lastRefreshAt: lastLivenessRefreshAt,
+                        now,
+                    })
+                ) {
+                    invalidateLiveness(true)
+                }
+            })
+            es.addEventListener("lifecycle", () => invalidateBadges(true))
             es.addEventListener("interaction", () => {
                 invalidateBadges()
                 onInteractionChangedRef.current?.()
@@ -143,7 +164,7 @@ export const useSessionWatch = ({
             if (retryHandle !== undefined) window.clearTimeout(retryHandle)
             close()
         }
-    }, [sessionId, projectId, queryClient])
+    }, [sessionId, projectId, queryClient, sharedReaderAdvertised])
 
     return {connected}
 }

@@ -513,7 +513,8 @@ main() {
         "AGENTA_RUNNER_DAYTONA_API_URL=${AGENTA_RUNNER_DAYTONA_API_URL:-}" \
         "AGENTA_RUNNER_DAYTONA_TARGET=${AGENTA_RUNNER_DAYTONA_TARGET:-}" \
         "AGENTA_RUNNER_DAYTONA_SNAPSHOT=${AGENTA_RUNNER_DAYTONA_SNAPSHOT:-}" \
-        "AGENTA_RUNNER_DAYTONA_IMAGE=${AGENTA_RUNNER_DAYTONA_IMAGE:-}"
+        "AGENTA_RUNNER_DAYTONA_IMAGE=${AGENTA_RUNNER_DAYTONA_IMAGE:-}" \
+        "AGENTA_RUNNER_LIVE_FRAMES=${AGENTA_RUNNER_LIVE_FRAMES:-}"
 
     # Do NOT list the runner's AGENTA_RUNNER_DAYTONA_* vars here: unset_vars always deletes,
     # which previously wiped a Daytona-configured runner's credentials right after setting them.

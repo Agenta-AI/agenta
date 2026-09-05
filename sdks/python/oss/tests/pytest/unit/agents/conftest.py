@@ -145,6 +145,7 @@ class FakeBackend(Backend):
         trace=None,
         run_context=None,
         session_id=None,
+        detached=False,
         effective_parameters=None,
         gateway_policy=None,
     ) -> FakeSession:
@@ -157,6 +158,7 @@ class FakeBackend(Backend):
                 "trace": trace,
                 "run_context": run_context,
                 "session_id": session_id,
+                "detached": detached,
                 "effective_parameters": effective_parameters,
                 "gateway_policy": gateway_policy,
             }

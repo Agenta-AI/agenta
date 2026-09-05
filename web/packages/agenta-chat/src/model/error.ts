@@ -26,6 +26,9 @@ const ERROR_CLASS_PREFIX = /^[a-z]*error:\s*/
 /** One sentence with something to do in it, in place of a browser's internal wording. */
 export const TRANSPORT_ERROR_MESSAGE = "Could not reach Agenta. Check your connection and retry."
 
+export const ACCEPTED_SENDER_DISCONNECT_MESSAGE =
+    "Connection interrupted. The turn was accepted and is still running."
+
 /** Trailing periods and spaces, scanned rather than matched: `/[.\s]+$/` backtracks
  * quadratically on a long unmatched tail (CodeQL js/polynomial-redos). */
 const withoutTrailingStop = (text: string): string => {
@@ -62,7 +65,7 @@ export const isSessionBusyRefusal = (err: unknown): boolean =>
  * envelope. An engine's own wording is translated — "Failed to fetch" under "The agent run
  * failed" read as a fault in the agent.
  */
-export const parseAgentRunError = (err: unknown): ParsedRunError => {
+export const parseAgentRunError = (err: unknown, serverErrorProvenance = false): ParsedRunError => {
     const raw =
         err instanceof Error ? err.message : typeof err === "string" ? err : String(err ?? "")
     const fallback = raw.trim() || "The agent run failed."
@@ -89,7 +92,8 @@ export const parseAgentRunError = (err: unknown): ParsedRunError => {
         return {message: fallback, code: SESSION_TURN_IN_USE_CODE}
     }
     // A server envelope outranks transport-phrase translation.
-    if (isTransportFailure(fallback)) return {message: TRANSPORT_ERROR_MESSAGE, transport: true}
+    if (!serverErrorProvenance && isTransportFailure(fallback))
+        return {message: TRANSPORT_ERROR_MESSAGE, transport: true}
     return {message: fallback}
 }
 
@@ -97,3 +101,24 @@ export const parseAgentRunError = (err: unknown): ParsedRunError => {
  * alert; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to the
  * Next.js dev Runtime Error overlay (F-033). */
 export const ignoreStreamRejection = () => {}
+
+export interface RunErrorMetadata {
+    runError?: ParsedRunError
+}
+
+export interface AgentRunErrorBoundary {
+    runError?: ParsedRunError
+    connectionWarning?: string
+}
+
+/** Keep an accepted sender disconnect out of conversation content; the shared run continues. */
+export const classifyAgentRunError = (
+    error: unknown,
+    turnAccepted: boolean,
+    serverErrorProvenance = false,
+): AgentRunErrorBoundary => {
+    const parsed = parseAgentRunError(error, serverErrorProvenance)
+    return turnAccepted && parsed.transport
+        ? {connectionWarning: ACCEPTED_SENDER_DISCONNECT_MESSAGE}
+        : {runError: parsed}
+}

@@ -157,6 +157,10 @@ def project_watch_channel(project_id: str) -> str:
     return f"watch:{project_id}:project"
 
 
+def live_events_channel(project_id: str, session_id: str) -> str:
+    return f"events:{project_id}:session:{session_id}"
+
+
 def make_watch_records_changed_payload(*, session_id: str) -> dict:
     return {"type": WATCH_EVENT_RECORDS_CHANGED, "session_id": session_id}
 

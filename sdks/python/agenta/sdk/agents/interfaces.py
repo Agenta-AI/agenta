@@ -130,6 +130,7 @@ class Backend(ABC):
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
+        detached: bool = False,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> Session:
@@ -201,6 +202,7 @@ class Environment:
             trace=session_config.trace,
             run_context=session_config.run_context,
             session_id=session_config.session_id,
+            detached=session_config.detached,
             effective_parameters=session_config.effective_parameters,
             gateway_policy=session_config.gateway_policy,
         )

@@ -1,6 +1,8 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    ACCEPTED_SENDER_DISCONNECT_MESSAGE,
+    classifyAgentRunError,
     isTransportFailure,
     isSessionBusyRefusal,
     parseAgentRunError,
@@ -106,5 +108,32 @@ describe("single-turn admission refusal", () => {
 
     it("keeps the message one line, or the SDK truncates it at the first newline", () => {
         expect(SESSION_TURN_IN_USE_MESSAGE).not.toContain("\n")
+    })
+})
+
+describe("classifyAgentRunError", () => {
+    it("turns an accepted transport loss into connection state", () => {
+        expect(classifyAgentRunError(new TypeError("Failed to fetch"), true)).toEqual({
+            connectionWarning: ACCEPTED_SENDER_DISCONNECT_MESSAGE,
+        })
+    })
+
+    it("keeps an unaccepted transport loss as a run failure", () => {
+        expect(classifyAgentRunError(new TypeError("Failed to fetch"), false)).toEqual({
+            runError: {message: TRANSPORT_ERROR_MESSAGE, transport: true},
+        })
+    })
+
+    it("keeps an accepted server verdict as a run failure", () => {
+        const verdict = JSON.stringify({status: {code: 422, message: "no usable credential"}})
+        expect(classifyAgentRunError(verdict, true)).toEqual({
+            runError: {message: "no usable credential", code: 422},
+        })
+    })
+
+    it("lets server-error provenance override a browser transport phrase", () => {
+        expect(classifyAgentRunError(new TypeError("Failed to fetch"), true, true)).toEqual({
+            runError: {message: "Failed to fetch"},
+        })
     })
 })

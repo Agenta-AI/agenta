@@ -19,6 +19,9 @@ export interface QueuedMessage {
 interface UseAgentChatQueueArgs {
     status: string
     messages: UIMessage[]
+    /** The invoke stream disconnected after acceptance, but the shared session run still owns the
+     * turn. New messages stay queued until its durable terminal event arrives. */
+    acceptedRunPending?: boolean
     /** The last turn was user-stopped (cancelled). A stop voids any pending approval / imminent
      * auto-resume, so the aborted turn's tool parts still reading as mid-HITL must NOT hold a new
      * send — a stopped-and-settled conversation is releasable. */
@@ -53,6 +56,7 @@ const queuedBySession = new Map<string, QueuedMessage[]>()
 export const useAgentChatQueue = ({
     status,
     messages,
+    acceptedRunPending = false,
     stopped,
     resumeOrphaned = false,
     sendQueued,
@@ -74,7 +78,8 @@ export const useAgentChatQueue = ({
     // Releasable now: the normal gate, OR a settled turn whose hold was voided — by a user stop,
     // or by an orphaned restored resume shape that nothing in this mount can ever fire.
     const canReleaseNow =
-        canReleaseQueuedMessage(status, messages) || ((stopped || resumeOrphaned) && settled)
+        !acceptedRunPending &&
+        (canReleaseQueuedMessage(status, messages) || ((stopped || resumeOrphaned) && settled))
 
     // A stop voids the gate for release (above), so it must void it for reporting too — else the
     // aborted turn's lingering `approval-requested` part still reads as "awaiting" while `submit`
