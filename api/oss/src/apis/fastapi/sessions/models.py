@@ -153,6 +153,14 @@ class SessionStreamsResponse(BaseModel):
 
 
 class SessionTranscriptWindowing(BaseModel):
+    """Deliberate exception to the shared cursor `Windowing`.
+
+    `through_sequence` pins the snapshot, so offset paging over an append-only log inside that
+    bound is stable: a concurrent append raises `latest_sequence`, never the page contents. The
+    transcript reader also needs to seek within one pinned snapshot, which a forward-only cursor
+    cannot express.
+    """
+
     offset: int = Field(default=0, ge=0)
     limit: int = Field(default=100, ge=1, le=200)
     through_sequence: int = Field(ge=0)
