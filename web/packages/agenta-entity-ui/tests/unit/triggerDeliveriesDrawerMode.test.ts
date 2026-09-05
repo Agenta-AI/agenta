@@ -1,6 +1,6 @@
 import {createElement} from "react"
-import {renderToStaticMarkup} from "react-dom/server"
 
+import {renderToStaticMarkup} from "react-dom/server"
 import {describe, expect, it, vi} from "vitest"
 
 import {TriggerDeliveriesDrawerContent} from "../../src/gatewayTrigger/drawers/TriggerDeliveriesDrawerContent"

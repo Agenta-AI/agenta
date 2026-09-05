@@ -5,7 +5,6 @@ import {type CSSProperties, type ReactNode, useMemo} from "react"
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {humanizeActionKey} from "@agenta/shared/utils"
 
-import type {ConfigItemView} from "../ConfigItemDrawer"
 import {integrationPermissionSummary} from "../integrationPolicy"
 import {ProviderLogo} from "../sectionGroups"
 import {integrationRowIndices, isHarnessBuiltinTool, type IntegrationRow} from "../toolUtils"
@@ -205,7 +204,7 @@ export interface SubagentListProps {
     chromeBySlug?: Map<string, {glyph: ReactNode; className: string; style?: CSSProperties}>
     /** Each subagent's CURRENT agent name by slug. Only the caller can resolve the artifact. */
     nameBySlug?: Map<string, string>
-    openEdit: (kind: "tool", index: number, item: unknown, view: ConfigItemView) => void
+    openEdit: (kind: "tool", index: number, item: unknown) => void
     removeItem: (kind: "tool", index: number) => void
     closeEditor: () => void
     disabled?: boolean
@@ -273,7 +272,7 @@ export function SubagentList({
                         item,
                         nonAgentSlugs,
                     )}
-                    onEdit={() => openEdit("tool", index, item, ITEM_KINDS.tool.editView(item))}
+                    onEdit={() => openEdit("tool", index, item)}
                     onRemove={() => {
                         removeItem("tool", index)
                         closeEditor()
