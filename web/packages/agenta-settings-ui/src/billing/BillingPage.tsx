@@ -153,7 +153,7 @@ export const BillingPage = ({
                             </a>
                         </span>
                     ) : !isOnFreePlan ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             {upgradeButton}
                             {onCancelSubscription ? (
                                 <Button variant="link" onClick={onCancelSubscription}>

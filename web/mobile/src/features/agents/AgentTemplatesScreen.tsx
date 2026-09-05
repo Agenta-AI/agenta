@@ -76,6 +76,8 @@ export const AgentTemplatesScreen = ({
                     }
                 >
                     <TemplateGallery
+                        // The page gutters the header already carries — the gallery ran edge to edge.
+                        className={`${pageContentWidthClass} px-4 pb-4 lg:px-16`}
                         // Toolbar by default (#5846): a rail here would be a second sidebar beside
                         // the nav one, so identity moves to this screen's header above. With the
                         // flag on, the rail returns and carries its own title and drawer trigger.

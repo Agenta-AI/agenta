@@ -104,10 +104,11 @@ export const AgentNameInline = ({
 
             {/* A real button, so the rename is reachable without a double-click. Hidden until hover
                 only where there IS a hover: on touch it stays visible, as double-click never fires. */}
+            {/* Transparent ::after hit extender: a ~31px touch target around the 13px glyph. */}
             <button
                 type="button"
                 aria-label="Rename agent"
-                className="flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 opacity-60 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring group-hover/name:opacity-100 [@media(hover:hover)]:opacity-0"
+                className="relative flex shrink-0 cursor-pointer items-center border-0 bg-transparent p-0 opacity-60 transition-opacity after:absolute after:inset-[-9px] after:content-[''] hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring group-hover/name:opacity-100 [@media(hover:hover)]:opacity-0"
                 onClick={(e) => {
                     e.stopPropagation()
                     startEditing()
