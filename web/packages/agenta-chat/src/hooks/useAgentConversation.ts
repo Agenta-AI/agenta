@@ -86,6 +86,7 @@ import {
     composerDraftBySession,
     isSessionFresh,
     setSessionTurnId,
+    setAcceptedSessionTurnId,
     turnDeliverySourceBySession,
     type TurnDeliverySource,
 } from "../state/sessionEphemera"
@@ -168,6 +169,8 @@ export interface AgentConversation {
     turns: TurnViewModel[]
     /** Send a user message (routes through the queue: sends now, or holds while busy/paused). */
     send: (input: SendInput) => Promise<void>
+    /** Prevent an approval decision still being recorded from starting its delayed resume. */
+    voidPendingResume: () => void
     /** Abort the in-flight stream and tag the last assistant turn as user-stopped. */
     stop: () => void
     /** Re-run an assistant turn by message id (also the "Resend" action after a stop). */
@@ -398,6 +401,9 @@ export const useAgentConversation = ({
                 const data = part.data as {executionId?: unknown} | undefined
                 acceptedExecutionIdRef.current =
                     typeof data?.executionId === "string" ? data.executionId : null
+                if (acceptedExecutionIdRef.current) {
+                    setAcceptedSessionTurnId(sessionId, acceptedExecutionIdRef.current)
+                }
                 acceptedRunBySession.set(sessionId, acceptedExecutionIdRef.current)
                 setAcceptedRunPending(true)
             }
@@ -440,13 +446,10 @@ export const useAgentConversation = ({
             }
         },
         onError: () => {
-            // Clear the marker but do NOT void the resume. A gateway approval is answered while the
-            // stream is still open, so the SDK skips its own dispatch and only re-evaluates when the
-            // stream ends — often by erroring, right here. `null` made that last evaluation return
-            // false and stranded the answer; `undefined` lets the tail heuristics decide.
-            // Adoption is unaffected: the hydration guard reads this ref as a boolean.
-            // The registry logs the error for the dev overlay (F-033) before calling this.
-            liveGateInteractionRef.current = undefined
+            // Preserve null after resume/Stop; only a live marker may fall back to tail detection.
+            if (liveGateInteractionRef.current !== null) {
+                liveGateInteractionRef.current = undefined
+            }
         },
     }
 
@@ -1108,6 +1111,10 @@ export const useAgentConversation = ({
             if (timer) clearTimeout(timer)
         }
     }, [hitlPending, refreshInteractions])
+    // Fence a delayed approval release before the host's durable cancel request settles.
+    const voidPendingResume = useCallback(() => {
+        liveGateInteractionRef.current = null
+    }, [])
 
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const handleStop = useCallback(() => {
@@ -1115,9 +1122,9 @@ export const useAgentConversation = ({
         if (last && last.role === "assistant") setStopped(true)
         // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
         // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
-        liveGateInteractionRef.current = null
+        voidPendingResume()
         stop()
-    }, [stop])
+    }, [stop, voidPendingResume])
 
     // ── D9 teardown: `useSessionChat` releases this mount's claim on the session's chat ──
     // No `stop()` here: a streaming run is preserved past the unmount on purpose (#5724), and
@@ -1240,6 +1247,7 @@ export const useAgentConversation = ({
         connectionWarning: errorBoundary.connectionWarning,
         turns,
         send,
+        voidPendingResume,
         stop: handleStop,
         regenerate: regenerateTurn,
         rewind,

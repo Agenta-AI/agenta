@@ -27,6 +27,11 @@ const {capabilitiesViaAtom, snapshotViaAtom, resumeContinuation} = vi.hoisted(()
     resumeContinuation: vi.fn(),
 }))
 
+const approvalRecord = vi.hoisted(() => ({
+    defer: false,
+    resolve: undefined as (() => void) | undefined,
+}))
+
 vi.mock("@agenta/playground/agent-chat", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/playground/agent-chat")>()
     return {
@@ -50,6 +55,12 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
         ...actual,
         revalidateSessionMountsAtom: atom(null, () => {}),
         revalidateSessionRecordsAtom: atom(null, () => {}),
+        recordInteractionAnswerAtom: atom(null, async () => {
+            if (!approvalRecord.defer) return
+            await new Promise<void>((resolve) => {
+                approvalRecord.resolve = resolve
+            })
+        }),
         // The hydration seam's records fetch: "no server history" for these tests.
         fetchSessionRecordsAtom: atom(null, () => ({records: null, refreshed: null})),
         fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
@@ -298,6 +309,8 @@ const mount = (store: ReturnType<typeof createStore>, entityId: string, sessionI
     )
 
 beforeEach(() => {
+    approvalRecord.defer = false
+    approvalRecord.resolve = undefined
     FakeEventSource.instances = []
     vi.stubGlobal("EventSource", FakeEventSource)
     fetchMock.mockReset()
@@ -526,6 +539,33 @@ describe("useAgentConversation", () => {
 
         await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2), {timeout: 5000})
         expect(getSessionTurnId(sessionId)).toBeUndefined()
+    })
+
+    it("voids an approval resume before its delayed interaction write releases", async () => {
+        approvalRecord.defer = true
+        fetchMock
+            .mockResolvedValueOnce(approvalResponse())
+            .mockResolvedValueOnce(streamResponse("unexpected resume"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "needs approval"})
+        })
+        await waitFor(() => expect(result.current.approvals.open).toBe(true), {timeout: 5000})
+
+        act(() => result.current.approvals.respond(true))
+        await waitFor(() => expect(approvalRecord.resolve).toBeTypeOf("function"), {timeout: 5000})
+        act(() => result.current.voidPendingResume())
+        await act(async () => {
+            approvalRecord.resolve?.()
+            await Promise.resolve()
+        })
+        await new Promise((resolve) => setTimeout(resolve, 100))
+
+        expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
     it("survives a revision switch mid-stream instead of aborting the turn", async () => {
@@ -862,6 +902,9 @@ describe("useAgentConversation", () => {
             expect(result.current.runStatus).toBe("running")
             expect(result.current.turns.some((turn) => turn.status.isError)).toBe(false)
         })
+
+        // Stop must target the accepted execution even before any transcript turnId arrives.
+        expect(getSessionTurnId(sessionId)).toBe("turn-1")
 
         // Durable: only the user turn. Nothing here can repaint the failure after a reload, and
         // the count the adoption guard compares stays equal to what the log holds.

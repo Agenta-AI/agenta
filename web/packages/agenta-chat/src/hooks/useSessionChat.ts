@@ -57,6 +57,7 @@ export const useSessionChat = ({
     // Publish + rebind AFTER commit, not during render. No dep array — the callbacks close over
     // every render's values, so a preserved chat never runs the closures of a stale render.
     useEffect(() => {
+        provisional.hooks = hooks
         const live = commitSessionChat(sessionId, provisional)
         if (live !== chat) rebind((n) => n + 1)
     })

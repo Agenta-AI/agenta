@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {cancelSessionStream} from "@agenta/entities/session"
+import {cancelSessionExecution} from "@agenta/entities/session"
 import {Button} from "@agenta/ui/ui"
 
 /** Cooperative Stop stays pending until shared liveness removes the control. */
@@ -12,13 +12,15 @@ export const StopButton = ({sessionId, projectId}: {sessionId: string; projectId
         setStaleMessage(null)
         try {
             // Cross-device Stop has no locally observed execution id to guard with.
-            const outcome = await cancelSessionStream({sessionId, projectId})
-            if (outcome.status === "failed") setState("failed")
-            if (outcome.status === "idle") setState("idle")
-            // A stale response means another execution replaced the offered turn.
-            if (outcome.status === "stale") {
+            const outcome = await cancelSessionExecution({sessionId, projectId})
+            if (!outcome) setState("failed")
+            if (outcome && !outcome.conflict && outcome.execution.state === "idle") setState("idle")
+            // A conflict means another execution replaced the offered turn.
+            if (outcome?.conflict) {
                 setState("idle")
-                setStaleMessage(outcome.message)
+                setStaleMessage(
+                    "That run had already finished. The session is running something else now.",
+                )
             }
         } catch {
             // Network rejection must leave Stop retryable.

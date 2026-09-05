@@ -78,7 +78,8 @@ log = get_module_logger(__name__)
 # keys carry a one-hour TTL (`env.sessions.alive_ttl_seconds`), so waiting for a lease to
 # expire would mean waiting an hour. The runner beats every 30 seconds and the beat is
 # mirrored onto `session_streams.updated_at`, so the age of that column is what actually says
-# whether anyone is still running the turn. 90 seconds is three missed beats.
+# whether anyone is still running the turn. Durable Stop uses three missed beats (90 seconds);
+# flag-off deployments retain the pre-milestone ten-beat threshold (300 seconds).
 #
 # Raise AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS if healthy turns are being settled.
 ORPHAN_THRESHOLD_SECONDS: int = env.agenta.sessions.watchdog.stale_heartbeat_seconds
@@ -91,8 +92,8 @@ ORPHAN_THRESHOLD_SECONDS: int = env.agenta.sessions.watchdog.stale_heartbeat_sec
 # It does NOT decide whether such a row owes its turn an ending. It used to, on the premise that
 # a not-running row's last turn had already reached a terminal record — a premise a durable Stop
 # broke, because settlement clears `is_running` before the runner has written that record. The
-# ending is now decided by asking the records plane, on the ninety-second clock. See the second
-# selection in `run_orphan_sweep`.
+# ending is now decided by asking the records plane on the configured stale-heartbeat clock. See
+# the second selection in `run_orphan_sweep`.
 IDLE_THRESHOLD_SECONDS: int = env.agenta.sessions.watchdog.idle_grace_seconds
 
 # How often the watchdog runs.

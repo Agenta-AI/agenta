@@ -181,6 +181,10 @@
         "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
         "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
         "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
+        "AGENTA_RUNNER_INTERNAL_URL": "http://${{runner.RAILWAY_PRIVATE_DOMAIN}}:8765",
+        "AGENTA_RUNNER_TOKEN": {
+          "secret": "AGENTA_RUNNER_TOKEN"
+        },
         "AGENTA_STORE_ENDPOINT_URL": "http://${{seaweedfs.RAILWAY_PRIVATE_DOMAIN}}:8333",
         "AGENTA_STORE_ACCESS_KEY": {
           "secret": "AGENTA_STORE_ACCESS_KEY"
