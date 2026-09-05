@@ -44,9 +44,11 @@ async def user_profile(request: Request):
 
     user = await db_manager.get_user_with_id(user_id=request.state.user_id)
 
-    assert user is not None, (
-        "User not found. Please ensure that the user_id is specified correctly."
-    )
+    if user is None:
+        raise HTTPException(
+            status_code=400,
+            detail="User not found. Please ensure that the user_id is specified correctly.",
+        )
 
     # Fall back to created_at if no update has occurred
     updated_at = user.updated_at or user.created_at

@@ -17,6 +17,7 @@
         ".": "./src/index.ts",
         "./adapters": "./src/adapters/index.ts",
         "./agent": "./src/agent/index.ts",
+        "./changes": "./src/changes/index.ts",
         "./drawers/shared": "./src/drawers/shared/index.ts",
         "./drill-in": "./src/DrillInView/index.ts",
         "./gatewayTool": "./src/gatewayTool/index.ts",

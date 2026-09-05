@@ -36,6 +36,15 @@ test("latest revision flags classify prompt apps", () => {
     expect(appMatchesType(artifact, "custom", {flags: {is_custom: true}})).toBe(true)
 })
 
+test("an app with only a seed revision is not reused as a completion prompt", () => {
+    const artifact = app({is_application: true})
+    const revisions = selectLatestAppRevisions([
+        {workflow_id: artifact.id, version: "0", flags: {is_agent: true}},
+    ])
+
+    expect(appMatchesType(artifact, "completion", revisions.get(artifact.id))).toBe(false)
+})
+
 test("latest revision selection ignores v0 records", () => {
     const latestByAppId = selectLatestAppRevisions([
         {

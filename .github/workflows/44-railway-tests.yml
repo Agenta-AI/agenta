@@ -630,9 +630,8 @@ jobs:
       checks: write
       pull-requests: write
       contents: read
-    # 30 min was too tight: retries on slow tests (e.g. the 7-minute trace test x3
-    # attempts) plus real fixes need headroom before the job gets cut off mid-run.
-    timeout-minutes: 45
+    # Reserve time around Playwright's 20-minute limit for setup and artifacts.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -708,7 +707,7 @@ jobs:
           # run-tests.ts runs every source for the layer (package vitest, then
           # playwright) and resolves the playwright dir from --layer itself,
           # skipping internally when that dir is empty. No pre-guard needed.
-          CMD=(pnpm exec tsx playwright/scripts/run-tests.ts --layer "${{ matrix.layer }}" --reporter=html,github)
+          CMD=(pnpm exec tsx playwright/scripts/run-tests.ts --layer "${{ matrix.layer }}")
 
           if [ -n "${{ inputs.coverage }}" ]; then CMD+=(--coverage "${{ inputs.coverage }}"); fi
           if [ -n "${{ inputs.lens }}" ]; then CMD+=(--lens "${{ inputs.lens }}"); fi
@@ -749,11 +748,12 @@ jobs:
       - name: Upload test results
         id: upload_results
         uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
           name: playwright-results-${{ matrix.layer }}
           path: |
             web/tests/results/oss/
+            !web/tests/results/oss/state.json
             web/packages/*/test-results/
           retention-days: 7
 
@@ -772,7 +772,7 @@ jobs:
             echo "| --- | --- | --- |"
             echo "| Workflow run | [Open run](${RUN_URL}) | Current run |"
             echo "| Playwright report | ${REPORT_URL:+[Artifact](${REPORT_URL})} | Layer: \`${{ matrix.layer }}\` |"
-            echo "| Playwright results | ${RESULTS_URL:+[Artifact](${RESULTS_URL})} | Uploaded on failures only |"
+            echo "| Playwright results | ${RESULTS_URL:+[Artifact](${RESULTS_URL})} | Includes interrupted runs |"
             echo "| AGENTA_WEB_URL | \`${AGENTA_WEB_URL}\` | |"
             echo "| AGENTA_API_URL | \`${AGENTA_API_URL}\` | |"
             echo "| AGENTA_SERVICES_URL | \`${AGENTA_SERVICES_URL}\` | |"

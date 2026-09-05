@@ -392,3 +392,13 @@ export {
     flushAgentAutoCommitAtom,
     registerAgentAutoCommitHandler,
 } from "./agentAutoCommit"
+// Agent version history: the drawer's rows, and the revert that commits an old config as a new one.
+export {
+    buildVersionRows,
+    buildRevertMessage,
+    revertAgentRevisionAtom,
+    revertAgentRevision,
+    REVERT_MESSAGE_PREFIX,
+    type AgentVersionRow,
+    type RevertAgentRevisionParams,
+} from "./agentVersionHistory"

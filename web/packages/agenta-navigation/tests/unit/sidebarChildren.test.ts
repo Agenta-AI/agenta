@@ -134,6 +134,73 @@ describe("resolveChildren grouping", () => {
         expect(children.some((child) => child.isGroupLabel)).toBe(false)
     })
 
+    const reorder = {
+        groupZone: "agents",
+        rowZone: (key: string) => (key.startsWith("agent:") ? `sessions:${key}` : undefined),
+    }
+
+    it("marks headings and their rows with the zone they arrange in", () => {
+        const children = resolveChildren(grouped, ready(refs, {groups, reorder}), "/w/w1/p/p1")
+
+        expect(children.map((child) => [child.title, child.dragItem?.zone])).toEqual([
+            ["Pinned", "agents"],
+            // Pinned rows have no row zone: pin order is its own concept.
+            ["Morning poem", undefined],
+            ["Ops Assistant", "agents"],
+            ["Daily update", "sessions:agent:a1"],
+            ["Docs audit", "sessions:agent:a1"],
+        ])
+    })
+
+    it("leaves a heading that resolves to no id undraggable", () => {
+        const opted = {
+            ...reorder,
+            groupId: (key: string) => (key.startsWith("agent:") ? key.slice(6) : undefined),
+        }
+        const children = resolveChildren(
+            grouped,
+            ready(refs, {groups, reorder: opted}),
+            "/w/w1/p/p1",
+        )
+
+        const pinnedHeading = children.find((child) => child.title === "Pinned")
+        const agentHeading = children.find((child) => child.title === "Ops Assistant")
+        expect(pinnedHeading?.dragItem).toBeUndefined()
+        expect(agentHeading?.dragItem?.id).toBe("a1")
+    })
+
+    it("marks nothing when the source offers no zones", () => {
+        const children = resolveChildren(grouped, ready(refs, {groups}), "/w/w1/p/p1")
+
+        expect(children.every((child) => child.dragItem === undefined)).toBe(true)
+    })
+
+    it("marks no rows under a collapsed heading, since none are rendered", () => {
+        const children = resolveChildren(
+            grouped,
+            ready(refs, {groups, reorder, collapsedKeys: ["agent:a1"]}),
+            "/w/w1/p/p1",
+        )
+
+        expect(children.map((child) => child.title)).toEqual([
+            "Pinned",
+            "Morning poem",
+            "Ops Assistant",
+        ])
+    })
+
+    it("arranges an ungrouped entity's rows in the entity's own zone", () => {
+        const flat = {...entity({}), dragZone: "agents"}
+        const children = resolveChildren(flat, ready(refs), "/w/w1/p/p1")
+
+        expect(children.map((child) => child.dragItem?.zone)).toEqual([
+            "agents",
+            "agents",
+            "agents",
+        ])
+        expect(children[0].dragItem?.kind).toBe("row")
+    })
+
     it("drops rows whose group the source never declared", () => {
         const children = resolveChildren(
             grouped,

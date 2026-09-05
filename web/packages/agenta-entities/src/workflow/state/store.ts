@@ -16,6 +16,7 @@ import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {createBatchFetcher, stripEmptyCollectionsDeep} from "@agenta/shared/utils"
 import isEqual from "fast-deep-equal"
 import {atom, type Getter} from "jotai"
+import {atomWithStorage} from "jotai/utils"
 import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -100,21 +101,39 @@ const workflowRecencyScore = (workflow: Workflow | null | undefined): number => 
     )
 }
 
+/**
+ * Is `a` a later revision than `b`?
+ *
+ * VERSION decides, not the timestamp. `version` is server-assigned and monotonic; `created_at` is
+ * not a reliable ordering — revisions committed by the agent land in bursts that tie to the second,
+ * and a tie used to fall through to array order and pick an arbitrary revision as "latest". That
+ * wrong pick then persisted: it is written to the `latestRevision` key, mirrored to IndexedDB, and
+ * that query is disabled whenever the key is already populated, so nothing ever revalidated it.
+ *
+ * Timestamps stay as the tie-break for revisions that share a version.
+ */
+export const isLaterWorkflowRevision = (
+    a: Workflow | null | undefined,
+    b: Workflow | null | undefined,
+): boolean => {
+    if (!a) return false
+    if (!b) return true
+    const aVersion = Number(a.version ?? 0)
+    const bVersion = Number(b.version ?? 0)
+    if (aVersion !== bVersion) return aVersion > bVersion
+    return workflowRecencyScore(a) > workflowRecencyScore(b)
+}
+
 const pickMostRecentWorkflowRevision = (
     revisions: (Workflow | null | undefined)[],
 ): Workflow | null => {
     let latest: Workflow | null = null
-    let latestScore = -1
 
     for (const revision of revisions) {
         if (!revision) continue
         // Skip v0 revisions (auto-created initial revisions with no useful data)
         if ((revision.version ?? 0) === 0) continue
-        const score = workflowRecencyScore(revision)
-        if (!latest || score > latestScore) {
-            latest = revision
-            latestScore = score
-        }
+        if (isLaterWorkflowRevision(revision, latest)) latest = revision
     }
 
     return latest
@@ -738,11 +757,13 @@ export const workflowRevisionRefsByWorkflowAtomFamily = atomFamily((workflowId: 
     atom<WorkflowRevisionRef[]>((get) => {
         const query = get(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
         const refs = query.data?.refs ?? []
+        // Version first, timestamp only as a tie-break — see `isLaterWorkflowRevision`.
         return [...refs].sort((a, b) => {
+            const byVersion = (b.version ?? 0) - (a.version ?? 0)
+            if (byVersion !== 0) return byVersion
             const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
             const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
-            if (bTime !== aTime) return bTime - aTime
-            return (b.version ?? 0) - (a.version ?? 0)
+            return bTime - aTime
         })
     }),
 )
@@ -803,10 +824,7 @@ export const workflowRevisionsQueryAtomFamily = atomFamily((variantId: string) =
                             revision.workflow_id,
                             projectId,
                         ])
-                        if (
-                            !cachedLatest ||
-                            workflowRecencyScore(revision) > workflowRecencyScore(cachedLatest)
-                        ) {
+                        if (isLaterWorkflowRevision(revision, cachedLatest)) {
                             queryClient.setQueryData(
                                 ["workflows", "latestRevision", revision.workflow_id, projectId],
                                 revision,
@@ -1457,19 +1475,79 @@ export const workflowAgentTemplateOverlayAtomFamily = atomFamily((revisionId: st
     }),
 )
 
-export const workflowBuildKitEnabledAtomFamily = atomFamily((_revisionId: string) =>
-    atom<boolean>(true),
-)
-
 /** The build kit's UI state: the master on/off plus the platform ops the user switched off. */
 export interface BuildKitUiState {
     enabled: boolean
     disabledOps: string[]
 }
 
-/** Platform ops switched off individually, by `op`. Empty = all on. In-memory like the master flag. */
-export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((_revisionId: string) =>
-    atom<string[]>([]),
+const DEFAULT_BUILD_KIT_UI_STATE: BuildKitUiState = {enabled: true, disabledOps: []}
+
+/**
+ * The build-kit UI state per revision, persisted so an individually switched-off tool (or the
+ * master off) survives a page reload (#6493). One localStorage record keyed by revision id, the
+ * scoped-persistence pattern; the two atom families below expose per-revision read/write access.
+ */
+const buildKitUiStateByRevisionAtom = atomWithStorage<Record<string, BuildKitUiState>>(
+    "agenta:playground:build-kit",
+    {},
+    undefined,
+    {getOnInit: true},
+)
+
+/**
+ * Read one revision's UI state, normalizing whatever localStorage held. jotai already falls back to
+ * the default record on invalid JSON, but valid-JSON-of-the-wrong-shape (tampering, a future shape
+ * change) still passes through, so guard each field: a non-array `disabledOps` would otherwise throw
+ * in the switches' `.filter`.
+ */
+const readBuildKitUiState = (get: Getter, revisionId: string): BuildKitUiState => {
+    const entry: unknown = get(buildKitUiStateByRevisionAtom)[revisionId]
+    if (!entry || typeof entry !== "object") return DEFAULT_BUILD_KIT_UI_STATE
+    const {enabled, disabledOps} = entry as Partial<BuildKitUiState>
+    return {
+        enabled: typeof enabled === "boolean" ? enabled : true,
+        disabledOps: Array.isArray(disabledOps)
+            ? disabledOps.filter((op): op is string => typeof op === "string")
+            : [],
+    }
+}
+
+const writeBuildKitUiState = (
+    get: Getter,
+    set: (next: Record<string, BuildKitUiState>) => void,
+    revisionId: string,
+    patch: Partial<BuildKitUiState>,
+) => {
+    const all = get(buildKitUiStateByRevisionAtom)
+    set({...all, [revisionId]: {...readBuildKitUiState(get, revisionId), ...patch}})
+}
+
+export const workflowBuildKitEnabledAtomFamily = atomFamily((revisionId: string) =>
+    atom(
+        (get) => readBuildKitUiState(get, revisionId).enabled,
+        (get, set, next: boolean) =>
+            writeBuildKitUiState(
+                get,
+                (value) => set(buildKitUiStateByRevisionAtom, value),
+                revisionId,
+                {enabled: next},
+            ),
+    ),
+)
+
+/** Platform ops switched off individually, by `op`. Empty = all on. Persisted like the master flag. */
+export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((revisionId: string) =>
+    atom(
+        (get) => readBuildKitUiState(get, revisionId).disabledOps,
+        (get, set, next: string[]) =>
+            writeBuildKitUiState(
+                get,
+                (value) => set(buildKitUiStateByRevisionAtom, value),
+                revisionId,
+                {disabledOps: next},
+            ),
+    ),
 )
 
 /**
