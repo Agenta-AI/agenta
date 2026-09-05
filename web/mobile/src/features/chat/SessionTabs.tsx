@@ -57,8 +57,10 @@ export const SessionTabs = ({
     const {open: filesOpen, openPane} = useSessionFilesPane(agentId ?? sessionId, sessionId)
     // The singular GET /sessions/streams redirects with a root-path-less Location
     // behind the /api prefix and lands on the web app — use the proven query POST.
+    // The key leads with `session-stream`, not `mobile`: a rename patches by key PREFIX, so a
+    // nested key would never be reached and the browser title would lag until the next refetch.
     const query = useQuery({
-        queryKey: ["mobile", "session-stream", projectId, sessionId],
+        queryKey: ["session-stream", projectId, sessionId],
         queryFn: async () => (await querySessionStreams({sessionId, projectId}))?.[0] ?? null,
         enabled: Boolean(projectId && sessionId),
         staleTime: 30_000,

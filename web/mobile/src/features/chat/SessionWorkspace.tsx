@@ -212,12 +212,36 @@ export const SessionWorkspace = ({
     // The same surface treatment the desktop layout applies: the workspace is a recessed ground,
     // the config panel is raised above it, the conversation is the recessed canvas. Without these
     // the shared panels render flat — identical components, missing surface ladder.
-    const pane =
-        showConfig && entityId ? (
-            <ConfigPane entityId={entityId} sessionId={sessionId} />
-        ) : (
-            <SessionsPane agentId={agentId} base={base} activeSessionId={sessionId} />
-        )
+    //
+    // The config surface is a whole schema form, so unmounting it on a toggle put ~100ms of main
+    // thread behind every one. It mounts on first use (the `next/dynamic` chunk still loads on
+    // demand) and is `display:none` after that, as the desktop's session panes are.
+    const wantsConfig = showConfig && Boolean(entityId)
+    const configMountedRef = useRef(false)
+    if (wantsConfig) configMountedRef.current = true
+    // The pane stays on screen for its closing slide, so it keeps the half it was already showing
+    // rather than swapping content mid-motion.
+    const lastPaneKindRef = useRef<"config" | "sessions">("sessions")
+    if (showPane) lastPaneKindRef.current = wantsConfig ? "config" : "sessions"
+    const paneKind = showPane ? (wantsConfig ? "config" : "sessions") : lastPaneKindRef.current
+    const pane = (
+        <>
+            {configMountedRef.current && entityId ? (
+                <div
+                    className={
+                        configSlide.keepMounted && paneKind === "config"
+                            ? "h-full min-h-0 w-full"
+                            : "hidden"
+                    }
+                >
+                    <ConfigPane entityId={entityId} sessionId={sessionId} />
+                </div>
+            ) : null}
+            {configSlide.keepMounted && paneKind === "sessions" ? (
+                <SessionsPane agentId={agentId} base={base} activeSessionId={sessionId} />
+            ) : null}
+        </>
+    )
 
     return (
         <AppShell workspaceId={workspaceId} projectId={projectId}>
@@ -258,7 +282,7 @@ export const SessionWorkspace = ({
                             onResize={(size) => setPaneSize(size)}
                             onResizeEnd={(size) => setStoredPaneWidth(size)}
                             className="h-full"
-                            pane={configSlide.keepMounted ? pane : null}
+                            pane={pane}
                             fill={
                                 <SplitPane
                                     paneSide="end"
