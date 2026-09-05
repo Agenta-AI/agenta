@@ -3,7 +3,7 @@ import {createElement, type ReactNode} from "react"
 import {projectIdAtom} from "@agenta/shared/state"
 import {act, renderHook, waitFor} from "@testing-library/react"
 import {createStore, Provider} from "jotai"
-import {beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const mocks = vi.hoisted(() => ({
     fetchSessionSnapshot: vi.fn(),
@@ -39,6 +39,11 @@ describe("useSessionLivePreview", () => {
         vi.clearAllMocks()
         Object.defineProperty(document, "visibilityState", {configurable: true, value: "visible"})
         vi.stubGlobal("EventSource", class {})
+    })
+
+    afterEach(() => {
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
     })
 
     it("loads and adopts the transcript through the snapshot before following its cursor", async () => {
@@ -84,5 +89,54 @@ describe("useSessionLivePreview", () => {
                 expect.objectContaining({sessionId: "session-1", after: 7}),
             ),
         )
+    })
+
+    it("backs reconnects off and resets the delay only after ready", async () => {
+        vi.useFakeTimers()
+        mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 7}})
+        mocks.querySessionTranscript.mockResolvedValue([])
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const wrapper = ({children}: {children: ReactNode}) =>
+            createElement(Provider, {store}, children)
+
+        renderHook(
+            () =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: true,
+                    runningElsewhere: true,
+                    onDisconnect: vi.fn(),
+                }),
+            {wrapper},
+        )
+        await act(async () => {
+            await Promise.resolve()
+            await Promise.resolve()
+            await Promise.resolve()
+        })
+        expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(1)
+
+        const first = mocks.connectSessionLiveEvents.mock.calls[0][0]
+        act(() => first.onDisconnect({reason: "connection_lost", reconnect: true}))
+        await act(async () => vi.advanceTimersByTimeAsync(4_999))
+        expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(1)
+        await act(async () => vi.advanceTimersByTimeAsync(1))
+        expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(2)
+
+        const second = mocks.connectSessionLiveEvents.mock.calls[1][0]
+        act(() => second.onDisconnect({reason: "connection_lost", reconnect: true}))
+        await act(async () => vi.advanceTimersByTimeAsync(9_999))
+        expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(2)
+        await act(async () => vi.advanceTimersByTimeAsync(1))
+        expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(3)
+
+        const third = mocks.connectSessionLiveEvents.mock.calls[2][0]
+        act(() => third.onReady({watermark: 7}))
+        act(() => third.onDisconnect({reason: "connection_lost", reconnect: true}))
+        await act(async () => vi.advanceTimersByTimeAsync(4_999))
+        expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(3)
+        await act(async () => vi.advanceTimersByTimeAsync(1))
+        expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(4)
     })
 })

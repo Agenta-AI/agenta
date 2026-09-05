@@ -28,6 +28,9 @@ import {
     type SessionLiveEventsConnection,
 } from "../transport/sessionLiveEvents"
 
+const RECONNECT_INITIAL_DELAY_MS = 5_000
+const RECONNECT_MAX_DELAY_MS = 30_000
+
 export const useSessionLivePreview = ({
     sessionId,
     sharedReaderAdvertised,
@@ -60,6 +63,7 @@ export const useSessionLivePreview = ({
         let connection: SessionLiveEventsConnection | null = null
         let disposed = false
         let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+        let reconnectDelayMs = RECONNECT_INITIAL_DELAY_MS
         let generation = 0
         let durable = createSessionDurableEventState()
 
@@ -67,6 +71,16 @@ export const useSessionLivePreview = ({
             connection?.close()
             connection = null
             clearPreview(sessionId)
+        }
+
+        const scheduleReconnect = () => {
+            if (disposed || reconnectTimer) return
+            const delay = reconnectDelayMs
+            reconnectDelayMs = Math.min(reconnectDelayMs * 2, RECONNECT_MAX_DELAY_MS)
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null
+                void hydrateAndOpen()
+            }, delay)
         }
 
         const hydrateAndOpen = async () => {
@@ -83,7 +97,11 @@ export const useSessionLivePreview = ({
                     projectId,
                     throughSequence: snapshot.read.latest_sequence,
                 })
-                if (records === null || disposed || currentGeneration !== generation) return
+                if (records === null) {
+                    scheduleReconnect()
+                    return
+                }
+                if (disposed || currentGeneration !== generation) return
                 await onDisconnectRef.current({
                     messages: transcriptToMessages(records) ?? [],
                     recordCount: records.length,
@@ -114,15 +132,12 @@ export const useSessionLivePreview = ({
                 },
                 onReady: ({watermark}) => {
                     durable = completeSessionDurableEventReplay(durable, watermark)
+                    reconnectDelayMs = RECONNECT_INITIAL_DELAY_MS
                 },
                 onDisconnect: ({reconnect}) => {
                     close()
                     onDisconnectRef.current()
-                    if (!reconnect || disposed || reconnectTimer) return
-                    reconnectTimer = setTimeout(() => {
-                        reconnectTimer = null
-                        void hydrateAndOpen()
-                    }, 500)
+                    if (reconnect) scheduleReconnect()
                 },
             })
         }
