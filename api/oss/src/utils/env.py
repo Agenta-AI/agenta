@@ -525,7 +525,7 @@ def _parse_sessions_late_output() -> Literal["quarantine", "reject"]:
 
 
 def _sessions_durable_stop_enabled() -> bool:
-    return (os.getenv("AGENTA_SESSIONS_DURABLE_STOP") or "false").lower() in _TRUTHY
+    return (os.getenv("AGENTA_SESSIONS_DURABLE_STOP") or "true").lower() in _TRUTHY
 
 
 def _parse_sessions_watchdog_stale_heartbeat_seconds() -> int:

@@ -31,12 +31,15 @@ def test_unknown_late_output_policy_falls_back_to_quarantine(monkeypatch):
 
 @pytest.mark.parametrize(
     ("durable_stop", "expected"),
-    [("false", 300), ("true", 90)],
+    [(None, 90), ("", 90), ("false", 300), ("true", 90)],
 )
-def test_watchdog_default_preserves_flag_off_threshold(
+def test_watchdog_default_respects_durable_stop_setting(
     monkeypatch, durable_stop, expected
 ):
-    monkeypatch.setenv("AGENTA_SESSIONS_DURABLE_STOP", durable_stop)
+    if durable_stop is None:
+        monkeypatch.delenv("AGENTA_SESSIONS_DURABLE_STOP", raising=False)
+    else:
+        monkeypatch.setenv("AGENTA_SESSIONS_DURABLE_STOP", durable_stop)
     monkeypatch.delenv(
         "AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS", raising=False
     )
