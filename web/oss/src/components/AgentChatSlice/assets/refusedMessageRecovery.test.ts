@@ -3,6 +3,7 @@ import {describe, expect, it, vi} from "vitest"
 import {
     canRestoreRefusedSend,
     restoreRefusedDraft,
+    restoreHeldRefusedSend,
     restoreRefusedSend,
 } from "./refusedMessageRecovery"
 
@@ -43,5 +44,29 @@ describe("restoreRefusedDraft", () => {
         ).toBe(false)
         expect(setMarkdown).not.toHaveBeenCalled()
         expect(restoreAttachments).not.toHaveBeenCalled()
+    })
+
+    it("restores a held refusal once after the newer draft is sent", () => {
+        let markdown = "newer draft"
+        const setMarkdown = vi.fn((next: string) => {
+            markdown = next
+        })
+        const restoreAttachments = vi.fn()
+        const stagedFiles = [{uid: "file-1", name: "brief.pdf"}]
+        const slot = {current: {text: "refused message", stagedFiles}}
+        const editor = {getMarkdown: () => markdown, setMarkdown} as never
+
+        expect(restoreHeldRefusedSend(slot, editor, restoreAttachments)).toBe(false)
+
+        markdown = ""
+        expect(restoreHeldRefusedSend(slot, editor, restoreAttachments)).toBe(true)
+        expect(setMarkdown).toHaveBeenCalledTimes(1)
+        expect(setMarkdown).toHaveBeenCalledWith("refused message")
+        expect(restoreAttachments).toHaveBeenCalledTimes(1)
+        expect(restoreAttachments).toHaveBeenCalledWith(stagedFiles)
+
+        expect(restoreHeldRefusedSend(slot, editor, restoreAttachments)).toBe(false)
+        expect(setMarkdown).toHaveBeenCalledTimes(1)
+        expect(restoreAttachments).toHaveBeenCalledTimes(1)
     })
 })

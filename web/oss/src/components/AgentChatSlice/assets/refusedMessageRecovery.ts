@@ -14,6 +14,10 @@ interface RefusedSend<TAttachment> {
     stagedFiles?: TAttachment[]
 }
 
+interface RefusedSendSlot<TAttachment> {
+    current: RefusedSend<TAttachment> | undefined
+}
+
 export const restoreRefusedSend = <TAttachment>(
     editor: RichChatInputHandle | null,
     sent: RefusedSend<TAttachment>,
@@ -23,4 +27,17 @@ export const restoreRefusedSend = <TAttachment>(
     if (sent.text && !restoreRefusedDraft(editor, sent.text)) return false
     if (sent.stagedFiles?.length) restoreAttachments(sent.stagedFiles)
     return true
+}
+
+export const restoreHeldRefusedSend = <TAttachment>(
+    slot: RefusedSendSlot<TAttachment>,
+    editor: RichChatInputHandle | null,
+    restoreAttachments: (files: TAttachment[]) => void,
+): boolean => {
+    const sent = slot.current
+    if (!sent) return false
+    slot.current = undefined
+    if (restoreRefusedSend(editor, sent, restoreAttachments)) return true
+    slot.current = sent
+    return false
 }

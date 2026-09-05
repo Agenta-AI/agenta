@@ -56,7 +56,7 @@ import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/cons
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
-import {canRestoreRefusedSend, restoreRefusedSend} from "./assets/refusedMessageRecovery"
+import {restoreHeldRefusedSend} from "./assets/refusedMessageRecovery"
 import AgentComposerDock from "./components/AgentComposerDock"
 import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
@@ -432,15 +432,27 @@ const AgentConversation = ({
             }),
         [messages],
     )
+    const refusedSendRef = useRef<QueuedMessage | undefined>(undefined)
+    const restoreRefusedSend = useCallback(
+        () => restoreHeldRefusedSend(refusedSendRef, richInputRef.current, restoreAttachments),
+        [restoreAttachments],
+    )
     // Restore a refused send after the editor's synchronous submit clear.
     useEffect(() => {
         if (!error || !isSessionBusyRefusal(error)) return
         requestAnimationFrame(() => {
-            const editor = richInputRef.current
-            if (!canRestoreRefusedSend(editor)) return
-            takeLastSent((sent) => restoreRefusedSend(editor, sent, restoreAttachments))
+            if (!refusedSendRef.current) refusedSendRef.current = takeLastSent()
+            restoreRefusedSend()
         })
-    }, [error, restoreAttachments, takeLastSent])
+    }, [error, restoreRefusedSend, takeLastSent])
+
+    const handleComposerChange = useCallback(
+        (text: string) => {
+            composer.handleComposerChange(text)
+            if (!text.trim()) restoreRefusedSend()
+        },
+        [composer.handleComposerChange, restoreRefusedSend],
+    )
 
     useEffect(() => {
         const status: SessionRunStatus = error
@@ -862,7 +874,7 @@ const AgentConversation = ({
                                         onStop={handleStop}
                                         stopping={stopping}
                                         richInputRef={richInputRef}
-                                        composer={composer}
+                                        composer={{...composer, handleComposerChange}}
                                         attachments={attachments}
                                         onboardingChat={onboardingChat}
                                         voice={voice}
