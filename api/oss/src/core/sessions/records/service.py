@@ -6,12 +6,16 @@ from oss.src.core.sessions.records.dtos import (
     RECORD_SETTLED_BY_ATTRIBUTE,
     SETTLED_BY_WATCHDOG,
     TERMINAL_RECORD_TYPE,
+    SessionDurableEventsReplay,
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
+    SessionRecordsPage,
+    SessionRecordsReadState,
 )
 from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
+from oss.src.core.sessions.records.events import durable_events_from_records
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -295,6 +299,55 @@ class RecordsService:
         return await self.records_dao.get_event(
             project_id=project_id,
             record_id=record_id,
+        )
+
+    async def get_records_page(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        offset: int,
+        limit: int,
+        through_sequence: int,
+    ) -> SessionRecordsPage:
+        return await self.records_dao.get_records_page(
+            project_id=project_id,
+            session_id=session_id,
+            offset=offset,
+            limit=limit,
+            through_sequence=through_sequence,
+        )
+
+    async def get_read_state(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> SessionRecordsReadState:
+        return await self.records_dao.get_read_state(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
+    async def get_events_after(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        after: int,
+    ):
+        replay = await self.records_dao.get_records_after(
+            project_id=project_id,
+            session_id=session_id,
+            after=after,
+        )
+        return SessionDurableEventsReplay(
+            events=durable_events_from_records(
+                replay.records,
+                include_legacy=after == 0,
+                watermark=replay.watermark,
+            ),
+            watermark=replay.watermark,
         )
 
     async def latest_message_per_session(

@@ -1,6 +1,6 @@
 import zlib
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 from uuid import UUID
 
 from orjson import dumps, loads
@@ -13,6 +13,7 @@ except ImportError:
 
 from oss.src.core.sessions.records.dtos import (
     MAX_LIVE_FRAME_BYTES,
+    SessionDurableEvent,
     SessionLiveFrame,
     SessionRecordEvent,
 )
@@ -123,12 +124,36 @@ class LiveFrameMessage(BaseModel):
     frame: SessionLiveFrame
 
 
+class DurableEventMessage(BaseModel):
+    organization_id: Optional[UUID] = None
+    project_id: UUID
+    kind: Literal["event"] = "event"
+    event: SessionDurableEvent
+
+
+LiveRelayMessage = Union[LiveFrameMessage, DurableEventMessage]
+
+
+def deserialize_live_relay_message(*, payload: bytes) -> LiveRelayMessage:
+    raw = loads(zlib.decompress(payload))
+    if raw.get("kind") == "frame":
+        return LiveFrameMessage.model_validate(raw)
+    if raw.get("kind") == "event":
+        return DurableEventMessage.model_validate(raw)
+    raise ValueError("message is not a live relay envelope")
+
+
 def deserialize_record(*, payload: bytes) -> RecordMessage:
     return RecordMessage.model_validate(loads(zlib.decompress(payload)))
 
 
-def deserialize_live_frame(*, payload: bytes) -> LiveFrameMessage:
-    return LiveFrameMessage.model_validate(loads(zlib.decompress(payload)))
+async def _append_live_relay_message(redis, *, message: dict) -> None:
+    await redis.xadd(
+        name=LIVE_FRAME_STREAM_NAME,
+        fields={"data": zlib.compress(dumps(message, default=_orjson_default))},
+        maxlen=env.sessions.live_stream_maxlen,
+        approximate=False,
+    )
 
 
 async def publish_live_frame(
@@ -158,13 +183,7 @@ async def publish_live_frame(
             "kind": "frame",
             "frame": frame.model_dump(mode="json"),
         }
-        event_bytes = zlib.compress(dumps(message, default=_orjson_default))
-        await redis.xadd(
-            name=LIVE_FRAME_STREAM_NAME,
-            fields={"data": event_bytes},
-            maxlen=env.sessions.live_stream_maxlen,
-            approximate=False,
-        )
+        await _append_live_relay_message(redis, message=message)
         if frame.frame_index % _FRAME_TRIM_INTERVAL == 0:
             try:
                 await trim_live_stream(redis)
@@ -177,6 +196,39 @@ async def publish_live_frame(
             session_id=frame.session_id,
             execution_id=frame.execution_id,
             frame_index=frame.frame_index,
+            exc_info=True,
+        )
+        return False
+
+
+async def publish_durable_event(
+    *,
+    organization_id: Optional[UUID] = None,
+    project_id: UUID,
+    event: SessionDurableEvent,
+) -> bool:
+    redis = _get_redis()
+    if redis is None:
+        log.warning(
+            "[RECORDS] Durable Redis not configured; durable event not published"
+        )
+        return False
+
+    try:
+        message = {
+            "organization_id": str(organization_id) if organization_id else None,
+            "project_id": str(project_id),
+            "kind": "event",
+            "event": event.model_dump(mode="json"),
+        }
+        await _append_live_relay_message(redis, message=message)
+        return True
+    except Exception:
+        log.error(
+            "[RECORDS] Failed to publish durable event",
+            session_id=event.session_id,
+            execution_id=event.execution_id,
+            sequence=event.sequence,
             exc_info=True,
         )
         return False

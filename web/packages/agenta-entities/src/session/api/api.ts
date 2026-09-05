@@ -18,6 +18,7 @@ import {
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
     sessionCancelExecutionResponseSchema,
+    sessionSnapshotSchema,
     sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
     sessionStreamSchema,
@@ -30,6 +31,7 @@ import {
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionRecord,
+    type SessionSnapshot,
     type SessionExpansion,
     type SessionOrigin,
     type SessionStream,
@@ -89,11 +91,85 @@ export async function querySessionRecords({
     return validated?.records ?? null
 }
 
+export interface QuerySessionTranscriptParams extends QueryRecordsParams {
+    /** Snapshot watermark. Rows committed later are replayed over SSE, never mixed into paging. */
+    throughSequence: number
+    pageSize?: number
+}
+
+/** Load the transcript fixed at a snapshot watermark, following bounded backend pages. */
+export async function querySessionTranscript({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    lowPriority,
+    throughSequence,
+    pageSize = 100,
+}: QuerySessionTranscriptParams): Promise<SessionRecord[] | null> {
+    if (!projectId || !sessionId) return null
+
+    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
+    const records: SessionRecord[] = []
+    const visitedOffsets = new Set<number>()
+    let offset = 0
+
+    while (!visitedOffsets.has(offset)) {
+        visitedOffsets.add(offset)
+        const data = await callFern("[querySessionTranscript]", () =>
+            client.queryRecords(
+                {
+                    session_id: sessionId,
+                    windowing: {
+                        offset,
+                        limit: Math.max(1, Math.min(200, pageSize)),
+                        through_sequence: throughSequence,
+                    },
+                },
+                projectScopedRequest(projectId, appId, abortSignal),
+            ),
+        )
+        if (!data) return null
+
+        const validated = safeParseWithLogging(
+            sessionRecordsQueryResponseSchema,
+            data,
+            "[querySessionTranscript]",
+        )
+        if (!validated) return null
+        records.push(...validated.records)
+        if (!validated.windowing) return records
+        offset = validated.windowing.offset
+    }
+
+    return null
+}
+
 export interface SessionScopedParams {
     sessionId: string
     projectId: string
     appId?: string
     abortSignal?: AbortSignal
+}
+
+/** Fetch the lifecycle/pending state and durable sequence watermark used to reconnect safely. */
+export async function fetchSessionSnapshot({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<SessionSnapshot | null> {
+    if (!projectId || !sessionId) return null
+
+    const data = await callFern("[fetchSessionSnapshot]", () =>
+        getSessionsClient().getSessionSnapshot(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]")
 }
 
 export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {

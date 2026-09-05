@@ -42,7 +42,11 @@ import {useSetAtom, useStore} from "jotai"
 import {latestTurnId} from "../assets/agentTurn"
 import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {filesToParts} from "../assets/files"
-import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
+import {
+    isSessionTranscript,
+    loadSessionMessages,
+    type SessionTranscript,
+} from "../assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
@@ -235,6 +239,8 @@ export const useAgentConversation = ({
     const recordWatermarkRef = useRef<number | undefined>(
         store.get(sessionRecordCountsReadAtom)[sessionId],
     )
+    // Durable sequence coverage is connection-local and must never be stored as a row count.
+    const sequenceWatermarkRef = useRef<number | undefined>(undefined)
 
     // The registry owns the `Chat` and its transport for the life of the session, so the request
     // builder must read the CURRENT entity — capturing `entityId` by value would send every turn
@@ -405,14 +411,17 @@ export const useAgentConversation = ({
      * trigger, the message count only a floor. Returns whether it adopted.
      */
     const adoptServerTranscript = useCallback(
-        (transcript: SessionTranscript | null): boolean => {
-            if (!transcript) return false
-            const {messages: serverMsgs, recordCount} = transcript
+        (transcript: unknown): boolean => {
+            if (!isSessionTranscript(transcript)) return false
+            const {messages: serverMsgs, recordCount, sequenceCursor} = transcript
             const adopt = shouldAdoptServerTranscript({
-                serverRecordCount: recordCount,
+                serverRecordCount: sequenceCursor ?? recordCount,
                 serverMessageCount: serverMsgs.length,
                 localMessageCount: messagesRef.current.length,
-                watermark: recordWatermarkRef.current,
+                watermark:
+                    sequenceCursor === undefined
+                        ? recordWatermarkRef.current
+                        : sequenceWatermarkRef.current,
                 busy: busyRef.current,
             })
             if (!adopt) return false
@@ -425,6 +434,7 @@ export const useAgentConversation = ({
             // refetch) can both see the pre-adoption transcript. It is this watermark, not the
             // on-screen length, that keeps the guard order-independent.
             recordWatermarkRef.current = recordCount
+            if (sequenceCursor !== undefined) sequenceWatermarkRef.current = sequenceCursor
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
             return true
@@ -689,7 +699,10 @@ export const useAgentConversation = ({
     // flips to "submitted", effects run in declaration order, so clearing here is what stops the
     // persist below from filing a locally-extended transcript under a server watermark.
     useEffect(() => {
-        if (status === "submitted" || status === "streaming") recordWatermarkRef.current = undefined
+        if (status === "submitted" || status === "streaming") {
+            recordWatermarkRef.current = undefined
+            sequenceWatermarkRef.current = undefined
+        }
     }, [status])
 
     // Persist the conversation whenever its stream settles (skip mid-stream), under whatever
@@ -732,9 +745,37 @@ export const useAgentConversation = ({
 
     // Push-signal revalidation: same guarded adoption as revalidate-on-open, callable at any
     // time (a watch relay tick, app foregrounding). Guards make it idempotent and stream-safe.
-    const revalidate = useCallback(() => {
-        void loadSessionMessages(sessionId, adoptServerTranscript).then(adoptServerTranscript)
-    }, [adoptServerTranscript, sessionId])
+    const revalidate = useCallback(
+        async (transcript?: SessionTranscript): Promise<boolean> => {
+            const adoptOrConfirm = (candidate: unknown): boolean => {
+                if (!isSessionTranscript(candidate)) return false
+                const candidateWatermark = candidate.sequenceCursor ?? candidate.recordCount
+                const currentWatermark =
+                    candidate.sequenceCursor === undefined
+                        ? recordWatermarkRef.current
+                        : sequenceWatermarkRef.current
+                return (
+                    adoptServerTranscript(candidate) ||
+                    (currentWatermark ?? 0) >= candidateWatermark
+                )
+            }
+            if (isSessionTranscript(transcript)) {
+                return adoptOrConfirm(transcript)
+            }
+            revalidateSessionRecords(sessionId)
+            let adopted = false
+            let refreshed: SessionTranscript | null
+            try {
+                refreshed = await loadSessionMessages(sessionId, (fresh) => {
+                    if (adoptOrConfirm(fresh)) adopted = true
+                })
+            } catch {
+                return false
+            }
+            return adoptOrConfirm(refreshed) || adopted
+        },
+        [adoptServerTranscript, revalidateSessionRecords, sessionId],
+    )
 
     const previewMessages = useSessionLivePreview({
         sessionId,

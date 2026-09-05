@@ -13,7 +13,11 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStream,
     SessionStreamQueryFlags,
 )
-from oss.src.core.sessions.records.dtos import SessionLiveFrame, SessionRecord
+from oss.src.core.sessions.records.dtos import (
+    SessionLiveFrame,
+    SessionRecord,
+    SessionRecordsReadState,
+)
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionData,
@@ -148,13 +152,33 @@ class SessionStreamsResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class SessionTranscriptWindowing(BaseModel):
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=100, ge=1, le=200)
+    through_sequence: int = Field(ge=0)
+
+
 class SessionRecordQueryRequest(BaseModel):
     session_id: str
+    windowing: Optional[SessionTranscriptWindowing] = None
 
 
 class SessionRecordsQueryResponse(BaseModel):
     count: int
     records: List[SessionRecord]
+    windowing: Optional[SessionTranscriptWindowing] = None
+
+
+class SessionSnapshotPending(BaseModel):
+    inputs: List[Any] = Field(default_factory=list)
+    interactions: List[SessionInteraction] = Field(default_factory=list)
+
+
+class SessionSnapshotResponse(BaseModel):
+    session: SessionStream
+    execution: Optional[SessionTurn] = None
+    pending: SessionSnapshotPending
+    read: SessionRecordsReadState
 
 
 class SessionRecordResponse(BaseModel):

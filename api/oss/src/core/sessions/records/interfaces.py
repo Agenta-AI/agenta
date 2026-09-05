@@ -5,6 +5,9 @@ from oss.src.core.sessions.records.dtos import (
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
+    SessionRecordsPage,
+    SessionRecordsReplay,
+    SessionRecordsReadState,
 )
 
 
@@ -30,6 +33,34 @@ class RecordsDAOInterface:
         project_id: UUID,
         session_id: str,
     ) -> List[SessionRecord]:
+        raise NotImplementedError
+
+    async def get_records_page(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        offset: int,
+        limit: int,
+        through_sequence: int,
+    ) -> SessionRecordsPage:
+        raise NotImplementedError
+
+    async def get_read_state(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> SessionRecordsReadState:
+        raise NotImplementedError
+
+    async def get_records_after(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        after: int,
+    ) -> SessionRecordsReplay:
         raise NotImplementedError
 
     async def get_event(
