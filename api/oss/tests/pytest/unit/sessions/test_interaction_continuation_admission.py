@@ -652,7 +652,7 @@ async def test_next_send_resumes_the_same_open_continuation():
         project_id=project_id, session_id="session-1"
     )
 
-    assert resumed is True
+    assert resumed == commands.command.target_turn_id
     assert delivery.delivered[0].id == commands.command.id
     assert delivery.delivered[0].target_turn_id == "continuation-1"
 
@@ -700,7 +700,7 @@ async def test_exhausted_continuation_stays_recoverable(monkeypatch):
     resumed = await service.resume_recoverable_continuation(
         project_id=project_id, session_id="session-1"
     )
-    assert resumed is True
+    assert resumed == commands.command.target_turn_id
     assert commands.command.state == SessionCommandState.pending
     assert delivery.delivered[-1].id == command.id
     assert delivery.delivered[-1].target_turn_id != "continuation-1"
@@ -1226,7 +1226,7 @@ async def test_recovery_hooks_are_disabled_with_durable_approvals(monkeypatch):
         await service.resume_recoverable_continuation(
             project_id=project_id, session_id="session-1"
         )
-        is False
+        is None
     )
     assert await service.settle_abandoned_commands(now=datetime.now(timezone.utc)) == 0
     assert delivery.delivered == []
@@ -1298,7 +1298,7 @@ async def test_a_late_delivery_failure_does_not_demote_a_running_continuation():
         project_id=project_id, session_id="session-1"
     )
 
-    assert resumed is True
+    assert resumed == "continuation-1"
     assert delivery.delivered
     # The turn the runner is already running keeps `running`. The recoverable projection is
     # refused, so the card never asks the user to retry work that is under way.
@@ -1349,7 +1349,7 @@ async def test_a_send_after_the_budget_is_spent_reopens_the_continuation(monkeyp
         project_id=project_id, session_id="session-1"
     )
 
-    assert resumed is True
+    assert resumed == commands.command.target_turn_id
     # The exhausted attempt is recorded as ended and the command now targets a NEW execution:
     # redelivering the old id is what spent the budget in the first place.
     assert commands.command.target_turn_id != spent.target_turn_id

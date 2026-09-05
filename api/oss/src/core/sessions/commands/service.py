@@ -804,15 +804,15 @@ class SessionCommandsService:
 
     async def resume_recoverable_continuation(
         self, *, project_id: UUID, session_id: str
-    ) -> bool:
+    ) -> Optional[str]:
         if not (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue):
-            return False
+            return None
         command = await self._dao.fetch_resumable_continuation(
             project_id=project_id,
             session_id=session_id,
         )
         if command is None:
-            return False
+            return None
         if (
             command.kind == SessionCommandKind.continue_interaction
             and not env.agenta.sessions.durable_approvals
@@ -820,17 +820,17 @@ class SessionCommandsService:
             command.kind == SessionCommandKind.continue_input
             and not env.agenta.sessions.queue
         ):
-            return False
+            return None
         execution_id = command.target_turn_id
         if execution_id is None or self._executions is None:
-            return True
+            return execution_id
         execution = await self._executions.fetch_execution(
             project_id=project_id,
             session_id=session_id,
             execution_id=execution_id,
         )
         if execution is None:
-            return True
+            return execution_id
         if execution.state == SessionExecutionState.running:
             # A stale heartbeat is not a fencing token: a partitioned runner can still be
             # executing the approved side effect. Only the watchdog may turn `running` into
@@ -846,10 +846,14 @@ class SessionCommandsService:
             #   * PARKED on its own approval — the continuation raised a new gate and stopped
             #     to wait on the user. Nothing is in flight to destroy, so a Send is a steer
             #     and stays allowed. Allow.
-            return not await self._execution_is_parked_on_a_gate(
-                project_id=project_id,
-                session_id=session_id,
-                execution_id=execution_id,
+            return (
+                None
+                if await self._execution_is_parked_on_a_gate(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=execution_id,
+                )
+                else execution_id
             )
         if (
             command.state
@@ -888,10 +892,8 @@ class SessionCommandsService:
                 execution=execution,
             )
             if command is None:
-                return True
-            execution_id = command.target_turn_id
-            if execution_id is None:
-                return True
+                return execution_id
+            execution_id = command.target_turn_id or execution_id
         if command.kind == SessionCommandKind.continue_input:
             admission: Any = InputContinuationAdmission(
                 command=command,
@@ -914,7 +916,7 @@ class SessionCommandsService:
             receipt = None
         if receipt is None or receipt.status != "accepted":
             await self._mark_continuation_recoverable(admission, receipt)
-        return True
+        return execution_id
 
     async def _reopen_continuation_attempt(
         self,

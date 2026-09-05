@@ -277,12 +277,12 @@ class WorkflowsService:
         self.embeds_service = embeds_service
         self.static_catalog = static_catalog
         self._watch = watch_publisher
-        self._session_continuation_resumer: Optional[Callable[..., Awaitable[bool]]] = (
-            None
-        )
+        self._session_continuation_resumer: Optional[
+            Callable[..., Awaitable[Optional[str]]]
+        ] = None
 
     def set_session_continuation_resumer(
-        self, callback: Callable[..., Awaitable[bool]]
+        self, callback: Callable[..., Awaitable[Optional[str]]]
     ) -> None:
         self._session_continuation_resumer = callback
 
@@ -298,9 +298,11 @@ class WorkflowsService:
             or self._session_continuation_resumer is None
         ):
             return False
-        return await self._session_continuation_resumer(
-            project_id=project_id,
-            session_id=session_id,
+        return bool(
+            await self._session_continuation_resumer(
+                project_id=project_id,
+                session_id=session_id,
+            )
         )
 
     @staticmethod
