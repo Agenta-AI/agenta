@@ -23,8 +23,10 @@ export const attachmentsBySession = new Map<string, StagedUpload<unknown>[]>()
 
 /** In-memory turn guards are never restored across page loads. */
 export const turnIdBySession = new Map<string, string>()
+const supersededTurnIdsBySession = new Map<string, Set<string>>()
 
 export const setSessionTurnId = (sessionId: string, turnId: string) => {
+    if (supersededTurnIdsBySession.get(sessionId)?.has(turnId)) return
     turnIdBySession.set(sessionId, turnId)
 }
 
@@ -33,6 +35,12 @@ export const getSessionTurnId = (sessionId: string): string | undefined =>
 
 /** Clear the old guard before starting a replacement turn. */
 export const clearSessionTurnId = (sessionId: string) => {
+    const current = turnIdBySession.get(sessionId)
+    if (current) {
+        const superseded = supersededTurnIdsBySession.get(sessionId) ?? new Set<string>()
+        superseded.add(current)
+        supersededTurnIdsBySession.set(sessionId, superseded)
+    }
     turnIdBySession.delete(sessionId)
 }
 
@@ -46,5 +54,6 @@ export const clearSessionEphemera = (sessionId: string) => {
     composerDraftBySession.delete(sessionId)
     attachmentsBySession.delete(sessionId)
     turnIdBySession.delete(sessionId)
+    supersededTurnIdsBySession.delete(sessionId)
     freshSessionIds.delete(sessionId)
 }
