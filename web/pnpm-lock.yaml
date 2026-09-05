@@ -2165,6 +2165,9 @@ importers:
       '@cloudflare/stream-react':
         specifier: ^1.9.3
         version: 1.9.3(react@19.2.6)
+      '@floating-ui/react':
+        specifier: ^0.27.13
+        version: 0.27.19(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@lexical/code':
         specifier: ^0.46.0
         version: 0.46.0(typescript@5.9.3)
@@ -2349,9 +2352,6 @@ importers:
         specifier: ^11.1.1
         version: 11.1.1
     devDependencies:
-      '@floating-ui/react':
-        specifier: ^0.27.13
-        version: 0.27.19(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@phosphor-icons/core':
         specifier: 2.1.1
         version: 2.1.1
