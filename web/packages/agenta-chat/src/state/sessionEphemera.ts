@@ -30,6 +30,13 @@ export const setSessionTurnId = (sessionId: string, turnId: string) => {
     turnIdBySession.set(sessionId, turnId)
 }
 
+/** The runner may accept the same execution again when an approval resumes it. */
+export const setAcceptedSessionTurnId = (sessionId: string, turnId: string) => {
+    if (!turnId.trim()) return
+    supersededTurnIdsBySession.get(sessionId)?.delete(turnId)
+    turnIdBySession.set(sessionId, turnId)
+}
+
 export const getSessionTurnId = (sessionId: string): string | undefined =>
     turnIdBySession.get(sessionId)
 
