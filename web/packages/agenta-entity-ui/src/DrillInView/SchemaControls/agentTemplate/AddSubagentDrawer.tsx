@@ -240,13 +240,10 @@ export function AddSubagentDrawer({
             width={INTEGRATION_DRAWER_WIDTH}
             destroyOnClose
             title={
-                <div className="flex flex-col gap-0.5">
-                    <div className="flex items-center gap-2">
-                        <Robot size={16} />
-                        <span className="text-sm font-medium">Add subagents</span>
-                    </div>
-                    <span className="text-xs font-normal text-[var(--ag-colorTextSecondary)]">
-                        Pick the agents this agent can call.
+                <div className="flex min-w-0 items-center gap-2">
+                    <span className="shrink-0 text-sm font-medium">Add subagents</span>
+                    <span className="min-w-0 truncate text-xs font-normal text-[var(--ag-colorTextSecondary)]">
+                        · Pick the agents this agent can call.
                     </span>
                 </div>
             }

@@ -56,8 +56,6 @@ export interface ConfigItemDrawerProps {
     mode: "create" | "edit"
     /** Item title shown in the header. */
     title: ReactNode
-    /** Leading icon shown before the title. */
-    icon?: ReactNode
     /** Type badge shown next to the title (e.g. "definition", "MCP server"). */
     badge?: {text: ReactNode; color?: string}
     /** One-line description of the item type, shown muted under the title. */
@@ -94,7 +92,6 @@ export function ConfigItemDrawer({
     open,
     mode,
     title,
-    icon,
     badge,
     subtitle,
     footerNote,
@@ -123,29 +120,26 @@ export function ConfigItemDrawer({
             // so the content component's logic only runs while the drawer is open.
             destroyOnClose
             title={
+                // One line: title · subtitle. Stacked, the subtitle doubled the header height for
+                // a few muted words, and the leading icon repeated the row the drawer opened from.
                 <div className="flex min-w-0 items-center gap-2">
-                    {icon ? <span className="flex shrink-0 items-center">{icon}</span> : null}
-                    <div className="min-w-0">
-                        <div className="flex min-w-0 items-center gap-2">
-                            <span className="truncate text-sm font-medium">{title}</span>
-                            {badge ? (
-                                <Badge
-                                    variant={badgeVariantFor(badge.color)}
-                                    // `text-xs` displaces Badge's `text-badge-md` and
-                                    // brings no line-height; antd Tag keeps its absolute
-                                    // tagLineHeight (lineHeightSM x fontSizeSM = 22.4px).
-                                    className="shrink-0 text-xs font-normal leading-[22.4px]"
-                                >
-                                    {badge.text}
-                                </Badge>
-                            ) : null}
-                        </div>
-                        {subtitle ? (
-                            <div className="truncate text-xs font-normal text-[var(--ag-zinc-5)]">
-                                {subtitle}
-                            </div>
-                        ) : null}
-                    </div>
+                    <span className="shrink-0 truncate text-sm font-medium">{title}</span>
+                    {badge ? (
+                        <Badge
+                            variant={badgeVariantFor(badge.color)}
+                            // `text-xs` displaces Badge's `text-badge-md` and brings no
+                            // line-height; antd Tag keeps its absolute tagLineHeight
+                            // (lineHeightSM x fontSizeSM = 22.4px).
+                            className="shrink-0 text-xs font-normal leading-[22.4px]"
+                        >
+                            {badge.text}
+                        </Badge>
+                    ) : null}
+                    {subtitle ? (
+                        <span className="min-w-0 truncate text-xs font-normal text-[var(--ag-zinc-5)]">
+                            · {subtitle}
+                        </span>
+                    ) : null}
                 </div>
             }
             extra={headerExtra ?? null}
