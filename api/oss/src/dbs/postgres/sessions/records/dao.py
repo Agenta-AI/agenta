@@ -289,6 +289,7 @@ class RecordsDAO(RecordsDAOInterface):
                     RecordDBE.project_id == project_id,
                     RecordDBE.session_id == session_id,
                     RecordDBE.deleted_at.is_(None),
+                    RecordDBE.quarantined_at.is_(None),
                     or_(
                         RecordDBE.sequence.is_(None),
                         RecordDBE.sequence <= through_sequence,
@@ -392,6 +393,7 @@ class RecordsDAO(RecordsDAOInterface):
                             RecordDBE.project_id == project_id,
                             RecordDBE.session_id == session_id,
                             RecordDBE.deleted_at.is_(None),
+                            RecordDBE.quarantined_at.is_(None),
                             sequence_filter,
                         )
                         .order_by(*self._transcript_order())

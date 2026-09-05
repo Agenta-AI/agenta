@@ -403,8 +403,13 @@ class RecordsWorker(StreamConsumer):
                 watermark = max(
                     (result.sequence or 0 for result in session_results), default=0
                 )
+                visible_results = [
+                    result
+                    for result in session_results
+                    if result.quarantined_at is None
+                ]
                 for event in durable_events_from_records(
-                    session_results, watermark=watermark
+                    visible_results, watermark=watermark
                 ):
                     await publish_durable_event(
                         organization_id=project_batch["organization_id"],

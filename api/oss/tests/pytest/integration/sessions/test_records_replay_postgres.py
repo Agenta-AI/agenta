@@ -128,6 +128,56 @@ async def test_snapshot_n_followed_by_events_after_n_loses_no_commit():
             )
 
 
+async def test_quarantined_records_are_absent_from_snapshot_pages_and_replay():
+    project_id = uuid.uuid4()
+    session_id = f"quarantine-{uuid.uuid4()}"
+    dao = RecordsDAO(engine=get_analytics_engine())
+    service = RecordsService(records_dao=dao)
+
+    try:
+        await dao.append(event=_event(project_id, session_id, "visible-before"))
+        await dao.append(
+            event=_event(project_id, session_id, "refused-tail").model_copy(
+                update={"quarantined_at": datetime.now(timezone.utc)}
+            )
+        )
+        await dao.append(event=_event(project_id, session_id, "visible-after"))
+
+        read = await dao.get_read_state(project_id=project_id, session_id=session_id)
+        page = await dao.get_records_page(
+            project_id=project_id,
+            session_id=session_id,
+            offset=0,
+            limit=10,
+            through_sequence=read.latest_sequence,
+        )
+        replay = await service.get_events_after(
+            project_id=project_id,
+            session_id=session_id,
+            after=0,
+        )
+
+        assert read.latest_sequence == 3
+        assert [record.sequence for record in page.records] == [1, 3]
+        assert [event.sequence for event in replay.events] == [1, 3]
+        assert [event.payload.content for event in replay.events] == [
+            "visible-before",
+            "visible-after",
+        ]
+        assert replay.watermark == 3
+    finally:
+        async with get_analytics_engine().session() as session:
+            await session.execute(
+                delete(RecordDBE).where(RecordDBE.project_id == project_id)
+            )
+            await session.execute(
+                delete(SessionSequenceCursorDBE).where(
+                    SessionSequenceCursorDBE.project_id == project_id,
+                    SessionSequenceCursorDBE.session_id == session_id,
+                )
+            )
+
+
 async def test_legacy_session_replays_ordered_history_and_is_incomplete():
     project_id = uuid.uuid4()
     session_id = f"legacy-{uuid.uuid4()}"

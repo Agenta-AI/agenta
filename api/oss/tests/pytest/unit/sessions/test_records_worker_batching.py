@@ -206,3 +206,52 @@ async def test_durable_event_is_published_only_after_record_commit_returns():
         )
 
     publisher.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_quarantined_committed_record_is_not_published_as_a_durable_event():
+    project_id = uuid4()
+
+    class Service:
+        async def append_many(self, *, events):
+            return [
+                SessionRecord(
+                    record_id=uuid4(),
+                    session_id="sess-1",
+                    project_id=project_id,
+                    sequence=1,
+                    turn_id="turn-1",
+                    record_type="message",
+                    record_source="agent",
+                    attributes={"type": "message", "text": "refused tail"},
+                    quarantined_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(timezone.utc),
+                )
+            ]
+
+    worker = RecordsWorker(
+        service=Service(),
+        redis_client=None,
+        stream_name="streams:records",
+        consumer_group="worker-records",
+    )
+
+    with patch(
+        "oss.src.tasks.asyncio.sessions.records_worker.publish_durable_event"
+    ) as publisher:
+        total_appended, processed_ids = await worker.process_batch(
+            [
+                (
+                    b"1-0",
+                    {
+                        b"data": _payload(
+                            project_id=project_id, session_id="sess-1", record_index=0
+                        )
+                    },
+                )
+            ]
+        )
+
+    assert total_appended == 1
+    assert processed_ids == [b"1-0"]
+    publisher.assert_not_awaited()
