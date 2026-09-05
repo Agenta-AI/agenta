@@ -1,5 +1,6 @@
 import {useCallback} from "react"
 
+import {appendSetupPreamble, type AgentSetupSelection} from "@agenta/entities/workflow"
 import {useCreateAgent as useCreateAgentCore} from "@agenta/home-ui"
 import {projectIdAtom} from "@agenta/shared/state"
 import {App} from "antd"
@@ -28,6 +29,12 @@ interface CreateAgentParams {
     onCommitted?: (ids: {appId: string; revisionId: string}) => void
     /** Mark the seed as an explicit "go" so the chat auto-sends it once the model is ready (no Start). */
     autoSendSeed?: boolean
+    /**
+     * What the pre-create setup step decided (#6043). Rides along on the seed message so the
+     * builder knows which accounts are ready, which the user declined, and how much it may do
+     * unattended — see `appendSetupPreamble`. Omitted when the step didn't run.
+     */
+    setup?: AgentSetupSelection
 }
 
 /**
@@ -53,6 +60,7 @@ export function useCreateAgent() {
             entityId,
             onCommitted,
             autoSendSeed,
+            setup,
         }: CreateAgentParams = {}) => {
             const created = await createAgent({name, entityId})
             if (!created) return false
@@ -72,11 +80,12 @@ export function useCreateAgent() {
                 })
             }
 
-            if (seedMessage?.trim()) {
+            const seed = setup ? appendSetupPreamble(seedMessage ?? "", setup) : (seedMessage ?? "")
+            if (seed.trim()) {
                 store.set(addFirstRunSeedAtom, {
                     appId,
                     revisionId,
-                    seedMessage: seedMessage.trim(),
+                    seedMessage: seed.trim(),
                     autoSend: autoSendSeed,
                 })
             }

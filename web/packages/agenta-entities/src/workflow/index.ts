@@ -487,14 +487,36 @@ export {
     categorySlug,
     templateBuilderMessage,
     templateCategories,
+    templateConnections,
+    templatePrimaryProvider,
     templateProviderSlugs,
     templateToolCount,
 } from "./agentTemplates"
 export type {
     AgentStarterTemplate,
+    TemplateConnection,
     RequiredIntegration,
     TemplateExampleSession,
     TemplateTool,
 } from "./agentTemplates"
+
+export {
+    detectAccounts,
+    detectAccountsFromTemplate,
+    detectAccountsFromText,
+    requiredAccounts,
+    suggestionAccounts,
+} from "./detectAccounts"
+export type {DetectedAccount} from "./detectAccounts"
+
+export {
+    appendSetupPreamble,
+    buildSetupPreamble,
+    canCreateAgent,
+    isAccountSatisfied,
+    outstandingRequired,
+    setupStatus,
+} from "./agentSetup"
+export type {AgentSetupSelection, AgentSetupStatus} from "./agentSetup"
 
 export {agentRosterSearchAtom, matchesAgentQuery} from "./state/agentRoster"

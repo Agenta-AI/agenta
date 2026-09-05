@@ -49,6 +49,10 @@ export interface TemplateStripProps {
     className?: string
 }
 
+/** The pager chevrons, matching /m's `TemplatePagerButton`: a flat, transparent square with a
+ * strong NEUTRAL border. The primary colour is reserved for what the user is choosing. */
+const PAGER_BUTTON_CLASS = "border-foreground bg-transparent shadow-none disabled:bg-transparent"
+
 /** Icon-only header control (arrows + menu); spreads rest props for antd Dropdown's trigger. */
 const HeaderButton = ({label, className, ...rest}: {label: string} & ButtonProps) => (
     <Button
@@ -264,7 +268,7 @@ const TemplateStrip = ({
                                 label="Previous templates"
                                 disabled={atStart}
                                 onClick={() => pageBy(-1)}
-                                className="border-primary text-primary"
+                                className={PAGER_BUTTON_CLASS}
                             >
                                 <ChevronLeft size={14} strokeWidth={2} />
                             </HeaderButton>
@@ -272,7 +276,7 @@ const TemplateStrip = ({
                                 label="Next templates"
                                 disabled={atEnd}
                                 onClick={() => pageBy(1)}
-                                className="border-primary text-primary"
+                                className={PAGER_BUTTON_CLASS}
                             >
                                 <ChevronRight size={14} strokeWidth={2} />
                             </HeaderButton>

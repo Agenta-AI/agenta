@@ -1,13 +1,14 @@
 import {type RefObject, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {type AgentSetupSelection, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {generateId} from "@agenta/shared/utils"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {type UIMessage} from "ai"
 import {useAtomValue} from "jotai"
 
 import {
+    CONNECT_STEP_MODE,
     IDE_INSTALL_COMMAND,
     TEMPLATE_STRIP_MODE,
 } from "@/oss/components/pages/agent-home/assets/constants"
@@ -101,9 +102,6 @@ export const useOnboardingChat = ({
         // Resolve BEFORE clearing the composer below — `resolveTemplateName` compares against the
         // live text, so reading it after the clear would always see "" and never match the seed.
         const templateName = stripProvenance.resolveTemplateName(text)
-        setPendingFirstTurn(text || null)
-        // The text becomes the sent first turn — clear the composer so it doesn't linger into the chat.
-        richInputRef.current?.setMarkdown("")
         // Free-text submit (never a template — those go straight through `onboarding.commit` from the
         // template pickers below, source "template"), so no double-fire with those call sites.
         if (text) {
@@ -112,9 +110,39 @@ export const useOnboardingChat = ({
                 intentValue: classifyAgentIntent(text),
             })
         }
+        // Connect step on (#6043): this click opens the step, it does not send. Leave the composer
+        // alone — the description stays visible and editable above the card, and nothing may look
+        // sent until the step's own Create actually commits (which the `committingSeed` effect
+        // below then picks up, exactly as it does for a template click).
+        if (CONNECT_STEP_MODE) {
+            onboarding.commit(text, templateName)
+            return
+        }
+        setPendingFirstTurn(text || null)
+        // The text becomes the sent first turn — clear the composer so it doesn't linger into the chat.
+        richInputRef.current?.setMarkdown("")
         onboarding.commit(text, templateName)
         if (TEMPLATE_STRIP_MODE) stripProvenance.clear()
     }, [onboarding, onboardingPosthog, stripProvenance.clear, stripProvenance.resolveTemplateName])
+
+    // The step's "Create agent". The composer stayed editable behind the card, so the description
+    // is re-read here — the draft the step opened with is one edit out of date.
+    const handleCreateWithSetup = useCallback(
+        (selection: AgentSetupSelection) => {
+            if (!onboarding || onboarding.committing) return
+            const live = richInputRef.current?.getMarkdown()
+            if (live === undefined) {
+                onboarding.commitWithSetup(selection)
+                return
+            }
+            const text = live.trim()
+            onboarding.commitWithSetup(selection, {
+                seedMessage: text,
+                name: stripProvenance.resolveTemplateName(text),
+            })
+        },
+        [onboarding, richInputRef, stripProvenance.resolveTemplateName],
+    )
 
     // Also cover the template-click commit path (which goes straight through `commit()`, not the
     // Create button): whenever a commit is in flight, show its seed as the optimistic turn and clear
@@ -247,6 +275,7 @@ export const useOnboardingChat = ({
         pendingFirstTurn,
         pendingFirstMessage,
         handleCreateAgent,
+        handleCreateWithSetup,
         streamIdeBubble,
         ideHandoffActive,
         handleStartOver,

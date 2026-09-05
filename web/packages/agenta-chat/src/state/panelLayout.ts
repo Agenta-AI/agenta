@@ -55,26 +55,40 @@ export const configPanelCollapsedPreferenceAtom = atomWithStorage<boolean | null
 )
 
 /**
- * The default when nothing is stored: hidden on a phone, visible everywhere else.
+ * The default when nothing is stored: hidden on a phone, visible everywhere else — and hidden
+ * anywhere a surface asks for it via `hostCollapsed` (first run, which leads with the question
+ * rather than a form for an agent that does not exist yet).
  *
  * A stored preference always wins, in both directions. Collapsing the pane on a phone is one tap
- * on the `»` reveal button in the chat header, and that tap stores `false`, so the phone default
- * never fights a user who wants the config pane.
+ * on the `»` reveal button in the chat header, and that tap stores `false`, so neither the phone
+ * default nor a host's default ever fights a user who wants the config pane.
  */
 export const resolveConfigPanelCollapsed = (
     stored: boolean | null,
     phoneViewport: boolean,
-): boolean => stored ?? phoneViewport
+    hostCollapsed = false,
+): boolean => stored ?? (phoneViewport || hostCollapsed)
+
+/**
+ * Mount-scoped override, NOT persisted: a surface that must LAND with the pane collapsed no
+ * matter what the session pages stored (the create-an-agent surface leads with the question,
+ * not a form) sets this while mounted. Any user write through `configPanelCollapsedAtom`
+ * clears it, so the reveal button works immediately and the stored preference takes over
+ * from that moment.
+ */
+export const configPanelCollapsedOverrideAtom = atom<boolean | null>(null)
 
 /** Build mode's config pane collapsed to 0. Separate from the maximize flag: collapsing the pane
  * in Build is not the same as switching to Chat. */
 export const configPanelCollapsedAtom = atom(
     (get) =>
+        get(configPanelCollapsedOverrideAtom) ??
         resolveConfigPanelCollapsed(
             get(configPanelCollapsedPreferenceAtom),
             get(phoneViewportAtom),
         ),
     (_get, set, collapsed: boolean) => {
+        set(configPanelCollapsedOverrideAtom, null)
         set(configPanelCollapsedPreferenceAtom, collapsed)
     },
 )

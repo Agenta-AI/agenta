@@ -6,7 +6,7 @@ import {
     categorySlug,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
-import {TemplateGallery} from "@agenta/home-ui"
+import {TEMPLATE_GALLERY_COPY, TemplateGallery} from "@agenta/home-ui"
 import {PageLayout} from "@agenta/ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {App} from "antd"
@@ -16,7 +16,7 @@ import {useRouter} from "next/router"
 
 import {urlAtom} from "@/oss/state/url"
 
-import {BROWSE_RAIL_MODE, TEMPLATES_GALLERY} from "../../assets/constants"
+import {BROWSE_RAIL_MODE} from "../../assets/constants"
 import TemplateSetupDrawer, {type TemplateSetupResult} from "../TemplateSetupDrawer"
 
 /**
@@ -92,8 +92,8 @@ const TemplatesGalleryPage = () => {
             // column width with the rest of the app; the categories and search sit inside it.
             <PageLayout
                 className={clsx(pageContentWidthClass, "grow min-h-0")}
-                title={TEMPLATES_GALLERY.title}
-                description={TEMPLATES_GALLERY.subtitle}
+                title={TEMPLATE_GALLERY_COPY.title}
+                description={TEMPLATE_GALLERY_COPY.subtitle}
             >
                 {/* No `title`/`subtitle` here — `PageLayout` carries them in the toolbar layout. */}
                 <TemplateGallery
@@ -101,7 +101,7 @@ const TemplatesGalleryPage = () => {
                     category={active}
                     onCategoryChange={handleCategoryChange}
                     onSelectTemplate={handleSelectTemplate}
-                    searchPlaceholder={TEMPLATES_GALLERY.searchPlaceholder}
+                    searchPlaceholder={TEMPLATE_GALLERY_COPY.searchPlaceholder}
                 />
 
                 {setupDrawer}
@@ -115,9 +115,9 @@ const TemplatesGalleryPage = () => {
                 category={active}
                 onCategoryChange={handleCategoryChange}
                 onSelectTemplate={handleSelectTemplate}
-                title={TEMPLATES_GALLERY.title}
-                subtitle={TEMPLATES_GALLERY.subtitle}
-                searchPlaceholder={TEMPLATES_GALLERY.searchPlaceholder}
+                title={TEMPLATE_GALLERY_COPY.title}
+                subtitle={TEMPLATE_GALLERY_COPY.subtitle}
+                searchPlaceholder={TEMPLATE_GALLERY_COPY.searchPlaceholder}
             />
 
             {setupDrawer}

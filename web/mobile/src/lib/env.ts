@@ -24,6 +24,7 @@ const buildEnv: Record<string, string | undefined> = {
     NEXT_PUBLIC_AGENT_CHAT_STEER: process.env.NEXT_PUBLIC_AGENT_CHAT_STEER,
     NEXT_PUBLIC_SETTINGS_NESTED_NAV: process.env.NEXT_PUBLIC_SETTINGS_NESTED_NAV,
     NEXT_PUBLIC_AGENT_BROWSE_RAIL: process.env.NEXT_PUBLIC_AGENT_BROWSE_RAIL,
+    NEXT_PUBLIC_AGENT_CONNECT_STEP: process.env.NEXT_PUBLIC_AGENT_CONNECT_STEP,
 }
 
 export function getEnv(key: string): string {

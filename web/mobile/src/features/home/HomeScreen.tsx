@@ -13,7 +13,6 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useMotionPresets} from "@/lib/motion/presets"
 
 import {NewAgentAction} from "../agents/NewAgentAction"
-import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
@@ -44,7 +43,6 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     const base = `/w/${workspaceId}/p/${projectId}`
     const router = useRouter()
     const sessionMenu = useSessionRowMenu(base)
-    const newAgent = useNewAgentAction(base)
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
     const presets = useMotionPresets()
@@ -89,7 +87,11 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                 animate="animate"
                 exit="exit"
             >
-                {surface === "loading" ? <FirstRunLoading /> : <FirstRunScreen base={base} />}
+                {surface === "loading" ? (
+                    <FirstRunLoading />
+                ) : (
+                    <FirstRunScreen base={base} workspaceId={workspaceId} projectId={projectId} />
+                )}
             </motion.div>
         </AnimatePresence>
     )
@@ -103,16 +105,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             // padding-top on a scroller pushes its `sticky` section headers down.
             className={`${pageContentWidthClass} px-4 pb-6 lg:px-16 lg:pb-8 lg:pt-14`}
             title="What do you want to do?"
-            action={
-                <NewAgentAction
-                    create={() => void newAgent.create()}
-                    createFromTemplate={newAgent.createFromTemplate}
-                    base={base}
-                    align="end"
-                    creating={newAgent.creating}
-                    error={newAgent.error}
-                />
-            }
+            action={<NewAgentAction base={base} align="end" />}
             composer={agents.length > 0 ? <HomeComposer agents={agents} base={base} /> : null}
             sessionsHref={`${base}/sessions`}
             onOpenSession={sessionMenu.open}

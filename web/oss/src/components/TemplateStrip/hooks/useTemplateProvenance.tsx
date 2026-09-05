@@ -18,7 +18,7 @@ interface ComposerApi {
 const CHIPPED_COMPOSER_CLASS =
     "!rounded-[0px_14px_14px_14px] !border-[1.5px] !border-[var(--ag-colorPrimary)]"
 /** Strip-era default composer classes (no chip). */
-const DEFAULT_COMPOSER_CLASS =
+export const DEFAULT_COMPOSER_CLASS =
     "!rounded-[14px] !border-[1.5px] !border-[var(--ag-strip-input-border)]"
 
 /**
