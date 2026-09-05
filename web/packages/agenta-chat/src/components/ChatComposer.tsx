@@ -63,6 +63,11 @@ export interface ChatComposerProps {
     extraPrefix?: ReactNode
     /** The input's trailing slot (onboarding actions). */
     trailing?: ReactNode
+    /**
+     * Docked INSIDE the input frame, above the editor and the attachments tray — for host
+     * content that belongs to the message being composed (the create surface's connect step).
+     */
+    headerExtra?: ReactNode
     /** The `/` palette's sections. Omit where the surface has no commands. */
     slashCommands?: SlashCommandSection[]
     /** Suspense fallback while the Lexical chunk hydrates (hosts pass their skeleton). */
@@ -90,6 +95,7 @@ export const ChatComposer = ({
     onViewAttachment,
     extraPrefix,
     trailing,
+    headerExtra,
     slashCommands,
     fallback,
 }: ChatComposerProps) => {
@@ -192,15 +198,18 @@ export const ChatComposer = ({
                     </div>
                 }
                 header={
-                    <HeightCollapse open={files.length > 0}>
-                        <ComposerAttachments
-                            files={files}
-                            onRemove={removeFile}
-                            onView={uploadsEnabled ? onViewAttachment : undefined}
-                            onRetry={uploads.retry}
-                            canRetry={uploads.canRetry}
-                        />
-                    </HeightCollapse>
+                    <>
+                        {headerExtra}
+                        <HeightCollapse open={files.length > 0}>
+                            <ComposerAttachments
+                                files={files}
+                                onRemove={removeFile}
+                                onView={uploadsEnabled ? onViewAttachment : undefined}
+                                onRetry={uploads.retry}
+                                canRetry={uploads.canRetry}
+                            />
+                        </HeightCollapse>
+                    </>
                 }
                 trailing={trailing}
             />

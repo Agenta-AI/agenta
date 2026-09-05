@@ -69,15 +69,26 @@ export const resolveConfigPanelCollapsed = (
     hostCollapsed = false,
 ): boolean => stored ?? (phoneViewport || hostCollapsed)
 
+/**
+ * Mount-scoped override, NOT persisted: a surface that must LAND with the pane collapsed no
+ * matter what the session pages stored (the create-an-agent surface leads with the question,
+ * not a form) sets this while mounted. Any user write through `configPanelCollapsedAtom`
+ * clears it, so the reveal button works immediately and the stored preference takes over
+ * from that moment.
+ */
+export const configPanelCollapsedOverrideAtom = atom<boolean | null>(null)
+
 /** Build mode's config pane collapsed to 0. Separate from the maximize flag: collapsing the pane
  * in Build is not the same as switching to Chat. */
 export const configPanelCollapsedAtom = atom(
     (get) =>
+        get(configPanelCollapsedOverrideAtom) ??
         resolveConfigPanelCollapsed(
             get(configPanelCollapsedPreferenceAtom),
             get(phoneViewportAtom),
         ),
     (_get, set, collapsed: boolean) => {
+        set(configPanelCollapsedOverrideAtom, null)
         set(configPanelCollapsedPreferenceAtom, collapsed)
     },
 )
