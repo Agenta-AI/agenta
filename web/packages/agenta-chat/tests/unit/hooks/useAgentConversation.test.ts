@@ -21,7 +21,8 @@ import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {snapshotViaAtom, resumeContinuation} = vi.hoisted(() => ({
+const {capabilitiesViaAtom, snapshotViaAtom, resumeContinuation} = vi.hoisted(() => ({
+    capabilitiesViaAtom: vi.fn(),
     snapshotViaAtom: vi.fn(),
     resumeContinuation: vi.fn(),
 }))
@@ -54,10 +55,14 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
         fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
         fetchSessionSnapshot: vi.fn(),
         querySessionTranscript: vi.fn(),
+        fetchSessionCapabilitiesAtom: atom(null, (_get, _set, sessionId: string) =>
+            capabilitiesViaAtom(sessionId),
+        ),
         fetchSessionSnapshotAtom: atom(null, (_get, _set, sessionId: string) =>
             snapshotViaAtom(sessionId),
         ),
         resumeSessionContinuationAtom: atom(null, () => resumeContinuation()),
+        sessionDurableApprovalsCapabilityAtom: atom(null, () => false),
     }
 })
 
@@ -283,6 +288,8 @@ beforeEach(() => {
     vi.mocked(querySessionTranscript).mockResolvedValue([])
     snapshotViaAtom.mockReset()
     snapshotViaAtom.mockResolvedValue(null)
+    capabilitiesViaAtom.mockReset()
+    capabilitiesViaAtom.mockResolvedValue({durableApprovals: false, queue: false, steer: false})
     resumeContinuation.mockReset()
     resumeContinuation.mockResolvedValue(false)
     vi.mocked(buildAgentRequest).mockClear()
@@ -299,6 +306,11 @@ afterEach(() => vi.useRealTimers())
 
 describe("useAgentConversation", () => {
     it("keeps a Steer draft when durable admission is refused", async () => {
+        capabilitiesViaAtom.mockResolvedValue({
+            durableApprovals: true,
+            queue: true,
+            steer: true,
+        })
         snapshotViaAtom.mockResolvedValue({
             session: {
                 id: "11111111-1111-4111-8111-111111111111",

@@ -198,7 +198,7 @@ export async function removePendingSessionInput({
 const SESSION_CAPABILITY_TIMEOUT_SECONDS = 2
 const SESSION_CAPABILITY_NEGATIVE_RETRY_MS = 30_000
 
-interface SessionFeatureCapabilities {
+export interface SessionFeatureCapabilities {
     durableApprovals: boolean
     queue: boolean
     steer: boolean
@@ -242,7 +242,7 @@ const cachedSessionCapabilities = (key: string): SessionFeatureCapabilities | nu
     return null
 }
 
-const negotiateSessionCapabilities = async ({
+export const fetchSessionCapabilities = async ({
     sessionId,
     projectId,
     appId,
@@ -819,7 +819,7 @@ export async function fetchSessionDurableApprovalsCapability({
     const cached = cachedSessionCapabilities(key)
     if (cached) return cached.durableApprovals
 
-    void negotiateSessionCapabilities({sessionId, projectId, appId, abortSignal})
+    void fetchSessionCapabilities({sessionId, projectId, appId, abortSignal})
     return false
 }
 

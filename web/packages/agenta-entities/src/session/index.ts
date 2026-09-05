@@ -19,6 +19,7 @@ export {
     querySessions,
     setSessionHeader,
     fetchSessionStream,
+    fetchSessionCapabilities,
     fetchSessionDurableApprovalsCapability,
     removePendingSessionInput,
     invalidateSessionDurableApprovalsCapability,
@@ -44,6 +45,7 @@ export {
     type QuerySessionsPageParams,
     type QuerySessionsParams,
     type SessionScopedParams,
+    type SessionFeatureCapabilities,
     type QueryInteractionsParams,
     type InteractionScopedParams,
     type RespondInteractionParams,
@@ -102,7 +104,11 @@ export {
     type MountFile,
     type Mount,
 } from "./core/schema"
-export {fetchSessionSnapshotAtom, removePendingSessionInputAtom} from "./state/pendingInputs"
+export {
+    fetchSessionCapabilitiesAtom,
+    fetchSessionSnapshotAtom,
+    removePendingSessionInputAtom,
+} from "./state/pendingInputs"
 export {
     deriveStreamNest,
     deriveSessionLifecycle,

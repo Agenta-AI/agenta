@@ -377,8 +377,13 @@ const AgentConversation = ({
         onExecuted: revalidate,
     })
 
+    const previousServerInputsStatusRef = useRef(status)
     useEffect(() => {
-        if (status === "ready" || status === "error") void serverInputs.refresh()
+        const previousStatus = previousServerInputsStatusRef.current
+        previousServerInputsStatusRef.current = status
+        if (previousStatus !== status && (status === "ready" || status === "error")) {
+            void serverInputs.refresh()
+        }
     }, [status, serverInputs.refresh])
 
     // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's

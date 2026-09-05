@@ -671,8 +671,13 @@ export const useAgentConversation = ({
         },
     })
 
+    const previousServerInputsStatusRef = useRef(status)
     useEffect(() => {
-        if (status === "ready" || status === "error") void serverInputs.refresh()
+        const previousStatus = previousServerInputsStatusRef.current
+        previousServerInputsStatusRef.current = status
+        if (previousStatus !== status && (status === "ready" || status === "error")) {
+            void serverInputs.refresh()
+        }
     }, [status, serverInputs.refresh])
 
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
