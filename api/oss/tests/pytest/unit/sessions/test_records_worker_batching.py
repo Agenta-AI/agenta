@@ -121,6 +121,38 @@ async def test_process_batch_groups_by_project_one_append_many_per_project():
 
 
 @pytest.mark.asyncio
+async def test_failed_append_leaves_project_messages_unacknowledged():
+    project_id = uuid4()
+    redis = AsyncMock()
+    records_dao = AsyncMock()
+    records_dao.append_many = AsyncMock(side_effect=RuntimeError("deadlock victim"))
+    worker = RecordsWorker(
+        service=RecordsService(records_dao=records_dao),
+        redis_client=redis,
+        stream_name="streams:records",
+        consumer_group="worker-records",
+    )
+    batch = [
+        (
+            b"1-0",
+            {b"data": _payload(project_id=project_id, session_id="a", record_index=0)},
+        ),
+        (
+            b"2-0",
+            {b"data": _payload(project_id=project_id, session_id="b", record_index=0)},
+        ),
+    ]
+
+    total_appended, processed_ids = await worker.process_batch(batch)
+    await worker.ack_and_delete(processed_ids)
+
+    assert total_appended == 0
+    assert processed_ids == []
+    redis.xack.assert_not_awaited()
+    redis.xdel.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_durable_event_is_published_only_after_record_commit_returns():
     project_id = uuid4()
     committed = False

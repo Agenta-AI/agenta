@@ -134,3 +134,76 @@ async def test_sequence_allocation_is_scoped_by_project():
                     SessionSequenceCursorDBE.session_id == session_id,
                 )
             )
+
+
+async def test_reverse_order_batches_lock_sessions_without_deadlock(monkeypatch):
+    project_id = uuid.uuid4()
+    session_ids = [f"lock-a-{uuid.uuid4()}", f"lock-b-{uuid.uuid4()}"]
+    dao = RecordsDAO(engine=get_analytics_engine())
+    original_append = RecordsDAO._append_sequenced
+    append_counts = {}
+
+    async def append_with_first_lock_pause(*, values, session):
+        record = await original_append(values=values, session=session)
+        task = asyncio.current_task()
+        append_counts[task] = append_counts.get(task, 0) + 1
+        if append_counts[task] == 1:
+            await asyncio.sleep(0.1)
+        return record
+
+    monkeypatch.setattr(
+        RecordsDAO,
+        "_append_sequenced",
+        staticmethod(append_with_first_lock_pause),
+    )
+
+    def event(session_id: str, record_index: int) -> SessionRecordEvent:
+        return SessionRecordEvent(
+            project_id=project_id,
+            session_id=session_id,
+            record_id=uuid.uuid4(),
+            record_index=record_index,
+            record_type="message",
+            record_source="agent",
+            attributes={"type": "message", "text": session_id},
+        )
+
+    first_batch = [event(session_ids[0], 0), event(session_ids[1], 0)]
+    second_batch = [event(session_ids[1], 1), event(session_ids[0], 1)]
+
+    try:
+        first, second = await asyncio.wait_for(
+            asyncio.gather(
+                dao.append_many(events=first_batch),
+                dao.append_many(events=second_batch),
+            ),
+            timeout=5,
+        )
+
+        assert len(first) == 2
+        assert len(second) == 2
+        async with get_analytics_engine().session() as session:
+            rows = (
+                await session.execute(
+                    select(RecordDBE.session_id, RecordDBE.sequence)
+                    .where(RecordDBE.project_id == project_id)
+                    .order_by(RecordDBE.session_id, RecordDBE.sequence)
+                )
+            ).all()
+        assert rows == [
+            (session_ids[0], 1),
+            (session_ids[0], 2),
+            (session_ids[1], 1),
+            (session_ids[1], 2),
+        ]
+    finally:
+        async with get_analytics_engine().session() as session:
+            await session.execute(
+                delete(RecordDBE).where(RecordDBE.project_id == project_id)
+            )
+            await session.execute(
+                delete(SessionSequenceCursorDBE).where(
+                    SessionSequenceCursorDBE.project_id == project_id,
+                    SessionSequenceCursorDBE.session_id.in_(session_ids),
+                )
+            )

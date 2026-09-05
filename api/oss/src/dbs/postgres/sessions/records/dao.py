@@ -132,7 +132,15 @@ class RecordsDAO(RecordsDAOInterface):
         async with self.engine.session() as session:
             if env.sessions.sequence_writes:
                 records = []
-                for values in values_list:
+                # Stable session order prevents mixed-session transactions from deadlocking.
+                ordered_values = sorted(
+                    values_list,
+                    key=lambda values: (
+                        str(values["project_id"]),
+                        values["session_id"],
+                    ),
+                )
+                for values in ordered_values:
                     record = await self._append_sequenced(
                         values=values, session=session
                     )
