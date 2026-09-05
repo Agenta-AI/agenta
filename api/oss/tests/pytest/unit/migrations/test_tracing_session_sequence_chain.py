@@ -6,7 +6,6 @@ VERSIONS_DIR = (
     Path(__file__).resolve().parents[4]
     / "databases/postgres/migrations/tracing_oss/versions"
 )
-WATCHDOG_REVISION = ("oss000000005", "oss000000004")
 
 
 def _revision_link(path: Path) -> tuple[str, str]:
@@ -19,11 +18,9 @@ def _revision_link(path: Path) -> tuple[str, str]:
 
 
 def test_tracing_chain_has_one_head_with_watchdog_migration():
+    watchdog_migration = VERSIONS_DIR / "oss000000005_add_records_quarantined_at.py"
     session_migration = VERSIONS_DIR / "oss000000006_add_session_sequence_cursors.py"
-    links = {
-        WATCHDOG_REVISION[0]: WATCHDOG_REVISION[1],
-        _revision_link(session_migration)[0]: _revision_link(session_migration)[1],
-    }
+    links = dict(map(_revision_link, (watchdog_migration, session_migration)))
 
     heads = set(links) - set(links.values())
 
