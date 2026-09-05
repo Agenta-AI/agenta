@@ -96,9 +96,10 @@ export const useAgentChatQueue = ({
         if (admittedTurnId) lastSentRef.current = undefined
     }, [admittedTurnId])
 
-    /** Take back the last immediately-sent message, once. */
-    const takeLastSent = useCallback(() => {
+    /** Take back the last sent message only after an optional placement succeeds. */
+    const takeLastSent = useCallback((place?: (message: QueuedMessage) => boolean) => {
         const message = lastSentRef.current
+        if (!message || (place && !place(message))) return undefined
         lastSentRef.current = undefined
         return message
     }, [])

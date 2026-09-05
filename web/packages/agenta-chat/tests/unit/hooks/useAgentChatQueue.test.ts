@@ -393,6 +393,20 @@ describe("useAgentChatQueue: reclaiming a sent message", () => {
         expect(result.current.takeLastSent()).toMatchObject({text: "", stagedFiles})
     })
 
+    it("retains a refused send when the composer cannot place it", () => {
+        const {result} = setup(settledEmpty)
+        const stagedFiles = [{uid: "file-1", name: "brief.pdf", status: "done"}] as never
+        act(() => {
+            result.current.submit({text: "refused message", stagedFiles})
+        })
+
+        expect(result.current.takeLastSent(() => false)).toBeUndefined()
+        expect(result.current.takeLastSent()).toMatchObject({
+            text: "refused message",
+            stagedFiles,
+        })
+    })
+
     it("does not clear recovery when dispatch only changes the stream status", () => {
         const {result, rerender} = setup(settledEmpty)
         act(() => {

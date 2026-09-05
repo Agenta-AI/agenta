@@ -56,7 +56,7 @@ import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/cons
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
-import {canRestoreRefusedSend, restoreRefusedDraft} from "./assets/refusedMessageRecovery"
+import {canRestoreRefusedSend, restoreRefusedSend} from "./assets/refusedMessageRecovery"
 import AgentComposerDock from "./components/AgentComposerDock"
 import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
@@ -435,13 +435,10 @@ const AgentConversation = ({
     // Restore a refused send after the editor's synchronous submit clear.
     useEffect(() => {
         if (!error || !isSessionBusyRefusal(error)) return
-        const sent = takeLastSent()
-        if (!sent) return
         requestAnimationFrame(() => {
             const editor = richInputRef.current
             if (!canRestoreRefusedSend(editor)) return
-            restoreRefusedDraft(editor, sent.text)
-            if (sent.stagedFiles?.length) restoreAttachments(sent.stagedFiles)
+            takeLastSent((sent) => restoreRefusedSend(editor, sent, restoreAttachments))
         })
     }, [error, restoreAttachments, takeLastSent])
 

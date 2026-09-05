@@ -1,6 +1,10 @@
 import {describe, expect, it, vi} from "vitest"
 
-import {canRestoreRefusedSend, restoreRefusedDraft} from "./refusedMessageRecovery"
+import {
+    canRestoreRefusedSend,
+    restoreRefusedDraft,
+    restoreRefusedSend,
+} from "./refusedMessageRecovery"
 
 describe("restoreRefusedDraft", () => {
     it("restores a refused message only into an empty composer", () => {
@@ -26,5 +30,18 @@ describe("restoreRefusedDraft", () => {
         expect(
             canRestoreRefusedSend({getMarkdown: () => "new draft", setMarkdown: vi.fn()} as never),
         ).toBe(false)
+    })
+
+    it("leaves a refused send with staged attachments untouched behind a newer draft", () => {
+        const setMarkdown = vi.fn()
+        const restoreAttachments = vi.fn()
+        const stagedFiles = [{uid: "file-1", name: "brief.pdf"}]
+        const editor = {getMarkdown: () => "newer draft", setMarkdown} as never
+
+        expect(
+            restoreRefusedSend(editor, {text: "refused message", stagedFiles}, restoreAttachments),
+        ).toBe(false)
+        expect(setMarkdown).not.toHaveBeenCalled()
+        expect(restoreAttachments).not.toHaveBeenCalled()
     })
 })
