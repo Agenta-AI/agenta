@@ -51,7 +51,8 @@ import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
-import {parseAgentRunError, type ParsedRunError} from "../model/error"
+import {classifyAgentRunError, type ParsedRunError, type RunErrorMetadata} from "../model/error"
+import {withoutSharedSenderAcceptanceMessages} from "../model/livePreview"
 import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionStatus"
 import {
     buildTurnViewModels,
@@ -69,11 +70,14 @@ import {
     type SessionChatHooks,
 } from "../state/sessionChats"
 import {
+    acceptedRunBySession,
     clearSessionFresh,
     clearSessionTurnId,
     composerDraftBySession,
     isSessionFresh,
     setSessionTurnId,
+    turnDeliverySourceBySession,
+    type TurnDeliverySource,
 } from "../state/sessionEphemera"
 import {
     persistSessionMessagesAtom,
@@ -124,9 +128,11 @@ export interface ToolOutputSettleInput {
 export interface UseAgentConversationArgs {
     entityId: string
     sessionId: string
-    /** Host-derived capability + remote-owner gate for the display-only live reader. */
-    sharedReaderEnabled?: boolean
-    /** Timestamp of the liveness snapshot behind `sharedReaderEnabled`. */
+    /** Backend-advertised ability to read display-only live frames. */
+    sharedReaderAdvertised?: boolean
+    /** Backend liveness says a run is active, potentially in another browser. */
+    sharedReaderRunning?: boolean
+    /** Timestamp of the liveness snapshot behind `sharedReaderRunning`. */
     sharedReaderLivenessUpdatedAt?: number
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
@@ -144,6 +150,8 @@ export interface AgentConversation {
     runStatus: SessionRunStatus
     /** Parsed reason of the current stream failure, when there is one. */
     error?: ParsedRunError
+    /** Ephemeral warning when the sender connection drops after the session accepted the turn. */
+    connectionWarning?: string
     /** Pre-grouped per-turn view models (render items, status, empty-collapse, active turn). */
     turns: TurnViewModel[]
     /** Send a user message (routes through the queue: sends now, or holds while busy/paused). */
@@ -186,6 +194,12 @@ export interface AgentConversation {
      * revalidate-on-open (never mid-stream, only when strictly ahead). Wire push signals — a
      * session watch relay, a foreground event — to this. */
     revalidate: () => void
+    /** Atomic snapshot says an unfinished backend execution is still running after refresh. */
+    runningFromSnapshot: boolean
+    /** The shared live-event channel completed replay and is following new frames. */
+    readerReady: boolean
+    /** This browser's accepted turn is still owned by the shared session path. */
+    acceptedRunPending: boolean
 }
 
 /**
@@ -199,7 +213,8 @@ export interface AgentConversation {
 export const useAgentConversation = ({
     entityId,
     sessionId,
-    sharedReaderEnabled = false,
+    sharedReaderAdvertised = false,
+    sharedReaderRunning = false,
     sharedReaderLivenessUpdatedAt = 0,
     isClientToolPart,
 }: UseAgentConversationArgs): AgentConversation => {
@@ -214,7 +229,9 @@ export const useAgentConversation = ({
     const clearTurnClock = useSetAtom(clearTurnClockAtom)
 
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
-    const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
+    const [initialMessages] = useState(() =>
+        withoutSharedSenderAcceptanceMessages(store.get(sessionMessagesAtom)[sessionId] ?? []),
+    )
     // Only the last assistant turn can carry the current stopped state.
     const [userStoppedState, dispatchStopped] = useReducer(
         reduceUserStoppedState,
@@ -258,13 +275,36 @@ export const useAgentConversation = ({
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
 
+    // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
+    // `onData` and never the transcript — this is the only place the answer survives. A stream that
+    // dies after it is a lost connection, not a lost turn; one that dies before it may be a send
+    // that never started, and that failure has to stay on screen and in the cache.
+    const turnAcceptedRef = useRef(acceptedRunBySession.has(sessionId))
+    const acceptedExecutionIdRef = useRef<string | null>(
+        acceptedRunBySession.get(sessionId) ?? null,
+    )
+    const [acceptedRunPending, setAcceptedRunPending] = useState(() =>
+        acceptedRunBySession.has(sessionId),
+    )
+    const [turnDeliverySource, setTurnDeliverySource] = useState<TurnDeliverySource | null>(
+        () => turnDeliverySourceBySession.get(sessionId) ?? null,
+    )
     // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
     const busyRef = useRef(false)
     const messagesRef = useRef(initialMessages)
+    const sharedSenderReadyRef = useRef(false)
 
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
             clearSessionTurnId(sessionId)
+            turnAcceptedRef.current = false
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
+            const sharedResponse = sharedSenderReadyRef.current
+            const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
+            turnDeliverySourceBySession.set(sessionId, deliverySource)
+            setTurnDeliverySource(deliverySource)
             // Bounded, not instant. A null build means the workflow entity has not loaded its
             // invocation URL YET — the first send to a freshly created agent races that fetch, and
             // failing on the first null made a new user's first message fail (#6042 on the desktop;
@@ -272,6 +312,7 @@ export const useAgentConversation = ({
             const req = await buildRequestWithinDeadline(() =>
                 buildAgentRequest(entityIdRef.current, messages, {
                     sessionId: id ?? sessionId,
+                    sharedResponse,
                 }),
             )
             return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
@@ -293,6 +334,14 @@ export const useAgentConversation = ({
         // #6047 startup states: the runner narrates what it is doing while the environment boots,
         // so a 15s cold start reads as progress instead of a stalled session.
         onData: (part) => {
+            if (part.type === "data-session-accepted") {
+                turnAcceptedRef.current = true
+                const data = part.data as {executionId?: unknown} | undefined
+                acceptedExecutionIdRef.current =
+                    typeof data?.executionId === "string" ? data.executionId : null
+                acceptedRunBySession.set(sessionId, acceptedExecutionIdRef.current)
+                setAcceptedRunPending(true)
+            }
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
         },
@@ -354,6 +403,7 @@ export const useAgentConversation = ({
         addToolApprovalResponse,
         addToolOutput,
         error,
+        clearError,
     } = useChat({
         chat,
         // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
@@ -362,6 +412,17 @@ export const useAgentConversation = ({
     })
 
     const busy = isChatBusy(status)
+    const lastMessage = messages[messages.length - 1]
+    const serverErrorProvenance =
+        lastMessage?.role === "assistant" &&
+        lastMessage.parts.some((part) => part.type === "data-agent-error")
+    const errorBoundary = useMemo(
+        () =>
+            error
+                ? classifyAgentRunError(error, turnAcceptedRef.current, serverErrorProvenance)
+                : {},
+        [error, serverErrorProvenance],
+    )
     // Require liveness newer than the local settle before classifying a run as remote.
     const previousBusyForReaderRef = useRef(busy)
     const localReaderSettleAtRef = useRef(0)
@@ -371,7 +432,7 @@ export const useAgentConversation = ({
     // `messages`/`busy` change every commit; consumers that must stay referentially stable
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
     messagesRef.current = messages
-    busyRef.current = busy
+    busyRef.current = busy || acceptedRunPending
 
     useEffect(() => {
         dispatchStopped({type: "transcript", messages})
@@ -417,7 +478,8 @@ export const useAgentConversation = ({
             const adopt = shouldAdoptServerTranscript({
                 serverRecordCount: sequenceCursor ?? recordCount,
                 serverMessageCount: serverMsgs.length,
-                localMessageCount: messagesRef.current.length,
+                localMessageCount: withoutSharedSenderAcceptanceMessages(messagesRef.current)
+                    .length,
                 watermark:
                     sequenceCursor === undefined
                         ? recordWatermarkRef.current
@@ -435,11 +497,16 @@ export const useAgentConversation = ({
             // on-screen length, that keeps the guard order-independent.
             recordWatermarkRef.current = recordCount
             if (sequenceCursor !== undefined) sequenceWatermarkRef.current = sequenceCursor
+            // The durable log just superseded whatever this browser was rendering, including a
+            // failed request of our own. `useChat` holds that error until the next send, and the
+            // session dot reads it — so without this the transcript shows the finished turn while
+            // the dot stays red, with nothing on screen to explain it.
+            clearError()
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
             return true
         },
-        [persistMessages, sessionId, setMessages],
+        [clearError, persistMessages, sessionId, setMessages],
     )
 
     useEffect(() => {
@@ -532,7 +599,6 @@ export const useAgentConversation = ({
     // mount never streamed it) shaped like "auto-resume imminent", and no gate was settled live
     // in this mount. The SDK only evaluates `sendAutomaticallyWhen` on live events — never on
     // mount — so this resume can't fire and must not hold the queue (AGE-3937).
-    const lastMessage = messages[messages.length - 1]
     const resumeOrphaned =
         !liveGateInteractionRef.current &&
         !!lastMessage &&
@@ -553,6 +619,7 @@ export const useAgentConversation = ({
     } = useAgentChatQueue({
         status,
         messages,
+        acceptedRunPending,
         stopped,
         resumeOrphaned,
         sendQueued,
@@ -647,7 +714,11 @@ export const useAgentConversation = ({
 
     // Publish this session's run state (single source of truth for session-list status dots).
     // Precedence error > awaiting approval > running > idle.
-    const runStatus = deriveSessionRunStatus({error: !!error, hitlPending, busy})
+    const runStatus = deriveSessionRunStatus({
+        error: !!errorBoundary.runError,
+        hitlPending,
+        busy: busy || acceptedRunPending,
+    })
     useEffect(() => {
         setSessionStatus({id: sessionId, status: runStatus})
     }, [runStatus, sessionId, setSessionStatus])
@@ -661,22 +732,20 @@ export const useAgentConversation = ({
         [sessionId, setSessionStatus],
     )
 
-    // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
-    // it renders as an error bubble with the real reason (and persists with the session via the
-    // effect below), instead of a transient banner + a generic "no response".
+    // Run failures become conversation content; an accepted transport loss stays connection state.
     useEffect(() => {
-        if (!error) return
-        const parsed = parseAgentRunError(error)
+        const parsed = errorBoundary.runError
+        if (!parsed) return
+        const stamp: RunErrorMetadata = {runError: parsed}
         setMessages((prev) => {
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
-            const existing = (last?.metadata as {runError?: {message?: string}} | undefined)
-                ?.runError
+            const existing = (last?.metadata as RunErrorMetadata | undefined)?.runError
             if (last?.role === "assistant") {
                 if (existing?.message === parsed.message) return prev // already stamped
                 const next = [...prev]
                 next[next.length - 1] = {
                     ...last,
-                    metadata: {...(last.metadata as object | undefined), runError: parsed},
+                    metadata: {...(last.metadata as object | undefined), ...stamp},
                 }
                 return next
             }
@@ -687,11 +756,11 @@ export const useAgentConversation = ({
                     id: `run-error-${generateId()}`,
                     role: "assistant",
                     parts: [],
-                    metadata: {runError: parsed},
+                    metadata: stamp,
                 } as (typeof prev)[number],
             ]
         })
-    }, [error, setMessages])
+    }, [errorBoundary.runError, setMessages])
 
     // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
     // records the runner logged for it — so drop the watermark and let the next open re-sync from
@@ -709,7 +778,11 @@ export const useAgentConversation = ({
     // watermark the rendered transcript still stands on (undefined once a live turn extended it).
     useEffect(() => {
         if (status === "streaming") return
-        persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
+        persistMessages({
+            id: sessionId,
+            messages: withoutSharedSenderAcceptanceMessages(messages),
+            recordCount: recordWatermarkRef.current,
+        })
     }, [messages, status, sessionId, persistMessages])
 
     // One startup label per in-flight turn. `submitted` opens a NEW turn, so a label the previous
@@ -777,16 +850,36 @@ export const useAgentConversation = ({
         [adoptServerTranscript, revalidateSessionRecords, sessionId],
     )
 
-    const previewMessages = useSessionLivePreview({
+    const {
+        messages: previewMessages,
+        runningFromSnapshot,
+        readerReady,
+    } = useSessionLivePreview({
         sessionId,
-        sharedReaderAdvertised: sharedReaderEnabled,
-        runningElsewhere: !busy && remoteRunIsFresh,
+        sharedReaderAdvertised,
+        runningElsewhere: sharedReaderRunning && !busy && remoteRunIsFresh,
+        sender: true,
+        onReadyChange: (ready) => {
+            sharedSenderReadyRef.current = ready
+        },
+        onExecutionSettled: (executionId?: string) => {
+            const acceptedExecutionId = acceptedExecutionIdRef.current
+            if (executionId && acceptedExecutionId && acceptedExecutionId !== executionId) return
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
+            turnDeliverySourceBySession.delete(sessionId)
+            setTurnDeliverySource(null)
+        },
         onDisconnect: revalidate,
     })
-    const displayMessages = useMemo(
-        () => (previewMessages.length ? [...messages, ...previewMessages] : messages),
-        [messages, previewMessages],
-    )
+    const includePreview = turnDeliverySource !== "legacy"
+    const displayMessages = useMemo(() => {
+        const transcriptMessages = withoutSharedSenderAcceptanceMessages(messages)
+        return includePreview && previewMessages.length
+            ? [...transcriptMessages, ...previewMessages]
+            : transcriptMessages
+    }, [includePreview, messages, previewMessages])
 
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const handleStop = useCallback(() => {
@@ -838,6 +931,7 @@ export const useAgentConversation = ({
     const regenerateTurn = useCallback(
         (id: string) => {
             clearSessionTurnId(sessionId)
+            if (busyRef.current) return
             setStopped(false)
             regenerate({messageId: id}).catch(ignoreStreamRejection)
         },
@@ -880,21 +974,28 @@ export const useAgentConversation = ({
     const turns = useMemo(
         () =>
             buildTurnViewModels(displayMessages, {
-                busy: busy || previewMessages.length > 0,
+                busy: busy || (includePreview && previewMessages.length > 0),
                 executedFor,
                 isClientToolPart: (part, ctx) =>
                     (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
             }),
-        [displayMessages, busy, executedFor, isClientToolPart, previewMessages.length, renderMap],
+        [
+            displayMessages,
+            busy,
+            executedFor,
+            isClientToolPart,
+            includePreview,
+            previewMessages.length,
+            renderMap,
+        ],
     )
-
-    const parsedError = useMemo(() => (error ? parseAgentRunError(error) : undefined), [error])
 
     return {
         messages: displayMessages,
         status,
         runStatus,
-        error: parsedError,
+        error: errorBoundary.runError,
+        connectionWarning: errorBoundary.connectionWarning,
         turns,
         send,
         stop: handleStop,
@@ -914,5 +1015,8 @@ export const useAgentConversation = ({
         approvals,
         sendToolOutput,
         revalidate,
+        runningFromSnapshot,
+        readerReady,
+        acceptedRunPending,
     }
 }

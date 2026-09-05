@@ -75,3 +75,39 @@ def test_accepts_the_six_direct_event_types_and_ignores_unknown_types():
     assert events[0].type == "execution.started"
     assert events[0].sequence == 1
     assert events[0].watermark == 2
+
+
+def test_maps_interaction_records_to_durable_lifecycle_events():
+    records = [
+        _record(
+            sequence=1,
+            record_type="interaction_request",
+            attributes={
+                "type": "interaction_request",
+                "id": "interaction-1",
+                "kind": "client_tool",
+            },
+        ),
+        _record(
+            sequence=2,
+            record_type="interaction_response",
+            attributes={
+                "type": "interaction_response",
+                "id": "interaction-1",
+                "kind": "user_approval",
+            },
+        ),
+    ]
+
+    events = durable_events_from_records(records)
+
+    assert [event.type for event in events] == [
+        "interaction.requested",
+        "interaction.responded",
+    ]
+    assert [event.sequence for event in events] == [1, 2]
+    assert [event.watermark for event in events] == [2, 2]
+    assert events[0].entity_id == "interaction-1"
+    assert events[0].payload.interaction_id == "interaction-1"
+    assert events[0].payload.kind == "client_tool"
+    assert events[1].payload.kind == "user_approval"

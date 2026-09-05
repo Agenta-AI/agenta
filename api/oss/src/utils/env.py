@@ -1548,8 +1548,7 @@ class SessionsRedisConfig(BaseModel):
     redis_contract.json) shared with the TypeScript runner. Do not change a default
     without updating that fixture and the TS side in lockstep.
 
-    AGENTA_SESSIONS_SEQUENCE_WRITES folds into AGENTA_SESSIONS_HISTORY_WRITES after
-    PR #6517 and this increment merge, keeping one rollout switch per increment.
+    AGENTA_SESSIONS_SEQUENCE_WRITES independently gates atomic record sequencing.
     """
 
     sequence_writes: bool = (

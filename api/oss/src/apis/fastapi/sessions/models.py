@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -410,6 +410,16 @@ class SessionRecordIngestRequest(BaseModel):
             created_at=self.created_at,
         )
         return self
+
+
+SessionRecordIngestBatch = Annotated[
+    List[SessionRecordIngestRequest],
+    Field(min_length=1),
+]
+SessionRecordIngestBody = Union[
+    SessionRecordIngestRequest,
+    SessionRecordIngestBatch,
+]
 
 
 # ---------------------------------------------------------------------------

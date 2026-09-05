@@ -4,7 +4,10 @@ vi.mock("@agenta/shared/api", () => ({
     getAgentaApiUrl: () => "https://api.example.test",
 }))
 
-import {connectSessionLiveEvents} from "../../../src/transport/sessionLiveEvents"
+import {
+    connectSessionLiveEvents,
+    sessionLiveEventsUrl,
+} from "../../../src/transport/sessionLiveEvents"
 
 class FakeEventSource {
     static latest: FakeEventSource | undefined
@@ -57,5 +60,17 @@ describe("connectSessionLiveEvents", () => {
             "[sessionLiveEvents] Validation failed:",
             expect.any(Object),
         )
+    })
+})
+
+describe("sessionLiveEventsUrl", () => {
+    it("reconnects after the snapshot's durable sequence watermark", () => {
+        expect(sessionLiveEventsUrl("session/one", 37)).toMatch(
+            /\/sessions\/session%2Fone\/events\?after=37$/,
+        )
+    })
+
+    it("never sends a negative replay cursor", () => {
+        expect(sessionLiveEventsUrl("session-1", -5)).toMatch(/\?after=0$/)
     })
 })

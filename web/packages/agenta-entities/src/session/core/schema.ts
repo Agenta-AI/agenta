@@ -236,6 +236,8 @@ export const sessionDurableEventTypeSchema = z.enum([
     "execution.lost",
     "message.completed",
     "tool.completed",
+    "interaction.requested",
+    "interaction.responded",
 ])
 
 export const sessionRecordsReadStateSchema = z.object({

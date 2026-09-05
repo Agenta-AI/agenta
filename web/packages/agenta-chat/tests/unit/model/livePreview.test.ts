@@ -1,11 +1,15 @@
-import type {SessionLiveFrame} from "@agenta/entities/session"
+import type {SessionLiveFrame, SessionSnapshot} from "@agenta/entities/session"
 import {describe, expect, it} from "vitest"
 
 import {
     createSessionLivePreviewState,
+    deriveRemoteTurnPresentation,
+    isSessionSnapshotRunning,
     reduceSessionLivePreview,
     sessionLivePreviewMessages,
+    shouldRefreshLegacyObserverLiveness,
     shouldSubscribeToSessionLivePreview,
+    withoutSharedSenderAcceptanceMessages,
 } from "../../../src/model/livePreview"
 
 const frame = (
@@ -27,6 +31,69 @@ const frame = (
 })
 
 describe("session live preview reducer", () => {
+    it("removes the control-only invoke message but preserves an invoke error", () => {
+        const accepted = {
+            id: "accepted",
+            role: "assistant",
+            parts: [{type: "data-session-accepted", data: {turnId: "turn-1"}}],
+            metadata: {sharedSender: true},
+        }
+        const failed = {
+            ...accepted,
+            id: "failed",
+            metadata: {sharedSender: true, runError: {message: "failed"}},
+        }
+        const ordinary = {id: "ordinary", role: "assistant", parts: [{type: "text", text: "ok"}]}
+
+        expect(
+            withoutSharedSenderAcceptanceMessages([accepted, failed, ordinary] as never[]).map(
+                (message) => message.id,
+            ),
+        ).toEqual(["failed", "ordinary"])
+    })
+
+    it("drops the control row and keeps a real invoke error", () => {
+        const user = {id: "u1", role: "user", parts: [{type: "text", text: "hi"}]}
+        const carrier = {
+            id: "accepted",
+            role: "assistant",
+            parts: [{type: "step-start"}],
+            metadata: {sharedSender: true},
+        }
+        const invokeError = {
+            ...carrier,
+            metadata: {sharedSender: true, runError: {message: "no usable credential", code: 422}},
+        }
+
+        expect(
+            withoutSharedSenderAcceptanceMessages([user, invokeError] as never[]).map((m) => m.id),
+        ).toEqual(["u1", "accepted"])
+        expect(
+            withoutSharedSenderAcceptanceMessages([user, carrier] as never[]).map((m) => m.id),
+        ).toEqual(["u1"])
+    })
+
+    it("recognizes a running execution from the atomic reconnect snapshot", () => {
+        const snapshot = {
+            session: {flags: {is_running: true}},
+            execution: {turn_id: "turn-1", end_time: null},
+        } as SessionSnapshot
+
+        expect(isSessionSnapshotRunning(snapshot)).toBe(true)
+        expect(
+            isSessionSnapshotRunning({
+                ...snapshot,
+                execution: {...snapshot.execution, end_time: "2026-08-06T12:01:00Z"},
+            } as SessionSnapshot),
+        ).toBe(false)
+        expect(
+            isSessionSnapshotRunning({
+                ...snapshot,
+                session: {...snapshot.session, flags: {is_running: false}},
+            } as SessionSnapshot),
+        ).toBe(false)
+    })
+
     it("collapses ordered frames into their current entity state", () => {
         let state = createSessionLivePreviewState()
         state = reduceSessionLivePreview(state, frame(0, "text-start", {}))
@@ -144,19 +211,108 @@ describe("session live preview reducer", () => {
 
 describe("session live preview subscription", () => {
     it.each([
-        {sharedReaderAdvertised: false, runningElsewhere: false, expected: false},
-        {sharedReaderAdvertised: false, runningElsewhere: true, expected: false},
-        {sharedReaderAdvertised: true, runningElsewhere: false, expected: false},
-        {sharedReaderAdvertised: true, runningElsewhere: true, expected: true},
+        {sharedReaderAdvertised: false, runningElsewhere: false, sender: false, expected: false},
+        {sharedReaderAdvertised: false, runningElsewhere: true, sender: false, expected: false},
+        {sharedReaderAdvertised: false, runningElsewhere: false, sender: true, expected: false},
+        {sharedReaderAdvertised: true, runningElsewhere: false, sender: false, expected: false},
+        {sharedReaderAdvertised: true, runningElsewhere: true, sender: false, expected: true},
+        {sharedReaderAdvertised: true, runningElsewhere: false, sender: true, expected: true},
     ])(
-        "returns $expected when advertised=$sharedReaderAdvertised and remote=$runningElsewhere",
-        ({sharedReaderAdvertised, runningElsewhere, expected}) => {
+        "returns $expected when advertised=$sharedReaderAdvertised, remote=$runningElsewhere, sender=$sender",
+        ({sharedReaderAdvertised, runningElsewhere, sender, expected}) => {
             expect(
                 shouldSubscribeToSessionLivePreview({
                     sharedReaderAdvertised,
                     runningElsewhere,
+                    sender,
                 }),
             ).toBe(expected)
         },
     )
+})
+
+describe("legacy observer liveness refresh", () => {
+    it("refreshes from record notifications only when the reader is off and the throttle is due", () => {
+        expect(
+            shouldRefreshLegacyObserverLiveness({
+                sharedReaderAdvertised: false,
+                lastRefreshAt: 1_000,
+                now: 11_000,
+            }),
+        ).toBe(true)
+        expect(
+            shouldRefreshLegacyObserverLiveness({
+                sharedReaderAdvertised: false,
+                lastRefreshAt: 1_000,
+                now: 10_999,
+            }),
+        ).toBe(false)
+        expect(
+            shouldRefreshLegacyObserverLiveness({
+                sharedReaderAdvertised: true,
+                lastRefreshAt: 1_000,
+                now: 11_000,
+            }),
+        ).toBe(false)
+    })
+})
+
+describe("remote turn presentation", () => {
+    it.each([
+        {
+            name: "uses turn activity once the advertised reader is ready",
+            input: {livenessRunning: true, sharedReaderAdvertised: true, readerReady: true},
+            expected: {showActivity: true, showStrip: false},
+        },
+        {
+            name: "uses the fallback strip before the reader is ready",
+            input: {livenessRunning: true, sharedReaderAdvertised: true, readerReady: false},
+            expected: {showActivity: false, showStrip: true},
+        },
+        {
+            name: "uses the fallback strip when the feature is off",
+            input: {livenessRunning: true, sharedReaderAdvertised: false, readerReady: false},
+            expected: {showActivity: false, showStrip: true},
+        },
+        {
+            name: "never gives an owned continuation the fallback strip",
+            input: {
+                livenessRunning: true,
+                sharedReaderAdvertised: true,
+                readerReady: false,
+                ownedContinuation: true,
+            },
+            expected: {showActivity: false, showStrip: false},
+        },
+    ])("$name", ({input, expected}) => {
+        expect(deriveRemoteTurnPresentation(input)).toEqual(expected)
+    })
+
+    it("uses session-stream liveness for the flag-off observer and clears at turn end", () => {
+        const base = {
+            snapshotRunning: true,
+            sharedReaderAdvertised: false,
+            readerReady: false,
+        }
+
+        expect(deriveRemoteTurnPresentation({...base, livenessRunning: true})).toEqual({
+            showActivity: false,
+            showStrip: true,
+        })
+        expect(deriveRemoteTurnPresentation({...base, livenessRunning: false})).toEqual({
+            showActivity: false,
+            showStrip: false,
+        })
+    })
+
+    it("uses activity instead of the banner when the shared reader is ready", () => {
+        expect(
+            deriveRemoteTurnPresentation({
+                livenessRunning: false,
+                snapshotRunning: true,
+                sharedReaderAdvertised: true,
+                readerReady: true,
+            }),
+        ).toEqual({showActivity: true, showStrip: false})
+    })
 })

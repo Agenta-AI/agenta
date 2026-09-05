@@ -1,5 +1,6 @@
 import {
     createSessionLivePreviewState,
+    type SessionSnapshot,
     type SessionLiveFrame,
     type SessionLivePreviewExecution,
     type SessionLivePreviewState,
@@ -7,15 +8,74 @@ import {
 import type {UIMessage} from "ai"
 
 type PreviewPart = Record<string, unknown> & {type: string}
+const SHARED_SENDER_CONTROL_PARTS = new Set(["data-session-accepted", "step-start"])
+const LEGACY_LIVENESS_REFRESH_MS = 10_000
 
-/** The reader is useful only for a backend-advertised run owned by another browser. */
+/** Throttle record-driven liveness refreshes used only by flag-off observers. */
+export const shouldRefreshLegacyObserverLiveness = ({
+    sharedReaderAdvertised,
+    lastRefreshAt,
+    now,
+}: {
+    sharedReaderAdvertised: boolean
+    lastRefreshAt: number
+    now: number
+}): boolean => !sharedReaderAdvertised && now - lastRefreshAt >= LEGACY_LIVENESS_REFRESH_MS
+
+/** A sender subscribes eagerly; a secondary reader waits for a remote run. */
 export const shouldSubscribeToSessionLivePreview = ({
     sharedReaderAdvertised,
     runningElsewhere,
+    sender = false,
 }: {
     sharedReaderAdvertised: boolean
     runningElsewhere: boolean
-}): boolean => sharedReaderAdvertised && runningElsewhere
+    sender?: boolean
+}): boolean => sharedReaderAdvertised && (sender || runningElsewhere)
+
+/** Choose the live activity treatment only while the shared reader is actually connected. */
+export const deriveRemoteTurnPresentation = ({
+    livenessRunning,
+    snapshotRunning = false,
+    sharedReaderAdvertised,
+    readerReady,
+    ownedContinuation = false,
+}: {
+    /** Milestone-1 session-stream liveness; the only running source when the reader is disabled. */
+    livenessRunning: boolean
+    /** Atomic shared-reader snapshot state. Ignored while the reader capability is disabled. */
+    snapshotRunning?: boolean
+    sharedReaderAdvertised: boolean
+    readerReady: boolean
+    /** This tab answered the gate and owns the continuation even if its invoke stream detached. */
+    ownedContinuation?: boolean
+}): {showActivity: boolean; showStrip: boolean} => {
+    const running = livenessRunning || (sharedReaderAdvertised && snapshotRunning)
+    const showActivity = running && sharedReaderAdvertised && readerReady
+    return {
+        showActivity,
+        showStrip: running && !showActivity && !ownedContinuation,
+    }
+}
+
+/** The shared sender still consumes the invoke response for acceptance ids and errors. The AI SDK
+ * creates a message carrier for that control-only stream; keep it out of transcript rendering and
+ * local persistence unless it also carries a run error. */
+export const withoutSharedSenderAcceptanceMessages = (messages: UIMessage[]): UIMessage[] =>
+    messages.filter((message) => {
+        const metadata = message.metadata as
+            | {sharedSender?: boolean; runError?: unknown}
+            | undefined
+        if (!metadata?.sharedSender || metadata.runError) return true
+        return message.parts.some((part) => !SHARED_SENDER_CONTROL_PARTS.has(part.type))
+    })
+
+/** Atomic refresh verdict: the latest execution exists, is not complete, and the session still
+ * owns the running flag from the same snapshot read. */
+export const isSessionSnapshotRunning = (snapshot: SessionSnapshot | undefined): boolean =>
+    snapshot?.session.flags?.is_running === true &&
+    snapshot.execution != null &&
+    snapshot.execution.end_time == null
 
 const stringValue = (value: unknown): string =>
     typeof value === "string" ? value : value == null ? "" : String(value)

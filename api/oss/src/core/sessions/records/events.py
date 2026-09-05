@@ -4,6 +4,8 @@ from pydantic import TypeAdapter, ValidationError
 
 from oss.src.core.sessions.records.dtos import (
     SESSION_DURABLE_EVENT_TYPES,
+    InteractionRequestedEvent,
+    InteractionRespondedEvent,
     MessageCompletedEvent,
     SessionDurableEvent,
     SessionRecord,
@@ -117,6 +119,29 @@ def durable_events_from_records(
             watermark=resolved_watermark,
         )
         if base is None:
+            continue
+
+        if record.record_type in {"interaction_request", "interaction_response"}:
+            payload = {
+                "interaction_id": entity_id,
+                "kind": attributes.get("kind"),
+            }
+            if record.record_type == "interaction_request":
+                events.append(
+                    InteractionRequestedEvent(
+                        **base,
+                        type="interaction.requested",
+                        payload=payload,
+                    )
+                )
+            else:
+                events.append(
+                    InteractionRespondedEvent(
+                        **base,
+                        type="interaction.responded",
+                        payload=payload,
+                    )
+                )
             continue
 
         if record.record_type == "message":

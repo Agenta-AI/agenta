@@ -1,4 +1,4 @@
-import {type SessionRunStatus} from "@agenta/chat/model"
+import {deriveRemoteTurnPresentation, type SessionRunStatus} from "@agenta/chat/model"
 import {sessionLocalSettledAtAtomFamily, sessionStatusAtomFamily} from "@agenta/chat/state"
 import {
     deriveSessionLifecycle,
@@ -124,6 +124,9 @@ export const isRunningElsewhere = ({
     if (!isRunning) return false
     return localSettledAt === undefined || livenessUpdatedAt > localSettledAt
 }
+
+/** Desktop presentation for a remote/shared-path run. The strip is only the disconnected fallback. */
+export const deriveSessionRemoteTurnPresentation = deriveRemoteTurnPresentation
 
 /** `isRunningElsewhere` bound to this session's local status and the shared liveness query. */
 export const sessionRunningElsewhereAtomFamily = atomFamily((sessionId: string) =>

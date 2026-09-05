@@ -30,6 +30,7 @@ import {
     isVisiblePart,
 } from "@agenta/chat/model"
 import {getInteractionAvailability, getLivePendingApprovals} from "@agenta/chat/model"
+import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
 import {
@@ -74,6 +75,7 @@ import {useScrollIntent} from "./hooks/useScrollIntent"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
+import {deriveSessionRemoteTurnPresentation} from "./state/liveness"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -113,7 +115,9 @@ const AgentConversation = ({
     const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
-    const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
+    const [initialMessages] = useState(() =>
+        withoutSharedSenderAcceptanceMessages(store.get(sessionMessagesAtom)[sessionId] ?? []),
+    )
     const richInputRef = useRef<RichChatInputHandle>(null)
 
     const composer = useComposerDraft({sessionId, richInputRef, revealPlayedRef})
@@ -131,6 +135,10 @@ const AgentConversation = ({
         status,
         busy,
         error,
+        connectionWarning,
+        acceptedRunPending,
+        turnDeliverySource,
+        settleSharedTurn,
         sendMessage,
         regenerate,
         setMessages,
@@ -147,21 +155,40 @@ const AgentConversation = ({
         answerApproval,
         resumeOrphaned,
         isSeen,
-        runningElsewhere,
+        runningElsewhere: livenessRunningElsewhere,
         sharedReaderAdvertised,
         refreshFromRecords,
+        setSharedSenderReady,
     } = useAgentChatSession({entityId, sessionId, initialMessages, intent: scrollIntent})
-    const previewMessages = useSessionLivePreview({
+    const {
+        messages: previewMessages,
+        runningFromSnapshot,
+        readerReady,
+    } = useSessionLivePreview({
         sessionId,
         sharedReaderAdvertised,
-        runningElsewhere,
+        runningElsewhere: livenessRunningElsewhere,
+        sender: true,
+        onReadyChange: setSharedSenderReady,
+        onExecutionSettled: settleSharedTurn,
         onDisconnect: refreshFromRecords,
     })
-    const transcriptMessages = useMemo(
-        () => (previewMessages.length ? [...messages, ...previewMessages] : messages),
-        [messages, previewMessages],
-    )
-    const transcriptBusy = busy || previewMessages.length > 0
+    const remoteTurn = deriveSessionRemoteTurnPresentation({
+        livenessRunning: livenessRunningElsewhere,
+        snapshotRunning: runningFromSnapshot || acceptedRunPending,
+        sharedReaderAdvertised,
+        readerReady,
+        ownedContinuation: acceptedRunPending,
+    })
+    const transcriptMessages = useMemo(() => {
+        const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
+        if (turnDeliverySource === "legacy" || previewMessages.length === 0) return durableMessages
+        return [...durableMessages, ...previewMessages]
+    }, [messages, previewMessages, turnDeliverySource])
+    const transcriptBusy =
+        busy ||
+        remoteTurn.showActivity ||
+        (turnDeliverySource !== "legacy" && previewMessages.length > 0)
 
     // Turn Inspector: open state, the focused turn, and the assistant → turn-number mapping.
     const {
@@ -365,6 +392,7 @@ const AgentConversation = ({
     } = useAgentChatQueue({
         status,
         messages,
+        acceptedRunPending,
         stopped,
         resumeOrphaned,
         sendQueued,
@@ -697,6 +725,7 @@ const AgentConversation = ({
     )
     const handleResend = useCallback(
         (messageId: string) => {
+            if (busyRef.current) return
             const msgs = messagesRef.current
             const idx = msgs.findIndex((m) => m.id === messageId)
             // Same hazard as rewind (#6362 review): regenerating drops the failed assistant
@@ -764,7 +793,7 @@ const AgentConversation = ({
                 // busy): keeps the turn from reading as finished while the queue holds sends.
                 showWaiting={isLast && isAssistantTurn && !busy && hitlPending}
                 showStopped={stopped && isLast && isAssistantTurn}
-                resendDisabled={busy}
+                resendDisabled={busy || acceptedRunPending}
                 onResend={handleResend}
                 onRewind={handleRewind}
                 onClientToolOutput={handleClientToolOutput}
@@ -874,7 +903,8 @@ const AgentConversation = ({
                                         entityId={entityId}
                                         messages={messages}
                                         busy={busy}
-                                        runningElsewhere={runningElsewhere}
+                                        showRunningElsewhere={remoteTurn.showStrip}
+                                        connectionWarning={connectionWarning}
                                         hitlPending={hitlPending}
                                         queue={{
                                             queued,

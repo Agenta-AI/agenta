@@ -1,6 +1,7 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
 import {isSessionTranscript, loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
+import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
 import {
     fetchSessionRecordsAtom,
@@ -110,6 +111,7 @@ export const useSessionHydration = ({
     busy,
     setMessages,
     persistMessages,
+    clearRunError,
     intent,
     pendingResumeRef,
 }: {
@@ -127,6 +129,8 @@ export const useSessionHydration = ({
     busy: boolean
     setMessages: (messages: UIMessage[]) => void
     persistMessages: (args: {id: string; messages: UIMessage[]; recordCount?: number}) => void
+    /** Drop the stream error `useChat` is holding. Adopting the log supersedes it. */
+    clearRunError: () => void
     intent: ScrollIntent
     /**
      * Non-null while a client-tool settle (connect Not-now/Connect, an elicitation answer) has
@@ -170,7 +174,8 @@ export const useSessionHydration = ({
             const adopt = shouldAdoptServerTranscript({
                 serverRecordCount: sequenceCursor ?? recordCount,
                 serverMessageCount: serverMsgs.length,
-                localMessageCount: messagesRef.current.length,
+                localMessageCount: withoutSharedSenderAcceptanceMessages(messagesRef.current)
+                    .length,
                 watermark:
                     sequenceCursor === undefined
                         ? recordWatermarkRef.current
@@ -200,6 +205,10 @@ export const useSessionHydration = ({
             // clobbering a newer one.
             recordWatermarkRef.current = recordCount
             if (sequenceCursor !== undefined) sequenceWatermarkRef.current = sequenceCursor
+            // The log just superseded what this tab was rendering, a failed request of our own
+            // included. `useChat` holds that error until the next send and the session dot reads
+            // it, so without this the dot stays red beside a finished turn.
+            clearRunError()
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
             return true
@@ -218,6 +227,7 @@ export const useSessionHydration = ({
             sequenceWatermarkRef,
             setMessages,
             persistMessages,
+            clearRunError,
             intent.armJump,
             intent.stickRef,
         ],
@@ -542,6 +552,7 @@ export const useSessionHydration = ({
         onRecordsChanged: () => {
             void refreshFromRecords()
         },
+        sharedReaderAdvertised: liveness.sharedReader,
     })
 
     return {

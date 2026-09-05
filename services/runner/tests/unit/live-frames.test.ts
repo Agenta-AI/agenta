@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 
 import {
   LiveFramePublisher,
@@ -7,6 +7,11 @@ import {
 } from "../../src/sessions/live-frames.ts";
 
 describe("LiveFramePublisher", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    delete process.env.AGENTA_RUNNER_LIVE_FRAMES;
+  });
+
   it("assigns a monotonic frame index across projected progress", async () => {
     const frames: LiveFrameEnvelope[] = [];
     const publisher = new LiveFramePublisher({
@@ -15,8 +20,8 @@ describe("LiveFramePublisher", () => {
       auth: () => "Secret test",
       enabled: true,
       now: () => "2026-09-04T00:00:00.000Z",
-      send: async (frame) => {
-        frames.push(frame);
+      send: async (batch) => {
+        frames.push(...batch);
       },
     });
 
@@ -69,6 +74,8 @@ describe("LiveFramePublisher", () => {
       auth: () => "Secret test",
       enabled: true,
       capacity: 1,
+      flushIntervalMs: 0,
+      batchCapacity: 1,
       send: async () => {
         sends += 1;
         if (sends === 1) await firstSend;
@@ -88,5 +95,90 @@ describe("LiveFramePublisher", () => {
       "DROPPED session=session-drop execution=execution-drop count=1",
     ]);
     assert.ok(!logs[0].includes("secret"));
+  });
+
+  it("coalesces a 1,000-chunk stream into tens of ordered calls", async () => {
+    const calls: LiveFrameEnvelope[][] = [];
+    const publisher = new LiveFramePublisher({
+      sessionId: "session-batch",
+      executionId: "execution-batch",
+      auth: () => "Secret test",
+      enabled: true,
+      send: async (batch) => {
+        calls.push(batch);
+      },
+    });
+
+    for (let index = 0; index < 1_000; index += 1) {
+      publisher.emit({
+        type: "message_delta",
+        id: "message-1",
+        delta: `chunk-${index}`,
+      });
+      if ((index + 1) % 50 === 0) await Promise.resolve();
+    }
+    await publisher.whenIdle();
+
+    const frames = calls.flat();
+    assert.equal(calls.length, 20);
+    assert.equal(frames.length, 1_000);
+    assert.deepEqual(
+      frames.map((frame) => frame.frame_index),
+      Array.from({ length: 1_000 }, (_, index) => index),
+    );
+    assert.equal(publisher.reportDrops(), 0);
+  });
+
+  it("flushes on the byte bound without reordering envelopes", async () => {
+    const calls: LiveFrameEnvelope[][] = [];
+    const publisher = new LiveFramePublisher({
+      sessionId: "session-bytes",
+      executionId: "execution-bytes",
+      auth: () => "Secret test",
+      enabled: true,
+      batchCapacity: 50,
+      maxBatchBytes: 600,
+      send: async (batch) => {
+        calls.push(batch);
+      },
+    });
+
+    publisher.emit({
+      type: "message_delta",
+      id: "message-1",
+      delta: "a".repeat(100),
+    });
+    publisher.emit({
+      type: "message_delta",
+      id: "message-1",
+      delta: "b".repeat(100),
+    });
+    await publisher.whenIdle();
+
+    assert.equal(calls.length, 2);
+    assert.deepEqual(
+      calls.flat().map((frame) => frame.frame_index),
+      [0, 1],
+    );
+  });
+
+  it("sends no live frames when the feature flag is off", async () => {
+    process.env.AGENTA_RUNNER_LIVE_FRAMES = "false";
+    let calls = 0;
+    const publisher = new LiveFramePublisher({
+      sessionId: "session-off",
+      executionId: "execution-off",
+      auth: () => "Secret test",
+      send: async () => {
+        calls += 1;
+      },
+    });
+
+    publisher.emit({ type: "message_start", id: "message-1" });
+    publisher.emit({ type: "message_delta", id: "message-1", delta: "secret" });
+    publisher.emit({ type: "message_end", id: "message-1" });
+    await publisher.whenIdle();
+
+    assert.equal(calls, 0);
   });
 });

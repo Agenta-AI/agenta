@@ -456,6 +456,7 @@ export function buildPersistingEmitter(
         `WARN session=${sessionId} durable log incomplete: ${dropped} record(s) dropped this turn; reconstruction may lack context`,
       );
     }
+    await liveFrames?.whenIdle();
     liveFrames?.reportDrops();
   };
 

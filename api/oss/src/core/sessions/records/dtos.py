@@ -116,6 +116,11 @@ class ToolCompletedPayload(BaseModel):
     status: str
 
 
+class InteractionChangedPayload(BaseModel):
+    interaction_id: str
+    kind: Optional[str] = None
+
+
 class SessionDurableEventBase(BaseModel):
     """Durable relay wire envelope.
 
@@ -166,6 +171,16 @@ class ToolCompletedEvent(SessionDurableEventBase):
     payload: ToolCompletedPayload
 
 
+class InteractionRequestedEvent(SessionDurableEventBase):
+    type: Literal["interaction.requested"]
+    payload: InteractionChangedPayload
+
+
+class InteractionRespondedEvent(SessionDurableEventBase):
+    type: Literal["interaction.responded"]
+    payload: InteractionChangedPayload
+
+
 SessionDurableEvent = Annotated[
     Union[
         ExecutionStartedEvent,
@@ -174,6 +189,8 @@ SessionDurableEvent = Annotated[
         ExecutionLostEvent,
         MessageCompletedEvent,
         ToolCompletedEvent,
+        InteractionRequestedEvent,
+        InteractionRespondedEvent,
     ],
     Field(discriminator="type"),
 ]

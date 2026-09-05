@@ -71,7 +71,8 @@ share the count limit because frames are disposable.
 The relay worker reads only the live-frame stream. It discards expired frames, publishes accepted
 frames to the project-and-session Pub/Sub channel, then acknowledges and deletes them. The measured
 long case reached 3,161 frames and 201,056 SSE bytes in one turn. At the highest measured average
-rate, 100,000 frames represent about 22 minutes for one active run.
+rate, the 100,000-entry count bound would fill in about 22 minutes for one active run, but the
+15-minute age limit caps effective retention at 15 minutes.
 
 Durable records remain on `streams:records`. Publication preserves the existing approximate
 100,000-entry retention bound. The records worker persists, acknowledges, and deletes those entries.
@@ -135,8 +136,9 @@ when kind = event:
 
 Clients will apply durable events whose `sequence` is greater than the last event they applied and
 discard duplicate or older events. They will not wait for a contiguous durable sequence. After
-applying an event, they will advance the reconnect cursor to the greater of `sequence` and
-`watermark`.
+applying an event, they will advance the event-deduplication cursor to `sequence` and track the
+greater of `sequence` and `watermark` separately as the reconnect cursor. A replay's final `ready`
+event can advance both cursors after every event through its watermark has been applied.
 
 ### Durable event types
 
@@ -150,11 +152,13 @@ The target contract defines these event types and payloads:
 | `execution.lost` | `{lost_at, reason, history_complete: false}` |
 | `message.completed` | `{message_id, role, content, finish_reason?}` |
 | `tool.completed` | `{tool_call_id, name, input, output?, error?, status}` |
+| `interaction.requested` | `{interaction_id, kind?}` |
+| `interaction.responded` | `{interaction_id, kind?}` |
 
 The envelope will carry session, execution, entity, sequence, and creation fields, so payloads will
 not repeat them. The reducer will ignore an unknown event type and continue from the next sequence.
-New approval and pending-input events will ship with their packages and a compatible contract
-version.
+Interaction events carry no answer data. Readers use them to refresh records and the current
+interaction state.
 
 ### Replay and live handoff
 

@@ -769,6 +769,8 @@ export interface AgentRunRequest {
    * non-session runs. A session sees a sequence of turnIds (send/steer each start a new one).
    */
   turnId?: string;
+  /** True only when the shared event route, rather than this HTTP response, owns delivery. */
+  detached?: boolean;
   /**
    * The Agenta project id for this run. Set alongside `turnId` on session-owned runs so
    * the runner can include it in heartbeat and record-ingest calls. Absent otherwise.

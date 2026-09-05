@@ -10,8 +10,9 @@ import {
 } from "@agenta/chat/assets"
 import {
     ConnectionDock,
-    ElicitationDock,
     ConnectionFocusProvider,
+    ConnectionWarningStrip,
+    ElicitationDock,
     QueuedMessagesDock,
     RunningElsewhereStrip,
 } from "@agenta/chat/components"
@@ -60,7 +61,7 @@ import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {cancelledStopAction} from "./stopHereState"
 import {TurnRow} from "./TurnRow"
-import {showTrailingWorkingPulse} from "./turnStatus"
+import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
@@ -113,7 +114,8 @@ export const LiveConversation = ({
     const conversation = useAgentConversation({
         entityId,
         sessionId,
-        sharedReaderEnabled: running && sharedReader,
+        sharedReaderAdvertised: sharedReader,
+        sharedReaderRunning: running,
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
     })
 
@@ -217,6 +219,14 @@ export const LiveConversation = ({
     ])
 
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
+    const remoteTurn = deriveMobileRemoteTurnPresentation({
+        livenessRunning: running,
+        snapshotRunning: conversation.runningFromSnapshot || conversation.acceptedRunPending,
+        sharedReaderAdvertised: sharedReader,
+        readerReady: conversation.readerReady,
+        ownedContinuation: conversation.acceptedRunPending,
+    })
+    const showingTurnActivity = streamingHere || remoteTurn.showActivity
     const streamingHereRef = useRef(streamingHere)
     streamingHereRef.current = streamingHere
     const hitlPendingRef = useRef(conversation.hitlPending)
@@ -257,6 +267,7 @@ export const LiveConversation = ({
         sessionId,
         projectId,
         onRecordsChanged: revalidate,
+        sharedReaderAdvertised: sharedReader,
     })
     // Poll slowly while a cross-device run cannot be watched live.
     useEffect(() => {
@@ -513,7 +524,7 @@ export const LiveConversation = ({
                     far below the turn it described. It falls back to here for the one case that
                     turn cannot cover: the request is submitted and no assistant turn exists yet. */}
                 <TurnStatusLine
-                    working={showTrailingWorkingPulse(streamingHere, visibleTurns)}
+                    working={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
                     waitingForInput={conversation.hitlPending}
                 />
             </ContentRail>
@@ -569,13 +580,18 @@ export const LiveConversation = ({
                         composer, as on the desktop — it used to be a top bar that also appeared for
                         THIS device's own turns, duplicating the composer's Stop and shifting the
                         transcript twice per run. */}
-                        {running && !streamingHere ? (
+                        {remoteTurn.showStrip && !streamingHere ? (
                             <ContentRail>
                                 <RunningElsewhereStrip
                                     action={
                                         <StopButton sessionId={sessionId} projectId={projectId} />
                                     }
                                 />
+                            </ContentRail>
+                        ) : null}
+                        {conversation.connectionWarning ? (
+                            <ContentRail>
+                                <ConnectionWarningStrip message={conversation.connectionWarning} />
                             </ContentRail>
                         ) : null}
                         {pendingApprovals.length > 0 ? (
