@@ -4,7 +4,7 @@
  * Right-hand drawer chrome for a whole config SECTION (Model & harness, Advanced) — as opposed to
  * the per-item `ConfigItemDrawer`. The accordion header opens it; the body is whatever the host
  * passes as children. The host owns the draft model (snapshot the config on open, restore on
- * Cancel), so this is pure chrome: header (icon + title), a scrollable body, and Cancel/Save.
+ * Cancel), so this is pure chrome: header (title), a scrollable body, and Cancel/Save.
  *
  * Built on the shared `EnhancedDrawer`.
  */
@@ -24,7 +24,6 @@ export interface SectionDrawerProps {
     // When true, closing via scrim/X asks for confirmation instead of discarding silently.
     dirty?: boolean
     width?: number
-    footerNote?: ReactNode
     children: ReactNode
 }
 
@@ -37,7 +36,6 @@ export function SectionDrawer({
     disabled = false,
     dirty = false,
     width = 720,
-    footerNote = "Draft — applies on save",
     children,
 }: SectionDrawerProps) {
     const [confirmOpen, setConfirmOpen] = useState(false)
@@ -65,23 +63,19 @@ export function SectionDrawer({
                     </div>
                 }
                 footer={
-                    <div className="flex items-center justify-between gap-3">
-                        <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
-                            {footerNote}
-                        </span>
-                        <div className="flex shrink-0 items-center gap-2">
-                            <Button variant="outline" onClick={onCancel}>
-                                Cancel
-                            </Button>
-                            <Button onClick={onSave} disabled={disabled}>
-                                Save
-                            </Button>
-                        </div>
+                    <div className="flex items-center justify-end gap-2">
+                        <Button variant="outline" onClick={onCancel}>
+                            Cancel
+                        </Button>
+                        <Button onClick={onSave} disabled={disabled}>
+                            Save
+                        </Button>
                     </div>
                 }
                 // The body itself doesn't scroll — the content (a full-height flex row) gives each
                 // panel its own overflow, so the left and right panels scroll independently.
-                styles={{body: {padding: 16, overflow: "hidden"}}}
+                // Tighter at the sides; the vertical 16 is what the rail's `bleed` negates.
+                styles={{body: {padding: "16px 12px", overflow: "hidden"}}}
             >
                 {children}
             </EnhancedDrawer>

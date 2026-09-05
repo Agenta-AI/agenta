@@ -16,6 +16,8 @@ import clsx from "clsx"
 export interface SectionRailItem {
     value: string
     label: string
+    /** Optional leading glyph, sized by the caller (14-15px matches the drawer rails). */
+    icon?: ReactNode
     /** Optional trailing count (e.g. a schema's field count). */
     count?: number
     /**
@@ -38,6 +40,8 @@ export interface SectionRailProps {
      * internally-scrolling child. @default false (content-flow, natural height — the drawer case).
      */
     fill?: boolean
+    /** Bleed the divider past the host's 16px vertical padding, onto its rules. @default false */
+    bleed?: boolean
     /** Right-hand content panel; separated from the rail by a left border. */
     children: ReactNode
 }
@@ -49,10 +53,11 @@ export function SectionRail({
     railWidth = "w-[116px]",
     disabled = false,
     fill = false,
+    bleed = false,
     children,
 }: SectionRailProps) {
     return (
-        <div className={clsx("flex gap-3", fill && "min-h-0 flex-1")}>
+        <div className={clsx("flex gap-2", fill && "min-h-0 flex-1")}>
             <div className={`flex ${railWidth} shrink-0 flex-col gap-0.5`}>
                 {items.map((item) => {
                     const active = item.value === value
@@ -62,7 +67,7 @@ export function SectionRail({
                             variant="ghost"
                             disabled={disabled}
                             onClick={() => onChange(item.value)}
-                            className={`h-8 w-full rounded-md px-2.5 text-xs transition-colors ${
+                            className={`h-8 w-full rounded-md px-2 text-xs transition-colors ${
                                 item.count != null || item.status
                                     ? "flex items-center justify-between"
                                     : "justify-start"
@@ -74,7 +79,14 @@ export function SectionRail({
                                     : "text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillTertiary)] hover:text-[var(--ag-colorText)] disabled:text-[var(--ag-colorTextSecondary)]"
                             }`}
                         >
-                            <span className="truncate">{item.label}</span>
+                            <span className="flex min-w-0 items-center gap-1.5">
+                                {item.icon ? (
+                                    <span className="flex shrink-0 items-center opacity-75">
+                                        {item.icon}
+                                    </span>
+                                ) : null}
+                                <span className="truncate">{item.label}</span>
+                            </span>
                             {item.status ? (
                                 <span
                                     className={`h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -90,7 +102,12 @@ export function SectionRail({
                     )
                 })}
             </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorder)] pl-4">
+            <div
+                className={clsx(
+                    "flex min-w-0 flex-1 flex-col gap-1.5 border-0 border-l border-solid border-[var(--ag-colorBorder)] pl-4",
+                    bleed && "-my-4 py-4",
+                )}
+            >
                 {children}
             </div>
         </div>
