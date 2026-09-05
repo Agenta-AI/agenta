@@ -10,7 +10,6 @@ import {DEFAULT_ATTACHMENT_LIMITS} from "../../../src/assets/attachmentRules"
 import {isComposerRunStoppable} from "../../../src/assets/composerRunState"
 import {ChatComposer} from "../../../src/components/ChatComposer"
 import QueuedMessagesDock from "../../../src/components/QueuedMessagesDock"
-import {RunningElsewhereStrip} from "../../../src/components/RunningElsewhereStrip"
 import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
 import type {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
 import {useServerSessionInputs} from "../../../src/hooks/useServerSessionInputs"
@@ -180,7 +179,6 @@ const RunningElsewhereAdmissionHarness = ({
             "Start fresh run",
         ),
         freshAdmissionReleased ? createElement("span", null, "Fresh admission released") : null,
-        createElement(RunningElsewhereStrip),
         createElement(QueuedMessagesDock, {
             queued: queue.queued,
             onRemove: vi.fn(),
@@ -265,7 +263,6 @@ const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolea
 
     const inputRef = createRef<RichChatInputHandle>()
     render(createElement(RunningElsewhereAdmissionHarness, {inputRef}))
-    await screen.findByText(/This turn is still running/)
     await screen.findByLabelText("Chat message")
     await screen.findByRole("button", {name: "Start fresh run"})
     fireEvent.click(screen.getByRole("button", {name: "Start fresh run"}))

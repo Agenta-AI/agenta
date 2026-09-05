@@ -661,7 +661,11 @@ export const LiveConversation = ({
                         }) && !streamingHere ? (
                             <ContentRail>
                                 <div className="flex justify-end pb-2">
-                                    <StopButton sessionId={sessionId} projectId={projectId} />
+                                    <StopButton
+                                        key={sessionTurnId ?? sessionId}
+                                        sessionId={sessionId}
+                                        projectId={projectId}
+                                    />
                                 </div>
                             </ContentRail>
                         ) : null}
