@@ -102,7 +102,8 @@ export const AgentOverviewScreen = ({
                                 {/* The same popover the session top bar anchors. */}
                                 <AgentIconPopover workflowId={agentId}>
                                     <span
-                                        className={`flex size-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold ${chrome.className}`}
+                                        // ::after hit extender — 28px is under the touch guideline.
+                                        className={`relative flex size-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold after:absolute after:-inset-1.5 after:content-[''] ${chrome.className}`}
                                         style={chrome.style ?? {backgroundColor: avatar.color}}
                                     >
                                         {chrome.glyph}

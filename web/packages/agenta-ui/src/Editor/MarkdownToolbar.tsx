@@ -303,7 +303,8 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
     const blockLabel = BLOCK_TYPES.find((b) => b.key === blockType)?.label ?? "Normal text"
 
     return (
-        <div className="flex items-center gap-0.5">
+        // flex-wrap: the button row is wider than a phone drawer and ran off its right edge.
+        <div className="flex flex-wrap items-center gap-0.5">
             {/* Block type — paragraph / headings / quote / code block. */}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild disabled={disabled}>

@@ -170,7 +170,8 @@ const SessionRowImpl = ({
                                 variant="ghost"
                                 size="icon-sm"
                                 aria-label="Session actions"
-                                className="shrink-0"
+                                // The pin's hit extender: 24px is under the touch guideline.
+                                className="relative shrink-0 after:absolute after:inset-[-10px] after:content-[''] [@media(hover:hover)]:after:inset-[-4px]"
                                 onClick={(event) => event.stopPropagation()}
                             >
                                 <DotsThreeIcon size={14} />

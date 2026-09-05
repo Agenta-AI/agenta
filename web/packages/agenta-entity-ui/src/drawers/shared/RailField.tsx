@@ -127,10 +127,11 @@ export function RailField({label, align = "top", path, wide, children}: RailFiel
     const visible = useIsPathVisible(path)
     if (!visible) return null
     return (
-        <div className="flex gap-3">
+        // Below sm the 116px label column left the control a few dozen px, so the label stacks.
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:gap-3">
             <div
-                className={`box-border w-[116px] shrink-0 px-2.5 text-xs ${
-                    align === "center" ? "self-center" : "pt-1.5"
+                className={`box-border w-full px-0 text-xs sm:w-[116px] sm:shrink-0 sm:px-2.5 ${
+                    align === "center" ? "sm:self-center" : "sm:pt-1.5"
                 } ${changed ? "text-[var(--ag-colorText)]" : "text-[var(--ag-colorTextSecondary)]"}`}
             >
                 {/* The label carries the change via emphasis (colorTextSecondary → colorText) plus a
@@ -158,7 +159,7 @@ export function RailField({label, align = "top", path, wide, children}: RailFiel
             </div>
             <div
                 className={cn(
-                    "flex min-w-0 flex-1 flex-col border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3",
+                    "flex min-w-0 flex-1 flex-col border-0 border-solid border-[var(--ag-colorBorderSecondary)] sm:border-l sm:pl-3",
                     !wide && "max-w-prose",
                 )}
             >
