@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     querySessionTranscript: vi.fn(),
     connectSessionLiveEvents: vi.fn(() => ({close: vi.fn()})),
     interactionRowStates: new Map() as SessionInteractionRowStates,
+    revalidateInteractionStates: vi.fn(),
 }))
 
 vi.mock("@agenta/entities/session", async (importOriginal) => {
@@ -19,6 +20,7 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
     return {
         ...actual,
         fetchSessionInteractionStatesAtom: atom(null, () => mocks.interactionRowStates),
+        revalidateSessionInteractionsAtom: atom(null, () => mocks.revalidateInteractionStates()),
         fetchSessionSnapshot: mocks.fetchSessionSnapshot,
         querySessionTranscript: mocks.querySessionTranscript,
     }
@@ -252,6 +254,104 @@ describe("useSessionLivePreview", () => {
             )
         },
     )
+
+    it("shows and settles a watched interaction from durable record events", async () => {
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: true}},
+            execution: {turn_id: "turn-1", end_time: null},
+            read: {latest_sequence: 1},
+        })
+        mocks.querySessionTranscript.mockResolvedValueOnce([])
+        const onDisconnect = vi.fn().mockResolvedValue(true)
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const wrapper = ({children}: {children: ReactNode}) =>
+            createElement(Provider, {store}, children)
+
+        renderHook(
+            () =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: true,
+                    runningElsewhere: true,
+                    onDisconnect,
+                }),
+            {wrapper},
+        )
+
+        await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledOnce())
+        const connection = mocks.connectSessionLiveEvents.mock.calls[0][0]
+        const requestRecords = [
+            record("r-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "request_connection",
+                input: {integration: "github"},
+            }),
+            record("r-request", {
+                type: "interaction_request",
+                id: "interaction-1",
+                kind: "client_tool",
+                payload: {toolCallId: "tool-1", toolName: "request_connection"},
+            }),
+        ]
+        mocks.querySessionTranscript.mockResolvedValueOnce(requestRecords)
+
+        act(() =>
+            connection.onEvent({
+                version: 1,
+                kind: "event",
+                session_id: "session-1",
+                execution_id: "turn-1",
+                frame_or_event_id: "r-request",
+                sequence: 2,
+                watermark: 2,
+                type: "interaction.requested",
+                payload: {interaction_id: "interaction-1", kind: "client_tool"},
+                created_at: "2026-09-05T12:00:00Z",
+            }),
+        )
+
+        await waitFor(() => expect(onDisconnect).toHaveBeenCalledTimes(2))
+        expect(onDisconnect.mock.calls[1][0].messages[0].parts).toContainEqual(
+            expect.objectContaining({toolCallId: "tool-1", state: "input-available"}),
+        )
+
+        mocks.querySessionTranscript.mockResolvedValueOnce([
+            ...requestRecords,
+            record("r-result", {
+                type: "tool_result",
+                id: "tool-1",
+                data: {connected: true},
+            }),
+        ])
+        act(() =>
+            connection.onEvent({
+                version: 1,
+                kind: "event",
+                session_id: "session-1",
+                execution_id: "turn-1",
+                frame_or_event_id: "r-response",
+                sequence: 3,
+                watermark: 3,
+                type: "tool.completed",
+                payload: {
+                    tool_call_id: "tool-1",
+                    name: "request_connection",
+                    input: {integration: "github"},
+                    output: {connected: true},
+                    status: "completed",
+                },
+                created_at: "2026-09-05T12:00:01Z",
+            }),
+        )
+
+        await waitFor(() => expect(onDisconnect).toHaveBeenCalledTimes(3))
+        expect(onDisconnect.mock.calls[2][0].messages[0].parts).toContainEqual(
+            expect.objectContaining({toolCallId: "tool-1", state: "output-available"}),
+        )
+        expect(mocks.revalidateInteractionStates).toHaveBeenCalledOnce()
+    })
 
     it("backs reconnects off and resets the delay only after ready", async () => {
         vi.useFakeTimers()

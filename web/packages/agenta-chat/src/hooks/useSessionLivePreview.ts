@@ -5,6 +5,7 @@ import {
     fetchSessionInteractionStatesAtom,
     fetchSessionSnapshot,
     querySessionTranscript,
+    revalidateSessionInteractionsAtom,
     sessionLivePreviewAtomFamily,
 } from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -60,6 +61,7 @@ export const useSessionLivePreview = ({
     const [preview, setPreview] = useAtom(sessionLivePreviewAtomFamily(sessionId))
     const clearPreview = useSetAtom(clearSessionLivePreviewAtom)
     const fetchInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
+    const revalidateInteractionStates = useSetAtom(revalidateSessionInteractionsAtom)
     const [runningFromSnapshot, setRunningFromSnapshot] = useState(false)
     const [readerReady, setReaderReady] = useState(false)
     const onDisconnectRef = useRef(onDisconnect)
@@ -123,6 +125,23 @@ export const useSessionLivePreview = ({
             }
         }
 
+        const readBoundedTranscript = async (
+            throughSequence: number,
+        ): Promise<SessionTranscript | null> => {
+            if (!projectId) return null
+            const [records, interactionRowStates] = await Promise.all([
+                querySessionTranscript({sessionId, projectId, throughSequence}),
+                fetchInteractionStates(sessionId),
+            ])
+            if (!Array.isArray(records)) return null
+            return {
+                messages: transcriptToMessages(records, {interactionRowStates}) ?? [],
+                recordCount: records.length,
+                sequenceCursor: throughSequence,
+                interactionRows: interactionRowStates,
+            }
+        }
+
         const hydrateAndOpen = async () => {
             if (disposed || connection || document.visibilityState !== "visible") return
             const currentGeneration = ++generation
@@ -142,28 +161,13 @@ export const useSessionLivePreview = ({
 
             if (snapshot && projectId) {
                 try {
-                    const [records, interactionRowStates] = await Promise.all([
-                        querySessionTranscript({
-                            sessionId,
-                            projectId,
-                            throughSequence: snapshot.read.latest_sequence,
-                        }),
-                        fetchInteractionStates(sessionId),
-                    ])
-                    if (!Array.isArray(records)) {
+                    const transcript = await readBoundedTranscript(snapshot.read.latest_sequence)
+                    if (!transcript) {
                         scheduleReconnect()
                         return
                     }
                     if (disposed || currentGeneration !== generation) return
-                    const adopted = await adoptTranscript({
-                        // Use the canonical durable mapper with the same lifecycle join as
-                        // loadSessionMessages, so terminal interactions cannot replay as pending.
-                        messages: transcriptToMessages(records, {interactionRowStates}) ?? [],
-                        recordCount: records.length,
-                        // The snapshot cursor stays separate because retained rows can be sparse.
-                        sequenceCursor: snapshot.read.latest_sequence,
-                        interactionRows: interactionRowStates,
-                    })
+                    const adopted = await adoptTranscript(transcript)
                     if (disposed || currentGeneration !== generation) return
                     if (!adopted) {
                         scheduleReconnect()
@@ -205,11 +209,26 @@ export const useSessionLivePreview = ({
                         setRunningFromSnapshot(false)
                         onExecutionSettledRef.current?.(event.execution_id)
                     }
+                    const interactionChanged =
+                        event.type === "interaction.requested" ||
+                        event.type === "interaction.responded"
+                    if (interactionChanged) revalidateInteractionStates(sessionId)
                     // Completed durable rows replace temporary frames in the transcript source.
                     clearPreview(sessionId)
-                    void adoptTranscript().then((adopted) => {
-                        if (!adopted && !disposed) scheduleReconnect()
-                    })
+                    const refresh =
+                        interactionChanged || event.type === "tool.completed"
+                            ? readBoundedTranscript(next.latestSequence).then((transcript) =>
+                                  transcript ? adoptTranscript(transcript) : false,
+                              )
+                            : adoptTranscript()
+                    void refresh.then(
+                        (adopted) => {
+                            if (!adopted && !disposed) scheduleReconnect()
+                        },
+                        () => {
+                            if (!disposed) scheduleReconnect()
+                        },
+                    )
                 },
                 onReady: ({watermark}) => {
                     durable = completeSessionDurableEventReplay(durable, watermark)
@@ -249,6 +268,7 @@ export const useSessionLivePreview = ({
         clearPreview,
         fetchInteractionStates,
         projectId,
+        revalidateInteractionStates,
         sessionId,
         setPreview,
         sharedReaderAdvertised,

@@ -150,11 +150,13 @@ The target contract defines these event types and payloads:
 | `execution.lost` | `{lost_at, reason, history_complete: false}` |
 | `message.completed` | `{message_id, role, content, finish_reason?}` |
 | `tool.completed` | `{tool_call_id, name, input, output?, error?, status}` |
+| `interaction.requested` | `{interaction_id, kind?}` |
+| `interaction.responded` | `{interaction_id, kind?}` |
 
 The envelope will carry session, execution, entity, sequence, and creation fields, so payloads will
 not repeat them. The reducer will ignore an unknown event type and continue from the next sequence.
-New approval and pending-input events will ship with their packages and a compatible contract
-version.
+Interaction events carry no answer data. Readers use them to refresh records and the current
+interaction state.
 
 ### Replay and live handoff
 
