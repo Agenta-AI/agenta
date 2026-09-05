@@ -175,8 +175,8 @@ export async function fetchLatestRevision({
  * Batch fetch latest revisions for multiple testsets
  * Returns a Map of testsetId -> latest Revision
  *
- * Uses per-ref limit feature (ReferenceWithLimit) to get exactly 1 revision per testset.
- * The API uses SQL window functions to partition by testset and return top N per partition.
+ * The API has no per-parent limit yet (agenta#6563), so this asks for newest-first and
+ * keeps the first revision seen per testset.
  */
 export async function fetchLatestRevisionsBatch(
     projectId: string,
@@ -189,8 +189,9 @@ export async function fetchLatestRevisionsBatch(
     const response = await axios.post(
         `${getAgentaApiUrl()}/testsets/revisions/query`,
         {
-            // Use per-ref limit to get exactly 1 revision per testset
-            testset_refs: testsetIds.map((id) => ({id, limit: 1})),
+            testset_refs: testsetIds.map((id) => ({id})),
+            // Without this the API applies no ORDER BY and "latest" is arbitrary.
+            windowing: {order: "descending"},
             include_testcases: false,
         },
         {params: {project_id: projectId}},
@@ -203,14 +204,22 @@ export async function fetchLatestRevisionsBatch(
     )
     if (!validated) return results
 
-    // Map revisions by testset_id
+    // Newest first, so the first revision seen for a testset is its latest.
+    const v0Fallback = new Map<string, Revision>()
     for (const raw of validated.testset_revisions) {
         try {
             const revision = normalizeRevision(raw)
-            results.set(revision.testset_id, revision)
+            // v0 is an auto-created empty placeholder; use it only if nothing else exists.
+            const target = revision.version === 0 ? v0Fallback : results
+            if (!target.has(revision.testset_id)) {
+                target.set(revision.testset_id, revision)
+            }
         } catch (e) {
             console.error("[fetchLatestRevisionsBatch] Failed to normalize revision:", e, raw)
         }
+    }
+    for (const [testsetId, revision] of v0Fallback) {
+        if (!results.has(testsetId)) results.set(testsetId, revision)
     }
 
     return results
