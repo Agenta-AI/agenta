@@ -7,7 +7,12 @@ import {
     TESTSETS_SIDEBAR_KEY,
 } from "@agenta/navigation"
 import {SidebarConfig} from "@agenta/navigation"
-import {HOME_SIDEBAR_KEY, MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "@agenta/navigation"
+import {
+    HOME_SIDEBAR_KEY,
+    MAIN_SIDEBAR_SCOPE_ID,
+    SESSIONS_SIDEBAR_KEY,
+    SKILLS_SIDEBAR_KEY,
+} from "@agenta/navigation"
 import {SessionFilterMenu} from "@agenta/navigation-ui"
 import {
     ChartLineUpIcon,
@@ -21,6 +26,7 @@ import {
     ListChecksIcon,
     RobotIcon,
     ChatsCircleIcon,
+    PuzzlePieceIcon,
 } from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -100,6 +106,14 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 // Onboarding IS agent creation — the list page is an empty dead-end until it commits.
                 disabled: !hasProjectURL || deadEndNavDisabled,
                 tooltip: deadEndNavDisabled ? "Your agents will appear here" : undefined,
+            },
+            {
+                key: SKILLS_SIDEBAR_KEY,
+                title: "Skills",
+                link: `${projectURL}/skills`,
+                icon: <PuzzlePieceIcon size={14} />,
+                hideChildrenWhenCollapsed: true,
+                disabled: !hasProjectURL,
             },
             {
                 key: SESSIONS_SIDEBAR_KEY,
