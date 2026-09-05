@@ -134,7 +134,9 @@ class _FakeCommandsDAO:
                 return row
         return None
 
-    async def fetch_open_command(self, *, project_id, session_id, kind, target_turn_id):
+    async def fetch_open_command(
+        self, *, project_id, session_id, kind, target_turn_id, transaction=None
+    ):
         for row in reversed(self.rows):
             if (
                 row.project_id == project_id
@@ -146,6 +148,19 @@ class _FakeCommandsDAO:
             ):
                 return row
         return None
+
+    async def bind_steer_input(
+        self, *, project_id, command_id, input_id, transaction=None
+    ):
+        for index, row in enumerate(self.rows):
+            if row.project_id != project_id or row.id != command_id:
+                continue
+            data = dict(row.data or {})
+            data.setdefault("steer_input_id", str(input_id))
+            bound = row.model_copy(update={"data": data})
+            self.rows[index] = bound
+            return bound
+        raise AssertionError("command to bind was not found")
 
     async def fetch_command(self, *, command_id, project_id=None):
         for row in self.rows:
@@ -888,6 +903,34 @@ async def test_reused_idempotency_key_rejects_a_different_expected_execution(
 
     assert len(dao.rows) == 1
     assert len(delivery.delivered) == 1
+
+
+@pytest.mark.asyncio
+async def test_steer_binds_to_an_already_open_stop(lock_engine):
+    await _run_turn(lock_engine, "turn-A")
+    dao = _FakeCommandsDAO()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+        ),
+    )
+    first = await svc.request_cancel(
+        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+    )
+    steer_input_id = uuid4()
+
+    steered = await svc.request_cancel(
+        project_id=_PROJECT,
+        user_id=_USER,
+        session_id=_SESSION,
+        steer_input_id=steer_input_id,
+    )
+
+    assert steered.command.id == first.command.id
+    assert steered.command.data == {"steer_input_id": str(steer_input_id)}
+    assert len(dao.rows) == 1
 
 
 @pytest.mark.asyncio

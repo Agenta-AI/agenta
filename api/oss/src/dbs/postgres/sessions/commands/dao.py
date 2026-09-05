@@ -10,7 +10,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select, update as sa_update
+from sqlalchemy import and_, cast, func, or_, select, update as sa_update
+from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.utils.logging import get_module_logger
@@ -247,6 +248,51 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
             return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
+
+    async def bind_steer_input(
+        self,
+        *,
+        project_id: UUID,
+        command_id: UUID,
+        input_id: UUID,
+        transaction: Optional[Any] = None,
+    ) -> SessionCommand:
+        async def execute(session: Any) -> SessionCommand:
+            row = (
+                await session.execute(
+                    sa_update(SessionCommandDBE)
+                    .where(
+                        SessionCommandDBE.project_id == project_id,
+                        SessionCommandDBE.id == command_id,
+                        SessionCommandDBE.state.in_(_OPEN_STATES),
+                        SessionCommandDBE.data["steer_input_id"].astext.is_(None),
+                    )
+                    .values(
+                        data=cast(
+                            func.coalesce(
+                                cast(SessionCommandDBE.data, JSONB), cast({}, JSONB)
+                            ).op("||")(cast({"steer_input_id": str(input_id)}, JSONB)),
+                            JSON,
+                        )
+                    )
+                    .returning(SessionCommandDBE)
+                )
+            ).scalar_one_or_none()
+            if row is None:
+                row = (
+                    await session.execute(
+                        select(SessionCommandDBE).where(
+                            SessionCommandDBE.project_id == project_id,
+                            SessionCommandDBE.id == command_id,
+                        )
+                    )
+                ).scalar_one()
+            return map_command_dbe_to_dto(row)
 
         if transaction is not None:
             return await execute(transaction)

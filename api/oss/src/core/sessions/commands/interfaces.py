@@ -122,6 +122,17 @@ class SessionCommandsDAOInterface(ABC):
         """The open (`pending` or `claimed`) command for this exact target, if one exists.
         This is what collapses two Stops in a row onto one command."""
 
+    async def bind_steer_input(
+        self,
+        *,
+        project_id: UUID,
+        command_id: UUID,
+        input_id: UUID,
+        transaction: Optional[Any] = None,
+    ) -> SessionCommand:
+        """Bind the first Steer input to an open Stop command."""
+        raise NotImplementedError
+
     async def fetch_resumable_continuation(
         self,
         *,

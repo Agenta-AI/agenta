@@ -299,9 +299,12 @@ async def test_admission_rechecks_settlement_under_the_execution_lock(
     admission = await admission_task
 
     assert admission.action == "execute"
-    assert await inputs.list_pending(
-        project_id=input_scope["project_id"], session_id=input_scope["session_id"]
-    ) == []
+    assert (
+        await inputs.list_pending(
+            project_id=input_scope["project_id"], session_id=input_scope["session_id"]
+        )
+        == []
+    )
 
 
 async def test_manual_stop_commits_without_promoting_pending_input(
@@ -500,9 +503,13 @@ async def test_steer_stop_promotes_only_the_bound_input(input_scope, monkeypatch
         ),
         prioritize=True,
     )
-    command = await _pending_command(
-        input_scope, data={"steer_input_id": str(steer.id)}
+    command = await _pending_command(input_scope)
+    command = await SessionCommandsDAO(engine=input_scope["engine"]).bind_steer_input(
+        project_id=input_scope["project_id"],
+        command_id=command.id,
+        input_id=steer.id,
     )
+    assert command.data == {"steer_input_id": str(steer.id)}
     service = _settlement_service(input_scope, inputs)
 
     settled = await service.settle(

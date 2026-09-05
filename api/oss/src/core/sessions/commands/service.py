@@ -313,6 +313,12 @@ class SessionCommandsService:
             target_turn_id=target_turn_id,
         )
         if open_command is not None:
+            if steer_input_id is not None:
+                open_command = await self._dao.bind_steer_input(
+                    project_id=project_id,
+                    command_id=open_command.id,
+                    input_id=steer_input_id,
+                )
             if open_command.state == SessionCommandState.pending:
                 await self._deliver(open_command)
             return CancelAdmission(
@@ -366,7 +372,16 @@ class SessionCommandsService:
                     transaction=transaction,
                 )
                 if open_command is not None:
-                    command = open_command
+                    command = (
+                        await self._dao.bind_steer_input(
+                            project_id=project_id,
+                            command_id=open_command.id,
+                            input_id=steer_input_id,
+                            transaction=transaction,
+                        )
+                        if steer_input_id is not None
+                        else open_command
+                    )
                 else:
                     await self._executions.set_state(
                         project_id=project_id,
@@ -394,6 +409,13 @@ class SessionCommandsService:
                         transaction=transaction,
                     )
                     command = created.command
+                    if steer_input_id is not None:
+                        command = await self._dao.bind_steer_input(
+                            project_id=project_id,
+                            command_id=command.id,
+                            input_id=steer_input_id,
+                            transaction=transaction,
+                        )
                     cancelled_interactions = (
                         await self._interactions.cancel_session_pending(
                             project_id=project_id,
