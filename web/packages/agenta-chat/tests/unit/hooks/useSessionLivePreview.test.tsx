@@ -48,7 +48,7 @@ describe("useSessionLivePreview", () => {
 
     it("loads and adopts the transcript through the snapshot before following its cursor", async () => {
         const records = deferred<[]>()
-        const adopted = deferred<void>()
+        const adopted = deferred<boolean>()
         const onDisconnect = vi.fn(() => adopted.promise)
         mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 7}})
         mocks.querySessionTranscript.mockReturnValue(records.promise)
@@ -79,16 +79,39 @@ describe("useSessionLivePreview", () => {
 
         await act(async () => records.resolve([]))
         await waitFor(() =>
-            expect(onDisconnect).toHaveBeenCalledWith({messages: [], recordCount: 0}),
+            expect(onDisconnect).toHaveBeenCalledWith({messages: [], recordCount: 7}),
         )
         expect(mocks.connectSessionLiveEvents).not.toHaveBeenCalled()
 
-        await act(async () => adopted.resolve())
+        await act(async () => adopted.resolve(true))
         await waitFor(() =>
             expect(mocks.connectSessionLiveEvents).toHaveBeenCalledWith(
                 expect.objectContaining({sessionId: "session-1", after: 7}),
             ),
         )
+    })
+
+    it("does not follow a snapshot cursor the host refused to adopt", async () => {
+        mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 7}})
+        mocks.querySessionTranscript.mockResolvedValue([])
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const wrapper = ({children}: {children: ReactNode}) =>
+            createElement(Provider, {store}, children)
+
+        renderHook(
+            () =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: true,
+                    runningElsewhere: true,
+                    onDisconnect: vi.fn().mockResolvedValue(false),
+                }),
+            {wrapper},
+        )
+
+        await waitFor(() => expect(mocks.querySessionTranscript).toHaveBeenCalledOnce())
+        expect(mocks.connectSessionLiveEvents).not.toHaveBeenCalled()
     })
 
     it("backs reconnects off and resets the delay only after ready", async () => {
@@ -106,7 +129,7 @@ describe("useSessionLivePreview", () => {
                     sessionId: "session-1",
                     sharedReaderAdvertised: true,
                     runningElsewhere: true,
-                    onDisconnect: vi.fn(),
+                    onDisconnect: vi.fn().mockResolvedValue(true),
                 }),
             {wrapper},
         )

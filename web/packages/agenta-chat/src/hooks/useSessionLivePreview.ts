@@ -43,7 +43,7 @@ export const useSessionLivePreview = ({
     /** True only when this browser is not the sender of the running turn. */
     runningElsewhere: boolean
     /** Adopts a bounded transcript or re-fetches after a later gap/disconnect. */
-    onDisconnect: (transcript?: SessionTranscript) => void | Promise<void>
+    onDisconnect: (transcript?: SessionTranscript) => boolean | Promise<boolean>
 }): UIMessage[] => {
     const projectId = useAtomValue(projectIdAtom)
     const [preview, setPreview] = useAtom(sessionLivePreviewAtomFamily(sessionId))
@@ -102,11 +102,17 @@ export const useSessionLivePreview = ({
                     return
                 }
                 if (disposed || currentGeneration !== generation) return
-                await onDisconnectRef.current({
+                const adopted = await onDisconnectRef.current({
                     messages: transcriptToMessages(records) ?? [],
-                    recordCount: records.length,
+                    // Retention can make the bounded page shorter than the durable log. The
+                    // snapshot cursor is the exact boundary this transcript represents.
+                    recordCount: snapshot.read.latest_sequence,
                 })
                 if (disposed || currentGeneration !== generation) return
+                if (!adopted) {
+                    scheduleReconnect()
+                    return
+                }
             } else {
                 await onDisconnectRef.current()
                 if (disposed || currentGeneration !== generation) return
