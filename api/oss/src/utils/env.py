@@ -1558,7 +1558,7 @@ class SessionsRedisConfig(BaseModel):
     """
 
     sequence_writes: bool = (
-        os.getenv("AGENTA_SESSIONS_SEQUENCE_WRITES") or "false"
+        os.getenv("AGENTA_SESSIONS_SEQUENCE_WRITES") or "true"
     ).lower() in _TRUTHY
     alive_ttl_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ALIVE_TTL_SECONDS")
@@ -1601,7 +1601,7 @@ class SessionsRedisConfig(BaseModel):
         or 900
     )
     shared_reader: bool = (
-        os.getenv("AGENTA_SESSIONS_SHARED_READER") or "false"
+        os.getenv("AGENTA_SESSIONS_SHARED_READER") or "true"
     ).lower() in _TRUTHY
     live_auth_recheck_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_AUTH_RECHECK_SECONDS")
