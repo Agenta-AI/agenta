@@ -16,6 +16,7 @@ import {
   mountStorage,
   unmountStorage,
   mountpointFailureState,
+  waitForLocalMount,
   discoverTunnelEndpoint,
   mountStorageRemote,
   harnessSessionMounts,
@@ -243,6 +244,35 @@ function notMountedThenAlive(): (cwd: string) => Promise<boolean> {
     return calls > 1;
   };
 }
+
+describe("waitForLocalMount", () => {
+  it("stops polling when geesefs exits before the mount is alive", async () => {
+    let probes = 0;
+    let exited = false;
+    let resolveExit!: () => void;
+    const exitPromise = new Promise<void>((resolve) => {
+      resolveExit = () => {
+        exited = true;
+        resolve();
+      };
+    });
+
+    const ok = await waitForLocalMount(
+      async () => {
+        probes += 1;
+        resolveExit();
+        return false;
+      },
+      () => exited,
+      exitPromise,
+      30,
+      1_000,
+    );
+
+    assert.equal(ok, false);
+    assert.equal(probes, 1);
+  });
+});
 
 describe("mountStorage", () => {
   it("builds the geesefs command with creds in env, not argv", async () => {
