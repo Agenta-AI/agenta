@@ -1,8 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    BOTTOM_FADE_HOVER_HIDE,
-    BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
     jumpGateOpen,
     latestTurnId,
@@ -609,15 +607,6 @@ export const LiveConversation = ({
                 scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
                 footer={
                     <div className="relative">
-                        {/* Bottom fade: a sibling overlay, NOT a second mask. A mask on the scroller
-                        would fade any hover toolbar that scrolls into the band, and no z-index
-                        escapes an ancestor's mask — the desktop learned this the same way. It sits
-                        above the footer and is dropped while a turn is hovered. */}
-                        <div
-                            aria-hidden
-                            className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
-                            style={BOTTOM_FADE_OVERLAY_STYLE}
-                        />
                         {/* What you have lined up. Yields to the gate docks entirely: those are
                         blocked runs wanting an answer, and stacking a second card above one
                         buries the composer. It comes back when the gate clears. */}
