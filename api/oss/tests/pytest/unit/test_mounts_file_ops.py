@@ -632,12 +632,198 @@ class TestMountFileOpsRoundtrip:
         listing = await service.list_files(
             project_id=pid, mount_id=mid, order="path", limit=100, git_aware=True
         )
+        # `.gitignore` itself is a dotfile, so the curated flat view drops it as hidden plumbing.
         assert {f.path for f in listing.files} == {
-            ".gitignore",
             "api/main.py",
             "web/index.ts",
         }
-        assert listing.total == 3
+        assert listing.total == 2
+
+    async def test_git_aware_flat_listing_excludes_hidden_paths(self):
+        # Dot-prefixed files and directories are plumbing, not user content: the curated flat view
+        # leaves them out of both the listing and its `total` (#6027).
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in [
+            "notes.md",
+            ".env",
+            ".claude/settings.json",
+            "src/.hidden/keep.txt",
+            "src/main.py",
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, order="path", limit=100, git_aware=True
+        )
+
+        assert {f.path for f in listing.files} == {"notes.md", "src/main.py"}
+        assert listing.total == 2
+
+    async def test_git_aware_count_only_excludes_hidden_paths(self):
+        # The "N files" badge reads the count-only total, so it must agree with the list above.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["notes.md", ".env", ".claude/settings.json"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total == 1
+        assert listing.files == []
+
+    async def test_hidden_tree_does_not_spend_the_count_budget(self, monkeypatch):
+        # `cap` bounds the DESCENT, but the number it produces is the VISIBLE file count — so the
+        # two have to be measured in the same unit. A hidden directory is pruned during the walk,
+        # not counted and then filtered away afterwards; otherwise a drive with a big `.claude/`
+        # reports a needless "N+" when its real files could have been counted exactly.
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 5)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for i in range(10):
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=f".claude/f{i}.json", content=b"x"
+            )
+        for path in ["a.txt", "b.txt"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total == 2
+        assert listing.total_capped is False
+
+    async def test_root_dotfiles_do_not_spend_the_count_budget(self, monkeypatch):
+        # The directory prune cannot reach a hidden file sitting at a KEPT directory's root, so the
+        # level scan has to skip it too. Otherwise five root dotfiles exhaust the budget and the
+        # drive reports "1+" for a count it could state exactly.
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 5)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in [
+            ".env",
+            ".dockerignore",
+            ".coderabbit.yaml",
+            ".prettierrc",
+            ".npmrc",
+            "a.txt",
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total == 1
+        assert listing.total_capped is False
+
+    async def test_gitignore_still_applies_when_it_is_pruned_from_the_count(self):
+        # `.gitignore` is a hidden file, so the level scan skips it — but its RULES must still be
+        # read first, or the files it ignores would start counting.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path, body in [
+            (".gitignore", b"ignored.txt\n"),
+            ("ignored.txt", b"x"),
+            ("kept.txt", b"x"),
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=body
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, order="path", limit=100, git_aware=True
+        )
+
+        assert {f.path for f in listing.files} == {"kept.txt"}
+        assert listing.total == 1
+
+    async def test_internal_tree_does_not_spend_the_count_budget(self, monkeypatch):
+        # Same rule for the runner-owned `agents/` namespace, which can hold a whole transcript
+        # workspace: pruned during the walk, so it never crowds out the real files.
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 5)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for i in range(10):
+            await service.write_file(
+                project_id=pid,
+                mount_id=mid,
+                path=f"agents/sessions/s{i}.json",
+                content=b"x",
+            )
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="a.txt", content=b"x"
+        )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total == 1
+        assert listing.total_capped is False
+
+    async def test_count_still_caps_on_a_genuinely_large_visible_tree(
+        self, monkeypatch
+    ):
+        # The budget still bites when the files really are visible — the prunes narrow what counts,
+        # they do not remove the bound.
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 5)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for i in range(12):
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=f"docs/f{i}.md", content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total_capped is True
+        assert listing.total >= 5
+
+    async def test_raw_flat_listing_keeps_hidden_paths(self):
+        # The hidden-file pruning is part of the CURATED view only — the raw contract still lists
+        # everything that is stored, so other API consumers see the mount as it really is.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["notes.md", ".env"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, order="path", limit=100, git_aware=False
+        )
+
+        assert {f.path for f in listing.files} == {"notes.md", ".env"}
+
+    async def test_git_aware_shallow_listing_keeps_hidden_paths(self):
+        # `depth=1` backs the browsable explorer, which shows hidden entries (dimmed) behind its own
+        # toggle — so the pruning above must NOT reach this view.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["notes.md", ".env"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, depth=1, git_aware=True
+        )
+
+        assert {f.path for f in listing.files} == {"notes.md", ".env"}
 
     async def test_raw_listing_keeps_git_and_ignored_by_default(self):
         # Default (git_aware=False) is the plain-endpoint contract: EVERY object under the prefix, incl.
