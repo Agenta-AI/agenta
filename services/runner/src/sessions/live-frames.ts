@@ -3,6 +3,9 @@ import { apiBase } from "../apiBase.ts";
 
 export const LIVE_FRAMES_ENV = "AGENTA_RUNNER_LIVE_FRAMES";
 export const LIVE_FRAME_BUFFER_CAPACITY = 256;
+export const LIVE_FRAME_FLUSH_INTERVAL_MS = 150;
+export const LIVE_FRAME_BATCH_CAPACITY = 50;
+export const LIVE_FRAME_BATCH_MAX_BYTES = 64 * 1024;
 
 export interface LiveFrameEnvelope {
   version: 1;
@@ -23,13 +26,21 @@ interface ProjectedFrame {
   payload: Record<string, unknown>;
 }
 
+interface QueuedFrame {
+  frame: LiveFrameEnvelope;
+  bytes: number;
+}
+
 interface LiveFramePublisherOptions {
   sessionId: string;
   executionId: string;
   auth: () => string;
   enabled?: boolean;
   capacity?: number;
-  send?: (frame: LiveFrameEnvelope) => Promise<void>;
+  flushIntervalMs?: number;
+  batchCapacity?: number;
+  maxBatchBytes?: number;
+  send?: (frames: LiveFrameEnvelope[]) => Promise<void>;
   now?: () => string;
   log?: (message: string) => void;
 }
@@ -42,9 +53,9 @@ function envEnabled(): boolean {
   );
 }
 
-async function postFrame(
+async function postFrames(
   auth: () => string,
-  frame: LiveFrameEnvelope,
+  frames: LiveFrameEnvelope[],
 ): Promise<void> {
   const response = await fetch(`${apiBase()}/sessions/records/ingest`, {
     method: "POST",
@@ -52,7 +63,7 @@ async function postFrame(
       "content-type": "application/json",
       authorization: auth(),
     },
-    body: JSON.stringify(frame),
+    body: JSON.stringify(frames),
   });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
@@ -154,25 +165,43 @@ function projectEvent(
 export class LiveFramePublisher {
   private readonly enabled: boolean;
   private readonly capacity: number;
-  private readonly send: (frame: LiveFrameEnvelope) => Promise<void>;
+  private readonly flushIntervalMs: number;
+  private readonly batchCapacity: number;
+  private readonly maxBatchBytes: number;
+  private readonly send: (frames: LiveFrameEnvelope[]) => Promise<void>;
   private readonly now: () => string;
   private readonly log: (message: string) => void;
   private readonly sessionId: string;
   private readonly executionId: string;
-  private readonly queue: LiveFrameEnvelope[] = [];
+  private readonly queue: QueuedFrame[] = [];
   private readonly seenToolCalls = new Set<string>();
   private frameIndex = 0;
   private dropped = 0;
+  private queuedPayloadBytes = 0;
   private pumping = false;
+  private flushRequested = false;
+  private flushTimer: NodeJS.Timeout | null = null;
   private idleWaiters: Array<() => void> = [];
 
   constructor(options: LiveFramePublisherOptions) {
     this.enabled = options.enabled ?? envEnabled();
     this.capacity = Math.max(1, options.capacity ?? LIVE_FRAME_BUFFER_CAPACITY);
+    this.flushIntervalMs = Math.max(
+      0,
+      options.flushIntervalMs ?? LIVE_FRAME_FLUSH_INTERVAL_MS,
+    );
+    this.batchCapacity = Math.max(
+      1,
+      options.batchCapacity ?? LIVE_FRAME_BATCH_CAPACITY,
+    );
+    this.maxBatchBytes = Math.max(
+      1,
+      options.maxBatchBytes ?? LIVE_FRAME_BATCH_MAX_BYTES,
+    );
     this.sessionId = options.sessionId;
     this.executionId = options.executionId;
     this.send =
-      options.send ?? ((frame) => postFrame(options.auth, frame));
+      options.send ?? ((frames) => postFrames(options.auth, frames));
     this.now = options.now ?? (() => new Date().toISOString());
     this.log =
       options.log ??
@@ -199,9 +228,15 @@ export class LiveFramePublisher {
         this.dropped += 1;
         continue;
       }
-      this.queue.push(frame);
+      const bytes = Buffer.byteLength(JSON.stringify(frame), "utf8");
+      this.queue.push({ frame, bytes });
+      this.queuedPayloadBytes += bytes;
     }
-    this.startPump();
+    if (this.shouldFlushImmediately()) {
+      this.startPump(false);
+    } else {
+      this.scheduleFlush();
+    }
   }
 
   reportDrops(): number {
@@ -217,30 +252,82 @@ export class LiveFramePublisher {
 
   async whenIdle(): Promise<void> {
     if (!this.pumping && this.queue.length === 0) return;
+    this.startPump(true);
     await new Promise<void>((resolve) => this.idleWaiters.push(resolve));
   }
 
-  private startPump(): void {
+  private serializedQueueBytes(): number {
+    if (this.queue.length === 0) return 2;
+    return this.queuedPayloadBytes + this.queue.length + 1;
+  }
+
+  private shouldFlushImmediately(): boolean {
+    return (
+      this.queue.length >= this.batchCapacity ||
+      this.serializedQueueBytes() >= this.maxBatchBytes
+    );
+  }
+
+  private scheduleFlush(): void {
+    if (this.pumping || this.flushTimer || this.queue.length === 0) return;
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null;
+      this.startPump(false);
+    }, this.flushIntervalMs);
+    this.flushTimer.unref?.();
+  }
+
+  private startPump(forceDrain: boolean): void {
+    if (forceDrain) this.flushRequested = true;
     if (this.pumping || this.queue.length === 0) return;
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
     this.pumping = true;
     void this.pump();
   }
 
+  private takeBatch(): LiveFrameEnvelope[] {
+    let count = 0;
+    let bytes = 2;
+    for (const queued of this.queue) {
+      if (count >= this.batchCapacity) break;
+      const additional = queued.bytes + (count > 0 ? 1 : 0);
+      if (count > 0 && bytes + additional > this.maxBatchBytes) break;
+      bytes += additional;
+      count += 1;
+    }
+
+    const queued = this.queue.splice(0, count);
+    for (const item of queued) this.queuedPayloadBytes -= item.bytes;
+    return queued.map((item) => item.frame);
+  }
+
   private async pump(): Promise<void> {
-    while (this.queue.length > 0) {
-      const frame = this.queue.shift();
-      if (!frame) break;
+    let sendFirstBatch = true;
+    while (
+      this.queue.length > 0 &&
+      (sendFirstBatch || this.flushRequested || this.shouldFlushImmediately())
+    ) {
+      sendFirstBatch = false;
+      const frames = this.takeBatch();
       try {
-        await this.send(frame);
+        await this.send(frames);
       } catch {
-        this.dropped += 1;
+        this.dropped += frames.length;
       }
     }
     this.pumping = false;
     if (this.queue.length > 0) {
-      this.startPump();
+      if (this.flushRequested) {
+        this.startPump(true);
+      } else {
+        this.scheduleFlush();
+      }
       return;
     }
+    this.flushRequested = false;
     const waiters = this.idleWaiters.splice(0);
     for (const resolve of waiters) resolve();
   }
