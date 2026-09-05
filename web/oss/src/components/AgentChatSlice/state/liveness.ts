@@ -128,7 +128,6 @@ export const isRunningElsewhere = ({
 /** Desktop presentation for a remote/shared-path run. The strip is only the disconnected fallback. */
 export const deriveSessionRemoteTurnPresentation = deriveRemoteTurnPresentation
 
-
 /**
  * The session snapshot is the execution authority for the open conversation. A stale stream-row
  * liveness flag must not put a remote-run warning beside a durable queued item when that snapshot
