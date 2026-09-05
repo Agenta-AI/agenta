@@ -169,7 +169,7 @@ async def test_idle_input_executes_without_being_queued(monkeypatch):
 @pytest.mark.asyncio
 async def test_detached_executing_continuation_keeps_input_in_the_queue(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    continuation_resumer = AsyncMock(return_value=True)
+    continuation_resumer = AsyncMock(return_value="continuation-1")
     dao = MemoryInputsDAO()
     service = SessionInputsService(
         inputs_dao=dao,
@@ -194,7 +194,7 @@ async def test_detached_executing_continuation_keeps_input_in_the_queue(monkeypa
 @pytest.mark.asyncio
 async def test_parked_continuation_still_allows_input_to_execute(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    continuation_resumer = AsyncMock(return_value=False)
+    continuation_resumer = AsyncMock(return_value=None)
     dao = MemoryInputsDAO()
     service = SessionInputsService(
         inputs_dao=dao,
@@ -221,7 +221,7 @@ async def test_queue_flag_off_keeps_the_idle_path_without_a_continuation_probe(
 ):
     monkeypatch.setattr(env.agenta.sessions, "queue", False)
     monkeypatch.setattr(env.agenta.sessions, "durable_approvals", False)
-    continuation_resumer = AsyncMock(return_value=True)
+    continuation_resumer = AsyncMock(return_value="continuation-1")
     service = SessionInputsService(
         inputs_dao=MemoryInputsDAO(),
         streams_service=Streams(running=False),
@@ -239,6 +239,37 @@ async def test_queue_flag_off_keeps_the_idle_path_without_a_continuation_probe(
 
     assert admitted.action == "execute"
     continuation_resumer.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_steer_targets_the_execution_reopened_by_continuation_resume(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    continuation_resumer = AsyncMock(return_value="continuation-2")
+    executions = SimpleNamespace(
+        lock_for_control=AsyncMock(return_value=SimpleNamespace(terminal_outcome=None))
+    )
+    service = SessionInputsService(
+        inputs_dao=MemoryInputsDAO(),
+        streams_service=Streams(running=False),
+        executions_dao=executions,
+        continuation_resumer=continuation_resumer,
+    )
+
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "steer the resumed continuation"},
+        policy="steer",
+        idempotency_key="key-1",
+    )
+
+    assert admitted.execution_id == "continuation-2"
+    assert (
+        executions.lock_for_control.await_args.kwargs["execution_id"]
+        == "continuation-2"
+    )
 
 
 @pytest.mark.asyncio

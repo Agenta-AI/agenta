@@ -38,7 +38,7 @@ class SessionInputsService:
         inputs_dao: SessionInputsDAOInterface,
         streams_service: SessionStreamsService,
         executions_dao: Optional[SessionExecutionsDAOInterface] = None,
-        continuation_resumer: Optional[Callable[..., Awaitable[bool]]] = None,
+        continuation_resumer: Optional[Callable[..., Awaitable[Optional[str]]]] = None,
     ) -> None:
         self._dao = inputs_dao
         self._streams = streams_service
@@ -75,19 +75,23 @@ class SessionInputsService:
             project_id=project_id, session_id=session_id
         )
         busy = bool(stream and stream.flags and stream.flags.is_running)
+        resumed_execution_id: Optional[str] = None
         if (
             not busy
             and (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
             and self._continuation_resumer is not None
         ):
-            busy = await self._continuation_resumer(
+            resumed_execution_id = await self._continuation_resumer(
                 project_id=project_id,
                 session_id=session_id,
             )
+            busy = resumed_execution_id is not None
         if not busy:
             return PendingInputAdmission(action="execute")
 
-        current_execution_id = stream.turn_id if stream else None
+        current_execution_id = resumed_execution_id or (
+            stream.turn_id if stream else None
+        )
         queue_enabled = env.agenta.sessions.queue
         steer_enabled = queue_enabled and env.agenta.sessions.steer
         if policy == "steer" and not steer_enabled:

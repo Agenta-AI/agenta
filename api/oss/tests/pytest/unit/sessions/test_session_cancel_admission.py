@@ -934,6 +934,29 @@ async def test_steer_binds_to_an_already_open_stop(lock_engine):
 
 
 @pytest.mark.asyncio
+async def test_steer_rejects_an_open_stop_that_closes_before_binding(lock_engine):
+    await _run_turn(lock_engine, "turn-A")
+    dao = _FakeCommandsDAO()
+    svc = _service(
+        lock_engine,
+        dao=dao,
+        streams=_FakeStreamsService(
+            _stream("turn-A", datetime.now(timezone.utc) - timedelta(seconds=30))
+        ),
+    )
+    await svc.request_cancel(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
+    dao.bind_steer_input = AsyncMock(return_value=None)
+
+    with pytest.raises(SessionCommandNotClaimable):
+        await svc.request_cancel(
+            project_id=_PROJECT,
+            user_id=_USER,
+            session_id=_SESSION,
+            steer_input_id=uuid4(),
+        )
+
+
+@pytest.mark.asyncio
 async def test_a_reachable_runner_that_does_not_hold_the_session_settles_at_once(
     lock_engine,
 ):

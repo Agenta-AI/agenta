@@ -4,16 +4,23 @@ from pydantic import TypeAdapter, ValidationError
 
 from oss.src.core.sessions.records.dtos import (
     SESSION_DURABLE_EVENT_TYPES,
-    InteractionRequestedEvent,
-    InteractionRespondedEvent,
-    MessageCompletedEvent,
     SessionDurableEvent,
     SessionRecord,
-    ToolCompletedEvent,
 )
 
 
 _EVENT_ADAPTER = TypeAdapter(SessionDurableEvent)
+
+
+def _validated_event(
+    *, base: Dict[str, Any], event_type: str, payload: Dict[str, Any]
+) -> Optional[SessionDurableEvent]:
+    try:
+        return _EVENT_ADAPTER.validate_python(
+            {**base, "type": event_type, "payload": payload}
+        )
+    except ValidationError:
+        return None
 
 
 def _event_base(
@@ -72,12 +79,7 @@ def _direct_event(
     )
     if base is None:
         return None
-    try:
-        return _EVENT_ADAPTER.validate_python(
-            {**base, "type": record.record_type, "payload": payload}
-        )
-    except ValidationError:
-        return None
+    return _validated_event(base=base, event_type=record.record_type, payload=payload)
 
 
 def durable_events_from_records(
@@ -129,42 +131,35 @@ def durable_events_from_records(
                 "interaction_id": entity_id,
                 "kind": attributes.get("kind"),
             }
-            if record.record_type == "interaction_request":
-                events.append(
-                    InteractionRequestedEvent(
-                        **base,
-                        type="interaction.requested",
-                        payload=payload,
-                    )
-                )
-            else:
-                events.append(
-                    InteractionRespondedEvent(
-                        **base,
-                        type="interaction.responded",
-                        payload=payload,
-                    )
-                )
+            event = _validated_event(
+                base=base,
+                event_type=(
+                    "interaction.requested"
+                    if record.record_type == "interaction_request"
+                    else "interaction.responded"
+                ),
+                payload=payload,
+            )
+            if event is not None:
+                events.append(event)
             continue
 
         if record.record_type == "message":
             role = (
                 "assistant" if record.record_source == "agent" else record.record_source
             )
-            events.append(
-                MessageCompletedEvent(
-                    **base,
-                    type="message.completed",
-                    payload={
-                        "message_id": entity_id,
-                        "role": role or "assistant",
-                        "content": attributes.get(
-                            "content", attributes.get("text", "")
-                        ),
-                        "finish_reason": attributes.get("finish_reason"),
-                    },
-                )
+            event = _validated_event(
+                base=base,
+                event_type="message.completed",
+                payload={
+                    "message_id": entity_id,
+                    "role": role or "assistant",
+                    "content": attributes.get("content", attributes.get("text", "")),
+                    "finish_reason": attributes.get("finish_reason"),
+                },
             )
+            if event is not None:
+                events.append(event)
             continue
 
         tool_key = (str(record.turn_id), entity_id)
@@ -177,21 +172,19 @@ def durable_events_from_records(
         call = tool_calls.get(tool_key, {})
         is_error = bool(attributes.get("isError"))
         output = attributes.get("data", attributes.get("output"))
-        events.append(
-            ToolCompletedEvent(
-                **base,
-                type="tool.completed",
-                payload={
-                    "tool_call_id": entity_id,
-                    "name": str(
-                        call.get("name") or attributes.get("name") or "unknown"
-                    ),
-                    "input": call.get("input", attributes.get("input")),
-                    "output": None if is_error else output,
-                    "error": output if is_error else None,
-                    "status": "error" if is_error else "completed",
-                },
-            )
+        event = _validated_event(
+            base=base,
+            event_type="tool.completed",
+            payload={
+                "tool_call_id": entity_id,
+                "name": str(call.get("name") or attributes.get("name") or "unknown"),
+                "input": call.get("input", attributes.get("input")),
+                "output": None if is_error else output,
+                "error": output if is_error else None,
+                "status": "error" if is_error else "completed",
+            },
         )
+        if event is not None:
+            events.append(event)
 
     return events

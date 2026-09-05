@@ -27,7 +27,9 @@ from oss.src.dbs.redis.sessions.locks import (
     get_owner,
     get_running_owner,
     is_turn_superseded,
+    session_heartbeat_guard,
 )
+from oss.src.dbs.redis.sessions.contract import RELEASE_IF_OWNER_LUA
 
 from unit.sessions.test_heartbeat_parked_zombie import _FakeStreamsDAO
 from unit.sessions.test_project_scoped_locks import _FakeRedis
@@ -90,6 +92,35 @@ async def _superseded(lock_engine, turn: str) -> bool:
 # --------------------------------------------------------------------------- #
 # Replica affinity
 # --------------------------------------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_guard_release_failure_does_not_mask_the_body(lock_engine):
+    redis = lock_engine._client()
+    original_eval = redis.eval
+
+    async def fail_release(script, numkeys, *keys_and_args):
+        if script == RELEASE_IF_OWNER_LUA:
+            raise ConnectionError("redis unavailable")
+        return await original_eval(script, numkeys, *keys_and_args)
+
+    with (
+        patch.object(redis, "eval", new=fail_release),
+        patch("oss.src.dbs.redis.sessions.locks.log.warning") as warning,
+    ):
+        async with session_heartbeat_guard(
+            lock_engine,
+            project_id=str(_PROJECT),
+            session_id=_SESSION,
+        ):
+            result = "committed"
+
+    assert result == "committed"
+    warning.assert_called_once_with(
+        "heartbeat guard release failed; lease will expire",
+        session_id=_SESSION,
+        exc_info=True,
+    )
 
 
 @pytest.mark.asyncio

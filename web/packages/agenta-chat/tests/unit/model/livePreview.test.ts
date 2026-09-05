@@ -129,17 +129,17 @@ describe("session live preview reducer", () => {
         expect(sessionLivePreviewMessages(stale)[0].parts).toEqual([{type: "text", text: "newer"}])
     })
 
-    it("suppresses a late join whose first frame index is above zero", () => {
-        const gapped = reduceSessionLivePreview(
+    it("accepts a late join and enforces contiguous indexes after its first frame", () => {
+        const joined = reduceSessionLivePreview(
             createSessionLivePreviewState(),
             frame(2, "text-delta", {delta: "tail"}),
         )
-        const later = reduceSessionLivePreview(gapped, frame(3, "text-delta", {delta: "later"}))
+        const later = reduceSessionLivePreview(joined, frame(3, "text-delta", {delta: " later"}))
 
-        expect(gapped.gapDetected).toBe(true)
-        expect(gapped.executionOrder).toEqual([])
-        expect(sessionLivePreviewMessages(gapped)).toEqual([])
-        expect(later).toBe(gapped)
+        expect(joined.gapDetected).toBe(false)
+        expect(sessionLivePreviewMessages(later)[0].parts).toEqual([
+            {type: "text", text: "tail later"},
+        ])
     })
 
     it("clears and suppresses a preview after an internal frame gap", () => {

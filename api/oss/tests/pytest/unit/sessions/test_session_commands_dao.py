@@ -1256,7 +1256,7 @@ async def test_executing_continuation_refuses_a_competing_send(
             project_id=command_scope["project_id"],
             session_id=command_scope["session_id"],
         )
-        is True
+        == "continuation-live"
     )
 
 
@@ -1276,7 +1276,7 @@ async def test_parked_continuation_still_accepts_a_send(command_scope, monkeypat
             project_id=command_scope["project_id"],
             session_id=command_scope["session_id"],
         )
-        is False
+        is None
     )
 
 

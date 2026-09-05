@@ -2730,9 +2730,11 @@ class SessionControlRouter:
 
         resumed = False
         if env.agenta.sessions.durable_approvals:
-            resumed = await self._service.resume_recoverable_continuation(
-                project_id=UUID(str(project_id)),
-                session_id=session_id,
+            resumed = bool(
+                await self._service.resume_recoverable_continuation(
+                    project_id=UUID(str(project_id)),
+                    session_id=session_id,
+                )
             )
         return SessionContinuationResumeResponse(resumed=resumed)
 

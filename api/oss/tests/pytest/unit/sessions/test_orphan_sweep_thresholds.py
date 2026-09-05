@@ -352,7 +352,7 @@ async def test_running_row_is_swept_at_the_short_threshold(anyio_backend):
 
 
 @pytest.mark.anyio
-async def test_turn_settled_lost_by_this_pass_collapses_after_timestamp_advance(
+async def test_heartbeat_during_lost_settlement_prevents_collapse(
     anyio_backend,
     monkeypatch,
 ):
@@ -378,7 +378,7 @@ async def test_turn_settled_lost_by_this_pass_collapses_after_timestamp_advance(
         publish=publish,
     )
 
-    assert _swept(row)
+    assert not _swept(row)
 
 
 @pytest.mark.anyio

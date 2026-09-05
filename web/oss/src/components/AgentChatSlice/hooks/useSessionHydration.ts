@@ -44,6 +44,10 @@ const REMOTE_RUN_POLL_MS = 15_000
  * records until it returns) is still followed. */
 const REMOTE_RUN_POLL_MAX_MS = 60_000
 const INTERACTION_GATE_POLL_MS = 1_000
+const INTERACTION_GATE_POLL_MAX_MS = 60_000
+
+export const nextInteractionGatePollDelay = (delay: number): number =>
+    Math.min(delay * 2, INTERACTION_GATE_POLL_MAX_MS)
 
 /** Retry budget for the stranded-first-send record check when the fetch itself fails
  * (`records: null`). Bounded so a down endpoint gets a short burst, not a hammer; when the budget
@@ -628,11 +632,15 @@ export const useSessionHydration = ({
         if (activeSessionId !== sessionId || !interactionGateOpen) return
         let cancelled = false
         let timer: ReturnType<typeof setTimeout> | undefined
+        let delay = INTERACTION_GATE_POLL_MS
         const poll = async () => {
             await refreshFromInteractions()
-            if (!cancelled) timer = setTimeout(poll, INTERACTION_GATE_POLL_MS)
+            if (!cancelled) {
+                delay = nextInteractionGatePollDelay(delay)
+                timer = setTimeout(poll, delay)
+            }
         }
-        timer = setTimeout(poll, INTERACTION_GATE_POLL_MS)
+        timer = setTimeout(poll, delay)
         return () => {
             cancelled = true
             if (timer) clearTimeout(timer)

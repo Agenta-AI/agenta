@@ -316,15 +316,19 @@ class SessionCommandsService:
                 target_turn_id=target_turn_id,
             )
             if open_command is not None:
-                command = (
-                    await self._dao.bind_steer_input(
+                if steer_input_id is not None:
+                    command = await self._dao.bind_steer_input(
                         project_id=project_id,
                         command_id=open_command.id,
                         input_id=steer_input_id,
                     )
-                    if steer_input_id is not None
-                    else open_command
-                )
+                    if command is None:
+                        raise SessionCommandNotClaimable(
+                            command_id=str(open_command.id),
+                            state="closed or already bound",
+                        )
+                else:
+                    command = open_command
             else:
                 created = await self._insert(
                     project_id=project_id,
@@ -368,16 +372,20 @@ class SessionCommandsService:
                     transaction=transaction,
                 )
                 if open_command is not None:
-                    command = (
-                        await self._dao.bind_steer_input(
+                    if steer_input_id is not None:
+                        command = await self._dao.bind_steer_input(
                             project_id=project_id,
                             command_id=open_command.id,
                             input_id=steer_input_id,
                             transaction=transaction,
                         )
-                        if steer_input_id is not None
-                        else open_command
-                    )
+                        if command is None:
+                            raise SessionCommandNotClaimable(
+                                command_id=str(open_command.id),
+                                state="closed or already bound",
+                            )
+                    else:
+                        command = open_command
                 else:
                     await self._executions.set_state(
                         project_id=project_id,
@@ -412,6 +420,11 @@ class SessionCommandsService:
                             input_id=steer_input_id,
                             transaction=transaction,
                         )
+                        if command is None:
+                            raise SessionCommandNotClaimable(
+                                command_id=str(created.command.id),
+                                state="closed or already bound",
+                            )
                     cancelled_interactions = (
                         await self._interactions.cancel_session_pending(
                             project_id=project_id,
@@ -804,15 +817,15 @@ class SessionCommandsService:
 
     async def resume_recoverable_continuation(
         self, *, project_id: UUID, session_id: str
-    ) -> bool:
+    ) -> Optional[str]:
         if not (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue):
-            return False
+            return None
         command = await self._dao.fetch_resumable_continuation(
             project_id=project_id,
             session_id=session_id,
         )
         if command is None:
-            return False
+            return None
         if (
             command.kind == SessionCommandKind.continue_interaction
             and not env.agenta.sessions.durable_approvals
@@ -820,17 +833,17 @@ class SessionCommandsService:
             command.kind == SessionCommandKind.continue_input
             and not env.agenta.sessions.queue
         ):
-            return False
+            return None
         execution_id = command.target_turn_id
         if execution_id is None or self._executions is None:
-            return True
+            return execution_id
         execution = await self._executions.fetch_execution(
             project_id=project_id,
             session_id=session_id,
             execution_id=execution_id,
         )
         if execution is None:
-            return True
+            return execution_id
         if execution.state == SessionExecutionState.running:
             # A stale heartbeat is not a fencing token: a partitioned runner can still be
             # executing the approved side effect. Only the watchdog may turn `running` into
@@ -846,10 +859,14 @@ class SessionCommandsService:
             #   * PARKED on its own approval — the continuation raised a new gate and stopped
             #     to wait on the user. Nothing is in flight to destroy, so a Send is a steer
             #     and stays allowed. Allow.
-            return not await self._execution_is_parked_on_a_gate(
-                project_id=project_id,
-                session_id=session_id,
-                execution_id=execution_id,
+            return (
+                None
+                if await self._execution_is_parked_on_a_gate(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=execution_id,
+                )
+                else execution_id
             )
         if (
             command.state
@@ -888,10 +905,8 @@ class SessionCommandsService:
                 execution=execution,
             )
             if command is None:
-                return True
-            execution_id = command.target_turn_id
-            if execution_id is None:
-                return True
+                return execution_id
+            execution_id = command.target_turn_id or execution_id
         if command.kind == SessionCommandKind.continue_input:
             admission: Any = InputContinuationAdmission(
                 command=command,
@@ -914,7 +929,7 @@ class SessionCommandsService:
             receipt = None
         if receipt is None or receipt.status != "accepted":
             await self._mark_continuation_recoverable(admission, receipt)
-        return True
+        return execution_id
 
     async def _reopen_continuation_attempt(
         self,
