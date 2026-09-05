@@ -12,6 +12,8 @@ const nextConfig = {
         "@agenta/shared",
         "@agenta/entities",
         "@agenta/entity-ui",
+        "@agenta/skills",
+        "@agenta/skills-ui",
     ],
 }
 

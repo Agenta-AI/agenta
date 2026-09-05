@@ -18,6 +18,8 @@
         "@agenta/playground": "workspace:*",
         "@agenta/playground-ui": "workspace:*",
         "@agenta/shared": "workspace:*",
+        "@agenta/skills": "workspace:*",
+        "@agenta/skills-ui": "workspace:*",
         "@agenta/ui": "workspace:*",
         "@phosphor-icons/react": "^2.1.10",
         "lucide-react": "^0.479.0",
