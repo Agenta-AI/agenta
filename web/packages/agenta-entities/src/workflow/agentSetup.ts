@@ -8,41 +8,29 @@
 import {PROVIDERS} from "./agentTemplates"
 import type {DetectedAccount} from "./detectAccounts"
 
-/** How much the agent may do on its own. Asked once, in the setup step's footer. */
-export type AgentPermission = "read" | "ask" | "auto"
-
-export const PERMISSION_OPTIONS: {
-    value: AgentPermission
-    label: string
-    /**
-     * The line sent to the agent. Written in the USER's voice, first person — the preamble is
-     * appended to the seed, which is auto-sent as their first message and shown in the transcript
-     * as theirs. A machine-shaped "Permissions: …" block reads as something they never typed.
-     */
-    instruction: string
-}[] = [
-    {value: "read", label: "Read only", instruction: "Don't write or send anything — read only."},
-    {value: "ask", label: "Ask first", instruction: "Ask me before you write or send anything."},
-    {
-        value: "auto",
-        label: "On its own",
-        instruction: "You can act without asking me for approval.",
-    },
-]
-
-export const DEFAULT_PERMISSION: AgentPermission = "ask"
-
 /**
  * Everything the step has decided, at the moment Create is pressed. There is deliberately no
  * skip state: an optional slot left unconnected IS the skip — the builder asks when it needs
  * it, and no button had to say so.
+ *
+ * There is deliberately no permission ANSWER either — see `ASK_FIRST_INSTRUCTION`. The step
+ * states the platform's default posture; it does not ask the user to pick one.
  */
 export interface AgentSetupSelection {
     accounts: DetectedAccount[]
     /** Slugs with a live workspace connection. */
     connectedSlugs: string[]
-    permission: AgentPermission
 }
+
+/**
+ * The posture the platform actually runs, stated so the builder configures for it: the runtime
+ * approval card asks before a write unless that tool has been granted "Always auto-approve".
+ *
+ * It is a constant, not a choice. A read/ask/auto control here could only travel as prompt
+ * prose — it enforces nothing, while reading to the user as a setting — and someone setting up
+ * a template should not be handed a permissions question before the agent exists.
+ */
+const ASK_FIRST_INSTRUCTION = "Ask me before you write or send anything."
 
 /**
  * Required accounts still missing a connection — the only thing allowed to block create.
@@ -133,7 +121,7 @@ const readableList = (items: string[]): string => {
  * Returns `""` when there is nothing to say, so the seed is left untouched.
  */
 export const buildSetupPreamble = (selection: AgentSetupSelection): string => {
-    const {accounts, connectedSlugs, permission} = selection
+    const {accounts, connectedSlugs} = selection
     const connected = labelsFor(accounts, new Set(connectedSlugs))
 
     const sentences: string[] = []
@@ -148,12 +136,7 @@ export const buildSetupPreamble = (selection: AgentSetupSelection): string => {
         sentences.push(`Use ${providerLabel(via)}, not ${account.label}.`)
     }
 
-    // The permission answer is worth sending on its own — "read only" constrains an agent that
-    // needs no account at all — but the default posture says nothing the builder doesn't assume.
-    const option = PERMISSION_OPTIONS.find((entry) => entry.value === permission)
-    if (option && (sentences.length > 0 || permission !== DEFAULT_PERMISSION)) {
-        sentences.push(option.instruction)
-    }
+    sentences.push(ASK_FIRST_INSTRUCTION)
     return sentences.join(" ")
 }
 

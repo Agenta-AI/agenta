@@ -14,14 +14,12 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {isConnectionActive, useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {
-    PERMISSION_OPTIONS,
     canCreateAgent,
     setupStatus,
-    type AgentPermission,
     type AgentSetupSelection,
     type DetectedAccount,
 } from "@agenta/entities/workflow"
-import {Button, Segmented, Spinner} from "@agenta/ui/ui"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {MagnifyingGlass, Plus, X} from "@phosphor-icons/react"
 import clsx from "clsx"
 import Image from "next/image"
@@ -38,8 +36,6 @@ export interface AgentSetupCardProps {
     onAddAccount: (account: DetectedAccount) => void
     /** "Search all" — opens the host's catalogue surface. Hidden when omitted. */
     onBrowseAll?: () => void
-    permission: AgentPermission
-    onPermissionChange: (permission: AgentPermission) => void
     /**
      * Create, with everything the step decided. Which accounts are actually connected is known
      * only here (each row reads its own workspace connection), so the card hands the whole
@@ -71,8 +67,6 @@ const AgentSetupCard = ({
     suggestions = [],
     onAddAccount,
     onBrowseAll,
-    permission,
-    onPermissionChange,
     onCreate,
     onReadyChange,
     hideCreate = false,
@@ -151,16 +145,11 @@ const AgentSetupCard = ({
     const status = setupStatus({accounts, connectedSlugs})
     const canCreate = canCreateAgent({accounts, connectedSlugs})
     useEffect(() => {
-        onReadyChange?.(canCreate, {accounts, connectedSlugs, permission})
-    }, [canCreate, accounts, connectedSlugs, permission, onReadyChange])
+        onReadyChange?.(canCreate, {accounts, connectedSlugs})
+    }, [canCreate, accounts, connectedSlugs, onReadyChange])
     const badge = setupBadge(status, accounts.length)
     // A declared account only ever comes from a template, so its presence names the source.
     const fromTemplate = accounts.some((account) => account.origin === "template")
-
-    const permissionOptions = useMemo(
-        () => PERMISSION_OPTIONS.map((option) => ({value: option.value, label: option.label})),
-        [],
-    )
 
     return (
         <div
@@ -282,21 +271,11 @@ const AgentSetupCard = ({
                 ) : null}
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-x-0 border-b-0 border-t border-solid border-[var(--ag-colorSplit)] px-4 py-3">
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                        {SETUP_COPY.permissionLabel}
-                    </span>
-                    <Segmented
-                        size="sm"
-                        options={permissionOptions}
-                        value={permission}
-                        onChange={(value) => onPermissionChange(value as AgentPermission)}
-                        aria-label="How much the agent may do on its own"
-                    />
-                </div>
-
-                <div className="flex items-center gap-3">
+            {/* The footer exists only for what it carries. With no permission control left, a
+                docked card whose state has no footnote would otherwise draw an empty bordered
+                strip under the rows. */}
+            {setupFootnote(status) || !hideCreate ? (
+                <div className="flex flex-wrap items-center justify-end gap-3 border-x-0 border-b-0 border-t border-solid border-[var(--ag-colorSplit)] px-4 py-3">
                     {/* Empty for blocked (the rows carry it) — render nothing, not a bare span. */}
                     {setupFootnote(status) ? (
                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
@@ -305,7 +284,7 @@ const AgentSetupCard = ({
                     ) : null}
                     {hideCreate ? null : (
                         <Button
-                            onClick={() => onCreate({accounts, connectedSlugs, permission})}
+                            onClick={() => onCreate({accounts, connectedSlugs})}
                             disabled={!canCreate || creating}
                         >
                             {creating ? <Spinner size="small" /> : null}
@@ -313,7 +292,7 @@ const AgentSetupCard = ({
                         </Button>
                     )}
                 </div>
-            </div>
+            ) : null}
         </div>
     )
 }

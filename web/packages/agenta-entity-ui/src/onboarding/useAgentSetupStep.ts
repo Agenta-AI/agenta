@@ -3,7 +3,7 @@
  * create surface and the playground-native onboarding.
  *
  * Holds only what survives across the step — the description that opened it, the accounts on the
- * card, what was skipped, and the permission answer. Which accounts are *connected* is the card's
+ * card. Which accounts are *connected* is the card's
  * business (each row reads its own workspace connection) and comes back through `onCreate`.
  *
  * `open()` is the whole gate: a host that never calls it behaves exactly as it did before the
@@ -13,11 +13,9 @@ import {useCallback, useMemo, useState} from "react"
 
 import {isConnectionActive, useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {
-    DEFAULT_PERMISSION,
     detectAccounts,
     isAccountSatisfied,
     suggestionAccounts,
-    type AgentPermission,
     type AgentStarterTemplate,
     type DetectedAccount,
 } from "@agenta/entities/workflow"
@@ -36,14 +34,12 @@ export interface AgentSetupStep {
     draft: AgentSetupDraft | null
     accounts: DetectedAccount[]
     suggestions: DetectedAccount[]
-    permission: AgentPermission
     /** Start the step. Detection runs here, once, off the description and template. */
     /** Opens the step; `false` means nothing was detected, so the caller should just commit. */
     open: (draft: AgentSetupDraft) => boolean
     /** Abandon the step and go back to the composer. */
     close: () => void
     addAccount: (account: DetectedAccount) => void
-    setPermission: (permission: AgentPermission) => void
 }
 
 export function useAgentSetupStep(): AgentSetupStep {
@@ -67,7 +63,6 @@ export function useAgentSetupStep(): AgentSetupStep {
      */
     const [templateDraft, setTemplateDraft] = useState(false)
     const [accounts, setAccounts] = useState<DetectedAccount[]>([])
-    const [permission, setPermission] = useState<AgentPermission>(DEFAULT_PERMISSION)
 
     /**
      * Opens the step, and reports whether it had anything to ask for. A draft with no detected
@@ -96,7 +91,6 @@ export function useAgentSetupStep(): AgentSetupStep {
                 Boolean(next.template) && detected.some((account) => account.alternatives?.length)
             if (outstanding.length === 0 && !hasChoice) return false
             setAccounts(detected)
-            setPermission(DEFAULT_PERMISSION)
             setTemplateDraft(Boolean(next.template))
             setDraft(next)
             return true
@@ -123,10 +117,8 @@ export function useAgentSetupStep(): AgentSetupStep {
         draft,
         accounts,
         suggestions,
-        permission,
         open,
         close,
         addAccount,
-        setPermission,
     }
 }

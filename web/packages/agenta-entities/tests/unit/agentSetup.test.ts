@@ -1,7 +1,6 @@
 import {describe, expect, it} from "vitest"
 
 import {
-    DEFAULT_PERMISSION,
     appendSetupPreamble,
     buildSetupPreamble,
     canCreateAgent,
@@ -22,7 +21,6 @@ const account = (slug: string, required: boolean): DetectedAccount => ({
 const selection = (over: Partial<AgentSetupSelection> = {}): AgentSetupSelection => ({
     accounts: [],
     connectedSlugs: [],
-    permission: DEFAULT_PERMISSION,
     ...over,
 })
 
@@ -98,16 +96,17 @@ describe("buildSetupPreamble", () => {
         expect(text).toContain("I've connected Github and Slack.")
     })
 
-    it("says nothing when no account was resolved and the permission is the default", () => {
-        expect(buildSetupPreamble(selection({accounts}))).toBe("")
+    // The default posture is a CONSTANT, not an answer the step collects: the platform's
+    // approval card asks before a write, and the user is offered no control to contradict.
+    it("always states the ask-first posture, even with nothing resolved", () => {
+        expect(buildSetupPreamble(selection({accounts}))).toBe(
+            "Ask me before you write or send anything.",
+        )
     })
 
-    it("still sends a non-default permission with no accounts at all", () => {
-        expect(buildSetupPreamble(selection({permission: "read"}))).toBe(
-            "Don't write or send anything — read only.",
-        )
-        expect(buildSetupPreamble(selection({permission: "auto"}))).toContain(
-            "You can act without asking me for approval.",
+    it("states the posture after the connections, not instead of them", () => {
+        expect(buildSetupPreamble(selection({accounts, connectedSlugs: ["github"]}))).toBe(
+            "I've connected Github. Ask me before you write or send anything.",
         )
     })
 
@@ -141,7 +140,9 @@ describe("buildSetupPreamble", () => {
     })
 
     it("ignores a connected slug that is not on the card", () => {
-        expect(buildSetupPreamble(selection({accounts, connectedSlugs: ["notion"]}))).toBe("")
+        expect(buildSetupPreamble(selection({accounts, connectedSlugs: ["notion"]}))).toBe(
+            "Ask me before you write or send anything.",
+        )
     })
 })
 
@@ -155,9 +156,11 @@ describe("appendSetupPreamble", () => {
         expect(out).toContain("\n\nI've connected Slack.")
     })
 
-    it("leaves the seed untouched when there is nothing to add", () => {
+    it("still adds the posture when no account was resolved", () => {
         const seed = "Build an agent that writes poems."
-        expect(appendSetupPreamble(seed, selection())).toBe(seed)
+        expect(appendSetupPreamble(seed, selection())).toBe(
+            `${seed}\n\nAsk me before you write or send anything.`,
+        )
     })
 
     it("returns the preamble alone for an empty seed", () => {

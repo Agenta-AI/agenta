@@ -8,12 +8,7 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {
-    DEFAULT_PERMISSION,
-    appendSetupPreamble,
-    canCreateAgent,
-    setupStatus,
-} from "../../src/workflow/agentSetup"
+import {appendSetupPreamble, canCreateAgent, setupStatus} from "../../src/workflow/agentSetup"
 import {
     AGENT_TEMPLATES,
     templateConnections,
@@ -26,18 +21,15 @@ const runStep = ({
     description,
     template,
     connect = [],
-    permission = DEFAULT_PERMISSION,
 }: {
     description?: string
     template?: AgentStarterTemplate
     connect?: string[]
-    permission?: typeof DEFAULT_PERMISSION
 }) => {
     const accounts = detectAccounts({description, template})
     const selection = {
         accounts,
         connectedSlugs: connect,
-        permission,
     }
     return {
         accounts,
@@ -69,13 +61,15 @@ describe("free-text onboarding", () => {
         expect(seed).not.toContain("skipped")
     })
 
-    it("leaves the seed untouched when the user connects nothing and keeps the default posture", () => {
-        expect(runStep({description}).seed).toBe(description)
+    it("adds only the default posture when the user connects nothing", () => {
+        expect(runStep({description}).seed).toBe(
+            `${description}\n\nAsk me before you write or send anything.`,
+        )
     })
 
-    it("carries a non-default permission even with no accounts", () => {
-        const {seed} = runStep({description: "Summarize my notes", permission: "read"})
-        expect(seed).toContain("read only")
+    it("states that posture with no accounts at all — it is a constant, not an answer", () => {
+        const {seed} = runStep({description: "Summarize my notes"})
+        expect(seed).toContain("Ask me before you write or send anything.")
     })
 
     it("detects nothing from a description that names no service", () => {

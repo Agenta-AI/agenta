@@ -267,8 +267,6 @@ export const FirstRunScreen = ({
                                     accounts={step.accounts}
                                     suggestions={step.suggestions}
                                     onAddAccount={step.addAccount}
-                                    permission={step.permission}
-                                    onPermissionChange={step.setPermission}
                                     // Unused (`hideCreate`) — the composer's button creates, below.
                                     onCreate={() => undefined}
                                     onReadyChange={(canCreate, selection) => {

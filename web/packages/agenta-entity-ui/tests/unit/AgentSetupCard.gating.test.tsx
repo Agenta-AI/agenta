@@ -49,14 +49,7 @@ let root: Root
 const render = (props: Partial<React.ComponentProps<typeof AgentSetupCard>> = {}) => {
     act(() => {
         root.render(
-            <AgentSetupCard
-                accounts={[]}
-                onAddAccount={vi.fn()}
-                permission="ask"
-                onPermissionChange={vi.fn()}
-                onCreate={vi.fn()}
-                {...props}
-            />,
+            <AgentSetupCard accounts={[]} onAddAccount={vi.fn()} onCreate={vi.fn()} {...props} />,
         )
     })
 }

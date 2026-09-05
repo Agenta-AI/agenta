@@ -59,7 +59,6 @@ export const setupBadge = (
 }
 
 export const SETUP_COPY = {
-    permissionLabel: "Acts",
     suggestionsLabel: "Also add",
     browseAll: "Search all",
     create: "Create agent",

@@ -352,8 +352,6 @@ const AgentComposerDock = ({
                             accounts={onboardingSetup.accounts}
                             suggestions={onboardingSetup.suggestions}
                             onAddAccount={onboardingSetup.addAccount}
-                            permission={onboardingSetup.permission}
-                            onPermissionChange={onboardingSetup.setPermission}
                             onCreate={handleCreateWithSetup}
                             creating={!!onboarding?.committing}
                         />

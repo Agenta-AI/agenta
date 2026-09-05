@@ -471,8 +471,6 @@ const StripHome: React.FC = () => {
                                             accounts={setup.accounts}
                                             suggestions={setup.suggestions}
                                             onAddAccount={setup.addAccount}
-                                            permission={setup.permission}
-                                            onPermissionChange={setup.setPermission}
                                             // Unused (`hideCreate`) — the composer's button
                                             // creates, below.
                                             onCreate={() => undefined}

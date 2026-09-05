@@ -14,7 +14,6 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 let detected: DetectedAccount[] = []
 
 vi.mock("@agenta/entities/workflow", () => ({
-    DEFAULT_PERMISSION: "ask",
     detectAccounts: () => detected,
     suggestionAccounts: (accounts: DetectedAccount[]) => accounts,
     isAccountSatisfied: (account: DetectedAccount, connected: Set<string>) =>

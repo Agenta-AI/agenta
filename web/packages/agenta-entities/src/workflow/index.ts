@@ -510,8 +510,6 @@ export {
 export type {DetectedAccount} from "./detectAccounts"
 
 export {
-    DEFAULT_PERMISSION,
-    PERMISSION_OPTIONS,
     appendSetupPreamble,
     buildSetupPreamble,
     canCreateAgent,
@@ -519,6 +517,6 @@ export {
     outstandingRequired,
     setupStatus,
 } from "./agentSetup"
-export type {AgentPermission, AgentSetupSelection, AgentSetupStatus} from "./agentSetup"
+export type {AgentSetupSelection, AgentSetupStatus} from "./agentSetup"
 
 export {agentRosterSearchAtom, matchesAgentQuery} from "./state/agentRoster"
