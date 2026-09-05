@@ -224,6 +224,14 @@ _MAX_IDEMPOTENCY_KEY_CHARACTERS = 255
 _SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
 
 
+def _session_capabilities() -> SessionCapabilities:
+    return SessionCapabilities(
+        durable_approvals=env.agenta.sessions.durable_approvals,
+        queue=env.agenta.sessions.queue,
+        steer=env.agenta.sessions.queue and env.agenta.sessions.steer,
+    )
+
+
 def _idempotency_key_too_long_response() -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -534,9 +542,7 @@ class SessionStreamsRouter:
         )
         return SessionStreamResponse(
             stream=sanitize_session_stream(stream),
-            capabilities=SessionCapabilities(
-                durable_approvals=env.agenta.sessions.durable_approvals
-            ),
+            capabilities=_session_capabilities(),
         )
 
     @intercept_exceptions()
@@ -2320,11 +2326,7 @@ class SessionsRootRouter:
             session=stream,
             execution=SessionExecutionSnapshot(id=execution_id, state=state),
             pending=SessionPendingSnapshot(inputs=inputs, interactions=interactions),
-            capabilities=SessionCapabilities(
-                durable_approvals=env.agenta.sessions.durable_approvals,
-                queue=env.agenta.sessions.queue,
-                steer=env.agenta.sessions.queue and env.agenta.sessions.steer,
-            ),
+            capabilities=_session_capabilities(),
         )
 
     @intercept_exceptions()
