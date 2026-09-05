@@ -49,6 +49,9 @@ export const MOBILE_NAV_SCOPE_ID = "mobile-main"
  * pinned-first ordering, mobile's own child routes. Desktop's registry entry differs only
  * in its paths and its pending-open handoff — the model is the reuse, the content is ours.
  */
+/** Flip to show the Observability rail entry again — the screen and its route are untouched. */
+const SHOW_OBSERVABILITY = false
+
 const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     MOBILE_NAV_SCOPE_ID,
     SESSIONS_SIDEBAR_KEY,
@@ -197,12 +200,17 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                     wrapSessionRow,
                 ),
             },
-            {
-                key: "mobile-observability",
-                title: "Observability",
-                icon: createElement(Activity, {size: 16}),
-                link: `${projectURL}/observability`,
-            },
+            // Observability is hidden from the rail for now; the screen and its route still work.
+            ...(SHOW_OBSERVABILITY
+                ? [
+                      {
+                          key: "mobile-observability",
+                          title: "Observability",
+                          icon: createElement(Activity, {size: 16}),
+                          link: `${projectURL}/observability`,
+                      },
+                  ]
+                : []),
         ],
         [agentsSource, source, projectURL, wrapSessionRow],
     )
