@@ -72,12 +72,16 @@ describe("fetchSessionDurableApprovalsCapability", () => {
             capabilities: {durable_approvals: true},
         })
 
-        await expect(
-            fetchSessionDurableApprovalsCapability({
-                projectId: "project-1",
-                sessionId: "session-1",
-            }),
-        ).resolves.toBe(true)
+        const scope = {projectId: "project-1", sessionId: "session-1"}
+
+        await expect(fetchSessionDurableApprovalsCapability(scope)).resolves.toBe(false)
+        await vi.waitFor(() =>
+            expect(fetchSessionDurableApprovalsCapability(scope)).resolves.toBe(true),
+        )
+        expect(fetchStream).toHaveBeenCalledWith(
+            {session_id: "session-1"},
+            expect.objectContaining({timeoutInSeconds: 2, maxRetries: 0}),
+        )
     })
 
     it("shares one request per session until the session reconnects", async () => {
@@ -91,6 +95,7 @@ describe("fetchSessionDurableApprovalsCapability", () => {
             fetchSessionDurableApprovalsCapability(scope),
             fetchSessionDurableApprovalsCapability(scope),
         ])
+        await vi.waitFor(() => expect(fetchStream).toHaveBeenCalledTimes(1))
         await fetchSessionDurableApprovalsCapability(scope)
 
         expect(fetchStream).toHaveBeenCalledTimes(1)
@@ -113,5 +118,34 @@ describe("fetchSessionDurableApprovalsCapability", () => {
                 sessionId: "session-1",
             }),
         ).resolves.toBe(false)
+    })
+
+    it("does not delay a legacy send while capability negotiation is slow", async () => {
+        fetchStream.mockImplementation(() => new Promise(() => undefined))
+        const prepare = vi.fn().mockResolvedValue("legacy send")
+
+        const capability = await fetchSessionDurableApprovalsCapability({
+            projectId: "project-1",
+            sessionId: "session-1",
+        })
+        const result = capability ? "durable path" : await prepare()
+
+        expect(result).toBe("legacy send")
+        expect(prepare).toHaveBeenCalledOnce()
+        expect(fetchStream).toHaveBeenCalledOnce()
+    })
+
+    it("caches a failed negotiation instead of retrying it on every send", async () => {
+        const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        fetchStream.mockRejectedValue(new Error("route unavailable"))
+        const scope = {projectId: "project-1", sessionId: "session-1"}
+
+        await fetchSessionDurableApprovalsCapability(scope)
+        await vi.waitFor(() => expect(error).toHaveBeenCalledOnce())
+        await fetchSessionDurableApprovalsCapability(scope)
+        await fetchSessionDurableApprovalsCapability(scope)
+
+        expect(fetchStream).toHaveBeenCalledOnce()
+        error.mockRestore()
     })
 })

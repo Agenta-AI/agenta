@@ -195,7 +195,27 @@ export async function removePendingSessionInput({
     return !!data
 }
 
-const durableApprovalsCapabilityCache = new Map<string, Promise<boolean>>()
+const SESSION_CAPABILITY_TIMEOUT_SECONDS = 2
+const SESSION_CAPABILITY_NEGATIVE_RETRY_MS = 30_000
+
+interface SessionFeatureCapabilities {
+    durableApprovals: boolean
+    queue: boolean
+    steer: boolean
+}
+
+interface SessionCapabilityCacheEntry {
+    result?: SessionFeatureCapabilities
+    retryAt?: number
+    request?: Promise<SessionFeatureCapabilities>
+}
+
+const noSessionCapabilities: SessionFeatureCapabilities = {
+    durableApprovals: false,
+    queue: false,
+    steer: false,
+}
+const durableApprovalsCapabilityCache = new Map<string, SessionCapabilityCacheEntry>()
 
 const durableApprovalsCapabilityKey = ({projectId, sessionId}: SessionScopedParams): string =>
     JSON.stringify([projectId, sessionId])
@@ -208,6 +228,77 @@ export function invalidateSessionDurableApprovalsCapability(
         return
     }
     durableApprovalsCapabilityCache.delete(durableApprovalsCapabilityKey(params))
+}
+
+const hasSessionCapability = (capabilities: SessionFeatureCapabilities): boolean =>
+    capabilities.durableApprovals || capabilities.queue || capabilities.steer
+
+const cachedSessionCapabilities = (key: string): SessionFeatureCapabilities | null => {
+    const cached = durableApprovalsCapabilityCache.get(key)
+    if (!cached?.result) return null
+    if (hasSessionCapability(cached.result) || Date.now() < (cached.retryAt ?? 0)) {
+        return cached.result
+    }
+    return null
+}
+
+const negotiateSessionCapabilities = async ({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<SessionFeatureCapabilities> => {
+    if (!projectId || !sessionId) return noSessionCapabilities
+
+    const key = durableApprovalsCapabilityKey({projectId, sessionId})
+    const cached = cachedSessionCapabilities(key)
+    if (cached) return cached
+
+    const existing = durableApprovalsCapabilityCache.get(key)
+    if (existing?.request) return existing.request
+
+    const entry: SessionCapabilityCacheEntry = {}
+    const request = (async () => {
+        let capabilities = noSessionCapabilities
+        try {
+            const data = await callFern("[fetchSessionDurableApprovalsCapability]", () =>
+                getSessionsClient().fetchSessionStream(
+                    {session_id: sessionId},
+                    {
+                        ...projectScopedRequest(projectId, appId, abortSignal),
+                        timeoutInSeconds: SESSION_CAPABILITY_TIMEOUT_SECONDS,
+                        maxRetries: 0,
+                    },
+                ),
+            )
+            const validated = data
+                ? safeParseWithLogging(
+                      sessionStreamResponseSchema,
+                      data,
+                      "[fetchSessionDurableApprovalsCapability]",
+                  )
+                : null
+            capabilities = {
+                durableApprovals: validated?.capabilities.durable_approvals ?? false,
+                queue: validated?.capabilities.queue ?? false,
+                steer: validated?.capabilities.steer ?? false,
+            }
+        } catch {
+            capabilities = noSessionCapabilities
+        }
+
+        if (durableApprovalsCapabilityCache.get(key) === entry) {
+            entry.result = capabilities
+            entry.retryAt = hasSessionCapability(capabilities)
+                ? undefined
+                : Date.now() + SESSION_CAPABILITY_NEGATIVE_RETRY_MS
+            entry.request = undefined
+        }
+        return capabilities
+    })()
+    entry.request = request
+    durableApprovalsCapabilityCache.set(key, entry)
+    return request
 }
 
 export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {
@@ -725,32 +816,11 @@ export async function fetchSessionDurableApprovalsCapability({
     if (!projectId || !sessionId) return false
 
     const key = durableApprovalsCapabilityKey({projectId, sessionId})
-    const cached = durableApprovalsCapabilityCache.get(key)
-    if (cached) return cached
+    const cached = cachedSessionCapabilities(key)
+    if (cached) return cached.durableApprovals
 
-    let request: Promise<boolean> | undefined
-    request = (async () => {
-        const data = await callFern("[fetchSessionDurableApprovalsCapability]", () =>
-            getSessionsClient().fetchSessionStream(
-                {session_id: sessionId},
-                projectScopedRequest(projectId, appId, abortSignal),
-            ),
-        )
-        if (!data) {
-            if (durableApprovalsCapabilityCache.get(key) === request) {
-                durableApprovalsCapabilityCache.delete(key)
-            }
-            return false
-        }
-        const validated = safeParseWithLogging(
-            sessionStreamResponseSchema,
-            data,
-            "[fetchSessionDurableApprovalsCapability]",
-        )
-        return validated?.capabilities.durable_approvals ?? false
-    })()
-    durableApprovalsCapabilityCache.set(key, request)
-    return request
+    void negotiateSessionCapabilities({sessionId, projectId, appId, abortSignal})
+    return false
 }
 
 export interface CommandSessionStreamParams extends SessionScopedParams {
