@@ -4,8 +4,6 @@
  */
 import type {ReactNode} from "react"
 
-import type {ConfigItemView} from "../ConfigItemDrawer"
-
 import {ITEM_KINDS, type ItemKind} from "./itemKinds"
 import {ItemRow, type ItemRowStatus} from "./ItemRow"
 
@@ -21,7 +19,7 @@ export function ConfigItemList({
 }: {
     kind: ItemKind
     items: unknown[]
-    openEdit: (kind: ItemKind, index: number, item: unknown, view: ConfigItemView) => void
+    openEdit: (kind: ItemKind, index: number, item: unknown) => void
     removeItem: (kind: ItemKind, index: number) => void
     closeEditor: () => void
     disabled?: boolean
@@ -38,7 +36,7 @@ export function ConfigItemList({
                     <ItemRow
                         key={`${kind}-${index}`}
                         descriptor={def.describe(item)}
-                        onEdit={() => openEdit(kind, index, item, def.editView(item))}
+                        onEdit={() => openEdit(kind, index, item)}
                         onRemove={() => {
                             removeItem(kind, index)
                             closeEditor()

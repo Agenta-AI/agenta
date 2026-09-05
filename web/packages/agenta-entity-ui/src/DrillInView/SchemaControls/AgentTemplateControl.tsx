@@ -187,8 +187,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         editing,
         draft,
         setDraft,
-        drawerView,
-        setDrawerView,
         jsonInvalid,
         setJsonInvalid,
         openCreate,
@@ -480,7 +478,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [config.mcps],
     )
     const handleAddMcpServer = useCallback(
-        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed(), "form"),
+        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed()),
         [openCreate],
     )
 
@@ -490,7 +488,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [config.skills],
     )
     const handleAddSkill = useCallback(
-        () => openCreate("skill", ITEM_KINDS.skill.createSeed(), "form"),
+        () => openCreate("skill", ITEM_KINDS.skill.createSeed()),
         [openCreate],
     )
 
@@ -1126,17 +1124,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               }
                               width={def.drawerWidth?.(draft)}
                               contentFlush={Boolean(def.formFlush?.(draft))}
-                              view={drawerView}
-                              onViewChange={setDrawerView}
                               onCancel={closeEditor}
                               onSave={commitDraft}
                               saveDisabled={
                                   draftInvalid ||
                                   draftUnchanged ||
-                                  (drawerView === "json" && jsonInvalid)
+                                  (def.jsonOnly(draft) && jsonInvalid)
                               }
                               jsonOnly={def.jsonOnly(draft)}
-                              formOnly={Boolean(def.formOnly?.(draft))}
                               headerExtra={isSubagent ? subagentHeaderAction : undefined}
                               disabled={readOnly}
                               form={
