@@ -23,6 +23,18 @@ class SecretsDAOInterface:
     ) -> SecretResponseDTO:
         raise NotImplementedError
 
+    async def create_with_derived_naming(
+        self,
+        *,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
+        create_secret_dto: CreateSecretDTO,
+        lock_scope: str,
+        derive_naming: Callable[[List[SecretResponseDTO]], None],
+        management: Optional[SecretManagementDTO] = None,
+    ) -> SecretResponseDTO:
+        raise NotImplementedError
+
     async def get_by_id(
         self,
         secret_id: UUID,

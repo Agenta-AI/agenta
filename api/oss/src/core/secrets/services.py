@@ -320,40 +320,62 @@ class VaultService:
                 uuid4(),
             )
 
-        if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
-            await self._name_and_slug_provider_key(
-                project_id=project_id,
-                organization_id=organization_id,
-                create_secret_dto=create_secret_dto,
-            )
+        derives_its_own_name = (
+            create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY
+            and not create_secret_dto.header.name
+        )
 
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
-            if management is None:
-                secret_dto = await self.secrets_dao.create(
-                    project_id=project_id,
-                    organization_id=organization_id,
-                    create_secret_dto=create_secret_dto,
-                )
-            else:
-                secret_dto = await self.secrets_dao.create(
+            if derives_its_own_name:
+                # The name is derived from the ones already taken, so it has to be chosen
+                # and written in one transaction — see `create_with_derived_naming`.
+                secret_dto = await self.secrets_dao.create_with_derived_naming(
                     project_id=project_id,
                     organization_id=organization_id,
                     create_secret_dto=create_secret_dto,
                     management=management,
+                    lock_scope=(
+                        "provider-key-name:"
+                        f"{project_id or organization_id}:"
+                        f"{create_secret_dto.secret.data.kind}"
+                    ),
+                    derive_naming=lambda secrets_dtos: self._name_and_slug_provider_key(
+                        create_secret_dto=create_secret_dto,
+                        secrets_dtos=secrets_dtos,
+                    ),
                 )
+            else:
+                if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
+                    self._name_and_slug_provider_key(
+                        create_secret_dto=create_secret_dto,
+                        secrets_dtos=[],
+                    )
+
+                if management is None:
+                    secret_dto = await self.secrets_dao.create(
+                        project_id=project_id,
+                        organization_id=organization_id,
+                        create_secret_dto=create_secret_dto,
+                    )
+                else:
+                    secret_dto = await self.secrets_dao.create(
+                        project_id=project_id,
+                        organization_id=organization_id,
+                        create_secret_dto=create_secret_dto,
+                        management=management,
+                    )
 
         if project_id is not None:
             await invalidate_cache(project_id=str(project_id))
         return secret_dto
 
-    async def _name_and_slug_provider_key(
+    def _name_and_slug_provider_key(
         self,
         *,
-        project_id: UUID | None,
-        organization_id: UUID | None,
         create_secret_dto: CreateSecretDTO,
+        secrets_dtos: list,
     ) -> None:
         """Give a new provider_key connection a display name and a stable slug.
 
@@ -361,18 +383,13 @@ class VaultService:
         provider. An unnamed connection is named after its provider ("OpenAI", then "OpenAI 2"),
         computed here rather than client-side because two clients can create at the same time.
         Existing records keep their missing slug and resolve by provider family.
+
+        `secrets_dtos` is the scope's current secrets, read inside the same transaction that
+        writes this one so the chosen name cannot go stale between the two.
         """
         header = create_secret_dto.header
 
         if not header.name:
-            with set_data_encryption_key(
-                data_encryption_key=self._data_encryption_key,
-            ):
-                secrets_dtos = await self.secrets_dao.list(
-                    project_id=project_id,
-                    organization_id=organization_id,
-                )
-
             header.name = next_provider_key_name(
                 kind=create_secret_dto.secret.data.kind,
                 taken_names={
