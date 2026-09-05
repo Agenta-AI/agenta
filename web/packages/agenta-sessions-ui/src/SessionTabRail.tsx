@@ -284,17 +284,6 @@ export const SessionTabRail = ({
             reorder={reorderable ? {ids: orderedIds, onReorder: handleReorder} : undefined}
             className={className}
         >
-            {!hasActive && !list.isPending ? (
-                // Outside the reorder group on purpose: it stands in for a session the list does
-                // not hold, so it has no place in an order the list defines.
-                <div className="mr-1.5 shrink-0">
-                    <SessionTab
-                        active
-                        label={activeFallbackTitle || "This session"}
-                        onSelect={noop}
-                    />
-                </div>
-            ) : null}
             {list.isPending && rows.length === 0
                 ? [0, 1].map((i) => <Skeleton key={i} className="mr-1.5 h-7 w-[112px] shrink-0" />)
                 : rows.map((vm, index) => (
@@ -335,6 +324,18 @@ export const SessionTabRail = ({
                           }}
                       />
                   ))}
+            {!hasActive && !list.isPending ? (
+                // Last, and outside the reorder group on purpose: it stands in for a session the
+                // list does not hold yet, so it belongs at the end and has no place in an order
+                // the list defines.
+                <div className="mr-1.5 shrink-0">
+                    <SessionTab
+                        active
+                        label={activeFallbackTitle || "New session"}
+                        onSelect={noop}
+                    />
+                </div>
+            ) : null}
         </SessionTabStrip>
     )
 }
