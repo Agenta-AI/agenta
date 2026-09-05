@@ -101,11 +101,8 @@ export const ToolLine = ({part}: {part: ToolUIPart}) => {
                 } ${open ? "rotate-90" : ""}`}
             />
             {glyph}
-            {/* The sentence never yields, as on the desktop row: the detail and the status beside
-                it absorb the squeeze. With `min-w-0` here instead, every child was equally
-                shrinkable, so a long argument took the width and left "Listed files" as "Li…" on a
-                phone. `max-w-full` caps a sentence wider than the row, and the row clips the rest. */}
-            <span className="text-colorText max-w-full shrink-0 truncate font-medium">
+            {/* The sentence wins the squeeze, but only to 60% below `sm` — at 100% it hid the argument entirely. */}
+            <span className="text-colorText max-w-[60%] shrink-0 truncate font-medium sm:max-w-full">
                 {shownName}
             </span>
             {display.detail ? (

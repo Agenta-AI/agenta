@@ -7,7 +7,7 @@ const LINE_WIDTHS = ["w-[220px]", "w-[176px]", "w-[132px]"]
 const SkeletonTurn = ({isUser, lines}: {isUser: boolean; lines: number}) => (
     <div className={`flex items-start pb-8 ${isUser ? "justify-end" : "justify-start"}`}>
         {isUser ? null : <Skeleton className="mr-2 size-6 shrink-0 rounded-full" />}
-        <div className="flex min-w-0 max-w-[85%] flex-col gap-2">
+        <div className="flex min-w-0 max-w-full flex-col gap-2 sm:max-w-[85%]">
             {Array.from({length: lines}, (_, i) => (
                 <Skeleton key={i} className={`h-3.5 max-w-full ${LINE_WIDTHS[i % 3]}`} />
             ))}

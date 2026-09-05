@@ -94,7 +94,7 @@ const SettingsPageShell = ({
                     clearance above the title once it is stuck against the container edge. */}
                 <header
                     ref={headerRef}
-                    className="sticky top-0 z-20 -mt-4 flex items-start justify-between gap-6 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer pb-6 pt-4"
+                    className="sticky top-0 z-20 -mt-4 flex flex-wrap items-start justify-between gap-x-6 gap-y-1 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer pb-6 pt-4"
                 >
                     <div className="flex min-w-0 flex-col gap-1">
                         {/* antd's heading-3 (24px / 1.3333 / 600) as literals, not `--ant-*`
@@ -103,7 +103,7 @@ const SettingsPageShell = ({
                             are 20/1.4 no longer — that was heading-4's size, and it shipped a
                             title a full step below prod's. `m-0` kills the UA margin
                             (preflight is off). */}
-                        <h1 className="m-0 truncate text-[24px] font-semibold leading-[1.3333333333333333] text-colorText">
+                        <h1 className="m-0 text-[24px] font-semibold leading-[1.3333333333333333] text-colorText">
                             {title}
                         </h1>
                         <p className="m-0 text-colorTextSecondary">{description}</p>
