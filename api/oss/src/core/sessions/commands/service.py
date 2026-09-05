@@ -1526,8 +1526,8 @@ class SessionCommandsService:
 
         if admission is not None:
             receipt = await self._deliver(admission.command)
-            if receipt.status != "accepted":
-                await self._mark_continuation_recoverable(admission)
+            if receipt is None or receipt.status != "accepted":
+                await self._mark_continuation_recoverable(admission, receipt)
                 admission.execution_state = SessionExecutionState.recoverable
         return result.won or result.settlement.terminal_outcome is not None
 
@@ -1939,8 +1939,8 @@ class SessionCommandsService:
             )
         if input_admission is not None:
             receipt = await self._deliver(input_admission.command)
-            if receipt.status != "accepted":
-                await self._mark_continuation_recoverable(input_admission)
+            if receipt is None or receipt.status != "accepted":
+                await self._mark_continuation_recoverable(input_admission, receipt)
         return settled
 
 

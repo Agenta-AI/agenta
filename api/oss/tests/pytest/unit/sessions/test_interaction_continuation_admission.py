@@ -1103,6 +1103,35 @@ async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_completion_handles_a_lost_input_delivery_reservation(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    items = _Inputs([_pending_input(project_id, policy="queue", position=1)])
+    commands = _Commands()
+    commands.record_delivery_attempt = AsyncMock(return_value=None)
+    service = SessionCommandsService(
+        commands_dao=commands,
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+        inputs_dao=items,
+    )
+
+    assert await service.settle_execution_completed(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="source-1",
+    )
+    assert items.items[0].state == PendingInputState.promoted
+    assert executions.continuation.state == SessionExecutionState.recoverable
+
+
+@pytest.mark.asyncio
 async def test_recovery_hooks_are_disabled_with_durable_approvals(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "durable_approvals", False)
     project_id = uuid4()
@@ -1377,3 +1406,32 @@ async def test_steer_stop_promotes_its_saved_input_before_queue(monkeypatch):
     assert inputs.items[1].state == PendingInputState.promoted
     assert commands.command.kind == SessionCommandKind.continue_input
     assert commands.command.data["input_id"] == str(steered.id)
+
+
+@pytest.mark.asyncio
+async def test_steer_handles_a_lost_input_delivery_reservation(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    project_id = uuid4()
+    steered = _pending_input(project_id, policy="steer", position=0)
+    inputs = _Inputs([steered])
+    service, commands = _stop_service(
+        project_id=project_id,
+        command_data={"steer_input_id": str(steered.id)},
+        inputs=inputs,
+    )
+    commands.record_delivery_attempt = AsyncMock(return_value=None)
+
+    settled = await service.settle(
+        command_id=commands.command.id,
+        project_id=project_id,
+        replica_id=None,
+        expected_states=[SessionCommandState.pending],
+        state=SessionCommandState.applied,
+        outcome=SessionCommandOutcome.stopped,
+        execution_id="source-1",
+    )
+
+    assert settled is not None
+    assert inputs.items[0].state == PendingInputState.promoted
+    assert service._executions.continuation.state == SessionExecutionState.recoverable
