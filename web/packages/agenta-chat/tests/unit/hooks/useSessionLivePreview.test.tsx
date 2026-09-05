@@ -1,5 +1,6 @@
 import {createElement, type ReactNode} from "react"
 
+import type {SessionInteractionRowStates, SessionRecord} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
 import {act, renderHook, waitFor} from "@testing-library/react"
 import {createStore, Provider} from "jotai"
@@ -9,12 +10,15 @@ const mocks = vi.hoisted(() => ({
     fetchSessionSnapshot: vi.fn(),
     querySessionTranscript: vi.fn(),
     connectSessionLiveEvents: vi.fn(() => ({close: vi.fn()})),
+    interactionRowStates: new Map() as SessionInteractionRowStates,
 }))
 
 vi.mock("@agenta/entities/session", async (importOriginal) => {
+    const {atom} = await import("jotai")
     const actual = await importOriginal<typeof import("@agenta/entities/session")>()
     return {
         ...actual,
+        fetchSessionInteractionStatesAtom: atom(null, () => mocks.interactionRowStates),
         fetchSessionSnapshot: mocks.fetchSessionSnapshot,
         querySessionTranscript: mocks.querySessionTranscript,
     }
@@ -34,9 +38,21 @@ const deferred = <T,>() => {
     return {promise, resolve}
 }
 
+const record = (id: string, payload: Record<string, unknown>): SessionRecord => ({
+    id,
+    session_id: "session-1",
+    project_id: "project-1",
+    event_index: null,
+    sender: "agent",
+    session_update: String(payload.type),
+    payload,
+    created_at: null,
+})
+
 describe("useSessionLivePreview", () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        mocks.interactionRowStates = new Map()
         Object.defineProperty(document, "visibilityState", {configurable: true, value: "visible"})
         vi.stubGlobal("EventSource", class {})
     })
@@ -79,7 +95,11 @@ describe("useSessionLivePreview", () => {
 
         await act(async () => records.resolve([]))
         await waitFor(() =>
-            expect(onDisconnect).toHaveBeenCalledWith({messages: [], recordCount: 7}),
+            expect(onDisconnect).toHaveBeenCalledWith({
+                messages: [],
+                recordCount: 7,
+                interactionRows: mocks.interactionRowStates,
+            }),
         )
         expect(mocks.connectSessionLiveEvents).not.toHaveBeenCalled()
 
@@ -113,6 +133,62 @@ describe("useSessionLivePreview", () => {
         await waitFor(() => expect(mocks.querySessionTranscript).toHaveBeenCalledOnce())
         expect(mocks.connectSessionLiveEvents).not.toHaveBeenCalled()
     })
+
+    it.each(["responded", "resolved", "cancelled"] as const)(
+        "joins %s interaction lifecycle before adopting the bounded transcript",
+        async (status) => {
+            mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 3}})
+            mocks.querySessionTranscript.mockResolvedValue([
+                record("r-call", {
+                    type: "tool_call",
+                    id: "tool-1",
+                    name: "request_input",
+                    input: {question: "Continue?"},
+                }),
+                record("r-request", {
+                    type: "interaction_request",
+                    id: "interaction-1",
+                    kind: "client_tool",
+                    payload: {toolCallId: "tool-1", toolName: "request_input"},
+                }),
+                record("r-done", {type: "done", stopReason: "paused"}),
+            ])
+            mocks.interactionRowStates = new Map([
+                [
+                    "interaction-1",
+                    {
+                        token: "interaction-1",
+                        toolCallId: "tool-1",
+                        kind: "client_tool",
+                        status,
+                    },
+                ],
+            ]) as SessionInteractionRowStates
+            const onDisconnect = vi.fn().mockResolvedValue(true)
+            const store = createStore()
+            store.set(projectIdAtom, "project-1")
+            const wrapper = ({children}: {children: ReactNode}) =>
+                createElement(Provider, {store}, children)
+
+            renderHook(
+                () =>
+                    useSessionLivePreview({
+                        sessionId: "session-1",
+                        sharedReaderAdvertised: true,
+                        runningElsewhere: true,
+                        onDisconnect,
+                    }),
+                {wrapper},
+            )
+
+            await waitFor(() => expect(onDisconnect).toHaveBeenCalledOnce())
+            const transcript = onDisconnect.mock.calls[0][0]
+            expect(transcript.interactionRows).toBe(mocks.interactionRowStates)
+            expect(transcript.messages[0].parts).toContainEqual(
+                expect.objectContaining({toolCallId: "tool-1", state: "output-available"}),
+            )
+        },
+    )
 
     it("backs reconnects off and resets the delay only after ready", async () => {
         vi.useFakeTimers()

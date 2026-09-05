@@ -2,6 +2,7 @@ import {useEffect, useMemo, useRef} from "react"
 
 import {
     clearSessionLivePreviewAtom,
+    fetchSessionInteractionStatesAtom,
     fetchSessionSnapshot,
     querySessionTranscript,
     sessionLivePreviewAtomFamily,
@@ -48,6 +49,7 @@ export const useSessionLivePreview = ({
     const projectId = useAtomValue(projectIdAtom)
     const [preview, setPreview] = useAtom(sessionLivePreviewAtomFamily(sessionId))
     const clearPreview = useSetAtom(clearSessionLivePreviewAtom)
+    const fetchInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
     const onDisconnectRef = useRef(onDisconnect)
     onDisconnectRef.current = onDisconnect
     const enabled = shouldSubscribeToSessionLivePreview({
@@ -92,21 +94,27 @@ export const useSessionLivePreview = ({
             if (disposed || currentGeneration !== generation) return
 
             if (snapshot && projectId) {
-                const records = await querySessionTranscript({
-                    sessionId,
-                    projectId,
-                    throughSequence: snapshot.read.latest_sequence,
-                })
+                const [records, interactionRowStates] = await Promise.all([
+                    querySessionTranscript({
+                        sessionId,
+                        projectId,
+                        throughSequence: snapshot.read.latest_sequence,
+                    }),
+                    fetchInteractionStates(sessionId),
+                ])
                 if (records === null) {
                     scheduleReconnect()
                     return
                 }
                 if (disposed || currentGeneration !== generation) return
                 const adopted = await onDisconnectRef.current({
-                    messages: transcriptToMessages(records) ?? [],
+                    // Use the canonical durable mapper with the same lifecycle join as
+                    // loadSessionMessages, so terminal interactions cannot replay as pending.
+                    messages: transcriptToMessages(records, {interactionRowStates}) ?? [],
                     // Retention can make the bounded page shorter than the durable log. The
                     // snapshot cursor is the exact boundary this transcript represents.
                     recordCount: snapshot.read.latest_sequence,
+                    interactionRows: interactionRowStates,
                 })
                 if (disposed || currentGeneration !== generation) return
                 if (!adopted) {
@@ -166,7 +174,7 @@ export const useSessionLivePreview = ({
             document.removeEventListener("visibilitychange", onVisibility)
             close()
         }
-    }, [clearPreview, enabled, projectId, sessionId, setPreview])
+    }, [clearPreview, enabled, fetchInteractionStates, projectId, sessionId, setPreview])
 
     useEffect(() => {
         if (preview.gapDetected) onDisconnectRef.current()
