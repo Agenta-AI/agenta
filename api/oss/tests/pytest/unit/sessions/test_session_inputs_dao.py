@@ -382,7 +382,7 @@ async def test_admission_rechecks_settlement_under_the_execution_lock(
     )
 
 
-async def test_admission_queues_behind_input_promoted_by_settlement(
+async def test_admission_queues_behind_running_input_promoted_by_settlement(
     input_scope, monkeypatch
 ):
     monkeypatch.setattr(env.agenta.sessions, "queue", True)
@@ -424,15 +424,32 @@ async def test_admission_queues_behind_input_promoted_by_settlement(
         session_id=input_scope["session_id"],
         execution_id="source-turn",
     )
-    streams.allow_admission.set()
-    admission = await admission_task
-
     promoted = await inputs.fetch_input(
         project_id=input_scope["project_id"],
         session_id=input_scope["session_id"],
         input_id=older.id,
     )
     assert promoted.state == PendingInputState.promoted
+    running = await executions.set_state(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        execution_id=promoted.promoted_execution_id,
+        state=SessionExecutionState.running,
+        expected_states=[SessionExecutionState.recoverable],
+    )
+    assert running is not None
+    assert running.state == SessionExecutionState.running
+    assert (
+        await inputs.list_pending(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+        )
+        == []
+    )
+
+    streams.allow_admission.set()
+    admission = await admission_task
+
     assert admission.action == "pending"
     assert admission.execution_id == promoted.promoted_execution_id
     assert [
@@ -441,7 +458,7 @@ async def test_admission_queues_behind_input_promoted_by_settlement(
             project_id=input_scope["project_id"],
             session_id=input_scope["session_id"],
         )
-    ] == [older.id, admission.input.id]
+    ] == [admission.input.id]
 
 
 async def test_manual_stop_commits_without_promoting_pending_input(

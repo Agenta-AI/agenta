@@ -125,19 +125,13 @@ class SessionInputsService:
                 source_execution is not None
                 and source_execution.terminal_outcome is not None
             ):
-                pending = await self._dao.list_pending(
+                successor = await self._dao.fetch_active_successor(
                     project_id=project_id,
                     session_id=session_id,
                     transaction=transaction,
                 )
-                successor_execution_id = next(
-                    (
-                        item.promoted_execution_id
-                        for item in pending
-                        if item.state == PendingInputState.promoted
-                        and item.promoted_execution_id is not None
-                    ),
-                    None,
+                successor_execution_id = (
+                    successor.promoted_execution_id if successor is not None else None
                 )
                 if successor_execution_id is None:
                     return PendingInputAdmission(action="execute")

@@ -43,6 +43,16 @@ class SessionInputsDAOInterface(ABC):
         pass
 
     @abstractmethod
+    async def fetch_active_successor(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        transaction: Any,
+    ) -> Optional[PendingInput]:
+        pass
+
+    @abstractmethod
     async def fetch_input(
         self, *, project_id: UUID, session_id: str, input_id: UUID
     ) -> Optional[PendingInput]:

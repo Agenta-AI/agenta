@@ -159,6 +159,38 @@ class SessionInputsDAO(SessionInputsDAOInterface):
         async with self.engine.session() as session:
             return await execute(session)
 
+    async def fetch_active_successor(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        transaction: Any,
+    ) -> Optional[PendingInput]:
+        row = (
+            await transaction.execute(
+                select(SessionInputDBE)
+                .join(
+                    SessionExecutionDBE,
+                    and_(
+                        SessionExecutionDBE.project_id == SessionInputDBE.project_id,
+                        SessionExecutionDBE.session_id == SessionInputDBE.session_id,
+                        SessionExecutionDBE.execution_id
+                        == SessionInputDBE.promoted_execution_id,
+                    ),
+                )
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.state == "promoted",
+                    SessionExecutionDBE.terminal_outcome.is_(None),
+                )
+                .order_by(SessionInputDBE.position, SessionInputDBE.created_at)
+                .limit(1)
+                .with_for_update(of=SessionExecutionDBE)
+            )
+        ).scalar_one_or_none()
+        return to_pending_input(row) if row else None
+
     async def fetch_input(
         self, *, project_id: UUID, session_id: str, input_id: UUID
     ) -> Optional[PendingInput]:
