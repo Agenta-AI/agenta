@@ -663,7 +663,20 @@ async def test_steer_stop_promotes_only_the_bound_input(input_scope, monkeypatch
         command_id=command.id,
         input_id=steer.id,
     )
+    assert command is not None
+    rebound = await SessionCommandsDAO(engine=input_scope["engine"]).bind_steer_input(
+        project_id=input_scope["project_id"],
+        command_id=command.id,
+        input_id=steer.id,
+    )
+    rejected = await SessionCommandsDAO(engine=input_scope["engine"]).bind_steer_input(
+        project_id=input_scope["project_id"],
+        command_id=command.id,
+        input_id=older.id,
+    )
     assert command.data == {"steer_input_id": str(steer.id)}
+    assert rebound is not None and rebound.data == command.data
+    assert rejected is None
     service = _settlement_service(input_scope, inputs)
 
     settled = await service.settle(

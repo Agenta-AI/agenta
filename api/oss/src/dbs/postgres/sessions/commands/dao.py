@@ -261,8 +261,8 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         command_id: UUID,
         input_id: UUID,
         transaction: Optional[Any] = None,
-    ) -> SessionCommand:
-        async def execute(session: Any) -> SessionCommand:
+    ) -> Optional[SessionCommand]:
+        async def execute(session: Any) -> Optional[SessionCommand]:
             row = (
                 await session.execute(
                     sa_update(SessionCommandDBE)
@@ -270,7 +270,11 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                         SessionCommandDBE.project_id == project_id,
                         SessionCommandDBE.id == command_id,
                         SessionCommandDBE.state.in_(_OPEN_STATES),
-                        SessionCommandDBE.data["steer_input_id"].astext.is_(None),
+                        or_(
+                            SessionCommandDBE.data["steer_input_id"].astext.is_(None),
+                            SessionCommandDBE.data["steer_input_id"].astext
+                            == str(input_id),
+                        ),
                     )
                     .values(
                         data=cast(
@@ -283,16 +287,7 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                     .returning(SessionCommandDBE)
                 )
             ).scalar_one_or_none()
-            if row is None:
-                row = (
-                    await session.execute(
-                        select(SessionCommandDBE).where(
-                            SessionCommandDBE.project_id == project_id,
-                            SessionCommandDBE.id == command_id,
-                        )
-                    )
-                ).scalar_one()
-            return map_command_dbe_to_dto(row)
+            return map_command_dbe_to_dto(row) if row is not None else None
 
         if transaction is not None:
             return await execute(transaction)

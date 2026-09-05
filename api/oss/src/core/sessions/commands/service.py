@@ -316,15 +316,19 @@ class SessionCommandsService:
                 target_turn_id=target_turn_id,
             )
             if open_command is not None:
-                command = (
-                    await self._dao.bind_steer_input(
+                if steer_input_id is not None:
+                    command = await self._dao.bind_steer_input(
                         project_id=project_id,
                         command_id=open_command.id,
                         input_id=steer_input_id,
                     )
-                    if steer_input_id is not None
-                    else open_command
-                )
+                    if command is None:
+                        raise SessionCommandNotClaimable(
+                            command_id=str(open_command.id),
+                            state="closed or already bound",
+                        )
+                else:
+                    command = open_command
             else:
                 created = await self._insert(
                     project_id=project_id,
@@ -368,16 +372,20 @@ class SessionCommandsService:
                     transaction=transaction,
                 )
                 if open_command is not None:
-                    command = (
-                        await self._dao.bind_steer_input(
+                    if steer_input_id is not None:
+                        command = await self._dao.bind_steer_input(
                             project_id=project_id,
                             command_id=open_command.id,
                             input_id=steer_input_id,
                             transaction=transaction,
                         )
-                        if steer_input_id is not None
-                        else open_command
-                    )
+                        if command is None:
+                            raise SessionCommandNotClaimable(
+                                command_id=str(open_command.id),
+                                state="closed or already bound",
+                            )
+                    else:
+                        command = open_command
                 else:
                     await self._executions.set_state(
                         project_id=project_id,
@@ -412,6 +420,11 @@ class SessionCommandsService:
                             input_id=steer_input_id,
                             transaction=transaction,
                         )
+                        if command is None:
+                            raise SessionCommandNotClaimable(
+                                command_id=str(created.command.id),
+                                state="closed or already bound",
+                            )
                     cancelled_interactions = (
                         await self._interactions.cancel_session_pending(
                             project_id=project_id,

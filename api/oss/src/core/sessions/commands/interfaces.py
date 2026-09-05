@@ -129,7 +129,7 @@ class SessionCommandsDAOInterface(ABC):
         command_id: UUID,
         input_id: UUID,
         transaction: Optional[Any] = None,
-    ) -> SessionCommand:
+    ) -> Optional[SessionCommand]:
         """Bind the first Steer input to an open Stop command."""
         raise NotImplementedError
 
