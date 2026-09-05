@@ -139,7 +139,10 @@ class RecordsService:
         A failed lookup quarantines nothing and appends everything. Losing a record is worse
         than showing one that should have been hidden, and the next delivery gets another go.
         """
-        if self.executions_dao is not None and env.agenta.sessions.durable_stop:
+        if not env.agenta.sessions.durable_stop:
+            return events
+
+        if self.executions_dao is not None:
             return await self._handle_by_execution_state(events=events)
 
         candidates: Dict[UUID, Set[Tuple[str, str]]] = {}

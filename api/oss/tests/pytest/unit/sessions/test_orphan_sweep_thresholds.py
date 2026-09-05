@@ -329,16 +329,16 @@ async def test_idle_row_is_swept_at_the_long_threshold(anyio_backend):
 
 
 @pytest.mark.anyio
-async def test_the_running_threshold_is_three_missed_heartbeats(anyio_backend):
-    """90 seconds of heartbeat age, not lease expiry.
+async def test_the_flag_off_running_threshold_keeps_the_release_baseline(anyio_backend):
+    """300 seconds of heartbeat age, not lease expiry.
 
     The Redis alive/running keys carry a ONE HOUR TTL, so a rule phrased as "shortly after the
     lease expires" would leave a dead turn running for an hour. The runner beats every 30
-    seconds and mirrors the beat onto `updated_at`, so three missed beats is the signal. The
-    old value was 300s, which was defensible while the sweep only collapsed flags and nobody
-    ever saw the result; it is too long now that the sweep writes a real ending.
+    seconds and mirrors the beat onto `updated_at`, so ten missed beats preserve the baseline.
+    Durable Stop may opt into the 90-second default, but the rollout flag being off preserves
+    the prior 300-second threshold while still writing the missing terminal outcome.
     """
-    assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (90, 1800)
+    assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (300, 1800)
 
 
 @pytest.mark.anyio

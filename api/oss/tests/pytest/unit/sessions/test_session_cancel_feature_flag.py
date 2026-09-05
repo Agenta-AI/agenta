@@ -13,6 +13,7 @@ from oss.src.core.sessions.commands.dtos import SessionCommandState
 from oss.src.core.sessions.streams.dtos import CommandMode, SessionStreamCommandResponse
 from oss.src.utils.env import env
 from oss.src.utils.env import _parse_sessions_late_output
+from oss.src.utils.env import _parse_sessions_watchdog_stale_heartbeat_seconds
 
 
 _PROJECT = UUID("00000000-0000-0000-0000-0000000000aa")
@@ -26,6 +27,21 @@ def test_unknown_late_output_policy_falls_back_to_quarantine(monkeypatch):
         value = _parse_sessions_late_output()
 
     assert value == "quarantine"
+
+
+@pytest.mark.parametrize(
+    ("durable_stop", "expected"),
+    [("false", 300), ("true", 90)],
+)
+def test_watchdog_default_preserves_flag_off_threshold(
+    monkeypatch, durable_stop, expected
+):
+    monkeypatch.setenv("AGENTA_SESSIONS_DURABLE_STOP", durable_stop)
+    monkeypatch.delenv(
+        "AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS", raising=False
+    )
+
+    assert _parse_sessions_watchdog_stale_heartbeat_seconds() == expected
 
 
 def _request():
