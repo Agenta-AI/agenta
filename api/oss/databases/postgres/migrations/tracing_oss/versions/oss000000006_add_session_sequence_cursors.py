@@ -42,15 +42,22 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("project_id", "session_id"),
     )
     op.add_column("records", sa.Column("sequence", sa.BigInteger(), nullable=True))
-    op.create_index(
-        "ux_records_session_id_sequence",
-        "records",
-        ["project_id", "session_id", "sequence"],
-        unique=True,
-    )
+    with op.get_context().autocommit_block():
+        op.create_index(
+            "ux_records_session_id_sequence",
+            "records",
+            ["project_id", "session_id", "sequence"],
+            unique=True,
+            postgresql_concurrently=True,
+        )
 
 
 def downgrade() -> None:
-    op.drop_index("ux_records_session_id_sequence", table_name="records")
+    with op.get_context().autocommit_block():
+        op.drop_index(
+            "ux_records_session_id_sequence",
+            table_name="records",
+            postgresql_concurrently=True,
+        )
     op.drop_column("records", "sequence")
     op.drop_table("session_sequence_cursors")
