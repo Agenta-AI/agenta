@@ -319,9 +319,11 @@ export const sessionStreamResponseSchema = z.object({
     capabilities: z
         .object({
             durable_approvals: z.boolean().optional().default(false),
+            queue: z.boolean().optional().default(false),
+            steer: z.boolean().optional().default(false),
         })
         .optional()
-        .default({durable_approvals: false}),
+        .default({durable_approvals: false, queue: false, steer: false}),
 })
 
 /** Control-call result for the prompt × force command matrix. */

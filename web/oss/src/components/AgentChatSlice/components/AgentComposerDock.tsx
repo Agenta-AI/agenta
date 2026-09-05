@@ -153,6 +153,7 @@ const AgentComposerDock = ({
     const stoppable = isComposerRunStoppable({
         localStreaming: busy,
         serverBusy: queue.serverBusy,
+        serverControlEnabled: queueEnabled,
         waitingOnUser: hitlPending,
     })
     const {

@@ -71,6 +71,7 @@ export const Composer = ({
     const stoppable = isComposerRunStoppable({
         localStreaming: streaming,
         serverBusy: inputBusy,
+        serverControlEnabled: queueEnabled,
         waitingOnUser,
     })
 

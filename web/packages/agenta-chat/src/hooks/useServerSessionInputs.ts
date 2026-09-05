@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {fetchSessionSnapshotAtom, removePendingSessionInputAtom} from "@agenta/entities/session"
+import {
+    fetchSessionCapabilitiesAtom,
+    fetchSessionSnapshotAtom,
+    removePendingSessionInputAtom,
+} from "@agenta/entities/session"
 import {buildAgentRequest} from "@agenta/playground/agent-chat"
 import type {UIMessage} from "ai"
 import {useSetAtom} from "jotai"
@@ -35,6 +39,7 @@ export const useServerSessionInputs = ({
     onExecuted?: () => void
 }): ServerSessionInputs => {
     const fetchSnapshot = useSetAtom(fetchSessionSnapshotAtom)
+    const fetchCapabilities = useSetAtom(fetchSessionCapabilitiesAtom)
     const removeInput = useSetAtom(removePendingSessionInputAtom)
     const [viewState, setViewState] = useState<{sessionId: string; view: SessionPendingInputView}>(
         () => ({sessionId, view: emptyView}),
@@ -43,26 +48,49 @@ export const useServerSessionInputs = ({
     const messagesRef = useRef(messages)
     const entityIdRef = useRef(entityId)
     const onExecutedRef = useRef(onExecuted)
+    const loadInFlightRef = useRef<{
+        sessionId: string
+        promise: Promise<SessionPendingInputView | null>
+    } | null>(null)
     messagesRef.current = messages
     entityIdRef.current = entityId
     onExecutedRef.current = onExecuted
 
+    const load = useCallback((): Promise<SessionPendingInputView | null> => {
+        if (loadInFlightRef.current?.sessionId === sessionId) {
+            return loadInFlightRef.current.promise
+        }
+        const promise = (async () => {
+            const capabilities = await fetchCapabilities(sessionId)
+            if (!capabilities.queue) return emptyView
+            const snapshot = await fetchSnapshot(sessionId)
+            return snapshot ? reduceSessionPendingInputs(snapshot) : null
+        })()
+        const entry = {sessionId, promise}
+        loadInFlightRef.current = entry
+        const clear = () => {
+            if (loadInFlightRef.current === entry) loadInFlightRef.current = null
+        }
+        void promise.then(clear, clear)
+        return promise
+    }, [fetchCapabilities, fetchSnapshot, sessionId])
+
     const refresh = useCallback(async () => {
-        const snapshot = await fetchSnapshot(sessionId)
-        if (snapshot) setViewState({sessionId, view: reduceSessionPendingInputs(snapshot)})
-    }, [fetchSnapshot, sessionId])
+        const next = await load()
+        if (next) setViewState({sessionId, view: next})
+    }, [load, sessionId])
 
     useEffect(() => {
         let cancelled = false
-        void fetchSnapshot(sessionId).then((snapshot) => {
-            if (!cancelled && snapshot) {
-                setViewState({sessionId, view: reduceSessionPendingInputs(snapshot)})
+        void load().then((next) => {
+            if (!cancelled && next) {
+                setViewState({sessionId, view: next})
             }
         })
         return () => {
             cancelled = true
         }
-    }, [fetchSnapshot, sessionId])
+    }, [load, sessionId])
 
     // Pending-input events arrive in a later increment. Until then, a small capability-gated
     // snapshot poll gives every mounted browser the same durable order.

@@ -15,8 +15,9 @@ import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
 import type {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
 import {useServerSessionInputs} from "../../../src/hooks/useServerSessionInputs"
 
-const {buildAgentRequest, fetchSnapshot, removeInput} = vi.hoisted(() => ({
+const {buildAgentRequest, fetchCapabilities, fetchSnapshot, removeInput} = vi.hoisted(() => ({
     buildAgentRequest: vi.fn(),
+    fetchCapabilities: vi.fn(),
     fetchSnapshot: vi.fn(),
     removeInput: vi.fn(),
 }))
@@ -24,6 +25,9 @@ const {buildAgentRequest, fetchSnapshot, removeInput} = vi.hoisted(() => ({
 vi.mock("@agenta/entities/session", async () => {
     const {atom} = await import("jotai")
     return {
+        fetchSessionCapabilitiesAtom: atom(null, (_get, _set, sessionId: string) =>
+            fetchCapabilities(sessionId),
+        ),
         fetchSessionSnapshotAtom: atom(null, (_get, _set, sessionId: string) =>
             fetchSnapshot(sessionId),
         ),
@@ -64,6 +68,8 @@ beforeAll(() => {
 
 beforeEach(() => {
     buildAgentRequest.mockReset()
+    fetchCapabilities.mockReset()
+    fetchCapabilities.mockResolvedValue({durableApprovals: true, queue: true, steer: true})
     fetchSnapshot.mockReset()
     removeInput.mockReset()
     fetchMock.mockReset()
@@ -161,6 +167,7 @@ const RunningElsewhereAdmissionHarness = ({
     const stoppable = isComposerRunStoppable({
         localStreaming: false,
         serverBusy: server.busy,
+        serverControlEnabled: queue.queueEnabled,
         waitingOnUser: false,
     })
 
@@ -268,6 +275,28 @@ const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolea
 }
 
 describe("useServerSessionInputs", () => {
+    it("does not request a queue snapshot when the capability is absent", async () => {
+        fetchCapabilities.mockResolvedValue({
+            durableApprovals: false,
+            queue: false,
+            steer: false,
+        })
+
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: false,
+            }),
+        )
+
+        await waitFor(() => expect(fetchCapabilities).toHaveBeenCalledOnce())
+        expect(fetchSnapshot).not.toHaveBeenCalled()
+        expect(result.current.capabilities).toEqual({queue: false, steer: false})
+        expect(result.current.busy).toBe(false)
+    })
+
     it("enables Queue from a snapshot without reconnect data", async () => {
         fetchSnapshot.mockResolvedValue({
             session: null,
@@ -288,8 +317,38 @@ describe("useServerSessionInputs", () => {
         )
 
         await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
+        expect(fetchSnapshot).toHaveBeenCalledOnce()
         expect(result.current.capabilities.steer).toBe(true)
         expect(result.current.executionState).toBe("idle")
+    })
+
+    it("shares the mount load with an immediate ready-state refresh", async () => {
+        let resolveSnapshot!: (snapshot: ReturnType<typeof runningSnapshot>) => void
+        fetchSnapshot.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveSnapshot = resolve
+                }),
+        )
+
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: false,
+            }),
+        )
+
+        await waitFor(() => expect(fetchSnapshot).toHaveBeenCalledOnce())
+        await act(async () => {
+            const refresh = result.current.refresh()
+            resolveSnapshot(runningSnapshot())
+            await refresh
+        })
+
+        expect(fetchSnapshot).toHaveBeenCalledOnce()
+        expect(result.current.executionState).toBe("running")
     })
 
     it("reads queue support from the snapshot and submits durable admission", async () => {
