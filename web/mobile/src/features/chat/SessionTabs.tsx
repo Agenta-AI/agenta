@@ -1,7 +1,8 @@
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
 import {querySessionStreams} from "@agenta/entities/session"
 import {useSessionFilesPane} from "@agenta/entity-ui/drive"
-import {SessionTabRail} from "@agenta/sessions-ui"
+import {SessionTabRail, withShortcutKey} from "@agenta/sessions-ui"
+import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
@@ -74,7 +75,17 @@ export const SessionTabs = ({
                 withPinned
                 activeSessionId={sessionId}
                 activeFallbackTitle={query.data?.name}
-                menuFor={menu.menuFor}
+                // Alt+A archives the session on this surface, so its menu row names the key —
+                // rename does not, because Alt+R opens nothing here.
+                menuFor={(vm) =>
+                    menu
+                        .menuFor(vm)
+                        .map((entry) =>
+                            "key" in entry && entry.key === "archive"
+                                ? {...entry, label: withShortcutKey(entry.label, "session.archive")}
+                                : entry,
+                        )
+                }
                 onMenuSelect={menu.onMenuSelect}
                 // Closing drops the tab from this device's open set — never from the server.
                 onClose={(vm, ordered) => closeTabs([vm.id], ordered)}
@@ -100,6 +111,7 @@ export const SessionTabs = ({
                                 variant="ghost"
                                 size="icon-sm"
                                 aria-label="Show configuration"
+                                aria-keyshortcuts={shortcutAria("panel.config")}
                                 onClick={() => setConfigCollapsed(false)}
                                 className="h-7 w-7 shrink-0 p-0"
                             >
@@ -132,6 +144,7 @@ export const SessionTabs = ({
                                         variant="ghost"
                                         size="icon-sm"
                                         aria-label="Show files pane"
+                                        aria-keyshortcuts={shortcutAria("panel.files")}
                                         onClick={openPane}
                                         className="h-7 w-7 shrink-0 p-0"
                                     >
