@@ -26,12 +26,14 @@ import {
     type SessionTabCloseTargets,
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Skeleton, SimpleTooltip} from "@agenta/ui/ui"
 import {ArrowLineRightIcon, XIcon, XSquareIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {type SessionMenuEntry} from "./menu"
+import {withShortcutKey} from "./menuShortcut"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
@@ -197,7 +199,12 @@ const CLOSE_RIGHT = "__rail-close-right"
 
 const closeEntries = (targets: SessionTabCloseTargets): SessionMenuEntry[] => [
     {type: "divider"},
-    {key: CLOSE, label: "Close", icon: <XIcon size={14} />, disabled: !targets.closable},
+    {
+        key: CLOSE,
+        label: withShortcutKey("Close", "session.close"),
+        icon: <XIcon size={14} />,
+        disabled: !targets.closable,
+    },
     {
         key: CLOSE_OTHERS,
         label: "Close other tabs",
@@ -290,6 +297,11 @@ export const SessionTabRail = ({
     return (
         <SessionTabStrip
             onAdd={onNew}
+            addTooltip={
+                <span className="flex items-center gap-1.5">
+                    New session <ShortcutKeys id="session.new" tone="inverse" />
+                </span>
+            }
             extra={extra}
             leadingExtra={leadingExtra}
             remeasureKey={rows.length}
