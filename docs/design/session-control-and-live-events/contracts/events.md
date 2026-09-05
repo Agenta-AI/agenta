@@ -2,8 +2,9 @@
 
 > **AGENT-GENERATED, low weight.**
 
-This file separates the live-frame contract shipped in the current increment from the durable-event
-contract planned for later increments. The target section does not describe current behavior.
+This file describes the shipped session event contracts. Milestone 1 shipped the disposable
+live-frame relay. Milestone 2 shipped the durable-event contract: replay with sequences and
+watermarks over `GET /sessions/{session_id}/events`, and browser fan-out to a second reader.
 
 ## Shipped live-frame contract
 
@@ -13,10 +14,11 @@ The initiating browser continues to render the invoke response. A second browser
 session event route only when the session advertises `shared_reader` and the run belongs to another
 browser. The global environment switch controls both the route and the advertised capability.
 
-The event route sends a `ready` event after subscribing, then sends live frames as unnamed SSE data
-events. It does not send durable events, sequences, watermarks, or replayed Postgres rows. The
-existing watch SSE continues to send low-frequency notices such as `records-changed`; clients use
-those notices to reload completed records.
+The event route replays durable events after the client's `after` cursor, then sends a `ready`
+event carrying the replay watermark, then follows live frames and durable events as they are
+published. Live frames are unnamed SSE data events. The existing watch SSE continues to send
+low-frequency notices such as `records-changed`; clients use those notices to reload completed
+records.
 
 Each execution must start at `frame_index: 0`, and each later frame must increment the index by one.
 The client ignores duplicate and older indices. If the first index is above zero or a later index
@@ -92,22 +94,19 @@ uses `Cache-Control: no-store` and disables proxy buffering.
 Logs contain identifiers and reason codes only. They do not contain message content, tool payloads,
 or tokens.
 
-## Target durable-event contract
-
-> **Not shipped in this increment.** The sections below define the target for later sender and
-> replay increments.
+## Durable-event contract
 
 ### Sender on the shared path
 
-For `x-ag-session-response: shared`, invoke will emit one transient `data-session-accepted` event
-with `{sessionId, turnId, executionId}`. The target contract uses the same ID for the turn and
-execution. The sender will consume invoke only for this acceptance, protocol lifecycle, and errors.
-It will render text, reasoning, and tool progress from the session event route.
+For `x-ag-session-response: shared`, invoke emits one transient `data-session-accepted` event with
+`{sessionId, turnId, executionId}`, and emits it only after the runner admits the turn. The same ID
+serves as the turn and the execution. The sender consumes invoke only for this acceptance, protocol
+lifecycle, and errors. It renders text, reasoning, and tool progress from the session event route.
 
 ### Durable event envelope
 
-Temporary frames and durable events will reuse the records ingest HTTP endpoint while continuing to
-use separate Redis Streams. `kind` will distinguish the two versioned shapes.
+Temporary frames and durable events reuse the records ingest HTTP endpoint while continuing to use
+separate Redis Streams. `kind` distinguishes the two versioned shapes.
 
 ```text
 version
@@ -128,21 +127,21 @@ when kind = event:
   watermark
 ```
 
-- `sequence` will be the database-assigned per-session record cursor. It can skip values because
-  every record receives a sequence while the relay exposes only the typed events.
-- `watermark` will be the session's latest committed record sequence when the event is published or
-  replayed. On a live event it will be the highest sequence committed in the publishing batch. On
-  the replay's final `ready` event it will be the session cursor after replay.
+- `sequence` is the database-assigned per-session record cursor. It can skip values because every
+  record receives a sequence while the relay exposes only the typed events.
+- `watermark` is the session's latest committed record sequence when the event is published or
+  replayed. On a live event it is the highest sequence committed in the publishing batch. On the
+  replay's final `ready` event it is the session cursor after replay.
 
-Clients will apply durable events whose `sequence` is greater than the last event they applied and
-discard duplicate or older events. They will not wait for a contiguous durable sequence. After
-applying an event, they will advance the event-deduplication cursor to `sequence` and track the
-greater of `sequence` and `watermark` separately as the reconnect cursor. A replay's final `ready`
-event can advance both cursors after every event through its watermark has been applied.
+Clients apply durable events whose `sequence` is greater than the last event they applied, and
+discard duplicate or older events. They do not wait for a contiguous durable sequence. After
+applying an event, they advance the event-deduplication cursor to `sequence` and track the greater
+of `sequence` and `watermark` separately as the reconnect cursor. A replay's final `ready` event can
+advance both cursors after every event through its watermark has been applied.
 
 ### Durable event types
 
-The target contract defines these event types and payloads:
+The contract defines these event types and payloads:
 
 | Type | Typed payload |
 |---|---|
@@ -155,20 +154,20 @@ The target contract defines these event types and payloads:
 | `interaction.requested` | `{interaction_id, kind?}` |
 | `interaction.responded` | `{interaction_id, kind?}` |
 
-The envelope will carry session, execution, entity, sequence, and creation fields, so payloads will
-not repeat them. The reducer will ignore an unknown event type and continue from the next sequence.
+The envelope carries session, execution, entity, sequence, and creation fields, so payloads do not
+repeat them. The reducer ignores an unknown event type and continues from the next sequence.
 Interaction events carry no answer data. Readers use them to refresh records and the current
 interaction state.
 
 ### Replay and live handoff
 
-The target event endpoint will subscribe to the wake-up source before its first history query. It
-will query Postgres after the supplied sequence, send rows in order, and query again when a
-notification arrives. Notifications will carry no durable truth.
+The event endpoint subscribes to the wake-up source before its first history query. It queries
+Postgres after the supplied sequence, sends rows in order, and queries again when a notification
+arrives. Notifications carry no durable truth.
 
-Each replay will be bounded by the current database watermark. Replayed events will carry that
-watermark. The replay's final `ready` event will also carry it, including when no typed event follows
-the supplied sequence.
+Each replay is bounded by the current database watermark. Replayed events carry that watermark. The
+replay's final `ready` event also carries it, including when no typed event follows the supplied
+sequence.
 
-If a reader falls behind, the API will close the connection. The reader will then reload the durable
-snapshot and resume from its durable sequence.
+If a reader falls behind, the API closes the connection. The reader then reloads the durable
+snapshot and resumes from its durable sequence.

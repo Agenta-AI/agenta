@@ -243,7 +243,8 @@ Do not add a sequence column to mutable upserts and call the result append-only.
 **Status:** Stream layout and retention settled on 2026-09-04.
 
 Temporary frames use a dedicated deployment-wide Redis Stream bounded to 15 minutes and 100,000
-frames. Redaction and browser fan-out remain part of the later shared-reader package.
+frames. Trimming is approximate on both the publish and the sweep path, because the frames are
+disposable. Browser fan-out shipped in milestone 2. Redaction remains open.
 
 ### O-005: Stable record-ID semantics spike
 
