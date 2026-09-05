@@ -556,8 +556,7 @@ async def run_orphan_sweep(
                 orphan_rows = [
                     row
                     for row in orphan_rows
-                    if (row[1], row[2], str(row[3]))
-                    not in completion_failures
+                    if (row[1], row[2], str(row[3])) not in completion_failures
                 ]
 
         if not orphan_rows and not unsettled:
