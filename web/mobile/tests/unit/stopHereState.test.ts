@@ -10,6 +10,7 @@ describe("mobile local Stop state", () => {
                 parkedAtResponse: true,
                 streaming: false,
                 retry: false,
+                executionState: "stopping",
             }),
         ).toBe("settle-parked")
     })
@@ -21,6 +22,7 @@ describe("mobile local Stop state", () => {
                 parkedAtResponse: true,
                 streaming: false,
                 retry: false,
+                executionState: "stopping",
             }),
         ).toBe("settle-parked")
     })
@@ -32,6 +34,7 @@ describe("mobile local Stop state", () => {
                 parkedAtResponse: false,
                 streaming: true,
                 retry: false,
+                executionState: "stopping",
             }),
         ).toBe("await-terminal")
     })
@@ -43,7 +46,20 @@ describe("mobile local Stop state", () => {
                 parkedAtResponse: false,
                 streaming: true,
                 retry: true,
+                executionState: "stopping",
             }),
         ).toBe("abort-retry")
+    })
+
+    it("settles an acknowledged legacy Stop without waiting for the client deadline", () => {
+        expect(
+            cancelledStopAction({
+                parkedAtRequest: false,
+                parkedAtResponse: false,
+                streaming: true,
+                retry: false,
+                executionState: "idle",
+            }),
+        ).toBe("abort-settled")
     })
 })

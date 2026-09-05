@@ -331,6 +331,7 @@ export const LiveConversation = ({
                         parkedAtResponse: !streamingHereRef.current && hitlPendingRef.current,
                         streaming: streamingHereRef.current,
                         retry: isRetry,
+                        executionState: outcome.execution.state,
                     })
                     if (action === "settle-parked") {
                         settleParkedStop()
@@ -341,7 +342,7 @@ export const LiveConversation = ({
                         expectedStopExecutionIdRef.current = undefined
                         return
                     }
-                    if (action === "abort-retry") {
+                    if (action === "abort-settled" || action === "abort-retry") {
                         stop()
                         setStoppingHere(false)
                         expectedStopExecutionIdRef.current = undefined
