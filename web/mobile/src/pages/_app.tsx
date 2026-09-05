@@ -7,6 +7,9 @@ import Head from "next/head"
 import {AppProviders} from "@/features/app/AppProviders"
 import {GlobalDrawers} from "@/features/app/GlobalDrawers"
 
+// Side effect: binds projectIdAtom from the URL before React renders. See the module.
+import "@/lib/seedProjectContext"
+
 import "@/styles/globals.css"
 
 // Deliberately minimal: no provider fleet (the desktop _app's ~10 providers
