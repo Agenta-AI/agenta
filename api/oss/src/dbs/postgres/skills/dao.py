@@ -112,6 +112,66 @@ class SkillSourcesDAO:
             result = await session.execute(stmt)
             return [_source_dto(dbe) for dbe in result.scalars().all()]
 
+    async def update_source(
+        self,
+        *,
+        project_id: UUID,
+        source_id: UUID,
+        #
+        last_seen_commit_sha: Optional[str] = None,
+        sync_enabled: Optional[bool] = None,
+    ) -> Optional[SkillSource]:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(SkillSourceDBE).filter(
+                    SkillSourceDBE.project_id == project_id,
+                    SkillSourceDBE.id == source_id,
+                    SkillSourceDBE.deleted_at.is_(None),
+                )
+            )
+            dbe = result.scalar_one_or_none()
+            if dbe is None:
+                return None
+            if last_seen_commit_sha is not None:
+                dbe.last_seen_commit_sha = last_seen_commit_sha
+            if sync_enabled is not None:
+                dbe.sync_enabled = sync_enabled
+            await session.commit()
+            return _source_dto(dbe)
+
+    async def update_link(
+        self,
+        *,
+        project_id: UUID,
+        link_id: UUID,
+        #
+        content_hash: Optional[str] = None,
+        imported_commit_sha: Optional[str] = None,
+        detached: Optional[bool] = None,
+        missing_in_source: Optional[bool] = None,
+    ) -> Optional[SkillSourceLink]:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(SkillSourceLinkDBE).filter(
+                    SkillSourceLinkDBE.project_id == project_id,
+                    SkillSourceLinkDBE.id == link_id,
+                    SkillSourceLinkDBE.deleted_at.is_(None),
+                )
+            )
+            dbe = result.scalar_one_or_none()
+            if dbe is None:
+                return None
+            if content_hash is not None:
+                dbe.content_hash = content_hash
+            if imported_commit_sha is not None:
+                dbe.imported_commit_sha = imported_commit_sha
+            if detached is not None:
+                dbe.detached = detached
+            if missing_in_source is not None:
+                dbe.missing_in_source = missing_in_source
+            await session.commit()
+            return _link_dto(dbe)
+
     async def create_links(
         self,
         *,

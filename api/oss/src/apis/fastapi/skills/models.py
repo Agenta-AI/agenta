@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from oss.src.core.skills.sources_dtos import SkillSource
+
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.skills.dtos import SkillRegistryItem, SkillUsageItem
 
@@ -41,3 +43,8 @@ class SkillSourceImportRequest(BaseModel):
     # Paths (from a prior scan) to import; omitted = every valid candidate.
     paths: Optional[List[str]] = None
     sync_enabled: bool = False
+
+
+class SkillSourcesResponse(BaseModel):
+    count: int = 0
+    sources: List[SkillSource] = []

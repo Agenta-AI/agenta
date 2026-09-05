@@ -5,6 +5,7 @@ and the sources DAO are in-memory stubs."""
 
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Optional
 from uuid import uuid4
 
@@ -12,7 +13,7 @@ import pytest
 
 from oss.src.core.skills.fetcher import FetchedSource
 from oss.src.core.skills.import_service import SkillImportService
-from oss.src.core.skills.sources_dtos import SkillSource
+from oss.src.core.skills.sources_dtos import SkillSource, SkillSourceLink
 
 PROJECT_ID = uuid4()
 USER_ID = uuid4()
@@ -40,21 +41,45 @@ class _StubWorkflowsService:
     def __init__(self, existing_slugs: Optional[set] = None):
         self.existing_slugs = existing_slugs or set()
         self.created = []
+        self.commits = []
 
     async def fetch_workflow(self, *, project_id, workflow_ref):
         if workflow_ref.slug in self.existing_slugs:
             return object()
         return None
 
+    async def commit_workflow_revision_checked(
+        self, *, project_id, user_id, workflow_revision_commit
+    ):
+        self.commits.append(workflow_revision_commit)
+        return SimpleNamespace(
+            revision=SimpleNamespace(id=uuid4()),
+            status="committed",
+            warnings=[],
+        )
+
 
 class _StubSimpleWorkflowsService:
     def __init__(self, existing_slugs: Optional[set] = None):
         self.workflows_service = _StubWorkflowsService(existing_slugs)
         self.created = []
+        # workflow_id -> current head payload (what `fetch` answers with)
+        self.heads = {}
 
     async def create(self, *, project_id, user_id, simple_workflow_create):
         self.created.append(simple_workflow_create)
-        return _StubCreated()
+        created = _StubCreated()
+        self.heads[created.id] = SimpleNamespace(
+            data=SimpleNamespace(
+                parameters=dict(simple_workflow_create.data.parameters)
+            ),
+            variant_id=uuid4(),
+            revision_id=uuid4(),
+        )
+        return created
+
+    async def fetch(self, *, project_id, workflow_id):
+        return self.heads.get(workflow_id)
 
 
 class _StubSourcesDAO:
@@ -74,9 +99,44 @@ class _StubSourcesDAO:
         self.sources.append(source)
         return source
 
+    async def fetch_source(self, *, project_id, source_id):
+        return next((s for s in self.sources if s.id == source_id), None)
+
+    async def update_source(self, *, project_id, source_id, **updates):
+        source = await self.fetch_source(project_id=project_id, source_id=source_id)
+        if source is None:
+            return None
+        for key, value in updates.items():
+            if value is not None:
+                setattr(source, key, value)
+        return source
+
     async def create_links(self, *, project_id, user_id, link_creates):
-        self.links.extend(link_creates)
-        return link_creates
+        links = [
+            SkillSourceLink(
+                id=uuid4(),
+                source_id=link.source_id,
+                workflow_id=link.workflow_id,
+                path_in_repo=link.path_in_repo,
+                imported_commit_sha=link.imported_commit_sha,
+                content_hash=link.content_hash,
+            )
+            for link in link_creates
+        ]
+        self.links.extend(links)
+        return links
+
+    async def list_links(self, *, project_id, source_id):
+        return [x for x in self.links if x.source_id == source_id]
+
+    async def update_link(self, *, project_id, link_id, **updates):
+        link = next((x for x in self.links if x.id == link_id), None)
+        if link is None:
+            return None
+        for key, value in updates.items():
+            if value is not None:
+                setattr(link, key, value)
+        return link
 
 
 def _write_skill(root: Path, dirname: str, name: str, *, body: str = "Do the thing."):
@@ -191,3 +251,116 @@ async def test_import_includes_extra_files(fixture_tree):
     create = simple.created[0]
     files = create.data.parameters["skill"]["files"]
     assert [f["path"] for f in files] == ["reference.md"]
+
+
+# --- refresh (WP-A6) ---------------------------------------------------------
+
+
+async def _import_then(fixture_tree: Path, service, **kwargs):
+    result = await service.import_from_source(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        repo_url="github.com/acme/skills",
+        **kwargs,
+    )
+    return result.source
+
+
+def _statuses(result):
+    return {x.path_in_repo: x.status for x in result.links}
+
+
+@pytest.mark.asyncio
+async def test_refresh_commits_changed_skills(fixture_tree):
+    service, simple, dao = _service(fixture_tree)
+    source = await _import_then(fixture_tree, service)
+
+    (fixture_tree / "skills/alpha/SKILL.md").write_text(
+        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nDo the NEW thing.\n"
+    )
+    service.fetcher.commit_sha = "def5678"
+
+    result = await service.refresh_source(
+        project_id=PROJECT_ID, user_id=USER_ID, source_id=source.id
+    )
+
+    assert _statuses(result) == {
+        "skills/alpha": "updated",
+        "skills/beta": "unchanged",
+    }
+    assert len(simple.workflows_service.commits) == 1
+    commit = simple.workflows_service.commits[0]
+    assert commit.base_revision_id is not None
+    assert commit.meta["skill_sync"]["source_id"] == str(source.id)
+    assert commit.meta["skill_sync"]["commit_sha"] == "def5678"
+    assert "Do the NEW thing." in commit.data.parameters["skill"]["body"]
+
+    link = next(x for x in dao.links if x.path_in_repo == "skills/alpha")
+    assert link.imported_commit_sha == "def5678"
+    assert dao.sources[0].last_seen_commit_sha == "def5678"
+
+
+@pytest.mark.asyncio
+async def test_refresh_detaches_locally_edited_skills(fixture_tree):
+    service, simple, dao = _service(fixture_tree)
+    source = await _import_then(fixture_tree, service)
+
+    # Hand-edit the workflow head after import.
+    alpha_id = next(
+        wid
+        for wid, head in simple.heads.items()
+        if head.data.parameters["skill"]["name"] == "alpha"
+    )
+    simple.heads[alpha_id].data.parameters["skill"]["body"] = "Edited by hand."
+
+    (fixture_tree / "skills/alpha/SKILL.md").write_text(
+        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
+    )
+
+    result = await service.refresh_source(
+        project_id=PROJECT_ID, user_id=USER_ID, source_id=source.id
+    )
+
+    assert _statuses(result)["skills/alpha"] == "detached"
+    assert not simple.workflows_service.commits
+    link = next(x for x in dao.links if x.path_in_repo == "skills/alpha")
+    assert link.detached is True
+
+
+@pytest.mark.asyncio
+async def test_refresh_marks_paths_missing_in_source(fixture_tree):
+    service, _, dao = _service(fixture_tree)
+    source = await _import_then(fixture_tree, service)
+
+    shutil.rmtree(fixture_tree / "skills/beta")
+
+    result = await service.refresh_source(
+        project_id=PROJECT_ID, user_id=USER_ID, source_id=source.id
+    )
+
+    assert _statuses(result)["skills/beta"] == "missing_in_source"
+    link = next(x for x in dao.links if x.path_in_repo == "skills/beta")
+    assert link.missing_in_source is True
+    # The workflow itself is untouched.
+    assert not any(
+        x.status == "updated" for x in result.links if x.path_in_repo == "skills/beta"
+    )
+
+
+@pytest.mark.asyncio
+async def test_refresh_skips_detached_links(fixture_tree):
+    service, simple, dao = _service(fixture_tree)
+    source = await _import_then(fixture_tree, service)
+
+    link = next(x for x in dao.links if x.path_in_repo == "skills/alpha")
+    link.detached = True
+    (fixture_tree / "skills/alpha/SKILL.md").write_text(
+        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
+    )
+
+    result = await service.refresh_source(
+        project_id=PROJECT_ID, user_id=USER_ID, source_id=source.id
+    )
+
+    assert _statuses(result)["skills/alpha"] == "detached"
+    assert not simple.workflows_service.commits

@@ -11,6 +11,7 @@ from oss.src.core.skills.import_service import (
     SkillImportService,
     SourceScanResult,
     ImportResult,
+    RefreshResult,
 )
 from oss.src.apis.fastapi.skills.exceptions import handle_skills_exceptions
 from oss.src.apis.fastapi.skills.models import (
@@ -20,6 +21,7 @@ from oss.src.apis.fastapi.skills.models import (
     SkillUsageResponse,
     SkillSourceScanRequest,
     SkillSourceImportRequest,
+    SkillSourcesResponse,
 )
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 
@@ -49,6 +51,26 @@ class SkillsRouter:
             operation_id="scan_skill_source",
             status_code=status.HTTP_200_OK,
             response_model=SourceScanResult,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/sources",
+            self.list_skill_sources,
+            methods=["GET"],
+            operation_id="list_skill_sources",
+            status_code=status.HTTP_200_OK,
+            response_model=SkillSourcesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/sources/{source_id}/refresh",
+            self.refresh_skill_source,
+            methods=["POST"],
+            operation_id="refresh_skill_source",
+            status_code=status.HTTP_200_OK,
+            response_model=RefreshResult,
             response_model_exclude_none=True,
         )
 
@@ -221,4 +243,49 @@ class SkillsRouter:
             ref=import_request.ref,
             paths=import_request.paths,
             sync_enabled=import_request.sync_enabled,
+        )
+
+    @intercept_exceptions()
+    async def list_skill_sources(
+        self,
+        request: Request,
+    ) -> SkillSourcesResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_WORKFLOWS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        sources = await self.import_service.sources_dao.list_sources(
+            project_id=UUID(request.state.project_id),
+        )
+        return SkillSourcesResponse(count=len(sources), sources=sources)
+
+    @intercept_exceptions()
+    @handle_skills_exceptions()
+    async def refresh_skill_source(
+        self,
+        request: Request,
+        *,
+        source_id: UUID,
+    ) -> RefreshResult:
+        """
+        Re-scan a source and commit new versions of its linked skills.
+
+        Locally edited skills are detached (kept, not overwritten); paths
+        deleted upstream are marked missing; nothing is ever deleted here.
+        """
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        return await self.import_service.refresh_source(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            source_id=source_id,
         )
