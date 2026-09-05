@@ -52,6 +52,20 @@ export interface SessionTranscript {
     interactionRows?: SessionInteractionRowStates
 }
 
+/** Runtime boundary for watch callbacks and best-effort transcript reads. */
+export const isSessionTranscript = (value: unknown): value is SessionTranscript => {
+    if (!value || typeof value !== "object") return false
+    const candidate = value as Partial<SessionTranscript>
+    return (
+        Array.isArray(candidate.messages) &&
+        typeof candidate.recordCount === "number" &&
+        Number.isFinite(candidate.recordCount) &&
+        (candidate.sequenceCursor === undefined ||
+            (typeof candidate.sequenceCursor === "number" &&
+                Number.isFinite(candidate.sequenceCursor)))
+    )
+}
+
 const sequenceCursorForRecords = (records: {sequence?: number | null}[]): number | undefined => {
     const cursor = records.reduce((latest, record) => Math.max(latest, record.sequence ?? 0), 0)
     return cursor || undefined

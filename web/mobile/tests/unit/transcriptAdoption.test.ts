@@ -1,8 +1,11 @@
 import type {SessionTranscript} from "@agenta/chat/assets"
 import type {UIMessage} from "ai"
-import {describe, expect, it} from "vitest"
+import {describe, expect, it, vi} from "vitest"
 
-import {shouldAdoptTranscript} from "../../src/features/chat/transcriptAdoption"
+import {
+    adoptTranscriptRead,
+    shouldAdoptTranscript,
+} from "../../src/features/chat/transcriptAdoption"
 
 const transcript = (
     messageCount: number,
@@ -30,6 +33,7 @@ describe("shouldAdoptTranscript", () => {
 
     it("ignores a failed / history-less load", () => {
         expect(shouldAdoptTranscript(null, rendered(0))).toBe(false)
+        expect(shouldAdoptTranscript(undefined, rendered(0))).toBe(false)
         expect(shouldAdoptTranscript(transcript(0, 0), rendered(0))).toBe(false)
     })
 
@@ -55,5 +59,17 @@ describe("shouldAdoptTranscript", () => {
 
     it("adopts sequence growth when retention keeps the row count flat", () => {
         expect(shouldAdoptTranscript(transcript(3, 20, 101), rendered(3, 20, 100))).toBe(true)
+    })
+})
+
+describe("adoptTranscriptRead", () => {
+    it.each([
+        ["rejected", () => Promise.reject(new Error("network changed"))],
+        ["undefined", () => Promise.resolve(undefined)],
+    ])("keeps the mobile transcript when a watch-triggered read is %s", async (_failure, read) => {
+        const adopt = vi.fn()
+
+        await expect(adoptTranscriptRead(read, adopt)).resolves.toBe(false)
+        expect(adopt).not.toHaveBeenCalled()
     })
 })

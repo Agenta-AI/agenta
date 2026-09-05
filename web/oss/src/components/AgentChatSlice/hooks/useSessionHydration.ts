@@ -1,6 +1,6 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
-import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
+import {isSessionTranscript, loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
 import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
 import {
     fetchSessionRecordsAtom,
@@ -164,8 +164,8 @@ export const useSessionHydration = ({
      * record log has grown past what we're rendering. Returns whether it adopted.
      */
     const adoptServerTranscript = useCallback(
-        (transcript: SessionTranscript | null, {armJump = true} = {}): boolean => {
-            if (!transcript) return false
+        (transcript: unknown, {armJump = true} = {}): boolean => {
+            if (!isSessionTranscript(transcript)) return false
             const {messages: serverMsgs, recordCount, sequenceCursor, interactionRows} = transcript
             const adopt = shouldAdoptServerTranscript({
                 serverRecordCount: sequenceCursor ?? recordCount,
@@ -458,8 +458,8 @@ export const useSessionHydration = ({
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const refreshFromRecords = useCallback(
         async (transcript?: SessionTranscript): Promise<boolean> => {
-            const adoptOrConfirm = (candidate: SessionTranscript | null): boolean => {
-                if (!candidate) return false
+            const adoptOrConfirm = (candidate: unknown): boolean => {
+                if (!isSessionTranscript(candidate)) return false
                 const candidateWatermark = candidate.sequenceCursor ?? candidate.recordCount
                 const currentWatermark =
                     candidate.sequenceCursor === undefined
@@ -480,13 +480,18 @@ export const useSessionHydration = ({
                 })
             )
                 return false
-            if (transcript) {
+            if (isSessionTranscript(transcript)) {
                 return adoptOrConfirm(transcript)
             }
             // A tick usually lands inside the records query's stale window, so the shared cache would
             // resolve unchanged; invalidate first, then adopt through the SAME guard as every other path.
             revalidateSessionRecords(sessionId)
-            const refreshed = await readLog()
+            let refreshed: SessionTranscript | null
+            try {
+                refreshed = await readLog()
+            } catch {
+                return false
+            }
             // Adoption-point recheck: the entry check above only covers the window BEFORE this
             // fetch started. `loadSessionMessages` is a real network round trip, and a client-tool
             // settle can land while it's in flight — without re-checking here, that settle arrives
@@ -534,7 +539,9 @@ export const useSessionHydration = ({
         },
         enabled: activeSessionId === sessionId,
         onReady: refreshOnReady,
-        onRecordsChanged: refreshFromRecords,
+        onRecordsChanged: () => {
+            void refreshFromRecords()
+        },
     })
 
     return {

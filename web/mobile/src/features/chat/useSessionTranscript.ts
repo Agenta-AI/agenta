@@ -5,7 +5,7 @@ import {revalidateSessionRecordsAtom} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
 
-import {shouldAdoptTranscript} from "./transcriptAdoption"
+import {adoptTranscriptRead, shouldAdoptTranscript} from "./transcriptAdoption"
 
 /**
  * Read-only transcript for one session: server record replay via `loadSessionMessages`
@@ -82,15 +82,19 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
             // Disk-restore revalidation re-delivery — fresh is non-empty by contract.
             if (cancelled) return
             if (adoptRef.current(fresh)) adopted = true
-        }).then((transcript) => {
-            if (cancelled) return
-            if (adoptRef.current(transcript)) {
-                adopted = true
-                return
-            }
-            // Nothing adopted from either delivery → no durable history for this session.
-            if (!adopted) setState("empty")
         })
+            .then((transcript) => {
+                if (cancelled) return
+                if (adoptRef.current(transcript)) {
+                    adopted = true
+                    return
+                }
+                // Nothing adopted from either delivery → no durable history for this session.
+                if (!adopted) setState("empty")
+            })
+            .catch(() => {
+                if (!cancelled && !adopted) setState("empty")
+            })
         return () => {
             cancelled = true
         }
@@ -105,20 +109,16 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         inFlightRef.current = true
         // Invalidate first so the shared-cache read refetches instead of serving staleTime.
         getDefaultStore().set(revalidateSessionRecordsAtom, sessionId)
-        void loadSessionMessages(sessionId)
-            .then((transcript) => {
-                adoptRef.current(transcript)
-            })
-            // A failed poll keeps what is on screen and waits for the next tick; swallowing it
-            // here keeps a transient 5xx from surfacing as an unhandled rejection every 3s.
-            .catch(() => undefined)
-            .finally(() => {
-                inFlightRef.current = false
-                if (pendingRef.current) {
-                    pendingRef.current = false
-                    if (sessionRef.current === sessionId) refresh()
-                }
-            })
+        void adoptTranscriptRead(
+            () => loadSessionMessages(sessionId),
+            (transcript) => adoptRef.current(transcript),
+        ).finally(() => {
+            inFlightRef.current = false
+            if (pendingRef.current) {
+                pendingRef.current = false
+                if (sessionRef.current === sessionId) refresh()
+            }
+        })
     }, [sessionId])
 
     useEffect(() => {

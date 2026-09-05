@@ -42,7 +42,11 @@ import {useSetAtom, useStore} from "jotai"
 import {latestTurnId} from "../assets/agentTurn"
 import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {filesToParts} from "../assets/files"
-import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
+import {
+    isSessionTranscript,
+    loadSessionMessages,
+    type SessionTranscript,
+} from "../assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
@@ -407,8 +411,8 @@ export const useAgentConversation = ({
      * trigger, the message count only a floor. Returns whether it adopted.
      */
     const adoptServerTranscript = useCallback(
-        (transcript: SessionTranscript | null): boolean => {
-            if (!transcript) return false
+        (transcript: unknown): boolean => {
+            if (!isSessionTranscript(transcript)) return false
             const {messages: serverMsgs, recordCount, sequenceCursor} = transcript
             const adopt = shouldAdoptServerTranscript({
                 serverRecordCount: sequenceCursor ?? recordCount,
@@ -743,8 +747,8 @@ export const useAgentConversation = ({
     // time (a watch relay tick, app foregrounding). Guards make it idempotent and stream-safe.
     const revalidate = useCallback(
         async (transcript?: SessionTranscript): Promise<boolean> => {
-            const adoptOrConfirm = (candidate: SessionTranscript | null): boolean => {
-                if (!candidate) return false
+            const adoptOrConfirm = (candidate: unknown): boolean => {
+                if (!isSessionTranscript(candidate)) return false
                 const candidateWatermark = candidate.sequenceCursor ?? candidate.recordCount
                 const currentWatermark =
                     candidate.sequenceCursor === undefined
@@ -755,14 +759,19 @@ export const useAgentConversation = ({
                     (currentWatermark ?? 0) >= candidateWatermark
                 )
             }
-            if (transcript) {
+            if (isSessionTranscript(transcript)) {
                 return adoptOrConfirm(transcript)
             }
             revalidateSessionRecords(sessionId)
             let adopted = false
-            const refreshed = await loadSessionMessages(sessionId, (fresh) => {
-                if (adoptOrConfirm(fresh)) adopted = true
-            })
+            let refreshed: SessionTranscript | null
+            try {
+                refreshed = await loadSessionMessages(sessionId, (fresh) => {
+                    if (adoptOrConfirm(fresh)) adopted = true
+                })
+            } catch {
+                return false
+            }
             return adoptOrConfirm(refreshed) || adopted
         },
         [adoptServerTranscript, revalidateSessionRecords, sessionId],

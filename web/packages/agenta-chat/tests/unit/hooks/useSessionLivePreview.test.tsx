@@ -135,6 +135,50 @@ describe("useSessionLivePreview", () => {
         expect(mocks.connectSessionLiveEvents).not.toHaveBeenCalled()
     })
 
+    it.each(["rejected", "undefined"] as const)(
+        "backs off when the bounded transcript read is %s",
+        async (failure) => {
+            vi.useFakeTimers()
+            mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 7}})
+            if (failure === "rejected") {
+                mocks.querySessionTranscript
+                    .mockRejectedValueOnce(new Error("network changed"))
+                    .mockResolvedValueOnce([])
+            } else {
+                mocks.querySessionTranscript.mockResolvedValueOnce(undefined).mockResolvedValueOnce([])
+            }
+            const store = createStore()
+            store.set(projectIdAtom, "project-1")
+            const wrapper = ({children}: {children: ReactNode}) =>
+                createElement(Provider, {store}, children)
+
+            renderHook(
+                () =>
+                    useSessionLivePreview({
+                        sessionId: "session-1",
+                        sharedReaderAdvertised: true,
+                        runningElsewhere: true,
+                        onDisconnect: vi.fn().mockResolvedValue(true),
+                    }),
+                {wrapper},
+            )
+
+            await act(async () => {
+                await Promise.resolve()
+                await Promise.resolve()
+                await Promise.resolve()
+            })
+            expect(mocks.querySessionTranscript).toHaveBeenCalledTimes(1)
+            expect(mocks.connectSessionLiveEvents).not.toHaveBeenCalled()
+
+            await act(async () => vi.advanceTimersByTimeAsync(4_999))
+            expect(mocks.querySessionTranscript).toHaveBeenCalledTimes(1)
+            await act(async () => vi.advanceTimersByTimeAsync(1))
+            expect(mocks.querySessionTranscript).toHaveBeenCalledTimes(2)
+            expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(1)
+        },
+    )
+
     it.each(["responded", "resolved", "cancelled"] as const)(
         "joins %s interaction lifecycle before adopting the bounded transcript",
         async (status) => {

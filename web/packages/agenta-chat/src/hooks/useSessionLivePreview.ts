@@ -52,6 +52,7 @@ export const useSessionLivePreview = ({
     const fetchInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
     const onDisconnectRef = useRef(onDisconnect)
     onDisconnectRef.current = onDisconnect
+    const retryHydrationRef = useRef<() => void>(() => undefined)
     const enabled = shouldSubscribeToSessionLivePreview({
         sharedReaderAdvertised,
         runningElsewhere,
@@ -81,8 +82,18 @@ export const useSessionLivePreview = ({
             reconnectDelayMs = Math.min(reconnectDelayMs * 2, RECONNECT_MAX_DELAY_MS)
             reconnectTimer = setTimeout(() => {
                 reconnectTimer = null
+                close()
                 void hydrateAndOpen()
             }, delay)
+        }
+        retryHydrationRef.current = scheduleReconnect
+
+        const adoptTranscript = async (transcript?: SessionTranscript): Promise<boolean> => {
+            try {
+                return Boolean(await onDisconnectRef.current(transcript))
+            } catch {
+                return false
+            }
         }
 
         const hydrateAndOpen = async () => {
@@ -90,40 +101,55 @@ export const useSessionLivePreview = ({
             const currentGeneration = ++generation
             clearPreview(sessionId)
 
-            const snapshot = projectId ? await fetchSessionSnapshot({sessionId, projectId}) : null
+            let snapshot
+            try {
+                snapshot = projectId ? await fetchSessionSnapshot({sessionId, projectId}) : null
+            } catch {
+                scheduleReconnect()
+                return
+            }
             if (disposed || currentGeneration !== generation) return
 
             if (snapshot && projectId) {
-                const [records, interactionRowStates] = await Promise.all([
-                    querySessionTranscript({
-                        sessionId,
-                        projectId,
-                        throughSequence: snapshot.read.latest_sequence,
-                    }),
-                    fetchInteractionStates(sessionId),
-                ])
-                if (records === null) {
+                try {
+                    const [records, interactionRowStates] = await Promise.all([
+                        querySessionTranscript({
+                            sessionId,
+                            projectId,
+                            throughSequence: snapshot.read.latest_sequence,
+                        }),
+                        fetchInteractionStates(sessionId),
+                    ])
+                    if (!Array.isArray(records)) {
+                        scheduleReconnect()
+                        return
+                    }
+                    if (disposed || currentGeneration !== generation) return
+                    const adopted = await adoptTranscript({
+                        // Use the canonical durable mapper with the same lifecycle join as
+                        // loadSessionMessages, so terminal interactions cannot replay as pending.
+                        messages: transcriptToMessages(records, {interactionRowStates}) ?? [],
+                        recordCount: records.length,
+                        // The snapshot cursor stays separate because retained rows can be sparse.
+                        sequenceCursor: snapshot.read.latest_sequence,
+                        interactionRows: interactionRowStates,
+                    })
+                    if (disposed || currentGeneration !== generation) return
+                    if (!adopted) {
+                        scheduleReconnect()
+                        return
+                    }
+                } catch {
                     scheduleReconnect()
                     return
                 }
-                if (disposed || currentGeneration !== generation) return
-                const adopted = await onDisconnectRef.current({
-                    // Use the canonical durable mapper with the same lifecycle join as
-                    // loadSessionMessages, so terminal interactions cannot replay as pending.
-                    messages: transcriptToMessages(records, {interactionRowStates}) ?? [],
-                    recordCount: records.length,
-                    // The snapshot cursor stays separate because retained rows can be sparse.
-                    sequenceCursor: snapshot.read.latest_sequence,
-                    interactionRows: interactionRowStates,
-                })
+            } else {
+                const adopted = await adoptTranscript()
                 if (disposed || currentGeneration !== generation) return
                 if (!adopted) {
                     scheduleReconnect()
                     return
                 }
-            } else {
-                await onDisconnectRef.current()
-                if (disposed || currentGeneration !== generation) return
             }
             durable = createSessionDurableEventState(
                 snapshot?.read.latest_sequence ?? durable.latestSequence,
@@ -142,7 +168,9 @@ export const useSessionLivePreview = ({
                     durable = next
                     // Completed durable rows replace temporary frames in the transcript source.
                     clearPreview(sessionId)
-                    onDisconnectRef.current()
+                    void adoptTranscript().then((adopted) => {
+                        if (!adopted && !disposed) scheduleReconnect()
+                    })
                 },
                 onReady: ({watermark}) => {
                     durable = completeSessionDurableEventReplay(durable, watermark)
@@ -150,7 +178,7 @@ export const useSessionLivePreview = ({
                 },
                 onDisconnect: ({reconnect}) => {
                     close()
-                    onDisconnectRef.current()
+                    void adoptTranscript()
                     if (reconnect) scheduleReconnect()
                 },
             })
@@ -169,6 +197,7 @@ export const useSessionLivePreview = ({
         open()
         return () => {
             disposed = true
+            retryHydrationRef.current = () => undefined
             generation += 1
             if (reconnectTimer) clearTimeout(reconnectTimer)
             document.removeEventListener("visibilitychange", onVisibility)
@@ -177,7 +206,11 @@ export const useSessionLivePreview = ({
     }, [clearPreview, enabled, fetchInteractionStates, projectId, sessionId, setPreview])
 
     useEffect(() => {
-        if (preview.gapDetected) onDisconnectRef.current()
+        if (!preview.gapDetected) return
+        const retryHydration = retryHydrationRef.current
+        void Promise.resolve(onDisconnectRef.current()).then((adopted) => {
+            if (!adopted) retryHydration()
+        }, retryHydration)
     }, [preview.gapDetected])
 
     return useMemo(() => sessionLivePreviewMessages(preview), [preview])

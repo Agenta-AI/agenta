@@ -16,7 +16,13 @@ import {useSessionHydration} from "./useSessionHydration"
 const mocks = vi.hoisted(() => ({
     fetchSessionSnapshot: vi.fn(),
     querySessionTranscript: vi.fn(),
+    loadSessionMessages: vi.fn(),
     openedUrls: [] as string[],
+}))
+
+vi.mock("@agenta/chat/assets", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/chat/assets")>()),
+    loadSessionMessages: mocks.loadSessionMessages,
 }))
 
 vi.mock("@agenta/chat/state", async (importOriginal) => ({
@@ -174,4 +180,58 @@ describe("desktop durable reconnect", () => {
         expect(setMessages).toHaveBeenLastCalledWith(laterMessages)
         act(() => root.unmount())
     })
+
+    it.each(["rejected", "undefined"] as const)(
+        "keeps the desktop transcript when a watch-triggered read is %s",
+        async (failure) => {
+            if (failure === "rejected") {
+                mocks.loadSessionMessages.mockRejectedValueOnce(new Error("network changed"))
+            } else {
+                mocks.loadSessionMessages.mockResolvedValueOnce(undefined)
+            }
+            const store = createStore()
+            store.set(projectIdAtom, "project-1")
+            const messagesRef = {current: [] as UIMessage[]}
+            const setMessages = vi.fn()
+            const container = document.createElement("div")
+            const root = createRoot(container)
+            let hydration: ReturnType<typeof useSessionHydration> | undefined
+
+            const Probe = () => {
+                hydration = useSessionHydration({
+                    sessionId: "session-1",
+                    initialMessages: [],
+                    messagesRef,
+                    busyRef: {current: false},
+                    seenIdsRef: {current: new Set<string>()},
+                    restoredIdsRef: {current: new Set<string>()},
+                    recordWatermarkRef: {current: undefined},
+                    sequenceWatermarkRef: {current: undefined},
+                    busy: false,
+                    setMessages,
+                    persistMessages: vi.fn(),
+                    intent: {
+                        armJump: vi.fn(),
+                        stickRef: {current: false},
+                    } as unknown as ScrollIntent,
+                    pendingResumeRef: {current: null},
+                })
+                return null
+            }
+
+            await act(async () => {
+                root.render(createElement(Provider, {store}, createElement(Probe)))
+            })
+            let adopted: boolean | undefined
+            await act(async () => {
+                adopted = await hydration!.refreshFromRecords(
+                    new MessageEvent("records-changed") as never,
+                )
+            })
+
+            expect(adopted).toBe(false)
+            expect(setMessages).not.toHaveBeenCalled()
+            act(() => root.unmount())
+        },
+    )
 })
