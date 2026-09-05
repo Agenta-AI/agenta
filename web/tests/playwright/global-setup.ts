@@ -73,9 +73,9 @@ function getConfiguredTestEmail(): string | null {
 }
 
 async function fillOTPDigits(page: Page, otp: string, delay: number): Promise<void> {
-    // Ant Design 5.x Input.OTP renders: <div class="ant-otp"><input class="ant-otp-input"/>...</div>
+    // Target the OTP autofill field independently of the component library.
     // Click the first cell to ensure focus (autoFocus may have been lost), then type sequentially.
-    const firstInput = page.locator(".ant-otp input").first()
+    const firstInput = page.locator('input[autocomplete="one-time-code"]').first()
     await firstInput.waitFor({state: "visible", timeout: 10000})
     await firstInput.click()
     await page.keyboard.type(otp, {delay})

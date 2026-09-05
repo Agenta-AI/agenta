@@ -4,6 +4,7 @@ import {
     buildRequestWithinDeadline,
     getMessageTraceId,
     latestTurnId,
+    resolveStopExecution,
     startupLabelFromDataPart,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
@@ -540,10 +541,24 @@ export const useAgentChatSession = ({
     const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
     const retryStopRef = useRef(false)
     const abortAfterAcceptedRef = useRef(false)
+    const stopResolutionRef = useRef<AbortController | null>(null)
+    const stopAttemptRef = useRef(0)
+
+    useEffect(() => {
+        stopAttemptRef.current += 1
+        dispatchStop({type: "reset"})
+        retryStopRef.current = false
+        abortAfterAcceptedRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        return () => {
+            stopResolutionRef.current?.abort()
+        }
+    }, [sessionId])
 
     const handleStop = useCallback(() => {
         if (stopping) return
         const wasParked = !busyRef.current && isHitlPending(messagesRef.current)
+        const stopAttempt = ++stopAttemptRef.current
         dispatchStop({type: "request"})
         if (!projectId || !sessionId) {
             dispatchStop({type: "failed"})
@@ -554,6 +569,7 @@ export const useAgentChatSession = ({
         if (doesAgentChatStopKillSession()) {
             killSession({sessionId, projectId})
                 .then((ok) => {
+                    if (stopAttemptRef.current !== stopAttempt) return
                     if (ok) {
                         dispatchStop(
                             wasParked ? {type: "cancelled", parked: true} : {type: "accepted"},
@@ -568,6 +584,7 @@ export const useAgentChatSession = ({
                     }
                 })
                 .catch((error: unknown) => {
+                    if (stopAttemptRef.current !== stopAttempt) return
                     dispatchStop({type: "failed"})
                     message.warning(
                         error instanceof Error
@@ -584,13 +601,42 @@ export const useAgentChatSession = ({
             : getSessionTurnId(sessionId)
         retryStopRef.current = false
         abortAfterAcceptedRef.current = isRetry
-        expectedStopExecutionIdRef.current = expectedExecutionId
-        void cancelSessionExecution({
-            sessionId,
-            projectId,
-            expectedExecutionId,
-        })
-            .then((outcome) => {
+        const cancel = async () => {
+            let resolvedExecutionId = expectedExecutionId
+            if (!isRetry && !resolvedExecutionId && busyRef.current) {
+                const controller = new AbortController()
+                stopResolutionRef.current?.abort()
+                stopResolutionRef.current = controller
+                const resolution = await resolveStopExecution({
+                    readExecutionId: () => getSessionTurnId(sessionId),
+                    isRunActive: () => busyRef.current,
+                    signal: controller.signal,
+                })
+                if (stopResolutionRef.current === controller) stopResolutionRef.current = null
+                if (resolution.status !== "resolved") return {resolution} as const
+                resolvedExecutionId = resolution.executionId
+            }
+            expectedStopExecutionIdRef.current = resolvedExecutionId
+            const outcome = await cancelSessionExecution({
+                sessionId,
+                projectId,
+                expectedExecutionId: resolvedExecutionId,
+            })
+            return {outcome} as const
+        }
+        void cancel()
+            .then((result) => {
+                if (stopAttemptRef.current !== stopAttempt) return
+                if ("resolution" in result && result.resolution) {
+                    if (result.resolution.status === "settled") {
+                        dispatchStop({type: "terminal"})
+                    } else if (result.resolution.status === "timed_out") {
+                        dispatchStop({type: "failed"})
+                        message.warning("Could not identify the run to stop. Please try again.")
+                    }
+                    return
+                }
+                const {outcome} = result
                 void invalidateSessionInspector(queryClient, sessionId)
                 if (outcome?.accepted) {
                     dispatchStop({type: "cancelled", parked: wasParked})
@@ -609,7 +655,12 @@ export const useAgentChatSession = ({
                     queryClient.invalidateQueries({queryKey: ["session-liveness"]})
                     return
                 }
-                if (abortAfterAcceptedRef.current) retryStopRef.current = true
+                if (outcome?.conflict) {
+                    retryStopRef.current = false
+                    expectedStopExecutionIdRef.current = undefined
+                } else if (abortAfterAcceptedRef.current) {
+                    retryStopRef.current = true
+                }
                 abortAfterAcceptedRef.current = false
                 dispatchStop({type: "failed"})
                 message.warning(
@@ -620,6 +671,8 @@ export const useAgentChatSession = ({
                 queryClient.invalidateQueries({queryKey: ["session-liveness"]})
             })
             .catch((error: unknown) => {
+                if (stopAttemptRef.current !== stopAttempt) return
+                stopResolutionRef.current = null
                 if (abortAfterAcceptedRef.current) retryStopRef.current = true
                 abortAfterAcceptedRef.current = false
                 dispatchStop({type: "failed"})
