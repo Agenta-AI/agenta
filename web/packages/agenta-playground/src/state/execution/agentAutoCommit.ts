@@ -65,6 +65,13 @@ export const registerAgentAutoCommitHandler = (
 
 type Store = ReturnType<typeof getDefaultStore>
 
+/** Check before staging a revert so a busy writer's draft and timer remain untouched. */
+export const isAgentAutoCommitBusy = (revisionId: string): boolean => {
+    if (inFlight.has(revisionId)) return true
+    const selfCommit = getDefaultStore().get(agentSelfCommitSignalAtom)
+    return !!selfCommit && Date.now() - selfCommit.at < SELF_COMMIT_QUIET_MS
+}
+
 /**
  * `skip` not ours · `clean` nothing to save · `busy` transient, try again shortly.
  *
@@ -81,10 +88,7 @@ const flushBlocker = (store: Store, revisionId: string): "skip" | "clean" | "bus
     if (isLocalDraftId(revisionId)) return "skip"
     if (!store.get(workflowMolecule.selectors.isDirty(revisionId))) return "clean"
 
-    if (inFlight.has(revisionId)) return "busy"
-
-    const selfCommit = store.get(agentSelfCommitSignalAtom)
-    if (selfCommit && Date.now() - selfCommit.at < SELF_COMMIT_QUIET_MS) return "busy"
+    if (isAgentAutoCommitBusy(revisionId)) return "busy"
 
     return null
 }
@@ -178,7 +182,8 @@ const runFlush = async (
     }
 
     if (blocker === "busy") {
-        schedule(store, revisionId, DEBOUNCE_MS, isRetry, messageOverride)
+        // Reverts roll their draft back on false; never leave a timer holding their message.
+        if (messageOverride === undefined) schedule(store, revisionId, DEBOUNCE_MS, isRetry)
         return false
     }
 

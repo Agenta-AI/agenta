@@ -20,6 +20,7 @@ let commitOutcome: {success: boolean; newRevisionId?: string; error?: Error} = {
 const draftWrites: {revisionId: string; updates: any}[] = []
 /** Revisions whose draft was rolled back. */
 const discards: string[] = []
+let commitDelay: Promise<void> | undefined
 
 vi.mock("@agenta/entities/workflow", async (importOriginal) => {
     const actual = (await importOriginal()) as any
@@ -79,6 +80,7 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
                 params: {revisionId: string; commitMessage?: string},
             ) => {
                 commitCalls.push(params)
+                if (commitDelay) await commitDelay
                 if (commitOutcome.success) set(isDirty(params.revisionId), false)
                 return commitOutcome
             },
@@ -86,10 +88,17 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
     }
 })
 
-import {workflowDraftAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
-import {projectIdAtom} from "@agenta/shared/state"
+import {
+    updateWorkflowDraftAtom,
+    workflowDraftAtomFamily,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
+import {agentSelfCommitSignalAtom, projectIdAtom} from "@agenta/shared/state"
 
-import {__resetAgentAutoCommit} from "../../src/state/execution/agentAutoCommit"
+import {
+    __resetAgentAutoCommit,
+    flushAgentAutoCommitAtom,
+} from "../../src/state/execution/agentAutoCommit"
 import {
     buildRevertMessage,
     buildVersionRows,
@@ -131,6 +140,7 @@ function seedRevision(
 }
 
 beforeEach(() => {
+    commitDelay = undefined
     commitCalls.length = 0
     draftWrites.length = 0
     discards.length = 0
@@ -138,10 +148,12 @@ beforeEach(() => {
     __resetAgentAutoCommit()
     store = getDefaultStore()
     store.set(projectIdAtom, "proj-1")
+    store.set(agentSelfCommitSignalAtom, null)
 })
 
 afterEach(() => {
     vi.clearAllTimers()
+    vi.useRealTimers()
 })
 
 describe("buildVersionRows", () => {
@@ -226,6 +238,17 @@ describe("revertAgentRevisionAtom", () => {
         expect(draftWrites[0].updates.data.schemas).toEqual(schemas)
     })
 
+    it("clears schemas when the historical version has none", async () => {
+        const target = seedRevision(nextId(), {version: 2, params: OLD})
+        const current = seedRevision(nextId(), {
+            version: 4,
+            params: NEW,
+            schemas: {outputs: {type: "string"}},
+        })
+        await store.set(revertAgentRevisionAtom, {revisionId: current, targetRevisionId: target})
+        expect(draftWrites[0].updates.data.schemas).toEqual({})
+    })
+
     it("reads the target's SERVER config, so a draft left on an old revision cannot leak in", async () => {
         const target = seedRevision(nextId(), {version: 2, params: OLD})
         // Someone once edited that old revision; the draft must not be what gets restored.
@@ -284,6 +307,79 @@ describe("revertAgentRevisionAtom", () => {
 
         expect(discards).toEqual([])
         expect(store.get(draftOf(current))).toEqual(mine)
+    })
+
+    it.each([false, true])(
+        "preserves edits made during a rejected revert (prior draft: %s)",
+        async (hasPriorDraft) => {
+            commitOutcome = {success: false, error: new Error("rejected")}
+            const target = seedRevision(nextId(), {version: 2, params: OLD})
+            const current = seedRevision(nextId(), {version: 4, params: NEW})
+            if (hasPriorDraft) store.set(draftOf(current), {data: {parameters: NEW}})
+            let finish!: () => void
+            commitDelay = new Promise<void>((resolve) => {
+                finish = resolve
+            })
+            const reverting = store.set(revertAgentRevisionAtom, {
+                revisionId: current,
+                targetRevisionId: target,
+            })
+            const edit = {data: {parameters: {agent: {llm: {model: "newer-edit"}}}}}
+            store.set(updateWorkflowDraftAtom, current, edit as any)
+            finish()
+
+            expect(await reverting).toBe(false)
+            expect(store.get(draftOf(current))).toEqual(edit)
+            expect(discards).toEqual([])
+        },
+    )
+
+    it("rejects a revert during the self-commit quiet window without staging or scheduling it", async () => {
+        vi.useFakeTimers()
+        const target = seedRevision(nextId(), {version: 2, params: OLD})
+        const current = seedRevision(nextId(), {version: 4, params: NEW})
+        const mine = {data: {parameters: {agent: {llm: {model: "my-edit"}}}}}
+        store.set(draftOf(current), mine)
+        put((workflowMolecule as any).selectors.isDirty, current, true)
+        store.set(agentSelfCommitSignalAtom, {at: Date.now()} as any)
+
+        expect(
+            await store.set(revertAgentRevisionAtom, {
+                revisionId: current,
+                targetRevisionId: target,
+            }),
+        ).toBe(false)
+        expect(draftWrites).toEqual([])
+        expect(store.get(draftOf(current))).toEqual(mine)
+        await vi.advanceTimersByTimeAsync(5000)
+        expect(commitCalls).toEqual([])
+        vi.useRealTimers()
+    })
+
+    it("does not overwrite a draft while its auto-commit is in flight", async () => {
+        const target = seedRevision(nextId(), {version: 2, params: OLD})
+        const current = seedRevision(nextId(), {version: 4, params: NEW})
+        const mine = {data: {parameters: NEW}}
+        store.set(draftOf(current), mine)
+        put((workflowMolecule as any).selectors.isDirty, current, true)
+        let finish!: () => void
+        commitDelay = new Promise<void>((resolve) => {
+            finish = resolve
+        })
+        const saving = store.set(flushAgentAutoCommitAtom, {revisionId: current})
+
+        expect(
+            await store.set(revertAgentRevisionAtom, {
+                revisionId: current,
+                targetRevisionId: target,
+            }),
+        ).toBe(false)
+        finish()
+        await saving
+        expect(draftWrites).toEqual([])
+        expect(store.get(draftOf(current))).toEqual(mine)
+        expect(commitCalls).toHaveLength(1)
+        expect(commitCalls[0].commitMessage).toBeUndefined()
     })
 
     it("cancelling is simply never calling it — no draft is staged and nothing commits", () => {

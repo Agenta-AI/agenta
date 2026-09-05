@@ -58,8 +58,8 @@ export const RevertFooter = ({
         return (
             <div className="flex items-center justify-between gap-4">
                 <span className="text-[11.5px] leading-snug text-[var(--ag-colorError)]">
-                    <strong className="font-semibold">Revert failed.</strong> The commit was
-                    rejected. Your agent is unchanged and no version was created.
+                    <strong className="font-semibold">Revert failed.</strong> Wait for any save to
+                    finish, then try again.
                 </span>
                 <span className="flex shrink-0 gap-2">
                     <Button variant="outline" onClick={onCancel}>

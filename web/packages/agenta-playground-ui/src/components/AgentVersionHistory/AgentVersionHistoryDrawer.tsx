@@ -73,6 +73,11 @@ export const AgentVersionHistoryDrawer = ({
     // Only the button needs this: reverting to a version identical to the head does nothing.
     const latestParams = useAtomValue(workflowMolecule.selectors.configuration(latestRow?.id ?? ""))
 
+    const selectedData = useAtomValue(workflowMolecule.selectors.serverData(selectedId || ""))
+    const latestData = useAtomValue(workflowMolecule.selectors.data(latestRow?.id ?? ""))
+    const selectedSchemas = selectedData?.data?.schemas
+    const latestSchemas = latestData?.data?.schemas
+
     // Opens on the newest version — "what just changed" is the question the drawer is opened with.
     const selectVersionId = useSetAtom(versionHistorySelectedAtomFamily(workflowId))
     const newestId = rows[0]?.id ?? null
@@ -134,8 +139,9 @@ export const AgentVersionHistoryDrawer = ({
         () =>
             !!selectedParams &&
             !!latestParams &&
-            stableStringify(selectedParams) === stableStringify(latestParams),
-        [selectedParams, latestParams],
+            stableStringify(selectedParams) === stableStringify(latestParams) &&
+            stableStringify(selectedSchemas ?? {}) === stableStringify(latestSchemas ?? {}),
+        [selectedParams, latestParams, selectedSchemas, latestSchemas],
     )
     const emptyText = !previousRow
         ? "The first version — there is nothing before it to compare."
