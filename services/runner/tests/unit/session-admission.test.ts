@@ -457,10 +457,7 @@ describe("runner admission: an admitted turn proceeds", () => {
     }
   });
 
-  it("fails OPEN: an unreachable platform admits the turn rather than refusing it", async () => {
-    // The heartbeat has always failed open, and admission must not change that: a transient API
-    // blip refusing every message would be a worse outage than the bug this slice fixes. The
-    // keepalive pool's busy check is the backstop for the window this leaves.
+  it("fails closed when the coordination plane cannot confirm admission", async () => {
     process.env[INTERNAL_ENV] = "http://127.0.0.1:1";
     const runCalls: AgentRunRequest[] = [];
     const runner = await startRunner(async (request): Promise<AgentRunResult> => {
@@ -470,9 +467,10 @@ describe("runner admission: an admitted turn proceeds", () => {
     try {
       const { records } = await postRun(runner.url, sessionRequest());
 
-      assert.equal(runCalls.length, 1, "an unreachable arbiter does not refuse the turn");
+      assert.equal(runCalls.length, 0, "an unconfirmed turn must never reach run()");
       const terminal = records.find((r) => r.kind === "result");
-      assert.equal(terminal!.result!.ok, true);
+      assert.equal(terminal!.result!.ok, false);
+      assert.equal(terminal!.result!.error, SESSION_TURN_IN_USE_MESSAGE);
     } finally {
       await runner.close();
     }

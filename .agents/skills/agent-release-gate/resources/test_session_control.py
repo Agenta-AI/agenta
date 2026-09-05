@@ -85,10 +85,13 @@ def _stop_approval_evidence(*, durable_stop: str, late_status: int) -> dict:
 
 
 def test_stop_approval_durable_path_requires_late_answer_refusal():
-    accepted = _stop_approval_evidence(durable_stop="on", late_status=200)
     refused = _stop_approval_evidence(durable_stop="on", late_status=409)
 
-    assert sc._judge_stop_approval(accepted, pending_found=True)["pass"] is False
+    for status in (200, 202, 500):
+        unexpected = _stop_approval_evidence(durable_stop="on", late_status=status)
+        verdict = sc._judge_stop_approval(unexpected, pending_found=True)
+        assert verdict["pass"] is False
+        assert f"HTTP {status}, expected 409" in verdict["why"]
     verdict = sc._judge_stop_approval(refused, pending_found=True)
     assert verdict["pass"] is True
     assert "late answer was refused" in verdict["why"]

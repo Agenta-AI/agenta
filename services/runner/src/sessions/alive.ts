@@ -136,8 +136,8 @@ export function ownedSessionCount(now: number = Date.now()): number {
  * uuid — the free gift of a call the runner already makes every turn, no new round-trip) and
  * `interrupted: true` when the API reports `is_current_turn: false` (a cancel/steer/kill took
  * this turn's alive/running lock since the last beat — W7.4, the control-signal path). A
- * network/HTTP failure yields `{ streamId: undefined, interrupted: false }` (fail-open: a
- * transient API blip must neither abort a healthy run nor fabricate a stream id).
+ * network/HTTP failure yields `confirmed: false`; callers use that to fail closed for initial
+ * admission while later watchdog beats remain best effort for a turn already admitted.
  */
 async function sendHeartbeat(
   sessionId: string,
@@ -145,7 +145,11 @@ async function sendHeartbeat(
   authorization: string,
   isRunning = true,
   proposal?: SessionProposal,
-): Promise<{ streamId: string | undefined; interrupted: boolean }> {
+): Promise<{
+  streamId: string | undefined;
+  interrupted: boolean;
+  confirmed: boolean;
+}> {
   try {
     const url = `${apiBase()}/sessions/streams/heartbeat`;
     const res = await fetch(url, {
@@ -168,7 +172,7 @@ async function sendHeartbeat(
     });
     if (!res.ok) {
       log(`heartbeat HTTP ${res.status} session=${sessionId} turn=${turnId}`);
-      return { streamId: undefined, interrupted: false };
+      return { streamId: undefined, interrupted: false, confirmed: false };
     }
     const body = (await res.json()) as {
       stream?: { id?: unknown } | null;
@@ -190,12 +194,12 @@ async function sendHeartbeat(
     log(
       `heartbeat OK session=${sessionId} turn=${turnId} running=${isRunning}${interrupted ? " INTERRUPTED" : ""}`,
     );
-    return { streamId, interrupted };
+    return { streamId, interrupted, confirmed: true };
   } catch (err) {
     log(
       `heartbeat failed session=${sessionId} turn=${turnId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
     );
-    return { streamId: undefined, interrupted: false };
+    return { streamId: undefined, interrupted: false, confirmed: false };
   }
 }
 
@@ -265,9 +269,8 @@ export async function claimSessionOwnership(
  * touches the sandbox is what makes at-most-one-execution-per-session true: a refused turn stops
  * at the edge instead of reaching the keepalive pool and destroying the live turn's environment.
  *
- * `admitted` is false ONLY on an explicit `is_current_turn: false`. A network or HTTP failure
- * fails OPEN (`admitted: true`), matching every other use of this beat: a transient API blip must
- * not refuse a healthy turn. The keepalive pool's own busy check is the backstop for that window.
+ * Initial admission fails closed unless the coordination plane confirms this turn owns the lock.
+ * Later heartbeat failures remain best effort and do not abort an already-admitted healthy turn.
  *
  * `proposal` rides EVERY beat rather than only the first. The server fills each field once, so
  * repeating them is a no-op, and one payload for all beats beats a "was this the first?" flag.
@@ -348,9 +351,8 @@ export async function startAliveWatchdog(
   }
 
   return {
-    // Read from the FIRST beat only. A later interruption is a cancel, not a failed admission,
-    // and it travels the `onInterrupted` -> abort path instead.
-    admitted: !first.interrupted,
+    // Read from the FIRST beat only. Later interruptions travel the abort path instead.
+    admitted: first.confirmed && !first.interrupted,
     async release() {
       clearInterval(interval);
       credentialLease.release();
@@ -384,9 +386,14 @@ export async function releaseSessionOwnership(
   timeoutMs?: number,
 ): Promise<boolean> {
   try {
+    const runnerToken = process.env.AGENTA_RUNNER_TOKEN?.trim();
     const res = await fetch(`${apiBase()}/sessions/streams/heartbeat`, {
       method: "POST",
-      headers: { "content-type": "application/json", authorization },
+      headers: {
+        "content-type": "application/json",
+        authorization,
+        ...(runnerToken ? { "x-agenta-runner-token": runnerToken } : {}),
+      },
       body: JSON.stringify({
         session_id: sessionId,
         replica_id: REPLICA_ID,

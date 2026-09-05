@@ -13,6 +13,7 @@ import {
   findSandboxAgentServerPid,
   parseProcessTable,
   reapLeakedExecChildren,
+  reapResultHasCleanupMiss,
   selectLeakedExecPids,
 } from "../../src/engines/sandbox_agent/reap-exec.ts";
 import {
@@ -21,6 +22,19 @@ import {
 } from "../../src/engines/sandbox_agent/provider.ts";
 
 const LIVE_PORT = 43_123;
+
+describe("reapResultHasCleanupMiss", () => {
+  it("flags failed and unknown cleanup for QA", () => {
+    expect(reapResultHasCleanupMiss({ killed: 1 })).toBe(false);
+    expect(
+      reapResultHasCleanupMiss({ killed: 0, skipped: "nothing-to-reap" }),
+    ).toBe(false);
+    expect(reapResultHasCleanupMiss({ killed: 0, skipped: "ps-failed" })).toBe(
+      true,
+    );
+    expect(reapResultHasCleanupMiss(undefined)).toBe(true);
+  });
+});
 
 /** The real tree, copied from the live probe on the integration stack (2026-09-03). */
 const LIVE_PS = [

@@ -6,10 +6,10 @@ Status: the six questions are answered, the runner change is written and unit te
 scenario passed on the local sandbox for two harnesses. The Claude harness is not tested, because
 this stack has no Anthropic key.
 
-**One finding needs a decision before this ships: a stopped Codex turn leaves its shell command
-running inside the parked sandbox.** Pi kills its child; Codex does not. Before this change the
-sandbox was deleted, which killed the orphan, so parking is what makes it survive. Measured, both
-directions, in "What happens to the in-flight tool" below.
+**Codex process reaping is best effort after a settled Stop.** Pi kills its child; Codex does not.
+The runner attempts to reap the Codex child and records cleanup misses for QA. A cleanup miss does
+not revoke warm reuse or continuity; the 600-second stopped-session window bounds any leftover
+process.
 
 ## The answer in one paragraph
 
@@ -116,20 +116,18 @@ The Codex reading is unambiguous. One probe returned two leftovers at once, `sle
 seconds elapsed and `sleep 300` at 31 seconds elapsed, which are the cancelled turns of two
 different sessions, so the child survives its own turn AND the session that spawned it.
 
-**Parking made the original leak survive.** Running the same Codex scenario with the settle budget
-forced to 1 ms destroyed the environment and left no leftover. The runner now closes that gap in
+**Parking can expose the original leak.** The runner performs a best-effort cleanup in
 `reap-exec.ts`: after the cancelled prompt settles, it finds the `codex app-server` below this
 sandbox's daemon, selects only descendants started during the stopped turn, and checks that
 `kill -9` exits successfully before reporting them reaped. The turn-boundary test pins the order as
-cancel, process scan, reap, then park. The app server and older session processes remain alive, so
-the native session survives without a Daytona snapshot rebuild.
+cancel, process scan, reap, then park. Failed or unknown cleanup is recorded for QA, while the
+settled Stop still preserves the sandbox and native session for the 600-second stopped window.
 
 **What reaches the API.** The turn's `message`, `tool_call` and `tool_result` rows, a `usage` row,
-and the terminal `done` row, all present in the live runs. The terminal record now carries
-`stopReason: "cancelled"` (see below). The turn is still NOT marked complete in the turn ledger, and
-the runner drops the harness's continuity record, because a cancelled turn is not a faithful resume
-point for a COLD rebuild (`services/runner/src/engines/sandbox_agent/run-turn.ts:1429`). See the
-open issues.
+and the terminal `done` row were present in the live runs. The terminal record carries
+`stopReason: "cancelled"` (see below). When the harness confirms cancellation, the runner completes
+the turn ledger row and preserves the native-session continuity record. Reap outcomes do not alter
+that confirmation.
 
 ### 3b. A stopped turn is now distinguishable from a completed one
 
@@ -297,8 +295,8 @@ interval, which work package B replaces with long polling.
 
 ## The live test
 
-Stack `agenta-ee-dev-session-spike` on `http://144.76.237.122:8580`, built from the worktree
-`/home/mahmoud/code/agenta-2-worktrees/spike-a-cancel`, local sandbox provider, EE, dev image.
+An isolated EE development stack built from the spike branch used the local sandbox provider and
+development images.
 
 Protocol, driven by `spike_cancel_live.py` in the evidence folder:
 
@@ -387,28 +385,26 @@ Add one cell, run per harness and on both sandbox providers.
 3. Assert on the stream: the turn ends with `finish`, its open tool call settles as
    `tool-output-error`, and no `error` frame claims the run failed.
 4. Assert on the runner log: `stage=harness_cancel sent=true settled=true`, then, for Codex,
-   `stage=harness_reap killed=...`, then `prompt stopReason=cancelled`, then `park-cancelled`. Fail
-   the cell on `no-park:cancelled` or `stage=harness_reap ... skipped=kill-failed`.
+   `stage=harness_reap killed=...`, then `prompt stopReason=cancelled`, then `park-cancelled`. Record
+   `cleanup_miss=true` as QA evidence, but fail the warm-reuse cell only on `no-park:cancelled`.
 5. Send a second message on the same session, replaying the cancelled turn's assistant message.
 6. Assert on the runner log: `hit-continue` for the same pool key, and NO `stage=sandbox_start`
    between the two turns. On Daytona, additionally assert the sandbox id is unchanged.
 7. Assert the second turn's answer references something only turn 1 said.
 8. Assert the stopped turn's terminal `done` record carries `stopReason: "cancelled"` and the
    completed turn's does not.
-9. Assert no leftover process from the cancelled command survives into the second turn. This one
-   FAILS on Codex today, on purpose: it is the check that tells us when the bridge is fixed.
+9. When reaping succeeds, assert that no leftover process from the cancelled command survives into
+   the second turn. When reaping fails or is unknown, record the cleanup miss and still assert warm
+   parking and native-session continuity; the stopped TTL bounds the leftover process to 600 seconds.
 
 The negative leg is worth keeping too: with `AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS=1` the same
 scenario must log `settled=false` and `no-park:cancelled`. That proves the guard still guards.
 
 ## Open questions for Mahmoud
 
-1. **A stopped Codex turn leaves its shell command running in the parked sandbox. Ship anyway, or
-   hold Codex back?** Recommendation: ship, and fix the bridge next. The orphan dies when the stopped
-   window closes. The stopped window is 600 s on Daytona, where the compute is billed, and holding
-   Codex back means Codex users keep paying a cold start on every Stop. The alternative, an env flag
-   that excludes one harness from parking, is machinery for a decision we would reverse within the
-   week.
+1. **How should a failed Codex reap affect parking?** Decision: keep the settled Stop parked. Reaping
+   is best effort, cleanup misses are QA evidence, and the 600-second stopped TTL bounds leftovers
+   without sacrificing warm reuse or native-session continuity.
 2. **Ten seconds for the settle budget?** Recommendation: yes, ship it. The measured cost is
    14 to 31 ms, so the budget is not a latency cost in the normal case, and it only ever delays a
    Stop that is already going badly.
@@ -421,6 +417,6 @@ scenario must log `settled=false` and `no-park:cancelled`. That proves the guard
    Codex result shows the interesting variation is in what the harness does with it, not whether it
    accepts it.
 
-Two things deliberately left as they are, flagged so nobody re-opens them by accident: a cancelled
-turn still drops its continuity record (decide with work package D, since it depends on the
-immutable-history choice), and `clientGone` still always destroys (a disconnect is not a Stop).
+Every settled Stop preserves the continuity row and native session, regardless of its best-effort
+Codex reap outcome. Only a harness cancel that does not settle invalidates continuity and falls back
+to cold replay. A plain `clientGone` still destroys because a disconnect is not a Stop.

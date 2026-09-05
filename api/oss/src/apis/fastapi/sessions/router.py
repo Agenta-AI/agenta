@@ -551,6 +551,9 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
+        if payload.release_owner:
+            _assert_runner_token(request)
+
         heartbeat = await self._service.heartbeat(
             project_id=project_id,
             request=payload,

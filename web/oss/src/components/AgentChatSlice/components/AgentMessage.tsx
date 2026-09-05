@@ -163,12 +163,7 @@ const RETRYABLE_CODES = new Set([
     "execution_lost",
 ])
 
-/**
- * Single-turn admission refused the message because another turn already owns the session
- * (#6417). Nothing ran and nothing failed, so the failure header would be a lie. The composer
- * already has the user's text back (see AgentConversation's restore effect), which is why there is
- * no retry button either: sending again is one keystroke away and only the user knows when.
- */
+// An admission refusal means the message was not sent, not that an agent run failed.
 const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE])
 
 /** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */

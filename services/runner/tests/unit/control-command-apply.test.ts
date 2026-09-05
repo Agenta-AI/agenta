@@ -292,7 +292,13 @@ describe("applyCommand", () => {
       /parked approval harness cancel did not settle/,
     );
 
-    assert.deepEqual(journal, ["reject", "cancel", "timeout", "teardown"]);
+    assert.deepEqual(journal, [
+      "reject",
+      "cancel",
+      "timeout",
+      "timeout",
+      "teardown",
+    ]);
     assert.equal(env.parkedApprovals.size, 1);
     assert.equal(env.sessionDestroyRequested, true);
   });

@@ -44,7 +44,7 @@ Idempotency-Key: <client-generated-key>
 {
   "type": "send",
   "message": "Explain this failure",
-  "delivery": "reject"
+  "on_busy": "reject"
 }
 ```
 
@@ -126,7 +126,7 @@ execution is already running:
 - `queue`: save the new message. Start it after current work stops normally.
 - `steer`: save the new message. Interrupt current work, then start the new message.
 
-When the session is idle, all accepted messages start normally. The contract may call this field
+When the session is idle, all accepted messages start normally. The contract calls this field
 `on_busy` so its purpose is clear.
 
 ### Visible pending messages
@@ -243,6 +243,10 @@ acknowledges it, and immediately opens the next request. A disconnected runner r
 claims commands that remain durable. Redis or Postgres notifications may wake API replicas
 internally, but the runner never connects to either system.
 
+Credential-bearing long polls require HTTPS with normal certificate validation. The client must
+disable redirects or reject any redirect whose origin differs from the configured API origin, and
+it must never forward runner credentials across origins.
+
 A persistent WebSocket or bidirectional stream can later reduce repeated requests and carry richer
 runner status. It is not required for the first contract. Direct API calls into runner pods and
 per-runner Redis subscriptions are poor fits for user-operated runners because they require inbound
@@ -303,8 +307,10 @@ execution: running -> stopping -> stopped
 
 The API accepts Stop by durably creating the command and moving the matching execution to
 `stopping` in one transaction. `expected_execution_id` remains optional. A command claim has a
-lease and can be delivered again after disconnection. The runner deduplicates by `command_id` and
-validates the execution ID and ownership generation before applying it.
+lease and can be delivered again after disconnection. In a fenced design, the runner deduplicates
+by `command_id` and validates both the execution ID and ownership generation before applying it.
+The v1 direct-delivery adapter has no generation token; it validates the target execution ID and
+requires the addressed runner replica to own that execution.
 
 Claiming or acknowledging a command does not prove that execution stopped. Public clients follow
 execution state. The runner normally reports the terminal outcome and the API settles the command

@@ -71,10 +71,10 @@ point:
 The refusal streams as an `error` event carrying the code, then a failed terminal result. That is
 the path every runner failure already takes to the browser, so no new transport is involved.
 
-The coordinator change is a backstop, not the fix. The heartbeat fails open on a network or HTTP
-error, which is deliberate and unchanged: a transient API blip refusing every message would be a
-worse outage than the bug. In that window two turns can be admitted, and a `busy` pool entry is
-the more specific truth on this box, so the coordinator refuses rather than destroying.
+The first heartbeat is the admission decision and fails closed unless the coordination plane
+confirms ownership. Later heartbeat failures remain best effort for a turn that was already
+admitted. The coordinator stays as a same-runner backstop and refuses a competing `busy` pool entry
+without destroying the live environment.
 
 ### 2. The browser keeps the user's text (`bdd7116520`)
 
@@ -197,9 +197,8 @@ The four runner failures are **pre-existing**, all in
 `tests/unit/gateway-run-turn-composition.test.ts`. Confirmed by stashing this slice's changes and
 re-running: the same four fail on the branch tip.
 
-The 11 collection errors in the API run are an artifact of borrowing the live tree's virtual
-environment, which resolves `agenta` from `/home/mahmoud/code/agenta-2/sdks/python` rather than
-from this worktree. They are import errors in unrelated files.
+The 11 collection errors in the API run came from a virtual environment that resolved `agenta`
+from a different checkout. They are import errors in unrelated files.
 
 New tests:
 
@@ -207,9 +206,9 @@ New tests:
   driven over a socket against a fake platform API. Covers: a refused turn never calls `run()`,
   the error event carries the code, no interaction sweep or attachment claim happens, the end
   beat names the refused turn, an admitted turn proceeds, a resume-shaped request is admitted,
-  and an unreachable platform fails open.
+  and an unreachable platform fails closed before `run()`.
 - `services/runner/tests/unit/session-alive-interrupt.test.ts` (+4). `admitted` semantics: first
-  beat only, fail-open, and a later interruption does not un-admit.
+  beat only, fail-closed without confirmation, and a later interruption does not un-admit.
 - `services/runner/tests/unit/session-keepalive-dispatch.test.ts` (+1, 1 rewritten). A busy entry
   refuses with no eviction and no cold acquire; a destroyed entry still evicts.
 - `services/runner/tests/unit/session-steer-mount-loss.test.ts` (3 rewritten). These pinned the
@@ -236,33 +235,21 @@ that destroys a session also removes it.
 
 ### The stack
 
-A standalone EE dev stack built from this worktree, at **http://144.76.237.122:8680**.
+A standalone EE development stack built from this worktree at `<dev-host>:<port>`. The deployment
+used a current EE development environment file with isolated ports and project name. Dev-mode bind
+mounts confirmed that the containers ran this worktree's source.
 
-The brief named `hosting/docker-compose/ee/.env.ee.dev.local` as the base env file. That file is
-from 30 July and is missing `AGENTA_SERVICES_INTERNAL_KEY`, so compose refuses to start. The env
-file was rebased on `.env.ee.dev.toolkit.local` (29 August), which is the one Mahmoud's own stack
-runs, with every port, the project name and the env-file pointer changed. The four
-`agenta-ee-dev-*:latest` images were 15 minutes old, so `--build` was skipped as the brief
-directed; dev mode bind-mounts the source, so the containers run this worktree's code.
+When host and container users differ, dependency ownership can prevent the web entrypoint from
+updating generated binaries. Repair only the affected dependency or generated paths with targeted
+ownership or ACL changes, then restart the container. Never make the whole web tree world-writable.
 
-Two deployment notes worth keeping. First, the stale env file: compose fails immediately with
-`required variable AGENTA_SERVICES_INTERNAL_KEY is missing a value`, which names the problem
-clearly. Second, the web container 502s indefinitely if you have also run `pnpm install` in this
-worktree's `web/` from the host, as this slice did for lint and tests. The host install runs as
-uid 1000 and the container as uid 10001, so the container's own install and the api-client
-`prepare` build cannot overwrite those paths and the entrypoint retries forever. The log looks
-like a slow install; the real line is `[EACCES] ... .bin/tsc` thousands of lines up. Fix with
-`chmod -R a+rwX web/` in the worktree and restart the container, then poll `/w` rather than `/`,
-because `/` 308-redirects there and the first compile takes a few minutes.
-
-Sandbox provider: `local`. Harness: `pi_core`. Model: `gpt-5.6-luna` on the QA OpenAI key, added
-to the stack's own vault.
+Sandbox provider: `local`. Harness: `pi_core`. The model credential came from the stack's test
+vault; no key or secret is part of this record.
 
 ### The scenario
 
-Driver: `verify_admission.py`, wire level, asserting on SSE frame types and never on model prose.
-It is kept at
-`/tmp/claude-1000/-home-mahmoud-code-agenta-2/7c724667-82cd-41a6-ba0b-e47bc96b4f67/scratchpad/verify_admission.py`.
+The verification driver worked at wire level, asserted on SSE frame types, and never used model
+prose as evidence. Its environment-specific path and credentials are intentionally not recorded.
 
 1. Turn A starts on a fresh session and runs `sleep 40 && echo DONE_A` as a shell tool.
 2. Fifteen seconds in, turn B sends "What is 2 + 2?" to the same session.
@@ -287,7 +274,7 @@ Turn B's error frames, verbatim:
 {"type": "error", "errorText": "This session is already running a turn. Your message was not sent. Wait for the reply, or stop the turn, then send again."}
 ```
 
-Runner log for session `081a1fe7-9961-4a0e-bdb1-177a59a8bfd6`, in order:
+Runner log for the test session, in order:
 
 ```
 [sessions] stream sessionOwned=true sessionId=081a1fe7-… turnId=444d272b-… cred=present
@@ -314,15 +301,13 @@ Three things to read from that log:
   sandbox and the native harness session survived the second send. That is the constraint this
   slice was bound by, checked rather than assumed.
 
-The stack is left running. Teardown:
+Use the matching edition, image mode, and environment file to tear down the isolated stack:
 
 ```bash
-cd /home/mahmoud/code/agenta-2-worktrees/slice-admission
-bash ./hosting/docker-compose/run.sh --license ee --dev --env-file .env.ee.dev.admission --down
+bash ./hosting/docker-compose/run.sh --ee --dev --down
 ```
 
-Add `--nuke` to drop the volumes as well. That stack has its own Postgres on port 5441 and shares
-nothing with the other stacks on the box.
+Add `--nuke` only when the isolated volumes should also be removed.
 
 ### Not verified
 
@@ -377,10 +362,9 @@ this slice.
    the conversation. *Recommendation: move it there once someone looks at it in a browser.* The
    current bubble is honest but it sits in the transcript, which is where run failures live.
 
-4. **Is the fail-open on an unreachable API still the right default?** It is unchanged from
-   today, and the coordinator's busy check backs it up on a single runner.
-   *Recommendation: keep it.* Refusing every message during an API blip would be a worse outage
-   than the bug this closes, and with one runner the local check catches the real overlap.
+4. **Should initial admission fail closed when the API is unreachable?** *Decision: yes.* At-most-one
+   execution has to hold across replicas. Later watchdog failures remain best effort so an already
+   admitted healthy turn is not aborted by a transient API failure.
 
 5. **Should `--build` have been skipped?** The brief said to skip it if the images were under
    three hours old, and they were fifteen minutes old. The live results therefore depend on dev

@@ -2098,8 +2098,10 @@ def _judge_stop_approval(evidence: dict, *, pending_found: bool) -> dict:
             "pass --durable-stop on or off"
         )
     late = evidence["late_answer"]
-    if durable_stop == "on" and late.get("status") == 200:
-        return _fail("the late approval answer was accepted after the Stop settled it")
+    if durable_stop == "on" and late.get("status") != 409:
+        return _fail(
+            f"the late approval answer returned HTTP {late.get('status')}, expected 409"
+        )
     if durable_stop == "off":
         if late.get("status") != 200:
             return _fail(

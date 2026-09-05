@@ -794,12 +794,8 @@ async function runAndStreamWithApiBaseResolved(
     // A throw escaping run() itself (outside the engine's own try/catch) emitted no error
     // event — persist it here as the backstop.
     if (persistError) persistError(message);
-    if (
-      !terminalRecordEmitted &&
-      persistTerminal &&
-      isUserStopAbort(controller.signal)
-    ) {
-      persistTerminal("cancelled");
+    if (!terminalRecordEmitted && persistTerminal) {
+      persistTerminal(isUserStopAbort(controller.signal) ? "cancelled" : undefined);
     }
     if (flushPersist) await flushPersist().catch(() => {});
     result = { ok: false, error: message };

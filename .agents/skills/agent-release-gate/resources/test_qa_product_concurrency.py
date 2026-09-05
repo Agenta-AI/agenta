@@ -1,12 +1,12 @@
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["httpx>=0.27"]
+# dependencies = ["httpx>=0.27", "pytest>=8"]
 # ///
 """Offline tests for the `burst` and `crosstalk` journeys. No deployment, no network.
 
 Run either way:
 
-    uv run test_qa_product_concurrency.py     # standalone, prints a line per case
+    uv run test_qa_product_concurrency.py     # standalone, runs through pytest
     uv run --no-sync pytest test_qa_product_concurrency.py
 
 Every case fakes the wire. `invoke` is replaced with a function that builds a `Turn` by hand, so
@@ -436,6 +436,19 @@ def test_session_control_result_consumer_carries_a_failure(tmp_path):
     assert result["failed"] == ["stop-warm"]
 
 
+def test_session_control_result_consumer_marks_skips_incomplete(tmp_path):
+    path = tmp_path / "results.json"
+    path.write_text(json.dumps(_session_control_result("SKIP")))
+
+    result = qa._load_session_control_result(str(path))
+
+    assert result["status"] == "INCOMPLETE"
+    assert result["skipped"]
+    label = qa._session_control_result_label(result)
+    assert "SKIPPED, UNTESTED" in label
+    assert result["skipped"][0] in label
+
+
 def test_session_control_result_consumer_rejects_an_incomplete_run(tmp_path):
     payload = _session_control_result()
     del payload["cells"]["stop-warm"]
@@ -474,6 +487,30 @@ def test_driver_fails_for_a_failed_session_control_result(monkeypatch, tmp_path)
     }
     result_path = tmp_path / "session-control-results.json"
     result_path.write_text(json.dumps(payload))
+    monkeypatch.setattr(qa, "RUNS", tmp_path / "runs")
+    monkeypatch.setitem(qa.JOURNEYS, "chat", lambda _cell: {"pass": True, "why": "ok"})
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "qa_product.py",
+            "--cell",
+            "C3",
+            "--only",
+            "chat",
+            "--changed-path",
+            "api/oss/src/core/sessions/service.py",
+            "--session-control-results",
+            str(result_path),
+        ],
+    )
+
+    assert qa.main() == 1
+
+
+def test_driver_fails_for_a_skipped_session_control_result(monkeypatch, tmp_path):
+    result_path = tmp_path / "session-control-results.json"
+    result_path.write_text(json.dumps(_session_control_result("SKIP")))
     monkeypatch.setattr(qa, "RUNS", tmp_path / "runs")
     monkeypatch.setitem(qa.JOURNEYS, "chat", lambda _cell: {"pass": True, "why": "ok"})
     monkeypatch.setattr(
@@ -958,12 +995,7 @@ def test_a_hung_run_still_reports_when_it_started_and_stopped():
 
 
 def main() -> int:
-    cases = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
-    for case in cases:
-        case()
-        print(f"PASS {case.__name__}")
-    print(f"\n{len(cases)} offline cases passed")
-    return 0
+    return pytest.main([__file__, "-q"])
 
 
 if __name__ == "__main__":

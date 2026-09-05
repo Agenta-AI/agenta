@@ -882,6 +882,73 @@ describe("createAgentServer", () => {
     }
   });
 
+  it("persists one terminal done record when a session-owned run throws", async () => {
+    const s = await listen(async () => {
+      throw new Error("engine escaped");
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-escaped-run" },
+            is_current_turn: true,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+
+    try {
+      const response = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-escaped-run",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "throw" }],
+        }),
+      });
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.deepEqual(
+        ingested
+          .filter((record) => ["error", "done"].includes(record.record_type))
+          .map((record) => record.record_type),
+        ["error", "done"],
+      );
+      assert.equal(
+        ingested.filter((record) => record.record_type === "done").length,
+        1,
+      );
+      assert.equal(records.filter((record) => record.kind === "result").length, 1);
+      assert.equal(records.at(-1)?.result.error, "engine escaped");
+    } finally {
+      fetchSpy.mockRestore();
+      errorSpy.mockRestore();
+      await s.close();
+    }
+  });
+
   it("rejects an over-cap session turn before persistence or attachment claiming", async () => {
     // Override the cap rather than generating a default-sized batch, so the case stays small.
     process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN = "2";

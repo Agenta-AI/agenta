@@ -56,6 +56,7 @@ import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/cons
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
+import {restoreHeldRefusedSend} from "./assets/refusedMessageRecovery"
 import AgentComposerDock from "./components/AgentComposerDock"
 import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
@@ -242,6 +243,7 @@ const AgentConversation = ({
         attachmentsSettled,
         isDragging,
         addFiles,
+        restoreAttachments,
     } = attachments
 
     // Playground-native onboarding: the hero, Create-agent / Continue-in-IDE, the template strip
@@ -430,20 +432,27 @@ const AgentConversation = ({
             }),
         [messages],
     )
-    // Single-turn admission (#6417, #5539, #5538): the backend refuses a message sent while
-    // another turn is already running on this session. Nothing ran and nothing was sent, so the
-    // user's text goes back into the composer instead of vanishing. Without this the refusal is
-    // worse than the bug for the person typing: they lose what they wrote and have no way to get
-    // it back.
-    //
-    // The rAF mirrors the edit-stash restore above it: `submitEditorAsMarkdown` clears the editor
-    // synchronously after `onSubmit` returns, so a restore has to land after that clear.
+    const refusedSendRef = useRef<QueuedMessage | undefined>(undefined)
+    const restoreRefusedSend = useCallback(
+        () => restoreHeldRefusedSend(refusedSendRef, richInputRef.current, restoreAttachments),
+        [restoreAttachments],
+    )
+    // Restore a refused send after the editor's synchronous submit clear.
     useEffect(() => {
         if (!error || !isSessionBusyRefusal(error)) return
-        const sent = takeLastSent()
-        if (!sent?.text) return
-        requestAnimationFrame(() => richInputRef.current?.setMarkdown(sent.text))
-    }, [error, takeLastSent])
+        if (!refusedSendRef.current) refusedSendRef.current = takeLastSent()
+        requestAnimationFrame(() => {
+            restoreRefusedSend()
+        })
+    }, [error, restoreRefusedSend, takeLastSent])
+
+    const handleComposerChange = useCallback(
+        (text: string) => {
+            composer.handleComposerChange(text)
+            if (!text.trim()) restoreRefusedSend()
+        },
+        [composer.handleComposerChange, restoreRefusedSend],
+    )
 
     useEffect(() => {
         const status: SessionRunStatus = error
@@ -539,11 +548,12 @@ const AgentConversation = ({
         trimmed: string,
         fileParts: FileUIPart[] | undefined,
         consumedUids: string[],
+        stagedFiles: typeof files,
     ) => {
         if (editingId) {
             // A rewrite of a held message: nothing is sent, so the transcript must not move.
             // The input clears itself on submit, so the displaced draft goes back after that.
-            const draft = commitEdit({text: trimmed, fileParts})
+            const draft = commitEdit({text: trimmed, fileParts, stagedFiles})
             if (draft) requestAnimationFrame(() => richInputRef.current?.setMarkdown(draft))
         } else {
             // Glide to the bottom; the min-h-full active turn makes that show the new question at the
@@ -552,7 +562,7 @@ const AgentConversation = ({
             scrollIntent.armGlide()
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the shared release gate.
-            submit({text: trimmed, fileParts})
+            submit({text: trimmed, fileParts, stagedFiles})
         }
         // The message left the composer — drop its persisted draft (and any pending capture).
         composer.clearDraft()
@@ -593,7 +603,7 @@ const AgentConversation = ({
                     }
                     fileParts = parts
                 }
-                finishSubmit(trimmed, fileParts, stagedUids)
+                finishSubmit(trimmed, fileParts, stagedUids, files)
                 return
             }
 
@@ -606,7 +616,7 @@ const AgentConversation = ({
             const fileParts = outboundFiles.length
                 ? stagedFilesToParts(outboundFiles, sessionId)
                 : undefined
-            finishSubmit(trimmed, fileParts, stagedUids)
+            finishSubmit(trimmed, fileParts, stagedUids, outboundFiles)
         })
 
     handleSubmitRef.current = handleSubmit
@@ -864,7 +874,7 @@ const AgentConversation = ({
                                         onStop={handleStop}
                                         stopping={stopping}
                                         richInputRef={richInputRef}
-                                        composer={composer}
+                                        composer={{...composer, handleComposerChange}}
                                         attachments={attachments}
                                         onboardingChat={onboardingChat}
                                         voice={voice}
