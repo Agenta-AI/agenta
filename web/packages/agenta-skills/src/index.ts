@@ -5,6 +5,7 @@
  * Subpath exports (`./state`, `./api`, `./embed`) are the preferred entry points;
  * this barrel re-exports them for convenience.
  */
+export * from "./core/schema"
 export * from "./api"
 export * from "./state"
 export * from "./embed"

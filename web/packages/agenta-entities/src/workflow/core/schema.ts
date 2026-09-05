@@ -148,6 +148,8 @@ export interface WorkflowQueryFlags {
     is_evaluator?: boolean
     is_agent?: boolean
     is_snippet?: boolean
+    // Revision-level role flag (matched against head revisions server-side)
+    is_skill?: boolean
 }
 
 // ============================================================================
