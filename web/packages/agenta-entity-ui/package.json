@@ -45,7 +45,7 @@
         "@rc-component/form": "^1.8.1",
         "clsx": "^2.1.1",
         "dayjs": "^1.11.13",
-        "fflate": "0.4.8",
+        "fflate": "0.4.9",
         "js-yaml": "^4.3.0",
         "lodash": "^4.17.23",
         "lucide-react": "^0.479.0",
