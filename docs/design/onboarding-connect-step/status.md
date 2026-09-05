@@ -144,3 +144,153 @@ Both directions are covered by tests.
 
 Nothing is committed and nothing has been run in a browser. WP-1 is covered by unit tests
 only.
+
+## Mobile create surface unified (2026-09-04)
+
+Arda's direction, from the live `/m` first run: every new-agent entry uses the first-run
+structure, blank create shows the template strip, and a template create swaps the STRIP for
+the connect card while the editor stays where the screenshot has it.
+
+- New route `/agents/new` (`?template=<key>`) mounts `NewAgentScreen` → the shared
+  `FirstRunScreen`. Home first run keeps mounting the same screen inline.
+- `FirstRunScreen` restructured: the offer slot holds the strip OR the `AgentSetupCard`
+  (with a Connections/Cancel header); the composer NEVER unmounts. The step's seed lives in
+  the editor (a template pick seeds its builder message there, editable), so the draft chip,
+  the Edit button and the parked-refill-on-Edit hack are gone — `FirstRunSetupStep.tsx`
+  deleted. The card's Create reads the LIVE editor text; the composer's own Create button
+  hides while the step is open so there is exactly one create action.
+- Rewired to the route: Agents list "New agent" + roster create cell, Home's New agent menu
+  (blank → `/agents/new`, template pick → `?template=`), template detail "Use this template".
+  The gallery/detail screens no longer create in place, so their creating strips and
+  `useNewAgentAction` uses are removed.
+- `createFromPrompt` now carries `name`, so a template create commits the ephemeral under
+  the template's name instead of "New agent".
+- `?template=` arrival opens the step once per key; if the step declines (nothing to
+  connect), the arrival auto-creates. Cancel drops `?template=` (shallow replace) and clears
+  an unedited seeded prompt.
+
+Verified: `tsc` clean, eslint clean, 144/144 mobile unit tests. Not yet run in a browser.
+
+### Follow-ups from Arda's review (same day)
+
+- **Template flow locks the editor until connections are made.** `AgentSetupCard` gained an
+  optional `onReadyChange(canCreate)` (additive; desktop untouched) so the host can see the
+  gate; `/m` disables the composer off it while `step.draft?.template` is set.
+- **The template's own prompt is the hero subtitle** (as the desktop already does), replacing
+  the generic "Connect what it needs…" line, which is now only the pre-open fallback. The
+  editor is therefore NOT seeded anymore: in the template flow it is an optional
+  "Anything else it should know?" input whose text is appended (`\n\n`) after the template's
+  prompt on create. A typed description still lives in the editor itself.
+- **No "Also add" chips on a template draft.** `useAgentSetupStep` returns `suggestions: []`
+  when the draft carries a template — a template declares exactly what it needs. Described
+  agents keep the chips. Pinned in `useAgentSetupStep.open.test.tsx` (2 new tests).
+- **Alternatives are now a control, not a statement** (Arda: "there should always be a
+  selection"). `AccountRow` renders one pill per provider in a slot (primary +
+  alternatives); the default is the connected provider, else the slot's preferred; the
+  pills stay visible while connected so a second agent can point at the alternative.
+  Everything follows the selection — detail query, connection state, ConnectDrawer, and
+  the slug reported for gating (with an effect cleanup un-reporting the deselected
+  provider), so choosing an unconnected GitLab blocks create until GitLab is connected
+  even when GitHub already is. Selection state lives inside the card (remounts per step).
+  The footnote names the chosen provider ("Connect GitLab to create."), and
+  `buildSetupPreamble`'s `labelsFor` resolves through alternatives so the seed says
+  "I've connected GitLab." — the builder's only channel for WHICH provider to wire.
+  `open()` now opens a satisfied TEMPLATE draft when a slot offers a choice (else the
+  GitLab option could never be reached); satisfied slots with no choice still decline.
+  The drawer keeps the static "or …" text (no `onSelect`). Tests: entities 1519,
+  entity-ui 646, all green; tsc clean on entities/entity-ui/mobile/oss.
+- **Reverted the "optional extra" editor** (Arda): in the template flow the editor DISPLAYS the
+  builder message (same text as the hero, duplication accepted), locked until connections are
+  made, then editable as the seed itself — create sends the editor text, no appending.
+- **The step docks INSIDE the composer** (Arda: "combine these two"). `ChatComposer` gained a
+  `headerExtra` slot (renders inside the input frame, above editor + attachments tray);
+  `AgentSetupCard` gained `variant="docked"` (frameless, bottom divider only) and `hideCreate`,
+  with `onReadyChange` now also handing back the live `AgentSetupSelection`. On `/m` the card
+  renders in that slot, "Create agent" sits in the send button's place (gated by the step;
+  Enter does the same once ready), and the offer slot keeps only the Connections/Cancel row.
+  Desktop card usage unchanged (defaults). entity-ui 646 / chat 638 / mobile 144 tests green.
+- **Editor lock removed; Cancel moved into the card; the swap animates.** Final shape: the
+  editor is always editable (only the Create button — and Enter — gate on the step's required
+  connections); `AgentSetupCard` carries its own ✕ (`onDismiss`); the strip and the docked card
+  swap via `HeightCollapse` fade-folds on both sides (strip stays mounted; the card survives
+  `close()` because `step.accounts` outlives the draft).
+- **Accordion connect card (design option D, picked from the mockup canvas).** With 2+
+  connections, `AgentSetupCard` renders each account as an accordion section: a slim 44px
+  header (status icon · provider name · Connected/Required/Optional/Skipped · chevron) over a
+  HeightCollapse body (scope line, provider switch, Skip/Connect). Exactly one open: the first
+  unresolved section by default; tapping a header opens it (settled ones too — that's how you
+  switch provider after connecting); connecting/skipping the open one auto-advances to the next
+  unresolved, and with nothing unresolved everything collapses. A SINGLE connection keeps the
+  flat row — accordion chrome around one section is a tap tax. All rows stay mounted (collapsed
+  bodies), so live connection reporting and gating are unchanged. Both shapes share the queries,
+  provider switch and ConnectDrawer inside `AccountRow` (`accordion` prop). Worst case today: 3
+  slots, one 3-way choice (meeting-followup: HubSpot|Salesforce|Attio). Mockups:
+  claude.ai/code/artifact/4af76024-6ab5-49fb-9347-1848fe513109 (row D).
+- **Provider choice reworked to "choice = connection" (canvas row E).** The segmented switch is
+  gone. A slot with alternatives shows one CARD per provider in the section body — preferred
+  first ("Recommended"), horizontally scrollable for 3-way slots. Tapping an unconnected card
+  opens that provider's ConnectDrawer directly (drawer slug decoupled from the row's active
+  provider; only onSuccess adopts the choice — closing the drawer changes nothing, no
+  "will use / connect next" limbo). Tapping an already-connected card makes it the one this
+  agent uses (ring). Single-provider slots keep the plain Connect button. Card passes
+  `providerConnected` (workspace connections) so every option shows true state.
+- **Choice slots are titled by their NEED, not a provider.** New `connectionNeedLabel` in
+  agentTemplates (PROVIDER_CATEGORY map): a slot whose options share one category is named by
+  it ("CRM", "Code hosting", "Team chat"…); mixed-category slots keep the primary's name.
+  Flows via `DetectedAccount.needLabel` into the accordion header — "CRM · Optional" instead
+  of "HubSpot · Optional"; once connected, the provider in use rides along ("CRM Salesforce ·
+  Connected"). 4 new entities tests incl. full-catalogue sweep.
+- **Need-naming extended to single-provider slots** (Arda): every template slot is titled by
+  its need — "Email · Required" opens to a Gmail card, "Calendar · Optional" to Google
+  Calendar. The provider card renders for single-provider slots too (it is where the provider
+  shows its face, and it carries the connect action; the plain Connect button is gone from
+  card sections). "Recommended" only appears where there is an actual choice. Text-detected
+  accounts keep the provider name the user themselves typed.
+- **Blocked footnote de-provider-ized**: "Connect Gmail to create." → "1 required connection
+  left." (neutral count; rows are need-titled so a provider name pointed at nothing visible).
+  The selection→label remapping for the footnote is deleted with it.
+- **Blocked footnote removed entirely**: badge + amber rows + disabled Create already say it;
+  `setupFootnote("blocked", …)` returns "" and the card renders no span for it.
+- **Skip removed end to end** (Arda). Leaving an optional slot unconnected IS the skip:
+  `AgentSetupSelection.skippedSlugs` deleted; hook loses skip/undoSkip; card and row lose the
+  buttons, the "Skipped" state, the "N skipped" badge and the skip footnote; the preamble's
+  "I've skipped X" sentence is gone (the builder asks when it needs an unconnected optional).
+  Auto-open rule tightened with it: only REQUIRED unsatisfied sections auto-open — optional
+  ones start collapsed and never demand attention. Hosts (mobile FirstRunScreen, StripHome,
+  AgentComposerDock) updated. entities 1523 / entity-ui 639 / mobile 144 green; tsc clean on
+  entities, entity-ui, oss, ee, mobile.
+- **Accordion never moves itself** (Arda): the open section is decided ONCE (first
+  required-unsatisfied slot, after the connections query settles) and then only user taps
+  change it — connecting no longer auto-collapses/advances (that mockup behavior yanked the
+  section shut mid-look). Category label "Code hosting" → "Source control".
+- **Non-primary choice becomes an INSTRUCTION in the seed.** The choice of an alternative only
+  travels as prose (M2), and "I've connected GitLab." loses to a PR-reviewer prompt soaked in
+  GitHub vocabulary — and says nothing when BOTH providers are connected (discovery offers
+  each). `buildSetupPreamble` now appends "Use GitLab, not GitHub." whenever a slot was
+  satisfied by an alternative. Structural backstop unchanged: discovery recomputes connection
+  state fresh and a gateway tool can only bind to a real connection id — the builder can't
+  silently wire an unconnected provider; the instruction covers the both-connected ambiguity.
+- **Create hand-off hardened** (Arda hit a bounce to Home after create): `run()` now navigates
+  BEFORE invalidating the workflows list (the refetch flips Home's first-run surface to the
+  overview, racing the push and eating the error line), and fresh-marks every session id it
+  stashes (template creates that skipped the step minted un-fresh ids, sending the chat after
+  nonexistent history). Not live-reproduced — strongest code-supported explanation; needs a
+  retry to confirm.
+- **Create surface always lands with config collapsed**: the stored panel preference (written
+  by session pages) used to beat `collapseConfigByDefault`. New mount-scoped
+  `configPanelCollapsedOverrideAtom` in @agenta/chat panelLayout — set while a
+  collapse-by-default surface is mounted, cleared by any user write, never persisted.
+- **Desktop (oss/ee) create surface ported to the /m anatomy.** StripHome: the composer never
+  unmounts — the connect card docks INSIDE it (`StripComposer` gained `header`/`createDisabled`/
+  `onResetPrompt`, RichChatInput's header slot); Create in the trailing cluster is the gated
+  action (AgentIntentActions `disabled`); the template's prompt seeds the editor (editable,
+  Reset prompt on divergence, same change-stream baseline as /m); hero subtitle = template
+  `description`, not the prompt; the docked read-only prompt box + Edit are gone; card ✕
+  dismisses (drops `?template=`, keeps `?new=1`); strip folds via HeightCollapse. Card
+  internals (accordion, need titles, provider cards, no skip) were already shared. The
+  playground onboarding dock (AgentComposerDock) keeps its card-above-composer shape on
+  purpose — different surface, same shared card. ee inherits via re-export; tsc clean both.
+- **Desktop layout matched to /m** (Arda: "layout is different"): StripHome's first-run frame
+  is now the same shape — left-aligned hero at the top, flex spacer, template strip as the
+  offer ABOVE the composer, composer pinned to the bottom of the frame. The centred-column
+  document (my-auto, strip below at mt-20) is gone.
