@@ -654,28 +654,12 @@ async function runAndStreamWithApiBaseResolved(
     });
   }
 
-  // Make this execution reachable by a control command. Registered as early as the abort
-  // controller exists, so a Stop that arrives while the environment is still being acquired
-  // still aborts the run rather than waiting for the heartbeat to notice.
+  // The Stop handle is registered only AFTER admission succeeds, further down. A contender that
+  // the coordination plane refuses must never replace the admitted turn's handle, or a Stop for
+  // the live turn reaches the refused one and the live turn keeps running.
   //
   // A run with no project scope is not registered. `poolKeyFor` forms no key for it either, so
   // it can never park, and Stop falls back to the heartbeat path exactly as it did before.
-  if (sessionOwned) {
-    registerExecution({
-      // Usually undefined here: `runContext.project.id` is empty on the live invoke path, and
-      // the real scope comes from the signed mount. The coordinator fills it in through
-      // `onScopeResolved` a moment later.
-      projectId: projectScopeFor(request, undefined)?.id,
-      sessionId,
-      turnId,
-      startedAt: Date.now(),
-      // Labelled, because a command from the control plane IS a cooperative user Stop and
-      // `shouldPark` parks only an abort the runner can prove was one. An unlabelled abort here
-      // would end the turn `cancelled` and then DESTROY the sandbox, which is the exact failure
-      // Stop exists to avoid. See `sessions/stop-signal.ts`.
-      abort: () => controller.abort(USER_STOP_ABORT_REASON),
-    });
-  }
 
   if (sessionOwned) {
     try {
