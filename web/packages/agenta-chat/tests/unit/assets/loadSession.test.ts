@@ -22,6 +22,7 @@ const record = (id: string, payload: Record<string, unknown>, sender = "agent"):
     id,
     session_id: "session-1",
     project_id: "project-1",
+    sequence: null,
     event_index: null,
     sender,
     session_update: String(payload.type),

@@ -51,7 +51,10 @@ def _direct_event(
         return None
     attributes = dict(record.attributes or {})
     payload = attributes.pop("payload", None)
-    if payload is None:
+    # `attributes` is an open dict filled from the ingest wire, so `payload` can be any JSON
+    # value. A non-dict one must read as absent: `.get` on it raises outside the try below,
+    # and that failure poisons the whole batch on every redelivery.
+    if not isinstance(payload, dict):
         attributes.pop("type", None)
         attributes.pop("execution_id", None)
         payload = attributes

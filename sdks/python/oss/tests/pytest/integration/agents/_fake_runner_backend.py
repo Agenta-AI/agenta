@@ -58,9 +58,10 @@ class FakeRunnerSession(Session):
         trace: Optional[TraceContext],
         run_context: Optional[RunContext],
         session_id: Optional[str],
-        turn_id: Optional[str],
-        project_id: Optional[str],
-        control_command_id: Optional[str],
+        detached: bool = False,
+        turn_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> None:
@@ -70,6 +71,7 @@ class FakeRunnerSession(Session):
         self._trace = trace
         self._run_context = run_context
         self._session_id = session_id
+        self._detached = detached
         self._turn_id = turn_id
         self._project_id = project_id
         self._control_command_id = control_command_id
@@ -90,6 +92,7 @@ class FakeRunnerSession(Session):
             trace=self._trace,
             run_context=self._run_context,
             session_id=self._session_id,
+            detached=self._detached,
             turn_id=self._turn_id,
             project_id=self._project_id,
             control_command_id=self._control_command_id,
@@ -184,6 +187,7 @@ class FakeRunnerBackend(Backend):
             trace=trace,
             run_context=run_context,
             session_id=session_id,
+            detached=detached,
             turn_id=turn_id,
             project_id=project_id,
             control_command_id=control_command_id,

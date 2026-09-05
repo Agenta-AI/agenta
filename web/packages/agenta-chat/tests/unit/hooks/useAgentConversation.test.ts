@@ -786,6 +786,64 @@ describe("useAgentConversation", () => {
     })
 
     /**
+     * An accepted shared turn is NOT a local stream. Its content arrives on the session events
+     * channel, so the durable snapshot behind those frames stays adoptable — and it has to be,
+     * because `hydrateAndOpen` only opens the events stream once `revalidate` adopts or confirms
+     * the bounded transcript. Treating `acceptedRunPending` as busy refused both, so a shared turn
+     * whose stream dropped mid-run reconnected forever and never came back.
+     */
+    it("adopts the durable transcript while a shared turn is accepted but disconnected", async () => {
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "content-type": "application/json",
+                "x-ag-session-response": "shared",
+            },
+            requestBody: {session_id: opts?.sessionId},
+        }))
+        fetchMock.mockResolvedValue(sharedDroppedStreamResponse())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "Draft the release note."})
+        })
+        await waitFor(() => {
+            expect(result.current.acceptedRunPending).toBe(true)
+            expect(result.current.status).not.toBe("streaming")
+        })
+
+        const serverMessages: UIMessage[] = [
+            {
+                id: "srv-user",
+                role: "user",
+                parts: [{type: "text", text: "Draft the release note."}],
+            },
+            {id: "srv-assistant", role: "assistant", parts: [{type: "text", text: "Here it is."}]},
+        ]
+        const revalidate = result.current.revalidate as unknown as (
+            transcript: unknown,
+        ) => Promise<boolean>
+        let adopted = false
+        await act(async () => {
+            adopted = await revalidate({
+                messages: serverMessages,
+                recordCount: 2,
+                sequenceCursor: 2,
+            })
+        })
+
+        expect(adopted).toBe(true)
+        await waitFor(() => {
+            const persisted = store.get(sessionMessagesAtom)[sessionId]
+            expect(persisted.map((message) => message.id)).toEqual(["srv-user", "srv-assistant"])
+        })
+    })
+
+    /**
      * The other half of the rule. A stream that dies BEFORE the acceptance may describe a turn that
      * never started, so that card is the only signal the user gets and it has to survive the
      * reload.

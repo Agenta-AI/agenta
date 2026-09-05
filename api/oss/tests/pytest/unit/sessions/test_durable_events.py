@@ -111,3 +111,38 @@ def test_maps_interaction_records_to_durable_lifecycle_events():
     assert events[0].payload.interaction_id == "interaction-1"
     assert events[0].payload.kind == "client_tool"
     assert events[1].payload.kind == "user_approval"
+
+
+def test_non_dict_payload_reads_as_absent_instead_of_raising():
+    """A record whose `payload` attribute is not a dict must not poison the batch.
+
+    `attributes` is an open dict filled from the ingest wire. Before this guard, a string or
+    list `payload` raised `AttributeError` outside the projection's `try`, so the whole batch
+    failed after its rows were committed and the same record returned on every redelivery.
+    """
+    records = [
+        _record(
+            sequence=1,
+            record_type="execution.started",
+            attributes={
+                "payload": "not-a-dict",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            },
+        ),
+        _record(
+            sequence=2,
+            record_type="execution.started",
+            attributes={
+                "payload": ["also", "not", "a", "dict"],
+                "started_at": datetime.now(timezone.utc).isoformat(),
+            },
+        ),
+    ]
+
+    events = durable_events_from_records(records)
+
+    assert [event.type for event in events] == [
+        "execution.started",
+        "execution.started",
+    ]
+    assert [event.sequence for event in events] == [1, 2]

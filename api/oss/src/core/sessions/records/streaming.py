@@ -101,10 +101,12 @@ async def trim_live_stream(redis) -> None:
         )
         * 1000
     )
+    # Approximate: the frames are disposable, so a few extra entries per listpack cost nothing
+    # and exact trimming makes every call O(N) in the evicted entries.
     await redis.xtrim(
         LIVE_FRAME_STREAM_NAME,
         minid=f"{age_boundary}-0",
-        approximate=False,
+        approximate=True,
     )
 
 
@@ -152,7 +154,8 @@ async def _append_live_relay_message(redis, *, message: dict) -> None:
         name=LIVE_FRAME_STREAM_NAME,
         fields={"data": zlib.compress(dumps(message, default=_orjson_default))},
         maxlen=env.sessions.live_stream_maxlen,
-        approximate=False,
+        # Approximate for the same reason as `trim_live_stream`: this runs on every relay write.
+        approximate=True,
     )
 
 

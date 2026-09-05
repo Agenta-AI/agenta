@@ -331,6 +331,9 @@ export const useAgentConversation = ({
     )
     // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
     const busyRef = useRef(false)
+    // Only a stream THIS client renders. A shared-delivered turn renders from the live frames,
+    // so the durable snapshot behind them stays adoptable — see the adoption guard below.
+    const localRenderBusyRef = useRef(false)
     const messagesRef = useRef(initialMessages)
     const sharedSenderReadyRef = useRef(false)
 
@@ -477,6 +480,7 @@ export const useAgentConversation = ({
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
     messagesRef.current = messages
     busyRef.current = busy || acceptedRunPending
+    localRenderBusyRef.current = busy && !acceptedRunPending
 
     useEffect(() => {
         dispatchStopped({type: "transcript", messages})
@@ -528,7 +532,11 @@ export const useAgentConversation = ({
                     sequenceCursor === undefined
                         ? recordWatermarkRef.current
                         : sequenceWatermarkRef.current,
-                busy: busyRef.current,
+                // NOT `busyRef`: that one also covers an accepted shared turn, whose content this
+                // client never streams. Blocking adoption there stalls `hydrateAndOpen`, which
+                // reconnects instead of opening the events stream — so a shared turn that drops
+                // mid-run can never come back until it settles.
+                busy: localRenderBusyRef.current,
             })
             if (!adopt) return false
             serverMsgs.forEach((m) => restoredIdsRef.current.add(m.id))

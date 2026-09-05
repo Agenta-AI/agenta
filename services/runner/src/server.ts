@@ -643,16 +643,21 @@ async function runAndStreamWithApiBaseResolved(
     });
   }
 
-  if (detached) {
-    // The invoke stream's sole positive payload in shared mode: correlation/acceptance. Live
-    // text and tools arrive through /sessions/{id}/events and are filtered from invoke client-side.
+  // The invoke stream's sole positive payload in shared mode: correlation/acceptance. Live text
+  // and tools arrive through /sessions/{id}/events and are filtered from invoke client-side.
+  //
+  // Emitted only from the admission path below, never here: it switches the client to shared
+  // delivery, and a turn the runner is about to refuse (bad attachments, a competing turn already
+  // holding the session) must not move the client off its local stream first.
+  const emitSessionAccepted = () => {
+    if (!detached) return;
     liveEmit({
       type: "data",
       name: "session-accepted",
       data: { sessionId, turnId, executionId: turnId },
       transient: true,
     });
-  }
+  };
 
   // The Stop handle is registered only AFTER admission succeeds, further down. A contender that
   // the coordination plane refuses must never replace the admitted turn's handle, or a Stop for
@@ -862,6 +867,10 @@ async function runAndStreamWithApiBaseResolved(
       //
       // Deliberately on `liveEmit`, not the persisting emitter that replaces it below: this is
       // transport correlation, not conversation, and it must never become a session record.
+      //
+      // Acceptance rides the same frame for the same reason, and lands here rather than at the
+      // top of the request so it can never precede the admission verdict.
+      emitSessionAccepted();
       liveEmit({ type: "turn", turnId });
 
       // A new turn supersedes any prior turn's unanswered gate: cancel stale pending
