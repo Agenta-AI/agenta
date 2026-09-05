@@ -88,6 +88,12 @@ const VARS: Record<string, [string, string]> = {
     // pair; without the border half the callout read as a bare tinted block on mobile.
     colorErrorBorder: [color(p.semantic.errorBorder.light), color(p.semantic.errorBorder.dark)],
     controlItemBgHover: [color(p.fill.quaternary.light), color(p.fill.quaternary.dark)],
+    // The kit Select paints its CHECKED row with this; without it the selected option was
+    // indistinguishable from the rest of the list on /m.
+    controlItemBgActive: [
+        color(p.surface.controlItemBgActive.light),
+        color(p.surface.controlItemBgActive.dark),
+    ],
     // The overlay/status vocabulary the kit's PORTALED surfaces paint with — Tooltip
     // (colorBgSpotlight + colorTextLightSolid), DropdownMenu/Select (colorSplit separators) and the
     // session/status dots (colorInfo). Every one was undefined on mobile: a tooltip rendered as

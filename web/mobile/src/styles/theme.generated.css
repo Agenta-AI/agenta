@@ -44,6 +44,7 @@
     --colorErrorBg: #f9e5e5;
     --colorErrorBorder: #d94c4a;
     --controlItemBgHover: rgba(36, 36, 36, 0.02);
+    --controlItemBgActive: #f0efed;
     --colorBgSpotlight: rgba(36, 36, 36, 0.9);
     --colorTextLightSolid: #ffffff;
     --colorSplit: #f0efed;
@@ -172,6 +173,7 @@
     --colorErrorBg: #2c1618;
     --colorErrorBorder: #5b2526;
     --controlItemBgHover: rgba(255, 255, 255, 0.04);
+    --controlItemBgActive: #57572a;
     --colorBgSpotlight: #424242;
     --colorTextLightSolid: #ffffff;
     --colorSplit: rgba(253, 253, 253, 0.12);
