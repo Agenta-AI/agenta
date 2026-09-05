@@ -1,5 +1,6 @@
 import zlib
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Literal, Optional
 from uuid import UUID
 
 from orjson import dumps, loads
@@ -10,7 +11,11 @@ try:
 except ImportError:
     AsyncpgUUID = None
 
-from oss.src.core.sessions.records.dtos import SessionRecordEvent
+from oss.src.core.sessions.records.dtos import (
+    MAX_LIVE_FRAME_BYTES,
+    SessionLiveFrame,
+    SessionRecordEvent,
+)
 from oss.src.dbs.redis.shared.engine import get_streams_engine
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -23,6 +28,10 @@ MAXLEN_STREAMS_RECORDS = 100_000
 MAX_ATTRIBUTES_BYTES = 64 * 1024  # 64 KB per record
 
 _TRUNCATION_MARKER = "…[truncated]"
+
+RECORD_STREAM_NAME = "streams:records"
+LIVE_FRAME_STREAM_NAME = "streams:session-live-frames"
+_FRAME_TRIM_INTERVAL = 64
 
 
 def _orjson_default(obj):
@@ -82,6 +91,22 @@ def _get_redis():
     return engine.get_redis() if engine else None
 
 
+async def trim_live_stream(redis) -> None:
+    """Trim expired disposable frames independently of the durable record queue."""
+    age_boundary = int(
+        (
+            datetime.now(timezone.utc).timestamp()
+            - env.sessions.live_frame_max_age_seconds
+        )
+        * 1000
+    )
+    await redis.xtrim(
+        LIVE_FRAME_STREAM_NAME,
+        minid=f"{age_boundary}-0",
+        approximate=False,
+    )
+
+
 class RecordMessage(BaseModel):
     """Wire format for the dedicated record Redis stream."""
 
@@ -91,10 +116,70 @@ class RecordMessage(BaseModel):
     record_event: SessionRecordEvent
 
 
+class LiveFrameMessage(BaseModel):
+    organization_id: Optional[UUID] = None
+    project_id: UUID
+    kind: Literal["frame"] = "frame"
+    frame: SessionLiveFrame
+
+
 def deserialize_record(*, payload: bytes) -> RecordMessage:
-    payload = zlib.decompress(payload)
-    raw = loads(payload)
-    return RecordMessage.model_validate(raw)
+    return RecordMessage.model_validate(loads(zlib.decompress(payload)))
+
+
+def deserialize_live_frame(*, payload: bytes) -> LiveFrameMessage:
+    return LiveFrameMessage.model_validate(loads(zlib.decompress(payload)))
+
+
+async def publish_live_frame(
+    *,
+    organization_id: Optional[UUID] = None,
+    project_id: UUID,
+    frame: SessionLiveFrame,
+) -> bool:
+    redis = _get_redis()
+    if redis is None:
+        log.warning("[RECORDS] Durable Redis not configured; frame not published")
+        return False
+
+    try:
+        frame_bytes = dumps(frame.model_dump(mode="json"), default=_orjson_default)
+        if len(frame_bytes) > MAX_LIVE_FRAME_BYTES:
+            log.warning(
+                "[RECORDS] Live frame exceeds size limit",
+                session_id=frame.session_id,
+                execution_id=frame.execution_id,
+                frame_index=frame.frame_index,
+            )
+            return False
+        message = {
+            "organization_id": str(organization_id) if organization_id else None,
+            "project_id": str(project_id),
+            "kind": "frame",
+            "frame": frame.model_dump(mode="json"),
+        }
+        event_bytes = zlib.compress(dumps(message, default=_orjson_default))
+        await redis.xadd(
+            name=LIVE_FRAME_STREAM_NAME,
+            fields={"data": event_bytes},
+            maxlen=env.sessions.live_stream_maxlen,
+            approximate=False,
+        )
+        if frame.frame_index % _FRAME_TRIM_INTERVAL == 0:
+            try:
+                await trim_live_stream(redis)
+            except Exception:
+                log.warning("[RECORDS] Live stream trim failed", exc_info=True)
+        return True
+    except Exception:
+        log.error(
+            "[RECORDS] Failed to publish frame",
+            session_id=frame.session_id,
+            execution_id=frame.execution_id,
+            frame_index=frame.frame_index,
+            exc_info=True,
+        )
+        return False
 
 
 async def publish_record(
@@ -146,7 +231,7 @@ async def publish_record(
         event_bytes = zlib.compress(event_bytes)
 
         await redis.xadd(
-            name="streams:records",
+            name=RECORD_STREAM_NAME,
             fields={"data": event_bytes},
             maxlen=MAXLEN_STREAMS_RECORDS,
             approximate=True,

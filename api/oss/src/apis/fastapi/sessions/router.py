@@ -41,9 +41,15 @@ from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.dbs.redis.sessions.contract import project_watch_channel, watch_channel
-from oss.src.dbs.redis.shared.engine import get_streams_engine
+from oss.src.dbs.redis.sessions.contract import (
+    live_events_channel,
+    project_watch_channel,
+    watch_channel,
+)
+from oss.src.dbs.redis.shared.engine import get_lock_engine, get_streams_engine
+from oss.src.dbs.redis.sessions.locks import get_running_owner
 from oss.src.apis.fastapi.sessions.watch import watch_event_stream
+from oss.src.apis.fastapi.sessions.live_events import live_event_stream
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
@@ -80,8 +86,12 @@ from oss.src.core.sessions.commands.types import (
     SessionCommandNotFound,
 )
 from oss.src.core.sessions.records.service import RecordsService
-from oss.src.core.sessions.records.dtos import SessionRecordEvent
-from oss.src.core.sessions.records.streaming import publish_record
+from oss.src.core.sessions.records.dtos import (
+    MAX_LIVE_FRAME_BYTES,
+    SessionLiveFrame,
+    SessionRecordEvent,
+)
+from oss.src.core.sessions.records.streaming import publish_live_frame, publish_record
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionCreate,
     SessionInteractionKind,
@@ -381,6 +391,14 @@ class SessionStreamsRouter:
             self.watch_session_stream,
             methods=["GET"],
             operation_id="watch_session_stream",
+            tags=["Sessions"],
+            response_model=None,
+        )
+        self.router.add_api_route(
+            "/sessions/{session_id}/events",
+            self.session_events,
+            methods=["GET"],
+            operation_id="watch_session_events",
             tags=["Sessions"],
             response_model=None,
         )
@@ -687,6 +705,48 @@ class SessionStreamsRouter:
         )
 
     @intercept_exceptions()
+    async def session_events(
+        self,
+        request: Request,
+        session_id: str,
+    ) -> StreamingResponse:
+        if not env.sessions.shared_reader:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+        _validate_session_id_http(session_id)
+        project_id = str(request.state.project_id)
+        user_id = str(request.state.user_id)
+
+        async def authorized() -> bool:
+            return await check_action_access(
+                user_uid=user_id,
+                project_id=project_id,
+                permission=Permission.VIEW_SESSIONS,
+            )
+
+        if not await authorized():
+            raise FORBIDDEN_EXCEPTION
+
+        stream = live_event_stream(
+            channel=live_events_channel(project_id, session_id),
+            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            authorization_check=authorized,
+            authorization_recheck_seconds=env.sessions.live_auth_recheck_seconds,
+            heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
+            retry_milliseconds=env.sessions.watch_retry_milliseconds,
+            buffer_limit=env.sessions.live_reader_buffer_limit,
+        )
+        return StreamingResponse(
+            stream,
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-store",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @intercept_exceptions()
     async def watch_project(
         self,
         request: Request,
@@ -819,6 +879,54 @@ class RecordsRouter:
             permission=Permission.RUN_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
+
+        if body.kind == "frame":
+            _validate_session_id_http(body.session_id)
+            content_length = request.headers.get("content-length")
+            if content_length is not None:
+                try:
+                    request_size = int(content_length)
+                except ValueError as error:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Content-Length must be an integer.",
+                    ) from error
+                if request_size < 0:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Content-Length cannot be negative.",
+                    )
+                if request_size > MAX_LIVE_FRAME_BYTES:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                        detail=(
+                            f"Live frame request exceeds {MAX_LIVE_FRAME_BYTES} bytes."
+                        ),
+                    )
+            current_execution_id = await get_running_owner(
+                get_lock_engine(),
+                project_id=str(project_id),
+                session_id=body.session_id,
+            )
+            if current_execution_id != body.execution_id:
+                raise FORBIDDEN_EXCEPTION
+            await publish_live_frame(
+                organization_id=UUID(request.state.organization_id),
+                project_id=UUID(project_id),
+                frame=SessionLiveFrame(
+                    version=body.version,
+                    kind="frame",
+                    session_id=body.session_id,
+                    execution_id=body.execution_id,
+                    frame_or_event_id=body.frame_or_event_id,
+                    frame_index=body.frame_index,
+                    entity_id=body.entity_id,
+                    type=body.type,
+                    payload=body.payload,
+                    created_at=body.created_at,
+                ),
+            )
+            return {"ok": True}
 
         await publish_record(
             organization_id=UUID(request.state.organization_id),

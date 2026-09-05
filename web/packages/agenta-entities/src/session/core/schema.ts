@@ -163,6 +163,11 @@ export const sessionStreamSchema = z.object({
             is_attached: z.boolean().nullish(),
         })
         .nullish(),
+    capabilities: z
+        .object({
+            shared_reader: z.boolean().nullish(),
+        })
+        .nullish(),
     created_at: z.string().nullish(),
     updated_at: z.string().nullish(),
     deleted_at: z.string().nullish(),
@@ -180,6 +185,20 @@ export const sessionStreamSchema = z.object({
     // `/sessions/query` only: the session's newest `message` record, so a row can say what
     // happened rather than only when. Absent for a session with no message yet.
     last_message: sessionMessagePreviewSchema.nullish(),
+})
+
+/** Temporary live-frame envelope. Frames are display-only and never become durable records. */
+export const sessionLiveFrameSchema = z.object({
+    version: z.literal(1),
+    kind: z.literal("frame"),
+    session_id: z.string(),
+    execution_id: z.string(),
+    frame_or_event_id: z.string(),
+    frame_index: z.number().int().nonnegative(),
+    entity_id: z.string(),
+    type: z.string(),
+    payload: z.record(z.string(), z.unknown()),
+    created_at: z.string(),
 })
 
 export const sessionStreamsResponseSchema = z.object({
@@ -222,6 +241,7 @@ export const sessionCancelExecutionResponseSchema = z.union([
 ])
 
 export type SessionStream = z.infer<typeof sessionStreamSchema>
+export type SessionLiveFrame = z.infer<typeof sessionLiveFrameSchema>
 export type SessionReference = z.infer<typeof sessionReferenceSchema>
 export type SessionOrigin = z.infer<typeof sessionOriginSchema>
 export type SessionTriggerKind = z.infer<typeof sessionTriggerKindSchema>

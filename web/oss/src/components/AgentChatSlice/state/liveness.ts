@@ -51,6 +51,8 @@ export interface SessionLiveness {
     turnId: string | null
     stoppingTurnId: string | null
     isLoading: boolean
+    /** Server-advertised temporary frame relay for non-owning readers. */
+    sharedReader: boolean
 }
 
 /**
@@ -66,6 +68,7 @@ export const sessionLivenessAtomFamily = atomFamily((sessionId: string) =>
             turnId: stream?.turn_id ?? null,
             stoppingTurnId: stream?.stopping_turn_id ?? null,
             isLoading: get(aliveStreamsQueryAtom).isLoading,
+            sharedReader: Boolean(stream?.capabilities?.shared_reader),
         }
     }),
 )

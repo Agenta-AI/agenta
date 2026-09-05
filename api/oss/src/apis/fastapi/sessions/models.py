@@ -13,7 +13,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStream,
     SessionStreamQueryFlags,
 )
-from oss.src.core.sessions.records.dtos import SessionRecord
+from oss.src.core.sessions.records.dtos import SessionLiveFrame, SessionRecord
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionData,
@@ -335,6 +335,7 @@ class SessionTurnsResponse(BaseModel):
 class SessionRecordIngestRequest(BaseModel):
     # project scope comes from the caller's credential, never the body
     session_id: str
+    kind: Optional[Literal["frame"]] = None
     # Optional stable id (uuid5) from the producer; absent when it has no stable key.
     record_id: Optional[UUID] = None
     record_index: Optional[int] = None
@@ -346,6 +347,45 @@ class SessionRecordIngestRequest(BaseModel):
     # Both forward-fill only (tracing-DB rule) — absent on producers that predate this.
     turn_id: Optional[str] = None
     span_id: Optional[OTelSpanId] = None
+    version: Optional[Literal[1]] = None
+    execution_id: Optional[str] = None
+    frame_or_event_id: Optional[str] = None
+    frame_index: Optional[int] = Field(default=None, ge=0)
+    entity_id: Optional[str] = None
+    type: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+
+    @model_validator(mode="after")
+    def validate_live_frame(self) -> "SessionRecordIngestRequest":
+        if self.kind != "frame":
+            return self
+        required = (
+            "version",
+            "execution_id",
+            "frame_or_event_id",
+            "frame_index",
+            "entity_id",
+            "type",
+            "payload",
+            "created_at",
+        )
+        missing = [name for name in required if getattr(self, name) is None]
+        if missing:
+            raise ValueError(f"frame fields missing: {', '.join(missing)}")
+        SessionLiveFrame(
+            version=self.version,
+            kind="frame",
+            session_id=self.session_id,
+            execution_id=self.execution_id,
+            frame_or_event_id=self.frame_or_event_id,
+            frame_index=self.frame_index,
+            entity_id=self.entity_id,
+            type=self.type,
+            payload=self.payload,
+            created_at=self.created_at,
+        )
+        return self
 
 
 # ---------------------------------------------------------------------------

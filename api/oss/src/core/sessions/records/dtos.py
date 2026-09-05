@@ -1,14 +1,16 @@
 from datetime import datetime
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from orjson import dumps
+from pydantic import BaseModel, Field, model_validator
 
 from oss.src.core.shared.dtos import Lifecycle, OTelSpanId
 
 # The DAO truncates at the SQL level (`left(attributes->>'text', ...)`) — this bound
 # just keeps the DTO honest about that contract for any other producer.
 SESSION_MESSAGE_PREVIEW_TEXT_LIMIT = 240
+MAX_LIVE_FRAME_BYTES = 64 * 1024
 
 # The runner's terminal per-turn record type, mirrored from
 # services/runner/src/protocol.ts (`{ type: "done" }`). Also spelled in the records DAO and
@@ -46,6 +48,28 @@ class SessionRecordEvent(BaseModel):
     # non-null value means the record arrived for a turn the watchdog had already ended, so it
     # is kept as evidence and left out of the transcript. See `RecordsService.append_many`.
     quarantined_at: Optional[datetime] = None
+
+
+class SessionLiveFrame(BaseModel):
+    version: Literal[1]
+    kind: Literal["frame"]
+    session_id: str
+    execution_id: str
+    frame_or_event_id: str
+    frame_index: int = Field(ge=0)
+    entity_id: str
+    type: str
+    payload: Dict[str, Any]
+    created_at: datetime
+
+    @model_validator(mode="after")
+    def validate_serialized_size(self) -> "SessionLiveFrame":
+        size = len(dumps(self.model_dump(mode="json")))
+        if size > MAX_LIVE_FRAME_BYTES:
+            raise ValueError(
+                f"serialized live frame exceeds {MAX_LIVE_FRAME_BYTES} bytes"
+            )
+        return self
 
 
 class SessionRecord(Lifecycle):

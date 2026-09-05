@@ -34,10 +34,18 @@ class SessionStreamQueryFlags(BaseModel):
     is_attached: Optional[bool] = None
 
 
+class SessionCapabilities(BaseModel):
+    shared_reader: bool = Field(
+        default=False,
+        description="Deployment-wide shared-reader switch; version one has no project allowlist.",
+    )
+
+
 class SessionStream(Identifier, Header, Lifecycle):
     project_id: UUID
     session_id: str
     flags: SessionStreamFlags = SessionStreamFlags()
+    capabilities: SessionCapabilities = SessionCapabilities()
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     turn_id: Optional[str] = None

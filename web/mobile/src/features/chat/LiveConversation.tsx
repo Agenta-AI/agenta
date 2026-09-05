@@ -86,6 +86,8 @@ export const LiveConversation = ({
     stopStateLoading,
     sessionTurnId,
     stoppingTurnId,
+    sharedReader,
+    livenessUpdatedAt,
     agentId,
     embedded = false,
 }: {
@@ -99,12 +101,21 @@ export const LiveConversation = ({
     stopStateLoading: boolean
     sessionTurnId?: string | null
     stoppingTurnId?: string | null
+    /** Backend-advertised ability to receive display-only live frames from another sender. */
+    sharedReader: boolean
+    /** React Query timestamp used to reject the sender's stale post-settle liveness snapshot. */
+    livenessUpdatedAt: number
     /** Scopes the session tab rail to this agent's sessions. */
     agentId?: string | null
     /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
     embedded?: boolean
 }) => {
-    const conversation = useAgentConversation({entityId, sessionId})
+    const conversation = useAgentConversation({
+        entityId,
+        sessionId,
+        sharedReaderEnabled: running && sharedReader,
+        sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
+    })
 
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
