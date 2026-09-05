@@ -1009,9 +1009,15 @@ TERMINAL_RECORD_SETTLE_POLL_S = 0.5
 # `session_streams.flags.is_running` is set before environment acquisition. It proves only that
 # the turn was admitted, not that a sandbox exists or that the model received the prompt. A Stop
 # test must cross this boundary before it can claim that it interrupted model work or parked a
-# warm sandbox. Five concurrent local acquisitions have taken about 35 s on the gate stack, so
-# keep the wait comfortably above that while still bounding a broken precondition.
-MODEL_DELIVERY_TIMEOUT_S = 120.0
+# warm sandbox. Measured on this stack, cold local acquisitions are NOT concurrent: each takes
+# about 31 s and they are serialized about 33 s apart, so five of them span about 2 min 12 s end
+# to end. All five delivery waits start together, so a budget under that span times out on the
+# last sessions before the model ever sees their prompt. Size the wait above the measured span
+# while still bounding a genuinely broken precondition. The 31 s is itself under investigation:
+# a cold start currently fails its durable cwd mount twice, at a 15 s poll each, and falls back
+# to a temporary cwd. If that is repaired, acquisitions drop to about a second and this budget
+# becomes far larger than needed, which is the safe direction.
+MODEL_DELIVERY_TIMEOUT_S = 300.0
 MODEL_DELIVERY_POLL_S = 0.5
 MODEL_DELIVERY_PRECONDITION = (
     "the expected sleep tool call or the first assistant/usage record"
