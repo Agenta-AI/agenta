@@ -329,6 +329,18 @@ export const useAgentConversation = ({
     const [turnDeliverySource, setTurnDeliverySource] = useState<TurnDeliverySource | null>(
         () => turnDeliverySourceBySession.get(sessionId) ?? null,
     )
+    const settleAcceptedRun = useCallback(
+        (executionId?: string) => {
+            const acceptedExecutionId = acceptedExecutionIdRef.current
+            if (executionId && acceptedExecutionId && acceptedExecutionId !== executionId) return
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
+            turnDeliverySourceBySession.delete(sessionId)
+            setTurnDeliverySource(null)
+        },
+        [sessionId],
+    )
     // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
     const busyRef = useRef(false)
     // Only a stream THIS client renders. A shared-delivered turn renders from the live frames,
@@ -392,7 +404,16 @@ export const useAgentConversation = ({
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
         },
-        onFinish: ({message, messages: finishedMessages, finishReason}) => {
+        onFinish: ({
+            message,
+            messages: finishedMessages,
+            finishReason,
+            isAbort,
+            isDisconnect,
+            isError,
+        }) => {
+            // A clean shared invoke close is terminal; a disconnect still waits for the durable event.
+            if (!isAbort && !isDisconnect && !isError) settleAcceptedRun()
             dispatchStopped({
                 type: "stream-terminal",
                 messages: finishedMessages,
@@ -1024,15 +1045,7 @@ export const useAgentConversation = ({
         onReadyChange: (ready) => {
             sharedSenderReadyRef.current = ready
         },
-        onExecutionSettled: (executionId?: string) => {
-            const acceptedExecutionId = acceptedExecutionIdRef.current
-            if (executionId && acceptedExecutionId && acceptedExecutionId !== executionId) return
-            acceptedExecutionIdRef.current = null
-            acceptedRunBySession.delete(sessionId)
-            setAcceptedRunPending(false)
-            turnDeliverySourceBySession.delete(sessionId)
-            setTurnDeliverySource(null)
-        },
+        onExecutionSettled: settleAcceptedRun,
         onDisconnect: revalidate,
     })
     const includePreview = turnDeliverySource !== "legacy"

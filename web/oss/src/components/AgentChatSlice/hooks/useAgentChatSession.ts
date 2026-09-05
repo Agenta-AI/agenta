@@ -179,6 +179,18 @@ export const useAgentChatSession = ({
     const [turnDeliverySource, setTurnDeliverySource] = useState<TurnDeliverySource | null>(
         () => turnDeliverySourceBySession.get(sessionId) ?? null,
     )
+    const settleSharedTurn = useCallback(
+        (executionId?: string) => {
+            const acceptedExecutionId = acceptedExecutionIdRef.current
+            if (executionId && acceptedExecutionId && acceptedExecutionId !== executionId) return
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
+            turnDeliverySourceBySession.delete(sessionId)
+            setTurnDeliverySource(null)
+        },
+        [sessionId],
+    )
     const sharedSenderReadyRef = useRef(false)
     const setSharedSenderReady = useCallback((ready: boolean) => {
         sharedSenderReadyRef.current = ready
@@ -253,7 +265,16 @@ export const useAgentChatSession = ({
         // `is_running: true` outlived the answer by up to 15s (#5844). Safe to refetch immediately —
         // the runner awaits its `is_running: false` heartbeat BEFORE closing this stream
         // (services/runner/src/server.ts `aliveWatchdog.release()`), so the flag is already cleared.
-        onFinish: ({message, messages: finishedMessages, finishReason}) => {
+        onFinish: ({
+            message,
+            messages: finishedMessages,
+            finishReason,
+            isAbort,
+            isDisconnect,
+            isError,
+        }) => {
+            // A clean shared invoke close is terminal; a disconnect still waits for the durable event.
+            if (!isAbort && !isDisconnect && !isError) settleSharedTurn()
             dispatchStopped({
                 type: "stream-terminal",
                 messages: finishedMessages,
@@ -821,15 +842,7 @@ export const useAgentChatSession = ({
         connectionWarning: errorBoundary.connectionWarning,
         acceptedRunPending,
         turnDeliverySource,
-        settleSharedTurn: (executionId?: string) => {
-            const acceptedExecutionId = acceptedExecutionIdRef.current
-            if (executionId && acceptedExecutionId && acceptedExecutionId !== executionId) return
-            acceptedExecutionIdRef.current = null
-            acceptedRunBySession.delete(sessionId)
-            setAcceptedRunPending(false)
-            turnDeliverySourceBySession.delete(sessionId)
-            setTurnDeliverySource(null)
-        },
+        settleSharedTurn,
         sendMessage: sendMessageWithFreshGuard,
         regenerate: regenerateWithFreshGuard,
         setMessages,

@@ -10,7 +10,18 @@ const state = vi.hoisted(() => ({
     acceptedRunBySession: new Map<string, string | null>(),
     turnDeliverySourceBySession: new Map<string, "legacy" | "shared">(),
     capturedHooks: undefined as
-        | {prepareRequest: (args: {messages: UIMessage[]; id?: string}) => Promise<unknown>}
+        | {
+              prepareRequest: (args: {messages: UIMessage[]; id?: string}) => Promise<unknown>
+              onData: (part: {type: string; data?: unknown}) => void
+              onFinish: (args: {
+                  message: UIMessage
+                  messages: UIMessage[]
+                  finishReason?: string
+                  isAbort?: boolean
+                  isDisconnect?: boolean
+                  isError?: boolean
+              }) => void
+          }
         | undefined,
     messages: [] as UIMessage[],
     latestTurnId: undefined as string | undefined,
@@ -188,6 +199,42 @@ describe("useAgentChatSession execution guard", () => {
         state.sessionTurnId = null
         state.stoppingTurnId = null
         state.stopStateLoading = false
+    })
+
+    it("settles a desktop accepted turn when its shared invoke stream finishes", () => {
+        const sessionId = "session-1"
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        act(() =>
+            state.capturedHooks!.onData({
+                type: "data-session-accepted",
+                data: {executionId: "turn-1"},
+            }),
+        )
+        expect(result!.acceptedRunPending).toBe(true)
+
+        act(() =>
+            state.capturedHooks!.onFinish({
+                message: {id: "assistant-1", role: "assistant", parts: []},
+                messages: [],
+            }),
+        )
+        expect(result!.acceptedRunPending).toBe(false)
+        expect(state.acceptedRunBySession.has(sessionId)).toBe(false)
+
+        act(() => root.unmount())
     })
 
     it("clears the previous turn before sends, regeneration, and SDK automatic requests", async () => {
