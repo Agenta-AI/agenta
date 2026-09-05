@@ -271,6 +271,14 @@ export const useAgentChatQueue = ({
     const submit = useCallback(
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const message: QueuedMessage = {...item, id: generateId()}
+            if (server?.capabilities.queue) {
+                void server.submit(message, "queue").catch(() => {
+                    // The server did not accept ownership. Preserve the input in the original
+                    // page-session queue so a transient admission failure never clears user work.
+                    setQueued((q) => [...q, message])
+                })
+                return
+            }
             if (recoverable && retryContinuation) {
                 setQueued((q) => [...q, message])
                 if (!retryingContinuationRef.current) {
@@ -281,14 +289,6 @@ export const useAgentChatQueue = ({
                             retryingContinuationRef.current = false
                         })
                 }
-                return
-            }
-            if (server?.capabilities.queue && server.busy) {
-                void server.submit(message, "queue").catch(() => {
-                    // The server did not accept ownership. Preserve the input in the original
-                    // page-session queue so a transient admission failure never clears user work.
-                    setQueued((q) => [...q, message])
-                })
                 return
             }
             if (!releasingRef.current && queuedRef.current.length === 0 && canReleaseNow) {

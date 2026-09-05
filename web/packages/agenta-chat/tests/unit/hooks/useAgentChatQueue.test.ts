@@ -160,6 +160,27 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued).toHaveLength(0)
     })
 
+    it("lets the server admit Queue-capable sends from a stale-idle snapshot", async () => {
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: false,
+            queued: [],
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result, sendQueued} = setup({...settledEmpty, server})
+
+        await act(async () => {
+            result.current.submit({text: "server decides"})
+        })
+
+        expect(server.submit).toHaveBeenCalledWith(
+            expect.objectContaining({text: "server decides"}),
+            "queue",
+        )
+        expect(sendQueued).not.toHaveBeenCalled()
+    })
+
     it("moves a client-held input behind the durable queue when its continuation starts", async () => {
         const durable = {
             id: "already-queued",
@@ -171,7 +192,10 @@ describe("useAgentChatQueue", () => {
             capabilities: {queue: true, steer: true},
             busy: false,
             queued: [durable],
-            submit: vi.fn().mockResolvedValue(undefined),
+            submit: vi
+                .fn()
+                .mockRejectedValueOnce(new Error("admission unavailable"))
+                .mockResolvedValueOnce(undefined),
             remove: vi.fn().mockResolvedValue(undefined),
         }
         const paused: HarnessProps = {
@@ -182,8 +206,15 @@ describe("useAgentChatQueue", () => {
         }
         const {result, rerender, sendQueued} = setup(paused)
 
-        act(() => result.current.submit({text: "held by this tab"}))
-        expect(server.submit).not.toHaveBeenCalled()
+        await act(async () => {
+            result.current.submit({text: "held by this tab"})
+            await Promise.resolve()
+        })
+        expect(server.submit).toHaveBeenCalledOnce()
+        expect(result.current.queued).toEqual([
+            durable,
+            expect.objectContaining({text: "held by this tab"}),
+        ])
 
         await act(async () => {
             rerender({
@@ -194,8 +225,8 @@ describe("useAgentChatQueue", () => {
             await Promise.resolve()
         })
 
-        expect(server.submit).toHaveBeenCalledOnce()
-        expect(server.submit).toHaveBeenCalledWith(
+        expect(server.submit).toHaveBeenCalledTimes(2)
+        expect(server.submit).toHaveBeenLastCalledWith(
             expect.objectContaining({text: "held by this tab"}),
             "queue",
         )
@@ -203,7 +234,7 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued).toEqual([durable])
     })
 
-    it("does not release a held input while its durable admission is still in flight", async () => {
+    it("does not release an input locally while durable admission is still in flight", async () => {
         let acceptAdmission: (() => void) | undefined
         const server: ServerQueueAdapter = {
             capabilities: {queue: true, steer: true},
@@ -239,7 +270,7 @@ describe("useAgentChatQueue", () => {
             messages: [userTurn("u1", "go"), assistantContinuation("a1", "done")],
         })
         expect(sendQueued).not.toHaveBeenCalled()
-        expect(result.current.queued).toHaveLength(1)
+        expect(result.current.queued).toHaveLength(0)
 
         await act(async () => {
             acceptAdmission?.()
