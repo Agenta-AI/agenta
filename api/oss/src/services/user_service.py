@@ -134,17 +134,29 @@ async def update_user(user_uid: str, payload: UserUpdate) -> UserDB:
         return user
 
 
-async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
+async def generate_user_password_reset_link(
+    user_id: str, admin_user_id: str, caller_org_id: str
+):
     """
     This function generates a password reset link for a user.
 
     Args:
         user_id (str): The id of the user for whom the password reset link needs to be generated.
         admin_user_id (str): The id of the admin user who requested the password reset link.
+        caller_org_id (str): The organization ID of the caller.
 
     Returns:
         str: The password reset link if successful, otherwise None.
+
+    Raises:
+        PermissionError: If the target user does not belong to the caller's organization.
     """
+
+    target_access = await db_manager.get_user_org_and_workspace_id(user_id=user_id)
+    if str(caller_org_id) not in target_access["organization_ids"]:
+        raise PermissionError(
+            "You do not have permission to reset the password for a user outside your organization"
+        )
 
     user = await db_manager.get_user_with_id(user_id=user_id)
     admin_user = await db_manager.get_user_with_id(user_id=admin_user_id)
