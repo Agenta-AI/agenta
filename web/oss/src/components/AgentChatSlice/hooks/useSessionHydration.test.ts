@@ -17,9 +17,18 @@ import {describe, expect, it} from "vitest"
 
 import {
     hasStrandedTail,
+    nextInteractionGatePollDelay,
     shouldProtectRenderedInteraction,
     shouldSkipRecordsRefresh,
 } from "./useSessionHydration"
+
+describe("nextInteractionGatePollDelay", () => {
+    it("backs off and caps long-lived interaction gate polling", () => {
+        expect(nextInteractionGatePollDelay(1_000)).toBe(2_000)
+        expect(nextInteractionGatePollDelay(32_000)).toBe(60_000)
+        expect(nextInteractionGatePollDelay(60_000)).toBe(60_000)
+    })
+})
 
 describe("shouldSkipRecordsRefresh", () => {
     it("does not skip when idle and no settle is pending a resume", () => {
