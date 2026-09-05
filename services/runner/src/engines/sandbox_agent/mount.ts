@@ -244,6 +244,32 @@ function credEnv(creds: MountCredentials): Record<string, string> {
   return env;
 }
 
+function waitForExitOrDelay(exited: Promise<void>, ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(resolve, ms);
+    void exited.then(() => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
+}
+
+export async function waitForLocalMount(
+  isAlive: () => Promise<boolean>,
+  hasExited: () => boolean,
+  exited: Promise<void>,
+  attempts = 30,
+  delayMs = 500,
+): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    if (hasExited()) return false;
+    if (await isAlive()) return true;
+    if (hasExited()) return false;
+    await waitForExitOrDelay(exited, delayMs);
+  }
+  return false;
+}
+
 /**
  * True only when `cwd` is a mountpoint AND the FUSE backend still serves I/O.
  *
@@ -358,10 +384,11 @@ export async function mountStorage(
       child.unref();
       // Poll up to ~15s for the mountpoint to serve I/O; geesefs logs "successfully mounted"
       // within ~1s normally. Resolve as soon as it's alive; the caller re-verifies after.
-      for (let i = 0; i < 30; i++) {
-        if (await isMounted(cwd, () => {})) break;
-        await new Promise((r) => setTimeout(r, 500));
-      }
+      await waitForLocalMount(
+        () => isMounted(cwd, () => {}),
+        () => processExited,
+        exited,
+      );
       return {
         stop: async () => {
           const waitForExit = async (): Promise<boolean> => {
