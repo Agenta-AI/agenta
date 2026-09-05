@@ -23,6 +23,8 @@ import {
     clearTurnClockAtom,
     stampMessagesCreatedAtAtom,
     startTurnClockAtom,
+    turnDeliverySourceBySession,
+    type TurnDeliverySource,
 } from "@agenta/chat/state"
 import {expandedKeysForMessages, pruneExpandedAtom} from "@agenta/chat/state"
 import {
@@ -165,6 +167,9 @@ export const useAgentChatSession = ({
     const [acceptedRunPending, setAcceptedRunPending] = useState(() =>
         acceptedRunBySession.has(sessionId),
     )
+    const [turnDeliverySource, setTurnDeliverySource] = useState<TurnDeliverySource | null>(
+        () => turnDeliverySourceBySession.get(sessionId) ?? null,
+    )
     const sharedSenderReadyRef = useRef(false)
     const setSharedSenderReady = useCallback((ready: boolean) => {
         sharedSenderReadyRef.current = ready
@@ -179,13 +184,17 @@ export const useAgentChatSession = ({
             acceptedExecutionIdRef.current = null
             acceptedRunBySession.delete(sessionId)
             setAcceptedRunPending(false)
+            const sharedResponse = sharedSenderReadyRef.current
+            const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
+            turnDeliverySourceBySession.set(sessionId, deliverySource)
+            setTurnDeliverySource(deliverySource)
             // Bounded: retries while the invocation URL is still loading and rejects if the build
             // hangs, so a failed send surfaces as an error bubble instead of an eternal spinner
             // (#6042). The helper owns the not-ready / timed-out errors.
             const req = await buildRequestWithinDeadline(() =>
                 buildAgentRequest(entityId, messages, {
                     sessionId: id ?? sessionId,
-                    sharedResponse: sharedSenderReadyRef.current,
+                    sharedResponse,
                 }),
             )
             captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
@@ -743,12 +752,15 @@ export const useAgentChatSession = ({
         error: errorBoundary.runError,
         connectionWarning: errorBoundary.connectionWarning,
         acceptedRunPending,
-        settleAcceptedRun: (executionId?: string) => {
+        turnDeliverySource,
+        settleSharedTurn: (executionId?: string) => {
             const acceptedExecutionId = acceptedExecutionIdRef.current
             if (executionId && acceptedExecutionId && acceptedExecutionId !== executionId) return
             acceptedExecutionIdRef.current = null
             acceptedRunBySession.delete(sessionId)
             setAcceptedRunPending(false)
+            turnDeliverySourceBySession.delete(sessionId)
+            setTurnDeliverySource(null)
         },
         sendMessage: sendMessageWithFreshGuard,
         regenerate: regenerateWithFreshGuard,

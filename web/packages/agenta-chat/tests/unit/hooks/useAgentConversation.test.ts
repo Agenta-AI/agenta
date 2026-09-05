@@ -8,6 +8,7 @@
 // persist-on-settle → run-status publish, plus error stamping and the rewind plan.
 import {createElement, type ReactNode} from "react"
 
+import {sessionLivePreviewAtomFamily} from "@agenta/entities/session"
 import {buildAgentRequest} from "@agenta/playground/agent-chat"
 import {act, renderHook, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
@@ -147,6 +148,63 @@ const sharedDroppedStreamResponse = (): Response => {
     )
 }
 
+class FakeEventSource {
+    static instances: FakeEventSource[] = []
+    readonly listeners = new Map<string, (event: Event) => void>()
+    onmessage: ((event: MessageEvent<string>) => void) | null = null
+    onerror: (() => void) | null = null
+
+    constructor(readonly url: string) {
+        FakeEventSource.instances.push(this)
+    }
+
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+        this.listeners.set(type, listener as (event: Event) => void)
+    }
+
+    ready(watermark = 0) {
+        this.listeners.get("ready")?.(
+            new MessageEvent("ready", {data: JSON.stringify({watermark})}),
+        )
+    }
+
+    message(data: unknown) {
+        this.onmessage?.(new MessageEvent("message", {data: JSON.stringify(data)}))
+    }
+
+    close() {}
+}
+
+const controlledLegacyResponse = () => {
+    const encoder = new TextEncoder()
+    let finish = () => {}
+    const response = new Response(
+        new ReadableStream({
+            start(controller) {
+                for (const chunk of [
+                    {type: "start", messageId: "legacy-assistant"},
+                    {type: "start-step"},
+                    {type: "text-start", id: "legacy-text"},
+                    {type: "text-delta", id: "legacy-text", delta: "legacy answer"},
+                ])
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+                finish = () => {
+                    for (const chunk of [
+                        {type: "text-end", id: "legacy-text"},
+                        {type: "finish-step"},
+                        {type: "finish"},
+                    ])
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+                    controller.enqueue(encoder.encode("data: [DONE]\n\n"))
+                    controller.close()
+                }
+            },
+        }),
+        {status: 200, headers: {"content-type": "text/event-stream"}},
+    )
+    return {response, finish: () => finish()}
+}
+
 const fetchMock = vi.fn<typeof globalThis.fetch>()
 vi.stubGlobal("fetch", fetchMock)
 
@@ -164,6 +222,8 @@ const mount = (store: ReturnType<typeof createStore>, entityId: string, sessionI
     )
 
 beforeEach(() => {
+    FakeEventSource.instances = []
+    vi.stubGlobal("EventSource", FakeEventSource)
     fetchMock.mockReset()
     vi.mocked(buildAgentRequest).mockClear()
     // Restore the ready-workflow build: one test replaces it with a not-yet-loaded one, and
@@ -310,6 +370,82 @@ describe("useAgentConversation", () => {
             await streamOpen
         })
         await waitFor(() => expect(result.current.runStatus).toBe("idle"), {timeout: 5000})
+    })
+
+    it("keeps a pre-ready turn on the legacy delivery source when the shared reader opens mid-run", async () => {
+        const legacy = controlledLegacyResponse()
+        fetchMock.mockResolvedValue(legacy.response)
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = renderHook(
+            () =>
+                useAgentConversation({
+                    entityId: "rev-1",
+                    sessionId,
+                    sharedReaderAdvertised: true,
+                }),
+            {
+                wrapper: ({children}: {children: ReactNode}) =>
+                    createElement(Provider, {store}, children),
+            },
+        )
+
+        await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1))
+        act(() => void result.current.send({text: "answer once"}))
+        await waitFor(() =>
+            expect(vi.mocked(buildAgentRequest)).toHaveBeenLastCalledWith(
+                "rev-1",
+                expect.any(Array),
+                expect.objectContaining({sessionId, sharedResponse: false}),
+            ),
+        )
+        await waitFor(() =>
+            expect(
+                result.current.messages.some(
+                    (message) =>
+                        message.role === "assistant" &&
+                        message.parts.some(
+                            (part) => part.type === "text" && part.text === "legacy answer",
+                        ),
+                ),
+            ).toBe(true),
+        )
+
+        act(() => {
+            FakeEventSource.instances[0].ready()
+            for (const [frameIndex, type, payload] of [
+                [0, "text-start", {}],
+                [1, "text-delta", {delta: "shared duplicate"}],
+            ] as const)
+                FakeEventSource.instances[0].message({
+                    version: 1,
+                    kind: "frame",
+                    session_id: sessionId,
+                    execution_id: "execution-1",
+                    frame_or_event_id: `frame-${frameIndex}`,
+                    frame_index: frameIndex,
+                    entity_id: "text-1",
+                    type,
+                    payload,
+                    created_at: "2026-09-05T12:00:00Z",
+                })
+        })
+
+        await waitFor(() =>
+            expect(store.get(sessionLivePreviewAtomFamily(sessionId)).executionOrder).toEqual([
+                "execution-1",
+            ]),
+        )
+        expect(
+            result.current.messages.filter((message) => message.role === "assistant"),
+        ).toHaveLength(1)
+        expect(
+            result.current.messages.some((message) => message.id.startsWith("live-preview-")),
+        ).toBe(false)
+
+        act(() => legacy.finish())
+        await waitFor(() => expect(result.current.status).toBe("ready"))
     })
 
     it("rewinding a user message truncates the conversation and hands back its text", async () => {
@@ -567,6 +703,68 @@ describe("useAgentConversation", () => {
             expect(persisted).toHaveLength(2)
             const stamped = persisted[1].metadata as {runError?: {message?: string}}
             expect(stamped.runError?.message).toBe(TRANSPORT_ERROR_MESSAGE)
+        })
+    })
+
+    it("resets acceptance before an immediate next-request failure", async () => {
+        vi.mocked(buildAgentRequest)
+            .mockImplementationOnce(async (_entityId, _messages, opts) => ({
+                invocationUrl: "https://agent.test/invoke",
+                headers: {
+                    Accept: "text/event-stream",
+                    "content-type": "application/json",
+                    "x-ag-session-response": "shared",
+                },
+                requestBody: {session_id: opts?.sessionId},
+            }))
+            .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+        fetchMock.mockResolvedValueOnce(sharedDroppedStreamResponse())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = renderHook(
+            () =>
+                useAgentConversation({
+                    entityId: "rev-1",
+                    sessionId,
+                    sharedReaderAdvertised: true,
+                }),
+            {
+                wrapper: ({children}: {children: ReactNode}) =>
+                    createElement(Provider, {store}, children),
+            },
+        )
+
+        await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1))
+        act(() => void result.current.send({text: "accepted first"}))
+        await waitFor(() => {
+            expect(result.current.connectionWarning).toBe(ACCEPTED_SENDER_DISCONNECT_MESSAGE)
+            expect(result.current.acceptedRunPending).toBe(true)
+        })
+
+        act(() =>
+            FakeEventSource.instances[0].message({
+                version: 1,
+                kind: "event",
+                session_id: sessionId,
+                execution_id: "turn-1",
+                frame_or_event_id: "lost-1",
+                sequence: 1,
+                watermark: 1,
+                type: "execution.lost",
+                payload: {},
+                created_at: "2026-09-05T12:00:00Z",
+            }),
+        )
+        await waitFor(() => expect(result.current.acceptedRunPending).toBe(false))
+
+        act(() => void result.current.send({text: "fails before acceptance"}))
+        await waitFor(() => {
+            expect(result.current.connectionWarning).toBeUndefined()
+            expect(result.current.error).toEqual({
+                message: TRANSPORT_ERROR_MESSAGE,
+                transport: true,
+            })
         })
     })
 

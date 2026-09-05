@@ -136,7 +136,8 @@ const AgentConversation = ({
         error,
         connectionWarning,
         acceptedRunPending,
-        settleAcceptedRun,
+        turnDeliverySource,
+        settleSharedTurn,
         sendMessage,
         regenerate,
         setMessages,
@@ -164,16 +165,17 @@ const AgentConversation = ({
         runningElsewhere: livenessRunningElsewhere,
         sender: true,
         onReadyChange: setSharedSenderReady,
-        onExecutionSettled: settleAcceptedRun,
+        onExecutionSettled: settleSharedTurn,
         onDisconnect: refreshFromRecords,
     })
     const runningElsewhere =
         livenessRunningElsewhere || (runningFromSnapshot && !busy && !acceptedRunPending)
     const transcriptMessages = useMemo(() => {
         const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
-        return previewMessages.length ? [...durableMessages, ...previewMessages] : durableMessages
-    }, [messages, previewMessages])
-    const transcriptBusy = busy || previewMessages.length > 0
+        if (turnDeliverySource === "legacy" || previewMessages.length === 0) return durableMessages
+        return [...durableMessages, ...previewMessages]
+    }, [messages, previewMessages, turnDeliverySource])
+    const transcriptBusy = busy || (turnDeliverySource !== "legacy" && previewMessages.length > 0)
 
     // Turn Inspector: open state, the focused turn, and the assistant → turn-number mapping.
     const {

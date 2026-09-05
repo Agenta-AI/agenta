@@ -76,6 +76,8 @@ import {
     composerDraftBySession,
     isSessionFresh,
     setSessionTurnId,
+    turnDeliverySourceBySession,
+    type TurnDeliverySource,
 } from "../state/sessionEphemera"
 import {
     persistSessionMessagesAtom,
@@ -282,6 +284,9 @@ export const useAgentConversation = ({
     const [acceptedRunPending, setAcceptedRunPending] = useState(() =>
         acceptedRunBySession.has(sessionId),
     )
+    const [turnDeliverySource, setTurnDeliverySource] = useState<TurnDeliverySource | null>(
+        () => turnDeliverySourceBySession.get(sessionId) ?? null,
+    )
     // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
     const busyRef = useRef(false)
     const messagesRef = useRef(initialMessages)
@@ -293,6 +298,10 @@ export const useAgentConversation = ({
             acceptedExecutionIdRef.current = null
             acceptedRunBySession.delete(sessionId)
             setAcceptedRunPending(false)
+            const sharedResponse = sharedSenderReadyRef.current
+            const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
+            turnDeliverySourceBySession.set(sessionId, deliverySource)
+            setTurnDeliverySource(deliverySource)
             // Bounded, not instant. A null build means the workflow entity has not loaded its
             // invocation URL YET — the first send to a freshly created agent races that fetch, and
             // failing on the first null made a new user's first message fail (#6042 on the desktop;
@@ -300,7 +309,7 @@ export const useAgentConversation = ({
             const req = await buildRequestWithinDeadline(() =>
                 buildAgentRequest(entityIdRef.current, messages, {
                     sessionId: id ?? sessionId,
-                    sharedResponse: sharedSenderReadyRef.current,
+                    sharedResponse,
                 }),
             )
             return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
@@ -848,15 +857,18 @@ export const useAgentConversation = ({
             acceptedExecutionIdRef.current = null
             acceptedRunBySession.delete(sessionId)
             setAcceptedRunPending(false)
+            turnDeliverySourceBySession.delete(sessionId)
+            setTurnDeliverySource(null)
         },
         onDisconnect: revalidate,
     })
+    const includePreview = turnDeliverySource !== "legacy"
     const displayMessages = useMemo(() => {
         const transcriptMessages = withoutSharedSenderAcceptanceMessages(messages)
-        return previewMessages.length
+        return includePreview && previewMessages.length
             ? [...transcriptMessages, ...previewMessages]
             : transcriptMessages
-    }, [messages, previewMessages])
+    }, [includePreview, messages, previewMessages])
 
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const handleStop = useCallback(() => {
@@ -951,12 +963,20 @@ export const useAgentConversation = ({
     const turns = useMemo(
         () =>
             buildTurnViewModels(displayMessages, {
-                busy: busy || previewMessages.length > 0,
+                busy: busy || (includePreview && previewMessages.length > 0),
                 executedFor,
                 isClientToolPart: (part, ctx) =>
                     (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
             }),
-        [displayMessages, busy, executedFor, isClientToolPart, previewMessages.length, renderMap],
+        [
+            displayMessages,
+            busy,
+            executedFor,
+            isClientToolPart,
+            includePreview,
+            previewMessages.length,
+            renderMap,
+        ],
     )
 
     return {
