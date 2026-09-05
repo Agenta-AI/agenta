@@ -137,7 +137,13 @@ function sessionRequest(
 
 interface StreamRecord {
   kind: string;
-  event?: { type: string; message?: string; code?: string; turnId?: string };
+  event?: {
+    type: string;
+    message?: string;
+    code?: string;
+    turnId?: string;
+    name?: string;
+  };
   result?: { ok: boolean; error?: string };
 }
 
@@ -558,6 +564,72 @@ describe("runner admission: the admitted turn id reaches the client", () => {
       assert.ok(
         !records.some((r) => r.kind === "event" && r.event?.type === "turn"),
         "a refused turn must not hand out an id: it runs nothing and there is nothing to stop",
+      );
+    } finally {
+      await runner.close();
+      await api.close();
+    }
+  });
+  it("emits NO session-accepted for a refused detached turn", async () => {
+    // `session-accepted` is what switches the client to shared delivery: live text stops coming
+    // from the invoke stream and starts coming from /sessions/{id}/events. A refused turn serves
+    // no frames on either channel, so a client that already switched renders nothing at all and
+    // waits out its acceptance deadline instead of showing the refusal.
+    const api = await startFakeApi(() => false);
+    process.env[INTERNAL_ENV] = api.url;
+    const runner = await startRunner(async () => ({
+      ok: true,
+      output: "",
+      events: [],
+    }));
+    try {
+      const { records } = await postRun(
+        runner.url,
+        sessionRequest({ detached: true } as Partial<AgentRunRequest>),
+      );
+
+      assert.ok(
+        !records.some(
+          (r) => r.kind === "event" && r.event?.name === "session-accepted",
+        ),
+        "acceptance must never precede the admission verdict",
+      );
+      const error = records.find(
+        (r) => r.kind === "event" && r.event?.type === "error",
+      );
+      assert.ok(error, "the refusal still reaches the client as an error event");
+      assert.equal(error!.event!.code, SESSION_TURN_IN_USE_CODE);
+    } finally {
+      await runner.close();
+      await api.close();
+    }
+  });
+
+  it("emits session-accepted for an admitted detached turn, before the turn event", async () => {
+    const api = await startFakeApi(() => true);
+    process.env[INTERNAL_ENV] = api.url;
+    const runner = await startRunner(async () => ({
+      ok: true,
+      output: "answered",
+      events: [],
+    }));
+    try {
+      const { records } = await postRun(
+        runner.url,
+        sessionRequest({ detached: true } as Partial<AgentRunRequest>),
+      );
+
+      const accepted = records.findIndex(
+        (r) => r.kind === "event" && r.event?.name === "session-accepted",
+      );
+      const turnEvent = records.findIndex(
+        (r) => r.kind === "event" && r.event?.type === "turn",
+      );
+      assert.ok(accepted >= 0, "an admitted detached turn still announces itself");
+      assert.ok(turnEvent >= 0, "and still hands out its execution id");
+      assert.ok(
+        accepted < turnEvent,
+        "acceptance stays the first positive frame the shared client reads",
       );
     } finally {
       await runner.close();

@@ -42,12 +42,17 @@ import {useSetAtom, useStore} from "jotai"
 import {latestTurnId} from "../assets/agentTurn"
 import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {filesToParts} from "../assets/files"
-import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
+import {
+    isSessionTranscript,
+    loadSessionMessages,
+    type SessionTranscript,
+} from "../assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
-import {parseAgentRunError, type ParsedRunError} from "../model/error"
+import {classifyAgentRunError, type ParsedRunError, type RunErrorMetadata} from "../model/error"
+import {withoutSharedSenderAcceptanceMessages} from "../model/livePreview"
 import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionStatus"
 import {
     buildTurnViewModels,
@@ -65,11 +70,14 @@ import {
     type SessionChatHooks,
 } from "../state/sessionChats"
 import {
+    acceptedRunBySession,
     clearSessionFresh,
     clearSessionTurnId,
     composerDraftBySession,
     isSessionFresh,
     setSessionTurnId,
+    turnDeliverySourceBySession,
+    type TurnDeliverySource,
 } from "../state/sessionEphemera"
 import {
     persistSessionMessagesAtom,
@@ -82,6 +90,7 @@ import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
 import {useApprovalDock, type ApprovalDock} from "./useApprovalDock"
 import {useSessionChat} from "./useSessionChat"
+import {useSessionLivePreview} from "./useSessionLivePreview"
 
 /** A stream error/abort is already surfaced via `useChat`'s `onError` + the stamped in-chat
  * error; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to a
@@ -119,6 +128,12 @@ export interface ToolOutputSettleInput {
 export interface UseAgentConversationArgs {
     entityId: string
     sessionId: string
+    /** Backend-advertised ability to read display-only live frames. */
+    sharedReaderAdvertised?: boolean
+    /** Backend liveness says a run is active, potentially in another browser. */
+    sharedReaderRunning?: boolean
+    /** Timestamp of the liveness snapshot behind `sharedReaderRunning`. */
+    sharedReaderLivenessUpdatedAt?: number
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
      * silently folded every client tool into the plain "used N tools" group, leaving the run
@@ -135,6 +150,8 @@ export interface AgentConversation {
     runStatus: SessionRunStatus
     /** Parsed reason of the current stream failure, when there is one. */
     error?: ParsedRunError
+    /** Ephemeral warning when the sender connection drops after the session accepted the turn. */
+    connectionWarning?: string
     /** Pre-grouped per-turn view models (render items, status, empty-collapse, active turn). */
     turns: TurnViewModel[]
     /** Send a user message (routes through the queue: sends now, or holds while busy/paused). */
@@ -179,6 +196,12 @@ export interface AgentConversation {
      * revalidate-on-open (never mid-stream, only when strictly ahead). Wire push signals — a
      * session watch relay, a foreground event — to this. */
     revalidate: () => void
+    /** Atomic snapshot says an unfinished backend execution is still running after refresh. */
+    runningFromSnapshot: boolean
+    /** The shared live-event channel completed replay and is following new frames. */
+    readerReady: boolean
+    /** This browser's accepted turn is still owned by the shared session path. */
+    acceptedRunPending: boolean
 }
 
 /**
@@ -192,6 +215,9 @@ export interface AgentConversation {
 export const useAgentConversation = ({
     entityId,
     sessionId,
+    sharedReaderAdvertised = false,
+    sharedReaderRunning = false,
+    sharedReaderLivenessUpdatedAt = 0,
     isClientToolPart,
 }: UseAgentConversationArgs): AgentConversation => {
     const store = useStore()
@@ -205,7 +231,9 @@ export const useAgentConversation = ({
     const clearTurnClock = useSetAtom(clearTurnClockAtom)
 
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
-    const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
+    const [initialMessages] = useState(() =>
+        withoutSharedSenderAcceptanceMessages(store.get(sessionMessagesAtom)[sessionId] ?? []),
+    )
     // Only the last assistant turn can carry the current stopped state.
     const [userStoppedState, dispatchStopped] = useReducer(
         reduceUserStoppedState,
@@ -230,6 +258,8 @@ export const useAgentConversation = ({
     const recordWatermarkRef = useRef<number | undefined>(
         store.get(sessionRecordCountsReadAtom)[sessionId],
     )
+    // Durable sequence coverage is connection-local and must never be stored as a row count.
+    const sequenceWatermarkRef = useRef<number | undefined>(undefined)
 
     // The registry owns the `Chat` and its transport for the life of the session, so the request
     // builder must read the CURRENT entity — capturing `entityId` by value would send every turn
@@ -247,13 +277,39 @@ export const useAgentConversation = ({
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
     const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
 
+    // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
+    // `onData` and never the transcript — this is the only place the answer survives. A stream that
+    // dies after it is a lost connection, not a lost turn; one that dies before it may be a send
+    // that never started, and that failure has to stay on screen and in the cache.
+    const turnAcceptedRef = useRef(acceptedRunBySession.has(sessionId))
+    const acceptedExecutionIdRef = useRef<string | null>(
+        acceptedRunBySession.get(sessionId) ?? null,
+    )
+    const [acceptedRunPending, setAcceptedRunPending] = useState(() =>
+        acceptedRunBySession.has(sessionId),
+    )
+    const [turnDeliverySource, setTurnDeliverySource] = useState<TurnDeliverySource | null>(
+        () => turnDeliverySourceBySession.get(sessionId) ?? null,
+    )
     // Tracks `busy` for callbacks that outlive a render (the preserve verdict at unmount).
     const busyRef = useRef(false)
+    // Only a stream THIS client renders. A shared-delivered turn renders from the live frames,
+    // so the durable snapshot behind them stays adoptable — see the adoption guard below.
+    const localRenderBusyRef = useRef(false)
     const messagesRef = useRef(initialMessages)
+    const sharedSenderReadyRef = useRef(false)
 
     const hooks: SessionChatHooks = {
         prepareRequest: async ({messages, id}) => {
             clearSessionTurnId(sessionId)
+            turnAcceptedRef.current = false
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
+            const sharedResponse = sharedSenderReadyRef.current
+            const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
+            turnDeliverySourceBySession.set(sessionId, deliverySource)
+            setTurnDeliverySource(deliverySource)
             // Bounded, not instant. A null build means the workflow entity has not loaded its
             // invocation URL YET — the first send to a freshly created agent races that fetch, and
             // failing on the first null made a new user's first message fail (#6042 on the desktop;
@@ -261,6 +317,7 @@ export const useAgentConversation = ({
             const req = await buildRequestWithinDeadline(() =>
                 buildAgentRequest(entityIdRef.current, messages, {
                     sessionId: id ?? sessionId,
+                    sharedResponse,
                 }),
             )
             return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
@@ -282,6 +339,14 @@ export const useAgentConversation = ({
         // #6047 startup states: the runner narrates what it is doing while the environment boots,
         // so a 15s cold start reads as progress instead of a stalled session.
         onData: (part) => {
+            if (part.type === "data-session-accepted") {
+                turnAcceptedRef.current = true
+                const data = part.data as {executionId?: unknown} | undefined
+                acceptedExecutionIdRef.current =
+                    typeof data?.executionId === "string" ? data.executionId : null
+                acceptedRunBySession.set(sessionId, acceptedExecutionIdRef.current)
+                setAcceptedRunPending(true)
+            }
             const label = startupLabelFromDataPart(part)
             if (label) setTurnStartupLabel(sessionId, label)
         },
@@ -340,6 +405,7 @@ export const useAgentConversation = ({
         addToolApprovalResponse,
         addToolOutput,
         error,
+        clearError,
     } = useChat({
         chat,
         // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
@@ -348,10 +414,28 @@ export const useAgentConversation = ({
     })
 
     const busy = isChatBusy(status)
+    const lastMessage = messages[messages.length - 1]
+    const serverErrorProvenance =
+        lastMessage?.role === "assistant" &&
+        lastMessage.parts.some((part) => part.type === "data-agent-error")
+    const errorBoundary = useMemo(
+        () =>
+            error
+                ? classifyAgentRunError(error, turnAcceptedRef.current, serverErrorProvenance)
+                : {},
+        [error, serverErrorProvenance],
+    )
+    // Require liveness newer than the local settle before classifying a run as remote.
+    const previousBusyForReaderRef = useRef(busy)
+    const localReaderSettleAtRef = useRef(0)
+    if (previousBusyForReaderRef.current && !busy) localReaderSettleAtRef.current = Date.now()
+    previousBusyForReaderRef.current = busy
+    const remoteRunIsFresh = sharedReaderLivenessUpdatedAt > localReaderSettleAtRef.current
     // `messages`/`busy` change every commit; consumers that must stay referentially stable
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
     messagesRef.current = messages
-    busyRef.current = busy
+    busyRef.current = busy || acceptedRunPending
+    localRenderBusyRef.current = busy && !acceptedRunPending
 
     useEffect(() => {
         dispatchStopped({type: "transcript", messages})
@@ -391,15 +475,23 @@ export const useAgentConversation = ({
      * trigger, the message count only a floor. Returns whether it adopted.
      */
     const adoptServerTranscript = useCallback(
-        (transcript: SessionTranscript | null): boolean => {
-            if (!transcript) return false
-            const {messages: serverMsgs, recordCount} = transcript
+        (transcript: unknown): boolean => {
+            if (!isSessionTranscript(transcript)) return false
+            const {messages: serverMsgs, recordCount, sequenceCursor} = transcript
             const adopt = shouldAdoptServerTranscript({
-                serverRecordCount: recordCount,
+                serverRecordCount: sequenceCursor ?? recordCount,
                 serverMessageCount: serverMsgs.length,
-                localMessageCount: messagesRef.current.length,
-                watermark: recordWatermarkRef.current,
-                busy: busyRef.current,
+                localMessageCount: withoutSharedSenderAcceptanceMessages(messagesRef.current)
+                    .length,
+                watermark:
+                    sequenceCursor === undefined
+                        ? recordWatermarkRef.current
+                        : sequenceWatermarkRef.current,
+                // NOT `busyRef`: that one also covers an accepted shared turn, whose content this
+                // client never streams. Blocking adoption there stalls `hydrateAndOpen`, which
+                // reconnects instead of opening the events stream — so a shared turn that drops
+                // mid-run can never come back until it settles.
+                busy: localRenderBusyRef.current,
             })
             if (!adopt) return false
             serverMsgs.forEach((m) => restoredIdsRef.current.add(m.id))
@@ -411,11 +503,17 @@ export const useAgentConversation = ({
             // refetch) can both see the pre-adoption transcript. It is this watermark, not the
             // on-screen length, that keeps the guard order-independent.
             recordWatermarkRef.current = recordCount
+            if (sequenceCursor !== undefined) sequenceWatermarkRef.current = sequenceCursor
+            // The durable log just superseded whatever this browser was rendering, including a
+            // failed request of our own. `useChat` holds that error until the next send, and the
+            // session dot reads it — so without this the transcript shows the finished turn while
+            // the dot stays red, with nothing on screen to explain it.
+            clearError()
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
             return true
         },
-        [persistMessages, sessionId, setMessages],
+        [clearError, persistMessages, sessionId, setMessages],
     )
 
     useEffect(() => {
@@ -508,7 +606,6 @@ export const useAgentConversation = ({
     // mount never streamed it) shaped like "auto-resume imminent", and no gate was settled live
     // in this mount. The SDK only evaluates `sendAutomaticallyWhen` on live events — never on
     // mount — so this resume can't fire and must not hold the queue (AGE-3937).
-    const lastMessage = messages[messages.length - 1]
     const resumeOrphaned =
         !liveGateInteractionRef.current &&
         !!lastMessage &&
@@ -529,6 +626,7 @@ export const useAgentConversation = ({
     } = useAgentChatQueue({
         status,
         messages,
+        acceptedRunPending,
         stopped,
         resumeOrphaned,
         sendQueued,
@@ -623,7 +721,11 @@ export const useAgentConversation = ({
 
     // Publish this session's run state (single source of truth for session-list status dots).
     // Precedence error > awaiting approval > running > idle.
-    const runStatus = deriveSessionRunStatus({error: !!error, hitlPending, busy})
+    const runStatus = deriveSessionRunStatus({
+        error: !!errorBoundary.runError,
+        hitlPending,
+        busy: busy || acceptedRunPending,
+    })
     useEffect(() => {
         setSessionStatus({id: sessionId, status: runStatus})
     }, [runStatus, sessionId, setSessionStatus])
@@ -637,22 +739,20 @@ export const useAgentConversation = ({
         [sessionId, setSessionStatus],
     )
 
-    // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
-    // it renders as an error bubble with the real reason (and persists with the session via the
-    // effect below), instead of a transient banner + a generic "no response".
+    // Run failures become conversation content; an accepted transport loss stays connection state.
     useEffect(() => {
-        if (!error) return
-        const parsed = parseAgentRunError(error)
+        const parsed = errorBoundary.runError
+        if (!parsed) return
+        const stamp: RunErrorMetadata = {runError: parsed}
         setMessages((prev) => {
             const last = prev.length > 0 ? prev[prev.length - 1] : undefined
-            const existing = (last?.metadata as {runError?: {message?: string}} | undefined)
-                ?.runError
+            const existing = (last?.metadata as RunErrorMetadata | undefined)?.runError
             if (last?.role === "assistant") {
                 if (existing?.message === parsed.message) return prev // already stamped
                 const next = [...prev]
                 next[next.length - 1] = {
                     ...last,
-                    metadata: {...(last.metadata as object | undefined), runError: parsed},
+                    metadata: {...(last.metadata as object | undefined), ...stamp},
                 }
                 return next
             }
@@ -663,11 +763,11 @@ export const useAgentConversation = ({
                     id: `run-error-${generateId()}`,
                     role: "assistant",
                     parts: [],
-                    metadata: {runError: parsed},
+                    metadata: stamp,
                 } as (typeof prev)[number],
             ]
         })
-    }, [error, setMessages])
+    }, [errorBoundary.runError, setMessages])
 
     // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
     // records the runner logged for it — so drop the watermark and let the next open re-sync from
@@ -675,14 +775,21 @@ export const useAgentConversation = ({
     // flips to "submitted", effects run in declaration order, so clearing here is what stops the
     // persist below from filing a locally-extended transcript under a server watermark.
     useEffect(() => {
-        if (status === "submitted" || status === "streaming") recordWatermarkRef.current = undefined
+        if (status === "submitted" || status === "streaming") {
+            recordWatermarkRef.current = undefined
+            sequenceWatermarkRef.current = undefined
+        }
     }, [status])
 
     // Persist the conversation whenever its stream settles (skip mid-stream), under whatever
     // watermark the rendered transcript still stands on (undefined once a live turn extended it).
     useEffect(() => {
         if (status === "streaming") return
-        persistMessages({id: sessionId, messages, recordCount: recordWatermarkRef.current})
+        persistMessages({
+            id: sessionId,
+            messages: withoutSharedSenderAcceptanceMessages(messages),
+            recordCount: recordWatermarkRef.current,
+        })
     }, [messages, status, sessionId, persistMessages])
 
     // One startup label per in-flight turn. `submitted` opens a NEW turn, so a label the previous
@@ -718,9 +825,68 @@ export const useAgentConversation = ({
 
     // Push-signal revalidation: same guarded adoption as revalidate-on-open, callable at any
     // time (a watch relay tick, app foregrounding). Guards make it idempotent and stream-safe.
-    const revalidate = useCallback(() => {
-        void loadSessionMessages(sessionId, adoptServerTranscript).then(adoptServerTranscript)
-    }, [adoptServerTranscript, sessionId])
+    const revalidate = useCallback(
+        async (transcript?: SessionTranscript): Promise<boolean> => {
+            const adoptOrConfirm = (candidate: unknown): boolean => {
+                if (!isSessionTranscript(candidate)) return false
+                const candidateWatermark = candidate.sequenceCursor ?? candidate.recordCount
+                const currentWatermark =
+                    candidate.sequenceCursor === undefined
+                        ? recordWatermarkRef.current
+                        : sequenceWatermarkRef.current
+                return (
+                    adoptServerTranscript(candidate) ||
+                    (currentWatermark ?? 0) >= candidateWatermark
+                )
+            }
+            if (isSessionTranscript(transcript)) {
+                return adoptOrConfirm(transcript)
+            }
+            revalidateSessionRecords(sessionId)
+            let adopted = false
+            let refreshed: SessionTranscript | null
+            try {
+                refreshed = await loadSessionMessages(sessionId, (fresh) => {
+                    if (adoptOrConfirm(fresh)) adopted = true
+                })
+            } catch {
+                return false
+            }
+            return adoptOrConfirm(refreshed) || adopted
+        },
+        [adoptServerTranscript, revalidateSessionRecords, sessionId],
+    )
+
+    const {
+        messages: previewMessages,
+        runningFromSnapshot,
+        readerReady,
+    } = useSessionLivePreview({
+        sessionId,
+        sharedReaderAdvertised,
+        runningElsewhere: sharedReaderRunning && !busy && remoteRunIsFresh,
+        sender: true,
+        onReadyChange: (ready) => {
+            sharedSenderReadyRef.current = ready
+        },
+        onExecutionSettled: (executionId?: string) => {
+            const acceptedExecutionId = acceptedExecutionIdRef.current
+            if (executionId && acceptedExecutionId && acceptedExecutionId !== executionId) return
+            acceptedExecutionIdRef.current = null
+            acceptedRunBySession.delete(sessionId)
+            setAcceptedRunPending(false)
+            turnDeliverySourceBySession.delete(sessionId)
+            setTurnDeliverySource(null)
+        },
+        onDisconnect: revalidate,
+    })
+    const includePreview = turnDeliverySource !== "legacy"
+    const displayMessages = useMemo(() => {
+        const transcriptMessages = withoutSharedSenderAcceptanceMessages(messages)
+        return includePreview && previewMessages.length
+            ? [...transcriptMessages, ...previewMessages]
+            : transcriptMessages
+    }, [includePreview, messages, previewMessages])
 
     // Fence a delayed approval release before the host's durable cancel request settles.
     const voidPendingResume = useCallback(() => {
@@ -777,6 +943,7 @@ export const useAgentConversation = ({
     const regenerateTurn = useCallback(
         (id: string) => {
             clearSessionTurnId(sessionId)
+            if (busyRef.current) return
             setStopped(false)
             regenerate({messageId: id}).catch(ignoreStreamRejection)
         },
@@ -818,22 +985,29 @@ export const useAgentConversation = ({
     const [executedFor] = useState(() => createExecutedToolIdentityCache())
     const turns = useMemo(
         () =>
-            buildTurnViewModels(messages, {
-                busy,
+            buildTurnViewModels(displayMessages, {
+                busy: busy || (includePreview && previewMessages.length > 0),
                 executedFor,
                 isClientToolPart: (part, ctx) =>
                     (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
             }),
-        [messages, busy, executedFor, isClientToolPart, renderMap],
+        [
+            displayMessages,
+            busy,
+            executedFor,
+            isClientToolPart,
+            includePreview,
+            previewMessages.length,
+            renderMap,
+        ],
     )
 
-    const parsedError = useMemo(() => (error ? parseAgentRunError(error) : undefined), [error])
-
     return {
-        messages,
+        messages: displayMessages,
         status,
         runStatus,
-        error: parsedError,
+        error: errorBoundary.runError,
+        connectionWarning: errorBoundary.connectionWarning,
         turns,
         send,
         voidPendingResume,
@@ -841,7 +1015,7 @@ export const useAgentConversation = ({
         regenerate: regenerateTurn,
         rewind,
         isHydrating,
-        isEmpty: messages.length === 0,
+        isEmpty: displayMessages.length === 0,
         historyUnavailable,
         stopped,
         queued,
@@ -854,5 +1028,8 @@ export const useAgentConversation = ({
         approvals,
         sendToolOutput,
         revalidate,
+        runningFromSnapshot,
+        readerReady,
+        acceptedRunPending,
     }
 }

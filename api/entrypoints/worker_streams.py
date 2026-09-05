@@ -27,6 +27,10 @@ from oss.src.core.events.service import EventsService
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
+from oss.src.core.sessions.records.streaming import (
+    LIVE_FRAME_STREAM_NAME,
+    RECORD_STREAM_NAME,
+)
 from oss.src.core.tracing.service import TracingService
 from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
@@ -37,6 +41,7 @@ from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.tasks.asyncio.events.worker import EventsWorker
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
+from oss.src.tasks.asyncio.sessions.live_relay_worker import LiveRelayWorker
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 from oss.src.tasks.asyncio.webhooks.dispatcher import WebhooksDispatcher
@@ -85,7 +90,7 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
     return RecordsWorker(
         service=RecordsService(records_dao=RecordsDAO()),
         redis_client=redis_client,
-        stream_name="streams:records",
+        stream_name=RECORD_STREAM_NAME,
         consumer_group="worker-records",
         # M3 live relay: post-append change notifications on the durable plane,
         # reusing this process's durable connection.
@@ -100,6 +105,14 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
         # Redelivery bound for records the Postgres write rejected.
         reclaim_min_idle_ms=env.agenta.sessions.records.reclaim_idle_ms,
         max_deliveries=env.agenta.sessions.records.max_deliveries,
+    )
+
+
+async def _build_live_relay_worker(redis_client: Redis) -> StreamConsumer:
+    return LiveRelayWorker(
+        redis_client=redis_client,
+        stream_name=LIVE_FRAME_STREAM_NAME,
+        consumer_group="worker-session-live-relay",
     )
 
 
@@ -136,6 +149,22 @@ async def _build_events_worker(redis_client: Redis) -> StreamConsumer:
     )
 
 
+async def _initialize_consumer(consumer: StreamConsumer) -> None:
+    await consumer.create_consumer_group()
+    removed = await prune_idle_consumers(
+        url=env.redis.uri_durable,
+        queue_name=consumer.stream_name,
+        consumer_group_name=consumer.consumer_group,
+        keep=consumer.consumer_name,
+    )
+    if removed:
+        log.info(
+            "[STREAMS] Pruned idle consumers",
+            stream=consumer.stream_name,
+            removed=removed,
+        )
+
+
 async def main_async() -> int:
     try:
         streams = _selected_streams()
@@ -165,19 +194,19 @@ async def main_async() -> int:
         ]
 
         for consumer in consumers:
-            await consumer.create_consumer_group()
-            removed = await prune_idle_consumers(
-                url=env.redis.uri_durable,
-                queue_name=consumer.stream_name,
-                consumer_group_name=consumer.consumer_group,
-                keep=consumer.consumer_name,
-            )
-            if removed:
-                log.info(
-                    "[STREAMS] Pruned idle consumers",
-                    stream=consumer.stream_name,
-                    removed=removed,
+            await _initialize_consumer(consumer)
+
+        if env.sessions.shared_reader and "records" in streams:
+            try:
+                live_relay = await _build_live_relay_worker(redis_client)
+                await _initialize_consumer(live_relay)
+            except Exception:
+                log.error(
+                    "[STREAMS] Live relay disabled after initialization failure",
+                    exc_info=True,
                 )
+            else:
+                consumers.append(live_relay)
 
         log.info("[STREAMS] Starting worker-streams", selected=streams)
 

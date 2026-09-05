@@ -44,6 +44,15 @@ export const clearSessionTurnId = (sessionId: string) => {
     turnIdBySession.delete(sessionId)
 }
 
+/** Accepted shared-path execution ids that still own their session turn after the invoke stream
+ * disconnects. A null id means the acceptance lacked a usable correlation id. */
+export const acceptedRunBySession = new Map<string, string | null>()
+
+export type TurnDeliverySource = "legacy" | "shared"
+
+/** One rendering source per local turn, retained across a pane remount. */
+export const turnDeliverySourceBySession = new Map<string, TurnDeliverySource>()
+
 // The fresh-session registry moved to @agenta/entities/session — the drive needs the same
 // predicate, and this package sits ABOVE entity-ui so it cannot be imported from there.
 export {freshSessionIds}
@@ -55,5 +64,7 @@ export const clearSessionEphemera = (sessionId: string) => {
     attachmentsBySession.delete(sessionId)
     turnIdBySession.delete(sessionId)
     supersededTurnIdsBySession.delete(sessionId)
+    acceptedRunBySession.delete(sessionId)
+    turnDeliverySourceBySession.delete(sessionId)
     freshSessionIds.delete(sessionId)
 }

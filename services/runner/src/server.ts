@@ -438,7 +438,7 @@ function inBandAnswerTokens(request: AgentRunRequest): string[] | undefined {
  * exactly one terminal `{kind:"result"}` line (success or failure). Selected by the caller
  * with `Accept: application/x-ndjson`; the one-shot `/run` path is left untouched.
  *
- * For session-owned runs (a sessionId is present; the turnId is runner-minted):
+ * For session-owned runs (including explicitly detached shared-sender runs):
  *  - the run survives client disconnect (abort is NOT wired to the response close event);
  *  - every event is persisted producer-side via the record ingest endpoint;
  *  - an alive-lock watchdog heartbeats the coordination plane for the run's lifetime.
@@ -473,6 +473,7 @@ async function runAndStreamWithApiBaseResolved(
   });
 
   const sessionOwned = isSessionOwned(request);
+  const detached = sessionOwned && request.detached === true;
   const sessionId = request.sessionId!;
   const turnId = resolveTurnId(request);
   // Write the resolved id back: every downstream reader of `request.turnId` (the turns-ledger
@@ -492,8 +493,8 @@ async function runAndStreamWithApiBaseResolved(
     `[sessions] stream sessionOwned=${sessionOwned} sessionId=${sessionId ?? "-"} turnId=${turnId ?? "-"} cred=${credentialState}\n`,
   );
 
-  // Session-owned runs survive client disconnect — the runner owns the run. Non-session
-  // runs abort on disconnect (original behavior: caller drives, disconnect = cancel).
+  // Session-owned runs survive client disconnect; detached additionally selects shared response.
+  // Non-session runs remain request-owned: closing invoke aborts the turn.
   const controller = new AbortController();
   let clientDisconnected = false;
   // Resolves when the platform tells us this turn is no longer current — a Stop, a takeover,
@@ -503,7 +504,7 @@ async function runAndStreamWithApiBaseResolved(
   const interrupted = new Promise<string>((resolve) => {
     markInterrupted = resolve;
   });
-  if (!sessionOwned) {
+  if (!sessionOwned && !detached) {
     // Listen on the response, not the request: the request body is already fully read, so
     // its `close` can fire early on a keep-alive connection. `res` `close` fires when the
     // response connection ends — after a normal `res.end()` (harmless: the run is already
@@ -525,6 +526,21 @@ async function runAndStreamWithApiBaseResolved(
     res.write(JSON.stringify(record) + "\n");
   };
   const liveEmit: EmitEvent = (event) => writeRecord({ kind: "event", event });
+  // The invoke stream's sole positive payload in shared mode: correlation/acceptance. Live text
+  // and tools arrive through /sessions/{id}/events and are filtered from invoke client-side.
+  //
+  // Emitted only from the admission path below, never here: it switches the client to shared
+  // delivery, and a turn the runner is about to refuse (bad attachments, a competing turn already
+  // holding the session) must not move the client off its local stream first.
+  const emitSessionAccepted = () => {
+    if (!detached) return;
+    liveEmit({
+      type: "data",
+      name: "session-accepted",
+      data: { sessionId, turnId, executionId: turnId },
+      transient: true,
+    });
+  };
   const turn = currentUserTurn(request);
   const attachmentError = attachmentCountError(turn.attachments.length);
   if (attachmentError) {
@@ -657,6 +673,10 @@ async function runAndStreamWithApiBaseResolved(
       //
       // Deliberately on `liveEmit`, not the persisting emitter that replaces it below: this is
       // transport correlation, not conversation, and it must never become a session record.
+      //
+      // Acceptance rides the same frame for the same reason, and lands here rather than at the
+      // top of the request so it can never precede the admission verdict.
+      emitSessionAccepted();
       liveEmit({ type: "turn", turnId });
 
       // A new turn supersedes any prior turn's unanswered gate: cancel stale pending

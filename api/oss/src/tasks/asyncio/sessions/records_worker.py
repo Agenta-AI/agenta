@@ -5,9 +5,13 @@ from redis.asyncio import Redis
 from sqlalchemy.exc import DataError, IntegrityError
 
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
-from oss.src.core.sessions.records.dtos import TERMINAL_RECORD_TYPE
+from oss.src.core.sessions.records.dtos import SessionRecord, TERMINAL_RECORD_TYPE
 from oss.src.core.sessions.records.service import RecordsService
-from oss.src.core.sessions.records.streaming import deserialize_record
+from oss.src.core.sessions.records.events import durable_events_from_records
+from oss.src.core.sessions.records.streaming import (
+    deserialize_record,
+    publish_durable_event,
+)
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -182,8 +186,8 @@ class RecordsWorker(StreamConsumer):
         *,
         project_id: UUID,
         entries: List[Tuple[bytes, Any]],
-    ) -> Tuple[int, Optional[Exception]]:
-        """One `append_many` call. Returns rows written and any failure."""
+    ) -> Tuple[List[SessionRecord], Optional[Exception]]:
+        """One `append_many` call. Returns committed rows and any failure."""
         try:
             results = await self.service.append_many(
                 events=[msg.record_event for _, msg in entries],
@@ -203,7 +207,7 @@ class RecordsWorker(StreamConsumer):
                         {f"{row.session_id}:{row.turn_id}" for row in quarantined}
                     ),
                 )
-            return len(results), None
+            return results, None
         except Exception as exc:
             log.error(
                 "[RECORDS] Failed to append event batch",
@@ -211,34 +215,34 @@ class RecordsWorker(StreamConsumer):
                 size=len(entries),
                 exc_info=True,
             )
-            return 0, exc
+            return [], exc
 
     async def _append_committed(
         self,
         *,
         project_id: UUID,
         entries: List[Tuple[bytes, Any]],
-    ) -> Tuple[int, List[bytes]]:
-        """Write a project group and report the message ids that are durable.
+    ) -> Tuple[List[SessionRecord], List[bytes]]:
+        """Write a project group and report the rows and message ids that are durable.
 
         `append_many` is one statement in one transaction, so a row-specific database rejection
         takes the whole group down with it. Only that failure class triggers one-record writes to
         isolate the rejected row. Connection, timeout, and unknown failures leave the entire
         group pending for Redis reclaim instead of multiplying calls during an outage.
         """
-        appended, failure = await self._append(project_id=project_id, entries=entries)
+        results, failure = await self._append(project_id=project_id, entries=entries)
         if failure is None:
             self._permanent_failure_ids.difference_update(
                 msg_id for msg_id, _ in entries
             )
-            return appended, [msg_id for msg_id, _ in entries]
+            return results, [msg_id for msg_id, _ in entries]
 
         if not isinstance(failure, ROW_REJECTION_ERRORS):
-            return 0, []
+            return [], []
 
         if len(entries) == 1:
             self._permanent_failure_ids.add(entries[0][0])
-            return 0, []
+            return [], []
 
         log.warning(
             "[RECORDS] Batch append failed, retrying one record at a time",
@@ -246,14 +250,14 @@ class RecordsWorker(StreamConsumer):
             size=len(entries),
         )
 
-        total_appended = 0
+        committed_records: List[SessionRecord] = []
         committed_ids: List[bytes] = []
         for entry in entries:
-            appended, failure = await self._append(
+            results, failure = await self._append(
                 project_id=project_id, entries=[entry]
             )
             if failure is None:
-                total_appended += appended
+                committed_records.extend(results)
                 committed_ids.append(entry[0])
                 self._permanent_failure_ids.discard(entry[0])
             elif isinstance(failure, ROW_REJECTION_ERRORS):
@@ -265,7 +269,7 @@ class RecordsWorker(StreamConsumer):
             committed=len(committed_ids),
             pending=len(entries) - len(committed_ids),
         )
-        return total_appended, committed_ids
+        return committed_records, committed_ids
 
     async def process_batch(
         self,
@@ -376,11 +380,11 @@ class RecordsWorker(StreamConsumer):
                 acked_ids.extend(msg_id for msg_id, _ in entries)
                 continue
 
-            appended, committed_ids = await self._append_committed(
+            results, committed_ids = await self._append_committed(
                 project_id=project_batch["project_id"],
                 entries=entries,
             )
-            total_appended += appended
+            total_appended += len(results)
             acked_ids.extend(committed_ids)
 
             if not committed_ids:
@@ -388,6 +392,30 @@ class RecordsWorker(StreamConsumer):
 
             committed = set(committed_ids)
             committed_events = [msg for msg_id, msg in entries if msg_id in committed]
+            results_by_session: Dict[str, List[SessionRecord]] = {}
+            for result in results:
+                if isinstance(result, SessionRecord):
+                    results_by_session.setdefault(result.session_id, []).append(result)
+
+            for session_results in results_by_session.values():
+                # Live events carry this batch's committed maximum; replay/ready uses the
+                # authoritative session cursor and may therefore be higher.
+                watermark = max(
+                    (result.sequence or 0 for result in session_results), default=0
+                )
+                visible_results = [
+                    result
+                    for result in session_results
+                    if result.quarantined_at is None
+                ]
+                for event in durable_events_from_records(
+                    visible_results, watermark=watermark
+                ):
+                    await publish_durable_event(
+                        organization_id=project_batch["organization_id"],
+                        project_id=project_batch["project_id"],
+                        event=event,
+                    )
 
             # Strictly post-append, and BEFORE the relay tee: a client woken by the records
             # notification below must already see the cancelled gate, not re-render it.

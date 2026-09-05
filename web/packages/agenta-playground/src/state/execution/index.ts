@@ -356,6 +356,7 @@ export {
     applyBuildKitOverlay,
     buildAgentRequest,
     buildAgentReferences,
+    SHARED_SESSION_RESPONSE_HEADER,
     type AgentRequest,
 } from "./agentRequest"
 // Stream vs batch response channel for the agent lane (read by buildAgentRequest's Accept header).

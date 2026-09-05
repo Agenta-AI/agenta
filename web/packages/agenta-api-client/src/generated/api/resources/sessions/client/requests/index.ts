@@ -10,6 +10,7 @@ export type { FetchInteractionRequest } from "./FetchInteractionRequest.js";
 export type { FetchSessionMountsRequest } from "./FetchSessionMountsRequest.js";
 export type { FetchSessionStreamRequest } from "./FetchSessionStreamRequest.js";
 export type { FetchTurnRequest } from "./FetchTurnRequest.js";
+export type { GetSessionSnapshotRequest } from "./GetSessionSnapshotRequest.js";
 export type { GetRecordEventRequest } from "./GetRecordEventRequest.js";
 export type { SessionAttachmentReferenceRequest } from "./SessionAttachmentReferenceRequest.js";
 export type { SessionDetachRequest } from "./SessionDetachRequest.js";

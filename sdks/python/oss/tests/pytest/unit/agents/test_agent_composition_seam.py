@@ -95,6 +95,7 @@ class _FakeBackend(Backend):
         self.created_run_contexts: List[Any] = []
         self.created_effective_parameters: List[Any] = []
         self.created_gateway_policies: List[Any] = []
+        self.created_detached: List[bool] = []
         # The per-harness config the adapter built. Capturing it alongside neutral backend
         # arguments checks both sides of the composition boundary rather than one hop.
         self.created_configs: List[Any] = []
@@ -112,12 +113,14 @@ class _FakeBackend(Backend):
         trace=None,
         run_context=None,
         session_id=None,
+        detached=False,
         effective_parameters=None,
         gateway_policy=None,
     ) -> _FakeSession:
         self.created_run_contexts.append(run_context)
         self.created_effective_parameters.append(effective_parameters)
         self.created_gateway_policies.append(gateway_policy)
+        self.created_detached.append(detached)
         self.created_configs.append(config)
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))
 
@@ -141,6 +144,30 @@ def _params(harness="pi_core", *, model=None):
     if model is not None:
         template["llm"] = model
     return {"agent": template}
+
+
+@pytest.mark.parametrize(
+    "flag, expected", [(True, True), (False, False), (None, False)]
+)
+async def test_invoke_detached_flag_reaches_the_backend_only_when_enabled(
+    flag, expected
+):
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+    flags = {} if flag is None else {"detached": flag}
+
+    await handler(
+        request=WorkflowServiceRequest(flags=flags, session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_detached == [expected]
 
 
 # --------------------------------------------------------------------------- #

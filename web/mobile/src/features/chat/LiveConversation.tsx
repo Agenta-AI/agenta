@@ -11,8 +11,9 @@ import {
 } from "@agenta/chat/assets"
 import {
     ConnectionDock,
-    ElicitationDock,
     ConnectionFocusProvider,
+    ConnectionWarningStrip,
+    ElicitationDock,
     QueuedMessagesDock,
     RunningElsewhereStrip,
 } from "@agenta/chat/components"
@@ -61,7 +62,7 @@ import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {cancelledStopAction} from "./stopHereState"
 import {TurnRow} from "./TurnRow"
-import {showTrailingWorkingPulse} from "./turnStatus"
+import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
@@ -87,6 +88,8 @@ export const LiveConversation = ({
     stopStateLoading,
     sessionTurnId,
     stoppingTurnId,
+    sharedReader,
+    livenessUpdatedAt,
     agentId,
     embedded = false,
 }: {
@@ -100,12 +103,22 @@ export const LiveConversation = ({
     stopStateLoading: boolean
     sessionTurnId?: string | null
     stoppingTurnId?: string | null
+    /** Backend-advertised ability to receive display-only live frames from another sender. */
+    sharedReader: boolean
+    /** React Query timestamp used to reject the sender's stale post-settle liveness snapshot. */
+    livenessUpdatedAt: number
     /** Scopes the session tab rail to this agent's sessions. */
     agentId?: string | null
     /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
     embedded?: boolean
 }) => {
-    const conversation = useAgentConversation({entityId, sessionId})
+    const conversation = useAgentConversation({
+        entityId,
+        sessionId,
+        sharedReaderAdvertised: sharedReader,
+        sharedReaderRunning: running,
+        sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
+    })
 
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
@@ -207,6 +220,14 @@ export const LiveConversation = ({
     ])
 
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
+    const remoteTurn = deriveMobileRemoteTurnPresentation({
+        livenessRunning: running,
+        snapshotRunning: conversation.runningFromSnapshot || conversation.acceptedRunPending,
+        sharedReaderAdvertised: sharedReader,
+        readerReady: conversation.readerReady,
+        ownedContinuation: conversation.acceptedRunPending,
+    })
+    const showingTurnActivity = streamingHere || remoteTurn.showActivity
     const streamingHereRef = useRef(streamingHere)
     streamingHereRef.current = streamingHere
     const hitlPendingRef = useRef(conversation.hitlPending)
@@ -247,6 +268,7 @@ export const LiveConversation = ({
         sessionId,
         projectId,
         onRecordsChanged: revalidate,
+        sharedReaderAdvertised: sharedReader,
     })
     // Poll slowly while a cross-device run cannot be watched live.
     useEffect(() => {
@@ -562,7 +584,7 @@ export const LiveConversation = ({
                     far below the turn it described. It falls back to here for the one case that
                     turn cannot cover: the request is submitted and no assistant turn exists yet. */}
                 <TurnStatusLine
-                    working={showTrailingWorkingPulse(streamingHere, visibleTurns)}
+                    working={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
                     waitingForInput={conversation.hitlPending}
                 />
             </ContentRail>
@@ -618,13 +640,18 @@ export const LiveConversation = ({
                         composer, as on the desktop — it used to be a top bar that also appeared for
                         THIS device's own turns, duplicating the composer's Stop and shifting the
                         transcript twice per run. */}
-                        {running && !streamingHere ? (
+                        {remoteTurn.showStrip && !streamingHere ? (
                             <ContentRail>
                                 <RunningElsewhereStrip
                                     action={
                                         <StopButton sessionId={sessionId} projectId={projectId} />
                                     }
                                 />
+                            </ContentRail>
+                        ) : null}
+                        {conversation.connectionWarning ? (
+                            <ContentRail>
+                                <ConnectionWarningStrip message={conversation.connectionWarning} />
                             </ContentRail>
                         ) : null}
                         {pendingApprovals.length > 0 ? (

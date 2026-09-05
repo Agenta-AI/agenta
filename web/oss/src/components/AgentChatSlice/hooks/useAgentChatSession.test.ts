@@ -7,6 +7,8 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
     true
 
 const state = vi.hoisted(() => ({
+    acceptedRunBySession: new Map<string, string | null>(),
+    turnDeliverySourceBySession: new Map<string, "legacy" | "shared">(),
     capturedHooks: undefined as
         | {
               prepareRequest: (args: {messages: UIMessage[]; id?: string}) => Promise<unknown>
@@ -64,9 +66,11 @@ vi.mock("@agenta/chat/model", () => ({
         if (event.type === "reset" && current.stopped) return {...current, stopped: false}
         return current
     },
+    withoutSharedSenderAcceptanceMessages: (messages: UIMessage[]) => messages,
 }))
 
 vi.mock("@agenta/chat/state", () => ({
+    acceptedRunBySession: state.acceptedRunBySession,
     clearSessionTurnId: (sessionId: string) => state.turnIds.delete(sessionId),
     clearTurnClockAtom: "clear-turn-clock",
     expandedKeysForMessages: () => [],
@@ -80,6 +84,7 @@ vi.mock("@agenta/chat/state", () => ({
     setSessionTurnId: (sessionId: string, turnId: string) => state.turnIds.set(sessionId, turnId),
     stampMessagesCreatedAtAtom: "stamp-created-at",
     startTurnClockAtom: "start-turn-clock",
+    turnDeliverySourceBySession: state.turnDeliverySourceBySession,
 }))
 
 vi.mock("@agenta/entities/session", () => ({
@@ -184,6 +189,8 @@ import {useAgentChatSession} from "./useAgentChatSession"
 
 describe("useAgentChatSession execution guard", () => {
     beforeEach(() => {
+        state.acceptedRunBySession.clear()
+        state.turnDeliverySourceBySession.clear()
         state.turnIds.clear()
         state.sendMessage.mockClear()
         state.regenerate.mockClear()
