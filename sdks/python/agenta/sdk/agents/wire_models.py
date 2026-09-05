@@ -522,6 +522,9 @@ class WireRunRequest(_WireModel):
     # persist the transcript independently of any client connection. Omitted on ad-hoc runs.
     turn_id: Optional[str] = Field(default=None, alias="turnId")
     project_id: Optional[str] = Field(default=None, alias="projectId")
+    # Stable id of the durable continuation command that caused this run. The runner admits one
+    # execution per id even when delivery is retried.
+    control_command_id: Optional[str] = Field(default=None, alias="controlCommandId")
     agents_md: Optional[str] = Field(default=None, alias="agentsMd")
     # Model id stays scalar. The author's connection CHOICE and what that choice RESOLVED to are
     # two separate fields: `connection` is non-secret routing config the runner reads directly,

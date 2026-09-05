@@ -19,11 +19,16 @@ export {
     querySessions,
     setSessionHeader,
     fetchSessionStream,
+    fetchSessionCapabilities,
+    fetchSessionDurableApprovalsCapability,
+    removePendingSessionInput,
+    invalidateSessionDurableApprovalsCapability,
     commandSessionStream,
     cancelSessionExecution,
     cancelSessionStream,
     type CancelSessionOutcome,
     type CancelSessionStreamParams,
+    resumeSessionContinuation,
     killSession,
     deleteSession as deleteSessionRemote,
     archiveSession as archiveSessionRemote,
@@ -40,6 +45,7 @@ export {
     type QuerySessionsPageParams,
     type QuerySessionsParams,
     type SessionScopedParams,
+    type SessionFeatureCapabilities,
     type QueryInteractionsParams,
     type InteractionScopedParams,
     type RespondInteractionParams,
@@ -47,6 +53,7 @@ export {
     type CommandSessionStreamParams,
     type CancelSessionExecutionParams,
     type CancelSessionExecutionResult,
+    type ResumeSessionContinuationParams,
 } from "./api/api"
 export {
     getSessionsClient,
@@ -65,6 +72,7 @@ export {
     sessionDurableEventTypeSchema,
     sessionRecordsReadStateSchema,
     sessionSnapshotSchema,
+    pendingSessionInputSchema,
     sessionsQueryResponseSchema,
     type SessionRecord,
     type SessionRecordsQueryResponse,
@@ -88,6 +96,7 @@ export {
     type SessionMessagePreview,
     type SessionWindowing,
     type SessionStreamCommandResponse,
+    type PendingSessionInput,
     type StreamStatusCode,
     type CommandMode,
     mountFileSchema,
@@ -95,6 +104,11 @@ export {
     type MountFile,
     type Mount,
 } from "./core/schema"
+export {
+    fetchSessionCapabilitiesAtom,
+    fetchSessionSnapshotAtom,
+    removePendingSessionInputAtom,
+} from "./state/pendingInputs"
 export {
     deriveStreamNest,
     deriveSessionLifecycle,
@@ -137,11 +151,19 @@ export {
 export {
     fetchSessionInteractionStatesAtom,
     hasWaitingInteraction,
+    interactionStatesFromRows,
+    interactionStatesFromWatchEvent,
     revalidateSessionInteractionsAtom,
     type SessionInteractionRowState,
     type SessionInteractionRowStates,
 } from "./state/interactionStatus"
-export {recordInteractionAnswerAtom} from "./state/interactionAnswer"
+export {
+    recordInteractionAnswerAtom,
+    respondInteractionAnswerAtom,
+    respondInteractionAnswersAtom,
+    resumeSessionContinuationAtom,
+    sessionDurableApprovalsCapabilityAtom,
+} from "./state/interactionAnswer"
 export {
     sessionMountsQueryFamily,
     mountFilesQueryFamily,

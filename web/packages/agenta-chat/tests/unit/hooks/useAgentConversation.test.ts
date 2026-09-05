@@ -21,6 +21,12 @@ import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+const {capabilitiesViaAtom, snapshotViaAtom, resumeContinuation} = vi.hoisted(() => ({
+    capabilitiesViaAtom: vi.fn(),
+    snapshotViaAtom: vi.fn(),
+    resumeContinuation: vi.fn(),
+}))
+
 const approvalRecord = vi.hoisted(() => ({
     defer: false,
     resolve: undefined as (() => void) | undefined,
@@ -60,6 +66,14 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
         fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
         fetchSessionSnapshot: vi.fn(),
         querySessionTranscript: vi.fn(),
+        fetchSessionCapabilitiesAtom: atom(null, (_get, _set, sessionId: string) =>
+            capabilitiesViaAtom(sessionId),
+        ),
+        fetchSessionSnapshotAtom: atom(null, (_get, _set, sessionId: string) =>
+            snapshotViaAtom(sessionId),
+        ),
+        resumeSessionContinuationAtom: atom(null, () => resumeContinuation()),
+        sessionDurableApprovalsCapabilityAtom: atom(null, () => false),
     }
 })
 
@@ -70,6 +84,7 @@ vi.mock("@agenta/entities/trace", () => ({
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
 import {ACCEPTED_SENDER_DISCONNECT_MESSAGE, TRANSPORT_ERROR_MESSAGE} from "../../../src/model/error"
 import {
+    composerDraftBySession,
     getSessionTurnId,
     markSessionFresh,
     setSessionTurnId,
@@ -248,6 +263,35 @@ const controlledLegacyResponse = () => {
     return {response, finish: () => finish()}
 }
 
+const controlledSharedResponse = (sessionId: string) => {
+    const encoder = new TextEncoder()
+    let finish = () => {}
+    const response = new Response(
+        new ReadableStream({
+            start(controller) {
+                for (const chunk of [
+                    {type: "start", messageId: "shared-assistant"},
+                    {type: "start-step"},
+                    {
+                        type: "data-session-accepted",
+                        data: {sessionId, turnId: "turn-1", executionId: "turn-1"},
+                        transient: true,
+                    },
+                ])
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+                finish = () => {
+                    for (const chunk of [{type: "finish-step"}, {type: "finish"}])
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+                    controller.enqueue(encoder.encode("data: [DONE]\n\n"))
+                    controller.close()
+                }
+            },
+        }),
+        {status: 200, headers: {"content-type": "text/event-stream"}},
+    )
+    return {response, finish: () => finish()}
+}
+
 const fetchMock = vi.fn<typeof globalThis.fetch>()
 vi.stubGlobal("fetch", fetchMock)
 
@@ -284,6 +328,12 @@ beforeEach(() => {
     } as SessionSnapshot)
     vi.mocked(querySessionTranscript).mockReset()
     vi.mocked(querySessionTranscript).mockResolvedValue([])
+    snapshotViaAtom.mockReset()
+    snapshotViaAtom.mockResolvedValue(null)
+    capabilitiesViaAtom.mockReset()
+    capabilitiesViaAtom.mockResolvedValue({durableApprovals: false, queue: false, steer: false})
+    resumeContinuation.mockReset()
+    resumeContinuation.mockResolvedValue(false)
     vi.mocked(buildAgentRequest).mockClear()
     // Restore the ready-workflow build: one test replaces it with a not-yet-loaded one, and
     // `mockClear` keeps the implementation.
@@ -297,6 +347,112 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe("useAgentConversation", () => {
+    it("releases one mobile-held message after a flag-off shared turn finishes", async () => {
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const first = controlledSharedResponse(sessionId)
+        const second = controlledSharedResponse(sessionId)
+        fetchMock.mockResolvedValueOnce(first.response).mockResolvedValueOnce(second.response)
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "content-type": "application/json",
+                ...(opts?.sharedResponse ? {"x-ag-session-response": "shared"} : {}),
+            },
+            requestBody: {session_id: opts?.sessionId},
+        }))
+        const {result} = renderHook(
+            () =>
+                useAgentConversation({
+                    entityId: "rev-1",
+                    sessionId,
+                    sharedReaderAdvertised: true,
+                }),
+            {
+                wrapper: ({children}: {children: ReactNode}) =>
+                    createElement(Provider, {store}, children),
+            },
+        )
+
+        await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1))
+        act(() => FakeEventSource.instances[0].ready())
+        await waitFor(() => expect(result.current.readerReady).toBe(true))
+
+        act(() => void result.current.send({text: "start"}))
+        await waitFor(() => expect(result.current.acceptedRunPending).toBe(true))
+        act(() => void result.current.send({text: "held on mobile"}))
+        expect(result.current.queued.map((message) => message.text)).toEqual(["held on mobile"])
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+
+        act(() => first.finish())
+
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+        expect(result.current.queued).toHaveLength(0)
+        act(() => second.finish())
+        await waitFor(() => expect(result.current.acceptedRunPending).toBe(false))
+        expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it("keeps a Steer draft when durable admission is refused", async () => {
+        capabilitiesViaAtom.mockResolvedValue({
+            durableApprovals: true,
+            queue: true,
+            steer: true,
+        })
+        snapshotViaAtom.mockResolvedValue({
+            session: {
+                id: "11111111-1111-4111-8111-111111111111",
+                project_id: "22222222-2222-4222-8222-222222222222",
+                session_id: "session-1",
+            },
+            execution: null,
+            execution_state: {id: "turn-1", state: "running"},
+            read: {latest_sequence: 0, history_complete: true},
+            pending: {inputs: [], interactions: []},
+            capabilities: {durable_approvals: true, queue: true, steer: true},
+        })
+        fetchMock.mockResolvedValue(new Response(null, {status: 409}))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        composerDraftBySession.set(sessionId, "keep steering draft")
+        const {result} = mount(store, "rev-1", sessionId)
+        await waitFor(() => expect(result.current.steerEnabled).toBe(true))
+
+        await act(async () => {
+            await expect(result.current.steer({text: "keep steering draft"})).rejects.toThrow(
+                "The input was not accepted (409).",
+            )
+        })
+
+        expect(composerDraftBySession.get(sessionId)).toBe("keep steering draft")
+    })
+
+    it("redelivers a durable continuation before request build and suppresses direct invoke", async () => {
+        resumeContinuation.mockResolvedValueOnce(true)
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "do not race"})
+        })
+        await waitFor(() => expect(result.current.status).toBe("error"))
+
+        expect(resumeContinuation).toHaveBeenCalledOnce()
+        expect(vi.mocked(buildAgentRequest)).not.toHaveBeenCalled()
+        expect(fetchMock).not.toHaveBeenCalled()
+        expect(result.current.error).toEqual({
+            code: "continuation_resumed",
+            message:
+                "A saved approval is resuming. Wait for it to finish, then try this message again.",
+        })
+    })
+
     it("runs a full turn: send → stream → settle → persist + status publish", async () => {
         fetchMock.mockResolvedValue(streamResponse("Hello back"))
         const store = createStore()

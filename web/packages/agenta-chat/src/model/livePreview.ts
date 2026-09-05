@@ -73,7 +73,7 @@ export const withoutSharedSenderAcceptanceMessages = (messages: UIMessage[]): UI
 /** Atomic refresh verdict: the latest execution exists, is not complete, and the session still
  * owns the running flag from the same snapshot read. */
 export const isSessionSnapshotRunning = (snapshot: SessionSnapshot | undefined): boolean =>
-    snapshot?.session.flags?.is_running === true &&
+    snapshot?.session?.flags?.is_running === true &&
     snapshot.execution != null &&
     snapshot.execution.end_time == null
 
@@ -158,8 +158,7 @@ export const reduceSessionLivePreview = (
     const current = state.byExecution[frame.execution_id]
     if (current && frame.frame_index <= current.lastFrameIndex) return state
 
-    const expectedFrameIndex = current ? current.lastFrameIndex + 1 : 0
-    if (frame.frame_index !== expectedFrameIndex) {
+    if (current && frame.frame_index !== current.lastFrameIndex + 1) {
         return {...createSessionLivePreviewState(), gapDetected: true}
     }
 

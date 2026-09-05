@@ -89,6 +89,40 @@ describe("useSessionLivePreview", () => {
         expect(result.current.readerReady).toBe(false)
     })
 
+    it("treats a null-session snapshot as no reconnect data", async () => {
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: null,
+            execution: null,
+            execution_state: {state: "idle"},
+            pending: {inputs: [], interactions: []},
+            read: null,
+            capabilities: {queue: true, steer: true},
+        })
+        const onDisconnect = vi.fn().mockResolvedValue(true)
+        const onExecutionSettled = vi.fn()
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const wrapper = ({children}: {children: ReactNode}) =>
+            createElement(Provider, {store}, children)
+
+        renderHook(
+            () =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: true,
+                    runningElsewhere: true,
+                    onDisconnect,
+                    onExecutionSettled,
+                }),
+            {wrapper},
+        )
+
+        await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledOnce())
+        expect(mocks.querySessionTranscript).not.toHaveBeenCalled()
+        expect(onDisconnect).toHaveBeenCalledWith(undefined)
+        expect(onExecutionSettled).not.toHaveBeenCalled()
+    })
+
     it("loads and adopts the transcript through the snapshot before following its cursor", async () => {
         const records = deferred<[]>()
         const adopted = deferred<boolean>()

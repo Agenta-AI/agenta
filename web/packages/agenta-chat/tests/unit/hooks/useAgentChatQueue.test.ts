@@ -3,7 +3,7 @@ import {act, renderHook} from "@testing-library/react"
 import type {FileUIPart, UIMessage} from "ai"
 import {describe, expect, it, vi} from "vitest"
 
-import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
+import {useAgentChatQueue, type ServerQueueAdapter} from "../../../src/hooks/useAgentChatQueue"
 
 // The pure release predicates (`canReleaseQueuedMessage`, `isHitlPending`) are unit-tested in
 // the playground package; these tests cover the HOOK's stateful behavior on top of them:
@@ -32,21 +32,51 @@ const assistantAwaitingApproval = (id: string): UIMessage =>
         ],
     }) as unknown as UIMessage
 
+const assistantContinuation = (id: string, state: "running" | "done" | "error"): UIMessage =>
+    ({
+        ...assistantAwaitingApproval(id),
+        metadata: {
+            ...(state === "done" ? {recordTerminal: true} : {}),
+            approvalContinuation: {
+                sourceExecutionId: `${id}-source-execution`,
+                executionId: `${id}-continuation-execution`,
+                state,
+                approvalIds: [`${id}-approval`],
+            },
+        },
+        parts: [
+            {
+                type: "tool-send_email",
+                state: "approval-responded",
+                toolCallId: `${id}-call`,
+                input: {to: "a@b.c"},
+                approval: {id: `${id}-approval`, approved: true},
+            },
+        ],
+    }) as unknown as UIMessage
+
 interface HarnessProps {
     status: string
     messages: UIMessage[]
     stopped: boolean
     acceptedRunPending?: boolean
     resumeOrphaned?: boolean
+    recoverable?: boolean
+    continuationExecutionId?: string | null
     sessionId?: string
+    server?: ServerQueueAdapter
 }
 
 const setup = (initial: HarnessProps) => {
     const sendQueued = vi.fn()
-    const view = renderHook((props: HarnessProps) => useAgentChatQueue({...props, sendQueued}), {
-        initialProps: initial,
-    })
-    return {sendQueued, ...view}
+    const markRunOwned = vi.fn()
+    const retryContinuation = vi.fn(() => Promise.resolve(true))
+    const view = renderHook(
+        (props: HarnessProps) =>
+            useAgentChatQueue({...props, markRunOwned, sendQueued, retryContinuation}),
+        {initialProps: initial},
+    )
+    return {markRunOwned, sendQueued, retryContinuation, ...view}
 }
 
 const settledEmpty: HarnessProps = {status: "ready", messages: [], stopped: false}
@@ -101,6 +131,212 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued).toHaveLength(0)
     })
 
+    it("hands the primary composer submit and explicit Steer to durable admission", async () => {
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: true,
+            queued: [],
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result, sendQueued} = setup({...settledEmpty, server})
+
+        await act(async () => {
+            result.current.submit({text: "wait next"})
+            result.current.steer({text: "change direction"})
+        })
+
+        expect(server.submit).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({text: "wait next"}),
+            "queue",
+        )
+        expect(server.submit).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({text: "change direction"}),
+            "steer",
+        )
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued).toHaveLength(0)
+    })
+
+    it("lets the server admit Queue-capable sends from a stale-idle snapshot", async () => {
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: false,
+            queued: [],
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result, sendQueued} = setup({...settledEmpty, server})
+
+        await act(async () => {
+            result.current.submit({text: "server decides"})
+        })
+
+        expect(server.submit).toHaveBeenCalledWith(
+            expect.objectContaining({text: "server decides"}),
+            "queue",
+        )
+        expect(sendQueued).not.toHaveBeenCalled()
+    })
+
+    it("never reports a failed durable admission as a client-only queued message", async () => {
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: true,
+            queued: [],
+            submit: vi.fn().mockRejectedValue(new Error("admission unavailable")),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result, sendQueued} = setup({...settledEmpty, server})
+
+        await act(async () => {
+            await expect(result.current.submit({text: "keep this draft"})).rejects.toThrow(
+                "admission unavailable",
+            )
+        })
+
+        expect(result.current.queued).toHaveLength(0)
+        expect(sendQueued).not.toHaveBeenCalled()
+    })
+
+    it("propagates a refused Steer without inventing a client-only queued message", async () => {
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: true,
+            queued: [],
+            submit: vi.fn().mockRejectedValue(new Error("steer refused")),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result, sendQueued} = setup({...settledEmpty, server})
+
+        await act(async () => {
+            await expect(result.current.steer({text: "keep steering draft"})).rejects.toThrow(
+                "steer refused",
+            )
+        })
+
+        expect(result.current.queued).toHaveLength(0)
+        expect(sendQueued).not.toHaveBeenCalled()
+    })
+
+    it("moves a client-held input behind the durable queue when its continuation starts", async () => {
+        const durable = {
+            id: "already-queued",
+            text: "server first",
+            source: "server" as const,
+            editable: false,
+        }
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: false,
+            queued: [durable],
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+        }
+        const {result, rerender, sendQueued} = setup(paused)
+
+        await act(async () => {
+            await result.current.submit({text: "held by this tab"})
+        })
+        expect(server.submit).not.toHaveBeenCalled()
+        expect(result.current.queued).toEqual([expect.objectContaining({text: "held by this tab"})])
+
+        await act(async () => {
+            rerender({
+                ...paused,
+                server,
+                continuationExecutionId: "a1-continuation-execution",
+                messages: [userTurn("u1", "go"), assistantContinuation("a1", "running")],
+            })
+            await Promise.resolve()
+        })
+
+        expect(server.submit).toHaveBeenCalledOnce()
+        expect(server.submit).toHaveBeenCalledWith(
+            expect.objectContaining({text: "held by this tab"}),
+            "queue",
+        )
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued).toEqual([durable])
+    })
+
+    it("does not release an input locally while durable admission is still in flight", async () => {
+        let acceptAdmission: (() => void) | undefined
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: false,
+            queued: [],
+            submit: vi.fn(
+                () =>
+                    new Promise<void>((resolve) => {
+                        acceptAdmission = resolve
+                    }),
+            ),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+            server,
+        }
+        const {result, rerender, sendQueued} = setup(paused)
+
+        act(() => void result.current.submit({text: "held by this tab"}))
+        rerender({
+            ...paused,
+            continuationExecutionId: "a1-continuation-execution",
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "running")],
+        })
+        expect(server.submit).toHaveBeenCalledOnce()
+
+        rerender({
+            ...paused,
+            continuationExecutionId: "a1-continuation-execution",
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "done")],
+        })
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued).toHaveLength(0)
+
+        await act(async () => {
+            acceptAdmission?.()
+            await Promise.resolve()
+        })
+
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued).toHaveLength(0)
+    })
+
+    it("renders and removes server rows without releasing them through the local queue", () => {
+        const durable = {
+            id: "input-1",
+            text: "shared",
+            source: "server" as const,
+            editable: false,
+        }
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: false},
+            busy: true,
+            queued: [durable],
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result, sendQueued} = setup({...settledEmpty, server})
+
+        expect(result.current.queued).toEqual([durable])
+        act(() => result.current.removeQueued("input-1"))
+
+        expect(server.remove).toHaveBeenCalledWith("input-1")
+        expect(sendQueued).not.toHaveBeenCalled()
+    })
+
     it("releases held messages one per settle, in FIFO order", () => {
         const streaming: HarnessProps = {
             status: "streaming",
@@ -140,6 +376,24 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued.map((m) => m.text)).toEqual(["while paused"])
     })
 
+    it("keeps a recoverable Send visible and retries the saved continuation", () => {
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+            recoverable: true,
+        }
+        const {result, sendQueued, retryContinuation} = setup(paused)
+
+        act(() => result.current.submit({text: "send after the approval"}))
+
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(retryContinuation).toHaveBeenCalledOnce()
+        expect(result.current.queued.map((message) => message.text)).toEqual([
+            "send after the approval",
+        ])
+    })
+
     it("releases a held message once the approval gate resolves", () => {
         const paused: HarnessProps = {
             status: "ready",
@@ -156,6 +410,56 @@ describe("useAgentChatQueue", () => {
         expect(sendQueued).toHaveBeenCalledTimes(1)
         expect(sendQueued.mock.calls[0][0]).toMatchObject({text: "held"})
         expect(result.current.queued).toHaveLength(0)
+    })
+
+    it("marks a released send as locally owned before dispatching it", () => {
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+        }
+        const {result, rerender, markRunOwned, sendQueued} = setup(paused)
+        act(() => result.current.submit({text: "held during the continuation"}))
+
+        rerender({...paused, messages: [userTurn("u1", "go"), assistantText("a2", "done")]})
+
+        expect(markRunOwned).toHaveBeenCalledOnce()
+        expect(sendQueued).toHaveBeenCalledOnce()
+        expect(markRunOwned.mock.invocationCallOrder[0]).toBeLessThan(
+            sendQueued.mock.invocationCallOrder[0],
+        )
+    })
+
+    it("holds through a different continuation execution and drains once after its terminal", () => {
+        const paused: HarnessProps = {
+            status: "ready",
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+        }
+        const {result, rerender, sendQueued} = setup(paused)
+        act(() => result.current.submit({text: "after continuation"}))
+
+        rerender({
+            ...paused,
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "running")],
+        })
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(result.current.queued).toHaveLength(1)
+
+        rerender({
+            ...paused,
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "done")],
+        })
+
+        expect(sendQueued).toHaveBeenCalledOnce()
+        expect(sendQueued.mock.calls[0][0]).toMatchObject({text: "after continuation"})
+        expect(result.current.queued).toHaveLength(0)
+
+        rerender({
+            ...paused,
+            messages: [userTurn("u1", "go"), assistantContinuation("a1", "done")],
+        })
+        expect(sendQueued).toHaveBeenCalledOnce()
     })
 
     it("a user stop voids the HITL hold: settled sends go immediately and hitlPending clears", () => {

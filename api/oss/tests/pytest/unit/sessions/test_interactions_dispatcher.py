@@ -13,6 +13,7 @@ from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
     build_wire_messages,
+    compose_approval_messages_many,
 )
 
 
@@ -224,6 +225,42 @@ async def test_respond_detached_calls_dispatch_fn_not_invoke():
 # ---------------------------------------------------------------------------
 # M2: approval answers compose the runner-visible resume conversation
 # ---------------------------------------------------------------------------
+
+
+def test_parallel_approval_answers_share_one_resume_conversation():
+    project_id = uuid4()
+    first = _make_interaction(
+        kind=SessionInteractionKind.user_approval,
+        request={"tool": "bash", "tool_call_id": "tc-1"},
+    )
+    second = _make_interaction(
+        kind=SessionInteractionKind.user_approval,
+        request={"tool": "write_file", "tool_call_id": "tc-2"},
+    )
+    second = second.model_copy(update={"token": "tok-def"})
+    records = [
+        *_approval_records(project_id),
+        *_approval_records(project_id, token="tok-def", tool_call_id="tc-2")[1:],
+    ]
+
+    messages = compose_approval_messages_many(
+        records,
+        [(first, {"approved": True}), (second, {"approved": False})],
+    )
+
+    results = [
+        block
+        for message in messages
+        if isinstance(message.get("content"), list)
+        for block in message["content"]
+        if block.get("type") == "tool_result"
+        and isinstance(block.get("output"), dict)
+        and block["output"].get("interactionToken") in {"tok-abc", "tok-def"}
+    ]
+    assert [(item["toolCallId"], item["output"]["approved"]) for item in results] == [
+        ("tc-1", True),
+        ("tc-2", False),
+    ]
 
 
 async def test_approval_respond_composes_resume_messages_from_records():
@@ -726,3 +763,224 @@ def test_a_user_record_with_neither_text_nor_attachments_is_skipped():
     ]
 
     assert build_wire_messages(records) == []
+
+
+# ---------------------------------------------------------------------------
+# The resume's reference fallback.
+#
+# A resume is a server-side invoke, and the invoke resolves its service URL from the request's
+# references. A gate row with no `data.references` produced a request with none, so
+# `WorkflowsService._prepare_invoke` returned no URL and every redelivery failed with
+# "Workflow revision has no runnable service URL." The same identity is recorded on the
+# session's turn and stream rows, so the resume reads it from there.
+# ---------------------------------------------------------------------------
+
+
+def _session_turn(project_id, *, references, session_id="sess-test-1"):
+    from agenta.sdk.agents.dtos import HarnessKind
+    from oss.src.core.sessions.turns.dtos import SessionTurn
+
+    return SessionTurn(
+        id=uuid4(),
+        project_id=project_id,
+        session_id=session_id,
+        turn_id=uuid4(),
+        stream_id=uuid4(),
+        turn_index=0,
+        harness_kind=HarnessKind.PI,
+        references=references,
+    )
+
+
+def _session_stream(project_id, *, references, session_id="sess-test-1"):
+    from oss.src.core.sessions.streams.dtos import SessionStream
+
+    return SessionStream(
+        id=uuid4(),
+        project_id=project_id,
+        session_id=session_id,
+        references=references,
+    )
+
+
+def _turns_service(turns):
+    service = MagicMock()
+    service.query_turns = AsyncMock(return_value=turns)
+    return service
+
+
+def _streams_service(stream):
+    service = MagicMock()
+    service.fetch_header = AsyncMock(return_value=stream)
+    return service
+
+
+async def test_resume_falls_back_to_the_turn_references_when_the_gate_row_has_none():
+    from oss.src.core.sessions.types import SessionReference
+
+    interaction = _make_interaction(with_refs=False)
+    project_id = uuid4()
+
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+
+    workflows_service = MagicMock()
+    workflows_service.invoke_workflow = AsyncMock(return_value=SimpleNamespace())
+
+    turns_service = _turns_service(
+        [
+            _session_turn(
+                project_id,
+                references=[
+                    SessionReference(key="workflow", id=uuid4(), slug="wf-1"),
+                    SessionReference(
+                        key="workflow_variant", id=uuid4(), slug="wf-1.default"
+                    ),
+                ],
+            ),
+        ]
+    )
+
+    worker = InteractionsDispatcher(
+        workflows_service=workflows_service,
+        interactions_service=interactions_service,
+        turns_service=turns_service,
+    )
+
+    await worker.respond(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+    )
+
+    invoke_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
+    assert set(invoke_request.references or {}) == {"workflow", "workflow_variant"}
+    assert invoke_request.references["workflow"].slug == "wf-1"
+    # `key` names the family in the stored list; it is not a field of a wire Reference.
+    assert not hasattr(invoke_request.references["workflow"], "key")
+    turn_query = turns_service.query_turns.await_args.kwargs
+    assert turn_query["query"].session_id == interaction.session_id
+    assert turn_query["windowing"].limit == 1
+
+
+async def test_resume_falls_back_to_the_stream_references_when_no_turn_carries_any():
+    from oss.src.core.sessions.types import SessionReference
+
+    interaction = _make_interaction(with_refs=False)
+    project_id = uuid4()
+
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+
+    workflows_service = MagicMock()
+    workflows_service.invoke_workflow = AsyncMock(return_value=SimpleNamespace())
+
+    worker = InteractionsDispatcher(
+        workflows_service=workflows_service,
+        interactions_service=interactions_service,
+        turns_service=_turns_service([_session_turn(project_id, references=None)]),
+        streams_service=_streams_service(
+            _session_stream(
+                project_id,
+                references=[SessionReference(key="workflow", id=uuid4(), slug="wf-2")],
+            )
+        ),
+    )
+
+    await worker.respond(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+    )
+
+    invoke_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
+    assert set(invoke_request.references) == {"workflow"}
+    assert invoke_request.references["workflow"].slug == "wf-2"
+
+
+async def test_the_gate_rows_own_references_win_over_the_session_fallback():
+    from oss.src.core.sessions.types import SessionReference
+
+    interaction = _make_interaction(with_refs=True)
+    project_id = uuid4()
+
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+
+    workflows_service = MagicMock()
+    workflows_service.invoke_workflow = AsyncMock(return_value=SimpleNamespace())
+
+    turns_service = _turns_service(
+        [
+            _session_turn(
+                project_id,
+                references=[SessionReference(key="workflow", id=uuid4(), slug="other")],
+            )
+        ]
+    )
+
+    worker = InteractionsDispatcher(
+        workflows_service=workflows_service,
+        interactions_service=interactions_service,
+        turns_service=turns_service,
+    )
+
+    await worker.respond(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+    )
+
+    invoke_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
+    assert set(invoke_request.references) == {"workflow"}
+    assert invoke_request.references["workflow"].slug == "wf-1"
+    turns_service.query_turns.assert_not_awaited()
+
+
+async def test_a_session_with_no_recorded_identity_still_sends_a_reference_less_request():
+    interaction = _make_interaction(with_refs=False)
+    project_id = uuid4()
+
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+
+    workflows_service = MagicMock()
+    workflows_service.invoke_workflow = AsyncMock(return_value=SimpleNamespace())
+
+    worker = InteractionsDispatcher(
+        workflows_service=workflows_service,
+        interactions_service=interactions_service,
+        turns_service=_turns_service([]),
+        streams_service=_streams_service(None),
+    )
+
+    await worker.respond(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+    )
+
+    invoke_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
+    assert invoke_request.references is None
+
+
+def test_keyed_references_drops_families_the_invoke_does_not_accept():
+    from oss.src.core.sessions.types import SessionReference
+    from oss.src.tasks.asyncio.sessions.interactions_dispatcher import keyed_references
+
+    assert (
+        keyed_references(
+            [
+                SessionReference(key="testset", slug="ts-1"),
+                SessionReference(key=None, slug="untyped"),
+            ]
+        )
+        is None
+    )
+    assert keyed_references([SessionReference(key="application", slug="app-1")]) == {
+        "application": {"slug": "app-1"}
+    }

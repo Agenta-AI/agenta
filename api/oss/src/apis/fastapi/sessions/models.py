@@ -29,6 +29,7 @@ from oss.src.core.sessions.interactions.dtos import (
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
 from oss.src.core.sessions.types import SessionReference
+from oss.src.core.sessions.inputs.dtos import PendingInput
 from oss.src.core.shared.dtos import OTelSpanId, Windowing
 from oss.src.dbs.postgres.sessions.streams.dao import MAX_SESSION_QUERY_LIMIT
 
@@ -122,6 +123,35 @@ class SessionResponse(BaseModel):
     session: Optional[SessionStream] = None
 
 
+class SessionCapabilities(BaseModel):
+    durable_approvals: bool = False
+    queue: bool = False
+    steer: bool = False
+
+
+class SessionExecutionSnapshot(BaseModel):
+    id: Optional[str] = None
+    state: Literal["idle", "running", "stopping"] = "idle"
+
+
+class PendingInputResponse(BaseModel):
+    input: PendingInput
+
+
+class PendingInputAdmissionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: SessionId
+    content: Dict[str, Any]
+    on_busy: Literal["reject", "queue", "steer"] = "reject"
+
+
+class PendingInputAdmissionResponse(BaseModel):
+    action: Literal["execute", "pending"]
+    input: Optional[PendingInput] = None
+    execution_id: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # Streams request/response models
 # ---------------------------------------------------------------------------
@@ -140,6 +170,7 @@ class SessionStreamQueryRequest(BaseModel):
 
 class SessionStreamResponse(BaseModel):
     stream: Optional[SessionStream] = None
+    capabilities: SessionCapabilities = Field(default_factory=SessionCapabilities)
 
 
 class SessionStreamsResponse(BaseModel):
@@ -178,15 +209,33 @@ class SessionRecordsQueryResponse(BaseModel):
 
 
 class SessionSnapshotPending(BaseModel):
-    inputs: List[Any] = Field(default_factory=list)
+    inputs: List[PendingInput] = Field(default_factory=list)
     interactions: List[SessionInteraction] = Field(default_factory=list)
 
 
 class SessionSnapshotResponse(BaseModel):
-    session: SessionStream
+    """One snapshot for every reader of an open session.
+
+    `session`, `execution` and `read` are the nullable reconnect half: the stream row, the
+    latest turn (whose `end_time` says whether that turn is still live), and the durable
+    sequence watermark a reader replays from. They are absent when the shared reader is off or
+    before a fresh session has a stream row.
+
+    `execution_state` and `pending.inputs` are the queue half. `execution_state` is the
+    session's CURRENT lifecycle derived from the stream row, which is a different question from
+    `execution`: that names the last turn, this says whether anything is running right now.
+    `capabilities` reports the same flags the streams endpoint reports, from the same helper, so
+    a client never sees the two disagree.
+    """
+
+    session: Optional[SessionStream] = None
     execution: Optional[SessionTurn] = None
+    execution_state: SessionExecutionSnapshot = Field(
+        default_factory=SessionExecutionSnapshot
+    )
     pending: SessionSnapshotPending
-    read: SessionRecordsReadState
+    read: Optional[SessionRecordsReadState] = None
+    capabilities: SessionCapabilities = Field(default_factory=SessionCapabilities)
 
 
 class SessionRecordResponse(BaseModel):
@@ -261,11 +310,28 @@ class SessionInteractionsResponse(BaseModel):
     interactions: List[SessionInteraction] = Field(default_factory=list)
 
 
+class SessionInteractionAnswerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    interaction_id: UUID
+    answer: Dict[str, Any]
+
+
 class SessionInteractionRespondRequest(BaseModel):
     # For a user_approval interaction the answer is {approved: bool, tool_call_id?: str,
     # message?: str} — the dispatcher composes the full resume conversation server-side
     # (interactions_dispatcher.compose_approval_messages). Other kinds pass through as-is.
     answer: Optional[Dict[str, Any]] = None
+    answers: Optional[List[SessionInteractionAnswerRequest]] = Field(
+        default=None, min_length=1, max_length=100
+    )
+    expected_execution_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_answer_shape(self) -> "SessionInteractionRespondRequest":
+        if self.answer is not None and self.answers is not None:
+            raise ValueError("answer and answers cannot be combined")
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -469,6 +535,23 @@ class SessionExecutionRef(BaseModel):
     state: Literal["stopping", "idle"]
 
 
+class SessionInteractionContinuationExecution(BaseModel):
+    id: str
+    state: Literal[
+        "awaiting_interactions",
+        "pending_delivery",
+        "recoverable",
+        "running",
+        "terminal",
+    ]
+
+
+class SessionInteractionContinuationResponse(BaseModel):
+    interaction: SessionInteraction
+    command: Optional[SessionCommandRef] = None
+    execution: SessionInteractionContinuationExecution
+
+
 class SessionCancelResponse(BaseModel):
     command: SessionCommandRef
     execution: SessionExecutionRef
@@ -482,7 +565,13 @@ class SessionExecutionOutcome(BaseModel):
     # stopped: cancelled as asked. not_running: no such execution on this runner.
     # superseded_by_newer_turn: the held execution started after the command arrived.
     # failed: the cancel itself failed.
-    state: Literal["stopped", "failed", "not_running", "superseded_by_newer_turn"]
+    state: Literal[
+        "stopped",
+        "failed",
+        "not_running",
+        "superseded_by_newer_turn",
+        "started",
+    ]
     # Short and human-readable, present only when `state` is "failed".
     error: Optional[str] = Field(default=None, max_length=2000)
 
@@ -501,10 +590,20 @@ class SessionCommandSettlement(BaseModel):
     id: UUID
     state: Literal["applied", "obsolete"]
     outcome: Literal[
-        "stopped", "not_running", "superseded_by_newer_turn", "failed", "lost"
+        "stopped",
+        "not_running",
+        "superseded_by_newer_turn",
+        "failed",
+        "lost",
+        "started",
     ]
     settled_at: Optional[datetime] = None
 
 
 class SessionControlOutcomeResponse(BaseModel):
     command: SessionCommandSettlement
+    admitted: bool = False
+
+
+class SessionContinuationResumeResponse(BaseModel):
+    resumed: bool

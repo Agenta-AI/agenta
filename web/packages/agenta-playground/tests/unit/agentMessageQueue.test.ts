@@ -221,4 +221,35 @@ describe("canReleaseQueuedMessage", () => {
             ]),
         ).toBe(true)
     })
+
+    it("releases an answered approval after its durable terminal record", () => {
+        expect(
+            canReleaseQueuedMessage("ready", [
+                user("do it"),
+                {
+                    ...assistantWithTool("approval-responded", true),
+                    metadata: {recordTerminal: true},
+                },
+            ]),
+        ).toBe(true)
+    })
+
+    it("holds an answered approval while its continuation execution is running", () => {
+        expect(
+            canReleaseQueuedMessage("ready", [
+                user("do it"),
+                {
+                    ...assistantWithTool("approval-responded", true),
+                    metadata: {
+                        approvalContinuation: {
+                            sourceExecutionId: "source-turn",
+                            executionId: "continuation-turn",
+                            state: "running",
+                            approvalIds: ["perm_1"],
+                        },
+                    },
+                },
+            ]),
+        ).toBe(false)
+    })
 })

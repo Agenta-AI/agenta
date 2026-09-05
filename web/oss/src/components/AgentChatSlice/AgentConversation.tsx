@@ -14,6 +14,7 @@ import {
     useComposerAttachments,
     useAgentChatQueue,
     useSessionLivePreview,
+    useServerSessionInputs,
     type QueuedMessage,
 } from "@agenta/chat/hooks"
 import {
@@ -55,6 +56,7 @@ import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvid
 import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 
+import {answerThenSteer} from "./assets/answerThenSteer"
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
@@ -75,7 +77,7 @@ import {useScrollIntent} from "./hooks/useScrollIntent"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
-import {deriveSessionRemoteTurnPresentation} from "./state/liveness"
+import {deriveSessionRemoteTurnPresentation, shouldShowRunningElsewhere} from "./state/liveness"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -153,11 +155,14 @@ const AgentConversation = ({
         handleClientToolOutput,
         markLiveGate,
         answerApproval,
+        answerApprovals,
+        retryContinuation,
         resumeOrphaned,
         isSeen,
         runningElsewhere: livenessRunningElsewhere,
         sharedReaderAdvertised,
         refreshFromRecords,
+        revalidate,
         setSharedSenderReady,
     } = useAgentChatSession({entityId, sessionId, initialMessages, intent: scrollIntent})
     const {
@@ -249,6 +254,18 @@ const AgentConversation = ({
     // composer until connected — see `gateActive` on `useAgentModelKeyStatus` for the full chain.
     const modelKey = useAgentModelKeyStatus(entityId)
     const modelBlocked = modelKey.gateActive
+    const [recoverableContinuation, setRecoverableContinuation] = useState(false)
+    // Execution id of the continuation the last durable answer started (respond body,
+    // `execution.id`). The queue holds every send until that execution writes its terminal record:
+    // the transcript-derived hold cannot cover the seconds between the answer and the
+    // continuation's first record, and a transcript adopted inside that gap reads as settled.
+    const [continuationExecutionId, setContinuationExecutionId] = useState<string | null>(null)
+    const approvalResponseOwnerRef = useRef<string | null>(null)
+    const retryRecoverableContinuation = useCallback(async () => {
+        const resumed = await retryContinuation()
+        if (resumed) setRecoverableContinuation(false)
+        return resumed
+    }, [retryContinuation])
 
     // Context-window denominator for the token-budget indicator: the SDK model catalog's own
     // `context_window`, delivered on the (global) harness-capabilities document — never hardcoded.
@@ -352,6 +369,23 @@ const AgentConversation = ({
 
     const consumedRunNonceRef = useRef<number | null>(null)
 
+    const serverInputs = useServerSessionInputs({
+        entityId,
+        sessionId,
+        messages,
+        locallyBusy: busy,
+        onExecuted: revalidate,
+    })
+
+    const previousServerInputsStatusRef = useRef(status)
+    useEffect(() => {
+        const previousStatus = previousServerInputsStatusRef.current
+        previousServerInputsStatusRef.current = status
+        if (previousStatus !== status && (status === "ready" || status === "error")) {
+            void serverInputs.refresh()
+        }
+    }, [status, serverInputs.refresh])
+
     // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
     // release effect doesn't churn on every token.
     const sendQueued = useCallback(
@@ -374,6 +408,10 @@ const AgentConversation = ({
         },
         [sendMessage, sessionId],
     )
+    const markRunOwned = useCallback(
+        () => setSessionStatus({id: sessionId, status: "running"}),
+        [sessionId, setSessionStatus],
+    )
 
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
     // one-by-one once the turn truly settles (never mid-approval). A user stop is the exception —
@@ -382,7 +420,12 @@ const AgentConversation = ({
     const {
         queued,
         submit,
+        steer,
         removeQueued,
+        ownsContinuation,
+        queueEnabled,
+        steerEnabled,
+        serverBusy,
         hitlPending,
         editingId,
         beginEdit,
@@ -395,15 +438,26 @@ const AgentConversation = ({
         acceptedRunPending,
         stopped,
         resumeOrphaned,
+        recoverable: recoverableContinuation,
+        retryContinuation: retryRecoverableContinuation,
+        continuationExecutionId,
+        markRunOwned,
         sendQueued,
         sessionId,
+        server: serverInputs,
+    })
+    const showRunningElsewhere = shouldShowRunningElsewhere({
+        runningElsewhere: livenessRunningElsewhere,
+        executionState: serverInputs.executionState,
+        pendingInputCount: serverInputs.queued.length,
     })
 
     // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision made
     // in THIS mount marks the resume as live — a restored approval-requested tail the user answers
     // after a reload genuinely auto-resumes, so the queue's pre-resume hold must apply to it.
     const handleApprovalResponse = useCallback(
-        (args: {id: string; approved: boolean; message?: string}) => {
+        async (args: {id: string; approved: boolean; message?: string}) => {
+            approvalResponseOwnerRef.current = args.id
             markLiveGate({kind: "approval", id: args.id})
             // `answerApproval` owns the whole ordered click: the row first, then the part flip that
             // lets the SDK resume. Never flip here — an early flip lets the resume's stale sweep
@@ -416,13 +470,35 @@ const AgentConversation = ({
             // (The model still reasons about the bare denial first — the "flail" — because the
             // harness owns the reject continuation and exposes no reject-with-feedback seam; killing
             // that flail needs an upstream ACP change, not an FE one.)
-            const steer = args.message?.trim()
-            void answerApproval(args.id, args.approved).then(() => {
-                // After the answer for the same reason the flip is: a steer starts its own turn.
-                if (!args.approved && steer) submit({text: steer})
+            // The outcome is RETURNED, not swallowed: the dock reads `recoverable` off it to show
+            // "Answer saved, retry needed" instead of "Answered, waiting for the agent".
+            const outcome = await answerThenSteer({
+                approved: args.approved,
+                message: args.message,
+                answer: () => answerApproval(args.id, args.approved),
+                steer: (text) => submit({text}),
             })
+            if (approvalResponseOwnerRef.current === args.id) {
+                setRecoverableContinuation(outcome?.recoverable === true)
+                setContinuationExecutionId(outcome?.executionId ?? null)
+            }
+            return outcome
         },
         [answerApproval, markLiveGate, submit],
+    )
+
+    const handleApprovalResponses = useCallback(
+        async (ids: string[], approved: boolean) => {
+            approvalResponseOwnerRef.current = ids[0]
+            markLiveGate({kind: "approval", id: ids[0]})
+            const outcome = await answerApprovals(ids, approved)
+            if (approvalResponseOwnerRef.current === ids[0]) {
+                setRecoverableContinuation(outcome?.recoverable === true)
+                setContinuationExecutionId(outcome?.executionId ?? null)
+            }
+            return outcome
+        },
+        [answerApprovals, markLiveGate],
     )
 
     const interactionAvailability = getInteractionAvailability({stopped, stopping, streaming: busy})
@@ -430,6 +506,16 @@ const AgentConversation = ({
         () => getLivePendingApprovals(messages, {stopped: !interactionAvailability.approvals}),
         [messages, interactionAvailability.approvals],
     )
+    const pendingApprovalId = pendingApprovals[0]?.approvalId
+    if (pendingApprovalId && approvalResponseOwnerRef.current !== pendingApprovalId) {
+        approvalResponseOwnerRef.current = pendingApprovalId
+    }
+    useEffect(() => {
+        if (pendingApprovalId) {
+            setRecoverableContinuation(false)
+            setContinuationExecutionId(null)
+        }
+    }, [pendingApprovalId])
     // Parked connect interactions on the paused turn → the connect dock owns their actions (the
     // inline rows are passive markers). Gated off while busy (`input-streaming` isn't parked yet)
     // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
@@ -501,11 +587,19 @@ const AgentConversation = ({
             ? "error"
             : hitlPending || anyPendingInteraction
               ? "awaiting"
-              : busy
+              : busy || ownsContinuation
                 ? "running"
                 : "idle"
         setSessionStatus({id: sessionId, status})
-    }, [error, hitlPending, anyPendingInteraction, busy, sessionId, setSessionStatus])
+    }, [
+        error,
+        hitlPending,
+        anyPendingInteraction,
+        busy,
+        ownsContinuation,
+        sessionId,
+        setSessionStatus,
+    ])
     // On unmount, retire the dot ONLY if the run went with us. A chat preserved past this mount
     // (route change with the tab still open) is still this browser's run to report, so it keeps its
     // status until it settles — `useAgentChatSession`'s `onFinish` retires it then. The session hook
@@ -540,12 +634,6 @@ const AgentConversation = ({
             // Radix cancels Escape for a layer but still lets it reach us, and it never touches
             // Alt+G, which only the overlay check catches.
             if (e.defaultPrevented || isOverlayOpen()) return
-            // An IME user presses Escape to cancel composition, not to stop the run.
-            if (e.key === "Escape" && !e.isComposing && busyRef.current) {
-                e.preventDefault()
-                handleStop()
-                return
-            }
             // Approve answers ONE gate, never the dock's "Approve all": a mis-press should not
             // grant a tool the user never read.
             if (isAltChord(e) && e.code === "KeyG" && pendingApprovals.length > 0) {
@@ -555,7 +643,7 @@ const AgentConversation = ({
         }
         document.addEventListener("keydown", onKey)
         return () => document.removeEventListener("keydown", onKey)
-    }, [activeSessionId, sessionId, busyRef, handleStop, pendingApprovals, handleApprovalResponse])
+    }, [activeSessionId, sessionId, pendingApprovals, handleApprovalResponse])
 
     // A keyboard switch (Alt+1…9 / Alt+Z / Alt+X) lands the caret here. antd mounts a never-visited
     // pane only on activation, so this effect runs on that mount and a first-visit switch focuses
@@ -591,11 +679,12 @@ const AgentConversation = ({
         useVirtuoso,
     })
 
-    const finishSubmit = (
+    const finishSubmit = async (
         trimmed: string,
         fileParts: FileUIPart[] | undefined,
         consumedUids: string[],
         stagedFiles: typeof files,
+        policy: "queue" | "steer" = "queue",
     ) => {
         if (editingId) {
             // A rewrite of a held message: nothing is sent, so the transcript must not move.
@@ -609,7 +698,8 @@ const AgentConversation = ({
             scrollIntent.armGlide()
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the shared release gate.
-            submit({text: trimmed, fileParts, stagedFiles})
+            if (policy === "steer") await steer({text: trimmed, fileParts})
+            else await submit({text: trimmed, fileParts, stagedFiles})
         }
         // The message left the composer — drop its persisted draft (and any pending capture).
         composer.clearDraft()
@@ -619,7 +709,11 @@ const AgentConversation = ({
 
     // A voice take awaits its upload, so the guard keeps a second send from starting meanwhile.
     const inFlightSubmitRef = useRef(false)
-    const handleSubmit = (text: string, extraFiles: File[] = []) =>
+    const handleSubmit = (
+        text: string,
+        extraFiles: File[] = [],
+        policy: "queue" | "steer" = "queue",
+    ) =>
         runWithInFlightSubmit(inFlightSubmitRef, async () => {
             const trimmed = text.trim()
             if (!trimmed && files.length === 0 && extraFiles.length === 0) return
@@ -650,7 +744,7 @@ const AgentConversation = ({
                     }
                     fileParts = parts
                 }
-                finishSubmit(trimmed, fileParts, stagedUids, files)
+                await finishSubmit(trimmed, fileParts, stagedUids, files, policy)
                 return
             }
 
@@ -663,7 +757,10 @@ const AgentConversation = ({
             const fileParts = outboundFiles.length
                 ? stagedFilesToParts(outboundFiles, sessionId)
                 : undefined
-            finishSubmit(trimmed, fileParts, stagedUids, outboundFiles)
+            await finishSubmit(trimmed, fileParts, stagedUids, outboundFiles, policy)
+        }).catch(() => {
+            richInputRef.current?.setMarkdown(text)
+            attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
         })
 
     handleSubmitRef.current = handleSubmit
@@ -903,7 +1000,9 @@ const AgentConversation = ({
                                         entityId={entityId}
                                         messages={messages}
                                         busy={busy}
-                                        showRunningElsewhere={remoteTurn.showStrip}
+                                        showRunningElsewhere={
+                                            remoteTurn.showStrip && showRunningElsewhere
+                                        }
                                         connectionWarning={connectionWarning}
                                         hitlPending={hitlPending}
                                         queue={{
@@ -912,6 +1011,7 @@ const AgentConversation = ({
                                             editingId,
                                             beginEdit,
                                             cancelEdit,
+                                            serverBusy,
                                         }}
                                         modelKey={{...modelKey, entityId}}
                                         modelBlocked={modelBlocked}
@@ -920,12 +1020,17 @@ const AgentConversation = ({
                                         showTemplateStrip={showTemplateStrip}
                                         pendingApprovals={pendingApprovals}
                                         onApprovalResponse={handleApprovalResponse}
+                                        onApprovalResponses={handleApprovalResponses}
                                         connects={connects}
                                         elicits={elicits}
                                         onClientToolOutput={handleClientToolOutput}
                                         onSubmit={handleSubmit}
+                                        onSteer={(text) => handleSubmit(text, [], "steer")}
                                         onStop={handleStop}
                                         stopping={stopping}
+                                        queueEnabled={queueEnabled}
+                                        steerEnabled={steerEnabled}
+                                        stopShortcutEnabled={activeSessionId === sessionId}
                                         richInputRef={richInputRef}
                                         composer={{...composer, handleComposerChange}}
                                         attachments={attachments}

@@ -82,6 +82,7 @@ from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.commands.types import (
     ExecutionExpectationFailed,
     SessionCommandIdempotencyConflict,
+    InteractionResponseConflict,
     SessionCommandNotClaimable,
     SessionCommandNotFound,
 )
@@ -90,6 +91,7 @@ from oss.src.core.sessions.records.dtos import (
     MAX_LIVE_FRAME_BYTES,
     SessionLiveFrame,
     SessionRecordEvent,
+    TERMINAL_RECORD_TYPE,
 )
 from oss.src.core.sessions.records.streaming import publish_live_frame, publish_record
 from oss.src.core.sessions.interactions.dtos import (
@@ -100,7 +102,16 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionTransition,
 )
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.interactions.references import resolve_interaction_references
 from oss.src.core.sessions.interactions.types import InteractionNotFound
+from oss.src.core.sessions.inputs.service import SessionInputsService
+from oss.src.core.sessions.inputs.types import (
+    SessionInputBusy,
+    SessionInputIdempotencyConflict,
+    SessionInputNotFound,
+    SessionInputNotRemovable,
+)
+from oss.src.core.sessions.inputs.dtos import PendingInputState
 from oss.src.core.sessions.attachments.dtos import Attachment
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
 from oss.src.core.sessions.attachments.types import (
@@ -147,6 +158,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionCommandSettlement,
     SessionControlOutcomeRequest,
     SessionControlOutcomeResponse,
+    SessionContinuationResumeResponse,
     SessionExecutionRef,
     # streams
     SessionDetachRequest,
@@ -166,6 +178,8 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionInteractionCreateRequest,
     SessionInteractionQueryRequest,
     SessionInteractionRespondRequest,
+    SessionInteractionContinuationExecution,
+    SessionInteractionContinuationResponse,
     SessionInteractionResolution,
     SessionInteractionResponse,
     SessionInteractionsResponse,
@@ -188,6 +202,11 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionQueryRequest,
     SessionResponse,
     SessionsResponse,
+    PendingInputResponse,
+    PendingInputAdmissionRequest,
+    PendingInputAdmissionResponse,
+    SessionCapabilities,
+    SessionExecutionSnapshot,
 )
 from oss.src.apis.fastapi.sessions.utils import (
     compute_session_response_windowing,
@@ -201,6 +220,27 @@ _MAX_IDEMPOTENCY_KEY_CHARACTERS = 255
 
 # matches the streams contract allowlist (dbs/redis/sessions/contract.py)
 _SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
+
+
+def _session_capabilities() -> SessionCapabilities:
+    return SessionCapabilities(
+        durable_approvals=env.agenta.sessions.durable_approvals,
+        queue=env.agenta.sessions.queue,
+        steer=env.agenta.sessions.queue and env.agenta.sessions.steer,
+    )
+
+
+def _idempotency_key_too_long_response() -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "code": "validation_error",
+            "message": "Idempotency-Key is too long.",
+            "retryable": False,
+            "details": {"field": "Idempotency-Key", "reason": "too_long"},
+            "next_step": "Use an Idempotency-Key of at most 255 characters.",
+        },
+    )
 
 
 def _validate_session_id_http(session_id: str) -> None:
@@ -498,7 +538,10 @@ class SessionStreamsRouter:
             project_id=UUID(str(project_id)),
             session_id=session_id,
         )
-        return SessionStreamResponse(stream=sanitize_session_stream(stream))
+        return SessionStreamResponse(
+            stream=sanitize_session_stream(stream),
+            capabilities=_session_capabilities(),
+        )
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -810,8 +853,13 @@ class SessionStreamsRouter:
 class RecordsRouter:
     """Records sub-router — /sessions/records/*"""
 
-    def __init__(self, records_service: RecordsService):
+    def __init__(
+        self,
+        records_service: RecordsService,
+        commands_service: Optional[SessionCommandsService] = None,
+    ):
         self.records_service = records_service
+        self.commands_service = commands_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -992,7 +1040,25 @@ class RecordsRouter:
             return {"ok": True}
 
         assert not isinstance(body, list)
-        await publish_record(
+        # For a finished continuation, commit the core execution outcome before accepting its
+        # terminal record into the asynchronous tracing stream. This closes the cross-database
+        # window where the watchdog could see no `done`, expose recovery, and replay work that
+        # had already finished while the records worker was still settling core state.
+        if (
+            (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
+            and self.commands_service is not None
+            and body.record_type == TERMINAL_RECORD_TYPE
+            and body.turn_id
+            and (body.attributes or {}).get("stopReason")
+            not in ("paused", "cancelled", "error")
+        ):
+            await self.commands_service.settle_execution_completed(
+                project_id=UUID(project_id),
+                session_id=body.session_id,
+                execution_id=body.turn_id,
+            )
+
+        published = await publish_record(
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(project_id),
             record_event=SessionRecordEvent(
@@ -1008,6 +1074,11 @@ class RecordsRouter:
                 span_id=body.span_id,
             ),
         )
+        if not published:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Record ingestion is temporarily unavailable.",
+            )
         return {"ok": True}
 
 
@@ -1024,11 +1095,17 @@ class InteractionsRouter:
         # import the tasks layer). When present, the no-worker respond fallback goes through
         # it so both paths share ONE answer-composition implementation.
         interactions_dispatcher: Optional[Any] = None,
+        commands_service: Optional[SessionCommandsService] = None,
+        turns_service: Optional[SessionTurnsService] = None,
+        streams_service: Optional[SessionStreamsService] = None,
     ) -> None:
         self.interactions_service = interactions_service
         self.workflows_service = workflows_service
         self.respond_task = respond_task
         self.interactions_dispatcher = interactions_dispatcher
+        self.commands_service = commands_service
+        self.turns_service = turns_service
+        self.streams_service = streams_service
 
         self.router = APIRouter()
 
@@ -1259,7 +1336,7 @@ class InteractionsRouter:
         request: Request,
         interaction_id: UUID,
         body: SessionInteractionRespondRequest,
-    ) -> SessionInteractionResponse:
+    ) -> Any:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
@@ -1270,6 +1347,116 @@ class InteractionsRouter:
         )
         if not authorized:
             raise FORBIDDEN_EXCEPTION
+
+        if body.answers is not None and interaction_id not in {
+            item.interaction_id for item in body.answers
+        }:
+            return JSONResponse(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                content={
+                    "code": "validation_error",
+                    "message": "The path interaction must be included in answers.",
+                    "retryable": False,
+                    "details": {"field": "answers", "reason": "anchor_missing"},
+                },
+            )
+
+        if env.agenta.sessions.durable_approvals and self.commands_service is not None:
+            idempotency_key = (request.headers.get("Idempotency-Key") or "").strip()
+            if not idempotency_key:
+                return JSONResponse(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    content={
+                        "code": "validation_error",
+                        "message": "Idempotency-Key is required for a durable response.",
+                        "retryable": False,
+                        "details": {"field": "Idempotency-Key", "reason": "required"},
+                        "next_step": "Retry with a stable Idempotency-Key header.",
+                    },
+                )
+            if len(idempotency_key) > _MAX_IDEMPOTENCY_KEY_CHARACTERS:
+                return _idempotency_key_too_long_response()
+            if body.answer is None and body.answers is None:
+                return JSONResponse(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    content={
+                        "code": "validation_error",
+                        "message": "answer is required for a durable response.",
+                        "retryable": False,
+                        "details": {"field": "answer", "reason": "required"},
+                    },
+                )
+            interaction_answers = (
+                [(item.interaction_id, item.answer) for item in body.answers]
+                if body.answers is not None
+                else [(interaction_id, body.answer)]
+            )
+            try:
+                if body.answers is not None:
+                    admission = await self.commands_service.respond_interactions(
+                        project_id=UUID(str(project_id)),
+                        user_id=UUID(str(user_id)),
+                        interaction_answers=interaction_answers,
+                        expected_execution_id=body.expected_execution_id,
+                        idempotency_key=idempotency_key,
+                    )
+                else:
+                    admission = await self.commands_service.respond_interaction(
+                        project_id=UUID(str(project_id)),
+                        user_id=UUID(str(user_id)),
+                        interaction_id=interaction_id,
+                        answer=body.answer,
+                        expected_execution_id=body.expected_execution_id,
+                        idempotency_key=idempotency_key,
+                    )
+            except InteractionResponseConflict as error:
+                return JSONResponse(
+                    status_code=(
+                        status.HTTP_422_UNPROCESSABLE_ENTITY
+                        if error.code == "validation_error"
+                        else status.HTTP_409_CONFLICT
+                    ),
+                    content={
+                        "code": error.code,
+                        "message": error.message,
+                        "retryable": False,
+                        **({"details": error.details} if error.details else {}),
+                    },
+                )
+
+            response = SessionInteractionContinuationResponse(
+                interaction=admission.interaction,
+                command=(
+                    SessionCommandRef(
+                        id=admission.command.id,
+                        state=admission.command.state.value,
+                    )
+                    if admission.command is not None
+                    else None
+                ),
+                execution=SessionInteractionContinuationExecution(
+                    id=admission.execution_id,
+                    state=(
+                        "awaiting_interactions"
+                        if getattr(admission, "waiting_for_interactions", False)
+                        else admission.execution_state.value
+                    ),
+                ),
+            )
+            return JSONResponse(
+                status_code=status.HTTP_202_ACCEPTED,
+                content=response.model_dump(mode="json"),
+            )
+
+        if body.answers is not None:
+            responses = {}
+            for item in body.answers:
+                responses[item.interaction_id] = await self.respond_interaction(
+                    request=request,
+                    interaction_id=item.interaction_id,
+                    body=SessionInteractionRespondRequest(answer=item.answer),
+                )
+            return responses[interaction_id]
 
         try:
             interaction = await self.interactions_service.fetch_interaction(
@@ -1328,13 +1515,11 @@ class InteractionsRouter:
                 answer=answer,
             )
         else:
-            references = (
-                {
-                    k: v.model_dump(mode="json")
-                    for k, v in interaction.data.references.items()
-                }
-                if interaction.data and interaction.data.references
-                else None
+            references = await resolve_interaction_references(
+                project_id=UUID(str(project_id)),
+                interaction=interaction,
+                turns_service=self.turns_service,
+                streams_service=self.streams_service,
             )
             selector = (
                 interaction.data.selector.model_dump(mode="json")
@@ -1913,12 +2098,14 @@ class SessionsRootRouter:
         records_service: Optional[RecordsService] = None,
         interactions_service: Optional[SessionInteractionsService] = None,
         turns_service: Optional[SessionTurnsService] = None,
+        inputs_service: Optional[SessionInputsService] = None,
     ) -> None:
         self.sessions_service = sessions_service
         self.streams_service = streams_service
         self.records_service = records_service
         self.interactions_service = interactions_service
         self.turns_service = turns_service
+        self.inputs_service = inputs_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -1939,6 +2126,17 @@ class SessionsRootRouter:
             status_code=status.HTTP_200_OK,
             tags=["Sessions"],
         )
+        if inputs_service is not None:
+            # The snapshot itself is `get_session_snapshot`, registered below: one route serves
+            # both the reconnect watermark and the durable queue.
+            self.router.add_api_route(
+                "/sessions/{session_id}/inputs/{input_id}",
+                self.remove_pending_input,
+                methods=["DELETE"],
+                operation_id="remove_pending_session_input",
+                response_model=PendingInputResponse,
+                tags=["Sessions"],
+            )
         self.router.add_api_route(
             "/sessions/archive",
             self.archive_session,
@@ -1977,8 +2175,6 @@ class SessionsRootRouter:
         request: Request,
         session_id: str,
     ) -> SessionSnapshotResponse:
-        if not env.sessions.shared_reader:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         _validate_session_id_http(session_id)
         if not await check_action_access(
             user_uid=str(request.state.user_id),
@@ -1986,33 +2182,33 @@ class SessionsRootRouter:
             permission=Permission.VIEW_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
-        if not all(
-            (
-                self.streams_service,
-                self.records_service,
-                self.interactions_service,
-                self.turns_service,
-            )
+        if self.streams_service is None or self.interactions_service is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+        if env.sessions.shared_reader and (
+            self.records_service is None or self.turns_service is None
         ):
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         project_id = UUID(str(request.state.project_id))
-        session = await self.streams_service.fetch(
+        stream = await self.streams_service.fetch(
             project_id=project_id,
             session_id=session_id,
         )
-        if session is None:
-            raise SessionStreamNotFound(session_id)
-        read = await self.records_service.get_read_state(
-            project_id=project_id,
-            session_id=session_id,
-        )
-        if getattr(session, "history_incomplete", False):
-            read = read.model_copy(update={"history_complete": False})
-        execution = await self.turns_service.latest_turn(
-            project_id=project_id,
-            session_id=session_id,
-        )
+        session = None
+        execution = None
+        read = None
+        if env.sessions.shared_reader and stream is not None:
+            session = sanitize_session_stream(stream)
+            read = await self.records_service.get_read_state(
+                project_id=project_id,
+                session_id=session_id,
+            )
+            if getattr(stream, "history_incomplete", False):
+                read = read.model_copy(update={"history_complete": False})
+            execution = await self.turns_service.latest_turn(
+                project_id=project_id,
+                session_id=session_id,
+            )
         interactions = await self.interactions_service.query_interactions(
             project_id=project_id,
             query=SessionInteractionQuery(
@@ -2020,11 +2216,34 @@ class SessionsRootRouter:
                 status=SessionInteractionStatus.pending,
             ),
         )
+        # The durable queue half. It is optional: a deployment without the inputs service still
+        # gets the reconnect half, and reports an empty queue rather than failing the snapshot.
+        inputs = (
+            await self.inputs_service.list_pending(
+                project_id=project_id,
+                session_id=session_id,
+            )
+            if self.inputs_service is not None
+            else []
+        )
+        # The stream remains the lifecycle source even when its reconnect representation is hidden.
+        execution_state = SessionExecutionSnapshot(
+            id=(stream.stopping_turn_id or stream.turn_id) if stream else None,
+            state=(
+                "stopping"
+                if stream and stream.stopping_turn_id
+                else "running"
+                if stream and stream.flags.is_running
+                else "idle"
+            ),
+        )
         return SessionSnapshotResponse(
-            session=sanitize_session_stream(session),
+            session=session,
             execution=execution,
-            pending=SessionSnapshotPending(interactions=interactions),
+            execution_state=execution_state,
+            pending=SessionSnapshotPending(inputs=inputs, interactions=interactions),
             read=read,
+            capabilities=_session_capabilities(),
         )
 
     @intercept_exceptions()
@@ -2082,6 +2301,48 @@ class SessionsRootRouter:
             sessions=sessions,
             windowing=response_windowing,
         )
+
+    @intercept_exceptions()
+    async def remove_pending_input(
+        self, request: Request, session_id: str, input_id: UUID
+    ) -> PendingInputResponse:
+        _validate_session_id_http(session_id)
+        project_id = UUID(str(request.state.project_id))
+        user_id = request.state.user_id
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+        try:
+            item = await self.inputs_service.remove(
+                project_id=project_id,
+                user_id=UUID(str(user_id)) if user_id else None,
+                session_id=session_id,
+                input_id=input_id,
+            )
+        except SessionInputNotFound as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "pending_input_not_found",
+                    "message": str(error),
+                    "retryable": False,
+                    "details": {"input_id": error.input_id},
+                },
+            ) from error
+        except SessionInputNotRemovable as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "pending_input_promoted",
+                    "message": str(error),
+                    "retryable": False,
+                    "details": {"input_id": error.input_id},
+                },
+            ) from error
+        return PendingInputResponse(input=item)
 
     @intercept_exceptions()
     async def delete_session(
@@ -2208,6 +2469,58 @@ def _handle_command_exceptions():
                     status_code=status.HTTP_409_CONFLICT,
                     detail={"message": e.message, "state": e.state},
                 ) from e
+            except InteractionResponseConflict as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": e.code,
+                        "message": e.message,
+                        "retryable": False,
+                        **({"details": e.details} if e.details else {}),
+                    },
+                ) from e
+
+        return wrapper
+
+    return decorator
+
+
+def _handle_input_exceptions():
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except SessionInputBusy as error:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "session_busy",
+                        "message": str(error),
+                        "retryable": True,
+                        "next_step": "Retry after the current execution settles.",
+                        "details": {"current_execution_id": error.current_execution_id},
+                    },
+                ) from error
+            except SessionInputIdempotencyConflict as error:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "idempotency_key_reused",
+                        "message": str(error),
+                        "retryable": False,
+                        "next_step": "Reuse the original body or send a new key.",
+                    },
+                ) from error
+            except ValueError as error:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "code": "validation_error",
+                        "message": str(error),
+                        "retryable": False,
+                    },
+                ) from error
 
         return wrapper
 
@@ -2232,8 +2545,10 @@ class SessionControlRouter:
         self,
         *,
         commands_service: SessionCommandsService,
+        inputs_service: Optional[SessionInputsService] = None,
     ) -> None:
         self._service = commands_service
+        self._inputs_service = inputs_service
         self.router = APIRouter()
 
         self.router.add_api_route(
@@ -2244,12 +2559,88 @@ class SessionControlRouter:
             tags=["Sessions"],
         )
         self.router.add_api_route(
+            "/sessions/{session_id}/continuations/resume",
+            self.resume_session_continuation,
+            methods=["POST"],
+            operation_id="resume_session_continuation",
+            tags=["Sessions"],
+        )
+        self.router.add_api_route(
             "/sessions/control/commands/{command_id}/outcome",
             self.report_command_outcome,
             methods=["POST"],
             operation_id="report_session_command_outcome",
             tags=["Sessions"],
             include_in_schema=False,
+        )
+        if inputs_service is not None:
+            self.router.add_api_route(
+                "/sessions/control/inputs/admit",
+                self.admit_session_input,
+                methods=["POST"],
+                operation_id="admit_session_input",
+                include_in_schema=False,
+                tags=["Sessions"],
+            )
+
+    @intercept_exceptions()
+    @_handle_input_exceptions()
+    async def admit_session_input(
+        self, request: Request, payload: PendingInputAdmissionRequest
+    ) -> JSONResponse:
+        project_id = UUID(str(request.state.project_id))
+        user_id = request.state.user_id
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+        idempotency_key = request.headers.get("Idempotency-Key")
+        if idempotency_key is not None:
+            idempotency_key = (
+                idempotency_key.strip()[:_MAX_IDEMPOTENCY_KEY_CHARACTERS] or None
+            )
+        admission = await self._inputs_service.admit(
+            project_id=project_id,
+            user_id=UUID(str(user_id)) if user_id else None,
+            session_id=payload.session_id,
+            content=payload.content,
+            policy=payload.on_busy,
+            idempotency_key=idempotency_key,
+        )
+        if (
+            payload.on_busy == "steer"
+            and admission.action == "pending"
+            and admission.input is not None
+            and admission.input.state == PendingInputState.pending
+        ):
+            # The input is durable before Stop is requested. A refused or unreachable Stop
+            # therefore never loses the user's message; it stays visible and removable.
+            try:
+                await self._service.request_cancel(
+                    project_id=project_id,
+                    user_id=UUID(str(user_id)) if user_id else None,
+                    session_id=payload.session_id,
+                    expected_execution_id=admission.execution_id,
+                    idempotency_key=f"steer:{admission.input.id}",
+                    steer_input_id=admission.input.id,
+                )
+            except Exception as error:  # noqa: BLE001 - the input is already durable
+                log.warning(
+                    "steer stop request failed input=%s session=%s: %s",
+                    admission.input.id,
+                    payload.session_id,
+                    error,
+                )
+        response = PendingInputAdmissionResponse(**admission.model_dump())
+        return JSONResponse(
+            status_code=(
+                status.HTTP_202_ACCEPTED
+                if admission.action == "pending"
+                else status.HTTP_200_OK
+            ),
+            content=response.model_dump(mode="json", exclude_none=True),
         )
 
     @intercept_exceptions()
@@ -2287,9 +2678,10 @@ class SessionControlRouter:
 
         idempotency_key = request.headers.get("Idempotency-Key")
         if idempotency_key is not None:
-            idempotency_key = (
-                idempotency_key.strip()[:_MAX_IDEMPOTENCY_KEY_CHARACTERS] or None
-            )
+            idempotency_key = idempotency_key.strip()
+            if len(idempotency_key) > _MAX_IDEMPOTENCY_KEY_CHARACTERS:
+                return _idempotency_key_too_long_response()
+            idempotency_key = idempotency_key or None
 
         admission = await self._service.request_cancel(
             project_id=UUID(str(project_id)),
@@ -2320,6 +2712,34 @@ class SessionControlRouter:
 
     @intercept_exceptions()
     @_handle_command_exceptions()
+    async def resume_session_continuation(
+        self,
+        request: Request,
+        session_id: str,
+    ) -> SessionContinuationResumeResponse:
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        has_permission = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        resumed = False
+        if env.agenta.sessions.durable_approvals:
+            resumed = bool(
+                await self._service.resume_recoverable_continuation(
+                    project_id=UUID(str(project_id)),
+                    session_id=session_id,
+                )
+            )
+        return SessionContinuationResumeResponse(resumed=resumed)
+
+    @intercept_exceptions()
+    @_handle_command_exceptions()
     async def report_command_outcome(
         self,
         request: Request,
@@ -2328,7 +2748,7 @@ class SessionControlRouter:
     ) -> SessionControlOutcomeResponse:
         _assert_runner_token(request)
 
-        settled = await self._service.report_outcome(
+        report = await self._service.report_outcome(
             command_id=command_id,
             replica_id=payload.replica_id,
             result=payload.result,
@@ -2338,11 +2758,14 @@ class SessionControlRouter:
         )
         return SessionControlOutcomeResponse(
             command=SessionCommandSettlement(
-                id=settled.id,
-                state=settled.state.value,
-                outcome=settled.outcome.value if settled.outcome else "failed",
-                settled_at=settled.settled_at,
-            )
+                id=report.command.id,
+                state=report.command.state.value,
+                outcome=(
+                    report.command.outcome.value if report.command.outcome else "failed"
+                ),
+                settled_at=report.command.settled_at,
+            ),
+            admitted=report.admitted,
         )
 
 
@@ -2406,6 +2829,7 @@ class SessionsRouter:
         turns_service: SessionTurnsService,
         sessions_service: SessionsService,
         commands_service: SessionCommandsService,
+        inputs_service: Optional[SessionInputsService] = None,
         respond_task: Optional[Any] = None,
         interactions_dispatcher: Optional[Any] = None,
     ) -> None:
@@ -2414,12 +2838,18 @@ class SessionsRouter:
             interactions_service=interactions_service,
             records_service=records_service,
         )
-        self.records = RecordsRouter(records_service=records_service)
+        self.records = RecordsRouter(
+            records_service=records_service,
+            commands_service=commands_service,
+        )
         self.interactions = InteractionsRouter(
             interactions_service=interactions_service,
             workflows_service=workflows_service,
             respond_task=respond_task,
             interactions_dispatcher=interactions_dispatcher,
+            commands_service=commands_service,
+            turns_service=turns_service,
+            streams_service=streams_service,
         )
         self.attachments = SessionAttachmentsRouter(
             attachments_service=attachments_service,
@@ -2435,5 +2865,8 @@ class SessionsRouter:
             records_service=records_service,
             interactions_service=interactions_service,
             turns_service=turns_service,
+            inputs_service=inputs_service,
         )
-        self.control = SessionControlRouter(commands_service=commands_service)
+        self.control = SessionControlRouter(
+            commands_service=commands_service, inputs_service=inputs_service
+        )

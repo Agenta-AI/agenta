@@ -1,10 +1,10 @@
 """SSE frame generator for ``GET /sessions/streams/watch`` (M3 live relay).
 
 Bridges one Redis pub/sub subscription (durable plane, one per SSE connection)
-into `text/event-stream` frames. Events carry TYPE + minimal metadata only —
-clients revalidate through their existing query paths; no record payloads ride
-the wire. Idle periods emit ``: heartbeat`` comment frames so proxies and
-clients never see a silent connection.
+into `text/event-stream` frames. Most events carry type plus minimal metadata;
+interaction events may carry committed row state so readers can retire a gate
+without a query round trip. Idle periods emit ``: heartbeat`` comment frames so
+proxies and clients never see a silent connection.
 """
 
 import json

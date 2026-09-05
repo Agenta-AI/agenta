@@ -152,7 +152,12 @@ export interface SessionScopedParams {
     abortSignal?: AbortSignal
 }
 
-/** Fetch the lifecycle/pending state and durable sequence watermark used to reconnect safely. */
+/**
+ * The one snapshot read. It carries the reconnect half (the stream row, the last turn, the
+ * durable watermark) and the queue half (the current lifecycle, the pending inputs, the feature
+ * capabilities), so the live preview and the durable queue never ask two endpoints that can
+ * disagree.
+ */
 export async function fetchSessionSnapshot({
     sessionId,
     projectId,
@@ -169,7 +174,131 @@ export async function fetchSessionSnapshot({
     )
     if (!data) return null
 
-    return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]")
+    return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]") ?? null
+}
+
+export async function removePendingSessionInput({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    inputId,
+}: SessionScopedParams & {inputId: string}): Promise<boolean> {
+    if (!projectId || !sessionId || !inputId) return false
+
+    const data = await callFern("[removePendingSessionInput]", () =>
+        getSessionsClient().removePendingSessionInput(
+            {session_id: sessionId, input_id: inputId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return !!data
+}
+
+const SESSION_CAPABILITY_TIMEOUT_SECONDS = 2
+const SESSION_CAPABILITY_NEGATIVE_RETRY_MS = 30_000
+
+export interface SessionFeatureCapabilities {
+    durableApprovals: boolean
+    queue: boolean
+    steer: boolean
+}
+
+interface SessionCapabilityCacheEntry {
+    result?: SessionFeatureCapabilities
+    retryAt?: number
+    request?: Promise<SessionFeatureCapabilities>
+}
+
+const noSessionCapabilities: SessionFeatureCapabilities = {
+    durableApprovals: false,
+    queue: false,
+    steer: false,
+}
+const durableApprovalsCapabilityCache = new Map<string, SessionCapabilityCacheEntry>()
+
+const durableApprovalsCapabilityKey = ({projectId, sessionId}: SessionScopedParams): string =>
+    JSON.stringify([projectId, sessionId])
+
+export function invalidateSessionDurableApprovalsCapability(
+    params?: Pick<SessionScopedParams, "projectId" | "sessionId">,
+): void {
+    if (!params) {
+        durableApprovalsCapabilityCache.clear()
+        return
+    }
+    durableApprovalsCapabilityCache.delete(durableApprovalsCapabilityKey(params))
+}
+
+const hasSessionCapability = (capabilities: SessionFeatureCapabilities): boolean =>
+    capabilities.durableApprovals || capabilities.queue || capabilities.steer
+
+const cachedSessionCapabilities = (key: string): SessionFeatureCapabilities | null => {
+    const cached = durableApprovalsCapabilityCache.get(key)
+    if (!cached?.result) return null
+    if (hasSessionCapability(cached.result) || Date.now() < (cached.retryAt ?? 0)) {
+        return cached.result
+    }
+    return null
+}
+
+export const fetchSessionCapabilities = async ({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<SessionFeatureCapabilities> => {
+    if (!projectId || !sessionId) return noSessionCapabilities
+
+    const key = durableApprovalsCapabilityKey({projectId, sessionId})
+    const cached = cachedSessionCapabilities(key)
+    if (cached) return cached
+
+    const existing = durableApprovalsCapabilityCache.get(key)
+    if (existing?.request) return existing.request
+
+    const entry: SessionCapabilityCacheEntry = {}
+    const request = (async () => {
+        let capabilities = noSessionCapabilities
+        try {
+            const data = await callFern("[fetchSessionDurableApprovalsCapability]", () =>
+                getSessionsClient().fetchSessionStream(
+                    {session_id: sessionId},
+                    {
+                        ...projectScopedRequest(projectId, appId, abortSignal),
+                        timeoutInSeconds: SESSION_CAPABILITY_TIMEOUT_SECONDS,
+                        maxRetries: 0,
+                    },
+                ),
+            )
+            const validated = data
+                ? safeParseWithLogging(
+                      sessionStreamResponseSchema,
+                      data,
+                      "[fetchSessionDurableApprovalsCapability]",
+                  )
+                : null
+            capabilities = {
+                durableApprovals: validated?.capabilities.durable_approvals ?? false,
+                queue: validated?.capabilities.queue ?? false,
+                steer: validated?.capabilities.steer ?? false,
+            }
+        } catch {
+            capabilities = noSessionCapabilities
+        }
+
+        if (durableApprovalsCapabilityCache.get(key) === entry) {
+            entry.result = capabilities
+            entry.retryAt = hasSessionCapability(capabilities)
+                ? undefined
+                : Date.now() + SESSION_CAPABILITY_NEGATIVE_RETRY_MS
+            entry.request = undefined
+        }
+        return capabilities
+    })()
+    entry.request = request
+    durableApprovalsCapabilityCache.set(key, entry)
+    return request
 }
 
 export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {
@@ -249,13 +378,28 @@ export async function fetchInteraction({
 
 export interface RespondInteractionParams extends InteractionScopedParams {
     /** The answer payload (e.g. an approval decision). Shape is interaction-kind specific. */
-    answer: Record<string, unknown>
+    answer?: Record<string, unknown>
+    /** Atomic same-turn answers used by Approve all. */
+    answers?: {interactionId: string; answer: Record<string, unknown>}[]
+    /** The execution the approval belongs to. Durable mode serializes this against Stop. */
+    expectedExecutionId?: string
+    /** Stable retry identity. Reusing it with a different answer is a conflict. */
+    idempotencyKey?: string
+}
+
+export interface RespondInteractionResult {
+    interaction: SessionInteraction | null
+    /** True only when the durable continuation transaction was accepted with HTTP 202. */
+    accepted: boolean
+    command?: {id?: string; state?: string}
+    execution?: {id?: string; state?: string}
 }
 
 /** True for the backend's `409 Interaction is no longer pending` (someone already answered).
  * Fern stashes the HTTP status on the thrown `AgentaApiError` as `statusCode`. */
 export const isInteractionConflict = (error: unknown): boolean =>
-    (error as {statusCode?: number} | null)?.statusCode === 409
+    (error as {statusCode?: number; response?: {status?: number}} | null)?.statusCode === 409 ||
+    (error as {response?: {status?: number}} | null)?.response?.status === 409
 
 /** True for the backend's `404 No such file or folder`. */
 const isNotFound = (error: unknown): boolean =>
@@ -318,20 +462,50 @@ export async function respondInteraction({
     appId,
     abortSignal,
     answer,
-}: RespondInteractionParams): Promise<SessionInteraction | null> {
+    answers,
+    expectedExecutionId,
+    idempotencyKey,
+}: RespondInteractionParams): Promise<RespondInteractionResult | null> {
     if (!projectId || !interactionId) return null
 
-    const data = await getSessionsClient().respondInteraction(
-        {interaction_id: interactionId, answer},
-        projectScopedRequest(projectId, appId, abortSignal),
-    )
+    // Fern preserves the status through `withRawResponse`: 200 is the flag-off dispatcher and
+    // 202 is durable command acceptance. Both are server-owned continuations; callers must never
+    // also release the local AI SDK gate.
+    const request = {
+        interaction_id: interactionId,
+        ...(answers
+            ? {
+                  answers: answers.map((item) => ({
+                      interaction_id: item.interactionId,
+                      answer: item.answer,
+                  })),
+              }
+            : {answer}),
+        ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
+    }
+    const {data, rawResponse} = await getSessionsClient()
+        .respondInteraction(request, {
+            ...projectScopedRequest(projectId, appId, abortSignal),
+            headers: idempotencyKey ? {"Idempotency-Key": idempotencyKey} : undefined,
+        })
+        .withRawResponse()
 
+    const responseData = data as {
+        interaction?: unknown
+        command?: {id?: string; state?: string}
+        execution?: {id?: string; state?: string}
+    }
     const validated = safeParseWithLogging(
         sessionInteractionResponseSchema,
-        data,
+        responseData,
         "[respondInteraction]",
     )
-    return validated?.interaction ?? null
+    return {
+        interaction: validated?.interaction ?? null,
+        accepted: rawResponse.status === 202,
+        ...(responseData.command ? {command: responseData.command} : {}),
+        ...(responseData.execution ? {execution: responseData.execution} : {}),
+    }
 }
 
 /**
@@ -630,6 +804,23 @@ export async function fetchSessionStream({
         "[fetchSessionStream]",
     )
     return validated?.stream ?? null
+}
+
+/** Server-owned feature capability. Missing/failed responses mean legacy behavior. */
+export async function fetchSessionDurableApprovalsCapability({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    const key = durableApprovalsCapabilityKey({projectId, sessionId})
+    const cached = cachedSessionCapabilities(key)
+    if (cached) return cached.durableApprovals
+
+    void fetchSessionCapabilities({sessionId, projectId, appId, abortSignal})
+    return false
 }
 
 export interface CommandSessionStreamParams extends SessionScopedParams {
@@ -1107,6 +1298,39 @@ export interface CancelSessionExecutionResult {
     accepted: boolean
     /** True when the API refused because another execution is running (409). */
     conflict: boolean
+}
+
+export interface ResumeSessionContinuationParams extends SessionScopedParams {}
+
+/**
+ * Ask the API to redeliver an already-durable approval continuation before a direct invoke.
+ *
+ * This mutation fails open: continuation recovery is an additive capability and can never make
+ * an ordinary Send depend on a new route being available.
+ */
+export async function resumeSessionContinuation({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: ResumeSessionContinuationParams): Promise<boolean> {
+    if (!projectId || !sessionId) return false
+
+    try {
+        const data = await getSessionsClient().resumeSessionContinuation(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        )
+        const parsed = z.object({resumed: z.boolean()}).safeParse(data)
+        if (!parsed.success) {
+            console.warn("[resumeSessionContinuation] invalid response; continuing Send")
+            return false
+        }
+        return parsed.data.resumed
+    } catch (error) {
+        console.warn("[resumeSessionContinuation] preflight failed; continuing Send", error)
+        return false
+    }
 }
 
 /** Cancel current work through Fern while keeping the session warm. */

@@ -8,7 +8,11 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {deriveSessionRemoteTurnPresentation, isRunningElsewhere} from "./liveness"
+import {
+    deriveSessionRemoteTurnPresentation,
+    isRunningElsewhere,
+    shouldShowRunningElsewhere,
+} from "./liveness"
 
 /** A session this browser has never run: no settle stamp, so the flag is trusted as-is. */
 const neverRanHere = {localStatus: "idle", localSettledAt: undefined} as const
@@ -37,6 +41,25 @@ describe("isRunningElsewhere", () => {
                 }),
             ).toBe(false)
         }
+    })
+
+    it("hides an owned continuation in the answering tab but shows it in an observer", () => {
+        const continuationPoll = {isRunning: true, livenessUpdatedAt: 16_000} as const
+
+        expect(
+            isRunningElsewhere({
+                ...continuationPoll,
+                localStatus: "running",
+                localSettledAt: undefined,
+            }),
+        ).toBe(false)
+        expect(
+            isRunningElsewhere({
+                ...continuationPoll,
+                localStatus: "idle",
+                localSettledAt: undefined,
+            }),
+        ).toBe(true)
     })
 
     it("distrusts stale liveness after a local error", () => {
@@ -138,5 +161,37 @@ describe("deriveSessionRemoteTurnPresentation", () => {
                 readerReady: true,
             }).showStrip,
         ).toBe(false)
+    })
+})
+
+describe("shouldShowRunningElsewhere", () => {
+    it("hides stale remote liveness while an idle execution shows its queued input", () => {
+        expect(
+            shouldShowRunningElsewhere({
+                runningElsewhere: true,
+                executionState: "idle",
+                pendingInputCount: 1,
+            }),
+        ).toBe(false)
+    })
+
+    it("keeps the warning for a genuinely running execution with queued work", () => {
+        expect(
+            shouldShowRunningElsewhere({
+                runningElsewhere: true,
+                executionState: "running",
+                pendingInputCount: 1,
+            }),
+        ).toBe(true)
+    })
+
+    it("keeps the warning for an idle snapshot without queued work", () => {
+        expect(
+            shouldShowRunningElsewhere({
+                runningElsewhere: true,
+                executionState: "idle",
+                pendingInputCount: 0,
+            }),
+        ).toBe(true)
     })
 })

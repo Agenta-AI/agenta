@@ -62,7 +62,11 @@ import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {cancelledStopAction} from "./stopHereState"
 import {TurnRow} from "./TurnRow"
-import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
+import {
+    deriveMobileRemoteTurnPresentation,
+    showRunningElsewhere,
+    showTrailingWorkingPulse,
+} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
@@ -264,10 +268,12 @@ export const LiveConversation = ({
     }, [sessionId])
 
     // Push invalidation folds cross-device changes into the guarded transcript.
+    const {interactionChanged} = conversation
     const watch = useSessionWatch({
         sessionId,
         projectId,
         onRecordsChanged: revalidate,
+        onInteractionChanged: interactionChanged,
         sharedReaderAdvertised: sharedReader,
     })
     // Poll slowly while a cross-device run cannot be watched live.
@@ -443,8 +449,16 @@ export const LiveConversation = ({
     })
     const approvalActions: ApprovalActions = useMemo(
         () => ({
-            phase: conversation.approvals.responding ? "resuming" : steerActions.phase,
-            errorText: steerActions.errorText,
+            phase: conversation.approvals.recoverable
+                ? "recoverable"
+                : conversation.approvals.answered
+                  ? "answered"
+                  : conversation.approvals.responding
+                    ? "resuming"
+                    : conversation.approvals.errorText
+                      ? "error"
+                      : steerActions.phase,
+            errorText: conversation.approvals.errorText ?? steerActions.errorText,
             respond: ({approved, message, approvalId}) => {
                 if (message) {
                     steerActions.respond({approvalId, approved, message})
@@ -482,9 +496,6 @@ export const LiveConversation = ({
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
-    // Any blocking dock on screen. The queue card yields to all of them rather than stacking,
-    // mid-edit included — the composer keeps the edit, so Enter still rewrites the held row.
-    const gateDockOpen = pendingApprovals.length > 0 || elicits.open || connects.open
     // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
     // surface has no question-form dock yet, so only approvals and connect cards can gate it.
     const gateOpen = jumpGateOpen({
@@ -618,10 +629,9 @@ export const LiveConversation = ({
                             className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
                             style={BOTTOM_FADE_OVERLAY_STYLE}
                         />
-                        {/* What you have lined up. Yields to the gate docks entirely: those are
-                        blocked runs wanting an answer, and stacking a second card above one
-                        buries the composer. It comes back when the gate clears. */}
-                        {conversation.queued.length > 0 && !gateDockOpen ? (
+                        {/* What you have lined up stays visible while a gate is open: the queued
+                        message is the acknowledgement that the user's Send was not lost. */}
+                        {conversation.queued.length > 0 ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                                 <ContentRail>
                                     <QueuedMessagesDock
@@ -640,7 +650,10 @@ export const LiveConversation = ({
                         composer, as on the desktop — it used to be a top bar that also appeared for
                         THIS device's own turns, duplicating the composer's Stop and shifting the
                         transcript twice per run. */}
-                        {remoteTurn.showStrip && !streamingHere ? (
+                        {showRunningElsewhere({
+                            running: remoteTurn.showStrip,
+                            localStatus: conversation.runStatus,
+                        }) && !streamingHere ? (
                             <ContentRail>
                                 <RunningElsewhereStrip
                                     action={
@@ -721,6 +734,7 @@ export const LiveConversation = ({
                                         composerRef.current?.setMarkdown(draft),
                                     )
                             }}
+                            onSteer={({text, parts}) => conversation.steer({text, parts})}
                             disabled={conversation.isHydrating || modelBlocked}
                             placeholder={
                                 modelBlocked ? "Connect a model to start chatting…" : undefined
@@ -732,6 +746,9 @@ export const LiveConversation = ({
                             })}
                             stopping={stopping}
                             onStop={stopHere}
+                            queueEnabled={conversation.queueEnabled}
+                            steerEnabled={conversation.steerEnabled}
+                            inputBusy={conversation.inputBusy}
                             inputRef={composerRef}
                         />
                     </div>

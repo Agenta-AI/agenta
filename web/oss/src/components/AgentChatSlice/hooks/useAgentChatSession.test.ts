@@ -13,6 +13,14 @@ const state = vi.hoisted(() => ({
         | {
               prepareRequest: (args: {messages: UIMessage[]; id?: string}) => Promise<unknown>
               onData: (part: {type: string; data?: unknown}) => void
+              onFinish: (args: {
+                  message: UIMessage
+                  messages: UIMessage[]
+                  finishReason?: string
+                  isAbort?: boolean
+                  isDisconnect?: boolean
+                  isError?: boolean
+              }) => void
               onError: () => void
               sendAutomaticallyWhen: (args: {messages: UIMessage[]}) => boolean
           }
@@ -37,8 +45,16 @@ vi.mock("@agenta/chat/assets", () => ({
     buildRequestWithinDeadline: (build: () => Promise<unknown>) => build(),
     getMessageTraceId: () => undefined,
     latestTurnId: () => state.latestTurnId,
+    // The continuation preflight is a pass-through here: this suite drives the execution guard,
+    // not the durable retry, so the request builder must simply run.
+    prepareAfterContinuationPreflight: (
+        _resume: unknown,
+        _sessionId: string,
+        build: () => Promise<unknown>,
+    ) => build(),
     resolveStopExecution: state.resolveStopExecution,
     startupLabelFromDataPart: () => undefined,
+    submitApprovalForCapability: vi.fn(),
 }))
 
 vi.mock("@agenta/chat/hooks", () => ({
@@ -95,6 +111,10 @@ vi.mock("@agenta/entities/session", () => ({
     invalidateSessionListQueries: vi.fn(),
     killSession: vi.fn(),
     recordInteractionAnswerAtom: "record-interaction-answer",
+    respondInteractionAnswerAtom: "respond-interaction-answer",
+    respondInteractionAnswersAtom: "respond-interaction-answers",
+    resumeSessionContinuationAtom: "resume-session-continuation",
+    sessionDurableApprovalsCapabilityAtom: "session-durable-approvals-capability",
     revalidateSessionMountsAtom: "revalidate-mounts",
     revalidateSessionRecordsAtom: "revalidate-records",
 }))
@@ -211,6 +231,42 @@ describe("useAgentChatSession execution guard", () => {
         state.stoppingTurnId = null
         state.stopStateLoading = false
         state.busy = false
+    })
+
+    it("settles a desktop accepted turn when its shared invoke stream finishes", () => {
+        const sessionId = "session-1"
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        act(() =>
+            state.capturedHooks!.onData({
+                type: "data-session-accepted",
+                data: {executionId: "turn-1"},
+            }),
+        )
+        expect(result!.acceptedRunPending).toBe(true)
+
+        act(() =>
+            state.capturedHooks!.onFinish({
+                message: {id: "assistant-1", role: "assistant", parts: []},
+                messages: [],
+            }),
+        )
+        expect(result!.acceptedRunPending).toBe(false)
+        expect(state.acceptedRunBySession.has(sessionId)).toBe(false)
+
+        act(() => root.unmount())
     })
 
     it("clears the previous turn before sends, regeneration, and SDK automatic requests", async () => {

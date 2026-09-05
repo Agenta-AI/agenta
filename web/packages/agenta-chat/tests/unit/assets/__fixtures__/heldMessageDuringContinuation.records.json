@@ -1,0 +1,252 @@
+[
+    {
+        "id": "3e5b0402-9c55-4aee-b01c-258a7cd5c53c",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 0,
+        "sender": "user",
+        "session_update": "message",
+        "payload": {
+            "text": "Run this shell command exactly once: sleep 25 && echo inc6-r8-slow. Report its exact output when it finishes.",
+            "type": "message",
+            "attachments": []
+        },
+        "turn_id": "7d7efee2-09af-4503-b8dd-4282569ed2c8",
+        "created_at": "2026-09-04 20:27:14.208+00"
+    },
+    {
+        "id": "098ce6b7-aeb4-45ad-b841-b25a55771f1a",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 1,
+        "sender": "agent",
+        "session_update": "thought",
+        "payload": {
+            "text": "The user wants me to run a shell command that sleeps for 25 seconds and then echoes a string. Let me execute it with a timeout long enough to cover the 25-second sleep.",
+            "type": "thought"
+        },
+        "turn_id": "7d7efee2-09af-4503-b8dd-4282569ed2c8",
+        "created_at": "2026-09-04 20:27:22.441+00"
+    },
+    {
+        "id": "7ad1f0f9-333a-5133-9a09-d532bac1b880",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 2,
+        "sender": "agent",
+        "session_update": "tool_call",
+        "payload": {
+            "id": "call_d5db7a06b78e45078475f501",
+            "name": "bash",
+            "type": "tool_call",
+            "input": {
+                "command": "sleep 25 && echo inc6-r8-slow",
+                "timeout": 60
+            }
+        },
+        "turn_id": "7d7efee2-09af-4503-b8dd-4282569ed2c8",
+        "created_at": "2026-09-04 20:27:23.872+00"
+    },
+    {
+        "id": "6e072490-fc95-54b6-a3d7-d74f3d764f42",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 3,
+        "sender": "agent",
+        "session_update": "interaction_request",
+        "payload": {
+            "id": "bd87965d-f19c-4a4e-9bff-cd36a3eb2830",
+            "kind": "user_approval",
+            "type": "interaction_request",
+            "payload": {
+                "options": [
+                    {
+                        "kind": "allow_once",
+                        "name": "Yes",
+                        "optionId": "yes"
+                    },
+                    {
+                        "kind": "reject_once",
+                        "name": "No",
+                        "optionId": "no"
+                    }
+                ],
+                "toolCall": {
+                    "kind": "other",
+                    "title": "agenta-approval",
+                    "status": "pending",
+                    "rawInput": {
+                        "command": "sleep 25 && echo inc6-r8-slow",
+                        "timeout": 60
+                    },
+                    "toolCallId": "call_d5db7a06b78e45078475f501",
+                    "resolvedName": "Bash"
+                },
+                "toolCallId": "call_d5db7a06b78e45078475f501",
+                "availableReplies": ["once", "reject"]
+            }
+        },
+        "turn_id": "7d7efee2-09af-4503-b8dd-4282569ed2c8",
+        "created_at": "2026-09-04 20:27:23.888+00"
+    },
+    {
+        "id": "fe72acb2-29fe-4529-b146-6cf4334d5e89",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 4,
+        "sender": "agent",
+        "session_update": "done",
+        "payload": {
+            "type": "done",
+            "traceId": "97e22b7f8e005905dc4234527a59bf12",
+            "stopReason": "paused"
+        },
+        "turn_id": "7d7efee2-09af-4503-b8dd-4282569ed2c8",
+        "created_at": "2026-09-04 20:27:23.899+00"
+    },
+    {
+        "id": "beb812b6-b22c-4a5f-8609-bf3dd07f4c61",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 0,
+        "sender": "agent",
+        "session_update": "thought",
+        "payload": {
+            "text": "The user approved the bash call. I need to execute the exact same command again.",
+            "type": "thought"
+        },
+        "turn_id": "943f3c99-5816-4a46-b6e3-7a10fe587575",
+        "created_at": "2026-09-04 20:28:07.439+00"
+    },
+    {
+        "id": "b1d41b96-eedb-50b9-8edb-f69283a54829",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 1,
+        "sender": "agent",
+        "session_update": "tool_call",
+        "payload": {
+            "id": "call_2f8bcacc4e65494ba5141733",
+            "name": "bash",
+            "type": "tool_call",
+            "input": {
+                "command": "sleep 25 && echo inc6-r8-slow",
+                "timeout": 60
+            }
+        },
+        "turn_id": "943f3c99-5816-4a46-b6e3-7a10fe587575",
+        "created_at": "2026-09-04 20:28:08.223+00"
+    },
+    {
+        "id": "f9fefda8-a2c4-563a-819e-680d50d95d58",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 2,
+        "sender": "agent",
+        "session_update": "interaction_response",
+        "payload": {
+            "id": "bd87965d-f19c-4a4e-9bff-cd36a3eb2830",
+            "kind": "user_approval",
+            "type": "interaction_response",
+            "payload": {
+                "approved": true,
+                "toolCallId": "call_2f8bcacc4e65494ba5141733"
+            }
+        },
+        "turn_id": "943f3c99-5816-4a46-b6e3-7a10fe587575",
+        "created_at": "2026-09-04 20:28:08.24+00"
+    },
+    {
+        "id": "e5d8373d-aba6-4e2c-9297-1f0ddf0c83e7",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 0,
+        "sender": "user",
+        "session_update": "message",
+        "payload": {
+            "text": "Then reply with the marker inc6-r8-held.",
+            "type": "message",
+            "attachments": []
+        },
+        "turn_id": "7e22e78c-c15e-4d49-b528-adfc54ffd1b9",
+        "created_at": "2026-09-04 20:28:08.298+00"
+    },
+    {
+        "id": "6279bf85-7443-5daf-8fe4-8c1fa58b89a0",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 3,
+        "sender": "agent",
+        "session_update": "tool_result",
+        "payload": {
+            "id": "call_2f8bcacc4e65494ba5141733",
+            "type": "tool_result",
+            "output": "Command aborted",
+            "isError": true
+        },
+        "turn_id": "943f3c99-5816-4a46-b6e3-7a10fe587575",
+        "created_at": "2026-09-04 20:28:08.331+00"
+    },
+    {
+        "id": "73e9a0e5-24f8-47f4-aa36-c5d5bd1f6d44",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 4,
+        "sender": "agent",
+        "session_update": "usage",
+        "payload": {
+            "cost": 0.00029988,
+            "type": "usage",
+            "input": 3156,
+            "total": 3244,
+            "output": 88
+        },
+        "turn_id": "943f3c99-5816-4a46-b6e3-7a10fe587575",
+        "created_at": "2026-09-04 20:28:09.086+00"
+    },
+    {
+        "id": "401f61ae-ce9c-43bc-bf7d-479c4d16ee81",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 5,
+        "sender": "agent",
+        "session_update": "done",
+        "payload": {
+            "type": "done",
+            "traceId": "4de387f5cdaceedc4c8ba68a88d682a5",
+            "stopReason": "cancelled"
+        },
+        "turn_id": "943f3c99-5816-4a46-b6e3-7a10fe587575",
+        "created_at": "2026-09-04 20:28:09.098+00"
+    },
+    {
+        "id": "00159e20-1069-5b01-a977-2025f4da53dc",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 0,
+        "sender": "agent",
+        "session_update": "error",
+        "payload": {
+            "code": "execution_lost",
+            "type": "error",
+            "message": "The agent stopped responding and the run was closed. Send the message again to retry.",
+            "settled_by": "watchdog"
+        },
+        "turn_id": "7e22e78c-c15e-4d49-b528-adfc54ffd1b9",
+        "created_at": "2026-09-04 20:30:23.941613+00"
+    },
+    {
+        "id": "8aebaa8d-e653-52dc-abd7-90abbf4eeca1",
+        "session_id": "9d40cfcc-6485-4250-8d2e-17f1f12f55f4",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 1,
+        "sender": "agent",
+        "session_update": "done",
+        "payload": {
+            "type": "done",
+            "settled_by": "watchdog"
+        },
+        "turn_id": "7e22e78c-c15e-4d49-b528-adfc54ffd1b9",
+        "created_at": "2026-09-04 20:30:23.942613+00"
+    }
+]

@@ -4,12 +4,60 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
 from oss.src.core.sessions.executions.dtos import (
+    SessionExecutionState,
     SessionExecutionSettlement,
     SessionExecutionSettlementResult,
 )
 
 
 class SessionExecutionsDAOInterface(ABC):
+    async def fetch_execution(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        transaction: Optional[Any] = None,
+    ) -> Optional[SessionExecutionSettlement]:
+        """Fetch one execution without creating or locking it."""
+        raise NotImplementedError
+
+    async def lock_for_control(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        transaction: Any,
+    ) -> SessionExecutionSettlement:
+        """Ensure and row-lock the source execution for Stop/answer arbitration."""
+        raise NotImplementedError
+
+    async def create_continuation(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        parent_execution_id: str,
+        source_interaction_id: Optional[UUID],
+        transaction: Any,
+    ) -> SessionExecutionSettlement:
+        raise NotImplementedError
+
+    async def set_state(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        state: SessionExecutionState,
+        error: Optional[dict] = None,
+        expected_states: Optional[Sequence[SessionExecutionState]] = None,
+        transaction: Optional[Any] = None,
+    ) -> Optional[SessionExecutionSettlement]:
+        raise NotImplementedError
+
     @abstractmethod
     async def settle(
         self,

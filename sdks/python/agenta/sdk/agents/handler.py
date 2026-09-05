@@ -304,6 +304,16 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             base = rc or RunContext()
             rc = base.model_copy(update={"run": RunContextRun(kind=run_kind)})
 
+        # Detached session coordination rides the generic workflow request metadata. Keep these
+        # values out of harness configuration: they identify this delivery/execution only. In
+        # particular, a durable approval retry repeats control_command_id while run_id names the
+        # one fresh continuation execution the runner must admit at most once.
+        request_meta = request.meta or {}
+
+        def _meta_string(name: str) -> Optional[str]:
+            value = request_meta.get(name)
+            return value.strip() if isinstance(value, str) and value.strip() else None
+
         session_config = SessionConfig(
             agent=agent_template,
             resolved_connection=resolved_connection,
@@ -312,6 +322,9 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             run_context=rc,
             session_id=session_id,
             detached=bool(flags.detached),
+            turn_id=_meta_string("run_id"),
+            project_id=_meta_string("project_id"),
+            control_command_id=_meta_string("control_command_id"),
             # POST-hydration: the normalizer hands the handler `request.data.parameters` AFTER
             # the resolver has hydrated references (or kept the caller's inline config), so this
             # is the config the turn actually runs — the thing a HITL gate must be resumable

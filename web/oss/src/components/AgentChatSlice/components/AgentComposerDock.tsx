@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useRef, type RefObject} from "react"
 
-import {CHAT_COLUMN, shouldShowStopControl} from "@agenta/chat/assets"
+import {
+    CHAT_COLUMN,
+    isComposerRunStoppable,
+    type ApprovalSubmissionOutcome,
+} from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {
     ChatComposer,
@@ -70,12 +74,17 @@ const AgentComposerDock = ({
     showTemplateStrip,
     pendingApprovals,
     onApprovalResponse,
+    onApprovalResponses,
     connects,
     elicits,
     onClientToolOutput,
     onSubmit,
+    onSteer,
     onStop,
     stopping,
+    queueEnabled,
+    steerEnabled,
+    stopShortcutEnabled,
     richInputRef,
     composer,
     attachments,
@@ -99,6 +108,7 @@ const AgentComposerDock = ({
         editingId: string | null
         beginEdit: (id: string, draft?: string) => void
         cancelEdit: () => string
+        serverBusy: boolean
     }
     modelKey: React.ComponentProps<typeof ConnectModelBanner>
     modelBlocked: boolean
@@ -107,14 +117,26 @@ const AgentComposerDock = ({
     /** The agent empty-chat template strip is on (owned by AgentConversation — see its comment). */
     showTemplateStrip: boolean
     pendingApprovals: ReturnType<typeof getPendingApprovals>
-    onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
+    onApprovalResponse: (args: {
+        id: string
+        approved: boolean
+        message?: string
+    }) => void | ApprovalSubmissionOutcome | Promise<void | ApprovalSubmissionOutcome>
+    onApprovalResponses: (
+        ids: string[],
+        approved: boolean,
+    ) => void | ApprovalSubmissionOutcome | Promise<void | ApprovalSubmissionOutcome>
     connects: ConnectionDockState
     /** Parked question forms the run is blocked on (from `useElicitationDock`). */
     elicits: ElicitationDockState
     onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
+    onSteer: (text: string) => void | Promise<void>
     onStop: () => void
     stopping: boolean
+    queueEnabled: boolean
+    steerEnabled: boolean
+    stopShortcutEnabled: boolean
     richInputRef: RefObject<RichChatInputHandle | null>
     composer: ReturnType<typeof useComposerDraft>
     attachments: ReturnType<typeof useComposerAttachments>
@@ -127,6 +149,13 @@ const AgentComposerDock = ({
     /** Read at event time — attachments are refused right now (a take in flight, or the above). */
     attachmentsBlocked: () => boolean
 }) => {
+    const inputBusy = busy || queue.serverBusy
+    const stoppable = isComposerRunStoppable({
+        localStreaming: busy,
+        serverBusy: queue.serverBusy,
+        serverControlEnabled: queueEnabled,
+        waitingOnUser: hitlPending,
+    })
     const {
         onboarding,
         onboardingActive,
@@ -247,10 +276,6 @@ const AgentComposerDock = ({
     // Permission rules live in the Advanced accordion's Permissions group.
     const openPermissionsConfig = useCallback(() => openConfigFor("advanced"), [openConfigFor])
 
-    // Any blocking dock on screen. The queue card yields to all of them rather than stacking,
-    // mid-edit included — the composer keeps the edit, so Enter still rewrites the held row.
-    const gateDockOpen = pendingApprovals.length > 0 || elicits.open || connects.open
-
     // Editing borrows the composer: the row's text goes in, the draft it displaces is stashed.
     const {beginEdit, cancelEdit} = queue
     const editQueued = useCallback(
@@ -295,12 +320,11 @@ const AgentComposerDock = ({
                         />
                     </div>
                 ) : null}
-                {/* Above the gate docks, and hidden entirely while one is up: those are blocked
-                    runs wanting an answer, and a second card stacked above one buries the composer.
-                    Inside the `Reveal` so it shares the composer's `px-3` gutter and column. */}
+                {/* Above the gate docks so a held message remains visible while the run waits for
+                    an answer. Inside the `Reveal` so it shares the composer's gutter and column. */}
                 <QueuedMessagesDock
                     className={CHAT_COLUMN}
-                    queued={gateDockOpen ? [] : queue.queued}
+                    queued={queue.queued}
                     held={hitlPending}
                     onRemove={queue.removeQueued}
                     onEdit={editQueued}
@@ -325,6 +349,7 @@ const AgentComposerDock = ({
                     className={CHAT_COLUMN}
                     approvals={pendingApprovals}
                     onApprovalResponse={onApprovalResponse}
+                    onApprovalResponses={onApprovalResponses}
                     entityId={entityId}
                 />
                 {/* Parked client-tool interactions (connect): same placement contract as the
@@ -455,9 +480,21 @@ const AgentComposerDock = ({
                         initialMarkdown={composer.initialDraft}
                         slashCommands={slash.sections}
                         onChange={composer.handleComposerChange}
-                        streaming={shouldShowStopControl({busy, hitlPending})}
+                        streaming={stoppable}
                         stopping={stopping}
                         onStop={onStop}
+                        stopShortcutEnabled={stopShortcutEnabled}
+                        busyActions={
+                            inputBusy && queueEnabled
+                                ? [
+                                      {label: "Queue", onSubmit: submitMessage},
+                                      ...(steerEnabled
+                                          ? [{label: "Steer", onSubmit: onSteer}]
+                                          : []),
+                                  ]
+                                : undefined
+                        }
+                        showQueuePauseCopy={inputBusy && queueEnabled}
                         attachments={attachments}
                         attachmentsBlocked={attachmentsBlocked}
                         composerDisabled={composerDisabled}

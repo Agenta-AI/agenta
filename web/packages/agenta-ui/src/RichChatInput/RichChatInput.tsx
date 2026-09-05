@@ -104,6 +104,8 @@ export interface RichChatInputProps {
     stopping?: boolean
     /** Request a durable stop (used while `streaming`). */
     onStop?: () => void
+    /** Submit choices displayed beside Stop while `streaming` (for example Queue and Steer). */
+    busyActions?: {label: string; onSubmit: (markdown: string) => void}[]
     /** Min-height class for the editor area (default `min-h-[72px]`). */
     minHeightClassName?: string
     /** Visual density: `compact` (default, chat) or `comfortable` (hero-scale surfaces) —
@@ -167,6 +169,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             streaming,
             stopping,
             onStop,
+            busyActions,
             minHeightClassName = "min-h-[72px]",
             size = "compact",
             textSizeClassName = "text-xs",
@@ -371,6 +374,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                     streaming={streaming}
                                     onStop={onStop}
                                     stopping={stopping}
+                                    busyActions={busyActions}
                                 />
                             )}
                             {trailing}

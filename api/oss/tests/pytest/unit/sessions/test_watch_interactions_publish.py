@@ -15,11 +15,15 @@ import pytest
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionCreate,
+    SessionInteractionData,
     SessionInteractionKind,
     SessionInteractionStatus,
     SessionInteractionTransition,
 )
-from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.interactions.service import (
+    SessionInteractionsService,
+    _watch_interaction_state,
+)
 
 
 _PROJECT = uuid4()
@@ -27,12 +31,17 @@ _PROJECT = uuid4()
 
 class _RecordingPublisher:
     def __init__(self):
-        self.interaction_calls: list[tuple[str, str, str]] = []
+        self.interaction_calls: list[tuple[str, str, str, list[dict] | None]] = []
 
-    async def interaction(
-        self, *, project_id: str, session_id: str, status: str
-    ) -> None:
-        self.interaction_calls.append((project_id, session_id, status))
+    async def interaction(self, **kwargs) -> None:
+        self.interaction_calls.append(
+            (
+                kwargs["project_id"],
+                kwargs["session_id"],
+                kwargs["status"],
+                kwargs.get("interactions"),
+            )
+        )
 
 
 def _interaction(session_id: str) -> SessionInteraction:
@@ -70,13 +79,28 @@ async def test_create_publishes_pending():
         ),
     )
 
-    assert publisher.interaction_calls == [(str(_PROJECT), "sess-1", "pending")]
+    assert publisher.interaction_calls == [
+        (
+            str(_PROJECT),
+            "sess-1",
+            "pending",
+            [_watch_interaction_state(dao.create_interaction.return_value)],
+        )
+    ]
 
 
 @pytest.mark.asyncio
 async def test_transition_publishes_resolved():
     dao = AsyncMock()
-    dao.transition_interaction = AsyncMock(return_value=_interaction("sess-1"))
+    resolved = _interaction("sess-1").model_copy(
+        update={
+            "status": SessionInteractionStatus.responded,
+            "data": SessionInteractionData(
+                resolution={"verdict": "approved", "tool_call_id": "tool-1"}
+            ),
+        }
+    )
+    dao.transition_interaction = AsyncMock(return_value=resolved)
     svc, publisher = _service(dao)
 
     await svc.transition_interaction(
@@ -88,7 +112,14 @@ async def test_transition_publishes_resolved():
         ),
     )
 
-    assert publisher.interaction_calls == [(str(_PROJECT), "sess-1", "resolved")]
+    assert publisher.interaction_calls == [
+        (
+            str(_PROJECT),
+            "sess-1",
+            "resolved",
+            [_watch_interaction_state(resolved)],
+        )
+    ]
 
 
 @pytest.mark.asyncio
@@ -127,7 +158,7 @@ async def test_cancel_sweep_publishes_resolved_only_when_it_cancelled():
         project_id=_PROJECT, session_id="sess-1"
     )
     assert cancelled == 2
-    assert publisher.interaction_calls == [(str(_PROJECT), "sess-1", "resolved")]
+    assert publisher.interaction_calls == [(str(_PROJECT), "sess-1", "resolved", None)]
 
     # No-op sweep: nothing was pending, nothing changed, nothing to notify.
     dao.cancel_session_pending = AsyncMock(return_value=[])

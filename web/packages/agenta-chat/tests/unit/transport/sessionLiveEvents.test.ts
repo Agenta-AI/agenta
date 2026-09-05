@@ -46,7 +46,9 @@ describe("connectSessionLiveEvents", () => {
         const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
         connectSessionLiveEvents({
             sessionId: "session-1",
+            after: 0,
             onFrame,
+            onEvent: vi.fn(),
             onReady: vi.fn(),
             onDisconnect: vi.fn(),
         })
