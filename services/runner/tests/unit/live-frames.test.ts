@@ -181,4 +181,43 @@ describe("LiveFramePublisher", () => {
 
     assert.equal(calls, 0);
   });
+  it("drops a batch whose ingest POST never answers, instead of hanging the turn", async () => {
+    // `persist.ts` flush() awaits whenIdle(), so an ingest that stalls before response headers
+    // would hold turn completion open for as long as the socket stayed alive.
+    const realFetch = globalThis.fetch;
+    const signals: AbortSignal[] = [];
+    globalThis.fetch = ((_url: unknown, init?: { signal?: AbortSignal }) => {
+      const signal = init?.signal;
+      if (signal) signals.push(signal);
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener("abort", () => reject(signal.reason));
+      });
+    }) as typeof fetch;
+    const logs: string[] = [];
+    try {
+      const publisher = new LiveFramePublisher({
+        sessionId: "session-stall",
+        executionId: "execution-stall",
+        auth: () => "Secret test",
+        enabled: true,
+        postTimeoutMs: 25,
+        log: (message) => logs.push(message),
+      });
+
+      publisher.emit({ type: "message_start", id: "message-1" });
+      publisher.emit({ type: "message_delta", id: "message-1", delta: "hi" });
+      await publisher.whenIdle();
+
+      assert.equal(signals.length, 1, "the ingest POST carries an abort signal");
+      assert.equal(signals[0].aborted, true, "and the signal fired on the deadline");
+      assert.equal(
+        publisher.reportDrops(),
+        2,
+        "a timed-out batch counts as dropped, like any other send failure",
+      );
+      assert.ok(logs.some((line) => line.startsWith("DROPPED ")));
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
 });

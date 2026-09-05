@@ -21,6 +21,10 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 @pytest.fixture(autouse=True)
 async def _fresh_analytics_engine(monkeypatch):
     monkeypatch.setattr(env.sessions, "sequence_writes", True)
+    # Close whatever an earlier module left behind; teardown only knows this fixture's engine.
+    previous = engine_module._analytics_engine
+    if previous is not None:
+        await previous.close()
     engine_module._analytics_engine = None
     yield
     if engine_module._analytics_engine is not None:

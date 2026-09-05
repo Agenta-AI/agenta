@@ -6,6 +6,10 @@ export const LIVE_FRAME_BUFFER_CAPACITY = 256;
 export const LIVE_FRAME_FLUSH_INTERVAL_MS = 150;
 export const LIVE_FRAME_BATCH_CAPACITY = 50;
 export const LIVE_FRAME_BATCH_MAX_BYTES = 64 * 1024;
+// A stalled ingest POST would keep `pump()` pending, and `flush()` waits on `whenIdle()` — so an
+// unbounded post delays turn completion. A timed-out batch counts as dropped, like any other
+// send failure.
+export const LIVE_FRAME_POST_TIMEOUT_MS = 5_000;
 
 export interface LiveFrameEnvelope {
   version: 1;
@@ -41,6 +45,7 @@ interface LiveFramePublisherOptions {
   batchCapacity?: number;
   maxBatchBytes?: number;
   send?: (frames: LiveFrameEnvelope[]) => Promise<void>;
+  postTimeoutMs?: number;
   now?: () => string;
   log?: (message: string) => void;
 }
@@ -56,9 +61,11 @@ function envEnabled(): boolean {
 async function postFrames(
   auth: () => string,
   frames: LiveFrameEnvelope[],
+  timeoutMs: number = LIVE_FRAME_POST_TIMEOUT_MS,
 ): Promise<void> {
   const response = await fetch(`${apiBase()}/sessions/records/ingest`, {
     method: "POST",
+    signal: AbortSignal.timeout(timeoutMs),
     headers: {
       "content-type": "application/json",
       authorization: auth(),
@@ -200,8 +207,13 @@ export class LiveFramePublisher {
     );
     this.sessionId = options.sessionId;
     this.executionId = options.executionId;
+    const postTimeoutMs = Math.max(
+      1,
+      options.postTimeoutMs ?? LIVE_FRAME_POST_TIMEOUT_MS,
+    );
     this.send =
-      options.send ?? ((frames) => postFrames(options.auth, frames));
+      options.send ??
+      ((frames) => postFrames(options.auth, frames, postTimeoutMs));
     this.now = options.now ?? (() => new Date().toISOString());
     this.log =
       options.log ??
