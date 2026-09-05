@@ -42,6 +42,11 @@ export function sessionRowStatus(
     pendingCount: number | undefined,
 ): SessionRowStatusMeta {
     const status = deriveSessionRowStatus(row, pendingCount)
+    return sessionRowStatusMeta(status)
+}
+
+/** The same presentation, for a row that has no stream to derive from yet (a pending tab). */
+export function sessionRowStatusMeta(status: SessionRowStatus): SessionRowStatusMeta {
     return {status, ...META[status]}
 }
 
