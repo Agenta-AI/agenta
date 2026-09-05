@@ -4,8 +4,10 @@ import {shouldAdoptServerTranscript} from "@agenta/entities/session"
 /** What the screen renders right now — the local half of the shared adoption rule. */
 export interface RenderedTranscript {
     messageCount: number
-    /** Records the rendered transcript was built from; `undefined` before the first adoption. */
-    watermark: number | undefined
+    /** Rows the rendered transcript was built from; used only for legacy, unsequenced logs. */
+    recordCount: number | undefined
+    /** Highest durable sequence the rendered transcript covers. */
+    sequenceCursor: number | undefined
 }
 
 /**
@@ -26,9 +28,12 @@ export const shouldAdoptTranscript = (
 ): boolean =>
     transcript !== null &&
     shouldAdoptServerTranscript({
-        serverRecordCount: transcript.recordCount,
+        serverRecordCount: transcript.sequenceCursor ?? transcript.recordCount,
         serverMessageCount: transcript.messages.length,
         localMessageCount: rendered.messageCount,
-        watermark: rendered.watermark,
+        watermark:
+            transcript.sequenceCursor === undefined
+                ? rendered.recordCount
+                : rendered.sequenceCursor,
         busy: false,
     })

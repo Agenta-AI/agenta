@@ -117,6 +117,8 @@ export const useAgentChatSession = ({
     const recordWatermarkRef = useRef<number | undefined>(
         store.get(sessionRecordCountsReadAtom)[sessionId],
     )
+    // Durable sequence coverage is connection-local and must never be stored as a row count.
+    const sequenceWatermarkRef = useRef<number | undefined>(undefined)
     // Whether the LAST assistant turn was user-stopped. You can only cancel the in-flight (last) turn,
     // so this is a single boolean gated on position at render time — independent of message ids (which
     // can be missing/duplicated in restore/error paths and would otherwise smear the tag onto every
@@ -301,6 +303,7 @@ export const useAgentChatSession = ({
         seenIdsRef,
         restoredIdsRef,
         recordWatermarkRef,
+        sequenceWatermarkRef,
         busy,
         setMessages,
         persistMessages,
@@ -454,7 +457,10 @@ export const useAgentChatSession = ({
     // flips to "submitted", effects run in declaration order, so clearing here is what stops the
     // persist below from filing a locally-extended transcript under a server watermark.
     useEffect(() => {
-        if (isChatBusy(status)) recordWatermarkRef.current = undefined
+        if (isChatBusy(status)) {
+            recordWatermarkRef.current = undefined
+            sequenceWatermarkRef.current = undefined
+        }
     }, [status])
 
     // Persist the conversation whenever its stream settles (skip mid-stream).

@@ -97,7 +97,8 @@ describe("useSessionLivePreview", () => {
         await waitFor(() =>
             expect(onDisconnect).toHaveBeenCalledWith({
                 messages: [],
-                recordCount: 7,
+                recordCount: 0,
+                sequenceCursor: 7,
                 interactionRows: mocks.interactionRowStates,
             }),
         )

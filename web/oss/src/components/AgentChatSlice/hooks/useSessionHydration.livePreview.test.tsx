@@ -62,14 +62,15 @@ vi.mock("../state/sessions", async () => {
 
 vi.mock("./useSessionRecordsWatch", () => ({useSessionRecordsWatch: () => undefined}))
 
-const record = (): SessionRecord => ({
-    id: "record-1",
+const record = (id: string, sequence: number, payload: Record<string, unknown>): SessionRecord => ({
+    id,
     session_id: "session-1",
     project_id: "project-1",
+    sequence,
     event_index: null,
     sender: "agent",
-    session_update: "message",
-    payload: {type: "message", text: "durable reply"},
+    session_update: String(payload.type),
+    payload,
     created_at: null,
 })
 
@@ -77,8 +78,11 @@ describe("desktop durable reconnect", () => {
     beforeEach(() => {
         vi.clearAllMocks()
         mocks.openedUrls.length = 0
-        mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 7}})
-        mocks.querySessionTranscript.mockResolvedValue([record()])
+        mocks.fetchSessionSnapshot.mockResolvedValue({read: {latest_sequence: 10}})
+        mocks.querySessionTranscript.mockResolvedValue([
+            record("record-8", 8, {type: "message", text: "durable reply"}),
+            record("record-10", 10, {type: "done"}),
+        ])
         Object.defineProperty(document, "visibilityState", {configurable: true, value: "visible"})
         vi.stubGlobal(
             "EventSource",
@@ -101,6 +105,7 @@ describe("desktop durable reconnect", () => {
         store.set(projectIdAtom, "project-1")
         const messagesRef = {current: [] as UIMessage[]}
         const recordWatermarkRef = {current: undefined as number | undefined}
+        const sequenceWatermarkRef = {current: undefined as number | undefined}
         const setMessages = vi.fn()
         const busyRef = {current: false}
         const seenIdsRef = {current: new Set<string>()}
@@ -113,9 +118,10 @@ describe("desktop durable reconnect", () => {
         const pendingResumeRef = {current: null}
         const container = document.createElement("div")
         const root = createRoot(container)
+        let hydration: ReturnType<typeof useSessionHydration> | undefined
 
         const Probe = () => {
-            const hydration = useSessionHydration({
+            hydration = useSessionHydration({
                 sessionId: "session-1",
                 initialMessages: [],
                 messagesRef,
@@ -123,6 +129,7 @@ describe("desktop durable reconnect", () => {
                 seenIdsRef,
                 restoredIdsRef,
                 recordWatermarkRef,
+                sequenceWatermarkRef,
                 busy: false,
                 setMessages,
                 persistMessages,
@@ -142,9 +149,29 @@ describe("desktop durable reconnect", () => {
             root.render(createElement(Provider, {store}, createElement(Probe)))
         })
         await vi.waitFor(() => expect(mocks.openedUrls).toHaveLength(1))
-        expect(recordWatermarkRef.current).toBe(7)
+        expect(recordWatermarkRef.current).toBe(2)
+        expect(sequenceWatermarkRef.current).toBe(10)
         expect(setMessages).toHaveBeenCalledOnce()
-        expect(mocks.openedUrls[0]).toContain("/sessions/session-1/events?after=7")
+        expect(mocks.openedUrls[0]).toContain("/sessions/session-1/events?after=10")
+
+        messagesRef.current = setMessages.mock.calls[0][0]
+        const laterMessages = [
+            {
+                id: "assistant-1",
+                role: "assistant",
+                parts: [{type: "text", text: "new retained tail"}],
+            } as UIMessage,
+        ]
+        await expect(
+            hydration!.refreshFromRecords({
+                messages: laterMessages,
+                recordCount: 2,
+                sequenceCursor: 11,
+            }),
+        ).resolves.toBe(true)
+        expect(recordWatermarkRef.current).toBe(2)
+        expect(sequenceWatermarkRef.current).toBe(11)
+        expect(setMessages).toHaveBeenLastCalledWith(laterMessages)
         act(() => root.unmount())
     })
 })

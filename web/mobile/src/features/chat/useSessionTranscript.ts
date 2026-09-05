@@ -35,7 +35,8 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
     const messagesRef = useRef<UIMessage[]>([])
     // Records the rendered transcript was built from; `undefined` until the first adoption. This
     // is in-memory only — mobile persists no transcript, so there is nothing to file it against.
-    const watermarkRef = useRef<number | undefined>(undefined)
+    const recordCountRef = useRef<number | undefined>(undefined)
+    const sequenceCursorRef = useRef<number | undefined>(undefined)
 
     /**
      * Apply one delivery behind the shared adoption rule (`shouldAdoptTranscript`). Returns
@@ -47,10 +48,13 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
             if (sessionRef.current !== sessionId) return false
             const shouldAdopt = shouldAdoptTranscript(transcript, {
                 messageCount: messagesRef.current.length,
-                watermark: watermarkRef.current,
+                recordCount: recordCountRef.current,
+                sequenceCursor: sequenceCursorRef.current,
             })
             if (!shouldAdopt || !transcript) return false
-            watermarkRef.current = transcript.recordCount
+            recordCountRef.current = transcript.recordCount
+            if (transcript.sequenceCursor !== undefined)
+                sequenceCursorRef.current = transcript.sequenceCursor
             messagesRef.current = transcript.messages
             setMessages(transcript.messages)
             setState("ready")
@@ -72,7 +76,8 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         setState("loading")
         setMessages([])
         messagesRef.current = []
-        watermarkRef.current = undefined
+        recordCountRef.current = undefined
+        sequenceCursorRef.current = undefined
         void loadSessionMessages(sessionId, (fresh) => {
             // Disk-restore revalidation re-delivery — fresh is non-empty by contract.
             if (cancelled) return

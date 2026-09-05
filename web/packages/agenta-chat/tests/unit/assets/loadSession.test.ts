@@ -67,6 +67,21 @@ describe("loadSessionMessages", () => {
         expect(transcript?.recordCount).toBe(3)
     })
 
+    it("keeps a sparse sequence cursor distinct from the retained row count", async () => {
+        fetchResult = {
+            records: [
+                {...record("r1", {type: "message", text: "hi"}), sequence: 3},
+                {...record("r2", {type: "thought", text: "work"}), sequence: 6},
+                {...record("r3", {type: "done"}), sequence: 9},
+            ],
+        }
+
+        const transcript = await loadSessionMessages("session-1")
+
+        expect(transcript?.recordCount).toBe(3)
+        expect(transcript?.sequenceCursor).toBe(9)
+    })
+
     it("delivers a refreshed transcript via onRefreshed once the background revalidation resolves", async () => {
         const fresh = [record("r3", {type: "message", text: "fresh"}), record("r4", {type: "done"})]
         fetchResult = {

@@ -235,6 +235,8 @@ export const useAgentConversation = ({
     const recordWatermarkRef = useRef<number | undefined>(
         store.get(sessionRecordCountsReadAtom)[sessionId],
     )
+    // Durable sequence coverage is connection-local and must never be stored as a row count.
+    const sequenceWatermarkRef = useRef<number | undefined>(undefined)
 
     // The registry owns the `Chat` and its transport for the life of the session, so the request
     // builder must read the CURRENT entity — capturing `entityId` by value would send every turn
@@ -407,12 +409,15 @@ export const useAgentConversation = ({
     const adoptServerTranscript = useCallback(
         (transcript: SessionTranscript | null): boolean => {
             if (!transcript) return false
-            const {messages: serverMsgs, recordCount} = transcript
+            const {messages: serverMsgs, recordCount, sequenceCursor} = transcript
             const adopt = shouldAdoptServerTranscript({
-                serverRecordCount: recordCount,
+                serverRecordCount: sequenceCursor ?? recordCount,
                 serverMessageCount: serverMsgs.length,
                 localMessageCount: messagesRef.current.length,
-                watermark: recordWatermarkRef.current,
+                watermark:
+                    sequenceCursor === undefined
+                        ? recordWatermarkRef.current
+                        : sequenceWatermarkRef.current,
                 busy: busyRef.current,
             })
             if (!adopt) return false
@@ -425,6 +430,7 @@ export const useAgentConversation = ({
             // refetch) can both see the pre-adoption transcript. It is this watermark, not the
             // on-screen length, that keeps the guard order-independent.
             recordWatermarkRef.current = recordCount
+            if (sequenceCursor !== undefined) sequenceWatermarkRef.current = sequenceCursor
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
             return true
@@ -689,7 +695,10 @@ export const useAgentConversation = ({
     // flips to "submitted", effects run in declaration order, so clearing here is what stops the
     // persist below from filing a locally-extended transcript under a server watermark.
     useEffect(() => {
-        if (status === "submitted" || status === "streaming") recordWatermarkRef.current = undefined
+        if (status === "submitted" || status === "streaming") {
+            recordWatermarkRef.current = undefined
+            sequenceWatermarkRef.current = undefined
+        }
     }, [status])
 
     // Persist the conversation whenever its stream settles (skip mid-stream), under whatever
@@ -736,9 +745,14 @@ export const useAgentConversation = ({
         async (transcript?: SessionTranscript): Promise<boolean> => {
             const adoptOrConfirm = (candidate: SessionTranscript | null): boolean => {
                 if (!candidate) return false
+                const candidateWatermark = candidate.sequenceCursor ?? candidate.recordCount
+                const currentWatermark =
+                    candidate.sequenceCursor === undefined
+                        ? recordWatermarkRef.current
+                        : sequenceWatermarkRef.current
                 return (
                     adoptServerTranscript(candidate) ||
-                    (recordWatermarkRef.current ?? 0) >= candidate.recordCount
+                    (currentWatermark ?? 0) >= candidateWatermark
                 )
             }
             if (transcript) {

@@ -106,6 +106,7 @@ export const useSessionHydration = ({
     seenIdsRef,
     restoredIdsRef,
     recordWatermarkRef,
+    sequenceWatermarkRef,
     busy,
     setMessages,
     persistMessages,
@@ -120,6 +121,8 @@ export const useSessionHydration = ({
     restoredIdsRef: MutableRefObject<Set<string>>
     /** Records the rendered transcript was built from; `undefined` once a live turn supersedes it. */
     recordWatermarkRef: MutableRefObject<number | undefined>
+    /** Durable sequence coverage for sequenced reconnect snapshots; never a row count. */
+    sequenceWatermarkRef: MutableRefObject<number | undefined>
     /** THIS browser is streaming the turn — reactive, so the catch-up poll can start/stop on it. */
     busy: boolean
     setMessages: (messages: UIMessage[]) => void
@@ -163,12 +166,15 @@ export const useSessionHydration = ({
     const adoptServerTranscript = useCallback(
         (transcript: SessionTranscript | null, {armJump = true} = {}): boolean => {
             if (!transcript) return false
-            const {messages: serverMsgs, recordCount, interactionRows} = transcript
+            const {messages: serverMsgs, recordCount, sequenceCursor, interactionRows} = transcript
             const adopt = shouldAdoptServerTranscript({
-                serverRecordCount: recordCount,
+                serverRecordCount: sequenceCursor ?? recordCount,
                 serverMessageCount: serverMsgs.length,
                 localMessageCount: messagesRef.current.length,
-                watermark: recordWatermarkRef.current,
+                watermark:
+                    sequenceCursor === undefined
+                        ? recordWatermarkRef.current
+                        : sequenceWatermarkRef.current,
                 busy: busyRef.current,
                 // #5942: a card still parked on the user outranks the log — adopting over it
                 // discards whatever they typed into its form.
@@ -193,6 +199,7 @@ export const useSessionHydration = ({
             // length, that keeps the guard order-independent and stops an older snapshot from
             // clobbering a newer one.
             recordWatermarkRef.current = recordCount
+            if (sequenceCursor !== undefined) sequenceWatermarkRef.current = sequenceCursor
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
             return true
@@ -208,6 +215,7 @@ export const useSessionHydration = ({
             seenIdsRef,
             restoredIdsRef,
             recordWatermarkRef,
+            sequenceWatermarkRef,
             setMessages,
             persistMessages,
             intent.armJump,
@@ -452,9 +460,14 @@ export const useSessionHydration = ({
         async (transcript?: SessionTranscript): Promise<boolean> => {
             const adoptOrConfirm = (candidate: SessionTranscript | null): boolean => {
                 if (!candidate) return false
+                const candidateWatermark = candidate.sequenceCursor ?? candidate.recordCount
+                const currentWatermark =
+                    candidate.sequenceCursor === undefined
+                        ? recordWatermarkRef.current
+                        : sequenceWatermarkRef.current
                 return (
                     adoptServerTranscriptRef.current(candidate, {armJump: false}) ||
-                    (recordWatermarkRef.current ?? 0) >= candidate.recordCount
+                    (currentWatermark ?? 0) >= candidateWatermark
                 )
             }
             // Entry check: skip while THIS tab streams (already the live truth, `onFinish`
@@ -493,6 +506,7 @@ export const useSessionHydration = ({
             busyRef,
             pendingResumeRef,
             recordWatermarkRef,
+            sequenceWatermarkRef,
             revalidateSessionRecords,
             readLog,
         ],

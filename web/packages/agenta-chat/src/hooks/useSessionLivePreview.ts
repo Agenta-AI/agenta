@@ -111,9 +111,9 @@ export const useSessionLivePreview = ({
                     // Use the canonical durable mapper with the same lifecycle join as
                     // loadSessionMessages, so terminal interactions cannot replay as pending.
                     messages: transcriptToMessages(records, {interactionRowStates}) ?? [],
-                    // Retention can make the bounded page shorter than the durable log. The
-                    // snapshot cursor is the exact boundary this transcript represents.
-                    recordCount: snapshot.read.latest_sequence,
+                    recordCount: records.length,
+                    // The snapshot cursor stays separate because retained rows can be sparse.
+                    sequenceCursor: snapshot.read.latest_sequence,
                     interactionRows: interactionRowStates,
                 })
                 if (disposed || currentGeneration !== generation) return
