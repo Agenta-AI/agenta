@@ -161,6 +161,7 @@ const RunningElsewhereAdmissionHarness = ({
     const stoppable = isComposerRunStoppable({
         localStreaming: false,
         serverBusy: server.busy,
+        serverControlEnabled: queue.queueEnabled,
         waitingOnUser: false,
     })
 

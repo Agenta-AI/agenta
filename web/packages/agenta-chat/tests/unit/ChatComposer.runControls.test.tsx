@@ -29,11 +29,13 @@ const attachments = {
 const renderComposer = async ({
     localStreaming,
     serverBusy = false,
+    serverControlEnabled = false,
     queued = false,
     busyActions,
 }: {
     localStreaming: boolean
     serverBusy?: boolean
+    serverControlEnabled?: boolean
     queued?: boolean
     busyActions?: {label: string; onSubmit: (text: string) => void}[]
 }) => {
@@ -41,6 +43,7 @@ const renderComposer = async ({
     const streaming = isComposerRunStoppable({
         localStreaming,
         serverBusy,
+        serverControlEnabled,
         waitingOnUser: false,
     })
     render(
@@ -87,6 +90,7 @@ describe("ChatComposer running controls", () => {
         const onStop = await renderComposer({
             localStreaming: false,
             serverBusy: true,
+            serverControlEnabled: true,
             queued: true,
             busyActions: [
                 {label: "Queue", onSubmit: vi.fn()},
@@ -100,5 +104,28 @@ describe("ChatComposer running controls", () => {
         expect(screen.getByRole("button", {name: "Stop"})).toBeTruthy()
         fireEvent.keyDown(document, {key: "Escape"})
         expect(onStop).toHaveBeenCalledOnce()
+    })
+
+    it("keeps a flag-off remote run out of the desktop composer controls", () => {
+        const onStop = vi.fn()
+        const streaming = isComposerRunStoppable({
+            localStreaming: false,
+            serverBusy: true,
+            serverControlEnabled: false,
+            waitingOnUser: false,
+        })
+
+        render(
+            <ChatComposer
+                onSubmit={vi.fn()}
+                attachments={attachments}
+                streaming={streaming}
+                onStop={onStop}
+            />,
+        )
+
+        expect(screen.queryByRole("button", {name: "Stop"})).toBeNull()
+        fireEvent.keyDown(document, {key: "Escape"})
+        expect(onStop).not.toHaveBeenCalled()
     })
 })
