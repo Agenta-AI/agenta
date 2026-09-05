@@ -103,6 +103,7 @@ KNOWN_REQUEST_KEYS = {
     "sandboxPermission",
     "harnessFiles",
     "turnId",
+    "detached",
     "projectId",
     "effectiveParameters",
 }
@@ -613,6 +614,27 @@ def test_request_to_wire_omits_turn_id_when_none():
         messages=[Message(role="user", content="hi")],
     )
     assert "turnId" not in payload
+
+
+def test_request_to_wire_carries_detached_only_for_a_session():
+    detached = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5"),
+        messages=[],
+        session_id="sess-1",
+        detached=True,
+    )
+    ad_hoc = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5"),
+        messages=[],
+        detached=True,
+    )
+
+    assert detached["detached"] is True
+    assert "detached" not in ad_hoc
 
 
 def test_request_to_wire_carries_project_id_when_set():

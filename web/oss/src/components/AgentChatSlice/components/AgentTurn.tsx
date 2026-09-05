@@ -39,7 +39,6 @@ interface AgentTurnProps {
     onClientToolOutput: ClientToolOutputHandler
     /** Settled row → `content-visibility:auto` while off-screen. */
     offscreenSkip: boolean
-    liveRunError?: {message: string; code?: number}
 }
 
 /**
@@ -69,7 +68,6 @@ const AgentTurn = ({
     onRewind,
     onClientToolOutput,
     offscreenSkip,
-    liveRunError,
 }: AgentTurnProps) => {
     const inspect = useCallback(() => onInspectTurn(turn ?? 1), [onInspectTurn, turn])
     return (
@@ -92,7 +90,6 @@ const AgentTurn = ({
                 // A transient run failure offers "Try again" — the same regenerate wiring as the
                 // Stopped → Resend pair, and gated the same way: last turn only, never while busy.
                 onRetry={isLast && !resendDisabled ? onResend : undefined}
-                liveRunError={isLast ? liveRunError : undefined}
             />
             {/* Stopped tag + Resend belong only to the LAST assistant turn (the one you cancelled),
                 gated on position so it can never smear onto past turns. Cleared on resend / ask. */}

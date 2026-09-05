@@ -69,6 +69,61 @@ describe("transcriptToMessages", () => {
         expect(transcriptToMessages([record("r1", {type: "done"})])).toBeNull()
     })
 
+    it("preserves a cancelled terminal as a neutral stopped turn", () => {
+        const messages = transcriptToMessages([
+            record("r1", {type: "message", text: "partial answer"}),
+            record("r2", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(messages).toHaveLength(1)
+        expect(messages?.[0]).toMatchObject({
+            role: "assistant",
+            parts: [{type: "text", text: "partial answer"}],
+            metadata: {runStopped: true},
+        })
+    })
+
+    it("keeps a stopped carrier when cancellation lands before any content", () => {
+        const messages = transcriptToMessages([
+            record("r1", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(messages).toEqual([
+            expect.objectContaining({
+                id: "r1",
+                role: "assistant",
+                parts: [],
+                metadata: {runStopped: true},
+            }),
+        ])
+    })
+
+    it("suppresses an abort error when the same durable turn is explicitly user-stopped", () => {
+        const messages = transcriptToMessages([
+            record("r1", {type: "error", message: "Request was aborted"}),
+            record("r2", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(messages?.[0].metadata).toEqual({runStopped: true})
+    })
+
+    it("settles a paused approval as cancelled without interaction row state", () => {
+        const messages = transcriptToMessages([
+            record("r-call", {type: "tool_call", id: "tool-1", name: "bash", input: {}}),
+            record("r-request", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1"},
+            }),
+            record("r-paused", {type: "done", stopReason: "paused"}),
+            record("r-cancelled", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(messages?.[0]).toMatchObject({metadata: {runStopped: true}})
+        expect(messages?.[0].parts[0]).toMatchObject({state: "output-denied"})
+    })
+
     it("splits assistant turns on a `done` boundary into separate messages", () => {
         const messages = transcriptToMessages([
             record("r1", {type: "message", text: "first turn"}),
@@ -1054,5 +1109,36 @@ describe("transcriptToMessages run-error code", () => {
 
     it("omits the code when an older runner sends none", () => {
         expect(runErrorOf({type: "error", message: "boom"})).toEqual({message: "boom"})
+    })
+})
+
+describe("transcriptToMessages user-Stop terminal record", () => {
+    // A cancelled terminal closes its turn without swallowing the next one.
+    it("closes a stopped turn like a completed one", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "run something long"}, "user"),
+            record("r-msg", {type: "message", text: "starting"}),
+            record("r-done-cancelled", {type: "done", stopReason: "cancelled"}),
+            record("r-user-2", {type: "message", text: "what was the codeword"}, "user"),
+            record("r-msg-2", {type: "message", text: "MANGO"}),
+            record("r-done", {type: "done"}),
+        ])
+
+        // Four bubbles: a stopped turn must not swallow the next one the way a pause does.
+        expect(messages).toHaveLength(4)
+        expect(messages![1].parts).toMatchObject([{type: "text", text: "starting"}])
+        expect(messages![3].parts).toMatchObject([{type: "text", text: "MANGO"}])
+    })
+
+    it("does not mark a stopped turn as paused", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "run something long"}, "user"),
+            record("r-msg", {type: "message", text: "starting"}),
+            record("r-done-cancelled", {type: "done", stopReason: "cancelled"}),
+        ])
+
+        expect(
+            (messages![1] as unknown as {metadata?: {paused?: boolean}}).metadata?.paused,
+        ).toBeFalsy()
     })
 })

@@ -78,7 +78,11 @@ import {
     ConnectedSubagentList,
     SubagentDrawerContainer,
 } from "./agentTemplate/SubagentDrawerContainer"
-import {SubagentHeaderIcon, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
+import {
+    SubagentHeaderIcon,
+    SubagentHeaderTitle,
+    SubagentOpenAgentButton,
+} from "./agentTemplate/SubagentHeader"
 import {
     selectSubagentTools,
     SubagentList,
@@ -109,10 +113,6 @@ const INVALID_ITEM_TIP: Record<ItemKind, string> = {
     mcp: "This server is missing its name or URL.",
     skill: "This skill is missing its name.",
 }
-/** The schema field a section's change marks come from. Integrations and Subagents share `tools`. */
-const changeFieldFor = (sectionKey: string): string =>
-    sectionKey === "subagents" ? "tools" : sectionKey
-
 const DRAFT_TIP: Record<string, string> = {
     "model-harness": "Unsaved model or harness changes.",
     instructions: "Unsaved instruction changes.",
@@ -363,8 +363,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const agentChangedKeys = sectionChanges.agent?.panelKeys ?? null
     const agentChangeIndicator = useCallback(
         (sectionKey: string) => {
-            if (!agentChangedKeys?.has(changeFieldFor(sectionKey) as PanelSectionKey))
-                return undefined
+            if (!agentChangedKeys?.has(sectionKey as PanelSectionKey)) return undefined
             const version = sectionChanges.agentVersion
             return {
                 tone: "agent" as const,
@@ -817,7 +816,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (invalid) return {tone: "invalid", tooltip: invalid}
         const incomplete = sectionIncompleteTip(key)
         if (incomplete) return {tone: "incomplete", tooltip: incomplete}
-        if (draftSectionKeys.has(changeFieldFor(key) as PanelSectionKey))
+        if (draftSectionKeys.has(key as PanelSectionKey))
             return {
                 tone: "draft",
                 tooltip: DRAFT_TIP[key] ?? "Unsaved changes.",
@@ -1100,7 +1099,17 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                         ? subagentHeaderIcon
                                         : def.icon
                               }
-                              title={def.drawerTitle(draft)}
+                              title={
+                                  isSubagent && workflowReference ? (
+                                      <SubagentHeaderTitle
+                                          bridge={workflowReference}
+                                          slug={editingSubagentSlug}
+                                          fallback={def.drawerTitle(draft)}
+                                      />
+                                  ) : (
+                                      def.drawerTitle(draft)
+                                  )
+                              }
                               badge={
                                   bareChrome || isSubagent
                                       ? undefined

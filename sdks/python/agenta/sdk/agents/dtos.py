@@ -1184,6 +1184,8 @@ class SessionConfig(BaseModel):
     # wire when unset, so a run that needs no binding is byte-identical to before.
     run_context: Optional[RunContext] = None
     session_id: Optional[str] = None
+    # Explicit per-invoke ownership handoff. False preserves request-owned cancellation.
+    detached: bool = False
     # The post-hydration config this turn runs, carried verbatim so the runner can stamp it on
     # the interaction row of any HITL gate the turn parks (see
     # ``agents/utils/effective_config.py``). Wire-emitted only for a session run; never consumed

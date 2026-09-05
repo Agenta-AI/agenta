@@ -4,12 +4,14 @@ import {
     agentWorkflowsListQueryStateAtom,
     promptWorkflowsListQueryStateAtom,
 } from "@agenta/entities/workflow"
+import {playgroundSessionPath} from "@agenta/sessions/link"
 import {addPendingSessionOpenAtom} from "@agenta/sessions/state"
 import {ChatsCircleIcon, CircleIcon, CircleNotchIcon, LightningIcon} from "@phosphor-icons/react"
 import {RobotIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
+import {SIDEBAR_AGENT_ORDER_ZONE} from "../reorder"
 
 import {withEntityGroups, withRefsByRecency} from "./groups"
 import {sidebarSessionToggledGroupsAtomFamily} from "./sessionFilters"
@@ -56,14 +58,15 @@ export const defineSidebarEntity = <TRef extends SidebarEntityRef>(
     activeSourceAtom: gatedSidebarSource(scopeId, parentKey, config.listAtom),
     getLabel: (ref) => config.getLabel(ref as TRef),
     childLink: (ref, projectURL) => `${projectURL}${config.childPath(ref as TRef)}`,
-    emptyLabel: config.emptyLabel,
-    maxItems: config.maxItems ?? DEFAULT_SIDEBAR_ENTITY_LIMIT,
-    showAllLink: config.showAllPath
-        ? (projectURL) => `${projectURL}${config.showAllPath}`
-        : undefined,
     childMatchLinks: config.childMatchPaths
         ? (ref, projectURL) =>
               config.childMatchPaths!(ref as TRef).map((path) => `${projectURL}${path}`)
+        : undefined,
+    emptyLabel: config.emptyLabel,
+    maxItems: config.maxItems ?? DEFAULT_SIDEBAR_ENTITY_LIMIT,
+    dragZone: config.dragZone,
+    showAllLink: config.showAllPath
+        ? (projectURL) => `${projectURL}${config.showAllPath}`
         : undefined,
     getIcon: config.getIcon ? (ref) => config.getIcon!(ref as TRef) : undefined,
     getTooltip: config.getTooltip ? (ref) => config.getTooltip!(ref as TRef) : undefined,
@@ -97,12 +100,15 @@ const ENTITIES: SidebarEntity[] = [
         icon: createElement(ChatsCircleIcon, {size: 14}),
         listAtom: sidebarSessionsListAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         getLabel: (session) => session.name || "Untitled session",
-        // The link navigates to the owning agent; the click hands over WHICH session, since the
-        // playground has no way to read that from the route.
-        childPath: (session) => `/apps/${session.appId}/playground`,
+        // The session's own deep link, so copy/open-in-new-tab lands here (#5974).
+        childPath: (session) =>
+            session.appId
+                ? playgroundSessionPath("/apps", session.appId, session.sessionId)
+                : "/sessions",
+        // Highlight on the agent's playground whatever session the URL carries.
+        childMatchPaths: (session) => (session.appId ? [`/apps/${session.appId}/playground`] : []),
         getOnClick: (session) => () => {
-            // A row with no resolved agent yet cannot open anything; the sidebar still shows it so
-            // a first-turn session keeps its place (#5974).
+            // No resolved agent yet: nothing to open, but the row keeps its place (#5974).
             if (!session.appId) return
             getDefaultStore().set(addPendingSessionOpenAtom, {
                 appId: session.appId,
@@ -161,10 +167,13 @@ const ENTITIES: SidebarEntity[] = [
         icon: createElement(RobotIcon, {size: 14}),
         listAtom: agentWorkflowsListQueryStateAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
-        childPath: (workflow) => `/apps/${workflow.id}/playground`,
+        // An agent's surface is its overview — its config, sessions and runs live there (#6389).
+        childPath: (workflow) => `/apps/${workflow.id}/overview`,
         // Busiest agent first, by session count — stable session to session, unlike recency,
         // which reshuffled on every turn. Frozen per page load. Same rule the mobile rail applies.
         ranksAtom: sidebarAgentRanksAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
+        // This nav group's own arrangement; the Sessions agent headings carry a separate zone.
+        dragZone: SIDEBAR_AGENT_ORDER_ZONE,
         emptyLabel: "No agents",
         showAllPath: "/agents",
     }),

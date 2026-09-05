@@ -8,11 +8,23 @@
 // persist-on-settle → run-status publish, plus error stamping and the rewind plan.
 import {createElement, type ReactNode} from "react"
 
+import {
+    fetchSessionSnapshot,
+    querySessionTranscript,
+    sessionLivePreviewAtomFamily,
+    type SessionSnapshot,
+} from "@agenta/entities/session"
 import {buildAgentRequest} from "@agenta/playground/agent-chat"
+import {projectIdAtom} from "@agenta/shared/state"
 import {act, renderHook, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
-import {beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
+
+const approvalRecord = vi.hoisted(() => ({
+    defer: false,
+    resolve: undefined as (() => void) | undefined,
+}))
 
 vi.mock("@agenta/playground/agent-chat", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/playground/agent-chat")>()
@@ -35,12 +47,19 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/entities/session")>()
     return {
         ...actual,
-        recordInteractionAnswerAtom: atom(null, async () => undefined),
         revalidateSessionMountsAtom: atom(null, () => {}),
         revalidateSessionRecordsAtom: atom(null, () => {}),
+        recordInteractionAnswerAtom: atom(null, async () => {
+            if (!approvalRecord.defer) return
+            await new Promise<void>((resolve) => {
+                approvalRecord.resolve = resolve
+            })
+        }),
         // The hydration seam's records fetch: "no server history" for these tests.
         fetchSessionRecordsAtom: atom(null, () => ({records: null, refreshed: null})),
         fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
+        fetchSessionSnapshot: vi.fn(),
+        querySessionTranscript: vi.fn(),
     }
 })
 
@@ -49,10 +68,16 @@ vi.mock("@agenta/entities/trace", () => ({
 }))
 
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
-import {markSessionFresh} from "../../../src/state/sessionEphemera"
+import {ACCEPTED_SENDER_DISCONNECT_MESSAGE, TRANSPORT_ERROR_MESSAGE} from "../../../src/model/error"
+import {
+    getSessionTurnId,
+    markSessionFresh,
+    setSessionTurnId,
+} from "../../../src/state/sessionEphemera"
 import {sessionMessagesAtom, sessionStatusAtomFamily} from "../../../src/state/sessionMessages"
+import {SHARED_SENDER_ACCEPTANCE_TIMEOUT_MS} from "../../../src/transport/AgentChatTransport"
 
-const sseBody = (text: string): string => {
+const sseBody = (text: string, finishReason?: string): string => {
     const chunks = [
         {type: "start", messageId: `assist-${Math.random().toString(36).slice(2)}`},
         {type: "start-step"},
@@ -60,7 +85,7 @@ const sseBody = (text: string): string => {
         {type: "text-delta", id: "t1", delta: text},
         {type: "text-end", id: "t1"},
         {type: "finish-step"},
-        {type: "finish"},
+        {type: "finish", ...(finishReason ? {finishReason} : {})},
     ]
     return chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n"
 }
@@ -71,11 +96,157 @@ const streamResponse = (text: string): Response =>
         headers: {"content-type": "text/event-stream"},
     })
 
+const approvalResponse = (): Response => {
+    const chunks = [
+        {type: "start", messageId: "approval-assistant"},
+        {type: "start-step"},
+        {type: "tool-input-start", toolCallId: "call-1", toolName: "shell"},
+        {type: "tool-input-available", toolCallId: "call-1", toolName: "shell", input: {}},
+        {type: "tool-approval-request", approvalId: "approval-1", toolCallId: "call-1"},
+        {type: "finish-step"},
+        {type: "finish", finishReason: "tool-calls"},
+    ]
+    return new Response(
+        chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("") + "data: [DONE]\n\n",
+        {status: 200, headers: {"content-type": "text/event-stream"}},
+    )
+}
+
 const errorResponse = (): Response =>
     new Response(JSON.stringify({status: {code: 500, message: "boom"}}), {
         status: 500,
         headers: {"content-type": "application/json"},
     })
+
+const sharedErrorResponse = (): Response => {
+    const chunks = [
+        {type: "start", messageId: "shared-error"},
+        {type: "start-step"},
+        {
+            type: "data-session-accepted",
+            data: {sessionId: "session-1", turnId: "turn-1", executionId: "turn-1"},
+        },
+        {type: "error", errorText: "shared provider failed"},
+        {type: "finish-step"},
+        {type: "finish"},
+    ]
+    const body = chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("")
+    return new Response(`${body}data: [DONE]\n\n`, {
+        status: 200,
+        headers: {"content-type": "text/event-stream"},
+    })
+}
+
+const sharedBrowserPhraseServerErrorResponse = (): Response => {
+    const chunks = [
+        {type: "start", messageId: "shared-browser-phrase-error"},
+        {type: "start-step"},
+        {
+            type: "data-session-accepted",
+            data: {sessionId: "session-1", turnId: "turn-1", executionId: "turn-1"},
+        },
+        {
+            type: "data-agent-error",
+            data: {code: "runner_error", errorText: "Failed to fetch"},
+        },
+        {type: "error", errorText: "Failed to fetch"},
+        {type: "finish-step"},
+        {type: "finish"},
+    ]
+    const body = chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join("")
+    return new Response(`${body}data: [DONE]\n\n`, {
+        status: 200,
+        headers: {"content-type": "text/event-stream"},
+    })
+}
+
+/** The shared sender's invoke stream accepted the turn, then the connection died — what a
+ * backgrounded tab sees while the runner carries the turn on to completion. */
+const sharedDroppedStreamResponse = (): Response => {
+    const chunks = [
+        {type: "start", messageId: "shared-dropped"},
+        {type: "start-step"},
+        {
+            // Transient, as the runner sends it: it reaches `onData` and never the transcript.
+            type: "data-session-accepted",
+            data: {sessionId: "session-1", turnId: "turn-1", executionId: "turn-1"},
+            transient: true,
+        },
+    ]
+    return new Response(
+        new ReadableStream({
+            async start(controller) {
+                for (const chunk of chunks) {
+                    controller.enqueue(
+                        new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\n\n`),
+                    )
+                }
+                // Let the client read the acceptance first. `controller.error` resets the queue, so
+                // erroring in the same tick would throw away what was just enqueued.
+                await new Promise((resolve) => setTimeout(resolve, 20))
+                controller.error(new TypeError("Failed to fetch"))
+            },
+        }),
+        {status: 200, headers: {"content-type": "text/event-stream"}},
+    )
+}
+
+class FakeEventSource {
+    static instances: FakeEventSource[] = []
+    readonly listeners = new Map<string, (event: Event) => void>()
+    onmessage: ((event: MessageEvent<string>) => void) | null = null
+    onerror: (() => void) | null = null
+
+    constructor(readonly url: string) {
+        FakeEventSource.instances.push(this)
+    }
+
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+        this.listeners.set(type, listener as (event: Event) => void)
+    }
+
+    ready(watermark = 0) {
+        this.listeners.get("ready")?.(
+            new MessageEvent("ready", {data: JSON.stringify({watermark})}),
+        )
+    }
+
+    message(data: unknown) {
+        this.onmessage?.(new MessageEvent("message", {data: JSON.stringify(data)}))
+    }
+
+    close() {}
+}
+
+const controlledLegacyResponse = () => {
+    const encoder = new TextEncoder()
+    let finish = () => {}
+    const response = new Response(
+        new ReadableStream({
+            start(controller) {
+                for (const chunk of [
+                    {type: "start", messageId: "legacy-assistant"},
+                    {type: "start-step"},
+                    {type: "text-start", id: "legacy-text"},
+                    {type: "text-delta", id: "legacy-text", delta: "legacy answer"},
+                ])
+                    controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+                finish = () => {
+                    for (const chunk of [
+                        {type: "text-end", id: "legacy-text"},
+                        {type: "finish-step"},
+                        {type: "finish"},
+                    ])
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+                    controller.enqueue(encoder.encode("data: [DONE]\n\n"))
+                    controller.close()
+                }
+            },
+        }),
+        {status: 200, headers: {"content-type": "text/event-stream"}},
+    )
+    return {response, finish: () => finish()}
+}
 
 const fetchMock = vi.fn<typeof globalThis.fetch>()
 vi.stubGlobal("fetch", fetchMock)
@@ -94,7 +265,25 @@ const mount = (store: ReturnType<typeof createStore>, entityId: string, sessionI
     )
 
 beforeEach(() => {
+    approvalRecord.defer = false
+    approvalRecord.resolve = undefined
+    FakeEventSource.instances = []
+    vi.stubGlobal("EventSource", FakeEventSource)
     fetchMock.mockReset()
+    vi.mocked(fetchSessionSnapshot).mockReset()
+    vi.mocked(fetchSessionSnapshot).mockResolvedValue({
+        session: {
+            session_id: "session-1",
+            project_id: "project-1",
+            capabilities: {shared_reader: true},
+            flags: {is_running: false},
+        },
+        execution: null,
+        pending: {inputs: [], interactions: []},
+        read: {latest_sequence: 0, history_complete: true},
+    } as SessionSnapshot)
+    vi.mocked(querySessionTranscript).mockReset()
+    vi.mocked(querySessionTranscript).mockResolvedValue([])
     vi.mocked(buildAgentRequest).mockClear()
     // Restore the ready-workflow build: one test replaces it with a not-yet-loaded one, and
     // `mockClear` keeps the implementation.
@@ -104,6 +293,8 @@ beforeEach(() => {
         requestBody: {session_id: opts?.sessionId},
     }))
 })
+
+afterEach(() => vi.useRealTimers())
 
 describe("useAgentConversation", () => {
     it("runs a full turn: send → stream → settle → persist + status publish", async () => {
@@ -151,6 +342,74 @@ describe("useAgentConversation", () => {
         expect(store.get(sessionStatusAtomFamily(sessionId))).toBe("idle")
         expect(result.current.runStatus).toBe("idle")
         expect(result.current.isEmpty).toBe(false)
+    })
+
+    it("clears the previous execution guard before a second send", async () => {
+        fetchMock.mockImplementation(async () => streamResponse("answer"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "first"})
+        })
+        await waitFor(() => expect(result.current.status).toBe("ready"), {timeout: 5000})
+        setSessionTurnId(sessionId, "turn-old")
+
+        await act(async () => {
+            await result.current.send({text: "second"})
+        })
+
+        expect(getSessionTurnId(sessionId)).toBeUndefined()
+    })
+
+    it("clears the parked turn guard when an approval automatically resumes", async () => {
+        fetchMock
+            .mockResolvedValueOnce(approvalResponse())
+            .mockResolvedValueOnce(streamResponse("done"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "needs approval"})
+        })
+        await waitFor(() => expect(result.current.approvals.open).toBe(true), {timeout: 5000})
+        setSessionTurnId(sessionId, "parked-turn")
+
+        act(() => result.current.approvals.respond(true))
+
+        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2), {timeout: 5000})
+        expect(getSessionTurnId(sessionId)).toBeUndefined()
+    })
+
+    it("voids an approval resume before its delayed interaction write releases", async () => {
+        approvalRecord.defer = true
+        fetchMock
+            .mockResolvedValueOnce(approvalResponse())
+            .mockResolvedValueOnce(streamResponse("unexpected resume"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "needs approval"})
+        })
+        await waitFor(() => expect(result.current.approvals.open).toBe(true), {timeout: 5000})
+
+        act(() => result.current.approvals.respond(true))
+        await waitFor(() => expect(approvalRecord.resolve).toBeTypeOf("function"), {timeout: 5000})
+        act(() => result.current.voidPendingResume())
+        await act(async () => {
+            approvalRecord.resolve?.()
+            await Promise.resolve()
+        })
+        await new Promise((resolve) => setTimeout(resolve, 100))
+
+        expect(fetchMock).toHaveBeenCalledTimes(1)
     })
 
     it("resumes a secret request with the adopted revision even before the host prop catches up", async () => {
@@ -304,6 +563,83 @@ describe("useAgentConversation", () => {
         await waitFor(() => expect(result.current.runStatus).toBe("idle"), {timeout: 5000})
     })
 
+    it("keeps a pre-ready turn on the legacy delivery source when the shared reader opens mid-run", async () => {
+        const legacy = controlledLegacyResponse()
+        fetchMock.mockResolvedValue(legacy.response)
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = renderHook(
+            () =>
+                useAgentConversation({
+                    entityId: "rev-1",
+                    sessionId,
+                    sharedReaderAdvertised: true,
+                }),
+            {
+                wrapper: ({children}: {children: ReactNode}) =>
+                    createElement(Provider, {store}, children),
+            },
+        )
+
+        await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1))
+        act(() => void result.current.send({text: "answer once"}))
+        await waitFor(() =>
+            expect(vi.mocked(buildAgentRequest)).toHaveBeenLastCalledWith(
+                "rev-1",
+                expect.any(Array),
+                expect.objectContaining({sessionId, sharedResponse: false}),
+            ),
+        )
+        await waitFor(() =>
+            expect(
+                result.current.messages.some(
+                    (message) =>
+                        message.role === "assistant" &&
+                        message.parts.some(
+                            (part) => part.type === "text" && part.text === "legacy answer",
+                        ),
+                ),
+            ).toBe(true),
+        )
+
+        act(() => {
+            FakeEventSource.instances[0].ready()
+            for (const [frameIndex, type, payload] of [
+                [0, "text-start", {}],
+                [1, "text-delta", {delta: "shared duplicate"}],
+            ] as const)
+                FakeEventSource.instances[0].message({
+                    version: 1,
+                    kind: "frame",
+                    session_id: sessionId,
+                    execution_id: "execution-1",
+                    frame_or_event_id: `frame-${frameIndex}`,
+                    frame_index: frameIndex,
+                    entity_id: "text-1",
+                    type,
+                    payload,
+                    created_at: "2026-09-05T12:00:00Z",
+                })
+        })
+
+        await waitFor(() =>
+            expect(store.get(sessionLivePreviewAtomFamily(sessionId)).executionOrder).toEqual([
+                "execution-1",
+            ]),
+        )
+        expect(
+            result.current.messages.filter((message) => message.role === "assistant"),
+        ).toHaveLength(1)
+        expect(
+            result.current.messages.some((message) => message.id.startsWith("live-preview-")),
+        ).toBe(false)
+
+        act(() => legacy.finish())
+        await waitFor(() => expect(result.current.status).toBe("ready"))
+    })
+
     it("rewinding a user message truncates the conversation and hands back its text", async () => {
         fetchMock.mockResolvedValue(streamResponse("answer"))
         const store = createStore()
@@ -453,6 +789,311 @@ describe("useAgentConversation", () => {
         await waitFor(() => {
             const last = result.current.turns[result.current.turns.length - 1]
             expect(last.status.errorText).toBe("boom")
+            expect(last.status.isError).toBe(true)
+        })
+    })
+
+    it("maps a stream-delivered user Stop to the neutral stopped state", async () => {
+        fetchMock.mockResolvedValue(
+            new Response(sseBody("partial answer", "other"), {
+                status: 200,
+                headers: {"content-type": "text/event-stream"},
+            }),
+        )
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "start"})
+        })
+        await waitFor(() => expect(result.current.status).toBe("ready"), {timeout: 5000})
+
+        expect(result.current.stopped).toBe(true)
+        expect(result.current.error).toBeUndefined()
+        expect(result.current.runStatus).toBe("idle")
+    })
+
+    /**
+     * Increment 5, two tabs on one session: the sender's invoke stream carries acceptance and
+     * errors only, so a stream that dies while the tab is backgrounded says nothing about the turn
+     * — the runner finishes it and writes it to the session log. The stamp is live feedback and
+     * must not outlive the reload, or the next open paints "Could not reach Agenta" over a turn
+     * that completed server-side (browser evidence 2026-09-04, session 4d21415e).
+     */
+    it("shows an accepted disconnect as ephemeral connection state", async () => {
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "content-type": "application/json",
+                "x-ag-session-response": "shared",
+            },
+            requestBody: {session_id: opts?.sessionId},
+        }))
+        // Accepted, then the connection died — what a backgrounded tab's closed stream leaves.
+        fetchMock.mockResolvedValue(sharedDroppedStreamResponse())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "One more short line, please."})
+        })
+        await waitFor(() => {
+            expect(result.current.connectionWarning).toBe(ACCEPTED_SENDER_DISCONNECT_MESSAGE)
+            expect(result.current.error).toBeUndefined()
+            expect(result.current.acceptedRunPending).toBe(true)
+            expect(result.current.runStatus).toBe("running")
+            expect(result.current.turns.some((turn) => turn.status.isError)).toBe(false)
+        })
+
+        // Durable: only the user turn. Nothing here can repaint the failure after a reload, and
+        // the count the adoption guard compares stays equal to what the log holds.
+        await waitFor(() => {
+            const persisted = store.get(sessionMessagesAtom)[sessionId]
+            expect(persisted).toHaveLength(1)
+            expect(persisted[0].role).toBe("user")
+            expect(persisted.some((m) => (m.metadata as {runError?: unknown})?.runError)).toBe(
+                false,
+            )
+        })
+    })
+
+    /**
+     * An accepted shared turn is NOT a local stream. Its content arrives on the session events
+     * channel, so the durable snapshot behind those frames stays adoptable — and it has to be,
+     * because `hydrateAndOpen` only opens the events stream once `revalidate` adopts or confirms
+     * the bounded transcript. Treating `acceptedRunPending` as busy refused both, so a shared turn
+     * whose stream dropped mid-run reconnected forever and never came back.
+     */
+    it("adopts the durable transcript while a shared turn is accepted but disconnected", async () => {
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "content-type": "application/json",
+                "x-ag-session-response": "shared",
+            },
+            requestBody: {session_id: opts?.sessionId},
+        }))
+        fetchMock.mockResolvedValue(sharedDroppedStreamResponse())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "Draft the release note."})
+        })
+        await waitFor(() => {
+            expect(result.current.acceptedRunPending).toBe(true)
+            expect(result.current.status).not.toBe("streaming")
+        })
+
+        const serverMessages: UIMessage[] = [
+            {
+                id: "srv-user",
+                role: "user",
+                parts: [{type: "text", text: "Draft the release note."}],
+            },
+            {id: "srv-assistant", role: "assistant", parts: [{type: "text", text: "Here it is."}]},
+        ]
+        const revalidate = result.current.revalidate as unknown as (
+            transcript: unknown,
+        ) => Promise<boolean>
+        let adopted = false
+        await act(async () => {
+            adopted = await revalidate({
+                messages: serverMessages,
+                recordCount: 2,
+                sequenceCursor: 2,
+            })
+        })
+
+        expect(adopted).toBe(true)
+        await waitFor(() => {
+            const persisted = store.get(sessionMessagesAtom)[sessionId]
+            expect(persisted.map((message) => message.id)).toEqual(["srv-user", "srv-assistant"])
+        })
+    })
+
+    /**
+     * The other half of the rule. A stream that dies BEFORE the acceptance may describe a turn that
+     * never started, so that card is the only signal the user gets and it has to survive the
+     * reload.
+     */
+    it("turns an offline-before-send hang into a retryable failure card", async () => {
+        vi.useFakeTimers()
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "content-type": "application/json",
+                "x-ag-session-response": "shared",
+            },
+            requestBody: {session_id: opts?.sessionId},
+        }))
+        // Chromium can leave an offline fetch pending instead of rejecting it.
+        fetchMock.mockImplementation(() => new Promise<Response>(() => undefined))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        act(() => void result.current.send({text: "this one never left"}))
+        await act(() => vi.advanceTimersByTimeAsync(SHARED_SENDER_ACCEPTANCE_TIMEOUT_MS))
+        vi.useRealTimers()
+        await waitFor(() => expect(result.current.runStatus).toBe("error"), {timeout: 5000})
+        expect(result.current.connectionWarning).toBeUndefined()
+        const failedTurn = result.current.turns.at(-1)
+        expect(failedTurn?.message.role).toBe("assistant")
+        expect(failedTurn?.status).toMatchObject({
+            showError: true,
+            errorText: TRANSPORT_ERROR_MESSAGE,
+        })
+        expect(result.current.rewind(failedTurn!.message)).not.toBeNull()
+
+        await waitFor(() => {
+            const persisted = store.get(sessionMessagesAtom)[sessionId]
+            expect(persisted).toHaveLength(2)
+            expect(persisted[0]).toMatchObject({
+                role: "user",
+                parts: [{type: "text", text: "this one never left"}],
+            })
+            const stamped = persisted[1].metadata as {runError?: {message?: string}}
+            expect(stamped.runError?.message).toBe(TRANSPORT_ERROR_MESSAGE)
+        })
+    })
+
+    it("resets acceptance before an immediate next-request failure", async () => {
+        vi.mocked(buildAgentRequest)
+            .mockImplementationOnce(async (_entityId, _messages, opts) => ({
+                invocationUrl: "https://agent.test/invoke",
+                headers: {
+                    Accept: "text/event-stream",
+                    "content-type": "application/json",
+                    "x-ag-session-response": "shared",
+                },
+                requestBody: {session_id: opts?.sessionId},
+            }))
+            .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+        fetchMock.mockImplementationOnce(async () => sharedDroppedStreamResponse())
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = renderHook(
+            () =>
+                useAgentConversation({
+                    entityId: "rev-1",
+                    sessionId,
+                    sharedReaderAdvertised: true,
+                }),
+            {
+                wrapper: ({children}: {children: ReactNode}) =>
+                    createElement(Provider, {store}, children),
+            },
+        )
+
+        await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1))
+        act(() => void result.current.send({text: "accepted first"}))
+        await waitFor(() => {
+            expect(result.current.connectionWarning).toBe(ACCEPTED_SENDER_DISCONNECT_MESSAGE)
+            expect(result.current.acceptedRunPending).toBe(true)
+        })
+
+        act(() =>
+            FakeEventSource.instances[0].message({
+                version: 1,
+                kind: "event",
+                session_id: sessionId,
+                execution_id: "turn-1",
+                frame_or_event_id: "lost-1",
+                sequence: 1,
+                watermark: 1,
+                type: "execution.lost",
+                payload: {},
+                created_at: "2026-09-05T12:00:00Z",
+            }),
+        )
+        await waitFor(() => expect(result.current.acceptedRunPending).toBe(false))
+
+        act(() => void result.current.send({text: "fails before acceptance"}))
+        await waitFor(() => {
+            expect(result.current.connectionWarning).toBeUndefined()
+            expect(result.current.error).toEqual({
+                message: TRANSPORT_ERROR_MESSAGE,
+                transport: true,
+            })
+        })
+    })
+
+    it("renders an invoke error that shares the acceptance carrier", async () => {
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "content-type": "application/json",
+                "x-ag-session-response": "shared",
+            },
+            requestBody: {session_id: opts?.sessionId},
+        }))
+        fetchMock.mockResolvedValue(sharedErrorResponse())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "explode on the shared path"})
+        })
+        await waitFor(() => expect(result.current.runStatus).toBe("error"), {timeout: 5000})
+        expect(result.current.connectionWarning).toBeUndefined()
+
+        await waitFor(() => {
+            const sharedCarriers = result.current.messages.filter(
+                (message) =>
+                    (message.metadata as {sharedSender?: boolean} | undefined)?.sharedSender,
+            )
+            expect(sharedCarriers).toHaveLength(1)
+            expect(
+                (sharedCarriers[0].metadata as {runError?: {message?: string}}).runError?.message,
+            ).toBe("shared provider failed")
+        })
+        const last = result.current.turns[result.current.turns.length - 1]
+        expect(last.status.errorText).toBe("shared provider failed")
+        expect(last.status.isError).toBe(true)
+    })
+
+    it("keeps a runner failure whose text matches a browser disconnect phrase as a run error", async () => {
+        vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {
+                Accept: "text/event-stream",
+                "content-type": "application/json",
+                "x-ag-session-response": "shared",
+            },
+            requestBody: {session_id: opts?.sessionId},
+        }))
+        fetchMock.mockResolvedValue(sharedBrowserPhraseServerErrorResponse())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "surface the runner failure"})
+        })
+        await waitFor(() => expect(result.current.runStatus).toBe("error"), {timeout: 5000})
+
+        expect(result.current.connectionWarning).toBeUndefined()
+        expect(result.current.error).toEqual({message: "Failed to fetch"})
+        await waitFor(() => {
+            const last = result.current.turns[result.current.turns.length - 1]
+            expect(last.status.errorText).toBe("Failed to fetch")
             expect(last.status.isError).toBe(true)
         })
     })

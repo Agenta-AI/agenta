@@ -3,6 +3,7 @@
 import {type CSSProperties, type ReactNode, useMemo} from "react"
 
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+import {humanizeActionKey} from "@agenta/shared/utils"
 
 import type {ConfigItemView} from "../ConfigItemDrawer"
 import {integrationPermissionSummary} from "../integrationPolicy"
@@ -25,11 +26,6 @@ type ToolStatusFor = (item: unknown, index: number) => ItemRowStatus | undefined
 interface IndexedTool {
     item: unknown
     index: number
-}
-
-function prettifyIntegration(key: string): string {
-    if (!key) return "Other"
-    return key.charAt(0).toUpperCase() + key.slice(1)
 }
 
 // Blocking problems outrank draft markers, mirroring the section-header rollup.
@@ -99,7 +95,7 @@ function IntegrationListRow({
     // Selected-integration metadata must not come from the searchable browse query: typing in the
     // open catalog changes that query's pages and would make existing rows lose their logos.
     const {integration} = useToolIntegrationDetail(row.integration)
-    const name = integration?.name || prettifyIntegration(row.integration)
+    const name = integration?.name || humanizeActionKey(row.integration) || "Other"
     const indices = useMemo(() => integrationRowIndices(row), [row])
     const status = useMemo(
         () => rollupRowStatus(tools, indices, statusFor),
@@ -207,6 +203,8 @@ export interface SubagentListProps {
     nonAgentSlugs?: Set<string>
     /** Each subagent's icon chrome by slug. Only the caller can reach the icon record. */
     chromeBySlug?: Map<string, {glyph: ReactNode; className: string; style?: CSSProperties}>
+    /** Each subagent's CURRENT agent name by slug. Only the caller can resolve the artifact. */
+    nameBySlug?: Map<string, string>
     openEdit: (kind: "tool", index: number, item: unknown, view: ConfigItemView) => void
     removeItem: (kind: "tool", index: number) => void
     closeEditor: () => void
@@ -229,19 +227,24 @@ function markNonAgent(
     return {...descriptor, tags: [...(descriptor.tags ?? []), "not an agent"]}
 }
 
-/** Stable per-entry key: the saved reference's own identity, never its array position. */
-function subagentKey(item: unknown, index: number): string {
-    const t = (item ?? {}) as Record<string, unknown>
-    const name = typeof t.name === "string" ? t.name : ""
-    const identity = [toolReferenceSlug(item) ?? "", name].filter(Boolean).join("|")
-    // A reference with no identity falls back to its position, rather than colliding.
-    return identity || `subagent-${index}`
+/** Stable per-entry keys: the saved reference's own slug, never its array position. A config
+ *  hand-authored to repeat a slug (or to omit one) falls back to position. The two are namespaced
+ *  apart so a slug that reads like a position cannot collide with one. */
+function subagentKeys(entries: IndexedTool[]): string[] {
+    const seen = new Set<string>()
+    return entries.map(({item, index}) => {
+        const slug = toolReferenceSlug(item)
+        if (!slug || seen.has(slug)) return `subagent-index-${index}`
+        seen.add(slug)
+        return `subagent-slug-${slug}`
+    })
 }
 
 export function SubagentList({
     entries,
     nonAgentSlugs,
     chromeBySlug,
+    nameBySlug,
     openEdit,
     removeItem,
     closeEditor,
@@ -249,6 +252,8 @@ export function SubagentList({
     emptyAdd,
     statusFor,
 }: SubagentListProps) {
+    const keys = subagentKeys(entries)
+
     if (entries.length === 0) {
         if (disabled) return null
         return <EmptyLine label="No subagents yet" add={emptyAdd} />
@@ -256,11 +261,15 @@ export function SubagentList({
 
     return (
         <div className="flex flex-col gap-2">
-            {entries.map(({item, index}) => (
+            {entries.map(({item, index}, position) => (
                 <ItemRow
-                    key={subagentKey(item, index)}
+                    key={keys[position]}
                     descriptor={markNonAgent(
-                        describeSubagent(item, chromeBySlug?.get(toolReferenceSlug(item) ?? "")),
+                        describeSubagent(
+                            item,
+                            chromeBySlug?.get(toolReferenceSlug(item) ?? ""),
+                            nameBySlug?.get(toolReferenceSlug(item) ?? ""),
+                        ),
                         item,
                         nonAgentSlugs,
                     )}

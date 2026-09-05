@@ -290,10 +290,12 @@ describe("bridge-rewritten localhost ingest", () => {
     assert.match(lines[0]!, /collector\.thirdparty\.example/);
   });
 
-  it("leaves a 127.0.0.1 base alone, because the api does not rewrite that host", () => {
-    // `parse_url` rewrites only `localhost` and `0.0.0.0`, so a 127.0.0.1 deployment matches
-    // itself and never sees the bridge form. Admitting it would widen the allowlist past the
-    // platform's own rewrite.
+  it("admits a 127.0.0.1 base under either spelling of the local host", () => {
+    // `bridgeRewrittenBase` mirrors only `localhost`/`0.0.0.0`, so on its own a 127.0.0.1 base
+    // matches itself and nothing else. `isAgentaIngest` then folds every local-host spelling
+    // (#6392), which subsumes that mirror and admits the bridge form here too. The fold is
+    // host-spelling only: port and path still have to match exactly, which the two cases below
+    // this one pin.
     vi.stubEnv("AGENTA_API_URL", "http://127.0.0.1:8480/api");
     const { lines, log } = withLog();
 
@@ -309,6 +311,21 @@ describe("bridge-rewritten localhost ingest", () => {
     resetPlatformCredentialWarnings();
     assert.equal(
       platformCredentialForRequest(request(BRIDGE_ENDPOINT), log),
+      CREDENTIAL,
+    );
+    assert.deepEqual(lines, []);
+  });
+
+  it("still drops a 127.0.0.1 base's credential for a foreign port", () => {
+    // The guard the case above relies on: folding the host name must not fold anything else.
+    vi.stubEnv("AGENTA_API_URL", "http://127.0.0.1:8480/api");
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(
+        request("http://host.docker.internal:9999/api/otlp/v1/traces"),
+        log,
+      ),
       "",
     );
     assert.equal(lines.length, 1);

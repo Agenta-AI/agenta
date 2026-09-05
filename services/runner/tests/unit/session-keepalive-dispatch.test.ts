@@ -27,6 +27,7 @@ import {
   type KeepaliveEngine,
 } from "../../src/server.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
+import { USER_STOP_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
 import {
   configFingerprint,
   mountExpiryMs,
@@ -777,10 +778,83 @@ describe("runWithKeepalive: never-park rules", () => {
     );
     assert.equal(ctx.pool.size(), 0);
   });
+
+  it("a durable Stop re-parks the warm session even though the browser dropped its stream", async () => {
+    // The regression this file exists to prevent, replayed end to end at the dispatch seam.
+    //
+    // Increment 6, 2026-09-04: a warm Daytona session was Stopped from the browser and the next
+    // message came back cold on a NEW sandbox. The runner log read `[control] aborted` ->
+    // `harness_cancel sent=true settled=true` -> `prompt stopReason=cancelled` ->
+    // `[keepalive] evict reason=no-park:cancelled`. Every ingredient of a warm park was present
+    // and the sandbox was deleted anyway, because `handleStop` aborts the chat stream in the same
+    // tick it sends the durable cancel, and the park predicate read the disconnect first.
+    //
+    // So this test asserts BOTH halves land together: the client is gone AND the run signal
+    // carries the user-Stop label. Drop either one and it stops describing the product.
+    let gone = false;
+    const controller = new AbortController();
+    const { engine, calls } = makeEngine({
+      turnResults: [
+        { ok: true, output: "hi", stopReason: "complete" },
+        // What `run-turn.ts` returns for a Stop the harness confirmed.
+        {
+          ok: true,
+          output: "partial",
+          stopReason: "cancelled",
+          cancelSettled: true,
+        },
+      ],
+    });
+    const ctx = makeCtx(engine, {}, () => gone);
+    const key = "proj-1:stop-warm";
+
+    // Turn 1: an ordinary turn, parked warm for the next message.
+    await runWithKeepalive(
+      turn1("stop-warm"),
+      undefined,
+      controller.signal,
+      ctx,
+    );
+    await flush();
+    assert.equal(ctx.pool.get(key)?.state, "idle", "turn 1 parked warm");
+    const warmEnv = calls.acquiredEnvs[0];
+
+    // Turn 2: continues on the SAME environment, and the user presses Stop mid-turn.
+    const origRunTurn = engine.runTurn.bind(engine);
+    engine.runTurn = async (env, request, emit, signal, opts) => {
+      gone = true; // the browser aborted its own chat stream
+      controller.abort(USER_STOP_ABORT_REASON); // the durable command reached this run
+      return origRunTurn(env, request, emit, signal, opts);
+    };
+    const stopped = await runWithKeepalive(
+      turn2("stop-warm"),
+      undefined,
+      controller.signal,
+      ctx,
+    );
+    await flush();
+
+    assert.equal(stopped.stopReason, "cancelled");
+    assert.equal(calls.acquire, 1, "the Stop ran on the warm environment");
+    assert.equal(
+      warmEnv.destroyed,
+      0,
+      "a settled user Stop never destroys the sandbox",
+    );
+    assert.equal(
+      ctx.pool.get(key)?.state,
+      "idle",
+      "re-parked warm, so the next message resumes instead of replaying cold",
+    );
+  });
 });
 
 describe("runWithKeepalive: races and failures", () => {
-  it("a busy session is superseded (destroyed, awaited) and the new turn cold-starts", async () => {
+  it("a busy session REFUSES the racing turn: no eviction, no cold acquire", async () => {
+    // Single-turn admission (#6417, #5539, #5538). This branch used to `evict` the busy entry
+    // and cold-start ("supersede-busy"), which tore the sandbox out from under the turn that was
+    // still streaming on it. Both turns then died and the session stayed locked until the lease
+    // expired. The racing turn is now refused and the live turn's environment is untouched.
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1(), undefined, undefined, ctx);
@@ -790,12 +864,41 @@ describe("runWithKeepalive: races and failures", () => {
     ctx.pool.checkoutIdle(key);
     assert.equal(ctx.pool.get(key)!.state, "busy");
 
-    await runWithKeepalive(turn2(), undefined, undefined, ctx);
-    assert.equal(
-      env1.destroyed,
-      1,
-      "the busy (racing) session is superseded/destroyed (awaited, no flush needed)",
+    const refused = await runWithKeepalive(turn2(), undefined, undefined, ctx);
+
+    assert.equal(refused.ok, false, "the racing turn is refused");
+    assert.match(
+      String(refused.error),
+      /already running a turn/i,
+      "the refusal says a turn is already running, so the client can keep the text",
     );
+    assert.equal(env1.destroyed, 0, "the live turn keeps its warm environment");
+    assert.equal(calls.acquire, 1, "no rival environment is acquired");
+    assert.equal(
+      ctx.pool.get(key)!.state,
+      "busy",
+      "the live turn still owns the pool entry",
+    );
+  });
+
+  it("a DESTROYED pool entry is still evicted and the new turn cold-starts", async () => {
+    // The other half of the old `else if (existing)` branch. A destroyed entry (a drain, or a
+    // teardown that already ran) has nothing in flight on it, so clearing the key and
+    // cold-starting is correct and costs nothing warm. Only `busy` refuses.
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(turn1(), undefined, undefined, ctx);
+    const key = "proj-1:s1";
+    // Marked directly, because every public route that destroys a session also removes it from
+    // the map. A `destroyed` entry SEATED at its key is the residue of a race: `checkoutIdle`
+    // leaves its entry in the map while the turn runs, a teardown marks it destroyed underneath,
+    // and `repark` then refuses to resurrect it (`session-pool.ts`, the `destroyed` guard).
+    // Reproducing that race would test the pool, not this branch.
+    ctx.pool.get(key)!.state = "destroyed";
+
+    const r = await runWithKeepalive(turn2(), undefined, undefined, ctx);
+
+    assert.equal(r.ok, true, "the new turn runs");
     assert.equal(calls.acquire, 2, "the new turn cold-starts");
   });
 

@@ -2,8 +2,13 @@
 # https://developers.cloudflare.com/workers/static-assets/redirects/
 #
 # These give a hard 308 at the CDN edge (Astro's static `redirects` only emits a
-# client-side <meta http-equiv="refresh"> page). The pairs MUST stay in sync with
-# the `redirects` block in astro.config.mjs.
+# client-side <meta http-equiv="refresh"> page). This file is the ONLY place the
+# redirects live — astro.config.mjs has no `redirects` block.
+#
+# IMPORTANT: Cloudflare does not apply these to responses served by worker code.
+# Every path below must therefore stay OUT of the `run_worker_first` allowlist in
+# wrangler.jsonc / wrangler.production.jsonc, or it will 404 instead of redirect
+# (scripts/verify-deployment.sh asserts /terms still 308s).
 #
 # Source of truth for destinations:
 #   docs/design/marketing-website/research/live-url-link-map.md

@@ -188,12 +188,57 @@ function looksSecret(name: string): boolean {
   );
 }
 
+function looksLikeFilePath(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("./") ||
+    trimmed.startsWith("../") ||
+    trimmed.startsWith("~/") ||
+    /^[A-Za-z]:[\\/]/.test(trimmed) ||
+    trimmed.startsWith("\\\\")
+  );
+}
+
+/** Some provider SDK settings travel through credential-shaped fields because the SDK reads
+ * them locally, even though their values are locators rather than credential material. */
+function isNonSecretCredentialLocator(name: string, value: string): boolean {
+  const upper = name.toUpperCase();
+  return (
+    upper === "AWS_PROFILE" ||
+    (upper === "GOOGLE_APPLICATION_CREDENTIALS" && looksLikeFilePath(value))
+  );
+}
+
+const PUBLIC_MODEL_ENVIRONMENT_BINDINGS: ReadonlySet<string> = new Set([
+  "AWS_REGION",
+  "AWS_DEFAULT_REGION",
+  "GOOGLE_CLOUD_PROJECT",
+  "GOOGLE_CLOUD_LOCATION",
+]);
+
+/** Keep the public provider configuration named by the wire contract out of the deny-set while
+ * conservatively redacting unknown legacy environment bindings. */
+export function modelEnvironmentSecretValues(
+  environment: Record<string, string> = {},
+): string[] {
+  return Object.entries(environment)
+    .filter(([name]) => !PUBLIC_MODEL_ENVIRONMENT_BINDINGS.has(name))
+    .map(([, value]) => value);
+}
+
 /** The VALUES (never the names) of every process env var whose name is selected by the
  * PREFIX/SUFFIX/BLOCKLIST matchers. Mirrors `seed.py`'s `curated_env_secret_values`. */
 export function curatedEnvSecretValues(): string[] {
   const values: string[] = [];
   for (const [name, value] of Object.entries(process.env)) {
-    if (value && looksSecret(name)) values.push(value);
+    if (
+      value &&
+      looksSecret(name) &&
+      !isNonSecretCredentialLocator(name, value)
+    ) {
+      values.push(value);
+    }
   }
   return values;
 }
@@ -399,11 +444,17 @@ export function seedFromEnv(options?: {
 /** The shape `seedForRun` reads off an `AgentRunRequest` (structural, to avoid importing the
  * wire types into the redaction primitive). */
 export interface RunSeedSource {
+  /** Resolved custom credentials injected into the sandbox environment. */
   sandboxCredentials?: Array<{ value?: string }>;
-  /** Resolved model routing: typed credential values plus the materialized environment values. */
+  /** Resolved model routing. Approved `environment` bindings are public config; unknown legacy
+   * bindings remain fail-safe. `credentials` carries secrets and provider-SDK locators. */
   modelConnection?: {
     environment?: Record<string, string>;
-    credentials?: Array<{ value?: string }>;
+    credentials?: Array<{
+      value?: string;
+      binding?: { kind?: string; name?: string };
+      usage?: string;
+    }>;
   };
   /** Resolved MCP servers: each connection's typed secret header credential values. */
   mcpServers?: Array<{
@@ -415,22 +466,30 @@ export interface RunSeedSource {
 }
 
 /**
- * Every credential-bearing value the request's TYPED shapes carry: the model connection's
- * credential values and materialized environment values, plus each MCP server connection's
- * credential values. This is a superset of whatever subset actually lands in the sandbox env
- * (on a Daytona Secrets run the opaque values leave the plaintext env for the secret plan, but
- * they still transit runner memory and can be echoed by the model), so the deny-set seeds from
- * the request, not from the delivered environment.
+ * Every credential-bearing value the request's TYPED shapes carry: unknown legacy model
+ * environment values, actual model credential values, and MCP credential values. Approved public
+ * model configuration and provider-SDK locators stay readable.
  */
 export function requestSecretValues(
   request: RunSeedSource,
 ): Array<string | undefined> {
   return [
     ...(request.sandboxCredentials ?? []).map((credential) => credential.value),
-    ...Object.values(request.modelConnection?.environment ?? {}),
-    ...(request.modelConnection?.credentials ?? []).map(
-      (credential) => credential.value,
-    ),
+    ...modelEnvironmentSecretValues(request.modelConnection?.environment),
+    ...(request.modelConnection?.credentials ?? [])
+      .filter(
+        (credential) =>
+          !(
+            credential.value &&
+            credential.binding?.kind === "environment" &&
+            credential.binding.name &&
+            isNonSecretCredentialLocator(
+              credential.binding.name,
+              credential.value,
+            )
+          ),
+      )
+      .map((credential) => credential.value),
     ...(request.mcpServers ?? []).flatMap((server) =>
       (server.connection?.credentials ?? []).map(
         (credential) => credential.value,

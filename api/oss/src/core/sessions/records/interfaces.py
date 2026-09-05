@@ -1,10 +1,13 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID
 
 from oss.src.core.sessions.records.dtos import (
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
+    SessionRecordsPage,
+    SessionRecordsReplay,
+    SessionRecordsReadState,
 )
 
 
@@ -32,6 +35,34 @@ class RecordsDAOInterface:
     ) -> List[SessionRecord]:
         raise NotImplementedError
 
+    async def get_records_page(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        offset: int,
+        limit: int,
+        through_sequence: int,
+    ) -> SessionRecordsPage:
+        raise NotImplementedError
+
+    async def get_read_state(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> SessionRecordsReadState:
+        raise NotImplementedError
+
+    async def get_records_after(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        after: int,
+    ) -> SessionRecordsReplay:
+        raise NotImplementedError
+
     async def get_event(
         self,
         *,
@@ -46,4 +77,18 @@ class RecordsDAOInterface:
         project_id: UUID,
         session_ids: List[str],
     ) -> Dict[str, SessionMessagePreview]:
+        raise NotImplementedError
+
+    async def settled_turns(
+        self,
+        *,
+        project_id: UUID,
+        keys: Sequence[Tuple[str, str]],
+        settled_by: Optional[str] = None,
+    ) -> Set[Tuple[str, str]]:
+        """Which of these `(session_id, turn_id)` pairs already carry a terminal record.
+
+        `settled_by` narrows the answer to endings that one writer wrote; see the DAO.
+        """
+
         raise NotImplementedError

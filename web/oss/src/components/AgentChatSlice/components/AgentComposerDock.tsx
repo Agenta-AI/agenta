@@ -1,12 +1,12 @@
 import {useCallback, useEffect, useRef, type RefObject} from "react"
 
-import {CHAT_COLUMN} from "@agenta/chat/assets"
+import {CHAT_COLUMN, shouldShowStopControl} from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {
     ChatComposer,
+    ConnectionWarningStrip,
     MicPermissionNotice,
     RecordingBar,
-    RevealCollapse,
     RunningElsewhereStrip,
     VoiceInputButton,
 } from "@agenta/chat/components"
@@ -46,7 +46,7 @@ import ConnectionDock from "./ConnectionDock"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
 import ElicitationDock from "./ElicitationDock"
-import QueuedMessages from "./QueuedMessages"
+import QueuedMessagesDock from "./QueuedMessagesDock"
 import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 
 /**
@@ -59,7 +59,8 @@ const AgentComposerDock = ({
     entityId,
     messages,
     busy,
-    runningElsewhere,
+    showRunningElsewhere,
+    connectionWarning,
     hitlPending,
     queue,
     modelKey,
@@ -75,6 +76,7 @@ const AgentComposerDock = ({
     onClientToolOutput,
     onSubmit,
     onStop,
+    stopping,
     richInputRef,
     composer,
     attachments,
@@ -87,13 +89,17 @@ const AgentComposerDock = ({
     entityId: string
     messages: UIMessage[]
     busy: boolean
-    /** The backend reports a live run for this session that this browser is not driving. */
-    runningElsewhere: boolean
+    /** Show the disconnected/flag-off fallback for a run this browser is not driving. */
+    showRunningElsewhere: boolean
+    /** The sender request disconnected after the session accepted the turn. */
+    connectionWarning?: string
     hitlPending: boolean
     queue: {
         queued: QueuedMessage[]
         removeQueued: (id: string) => void
-        clearQueue: () => void
+        editingId: string | null
+        beginEdit: (id: string, draft?: string) => void
+        cancelEdit: () => string
     }
     modelKey: React.ComponentProps<typeof ConnectModelBanner>
     modelBlocked: boolean
@@ -110,6 +116,7 @@ const AgentComposerDock = ({
     onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
     onStop: () => void
+    stopping: boolean
     richInputRef: RefObject<RichChatInputHandle | null>
     composer: ReturnType<typeof useComposerDraft>
     attachments: ReturnType<typeof useComposerAttachments>
@@ -139,6 +146,8 @@ const AgentComposerDock = ({
         voiceRecorder,
         voiceWillSend,
         startVoiceMessage,
+        dictationStopRef,
+        endDictation,
         dictating,
         setDictating,
         setDictationError,
@@ -182,6 +191,17 @@ const AgentComposerDock = ({
             return result
         },
         [onSubmit, richInputRef],
+    )
+
+    // Onboarding: submit = commit the ephemeral — Enter creates the agent (matching the
+    // composer's "↵ Send" hint). Either way the message is written, so anything the mic is still
+    // hearing belongs to no draft.
+    const handleComposerSubmit = useCallback(
+        (text: string) => {
+            endDictation()
+            return onboardingActive ? handleCreateAgent() : submitMessage(text)
+        },
+        [endDictation, handleCreateAgent, onboardingActive, submitMessage],
     )
 
     // Restoring focus can only happen AFTER the picker unmounts: a focus() call in the handler is
@@ -229,22 +249,29 @@ const AgentComposerDock = ({
     // Permission rules live in the Advanced accordion's Permissions group.
     const openPermissionsConfig = useCallback(() => openConfigFor("advanced"), [openConfigFor])
 
+    // Any blocking dock on screen. The queue card yields to all of them rather than stacking,
+    // mid-edit included — the composer keeps the edit, so Enter still rewrites the held row.
+    const gateDockOpen = pendingApprovals.length > 0 || elicits.open || connects.open
+
+    // Editing borrows the composer: the row's text goes in, the draft it displaces is stashed.
+    const {beginEdit, cancelEdit} = queue
+    const editQueued = useCallback(
+        (message: QueuedMessage) => {
+            const input = richInputRef.current
+            beginEdit(message.id, input?.getMarkdown() ?? "")
+            input?.setMarkdown(message.text)
+            input?.focus()
+        },
+        [beginEdit, richInputRef],
+    )
+    const cancelQueuedEdit = useCallback(() => {
+        const input = richInputRef.current
+        input?.setMarkdown(cancelEdit())
+        input?.focus()
+    }, [cancelEdit, richInputRef])
+
     return (
         <>
-            {/* Queue sits BETWEEN the messages and the composer, so showing it never shifts the
-                composer (and the editor) upward. Streaming itself is signalled by the composer's
-                send button (it becomes a spinning Stop button), so there's no "Streaming…" row. */}
-            <RevealCollapse open={queue.queued.length > 0} className={CHAT_COLUMN}>
-                <div className="flex items-center gap-2 px-3 pb-2">
-                    <QueuedMessages
-                        queued={queue.queued}
-                        onRemove={queue.removeQueued}
-                        onClear={queue.clearQueue}
-                        held={hitlPending}
-                    />
-                </div>
-            </RevealCollapse>
-
             {/* Rich markdown composer (Lexical). Enter sends; attachments via header/prefix slots.
                 Wrapper `px-3` keeps the session-bar gutter; the input centers on CHAT_COLUMN so it
                 aligns with the (also centered) message column when the panel is wide. The persistent
@@ -254,7 +281,9 @@ const AgentComposerDock = ({
             {/* The whole composer fades + rises in ONCE on mount (Reveal), so the input joins the
                 empty-state/hero entrance instead of popping. Mount-only: it never remounts across the
                 onboarding→chat transitions, so this never reintroduces layout shift on state changes. */}
-            <Reveal className="px-3" enabled={composer.playComposerEntrance}>
+            {/* `relative z-10`: Reveal's transform traps the `/` panels' own z-index, so without a
+                stacking order here the transcript's `z-[5]` bottom fade washes the docked chrome. */}
+            <Reveal className="relative z-10 px-3" enabled={composer.playComposerEntrance}>
                 {/* Agent empty-chat strip (S6): docked above the composer. Visibility is decided by
                     AgentConversation, which hands the same flag to the empty state so exactly one of
                     the strip and the starter pills renders. */}
@@ -268,6 +297,18 @@ const AgentComposerDock = ({
                         />
                     </div>
                 ) : null}
+                {/* Above the gate docks, and hidden entirely while one is up: those are blocked
+                    runs wanting an answer, and a second card stacked above one buries the composer.
+                    Inside the `Reveal` so it shares the composer's `px-3` gutter and column. */}
+                <QueuedMessagesDock
+                    className={CHAT_COLUMN}
+                    queued={gateDockOpen ? [] : queue.queued}
+                    held={hitlPending}
+                    onRemove={queue.removeQueued}
+                    onEdit={editQueued}
+                    onCancelEdit={cancelQueuedEdit}
+                    editingId={queue.editingId}
+                />
                 {/* Always mounted so it animates in/out (RevealCollapse) instead of popping. Pre-commit
                     onboarding SUPPRESSES it — the provider-key check is deferred until the agent is
                     committed (Create-agent then runs the connect→unlock→auto-send flow on the real agent). */}
@@ -276,8 +317,11 @@ const AgentComposerDock = ({
                 </div>
                 {/* Sits with the other docked strips so a session running in another browser reads
                     as busy instead of frozen (#5530). */}
-                {runningElsewhere && !chromeHidden ? (
+                {showRunningElsewhere && !chromeHidden ? (
                     <RunningElsewhereStrip className={CHAT_COLUMN} />
+                ) : null}
+                {connectionWarning && !chromeHidden ? (
+                    <ConnectionWarningStrip className={CHAT_COLUMN} message={connectionWarning} />
                 ) : null}
                 <ApprovalDock
                     className={CHAT_COLUMN}
@@ -398,9 +442,7 @@ const AgentComposerDock = ({
                         dictating={dictating}
                         className={CHAT_COLUMN}
                         fallback={<ComposerSkeleton className={CHAT_COLUMN} />}
-                        // Onboarding: submit = commit the ephemeral — Enter creates the agent
-                        // (matching the composer's "↵ Send" hint).
-                        onSubmit={onboardingActive ? () => handleCreateAgent() : submitMessage}
+                        onSubmit={handleComposerSubmit}
                         disabled={onboardingActive ? ideHandoffActive : modelBlocked}
                         hideSendButton={onboardingActive}
                         placeholder={
@@ -416,7 +458,8 @@ const AgentComposerDock = ({
                         initialMarkdown={composer.initialDraft}
                         slashCommands={slash.sections}
                         onChange={composer.handleComposerChange}
-                        streaming={busy}
+                        streaming={shouldShowStopControl({busy, hitlPending})}
+                        stopping={stopping}
                         onStop={onStop}
                         attachments={attachments}
                         attachmentsBlocked={attachmentsBlocked}
@@ -437,6 +480,7 @@ const AgentComposerDock = ({
                                     attachmentsFull={atMax}
                                     onDictationError={setDictationError}
                                     onDictatingChange={setDictating}
+                                    stopRef={dictationStopRef}
                                     disabled={onboardingActive ? ideHandoffActive : modelBlocked}
                                 />
                                 {/* Context-budget meter temporarily hidden from the UI.

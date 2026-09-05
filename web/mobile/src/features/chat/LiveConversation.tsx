@@ -5,33 +5,52 @@ import {
     BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
     jumpGateOpen,
+    latestTurnId,
+    resolveStopExecution,
+    shouldShowStopControl,
 } from "@agenta/chat/assets"
 import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {
     ConnectionDock,
-    ElicitationDock,
     ConnectionFocusProvider,
+    ConnectionWarningStrip,
+    ElicitationDock,
+    QueuedMessagesDock,
     RunningElsewhereStrip,
 } from "@agenta/chat/components"
+import type {QueuedMessage} from "@agenta/chat/hooks"
 import {
     useAgentConversation,
     useAgentModelKeyStatus,
     useConnectionDock,
     useElicitationDock,
 } from "@agenta/chat/hooks"
-import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
+import {
+    getInteractionAvailability,
+    getLivePendingApprovals,
+    isSessionTurnStopping,
+    type TurnViewModel,
+} from "@agenta/chat/model"
+import {getSessionTurnId} from "@agenta/chat/state"
+import {cancelSessionExecution} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
-import {modal} from "@agenta/ui/app-message"
-import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
+import {message, modal} from "@agenta/ui/app-message"
+import {
+    ChatBubble,
+    ChatBubbleAvatar,
+    ChatJumpToLatest,
+    turnRowClass,
+} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
+import {User} from "lucide-react"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useProjectPermission} from "../context/useProjectPermission"
-import {takePendingTaskAtom} from "../home/pendingTask"
+import {pendingTasksAtom, takePendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
 
 import {ApprovalDock} from "./ApprovalDock"
@@ -45,8 +64,9 @@ import {
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
+import {cancelledStopAction} from "./stopHereState"
 import {TurnRow} from "./TurnRow"
-import {showTrailingWorkingPulse} from "./turnStatus"
+import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
@@ -69,6 +89,11 @@ export const LiveConversation = ({
     projectId,
     workspaceId,
     running,
+    stopStateLoading,
+    sessionTurnId,
+    stoppingTurnId,
+    sharedReader,
+    livenessUpdatedAt,
     agentId,
     embedded = false,
 }: {
@@ -78,12 +103,26 @@ export const LiveConversation = ({
     workspaceId: string
     /** Backend liveness (cross-device) — shows the running strip even when this device idles. */
     running: boolean
+    /** Initial liveness load and durable Stop ownership for remount recovery. */
+    stopStateLoading: boolean
+    sessionTurnId?: string | null
+    stoppingTurnId?: string | null
+    /** Backend-advertised ability to receive display-only live frames from another sender. */
+    sharedReader: boolean
+    /** React Query timestamp used to reject the sender's stale post-settle liveness snapshot. */
+    livenessUpdatedAt: number
     /** Scopes the session tab rail to this agent's sessions. */
     agentId?: string | null
     /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
     embedded?: boolean
 }) => {
-    const conversation = useAgentConversation({entityId, sessionId})
+    const conversation = useAgentConversation({
+        entityId,
+        sessionId,
+        sharedReaderAdvertised: sharedReader,
+        sharedReaderRunning: running,
+        sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
+    })
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
     const adoptSecretRevision = useCallback(
@@ -129,6 +168,23 @@ export const LiveConversation = ({
     // the composer, and rewind (far below) refills it the same way.
     const composerRef = useRef<RichChatInputHandle | null>(null)
 
+    // Editing borrows the composer: the row's text goes in, the draft it displaces is stashed.
+    const {beginEdit, cancelEdit} = conversation
+    const editQueued = useCallback(
+        (message: QueuedMessage) => {
+            const input = composerRef.current
+            beginEdit(message.id, input?.getMarkdown() ?? "")
+            input?.setMarkdown(message.text)
+            input?.focus()
+        },
+        [beginEdit],
+    )
+    const cancelQueuedEdit = useCallback(() => {
+        const input = composerRef.current
+        input?.setMarkdown(cancelEdit())
+        input?.focus()
+    }, [cancelEdit])
+
     // A task started from Home lands here as a stashed message: the session did not exist when
     // it was typed, and the first send is what creates it. Ref-guarded and the slot is consumed
     // on read, so a re-render (or React 18's double-invoke in dev) cannot send it twice. Held
@@ -138,10 +194,16 @@ export const LiveConversation = ({
     // vault says one already exists). The guard holds the SESSION it
     // fired for, not a bare flag: this component survives a session switch, and a flag would
     // swallow the next session's stashed task.
+
+    // Peek at the parked task WITHOUT consuming it — used only for display while the gate holds.
+    // `takePendingTaskAtom` removes the entry; this read leaves it in place for the send effect.
+    const pendingTasks = useAtomValue(pendingTasksAtom)
+    const heldTaskText = pendingTasks[sessionId]?.text ?? null
+
     const takePendingTask = useSetAtom(takePendingTaskAtom)
     const sentPendingTaskFor = useRef<string | null>(null)
     const [pendingTaskError, setPendingTaskError] = useState<string | null>(null)
-    const {isHydrating, send} = conversation
+    const {isHydrating, revalidate, send, stop, voidPendingResume} = conversation
     useEffect(() => {
         const decision = pendingTaskDecision({
             sessionId,
@@ -174,22 +236,218 @@ export const LiveConversation = ({
         takePendingTask,
     ])
 
-    // Push-invalidation: a records change (another device's turn, a steer resume) folds into
-    // the engine's transcript under its adopt guards.
-    const watch = useSessionWatch({sessionId, projectId, onRecordsChanged: conversation.revalidate})
-    // The watch relay is the primary cross-device signal; when it cannot connect, fall back to a
-    // slow revalidate poll only while the backend says the session is running elsewhere.
+    const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
+    const remoteTurn = deriveMobileRemoteTurnPresentation({
+        livenessRunning: running,
+        snapshotRunning: conversation.runningFromSnapshot || conversation.acceptedRunPending,
+        sharedReaderAdvertised: sharedReader,
+        readerReady: conversation.readerReady,
+        ownedContinuation: conversation.acceptedRunPending,
+    })
+    const showingTurnActivity = streamingHere || remoteTurn.showActivity
+    const streamingHereRef = useRef(streamingHere)
+    streamingHereRef.current = streamingHere
+    const hitlPendingRef = useRef(conversation.hitlPending)
+    hitlPendingRef.current = conversation.hitlPending
+    const [stoppingHere, setStoppingHere] = useState(false)
+    const stopWatchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
+    const retryStopRef = useRef(false)
+    const stopSessionIdRef = useRef(sessionId)
+    stopSessionIdRef.current = sessionId
+    const stopping =
+        stoppingHere ||
+        isSessionTurnStopping({
+            currentTurnId: sessionTurnId ?? latestTurnId(conversation.messages),
+            stoppingTurnId,
+        }) ||
+        (stopStateLoading && conversation.hitlPending)
+    const settleParkedStop = useCallback(() => {
+        if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
+        stopWatchdogTimerRef.current = null
+        retryStopRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        // Server acceptance makes the local stop a render-only latch.
+        stop()
+        setStoppingHere(false)
+    }, [stop])
+
+    useEffect(() => {
+        if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
+        stopWatchdogTimerRef.current = null
+        retryStopRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        setStoppingHere(false)
+    }, [sessionId])
+
+    // Push invalidation folds cross-device changes into the guarded transcript.
+    const watch = useSessionWatch({
+        sessionId,
+        projectId,
+        onRecordsChanged: revalidate,
+        sharedReaderAdvertised: sharedReader,
+    })
+    // Poll slowly while a cross-device run cannot be watched live.
     useEffect(() => {
         if (watch.connected || !running) return
-        const timer = setInterval(() => conversation.revalidate(), 7_500)
+        const timer = setInterval(() => revalidate(), 7_500)
         return () => clearInterval(timer)
-    }, [watch.connected, running, conversation.revalidate])
+    }, [watch.connected, running, revalidate])
+    useEffect(() => {
+        if (streamingHere || !stopWatchdogTimerRef.current) return
+        clearTimeout(stopWatchdogTimerRef.current)
+        stopWatchdogTimerRef.current = null
+        retryStopRef.current = false
+        expectedStopExecutionIdRef.current = undefined
+        setStoppingHere(false)
+    }, [streamingHere])
+    useEffect(
+        () => () => {
+            if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
+        },
+        [],
+    )
+    const stopResolutionRef = useRef<AbortController | null>(null)
+    useEffect(
+        () => () => {
+            stopResolutionRef.current?.abort()
+        },
+        [sessionId],
+    )
 
-    // The engine's own dock latches the shown set; the mobile dock renders the raw pending list
-    // (same source function, same index-0 ordering) and acts through the engine.
+    // Composer Stop cancels on the server before changing local presentation.
+    const stopHere = useCallback(() => {
+        if (stopping) return
+        // Fence a delayed approval release even when cancellation cannot be requested yet.
+        voidPendingResume()
+        if (!projectId || !sessionId) return
+        setStoppingHere(true)
+        const wasParked = !streamingHereRef.current && conversation.hitlPending
+        const isRetry = retryStopRef.current
+        const expectedExecutionId = isRetry
+            ? expectedStopExecutionIdRef.current
+            : getSessionTurnId(sessionId)
+        retryStopRef.current = false
+        let resolutionController: AbortController | null = null
+        const cancel = async () => {
+            let resolvedExecutionId = expectedExecutionId
+            if (!isRetry && !resolvedExecutionId && streamingHereRef.current) {
+                const controller = new AbortController()
+                resolutionController = controller
+                stopResolutionRef.current?.abort()
+                stopResolutionRef.current = controller
+                const resolution = await resolveStopExecution({
+                    readExecutionId: () => getSessionTurnId(sessionId),
+                    isRunActive: () => streamingHereRef.current,
+                    signal: controller.signal,
+                })
+                if (stopResolutionRef.current === controller) stopResolutionRef.current = null
+                if (resolution.status !== "resolved") return {resolution} as const
+                resolvedExecutionId = resolution.executionId
+            }
+            expectedStopExecutionIdRef.current = resolvedExecutionId
+            const outcome = await cancelSessionExecution({
+                sessionId,
+                projectId,
+                expectedExecutionId: resolvedExecutionId,
+            })
+            return {outcome} as const
+        }
+        void cancel()
+            .then((result) => {
+                if ("resolution" in result && result.resolution) {
+                    if (result.resolution.status === "settled") {
+                        setStoppingHere(false)
+                    } else if (result.resolution.status === "timed_out") {
+                        setStoppingHere(false)
+                        message.warning("Could not identify the run to stop. Please try again.")
+                    }
+                    return
+                }
+                const {outcome} = result
+                if (stopSessionIdRef.current !== sessionId) return
+                if (outcome?.accepted) {
+                    const action = cancelledStopAction({
+                        parkedAtRequest: wasParked,
+                        parkedAtResponse: !streamingHereRef.current && hitlPendingRef.current,
+                        streaming: streamingHereRef.current,
+                        retry: isRetry,
+                        executionState: outcome.execution.state,
+                    })
+                    if (action === "settle-parked") {
+                        settleParkedStop()
+                        return
+                    }
+                    if (action === "settle-idle") {
+                        setStoppingHere(false)
+                        expectedStopExecutionIdRef.current = undefined
+                        return
+                    }
+                    if (action === "abort-settled" || action === "abort-retry") {
+                        stop()
+                        setStoppingHere(false)
+                        expectedStopExecutionIdRef.current = undefined
+                        return
+                    }
+                    stopWatchdogTimerRef.current = setTimeout(() => {
+                        retryStopRef.current = true
+                        stopWatchdogTimerRef.current = null
+                        setStoppingHere(false)
+                    }, 30_000)
+                    return
+                }
+                setStoppingHere(false)
+                if (outcome && !outcome.conflict && outcome.execution.state === "idle") {
+                    retryStopRef.current = false
+                    expectedStopExecutionIdRef.current = undefined
+                    return
+                }
+                if (outcome?.conflict) {
+                    retryStopRef.current = false
+                    expectedStopExecutionIdRef.current = undefined
+                } else if (isRetry) {
+                    retryStopRef.current = true
+                }
+                message.warning(
+                    outcome?.conflict
+                        ? "That run had already finished. The session is running something else now."
+                        : "Could not stop the run. It may still be running.",
+                )
+            })
+            .catch((error: unknown) => {
+                if (stopResolutionRef.current === resolutionController) {
+                    stopResolutionRef.current = null
+                }
+                if (stopSessionIdRef.current !== sessionId) return
+                if (isRetry) retryStopRef.current = true
+                setStoppingHere(false)
+                message.warning(
+                    error instanceof Error
+                        ? error.message
+                        : "Could not stop the run. It may still be running.",
+                )
+            })
+    }, [
+        projectId,
+        sessionId,
+        stop,
+        stopping,
+        conversation.hitlPending,
+        settleParkedStop,
+        voidPendingResume,
+    ])
+
+    const interactionAvailability = getInteractionAvailability({
+        stopped: conversation.stopped,
+        stopping,
+        streaming: streamingHere,
+    })
     const pendingApprovals = useMemo(
-        () => getPendingApprovals(conversation.messages),
-        [conversation.messages],
+        () =>
+            getLivePendingApprovals(conversation.messages, {
+                stopped: !interactionAvailability.approvals,
+            }),
+        [conversation.messages, interactionAvailability.approvals],
     )
     // Steer keeps the detached resume dispatcher; plain approve/deny go through the engine.
     const steerActions = useApprovalActions({
@@ -225,28 +483,30 @@ export const LiveConversation = ({
     )
     const autoScroll = useTranscriptAutoScroll(visibleTurns)
 
-    const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
     // Parked connect interactions → the dock above the composer owns their actions, so a paused
     // run can't scroll out of reach. Gated the same way desktop gates it.
     // Parked question forms → the docked card owns the questions and the answers; the transcript
     // rows are passive markers.
     const elicits = useElicitationDock({
         messages: conversation.messages,
-        enabled: !streamingHere && !conversation.stopped,
+        enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         onOutput: conversation.sendToolOutput,
     })
     const connects = useConnectionDock({
         messages: conversation.messages,
-        enabled: !streamingHere && !conversation.stopped,
+        enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
+    // Any blocking dock on screen. The queue card yields to all of them rather than stacking,
+    // mid-edit included — the composer keeps the edit, so Enter still rewrites the held row.
+    const gateDockOpen = pendingApprovals.length > 0 || elicits.open || connects.open
     // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
     // surface has no question-form dock yet, so only approvals and connect cards can gate it.
     const gateOpen = jumpGateOpen({
         approvals: pendingApprovals.length,
-        elicitationOpen: Boolean(pendingSecret),
+        elicitationOpen: false,
         connectionOpen: connects.open,
     })
 
@@ -287,6 +547,30 @@ export const LiveConversation = ({
     } else {
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                {/* A task typed before any provider key exists is held in `pendingTasksAtom`
+                    (not yet sent — the gate is up). Render it as a user bubble so the person
+                    can see what they wrote, matching desktop parity: the desktop shows the
+                    held seed above the connect-model banner. Cleared the moment the gate
+                    drops and the send effect fires (`takePendingTaskAtom` removes the entry). */}
+                {heldTaskText ? (
+                    <div className={`${turnRowClass} justify-end`}>
+                        <ChatBubble
+                            placement="end"
+                            variant="filled"
+                            avatar={<ChatBubbleAvatar icon={<User className="size-4" />} />}
+                            className="min-w-0 max-w-[85%]"
+                            classNames={{
+                                content: "min-w-0 max-w-full overflow-hidden text-xs",
+                                body: "min-w-0 max-w-full overflow-hidden",
+                            }}
+                            content={
+                                <span className="whitespace-pre-wrap break-words">
+                                    {heldTaskText}
+                                </span>
+                            }
+                        />
+                    </div>
+                ) : null}
                 {conversation.isEmpty ? (
                     // The SAME card the desktop shows a conversation with no messages: who you are
                     // about to talk to. A blank session is not an error state — /m rendered nothing
@@ -309,7 +593,6 @@ export const LiveConversation = ({
                         turn={turn}
                         onClientToolOutput={conversation.sendToolOutput}
                         onRewind={handleRewind}
-                        onRetry={handleRewind}
                         sessionId={sessionId}
                     />
                 ))}
@@ -318,7 +601,7 @@ export const LiveConversation = ({
                     far below the turn it described. It falls back to here for the one case that
                     turn cannot cover: the request is submitted and no assistant turn exists yet. */}
                 <TurnStatusLine
-                    working={showTrailingWorkingPulse(streamingHere, visibleTurns)}
+                    working={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
                     waitingForInput={conversation.hitlPending}
                 />
             </ContentRail>
@@ -352,17 +635,40 @@ export const LiveConversation = ({
                             className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
                             style={BOTTOM_FADE_OVERLAY_STYLE}
                         />
+                        {/* What you have lined up. Yields to the gate docks entirely: those are
+                        blocked runs wanting an answer, and stacking a second card above one
+                        buries the composer. It comes back when the gate clears. */}
+                        {conversation.queued.length > 0 && !gateDockOpen ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <QueuedMessagesDock
+                                        queued={conversation.queued}
+                                        held={conversation.hitlPending}
+                                        onRemove={conversation.removeQueued}
+                                        onEdit={editQueued}
+                                        onCancelEdit={cancelQueuedEdit}
+                                        editingId={conversation.editingId}
+                                        touch
+                                    />
+                                </ContentRail>
+                            </div>
+                        ) : null}
                         {/* A run this device is not driving. Docked with the other strips above the
                         composer, as on the desktop — it used to be a top bar that also appeared for
                         THIS device's own turns, duplicating the composer's Stop and shifting the
                         transcript twice per run. */}
-                        {running && !streamingHere ? (
+                        {remoteTurn.showStrip && !streamingHere ? (
                             <ContentRail>
                                 <RunningElsewhereStrip
                                     action={
                                         <StopButton sessionId={sessionId} projectId={projectId} />
                                     }
                                 />
+                            </ContentRail>
+                        ) : null}
+                        {conversation.connectionWarning ? (
+                            <ContentRail>
+                                <ConnectionWarningStrip message={conversation.connectionWarning} />
                             </ContentRail>
                         ) : null}
                         {pendingApprovals.length > 0 ? (
@@ -430,11 +736,31 @@ export const LiveConversation = ({
                         ) : null}
                         <Composer
                             sessionId={sessionId}
-                            onSend={({text, parts}) => conversation.send({text, parts})}
+                            onSend={({text, parts}) => {
+                                setStoppingHere(false)
+                                // An open edit rewrites its held message instead of sending. The
+                                // input clears on submit, so the displaced draft goes back after.
+                                if (!conversation.editingId) {
+                                    conversation.send({text, parts})
+                                    return
+                                }
+                                const draft = conversation.commitEdit({text, fileParts: parts})
+                                if (draft)
+                                    requestAnimationFrame(() =>
+                                        composerRef.current?.setMarkdown(draft),
+                                    )
+                            }}
                             disabled={conversation.isHydrating || modelBlocked}
+                            placeholder={
+                                modelBlocked ? "Connect a model to start chatting…" : undefined
+                            }
                             waitingOnUser={conversation.hitlPending}
-                            streaming={streamingHere}
-                            onStop={conversation.stop}
+                            streaming={shouldShowStopControl({
+                                busy: streamingHere,
+                                hitlPending: conversation.hitlPending,
+                            })}
+                            stopping={stopping}
+                            onStop={stopHere}
                             inputRef={composerRef}
                         />
                     </div>

@@ -12,7 +12,7 @@
  * - Works with any entity controller pattern
  */
 
-import {lazy, memo, Suspense, useMemo} from "react"
+import {Component, lazy, memo, Suspense, useMemo, type ReactNode} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
@@ -36,8 +36,57 @@ import {TextInputControl} from "./TextInputControl"
 // control in the registry and only renders for agent-template schemas — code-split it so
 // non-agent config panels never load it and agent panels load it behind its skeleton.
 const AgentTemplateControl = lazy(() =>
-    import("./AgentTemplateControl").then((m) => ({default: m.AgentTemplateControl})),
+    import("./AgentTemplateControl")
+        .then((m) => {
+            if (!m?.AgentTemplateControl) {
+                // Resolved, but the named export is missing (a circular import that has not
+                // finished initialising resolves the module with holes). React would then render
+                // `undefined` rather than reject, so name it here instead of failing opaquely.
+                const error = new Error(
+                    `[AgentTemplateControl] chunk loaded without its export (keys: ${Object.keys(m ?? {}).join(", ") || "none"})`,
+                )
+                console.error(error)
+                throw error
+            }
+            return {default: m.AgentTemplateControl}
+        })
+        .catch((error: unknown) => {
+            // A rejected lazy import leaves the Suspense fallback up forever when nothing
+            // catches it, which reads as "the config panel never loads" with no error anywhere.
+            console.error("[AgentTemplateControl] chunk failed to load", error)
+            throw error
+        }),
 )
+
+/**
+ * Renders WHY the agent config did not load, instead of leaving its skeleton up forever.
+ *
+ * A `lazy()` import that rejects suspends until something catches it. With no boundary here the
+ * panel sat on `AgentConfigSkeleton` indefinitely, indistinguishable from a slow network, and the
+ * only trace was a console error nobody was looking at.
+ */
+class AgentTemplateBoundary extends Component<{children: ReactNode}, {error: Error | null}> {
+    state: {error: Error | null} = {error: null}
+
+    static getDerivedStateFromError(error: Error) {
+        return {error}
+    }
+
+    componentDidCatch(error: Error, info: {componentStack?: string | null}) {
+        console.error("[AgentTemplateControl] failed to render", error, info.componentStack)
+    }
+
+    render() {
+        const {error} = this.state
+        if (!error) return this.props.children
+        return (
+            <div className="flex flex-col gap-1 rounded-lg border border-solid border-colorErrorBorder bg-colorErrorBg px-3 py-2 text-xs text-colorErrorText">
+                <span className="font-medium">The agent configuration could not load.</span>
+                <span className="break-words font-mono">{error.message}</span>
+            </div>
+        )
+    }
+}
 
 /** Warm the agent-template chunk during idle time (e.g. as soon as the playground knows the
  * app is an agent), so its download + execution doesn't coincide with the revision/schema
@@ -444,18 +493,20 @@ export const SchemaPropertyRenderer = memo(function SchemaPropertyRenderer({
             // The Suspense fallback is the SAME skeleton the schema-loading gate shows,
             // so the two gates read as one continuous frame while the chunk loads.
             return (
-                <Suspense fallback={<AgentConfigSkeleton />}>
-                    <AgentTemplateControl
-                        schema={resolvedSchema}
-                        label={displayLabel}
-                        value={value as Record<string, unknown> | null}
-                        onChange={(v) => onChange(v)}
-                        description={tooltipDesc}
-                        withTooltip={withTooltip}
-                        disabled={disabled}
-                        className={className}
-                    />
-                </Suspense>
+                <AgentTemplateBoundary>
+                    <Suspense fallback={<AgentConfigSkeleton />}>
+                        <AgentTemplateControl
+                            schema={resolvedSchema}
+                            label={displayLabel}
+                            value={value as Record<string, unknown> | null}
+                            onChange={(v) => onChange(v)}
+                            description={tooltipDesc}
+                            withTooltip={withTooltip}
+                            disabled={disabled}
+                            className={className}
+                        />
+                    </Suspense>
+                </AgentTemplateBoundary>
             )
 
         case "prompt":

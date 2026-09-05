@@ -1,4 +1,5 @@
 ---
+import Section from "../../components/Section.astro";
 import type { GetStaticPaths } from "astro";
 import Site from "../../layouts/Site.astro";
 import PostCard from "../../components/PostCard.astro";
@@ -26,7 +27,6 @@ export const getStaticPaths = (async () => {
 const { author, posts } = Astro.props;
 const { name, role, avatar, bio, socials } = author.data;
 
-const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;";
 ---
 
 <Site
@@ -34,16 +34,16 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
   description={bio ?? `${name} — ${role}. Posts on the Agenta blog.`}
 >
   <!-- Author hero -->
-  <section
+  <Section tone="flat"
     class="ag-pad"
-    style={`background:#0E0D0F;${sectionBorder}padding:64px 24px 48px;`}
+    style="background:var(--au-sec-1);padding:64px 24px 48px;"
   >
     <div
       style="max-width:760px;margin:0 auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:20px;"
     >
       <a
         href="/blog"
-        style="align-self:flex-start;display:inline-flex;align-items:center;gap:7px;font:var(--text-label);color:rgba(255,255,255,0.55);text-decoration:none;"
+        style="align-self:flex-start;display:inline-flex;align-items:center;gap:7px;font:var(--text-label);color:var(--au-quiet);text-decoration:none;"
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
           ><path
@@ -62,15 +62,15 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
         loading="eager"
         fetchpriority="high"
         decoding="async"
-        style="width:128px;height:128px;border-radius:50%;object-fit:cover;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12),0 8px 32px rgba(0,0,0,0.4);"
+        style="width:128px;height:128px;border-radius:50%;object-fit:cover;box-shadow:var(--au-hero-avatar);"
       />
       <h1
         class="ag-h1"
-        style="margin:0;font:300 52px/1.06 var(--font-display);color:#F7F6F4;"
+        style="margin:0;font:300 52px/1.06 var(--font-display);color:var(--th-text-hi);"
       >
         {name}
       </h1>
-      <span style="font:var(--text-body-md);color:var(--yellow-400);">{role}</span>
+      <span style="font:var(--text-body-md);color:var(--au-role);">{role}</span>
       {
         socials && socials.length > 0 && (
           <div style="display:flex;gap:10px;margin-top:4px;">
@@ -80,12 +80,12 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
                 target="_blank"
                 rel="noopener"
                 aria-label={s.platform}
-                style="width:38px;height:38px;border-radius:9px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12);display:inline-flex;align-items:center;justify-content:center;"
+                style="width:38px;height:38px;border-radius:9px;background:var(--au-tile-bg);box-shadow:var(--au-tile-ring);display:inline-flex;align-items:center;justify-content:center;"
               >
                 <img
                   src={socialIcon(s.platform)}
                   alt=""
-                  style="width:18px;height:18px;filter:invert(1) brightness(0.85);"
+                  style="width:18px;height:18px;filter:var(--au-icon-filter);"
                 />
               </a>
             ))}
@@ -93,43 +93,43 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
         )
       }
     </div>
-  </section>
+  </Section>
 
   <!-- Bio -->
   {
     bio && (
-      <section
+      <Section tone="flat"
         class="ag-prose ag-pad"
-        style={`background:#0A0A0B;${sectionBorder}padding:48px 24px;`}
+        style="background:var(--au-sec-0);padding:48px 24px;"
       >
         <div style="max-width:720px;margin:0 auto;">
-          <p style="margin:0;font:400 19px/1.7 var(--font-sans);color:rgba(255,255,255,0.74);">
+          <p style="margin:0;font:400 19px/1.7 var(--font-sans);color:var(--au-bio);">
             {bio}
           </p>
         </div>
-      </section>
+      </Section>
     )
   }
 
   <!-- Posts from the author -->
-  <section
+  <Section tone="flat"
     class="ag-pad"
-    style={`background:#0A0A0B;${sectionBorder}padding:24px 64px 88px;`}
+    style="background:var(--au-sec-0);padding:24px 64px 88px;"
   >
     <div
       style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:32px;flex-wrap:wrap;"
     >
       <div style="display:flex;flex-direction:column;gap:8px;">
-        <h2 class="ag-dlg" style="margin:0;font:var(--text-display-lg);color:#F7F6F4;">
+        <h2 class="ag-dlg" style="margin:0;font:var(--text-display-lg);color:var(--th-text-hi);">
           Blogs from the author
         </h2>
-        <p style="margin:0;font:var(--text-body-sm);color:rgba(255,255,255,0.55);">
+        <p style="margin:0;font:var(--text-body-sm);color:var(--au-sub);">
           The latest updates and insights from Agenta
         </p>
       </div>
       <a
         href="/blog"
-        style="display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 18px;border-radius:8px;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);text-decoration:none;"
+        class="ag-btn ag-btn--outline"
       >
         View all blogs
         <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
@@ -153,10 +153,47 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
           ))}
         </div>
       ) : (
-        <p style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.5);">
+        <p style="margin:0;font:var(--text-body-md);color:var(--au-empty);">
           No posts yet from {name}.
         </p>
       )
     }
-  </section>
+  </Section>
+
+  <style is:global>
+    /* Author-page theme vars. The mockups don't cover authors pages; light
+       mirrors the blog-post author-bio treatment (all-white page, ink text
+       scale, white social tiles with paper-200 rings). [data-theme="dark"]
+       restores the exact literals the page previously hard-coded, so dark
+       stays pixel-identical. */
+    :root {
+      --au-sec-1: var(--paper-0); /* hero band            */
+      --au-sec-0: var(--paper-0); /* bio + posts bands    */
+      --au-quiet: var(--ink-600); /* "All blogs" back link */
+      --au-hero-avatar:
+        inset 0 0 0 1px var(--paper-150), 0 8px 32px rgba(36, 36, 36, 0.12);
+      --au-role: var(--ink-600);
+      --au-tile-bg: #ffffff;
+      --au-tile-ring: 0 0 0 1px var(--paper-200);
+      /* Icons are black source SVGs; ~ink-600 grey in light. */
+      --au-icon-filter: invert(0.4);
+      --au-bio: var(--ink-600);
+      --au-sub: var(--ink-600);
+      --au-empty: var(--ink-500);
+    }
+    [data-theme="dark"] {
+      --au-sec-1: #0e0d0f;
+      --au-sec-0: #0a0a0b;
+      --au-quiet: rgba(255, 255, 255, 0.55);
+      --au-hero-avatar:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 8px 32px rgba(0, 0, 0, 0.4);
+      --au-role: var(--yellow-400);
+      --au-tile-bg: rgba(255, 255, 255, 0.05);
+      --au-tile-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+      --au-icon-filter: invert(1) brightness(0.85);
+      --au-bio: rgba(255, 255, 255, 0.74);
+      --au-sub: rgba(255, 255, 255, 0.55);
+      --au-empty: rgba(255, 255, 255, 0.5);
+    }
+  </style>
 </Site>

@@ -49,6 +49,11 @@ export interface AgentRequest {
     headers: Record<string, string>
 }
 
+/** Client-only transport marker: the invoke stream carries acceptance/errors while session
+ * frames provide the rendered response. The API forwards it harmlessly; AgentChatTransport
+ * consumes it before parsing the response. */
+export const SHARED_SESSION_RESPONSE_HEADER = "x-ag-session-response"
+
 /** Minimal store surface — the default Jotai store, or a test store. */
 type StoreLike = Pick<ReturnType<typeof getDefaultStore>, "get">
 
@@ -302,7 +307,7 @@ const withQuery = (url: string, params: Record<string, string | undefined>): str
 export async function buildAgentRequest(
     entityId: string,
     messages: unknown[],
-    opts: {sessionId: string; store?: StoreLike; secretSetup?: boolean},
+    opts: {sessionId: string; store?: StoreLike; sharedResponse?: boolean; secretSetup?: boolean},
 ): Promise<AgentRequest | null> {
     const store = opts.store ?? getDefaultStore()
 
@@ -340,8 +345,6 @@ export async function buildAgentRequest(
         ),
     ) as Record<string, unknown>
 
-    // Advertise only when the calling host can fulfill the request. This throwaway overlay
-    // never changes saved tools or editor drafts, and identity-merges existing references.
     if (opts.secretSetup) {
         parameters = withBuildKitOverlay(
             parameters,
@@ -407,8 +410,14 @@ export async function buildAgentRequest(
     // the UIMessage request body (`data.inputs.messages`) and the response projection.
     const channelMode = store.get(agentChannelModeAtomFamily(opts.sessionId))
     const headers: Record<string, string> = {
-        Accept: channelMode === "batch" ? "application/json" : "text/event-stream",
+        // The shared sender still consumes invoke acceptance/errors as SSE; its response content
+        // is deliberately not the render source, regardless of the local batch preference.
+        Accept:
+            opts.sharedResponse || channelMode !== "batch"
+                ? "text/event-stream"
+                : "application/json",
         "x-ag-messages-format": "vercel",
+        ...(opts.sharedResponse ? {[SHARED_SESSION_RESPONSE_HEADER]: "shared"} : {}),
         ...(headersFactory ? await headersFactory() : {}),
     }
 
@@ -441,6 +450,7 @@ export async function buildAgentRequest(
         headers,
         requestBody: {
             session_id: opts.sessionId,
+            ...(opts.sharedResponse ? {flags: {detached: true}} : {}),
             references,
             data: {inputs: {messages: outboundMessages}, parameters},
         },

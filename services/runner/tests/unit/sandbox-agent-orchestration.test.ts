@@ -36,20 +36,31 @@ import {
   shouldSuppressPausedToolCallUpdate,
 } from "../../src/engines/sandbox_agent/runtime-policy.ts";
 import { mountStorage } from "../../src/engines/sandbox_agent/mount.ts";
+import { withSandboxGoneReport } from "../../src/engines/sandbox_agent/acp-fetch.ts";
+import { SANDBOX_GONE_MESSAGE } from "../../src/engines/sandbox_agent/errors.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
 import { appendPlatformGuidance } from "../../src/engines/sandbox_agent/system-prompt-appendix.ts";
 import { platformGuidanceAppendix } from "../../src/engines/sandbox_agent/platform-guidance.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
+  acquireEnvironment,
+  runTurn,
   runSandboxAgent,
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
+import { USER_STOP_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
 import {
   fakeHarness,
   flushPromises,
   type FakeOptions,
 } from "../utils/sandbox-agent-harness.ts";
+import {
+  findExecution,
+  registerExecution,
+  resetExecutionsForTest,
+} from "../../src/sessions/execution-registry.ts";
+import { applyCommand } from "../../src/sessions/control-channel.ts";
 
 // Orchestration cases include Daytona runs: enable it (with a provisioning credential) on top of
 // the hermetic scrub, then drop the memoized config so the run plan reads the enabled set.
@@ -60,6 +71,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  resetExecutionsForTest();
   vi.unstubAllGlobals();
 });
 
@@ -96,6 +108,79 @@ describe("PendingApprovalPauseController", () => {
 });
 
 describe("runSandboxAgent orchestration", () => {
+  for (const providerName of ["local", "daytona"] as const) {
+    it(`a Stop preempts slow ${providerName} acquisition and cleans a late sandbox`, async () => {
+      const { deps } = fakeHarness();
+      const delegateStart = deps.startSandboxAgent!;
+      let releaseCreate!: (sandboxId: string) => void;
+      const slowCreate = new Promise<string>((resolve) => {
+        releaseCreate = resolve;
+      });
+      let markCreateStarted!: () => void;
+      const createStarted = new Promise<void>((resolve) => {
+        markCreateStarted = resolve;
+      });
+      let markCleaned!: () => void;
+      const cleaned = new Promise<void>((resolve) => {
+        markCleaned = resolve;
+      });
+      let destroys = 0;
+      deps.buildSandboxProvider = (() => ({
+        name: providerName,
+        create: () => {
+          markCreateStarted();
+          return slowCreate;
+        },
+        async destroy() {
+          destroys += 1;
+          markCleaned();
+        },
+        async getUrl() {
+          return "http://sandbox.invalid";
+        },
+      })) as any;
+      deps.startSandboxAgent = (async (options: any) => {
+        await options.sandbox.create();
+        return delegateStart(options);
+      }) as any;
+
+      const controller = new AbortController();
+      const acquire = acquireEnvironment(
+        {
+          harness: "claude",
+          sandbox: providerName,
+          messages: [{ role: "user", content: "start slowly" }],
+        },
+        deps,
+        controller.signal,
+      );
+      await createStarted;
+      controller.abort(USER_STOP_ABORT_REASON);
+
+      const result = await Promise.race([
+        acquire,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(
+            () => reject(new Error("Stop exceeded the delivery timeout")),
+            4_000,
+          ),
+        ),
+      ]);
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, /acquisition was aborted/);
+
+      releaseCreate(`${providerName}-late-id`);
+      await Promise.race([
+        cleaned,
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(() => reject(new Error("late sandbox leaked")), 4_000),
+        ),
+      ]);
+      assert.equal(destroys, 1);
+    });
+  }
+
   // NOTE: in-band redaction of the LIVE event stream / result / trace-start input was a
   // daytona-secret-materialization concept that was not adopted. Redaction happens at the
   // durable/exported sinks (persisted transcript + exported spans; see redaction-sinks.test.ts),
@@ -144,6 +229,74 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
     assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  it("replays rebuilt history after an evicted local Pi load cannot verify native turns", async () => {
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "local",
+      messages: [
+        { role: "user", content: "Remember the codeword KIWI-9" },
+        { role: "assistant", content: "I will remember it." },
+        { role: "user", content: "What was the codeword?" },
+      ],
+    };
+    const { calls, deps } = fakeHarness();
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    try {
+      const result = await runTurn(
+        acquired.env,
+        request,
+        undefined,
+        undefined,
+        { loaded: true, nativeHistoryVerified: false },
+      );
+
+      assert.equal(result.ok, true);
+      const prompt = calls.promptBlocks?.[0]?.text ?? "";
+      assert.match(prompt, /^Conversation so far:/);
+      assert.match(prompt, /KIWI-9/);
+      assert.match(prompt, /The user now says:\nWhat was the codeword\?$/);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
+  it("keeps the last-message-only path for a verified Daytona native load", async () => {
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "daytona",
+      messages: [
+        { role: "user", content: "Remember the codeword KIWI-9" },
+        { role: "assistant", content: "I will remember it." },
+        { role: "user", content: "What was the codeword?" },
+      ],
+    };
+    const { calls, deps } = fakeHarness();
+    deps.prepareDaytonaPiAssets = (async () => true) as any;
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    try {
+      const result = await runTurn(
+        acquired.env,
+        request,
+        undefined,
+        undefined,
+        { loaded: true, nativeHistoryVerified: true },
+      );
+
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [
+        { type: "text", text: "What was the codeword?" },
+      ]);
+    } finally {
+      await acquired.env.destroy();
+    }
   });
 
   it("passes the live turn credential provider to the trace exporter", async () => {
@@ -613,6 +766,48 @@ describe("runSandboxAgent orchestration", () => {
     );
     assert.equal(existsSync(expected), true);
     rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it("backs the local Pi transcript directory with the active durable cwd mount", async () => {
+    const { calls, deps } = fakeHarness();
+    deps.signSessionMountCredentials = async () => ({
+      region: "us-east-1",
+      bucket: "bucket",
+      prefix: "mounts/project/session",
+      accessKey: "test-access-key",
+      secretKey: "test-secret-key",
+      projectId: "project",
+    });
+    deps.mountStorage = async () => true;
+    deps.unmountStorage = async () => true;
+    deps.hydrateHarnessSessionFromDurable = async () => {};
+
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sandbox: "local",
+      sessionId: "session-local-rebuild",
+      runContext: { project: { id: "project" } },
+      telemetry: {
+        exporters: {
+          otlp: { headers: { authorization: "ApiKey test" } },
+        },
+      },
+      messages: [{ role: "user", content: "continue" }],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    try {
+      assert.equal(acquired.env.nativeHistoryDurable, true);
+      assert.equal(
+        (calls.providerArgs[1] as Record<string, string>)
+          .PI_CODING_AGENT_SESSION_DIR,
+        "/tmp/agenta/mounts/project/session/agents/sessions/pi",
+      );
+    } finally {
+      await acquired.env.destroy();
+    }
   });
 
   it("creates the configured Pi transcript directory inside a Daytona cwd", async () => {
@@ -1590,6 +1785,18 @@ describe("runSandboxAgent orchestration", () => {
       {
         type: "data",
         name: "agent-status",
+        data: { phase: "preparing_workspace" },
+        transient: true,
+      },
+      {
+        type: "data",
+        name: "agent-status",
+        data: { phase: "opening_session" },
+        transient: true,
+      },
+      {
+        type: "data",
+        name: "agent-status",
         data: { phase: "environment_ready" },
         transient: true,
       },
@@ -2402,6 +2609,118 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     assert.deepEqual(calls.permissionReplies, []);
   });
 
+  it("marks a paused turn settled after its cancellable teardown window", async () => {
+    const { deps } = depsWithDefaultResponder();
+    const sessionId = "conv-paused-registry";
+    const turnId = "turn-paused-registry";
+    registerExecution({
+      projectId: "11111111-1111-4111-8111-111111111111",
+      sessionId,
+      turnId,
+      startedAt: Date.now(),
+      abort: () => {},
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId,
+        turnId,
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "paused");
+    assert.equal(
+      findExecution("11111111-1111-4111-8111-111111111111", sessionId)?.settled,
+      true,
+    );
+  });
+
+  it("converts a Stop during pause teardown into the turn's cancelled outcome", async () => {
+    let markPauseTeardownStarted!: () => void;
+    const pauseTeardownStarted = new Promise<void>((resolve) => {
+      markPauseTeardownStarted = resolve;
+    });
+    let releasePauseTeardown!: () => void;
+    const pauseTeardownMayFinish = new Promise<void>((resolve) => {
+      releasePauseTeardown = resolve;
+    });
+    const { deps } = fakeHarness({
+      emitPermission: true,
+      hangPrompt: true,
+      afterDestroySession: async () => {
+        markPauseTeardownStarted();
+        await pauseTeardownMayFinish;
+      },
+    });
+    delete deps.responderFactory;
+    const startSandboxAgent = deps.startSandboxAgent!;
+    deps.startSandboxAgent = async (options) => {
+      const sandbox = await startSandboxAgent(options);
+      const cancellable = sandbox as unknown as {
+        destroySession: (id: string) => Promise<unknown>;
+        cancelSession?: (id: string) => Promise<unknown>;
+      };
+      cancellable.cancelSession = (id) => cancellable.destroySession(id);
+      return sandbox;
+    };
+
+    const projectId = "11111111-1111-4111-8111-111111111111";
+    const sessionId = "conv-stop-during-pause-teardown";
+    const turnId = "turn-stop-during-pause-teardown";
+    const controller = new AbortController();
+    registerExecution({
+      projectId,
+      sessionId,
+      turnId,
+      startedAt: Date.now(),
+      abort: () => controller.abort(USER_STOP_ABORT_REASON),
+    });
+
+    const turn = runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId,
+        turnId,
+        permissions: { default: "ask" },
+        messages: [{ role: "user", content: "edit the file" }],
+      },
+      undefined,
+      controller.signal,
+      deps,
+    );
+
+    await pauseTeardownStarted;
+    const outcome = await applyCommand(
+      {
+        id: "command-stop-during-pause-teardown",
+        projectId,
+        sessionId,
+        kind: "cancel",
+        target: { turnId, expectedTurnId: turnId },
+        createdAt: new Date().toISOString(),
+      },
+      { report: async () => {} },
+    );
+    assert.equal(outcome.execution.state, "stopped");
+
+    releasePauseTeardown();
+    const result = await turn;
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.stopReason, "cancelled");
+    assert.equal(result.cancelSettled, true);
+    assert.equal(findExecution(projectId, sessionId)?.settled, true);
+  });
+
   it("effective ask with no decision pauses the tool, no harness reply (F-024)", async () => {
     const { calls, deps } = depsWithDefaultResponder();
 
@@ -3196,5 +3515,120 @@ describe("runTurn run-limits deadline (split path)", () => {
     // Paused, not a deadline error: the pause path — not a tripped limit — ended the turn.
     assert.equal(result.stopReason, "paused");
     assert.equal(calls.sandboxDestroyed, 1);
+  });
+});
+
+/**
+ * The Daytona sandbox-gone path, end to end through the real environment wiring.
+ *
+ * On 2026-09-04 an isolated re-run showed the full cost of the gap this closes: the sandbox was
+ * deleted at 16:26:31, the runner's own socket was told `SANDBOX_NOT_FOUND` at 16:26:37, and the
+ * turn still beat `running=true` for THIRTY minutes. Nothing detected the death. What finally
+ * ended the turn was the 30 minute per-tool-call deadline
+ * (`[run-limits] tool call ... exceeded 1800000ms`), and only then did the turn's error and done
+ * records persist, 27 minutes after the client had already given up.
+ *
+ * Everything downstream of the turn ending is already correct: the error terminal, the records,
+ * the `running=false` beat that clears the row, the teardown. The only defect was WHEN the turn
+ * ended. So these tests pin the trigger and the terminal it produces, which is what puts all of
+ * that 27 minutes earlier.
+ */
+describe("a sandbox the provider deletes under a running turn", () => {
+  /** Daytona's real answer for a deleted sandbox, from the runner log of that re-run. */
+  const goneAnswer = () =>
+    new Response(
+      "not found: sandbox 39f3aa96-ddc7-4417-b8ab-71804894edf6 not found, " +
+        "it may have been deleted or stopped - inspect audit logs for more info",
+      { status: 404, headers: { "x-daytona-error-code": "SANDBOX_NOT_FOUND" } },
+    );
+
+  /**
+   * Production's reporter over a fake socket. The double stands in for the network only: the
+   * wrapper, the latch and the arming are the real ones, so this exercises the wiring rather
+   * than a copy of it.
+   */
+  function harnessWithGoneSocket(answer: () => Response) {
+    const fake = fakeHarness({ hangPrompt: true });
+    fake.deps.createAcpFetch = ((_dispatcher: unknown, options: any) =>
+      withSandboxGoneReport(
+        (async () => answer()) as unknown as typeof fetch,
+        options,
+      )) as any;
+    return fake;
+  }
+
+  /** Let the run reach its prompt, which is where the real turn sits when its sandbox dies. */
+  async function waitForStartedTurn(calls: { startOptions: any }) {
+    for (let i = 0; i < 50 && !calls.startOptions; i += 1)
+      await flushPromises();
+    assert.ok(calls.startOptions, "the run should have started its sandbox");
+    await flushPromises();
+  }
+
+  it("ends the turn with a sandbox_gone error terminal, from the turn's own socket", async () => {
+    const { calls, deps, events } = harnessWithGoneSocket(goneAnswer);
+
+    const run = runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "conv-sandbox-deleted",
+        messages: [{ role: "user", content: "run one shell command" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+    await waitForStartedTurn(calls);
+
+    // The turn is parked on a prompt that can never settle, exactly as on 2026-09-04. Its own
+    // socket is the next thing to speak, and what it says is that the sandbox is gone.
+    await (calls.startOptions.fetch as typeof fetch)(
+      "http://sandbox/v1/acp/session",
+    );
+    const result = await run;
+
+    // The turn RETURNED rather than hanging for thirty minutes, and it returned as this error.
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SANDBOX_GONE_MESSAGE);
+    // The terminal the client reads, and the record that persists at this moment.
+    const errorEvent = events.find((event) => event.type === "error") as any;
+    assert.ok(errorEvent, "the run should emit an error terminal");
+    assert.equal(errorEvent.code, "sandbox_gone");
+    // The teardown ran, so the sandbox and its slot are reclaimed here rather than at eviction.
+    assert.equal(calls.sandboxDestroyed, 1);
+  });
+
+  it("keeps running when the same socket merely returns an ordinary error", async () => {
+    // A 502 from the proxy is a blip, not a death. Nothing must end the turn on it, or a
+    // transient network fault would kill healthy runs.
+    const { calls, deps } = harnessWithGoneSocket(
+      () => new Response("", { status: 502 }),
+    );
+
+    const run = runSandboxAgent(
+      {
+        harness: "claude",
+        sessionId: "conv-proxy-blip",
+        messages: [{ role: "user", content: "run one shell command" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+    await waitForStartedTurn(calls);
+
+    await (calls.startOptions.fetch as typeof fetch)(
+      "http://sandbox/v1/acp/session",
+    );
+    for (let i = 0; i < 20; i += 1) await flushPromises();
+
+    // Still parked on its prompt: no terminal, no teardown.
+    assert.equal(calls.sandboxDestroyed, 0);
+    const settled = await Promise.race([
+      run.then(() => "settled" as const),
+      Promise.resolve("pending" as const),
+    ]);
+    assert.equal(settled, "pending");
   });
 });

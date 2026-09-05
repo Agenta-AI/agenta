@@ -9,6 +9,8 @@ fake-engine pattern in test_streams_dao_conflict.py.
 """
 
 from contextlib import asynccontextmanager
+from typing import Optional
+
 from datetime import datetime, timezone, timedelta
 
 import pytest
@@ -22,10 +24,17 @@ _PROJECT_ID = "proj-orphan-1"
 
 
 class _FakeRow:
-    def __init__(self, *, session_id: str, updated_at: datetime):
+    def __init__(
+        self,
+        *,
+        session_id: str,
+        updated_at: datetime,
+        turn_id: Optional[str] = None,
+    ):
         self.session_id = session_id
         self.project_id = _PROJECT_ID
         self.id = "stream-1"
+        self.turn_id = turn_id
         self.deleted_at = None
         self.flags = {"is_alive": True, "is_running": True, "is_attached": False}
         self.updated_at = updated_at
@@ -40,8 +49,9 @@ class _FakeScalars:
 
 
 class _FakeResult:
-    def __init__(self, rows):
+    def __init__(self, rows, *, rowcount=0):
         self._rows = rows
+        self.rowcount = rowcount
 
     def scalars(self):
         return _FakeScalars(self._rows)
@@ -54,6 +64,30 @@ class _FakePgSession:
 
     async def execute(self, stmt):
         self._seen.append(stmt)
+        text = str(stmt)
+        if text.startswith("UPDATE") and "session_streams" in text:
+            # Both session_streams writes are Core UPDATEs keyed by row id, never ORM
+            # attribute writes (finding 7). The collapse binds `id IN (...)`, a list; the
+            # lost-turn clear binds `id = ...`, a scalar. Apply either to the in-memory rows.
+            params = stmt.compile().params
+            flags_val = next(
+                (v for v in params.values() if isinstance(v, dict) and "is_alive" in v),
+                None,
+            )
+            ids = set()
+            for value in params.values():
+                if isinstance(value, (list, set, tuple)):
+                    ids.update(x for x in value if isinstance(x, str))
+                elif isinstance(value, str):
+                    ids.add(value)
+            if flags_val is not None:
+                matched = 0
+                for row in self._rows:
+                    if row.id in ids:
+                        row.flags = dict(flags_val)
+                        matched += 1
+                return _FakeResult([], rowcount=matched)
+            return _FakeResult([])
         return _FakeResult(self._rows)
 
     async def commit(self):
@@ -94,6 +128,36 @@ class _FakeRedis:
     async def expire(self, key, ttl):
         return True
 
+    async def eval(self, script, numkeys, *keys_and_args):
+        def decode(value):
+            return value.decode() if isinstance(value, bytes) else str(value)
+
+        keys = [decode(value) for value in keys_and_args[:numkeys]]
+        argv = [decode(value) for value in keys_and_args[numkeys:]]
+        assert "AGENTA_WATCHDOG_RELEASE_TURN" in script
+        alive, running, owner, superseded = keys
+        expected_turn, expected_owner, _ttl = argv
+        alive_value = decode(self._store[alive]) if alive in self._store else ""
+        running_value = decode(self._store[running]) if running in self._store else ""
+        owner_value = decode(self._store[owner]) if owner in self._store else ""
+        released_alive = int(bool(expected_turn) and alive_value == expected_turn)
+        released_running = int(bool(expected_turn) and running_value == expected_turn)
+        if released_alive:
+            self._store.pop(alive, None)
+        if released_running:
+            self._store.pop(running, None)
+        foreign_turn = (alive_value and alive_value != expected_turn) or (
+            running_value and running_value != expected_turn
+        )
+        released_owner = int(
+            bool(expected_owner) and owner_value == expected_owner and not foreign_turn
+        )
+        if released_owner:
+            self._store.pop(owner, None)
+        if expected_turn:
+            self._store[superseded] = b"1"
+        return [released_alive, released_running, released_owner]
+
 
 @pytest.fixture
 def anyio_backend():
@@ -114,10 +178,14 @@ async def test_orphan_sweep_clears_alive_lock_and_unblocks_send(anyio_backend):
     await lock_engine.set(
         f"running:{_PROJECT_ID}:session:{_SESSION_ID}", b"turn-1", ex=3600
     )
+    await lock_engine.set(
+        f"owner:{_PROJECT_ID}:session:{_SESSION_ID}", b"replica-legacy", ex=120
+    )
 
     stale_row = _FakeRow(
         session_id=_SESSION_ID,
         updated_at=datetime.now(timezone.utc) - timedelta(seconds=600),
+        turn_id=None,
     )
     pg_engine = _FakeTransactionsEngine([stale_row])
 
@@ -141,6 +209,7 @@ async def test_orphan_sweep_clears_alive_lock_and_unblocks_send(anyio_backend):
         lock_engine, project_id=_PROJECT_ID, session_id=_SESSION_ID
     )
     assert liveness_after == {"alive": False, "running": False, "attached": False}
+    assert await lock_engine.get(f"owner:{_PROJECT_ID}:session:{_SESSION_ID}") is None
 
     # SEND gate logic (service.py:99-101): would raise if alive were still true.
     def _send_gate(liveness):
@@ -168,6 +237,7 @@ async def test_orphan_sweep_tombstones_the_turn_it_swept(anyio_backend):
     stale_row = _FakeRow(
         session_id=_SESSION_ID,
         updated_at=datetime.now(timezone.utc) - timedelta(seconds=600),
+        turn_id=None,
     )
 
     await run_orphan_sweep(_FakeTransactionsEngine([stale_row]), lock_engine)

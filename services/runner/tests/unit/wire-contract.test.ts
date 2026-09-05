@@ -58,6 +58,7 @@ const KNOWN_REQUEST_KEYS = [
   "sandboxCredentials",
   "harnessFiles",
   "turnId",
+  "detached",
   "projectId",
   "effectiveParameters",
 ] as const;

@@ -4,6 +4,9 @@ import {atom} from "jotai"
 import {describe, expect, it} from "vitest"
 
 import {
+    AGENTS_SIDEBAR_KEY,
+    PROMPTS_SIDEBAR_KEY,
+    SIDEBAR_ENTITIES,
     defineSidebarEntity,
     livePollInterval,
     agentSessionCounts,
@@ -129,6 +132,73 @@ describe("resolveChildren grouping", () => {
             "Docs audit",
         ])
         expect(children.some((child) => child.isGroupLabel)).toBe(false)
+    })
+
+    const reorder = {
+        groupZone: "agents",
+        rowZone: (key: string) => (key.startsWith("agent:") ? `sessions:${key}` : undefined),
+    }
+
+    it("marks headings and their rows with the zone they arrange in", () => {
+        const children = resolveChildren(grouped, ready(refs, {groups, reorder}), "/w/w1/p/p1")
+
+        expect(children.map((child) => [child.title, child.dragItem?.zone])).toEqual([
+            ["Pinned", "agents"],
+            // Pinned rows have no row zone: pin order is its own concept.
+            ["Morning poem", undefined],
+            ["Ops Assistant", "agents"],
+            ["Daily update", "sessions:agent:a1"],
+            ["Docs audit", "sessions:agent:a1"],
+        ])
+    })
+
+    it("leaves a heading that resolves to no id undraggable", () => {
+        const opted = {
+            ...reorder,
+            groupId: (key: string) => (key.startsWith("agent:") ? key.slice(6) : undefined),
+        }
+        const children = resolveChildren(
+            grouped,
+            ready(refs, {groups, reorder: opted}),
+            "/w/w1/p/p1",
+        )
+
+        const pinnedHeading = children.find((child) => child.title === "Pinned")
+        const agentHeading = children.find((child) => child.title === "Ops Assistant")
+        expect(pinnedHeading?.dragItem).toBeUndefined()
+        expect(agentHeading?.dragItem?.id).toBe("a1")
+    })
+
+    it("marks nothing when the source offers no zones", () => {
+        const children = resolveChildren(grouped, ready(refs, {groups}), "/w/w1/p/p1")
+
+        expect(children.every((child) => child.dragItem === undefined)).toBe(true)
+    })
+
+    it("marks no rows under a collapsed heading, since none are rendered", () => {
+        const children = resolveChildren(
+            grouped,
+            ready(refs, {groups, reorder, collapsedKeys: ["agent:a1"]}),
+            "/w/w1/p/p1",
+        )
+
+        expect(children.map((child) => child.title)).toEqual([
+            "Pinned",
+            "Morning poem",
+            "Ops Assistant",
+        ])
+    })
+
+    it("arranges an ungrouped entity's rows in the entity's own zone", () => {
+        const flat = {...entity({}), dragZone: "agents"}
+        const children = resolveChildren(flat, ready(refs), "/w/w1/p/p1")
+
+        expect(children.map((child) => child.dragItem?.zone)).toEqual([
+            "agents",
+            "agents",
+            "agents",
+        ])
+        expect(children[0].dragItem?.kind).toBe("row")
     })
 
     it("drops rows whose group the source never declared", () => {
@@ -467,17 +537,21 @@ describe("localSessionRefsMatching", () => {
     })
 })
 
-// The baseline is the half that is easy to lose: without it the rail can only ever show the run
-// you started yourself, because a turn under another agent reaches this client through the poll.
+// The baseline discovers runs started by another client.
 describe("livePollInterval", () => {
     // Only `flags` is read; the rest of a SessionStream is irrelevant here.
     const rows = (...flags: {is_alive?: boolean; is_running?: boolean}[]) =>
         flags.map((f) => ({session_id: "s1", flags: f})) as Parameters<typeof livePollInterval>[0] &
             object[]
 
-    it("polls fast while a session is alive or running", () => {
-        expect(livePollInterval(rows({is_alive: true}))).toBe(15_000)
-        expect(livePollInterval(rows({is_running: true}))).toBe(15_000)
+    it("polls fast only while a session is RUNNING", () => {
+        expect(livePollInterval(rows({is_alive: true, is_running: true}))).toBe(15_000)
+        expect(livePollInterval(rows({}, {is_running: true}))).toBe(15_000)
+    })
+
+    // Warm but idle sessions use the slow cadence.
+    it("drops to the slow baseline for a session that is alive but not running", () => {
+        expect(livePollInterval(rows({is_alive: true}))).toBe(60_000)
     })
 
     it("keeps a slow baseline when every row looks idle", () => {
@@ -538,5 +612,22 @@ describe("agentSessionCounts", () => {
         >[0][number]
 
         expect(agentSessionCounts([orphan]).size).toBe(0)
+    })
+})
+
+// The registry is the single source for where a row opens, so assert the destinations here.
+describe("registered entity destinations", () => {
+    const workflow = ref("01a03ed2-c322-7493-b2a2-29b8ae273530", "Ops Assistant")
+
+    it("opens an agent on its overview, not the playground", () => {
+        expect(SIDEBAR_ENTITIES[AGENTS_SIDEBAR_KEY].childLink(workflow, "/w/w1/p/p1")).toBe(
+            "/w/w1/p/p1/apps/01a03ed2-c322-7493-b2a2-29b8ae273530/overview",
+        )
+    })
+
+    it("still opens a prompt on the playground", () => {
+        expect(SIDEBAR_ENTITIES[PROMPTS_SIDEBAR_KEY].childLink(workflow, "/w/w1/p/p1")).toBe(
+            "/w/w1/p/p1/apps/01a03ed2-c322-7493-b2a2-29b8ae273530/playground",
+        )
     })
 })

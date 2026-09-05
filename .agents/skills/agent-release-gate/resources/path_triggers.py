@@ -34,6 +34,29 @@ import subprocess
 GATEWAY_TOOLS = ("matrix_gw1_gateway_tools.py",)
 CUSTOM_SECRETS = ("matrix_s1_custom_secrets.py",)
 
+# The standing session-control regression cells: Stop, durable commands, and the runner's
+# recovery paths (owner release, park/resume, watchdog quarantine). A separate standalone driver
+# because it needs its own account bootstrap and, for most cells, a docker-compose project name —
+# see resources/session_control.py and SKILL.md "Session control cells".
+SESSION_CONTROL = ("session_control.py",)
+
+# The cells that run a REMOTE sandbox and need no extra flag. A release that touches the sandbox
+# engine or the Daytona provider changes how a cold sandbox gets built and how its credentials are
+# delivered, and the `burst` and `crosstalk` journeys are the only ones that see that path under
+# load (AGE-4249). Both run in every cell selected here, because a run without `--only` runs every
+# journey.
+#
+# P3 is deliberately NOT in this list even though it is a Daytona cell. It needs --custom-slug and
+# --custom-name, and the driver exits when a selected custom cell has no slug, so naming it here
+# would stop every release run that did not pass those flags.
+DAYTONA_CELLS = ("C2", "C4", "X2")
+
+# The journeys a rule can demand alongside its cells. A cell without its journey proves nothing:
+# `--release-base ... --only chat` would run `chat` on the mandatory Daytona cells and report a
+# green release while the coverage the rule exists for never ran. Journeys named here are FORCED
+# into the selection, even against an explicit --only.
+CONCURRENCY_JOURNEYS = ("burst", "crosstalk")
+
 # Glob -> cells. Matching is fnmatch over the whole repo-relative path, so `*` crosses directory
 # separators: `a/b/*` and `a/b/**` behave the same, and both mean "anything under a/b". Write
 # `**` for a subtree so the intent reads correctly, and name a file exactly when only that file
@@ -68,6 +91,31 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "services/runner/src/engines/sandbox_agent/session-identity.ts": CUSTOM_SECRETS,
     "services/runner/src/environment/runtime-lifecycle.ts": CUSTOM_SECRETS,
     "services/runner/src/redaction.ts": CUSTOM_SECRETS,
+    # The sandbox engine and the Daytona provider: sandbox creation, the secret plan, the
+    # credential preflight, and the one retry the runner does when a first model call is refused.
+    # A fault here shows up only when many sandboxes start at once, which is what `burst` and
+    # `crosstalk` do on these cells. Production hit it as one first message in five failing with
+    # a credential error (AGE-4249 / #6485) while the sequential gate stayed green.
+    # A dict literal keeps only the last value for a repeated key, so a glob that already names
+    # DAYTONA_CELLS lists SESSION_CONTROL alongside it in the SAME tuple rather than as a second
+    # entry that would silently drop the Daytona rule.
+    "services/runner/src/engines/sandbox_agent/**": DAYTONA_CELLS + SESSION_CONTROL,
+    "services/runner/src/providers/daytona*": DAYTONA_CELLS,
+    # Session control: Stop, durable commands, park/resume, and the owner-release and watchdog
+    # sweeps. A change here can silently break a warm resume or leave a command stuck, and
+    # nothing in the fixed matrix drives Stop at all. See qa-audit-2026-09-03.md section 4.
+    "services/runner/src/sessions/**": SESSION_CONTROL,
+    "api/oss/src/core/sessions/**": SESSION_CONTROL,
+    "api/oss/src/tasks/asyncio/sessions/**": SESSION_CONTROL,
+    "api/oss/src/apis/fastapi/sessions/**": SESSION_CONTROL,
+}
+
+# Glob -> journeys that MUST run when the rule fires. Same matching as PATH_TRIGGERS, kept as a
+# separate table so a rule can demand a cell, a journey, or both, without changing the shape of
+# either one.
+PATH_TRIGGER_JOURNEYS: dict[str, tuple[str, ...]] = {
+    "services/runner/src/engines/sandbox_agent/**": CONCURRENCY_JOURNEYS,
+    "services/runner/src/providers/daytona*": CONCURRENCY_JOURNEYS,
 }
 
 
@@ -105,6 +153,22 @@ def mandatory_cells(paths: list[str]) -> dict[str, list[str]]:
     return {cell: sorted(why) for cell, why in sorted(activated.items())}
 
 
+def mandatory_journeys(paths: list[str]) -> dict[str, list[str]]:
+    """Journey -> the changed paths that made it mandatory.
+
+    The driver forces these into the run even when --only named something else. A release that
+    reworks sandbox credential delivery and then runs `--only chat` is not covered by the fact
+    that the right CELL was selected.
+    """
+    activated: dict[str, set[str]] = {}
+    for glob, journeys in PATH_TRIGGER_JOURNEYS.items():
+        for path in paths:
+            if fnmatch.fnmatch(path, glob):
+                for journey in journeys:
+                    activated.setdefault(journey, set()).add(path)
+    return {journey: sorted(why) for journey, why in sorted(activated.items())}
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
@@ -113,13 +177,19 @@ def main() -> int:
     p.add_argument("--head", default="HEAD", help="git ref under test (default HEAD)")
     args = p.parse_args()
 
-    triggered = mandatory_cells(changed_paths(args.release_base, args.head))
-    if not triggered:
+    paths = changed_paths(args.release_base, args.head)
+    triggered = mandatory_cells(paths)
+    journeys = mandatory_journeys(paths)
+    if not triggered and not journeys:
         print(f"No path rule matched the diff {args.release_base}...{args.head}.")
         return 0
     print(f"Mandatory for {args.release_base}...{args.head}:")
     for cell, why in triggered.items():
-        print(f"  {cell}")
+        print(f"  cell {cell}")
+        for path in why:
+            print(f"      because this release changed {path}")
+    for journey, why in journeys.items():
+        print(f"  journey {journey}")
         for path in why:
             print(f"      because this release changed {path}")
     return 0

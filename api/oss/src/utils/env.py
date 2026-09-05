@@ -1,7 +1,7 @@
 import os
 import hashlib
 import warnings
-from typing import List, Optional
+from typing import List, Literal, Optional
 from uuid import getnode
 from json import loads
 from urllib.parse import urlparse, quote_plus
@@ -512,6 +512,31 @@ class RedactionConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _parse_sessions_late_output() -> Literal["quarantine", "reject"]:
+    value = (os.getenv("AGENTA_SESSIONS_LATE_OUTPUT") or "quarantine").strip().lower()
+    if value in ("quarantine", "reject"):
+        return value
+    warnings.warn(
+        f"AGENTA_SESSIONS_LATE_OUTPUT={value!r} is not recognized; "
+        "behaving as 'quarantine'.",
+        stacklevel=2,
+    )
+    return "quarantine"
+
+
+def _sessions_durable_stop_enabled() -> bool:
+    return (os.getenv("AGENTA_SESSIONS_DURABLE_STOP") or "true").lower() in _TRUTHY
+
+
+def _parse_sessions_watchdog_stale_heartbeat_seconds() -> int:
+    configured = _parse_optional_positive_int_env(
+        "AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS"
+    )
+    if configured is not None:
+        return configured
+    return 90 if _sessions_durable_stop_enabled() else 300
+
+
 class SessionsRecordsConfig(BaseModel):
     """Durable session-record ingest tuning (server-side history reconstruction)."""
 
@@ -522,6 +547,24 @@ class SessionsRecordsConfig(BaseModel):
     smart_truncation: bool = (
         os.getenv("AGENTA_RECORDS_SMART_TRUNCATION") or "true"
     ).lower() in _TRUTHY
+
+    # How long a record message the worker failed to write sits unacknowledged before the
+    # worker claims it back and tries again.
+    reclaim_idle_ms: int = Field(
+        default_factory=lambda: int(
+            os.getenv("AGENTA_RECORDS_RECLAIM_IDLE_MS") or 30_000
+        ),
+        ge=0,
+        validate_default=True,
+    )
+
+    # Deliveries after which a record message is dropped instead of retried forever. A message
+    # Postgres never accepts would otherwise hold every later message in the group.
+    max_deliveries: int = Field(
+        default_factory=lambda: int(os.getenv("AGENTA_RECORDS_MAX_DELIVERIES") or 5),
+        ge=1,
+        validate_default=True,
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -561,11 +604,110 @@ class SessionAttachmentsConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class SessionWatchdogConfig(BaseModel):
+    """The execution watchdog: how long a running turn may go silent before it is settled.
+
+    The rule is HEARTBEAT AGE, not lease expiry. The Redis `alive` and `running` keys carry a
+    one-hour TTL, so "shortly after the lease expires" would mean an hour after the runner
+    died. The runner beats every `heartbeat_interval_seconds` (30) and the beat is mirrored
+    onto `session_streams.updated_at`, so the age of that column is the real liveness signal.
+
+    A turn is declared lost when its stream row still claims `is_running` and its last
+    heartbeat is older than `stale_heartbeat_seconds`. Durable Stop uses 90 seconds (three
+    missed beats); flag-off deployments retain the pre-milestone 300-second default.
+
+    Only a turn that still claims `is_running` is eligible. A turn parked for a human sends a
+    final beat with `is_running: false` and then stops beating on purpose; that state is
+    resumable, not lost, and the watchdog must never end it.
+
+    Raise `stale_heartbeat_seconds` if a healthy deployment settles live turns. Lower it to
+    settle a dead turn sooner. It is a plain restart-time setting; nothing else changes.
+    """
+
+    # Maximum age of the last heartbeat before a RUNNING turn is declared lost.
+    stale_heartbeat_seconds: int = _parse_sessions_watchdog_stale_heartbeat_seconds()
+
+    # How long an ALIVE-but-not-running row (between turns, or parked awaiting a human) is left
+    # alone before it is RECLAIMED. That state is resumable, so it is keyed to the 30-minute
+    # approval TTL rather than to three missed beats. It does not govern whether such a row owes
+    # its turn a terminal record: that question is asked of the records plane on the
+    # `stale_heartbeat_seconds` clock, because a durable Stop clears `is_running` before the
+    # runner has written its own ending.
+    idle_grace_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_IDLE_GRACE_SECONDS")
+        or 1_800
+    )
+
+    # How often the watchdog runs.
+    interval_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_INTERVAL_SECONDS")
+        or 60
+    )
+
+    # Rows settled per pass. A backlog drains over successive passes, not one huge commit.
+    batch_size: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_BATCH_SIZE") or 500
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class SessionsCommandsConfig(BaseModel):
+    """Durable session commands: how a Stop reaches the runner, and how long it may wait.
+
+    `adapter` picks the control-delivery transport behind `ControlDeliveryPort`:
+
+      * `direct` — the API posts the command to the runner's own `/cancel`, over the
+        authenticated hop that already carries hard kill. One runner process, no held
+        connection, no poll loop. This is the default.
+      * `long_poll` — the runner holds a claim request open and the API answers it. Correct for
+        two or more runner replicas and for a runner the API cannot reach inbound. Not built in
+        this slice; naming it here fails loudly rather than silently falling back.
+
+    `direct` calls one service address, so with two runner replicas behind a load balancer the
+    call lands on the right process only by luck. Nothing here guards that, on purpose: the
+    detector is exact and lives in the service, where a `not_held` for a session that is alive
+    and beating is the wrong-replica failure and nothing else produces it.
+    """
+
+    adapter: str = os.getenv("AGENTA_SESSIONS_CONTROL_ADAPTER") or "direct"
+
+    # How long a claimed command may go unreported before the settlement sweep acts. Three
+    # heartbeat intervals.
+    lease_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_COMMAND_LEASE_SECONDS") or 90
+    )
+    # Bounds a delivery loop where a runner accepts a command and never reports.
+    max_deliveries: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_COMMAND_MAX_DELIVERIES") or 3
+    )
+    sweep_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_COMMAND_SWEEP_SECONDS") or 10
+    )
+    # A command nobody ever claimed is a runner that is not there.
+    admission_timeout_seconds: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_SESSIONS_COMMAND_ADMISSION_TIMEOUT_SECONDS"
+        )
+        or 90
+    )
+    # How long the direct call waits for the runner to acknowledge. The runner answers before
+    # it cancels anything, so this covers a network hop, not a harness cancel.
+    delivery_timeout_seconds: float = float(
+        os.getenv("AGENTA_SESSIONS_COMMAND_DELIVERY_TIMEOUT_SECONDS") or 5.0
+    )
+    model_config = ConfigDict(extra="ignore")
+
+
 class SessionsConfig(BaseModel):
     """Agenta sessions sub-namespace."""
 
+    durable_stop: bool = _sessions_durable_stop_enabled()
+    late_output: Literal["quarantine", "reject"] = _parse_sessions_late_output()
     attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
+    commands: SessionsCommandsConfig = SessionsCommandsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
+    watchdog: SessionWatchdogConfig = SessionWatchdogConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1411,8 +1553,13 @@ class SessionsRedisConfig(BaseModel):
     Defaults mirror the golden fixture (services/runner/tests/fixtures/sessions/
     redis_contract.json) shared with the TypeScript runner. Do not change a default
     without updating that fixture and the TS side in lockstep.
+
+    AGENTA_SESSIONS_SEQUENCE_WRITES independently gates atomic record sequencing.
     """
 
+    sequence_writes: bool = (
+        os.getenv("AGENTA_SESSIONS_SEQUENCE_WRITES") or "false"
+    ).lower() in _TRUTHY
     alive_ttl_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ALIVE_TTL_SECONDS")
         or 3600
@@ -1444,6 +1591,25 @@ class SessionsRedisConfig(BaseModel):
     concurrency_limit: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT")
         or 1000
+    )
+    live_stream_maxlen: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_STREAM_MAXLEN")
+        or 100_000
+    )
+    live_frame_max_age_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_FRAME_MAX_AGE_SECONDS")
+        or 900
+    )
+    shared_reader: bool = (
+        os.getenv("AGENTA_SESSIONS_SHARED_READER") or "false"
+    ).lower() in _TRUTHY
+    live_auth_recheck_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_AUTH_RECHECK_SECONDS")
+        or 60
+    )
+    live_reader_buffer_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_READER_BUFFER_LIMIT")
+        or 256
     )
     # API-side only (SSE watch endpoint keep-alive cadence) — NOT part of the
     # runner golden fixture; safe to tune without touching the TS side.

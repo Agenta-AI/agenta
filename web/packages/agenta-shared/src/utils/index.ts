@@ -230,7 +230,23 @@ export {
     generateDefaultSlug,
     randomAlphanumeric,
 } from "./connectionSlug"
-export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "./toolSlug"
+export {
+    buildGatewayToolSlug,
+    humanizeActionKey,
+    isGatewayToolSlug,
+    parseGatewayToolSlug,
+} from "./toolSlug"
+
+// Agent tool-permission policy vocabulary.
+export {
+    DEFAULT_PERMISSION_POLICY,
+    PERMISSION_POLICY_OPTIONS,
+    isPermissionPolicy,
+    permissionPolicyLabel,
+    permissionPolicyOptionsForEnum,
+    type PermissionPolicy,
+    type PermissionPolicyOption,
+} from "./permissionPolicy"
 
 // Gateway Tool JSON-Schema → form-field descriptor utilities
 export {
