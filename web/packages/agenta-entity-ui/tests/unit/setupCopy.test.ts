@@ -17,39 +17,24 @@ const account = (slug: string, required: boolean): DetectedAccount => ({
 })
 
 describe("setupFootnote", () => {
-    it("names the single account that blocks create", () => {
-        expect(setupFootnote("blocked", [account("github", true)], 0)).toBe(
-            "Connect Github to create.",
-        )
-    })
-
-    it("names both when two block", () => {
-        expect(setupFootnote("blocked", [account("github", true), account("slack", true)], 0)).toBe(
-            "Connect Github and Slack to create.",
-        )
-    })
-
-    it("counts them past two", () => {
-        const three = ["github", "slack", "gmail"].map((s) => account(s, true))
-        expect(setupFootnote("blocked", three, 0)).toBe("Connect 3 accounts to create.")
+    // Blocked says NOTHING: the header badge and the amber Required rows say it already, and
+    // the disabled Create button says what it costs — a footnote would be the third telling.
+    it("stays silent while blocked", () => {
+        expect(setupFootnote("blocked")).toBe("")
     })
 
     it("does not claim there is nothing to do while accounts are still offered", () => {
-        const line = setupFootnote("ready", [], 0)
+        const line = setupFootnote("ready")
         expect(line).toBe("Connect these now, or the agent will ask later.")
         expect(line).not.toContain("Nothing")
     })
 
-    it("explains what skipping costs", () => {
-        expect(setupFootnote("ready", [], 1)).toBe("Skipped accounts are asked for later.")
-    })
-
     it("says nothing is required when nothing was detected", () => {
-        expect(setupFootnote("empty", [], 0)).toBe("Nothing required.")
+        expect(setupFootnote("empty")).toBe("Nothing required.")
     })
 
     it("is quiet once everything is connected", () => {
-        expect(setupFootnote("all-set", [], 0)).toBe("Nothing to do here.")
+        expect(setupFootnote("all-set")).toBe("")
     })
 })
 
@@ -80,18 +65,14 @@ describe("setupTitle / setupLead", () => {
 
 describe("setupBadge", () => {
     it("flags a required account as the thing to deal with", () => {
-        expect(setupBadge("blocked", 1, 0)).toEqual({text: "Required", tone: "warning"})
+        expect(setupBadge("blocked", 1)).toEqual({text: "Required", tone: "warning"})
     })
 
-    it("reports the skip count over the found count", () => {
-        expect(setupBadge("ready", 2, 1)).toEqual({text: "1 skipped", tone: "neutral"})
-    })
-
-    it("reports what was found when nothing is skipped", () => {
-        expect(setupBadge("ready", 2, 0)).toEqual({text: "2 found", tone: "neutral"})
+    it("reports what was found while nothing gates", () => {
+        expect(setupBadge("ready", 2)).toEqual({text: "2 found", tone: "neutral"})
     })
 
     it("has nothing to say on an empty card", () => {
-        expect(setupBadge("empty", 0, 0)).toBeNull()
+        expect(setupBadge("empty", 0)).toBeNull()
     })
 })

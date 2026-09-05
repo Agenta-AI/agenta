@@ -36,15 +36,12 @@ export interface AgentSetupStep {
     draft: AgentSetupDraft | null
     accounts: DetectedAccount[]
     suggestions: DetectedAccount[]
-    skippedSlugs: string[]
     permission: AgentPermission
     /** Start the step. Detection runs here, once, off the description and template. */
     /** Opens the step; `false` means nothing was detected, so the caller should just commit. */
     open: (draft: AgentSetupDraft) => boolean
     /** Abandon the step and go back to the composer. */
     close: () => void
-    skip: (slug: string) => void
-    undoSkip: (slug: string) => void
     addAccount: (account: DetectedAccount) => void
     setPermission: (permission: AgentPermission) => void
 }
@@ -63,8 +60,13 @@ export function useAgentSetupStep(): AgentSetupStep {
         [connections],
     )
     const [draft, setDraft] = useState<AgentSetupDraft | null>(null)
+    /**
+     * Whether the step was LAST OPENED for a template — deliberately not cleared on close.
+     * Gating suggestions on `draft?.template` made them reappear the instant `close()` nulled
+     * the draft, growing the card mid-fold while a host animates it shut.
+     */
+    const [templateDraft, setTemplateDraft] = useState(false)
     const [accounts, setAccounts] = useState<DetectedAccount[]>([])
-    const [skippedSlugs, setSkippedSlugs] = useState<string[]>([])
     const [permission, setPermission] = useState<AgentPermission>(DEFAULT_PERMISSION)
 
     /**
@@ -87,10 +89,15 @@ export function useAgentSetupStep(): AgentSetupStep {
             const outstanding = detected.filter(
                 (account) => account.required && !isAccountSatisfied(account, workspaceSlugs),
             )
-            if (outstanding.length === 0) return false
+            // …unless a template slot offers a CHOICE of provider (GitHub or GitLab). A satisfied
+            // slot still defaults to the connected provider, but the user must get the chance to
+            // pick the alternative — a second PR reviewer on GitLab beside the GitHub one.
+            const hasChoice =
+                Boolean(next.template) && detected.some((account) => account.alternatives?.length)
+            if (outstanding.length === 0 && !hasChoice) return false
             setAccounts(detected)
-            setSkippedSlugs([])
             setPermission(DEFAULT_PERMISSION)
+            setTemplateDraft(Boolean(next.template))
             setDraft(next)
             return true
         },
@@ -99,34 +106,26 @@ export function useAgentSetupStep(): AgentSetupStep {
 
     const close = useCallback(() => setDraft(null), [])
 
-    const skip = useCallback((slug: string) => {
-        setSkippedSlugs((prev) => (prev.includes(slug) ? prev : [...prev, slug]))
-    }, [])
-
-    const undoSkip = useCallback((slug: string) => {
-        setSkippedSlugs((prev) => prev.filter((entry) => entry !== slug))
-    }, [])
-
     const addAccount = useCallback((account: DetectedAccount) => {
         setAccounts((prev) =>
             prev.some((entry) => entry.slug === account.slug) ? prev : [...prev, account],
         )
-        // Adding an account the user had skipped is an undo, not a duplicate row.
-        setSkippedSlugs((prev) => prev.filter((entry) => entry !== account.slug))
     }, [])
 
-    const suggestions = useMemo(() => suggestionAccounts(accounts), [accounts])
+    // A template declares exactly what it needs, so the step offers nothing beyond it — the
+    // "Also add" chips are a shortcut for a described agent, not a catalogue to upsell from.
+    const suggestions = useMemo(
+        () => (templateDraft ? [] : suggestionAccounts(accounts)),
+        [accounts, templateDraft],
+    )
 
     return {
         draft,
         accounts,
         suggestions,
-        skippedSlugs,
         permission,
         open,
         close,
-        skip,
-        undoSkip,
         addAccount,
         setPermission,
     }
