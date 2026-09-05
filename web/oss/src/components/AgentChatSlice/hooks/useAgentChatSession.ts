@@ -367,6 +367,7 @@ export const useAgentChatSession = ({
         stoppingTurnId,
         sharedReaderAdvertised,
         refreshFromRecords,
+        revalidate,
     } = useSessionHydration({
         sessionId,
         initialMessages,
@@ -841,6 +842,7 @@ export const useAgentChatSession = ({
         sharedReaderAdvertised,
         refreshFromRecords,
         setSharedSenderReady,
+        revalidate,
         stopped,
         stopping,
         setStopped,

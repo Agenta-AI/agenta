@@ -14,6 +14,7 @@ import {
     useComposerAttachments,
     useAgentChatQueue,
     useSessionLivePreview,
+    useServerSessionInputs,
     type QueuedMessage,
 } from "@agenta/chat/hooks"
 import {
@@ -76,7 +77,7 @@ import {useScrollIntent} from "./hooks/useScrollIntent"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
-import {deriveSessionRemoteTurnPresentation} from "./state/liveness"
+import {deriveSessionRemoteTurnPresentation, shouldShowRunningElsewhere} from "./state/liveness"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -161,6 +162,7 @@ const AgentConversation = ({
         runningElsewhere: livenessRunningElsewhere,
         sharedReaderAdvertised,
         refreshFromRecords,
+        revalidate,
         setSharedSenderReady,
     } = useAgentChatSession({entityId, sessionId, initialMessages, intent: scrollIntent})
     const {
@@ -367,6 +369,18 @@ const AgentConversation = ({
 
     const consumedRunNonceRef = useRef<number | null>(null)
 
+    const serverInputs = useServerSessionInputs({
+        entityId,
+        sessionId,
+        messages,
+        locallyBusy: busy,
+        onExecuted: revalidate,
+    })
+
+    useEffect(() => {
+        if (status === "ready" || status === "error") void serverInputs.refresh()
+    }, [status, serverInputs.refresh])
+
     // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
     // release effect doesn't churn on every token.
     const sendQueued = useCallback(
@@ -401,8 +415,12 @@ const AgentConversation = ({
     const {
         queued,
         submit,
+        steer,
         removeQueued,
         ownsContinuation,
+        queueEnabled,
+        steerEnabled,
+        serverBusy,
         hitlPending,
         editingId,
         beginEdit,
@@ -421,6 +439,12 @@ const AgentConversation = ({
         markRunOwned,
         sendQueued,
         sessionId,
+        server: serverInputs,
+    })
+    const showRunningElsewhere = shouldShowRunningElsewhere({
+        runningElsewhere: livenessRunningElsewhere,
+        executionState: serverInputs.executionState,
+        pendingInputCount: serverInputs.queued.length,
     })
 
     // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision made
@@ -605,12 +629,6 @@ const AgentConversation = ({
             // Radix cancels Escape for a layer but still lets it reach us, and it never touches
             // Alt+G, which only the overlay check catches.
             if (e.defaultPrevented || isOverlayOpen()) return
-            // An IME user presses Escape to cancel composition, not to stop the run.
-            if (e.key === "Escape" && !e.isComposing && busyRef.current) {
-                e.preventDefault()
-                handleStop()
-                return
-            }
             // Approve answers ONE gate, never the dock's "Approve all": a mis-press should not
             // grant a tool the user never read.
             if (isAltChord(e) && e.code === "KeyG" && pendingApprovals.length > 0) {
@@ -620,7 +638,7 @@ const AgentConversation = ({
         }
         document.addEventListener("keydown", onKey)
         return () => document.removeEventListener("keydown", onKey)
-    }, [activeSessionId, sessionId, busyRef, handleStop, pendingApprovals, handleApprovalResponse])
+    }, [activeSessionId, sessionId, pendingApprovals, handleApprovalResponse])
 
     // A keyboard switch (Alt+1…9 / Alt+Z / Alt+X) lands the caret here. antd mounts a never-visited
     // pane only on activation, so this effect runs on that mount and a first-visit switch focuses
@@ -656,11 +674,12 @@ const AgentConversation = ({
         useVirtuoso,
     })
 
-    const finishSubmit = (
+    const finishSubmit = async (
         trimmed: string,
         fileParts: FileUIPart[] | undefined,
         consumedUids: string[],
         stagedFiles: typeof files,
+        policy: "queue" | "steer" = "queue",
     ) => {
         if (editingId) {
             // A rewrite of a held message: nothing is sent, so the transcript must not move.
@@ -674,7 +693,8 @@ const AgentConversation = ({
             scrollIntent.armGlide()
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the shared release gate.
-            submit({text: trimmed, fileParts, stagedFiles})
+            if (policy === "steer") await steer({text: trimmed, fileParts})
+            else await submit({text: trimmed, fileParts, stagedFiles})
         }
         // The message left the composer — drop its persisted draft (and any pending capture).
         composer.clearDraft()
@@ -684,7 +704,11 @@ const AgentConversation = ({
 
     // A voice take awaits its upload, so the guard keeps a second send from starting meanwhile.
     const inFlightSubmitRef = useRef(false)
-    const handleSubmit = (text: string, extraFiles: File[] = []) =>
+    const handleSubmit = (
+        text: string,
+        extraFiles: File[] = [],
+        policy: "queue" | "steer" = "queue",
+    ) =>
         runWithInFlightSubmit(inFlightSubmitRef, async () => {
             const trimmed = text.trim()
             if (!trimmed && files.length === 0 && extraFiles.length === 0) return
@@ -715,7 +739,7 @@ const AgentConversation = ({
                     }
                     fileParts = parts
                 }
-                finishSubmit(trimmed, fileParts, stagedUids, files)
+                await finishSubmit(trimmed, fileParts, stagedUids, files, policy)
                 return
             }
 
@@ -728,7 +752,10 @@ const AgentConversation = ({
             const fileParts = outboundFiles.length
                 ? stagedFilesToParts(outboundFiles, sessionId)
                 : undefined
-            finishSubmit(trimmed, fileParts, stagedUids, outboundFiles)
+            await finishSubmit(trimmed, fileParts, stagedUids, outboundFiles, policy)
+        }).catch(() => {
+            richInputRef.current?.setMarkdown(text)
+            attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
         })
 
     handleSubmitRef.current = handleSubmit
@@ -968,7 +995,9 @@ const AgentConversation = ({
                                         entityId={entityId}
                                         messages={messages}
                                         busy={busy}
-                                        showRunningElsewhere={remoteTurn.showStrip}
+                                        showRunningElsewhere={
+                                            remoteTurn.showStrip && showRunningElsewhere
+                                        }
                                         connectionWarning={connectionWarning}
                                         hitlPending={hitlPending}
                                         queue={{
@@ -977,6 +1006,7 @@ const AgentConversation = ({
                                             editingId,
                                             beginEdit,
                                             cancelEdit,
+                                            serverBusy,
                                         }}
                                         modelKey={{...modelKey, entityId}}
                                         modelBlocked={modelBlocked}
@@ -990,8 +1020,12 @@ const AgentConversation = ({
                                         elicits={elicits}
                                         onClientToolOutput={handleClientToolOutput}
                                         onSubmit={handleSubmit}
+                                        onSteer={(text) => handleSubmit(text, [], "steer")}
                                         onStop={handleStop}
                                         stopping={stopping}
+                                        queueEnabled={queueEnabled}
+                                        steerEnabled={steerEnabled}
+                                        stopShortcutEnabled={activeSessionId === sessionId}
                                         richInputRef={richInputRef}
                                         composer={{...composer, handleComposerChange}}
                                         attachments={attachments}

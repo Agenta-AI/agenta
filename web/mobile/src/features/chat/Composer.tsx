@@ -1,6 +1,6 @@
 import {useEffect, useRef, type MutableRefObject} from "react"
 
-import {describeAccepted} from "@agenta/chat/assets"
+import {describeAccepted, isComposerRunStoppable} from "@agenta/chat/assets"
 import {
     AttachmentDropOverlay,
     ChatComposer,
@@ -31,16 +31,21 @@ import {useMotionPresets} from "@/lib/motion/presets"
 export const Composer = ({
     sessionId,
     onSend,
+    onSteer,
     disabled = false,
     waitingOnUser = false,
     streaming = false,
     stopping = false,
     onStop,
+    queueEnabled = false,
+    steerEnabled = false,
+    inputBusy = streaming,
     inputRef,
     placeholder,
 }: {
     sessionId: string
     onSend: (input: {text: string; parts?: FileUIPart[]}) => void | Promise<void>
+    onSteer?: (input: {text: string; parts?: FileUIPart[]}) => void | Promise<void>
     /** No resolvable agent yet, or the screen is still hydrating. */
     disabled?: boolean
     /** The run is parked on the user (pending approval) — sends will queue. */
@@ -50,6 +55,9 @@ export const Composer = ({
     /** The durable Stop request has not settled yet. */
     stopping?: boolean
     onStop?: () => void
+    queueEnabled?: boolean
+    steerEnabled?: boolean
+    inputBusy?: boolean
     /** Lets the host write into the input — a rewind puts the rewound message back to edit. */
     inputRef?: MutableRefObject<RichChatInputHandle | null>
     /** Full placeholder override — used when the composer is gated (no model key). */
@@ -60,12 +68,21 @@ export const Composer = ({
     const richInputRef = inputRef ?? ownInputRef
     const sending = useRef(false)
     const presets = useMotionPresets()
+    const stoppable = isComposerRunStoppable({
+        localStreaming: streaming,
+        serverBusy: inputBusy,
+        waitingOnUser,
+    })
 
     /**
      * `extraFiles` are takes that never entered the tray (a voice message sent outright), so
      * they upload here before the send — the same seam the desktop dock uses.
      */
-    const submit = async (text: string, extraFiles: File[] = []) => {
+    const submit = async (
+        text: string,
+        extraFiles: File[] = [],
+        policy: "queue" | "steer" = "queue",
+    ) => {
         // Enter and the send button (and a voice take completing) can all fire while an upload
         // is still in flight; a second pass would re-send the same staged tray.
         if (sending.current) return
@@ -78,13 +95,17 @@ export const Composer = ({
         // pop the keyboard straight back up.
         dismissSoftKeyboardAfterSend(() => richInputRef.current?.blur())
         try {
-            await runSubmit(text, extraFiles)
+            await runSubmit(text, extraFiles, policy)
         } finally {
             sending.current = false
         }
     }
 
-    const runSubmit = async (text: string, extraFiles: File[] = []) => {
+    const runSubmit = async (
+        text: string,
+        extraFiles: File[] = [],
+        policy: "queue" | "steer" = "queue",
+    ) => {
         const staged = attachments.files
         const uploadedExtras = extraFiles.length
             ? await attachments.uploadExtraFiles(extraFiles)
@@ -96,7 +117,8 @@ export const Composer = ({
             // `stagedFilesToParts` THROWS on a file whose upload hasn't settled — reachable via
             // Enter, which the send button's `sendDisabled` guard doesn't cover.
             const parts = outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
-            await onSend({text, parts})
+            if (policy === "steer" && onSteer) await onSteer({text, parts})
+            else await onSend({text, parts})
             attachments.clearAttachments(staged.map((file) => file.uid))
         } catch {
             // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so an
@@ -183,9 +205,26 @@ export const Composer = ({
                         dictating={dictating}
                         placeholder={placeholder}
                         waitingOnUser={waitingOnUser}
-                        streaming={streaming}
+                        streaming={stoppable}
                         stopping={stopping}
                         onStop={onStop}
+                        busyActions={
+                            inputBusy && queueEnabled
+                                ? [
+                                      {label: "Queue", onSubmit: submit},
+                                      ...(steerEnabled && onSteer
+                                          ? [
+                                                {
+                                                    label: "Steer",
+                                                    onSubmit: (text: string) =>
+                                                        submit(text, [], "steer"),
+                                                },
+                                            ]
+                                          : []),
+                                  ]
+                                : undefined
+                        }
+                        showQueuePauseCopy={inputBusy && queueEnabled}
                         extraPrefix={
                             <VoiceInputButton
                                 inputRef={richInputRef}

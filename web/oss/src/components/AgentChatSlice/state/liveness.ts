@@ -128,6 +128,21 @@ export const isRunningElsewhere = ({
 /** Desktop presentation for a remote/shared-path run. The strip is only the disconnected fallback. */
 export const deriveSessionRemoteTurnPresentation = deriveRemoteTurnPresentation
 
+/**
+ * The session snapshot is the execution authority for the open conversation. A stale stream-row
+ * liveness flag must not put a remote-run warning beside a durable queued item when that snapshot
+ * already says the execution is idle.
+ */
+export const shouldShowRunningElsewhere = ({
+    runningElsewhere,
+    executionState,
+    pendingInputCount,
+}: {
+    runningElsewhere: boolean
+    executionState: "idle" | "running" | "stopping"
+    pendingInputCount: number
+}): boolean => runningElsewhere && !(executionState === "idle" && pendingInputCount > 0)
+
 /** `isRunningElsewhere` bound to this session's local status and the shared liveness query. */
 export const sessionRunningElsewhereAtomFamily = atomFamily((sessionId: string) =>
     atom((get): boolean =>

@@ -19,6 +19,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID, uuid4
 
+import pytest
+
 from oss.src.core.sessions.records.dtos import (
     RECORD_SETTLED_BY_ATTRIBUTE,
     SETTLED_BY_WATCHDOG,
@@ -403,7 +405,8 @@ async def test_paused_or_quarantined_done_does_not_complete_a_continuation(monke
     assert _quarantined(service.records_dao)[-1].record_type == "done"
 
 
-async def test_cancelled_done_arriving_first_leaves_stop_settlement_to_win(monkeypatch):
+@pytest.mark.parametrize("stop_reason", ["cancelled", "error"])
+async def test_non_completing_done_does_not_claim_completion(monkeypatch, stop_reason):
     monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     executions = _ExecutionSettlements()
@@ -417,9 +420,12 @@ async def test_cancelled_done_arriving_first_leaves_stop_settlement_to_win(monke
     service = RecordsService(records_dao=_StubDAO(), executions_dao=executions)
 
     await service.append_many(
-        events=[_event("done", attributes={"type": "done", "stopReason": "cancelled"})]
+        events=[_event("done", attributes={"type": "done", "stopReason": stop_reason})]
     )
     assert executions.rows[(_SESSION, _TURN)].terminal_outcome is None
+
+    if stop_reason == "error":
+        return
 
     result = await executions.settle(
         project_id=_PROJECT,

@@ -76,6 +76,25 @@ export const Held: Story = {
     render: () => <Live initial={THREE} held />,
 }
 
+/** Durable rows are shared across browsers: removable, not locally editable, with Steer marked. */
+export const ServerBacked: Story = {
+    render: () => (
+        <Live
+            editable
+            initial={[
+                {...THREE[0], source: "server", editable: false, policy: "steer"},
+                {
+                    ...THREE[1],
+                    source: "server",
+                    editable: false,
+                    policy: "queue",
+                    attachmentCount: 1,
+                },
+            ]}
+        />
+    ),
+}
+
 /** Past five rows the body scrolls and the card stops growing; the header stays put. */
 export const Overflowing: Story = {
     render: () => (

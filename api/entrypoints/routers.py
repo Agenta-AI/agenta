@@ -96,6 +96,7 @@ from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.service import SimpleWorkflowsService
+from oss.src.core.workflows.dtos import WorkflowServiceRequest
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
@@ -186,6 +187,9 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.dbs.postgres.sessions.commands.dbes import SessionCommandDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
 from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
+from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
+from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
@@ -603,6 +607,7 @@ session_streams_dao = SessionStreamsDAO(engine=_transactions_engine)
 session_turns_dao = SessionTurnsDAO(engine=_transactions_engine)
 session_commands_dao = SessionCommandsDAO(engine=_transactions_engine)
 session_executions_dao = SessionExecutionsDAO(engine=_transactions_engine)
+session_inputs_dao = SessionInputsDAO(engine=_transactions_engine)
 
 connections_dao = ConnectionsDAO(engine=_transactions_engine)
 mounts_dao = MountsDAO(engine=_transactions_engine)
@@ -1164,9 +1169,23 @@ session_commands_service = SessionCommandsService(
             ],
             control_command_id=command.id,
             continuation_execution_id=command.target_turn_id,
-        )
+        ),
+        continue_input=lambda command: workflows_service.invoke_workflow_detached(
+            project_id=command.project_id,
+            user_id=command.created_by_id,
+            request=WorkflowServiceRequest.model_validate(command.data["request"]),
+            run_id=command.target_turn_id,
+            control_command_id=command.id,
+        ),
     ),
     executions_dao=session_executions_dao,
+    inputs_dao=session_inputs_dao,
+)
+session_inputs_service = SessionInputsService(
+    inputs_dao=session_inputs_dao,
+    streams_service=session_streams_service,
+    executions_dao=session_executions_dao,
+    continuation_resumer=session_commands_service.resume_recoverable_continuation,
 )
 workflows_service.set_session_continuation_resumer(
     session_commands_service.resume_recoverable_continuation
@@ -1183,6 +1202,7 @@ sessions = SessionsRouter(
     turns_service=session_turns_service,
     sessions_service=sessions_service,
     commands_service=session_commands_service,
+    inputs_service=session_inputs_service,
     respond_task=_interactions_worker.respond_interaction,
     interactions_dispatcher=_interactions_dispatcher,
 )

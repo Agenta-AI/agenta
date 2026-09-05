@@ -254,15 +254,50 @@ export const sessionRecordsReadStateSchema = z.object({
     history_complete: z.boolean(),
 })
 
-/** Atomic reconnect read: durable watermark plus lifecycle and pending-work context. */
+export const pendingSessionInputSchema = z.object({
+    id: z.string(),
+    session_id: z.string(),
+    content: z.record(z.string(), z.unknown()),
+    position: z.number(),
+    state: z.enum(["pending", "promoted", "removed"]),
+    policy: z.enum(["queue", "steer"]),
+    created_at: z.string().nullish(),
+    promoted_execution_id: z.string().nullish(),
+})
+
+/**
+ * Atomic read for every reader of an open session.
+ *
+ * The nullable reconnect half is `session`, `execution` and `read`: the stream row, the last turn
+ * (whose `end_time` says whether it is still live), and the durable watermark to replay from.
+ *
+ * The queue half is `execution_state` and `pending.inputs`. `execution_state` is the session's
+ * CURRENT lifecycle, derived server-side from the stream row, which is a different question from
+ * `execution`: that names the last turn, this says whether anything is running right now.
+ * `capabilities` mirrors the streams endpoint from the same server helper, so the two can never
+ * disagree.
+ */
 export const sessionSnapshotSchema = z.object({
-    session: sessionStreamSchema,
-    execution: z.record(z.string(), z.unknown()).nullable().optional(),
+    session: sessionStreamSchema.nullish().default(null),
+    execution: z.record(z.string(), z.unknown()).nullish().default(null),
+    execution_state: z
+        .object({
+            id: z.string().nullish(),
+            state: z.enum(["idle", "running", "stopping"]).default("idle"),
+        })
+        .default({state: "idle"}),
     pending: z.object({
-        inputs: z.array(z.unknown()).default([]),
+        inputs: z.array(pendingSessionInputSchema).default([]),
         interactions: z.array(sessionInteractionSchema).default([]),
     }),
-    read: sessionRecordsReadStateSchema,
+    read: sessionRecordsReadStateSchema.nullish().default(null),
+    capabilities: z
+        .object({
+            durable_approvals: z.boolean().optional().default(false),
+            queue: z.boolean().optional().default(false),
+            steer: z.boolean().optional().default(false),
+        })
+        .default({durable_approvals: false, queue: false, steer: false}),
 })
 
 export const sessionStreamsResponseSchema = z.object({
@@ -326,6 +361,7 @@ export type SessionMessagePreview = z.infer<typeof sessionMessagePreviewSchema>
 export type SessionWindowing = z.infer<typeof sessionWindowingSchema>
 export type SessionsQueryResponse = z.infer<typeof sessionsQueryResponseSchema>
 export type SessionStreamCommandResponse = z.infer<typeof sessionStreamCommandResponseSchema>
+export type PendingSessionInput = z.infer<typeof pendingSessionInputSchema>
 
 /** One entry in a mount's durable file listing. `path` is relative to the mount root; folders
  * are flagged (`is_folder`) or implied by nested file paths. The backend lists the whole tree

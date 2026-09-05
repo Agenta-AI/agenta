@@ -152,7 +152,12 @@ export interface SessionScopedParams {
     abortSignal?: AbortSignal
 }
 
-/** Fetch the lifecycle/pending state and durable sequence watermark used to reconnect safely. */
+/**
+ * The one snapshot read. It carries the reconnect half (the stream row, the last turn, the
+ * durable watermark) and the queue half (the current lifecycle, the pending inputs, the feature
+ * capabilities), so the live preview and the durable queue never ask two endpoints that can
+ * disagree.
+ */
 export async function fetchSessionSnapshot({
     sessionId,
     projectId,
@@ -169,7 +174,25 @@ export async function fetchSessionSnapshot({
     )
     if (!data) return null
 
-    return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]")
+    return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]") ?? null
+}
+
+export async function removePendingSessionInput({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    inputId,
+}: SessionScopedParams & {inputId: string}): Promise<boolean> {
+    if (!projectId || !sessionId || !inputId) return false
+
+    const data = await callFern("[removePendingSessionInput]", () =>
+        getSessionsClient().removePendingSessionInput(
+            {session_id: sessionId, input_id: inputId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return !!data
 }
 
 const durableApprovalsCapabilityCache = new Map<string, Promise<boolean>>()

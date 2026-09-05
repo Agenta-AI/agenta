@@ -544,8 +544,9 @@ class RecordsDAO(RecordsDAOInterface):
                         "",
                     )
                     != SETTLED_BY_WATCHDOG,
-                    func.coalesce(RecordDBE.attributes["stopReason"].astext, "")
-                    != "paused",
+                    func.coalesce(RecordDBE.attributes["stopReason"].astext, "").notin_(
+                        ("paused", "cancelled", "error")
+                    ),
                     tuple_(RecordDBE.session_id, RecordDBE.turn_id).in_(keys),
                 )
                 .distinct()

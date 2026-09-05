@@ -26,7 +26,7 @@ class SessionCommandDBE(Base, SessionCommandDBA):
             name="uq_session_commands_idempotency",
         ),
         CheckConstraint(
-            "kind IN ('cancel', 'continue_interaction')",
+            "kind IN ('cancel', 'continue_interaction', 'continue_input')",
             name="ck_session_commands_kind",
         ),
         CheckConstraint(

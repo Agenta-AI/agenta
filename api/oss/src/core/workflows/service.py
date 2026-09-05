@@ -3013,6 +3013,7 @@ class WorkflowsService:
         request: WorkflowServiceRequest,
         #
         run_id: Optional[str] = None,
+        control_command_id: Optional[UUID] = None,
     ) -> WorkflowServiceDetachedResponse:
         """Fire-and-forget invoke: stream the service and return on the started handshake.
 
@@ -3030,6 +3031,8 @@ class WorkflowsService:
         meta = dict(request.meta or {})
         meta["run_id"] = run_id
         meta["project_id"] = str(project_id)
+        if control_command_id is not None:
+            meta["control_command_id"] = str(control_command_id)
         request.meta = meta
 
         credentials, service_url = await self._prepare_invoke(

@@ -8,7 +8,11 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {deriveSessionRemoteTurnPresentation, isRunningElsewhere} from "./liveness"
+import {
+    deriveSessionRemoteTurnPresentation,
+    isRunningElsewhere,
+    shouldShowRunningElsewhere,
+} from "./liveness"
 
 /** A session this browser has never run: no settle stamp, so the flag is trusted as-is. */
 const neverRanHere = {localStatus: "idle", localSettledAt: undefined} as const
@@ -157,5 +161,37 @@ describe("deriveSessionRemoteTurnPresentation", () => {
                 readerReady: true,
             }).showStrip,
         ).toBe(false)
+    })
+})
+
+describe("shouldShowRunningElsewhere", () => {
+    it("hides stale remote liveness while an idle execution shows its queued input", () => {
+        expect(
+            shouldShowRunningElsewhere({
+                runningElsewhere: true,
+                executionState: "idle",
+                pendingInputCount: 1,
+            }),
+        ).toBe(false)
+    })
+
+    it("keeps the warning for a genuinely running execution with queued work", () => {
+        expect(
+            shouldShowRunningElsewhere({
+                runningElsewhere: true,
+                executionState: "running",
+                pendingInputCount: 1,
+            }),
+        ).toBe(true)
+    })
+
+    it("keeps the warning for an idle snapshot without queued work", () => {
+        expect(
+            shouldShowRunningElsewhere({
+                runningElsewhere: true,
+                executionState: "idle",
+                pendingInputCount: 0,
+            }),
+        ).toBe(true)
     })
 })

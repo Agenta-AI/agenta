@@ -99,5 +99,5 @@ class RecordsDAOInterface:
         project_id: UUID,
         keys: Sequence[Tuple[str, str]],
     ) -> Set[Tuple[str, str]]:
-        """Turns with an effective, non-paused runner terminal record."""
+        """Turns with an effective, successful runner terminal record."""
         raise NotImplementedError

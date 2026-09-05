@@ -19,6 +19,18 @@ export interface QueuedMessage {
     text: string
     fileParts?: FileUIPart[]
     stagedFiles?: ComposerAttachment[]
+    attachmentCount?: number
+    policy?: "queue" | "steer"
+    source?: "local" | "server"
+    editable?: boolean
+}
+
+export interface ServerQueueAdapter {
+    capabilities: {queue: boolean; steer: boolean}
+    busy: boolean
+    queued: QueuedMessage[]
+    submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
+    remove: (id: string) => Promise<void>
 }
 
 interface UseAgentChatQueueArgs {
@@ -60,6 +72,8 @@ interface UseAgentChatQueueArgs {
     /** Persist held messages under this key across pane remounts (route re-entry, tab
      * close/reopen) — a restored queue releases normally once the conversation settles. */
     sessionId?: string
+    /** Durable server queue. Omit (or advertise queue=false) for the browser-local fallback. */
+    server?: ServerQueueAdapter
 }
 
 // In-memory, page-session lifetime — same as the composer drafts it accompanies.
@@ -100,6 +114,7 @@ export const useAgentChatQueue = ({
     markRunOwned,
     sendQueued,
     sessionId,
+    server,
 }: UseAgentChatQueueArgs) => {
     const [queued, setQueued] = useState<QueuedMessage[]>(
         () => (sessionId && queuedBySession.get(sessionId)) || [],
@@ -192,10 +207,73 @@ export const useAgentChatQueue = ({
         return message
     }, [])
 
+    // A message held before an approval answer predates the server-owned continuation. Move it
+    // under the same durable admission before that continuation can promote a different input.
+    const migrationRef = useRef<string | null>(null)
+    const migrationRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const [migrationRetry, setMigrationRetry] = useState(0)
+    useEffect(
+        () => () => {
+            if (migrationRetryTimerRef.current) clearTimeout(migrationRetryTimerRef.current)
+        },
+        [],
+    )
+    useEffect(() => {
+        const head = queued[0]
+        const submitToServer = server?.submit
+        if (
+            !continuationExecutionId ||
+            !continuationHold ||
+            !server?.capabilities.queue ||
+            !submitToServer ||
+            !head ||
+            migrationRef.current
+        ) {
+            return
+        }
+
+        migrationRef.current = head.id
+        void submitToServer(head, "queue")
+            .then(() => {
+                if (sessionId) {
+                    const stored = queuedBySession.get(sessionId)
+                    if (stored) {
+                        const remaining = stored.filter((item) => item.id !== head.id)
+                        if (remaining.length > 0) queuedBySession.set(sessionId, remaining)
+                        else queuedBySession.delete(sessionId)
+                    }
+                }
+                setQueued((items) => items.filter((item) => item.id !== head.id))
+            })
+            .catch(() => {
+                if (migrationRef.current !== head.id) return
+                migrationRef.current = null
+                migrationRetryTimerRef.current = setTimeout(() => {
+                    migrationRetryTimerRef.current = null
+                    migrationRef.current = null
+                    setMigrationRetry((attempt) => attempt + 1)
+                }, 2_000)
+            })
+            .finally(() => {
+                if (migrationRef.current === head.id) migrationRef.current = null
+            })
+    }, [
+        continuationExecutionId,
+        continuationHold,
+        migrationRetry,
+        queued,
+        sessionId,
+        server?.capabilities.queue,
+        server?.submit,
+    ])
+
     // Send now only if idle, unlatched, and the queue is empty; otherwise append (FIFO).
     const submit = useCallback(
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const message: QueuedMessage = {...item, id: generateId()}
+            if (server?.capabilities.queue) {
+                return server.submit(message, "queue")
+            }
             if (recoverable && retryContinuation) {
                 setQueued((q) => [...q, message])
                 if (!retryingContinuationRef.current) {
@@ -217,12 +295,30 @@ export const useAgentChatQueue = ({
                 setQueued((q) => [...q, message])
             }
         },
-        [canReleaseNow, recoverable, retryContinuation, markRunOwned, sendQueued],
+        [canReleaseNow, recoverable, retryContinuation, markRunOwned, sendQueued, server],
     )
 
-    const removeQueued = useCallback((id: string) => {
-        setQueued((q) => q.filter((m) => m.id !== id))
-    }, [])
+    const removeQueued = useCallback(
+        (id: string) => {
+            if (server?.queued.some((message) => message.id === id)) {
+                void server.remove(id).catch(() => {})
+                return
+            }
+            setQueued((q) => q.filter((m) => m.id !== id))
+        },
+        [server],
+    )
+
+    const steer = useCallback(
+        async (item: {text: string; fileParts?: FileUIPart[]}) => {
+            if (!server?.capabilities.steer || !server.busy) {
+                throw new Error("The session is not ready to accept a Steer input.")
+            }
+            const message: QueuedMessage = {...item, id: generateId()}
+            await server.submit(message, "steer")
+        },
+        [server],
+    )
 
     // ── Editing a held message ────────────────────────────────────────────────────────────────
     // An edit session BORROWS the composer: the target's text goes in, and whatever the user had
@@ -307,7 +403,7 @@ export const useAgentChatQueue = ({
             releasingRef.current = false
             return
         }
-        if (releasingRef.current || queued.length === 0) return
+        if (releasingRef.current || migrationRef.current || queued.length === 0) return
         if (!canReleaseNow) return
         releasingRef.current = true
         const [head, ...rest] = queued
@@ -319,11 +415,15 @@ export const useAgentChatQueue = ({
     }, [settled, canReleaseNow, queued, markRunOwned, sendQueued])
 
     return {
-        queued,
+        queued: [...(server?.queued ?? []), ...queued],
         submit,
+        steer,
         removeQueued,
         /** This tab received the durable respond body for this still-running execution. */
         ownsContinuation,
+        queueEnabled: !!server?.capabilities.queue,
+        steerEnabled: !!server?.capabilities.steer,
+        serverBusy: !!server?.busy,
         /** The conversation is paused on a HITL approval — typed messages should queue, not send. */
         hitlPending,
         /** Id of the held message the composer is currently editing, or null. */

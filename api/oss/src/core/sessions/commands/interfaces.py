@@ -122,6 +122,17 @@ class SessionCommandsDAOInterface(ABC):
         """The open (`pending` or `claimed`) command for this exact target, if one exists.
         This is what collapses two Stops in a row onto one command."""
 
+    async def bind_steer_input(
+        self,
+        *,
+        project_id: UUID,
+        command_id: UUID,
+        input_id: UUID,
+        transaction: Optional[Any] = None,
+    ) -> SessionCommand:
+        """Bind the first Steer input to an open Stop command."""
+        raise NotImplementedError
+
     async def fetch_resumable_continuation(
         self,
         *,
@@ -149,6 +160,7 @@ class SessionCommandsDAOInterface(ABC):
         *,
         command_id: UUID,
         project_id: Optional[UUID] = None,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
         """One command by id. `project_id` is optional because the runner reports an outcome
         with the command id alone and holds no project credential."""
