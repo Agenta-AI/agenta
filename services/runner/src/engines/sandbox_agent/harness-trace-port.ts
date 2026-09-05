@@ -149,6 +149,7 @@ function piTracePort(options: {
           knownValues: [
             ...new Set(
               [
+                ...(request.sandboxCredentials ?? []).map((credential) => credential.value),
                 ...Object.values(request.modelConnection?.environment ?? {}),
                 ...sandboxVisibleSecretValues(env),
               ].filter((value): value is string => !!value),

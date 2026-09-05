@@ -302,7 +302,7 @@ const withQuery = (url: string, params: Record<string, string | undefined>): str
 export async function buildAgentRequest(
     entityId: string,
     messages: unknown[],
-    opts: {sessionId: string; store?: StoreLike},
+    opts: {sessionId: string; store?: StoreLike; secretSetup?: boolean},
 ): Promise<AgentRequest | null> {
     const store = opts.store ?? getDefaultStore()
 
@@ -331,7 +331,7 @@ export async function buildAgentRequest(
     const agentTemplateOverlay = store.get(
         workflowAgentTemplateOverlayAtomFamily(entityId),
     ) as AgentTemplate | null
-    const parameters = pruneBlankEntries(
+    let parameters = pruneBlankEntries(
         withBuildKitOverlay(
             withAgentRunDefaults(config ?? {}) as Record<string, unknown>,
             agentTemplateOverlay,
@@ -339,6 +339,25 @@ export async function buildAgentRequest(
             buildKitDisabledOps,
         ),
     ) as Record<string, unknown>
+
+    // Advertise only when the calling host can fulfill the request. This throwaway overlay
+    // never changes saved tools or editor drafts, and identity-merges existing references.
+    if (opts.secretSetup) {
+        parameters = withBuildKitOverlay(
+            parameters,
+            {
+                tools: [
+                    {
+                        "@ag.embed": {
+                            "@ag.references": {workflow: {slug: "__ag__request_secret"}},
+                            "@ag.selector": {path: "parameters.tool"},
+                        },
+                    },
+                ],
+            } as AgentTemplate,
+            true,
+        )
+    }
 
     const entity = store.get(workflowMolecule.selectors.data(entityId)) as
         | RevisionLike

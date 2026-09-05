@@ -1,0 +1,235 @@
+/* Agenta Design System — Colors & Type
+ * Synced to Agenta-AI/agenta @ release/v0.112.0 (PR #5827) — the 2026-08 warm brand recolor.
+ * Source of truth: web/oss/src/styles/theme/palette.ts
+ *
+ * Light mode is a warm paper/ink ramp (retires the cool navy/zinc system).
+ * RULE: yellow #f2f25c is a FILL only — never text, icon, or link in light mode.
+ * Links use olive #5e5e08, the only text-safe yellow-family step.
+ */
+
+:root {
+  /* ===== FONTS ===== */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", Menlo, Consolas, Monaco, "Courier New", monospace;
+
+  /* ===== NEUTRAL ZINC SCALE (warm paper → ink ladder) ===== */
+  --zinc-1: #f6f5f3;  /* page ground, sidebar rail */
+  --zinc-2: #f0efed;  /* soft hairline, row dividers, list selection */
+  --zinc-3: #e5e5e3;  /* strong hairline: card/section borders */
+  --zinc-4: #d7d7d7;  /* input/control borders */
+  --zinc-5: #a3a19f;  /* disabled / faint labels */
+  --zinc-6: #848b8c;  /* tertiary text + icons */
+  --zinc-7: #676770;  /* secondary/body text */
+  --zinc-8: #413f3f;  /* primary-button hover, strong tag text */
+  --zinc-9: #242424;  /* primary text, primary button */
+  --zinc-10: #1e1c1d; /* pressed/active ink */
+
+  /* ===== BRAND ===== */
+  --brand:          #242424;   /* colorPrimary — warm ink */
+  --brand-hover:    #413f3f;
+  --brand-active:   #1e1c1d;
+  --brand-text:     #242424;
+  --brand-bg:       #f6f5f3;
+  --brand-bg-hover: #f0efed;
+  --brand-border:   #e5e5e3;
+  --brand-yellow:      #f2f25c; /* fill only — never text/icon/link */
+  --brand-yellow-deep: #e7e712;
+  --focus-lime:        #d9d92c; /* focus ring / composer send */
+  --olive:             #5e5e08; /* links; the only text-safe yellow step */
+
+  /* ===== HERO ACTION (the single "keycap" CTA per screen — Commit-class only) ===== */
+  --hero-bg:       var(--brand-yellow);
+  --hero-bg-hover: var(--brand-yellow-deep);
+  --hero-text:     #242424; /* flat fill, never white text */
+
+  /* ===== SEMANTIC ===== */
+  --success:         #2e7d3a;
+  --success-bg:      #eaf2e3;
+  --success-border:  #b1cfb0;
+  --warning:         #8a6400;
+  --warning-bg:      #fbf3d9;
+  --warning-border:  #d9c898;
+  --error:           #5e0908;  /* body text; #d94c4a is border/large-text only */
+  --error-bg:        #f9e5e5;
+  --error-border:    #d94c4a;
+  --info:            #113955;  /* deep blue */
+  --info-bg:         #e5f1f9;
+  --info-border:     #a5bac8;
+
+  /* ===== TEXT ===== */
+  --fg1: #242424;  /* colorText / heading */
+  --fg2: #676770;  /* colorTextSecondary */
+  --fg3: #848b8c;  /* colorTextTertiary / description / resting icons */
+  --fg4: #a3a19f;  /* colorTextQuaternary / disabled / placeholder */
+  --fg-inverse: #ffffff;
+  --fg-link: #5e5e08;       /* olive */
+  --fg-link-hover: #242424; /* hover steps to ink */
+
+  /* ===== BACKGROUNDS ===== */
+  --bg:          #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-muted:    #f6f5f3;  /* warm page ground */
+  --bg-subtle:   #f0efed;
+  --bg-paper:    #fbfaf8;  /* warm near-white tinted panels, table headers */
+  --bg-mask:     rgba(36, 36, 36, 0.45);
+
+  /* ===== BORDERS ===== */
+  --border:           #d7d7d7;  /* colorBorder — controls */
+  --border-secondary: #e5e5e3;  /* colorBorderSecondary — cards, dividers */
+  --border-strong:    #d7d7d7;
+  --divider:          #f0efed;  /* colorSplit */
+
+  /* ===== FILLS (ink overlays) ===== */
+  --fill-1: rgba(36, 36, 36, 0.02);
+  --fill-2: rgba(36, 36, 36, 0.04);
+  --fill-3: rgba(36, 36, 36, 0.06);
+  --fill-4: rgba(36, 36, 36, 0.15);
+
+  /* ===== FOCUS ===== */
+  --focus-outline: rgba(217, 217, 44, 0.35); /* lime glow on focused controls */
+
+  /* ===== CATEGORICAL TAG SLOTS (the one 6-slot set for ALL tags/badges) ===== */
+  --tag-blue-bg:    #e5f1f9; --tag-blue-text:    #113955; /* agent / AI-LLM (spec-pinned) */
+  --tag-neutral-bg: #ebeaea; --tag-neutral-text: #413f3f; /* chat, session, development */
+  --tag-amber-bg:   #fbf3d9; --tag-amber-text:   #8a6400; /* staging, custom, draft */
+  --tag-olive-bg:   #f8f8dd; --tag-olive-text:   #5e5e08; /* completion, environment */
+  --tag-red-bg:     #f9e5e5; --tag-red-text:     #5e0908; /* evaluator, webhook */
+  --tag-green-bg:   #eaf2e3; --tag-green-text:   #2c7737; /* production, human, exact match */
+
+  /* ===== CHARTS (fixed-order categorical series — assigned by position, cycled) ===== */
+  --chart-1: #d97757;
+  --chart-2: #54b5fa;
+  --chart-3: #d9d92c;
+  --chart-4: #113955;
+  --chart-5: #9d9d9d;
+  --chart-track: #e5e5e3;   /* unfilled remainder of stacked bars */
+  --chart-grid: #05172933;  /* grid + axis lines */
+  --chart-axis-text: #666666;
+
+  /* ===== RUN STATUS DOTS ===== */
+  --run-success:    #12b76a;
+  --run-processing: #3b82f6;
+  --run-default:    #98a2b3;
+  --run-error:      #f04438;
+  --run-warning:    #f79009;
+
+  /* ===== APP SHELL ===== */
+  --shell-rail:            #f6f5f3; /* warm rail beside white content */
+  --shell-line:            #e5e5e3; /* one colour for all frame lines */
+  --shell-selected-bg:     #ffffff; /* selected nav row = white pill on the warm rail */
+  --shell-selected-border: #e5e5e3;
+  --scroll-thumb:       rgba(36, 36, 36, 0.22);
+  --scroll-thumb-hover: rgba(36, 36, 36, 0.38);
+
+  /* ===== RADII ===== */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;   /* ant default */
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* ===== SHADOWS ===== */
+  --shadow-input:    0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-card:     0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+  --shadow-dropdown: 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05);
+  --shadow-modal:    0 12px 28px 0 rgba(0, 0, 0, 0.2);
+
+  /* ===== SPACING (ant 4px scale) ===== */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ===== TYPE SCALE (ant + tremor) ===== */
+  --fs-label:   12px;
+  --fs-body:    14px;
+  --fs-body-lg: 16px;
+  --fs-title:   18px;
+  --fs-h4:      20px;
+  --fs-h3:      24px;
+  --fs-h2:      30px;
+  --fs-h1:      38px;
+
+  --lh-tight: 1.2;    /* @kind other */
+  --lh-snug:  1.3;    /* @kind other */
+  --lh-normal: 1.5;   /* @kind other */
+  --lh-loose:  1.65;  /* @kind other */
+
+  --fw-regular: 400;  /* @kind other */
+  --fw-medium:  500;  /* @kind other */
+  --fw-semibold: 600; /* @kind other */
+  --fw-bold:    700;  /* @kind other */
+}
+
+/* ===== DARK MODE (ships with v0.112.0 — brand yellow becomes the primary) ===== */
+[data-theme="dark"] {
+  --zinc-1: #242424; --zinc-2: #2a2a2a; --zinc-3: #383838; --zinc-4: #424242; --zinc-5: #5c5c5c;
+  --zinc-6: rgba(255,255,255,0.45); --zinc-7: rgba(255,255,255,0.65); --zinc-8: rgba(255,255,255,0.75);
+  --zinc-9: rgba(255,255,255,0.85); --zinc-10: rgba(255,255,255,0.95);
+  --brand: #f2f25c; --brand-hover: #e8e47e; --brand-active: #a4a443; --brand-text: #d1d151;
+  --brand-bg: #3e3d1a; --brand-bg-hover: #57572a; --brand-border: #57572a;
+  --hero-bg: #d1d151; --hero-bg-hover: #dcdc6b; --hero-text: #141414;
+  --fg1: rgba(255,255,255,0.85); --fg2: rgba(255,255,255,0.65); --fg3: rgba(255,255,255,0.45); --fg4: rgba(255,255,255,0.25);
+  --fg-link: #8ccfff; --fg-link-hover: #b0deff;
+  --bg: #141414; --bg-elevated: #242424; --bg-muted: #000000; --bg-subtle: #272727; --bg-paper: #272727;
+  --bg-mask: rgba(0,0,0,0.45);
+  --border: #424242; --border-secondary: #303030; --border-strong: #424242; --divider: rgba(253,253,253,0.12);
+  --fill-1: rgba(255,255,255,0.04); --fill-2: rgba(255,255,255,0.08); --fill-3: rgba(255,255,255,0.12); --fill-4: rgba(255,255,255,0.18);
+  --focus-outline: rgba(251,251,96,0.29);
+  --success: #52c41a; --success-bg: #162312; --success-border: #274916;
+  --warning: #d89614; --warning-bg: #2b2111; --warning-border: #594214;
+  --error: #dc4446; --error-bg: #2c1618; --error-border: #5b2526;
+  --info: #1668dc; --info-bg: #111a2c; --info-border: #15325b;
+  --tag-blue-bg: rgba(140,207,255,0.14); --tag-blue-text: #8ccfff;
+  --tag-neutral-bg: rgba(188,188,188,0.14); --tag-neutral-text: #bcbcbc;
+  --tag-amber-bg: rgba(235,201,106,0.14); --tag-amber-text: #ebc96a;
+  --tag-olive-bg: rgba(209,209,81,0.14); --tag-olive-text: #d1d151;
+  --tag-red-bg: rgba(255,142,140,0.14); --tag-red-text: #ff8e8c;
+  --tag-green-bg: rgba(143,191,122,0.14); --tag-green-text: #8fbf7a;
+  --chart-1: #d1d151; --chart-2: #8ccfff; --chart-3: #ff8e8c; --chart-4: #8fbf7a; --chart-5: #787878;
+  --chart-track: #333333;
+  --shell-rail: #101010; --shell-line: #2c2c2c;
+  --shell-selected-bg: #3e3d1a; --shell-selected-border: transparent;
+  --scroll-thumb: rgba(255,255,255,0.20); --scroll-thumb-hover: rgba(255,255,255,0.34);
+  --shadow-dropdown: 0 0 0 1px rgba(255,255,255,0.16), 0 6px 16px 0 rgba(0,0,0,0.44), 0 3px 6px -4px rgba(0,0,0,0.52), 0 9px 28px 8px rgba(0,0,0,0.28);
+  --shadow-card: 0 0 0 1px rgba(255,255,255,0.12), 0 1px 2px 0 rgba(0,0,0,0.30), 0 1px 6px -1px rgba(0,0,0,0.20), 0 2px 4px 0 rgba(0,0,0,0.20);
+}
+
+/* ===== BASE ===== */
+html, body {
+  font-family: var(--font-sans);
+  color: var(--fg1);
+  background: var(--bg);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Slim trackless scrollbars (v0.112.0 shell treatment) */
+* { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 3px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
+
+/* ===== SEMANTIC TYPE ===== */
+.h1, h1 { font-size: var(--fs-h1); line-height: var(--lh-tight); font-weight: var(--fw-semibold); color: var(--fg1); letter-spacing: -0.01em; margin: 0; }
+.h2, h2 { font-size: var(--fs-h2); line-height: var(--lh-snug); font-weight: var(--fw-semibold); color: var(--fg1); letter-spacing: -0.005em; margin: 0; }
+.h3, h3 { font-size: var(--fs-h3); line-height: var(--lh-snug); font-weight: var(--fw-semibold); color: var(--fg1); margin: 0; }
+.h4, h4 { font-size: var(--fs-h4); line-height: var(--lh-snug); font-weight: var(--fw-semibold); color: var(--fg1); margin: 0; }
+.title { font-size: var(--fs-title); font-weight: var(--fw-semibold); color: var(--fg1); line-height: var(--lh-snug); }
+.body, p { font-size: var(--fs-body); line-height: var(--lh-normal); color: var(--fg1); margin: 0; }
+.body-secondary { font-size: var(--fs-body); color: var(--fg2); }
+.caption, .label { font-size: var(--fs-label); color: var(--fg3); line-height: 1rem; }
+.metric { font-size: var(--fs-h2); font-weight: var(--fw-semibold); line-height: 2.25rem; color: var(--fg1); font-variant-numeric: tabular-nums; }
+.code, code, pre { font-family: var(--font-mono); font-size: 13px; background: var(--bg-muted); padding: 2px 6px; border-radius: var(--radius-sm); color: var(--fg1); }
+a { color: var(--fg-link); text-decoration: none; }
+a:hover { color: var(--fg-link-hover); }

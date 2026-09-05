@@ -1,60 +1,29 @@
-# Simplification review
+# Simplification decisions
 
-The desired outcome is that an agent can request a credential, the user configures it
-once, and the same conversation continues with the credential available. The following
-suggestions are incorporated in the plan.
+V1 supports one task: attach a project text secret to an agent variant as an environment variable, including when an agent requests it during a conversation.
 
-## One readable delivery mode first
+## One binding model
 
-**Suggestion (non-blocking):** defer hidden delivery and host controls to milestone two.
-This removes policy storage, a mode selector, host validation, custom Daytona Secret
-allocation, and their combinations from the first implementation. Users give up host
-enforcement and protection against a process reading the value. Shared instructions
-reduce accidental exposure but do not replace those controls.
+The variant stores `{secret.slug, binding:{type:"env",name}}` under `agent.sandbox.credentials`. Settings and paused conversations commit the same structure through ordinary revision semantics. There are no session grants, attachment tables, per-skill collections, or service presets.
 
-Keep explicit typed credentials and bindings now. Those inexpensive boundaries let later
-policy resolution choose the transport without changing how an agent selects a secret.
+## One shared form and drawer
 
-## One form and one saved binding list
+The existing Secret form owns vault creation. Its only metadata extension is optional `default_env_var`, displayed directly below **Value**. The shared attachment drawer owns selection, creation, environment naming, edit identity, and retry state. Hosts own revision commit, adoption, settlement, and resume.
 
-**Suggestion (non-blocking):** settings and the request card share the same attachment
-flow and ordinary agent revisions. Do not add session-scoped grants, a second attachment
-table, or per-skill secret collections. Users give up temporary one-conversation bindings;
-an attachment persists on the selected agent variant until removed. The UI must say so.
+This split prevents raw secret content from reaching host callbacks and lets a saved vault entry survive an attachment conflict. Retrying attachment reuses the slug rather than recreating the secret.
 
-Reuse the existing secret form instead of copying it. Keep the request tool distinct from
-OAuth connection setup because their inputs and completion conditions differ. Share the
-client-tool interaction mechanism, not the OAuth-specific controller.
+## Existing lifecycle boundaries
 
-## Resume is the application boundary
+The SDK resolves references for each run and sends typed `sandboxCredentials` to the runner. The runner uses its existing environment composition, redaction, desired-state, and credential-epoch mechanisms. Rotation or removal invalidates stale parked state. No apply endpoint, readiness poll, browser-owned injection flag, or transaction service was added.
 
-**Suggestion (non-blocking):** resolve and apply credentials in the next run, before the
-harness continues. Remove the proposed need for a separate apply endpoint, readiness poll,
-or browser-owned "injected" flag. The tool result reports configured state; runtime
-success is established by the existing run pipeline.
+## Separate client tools
 
-This keeps one owner for runtime changes and handles runner restarts without another
-coordinator. A failed resume becomes a visible run error with normal retry, not a second
-secret-creation attempt.
+`request_secret` handles custom environment credentials. `request_connection` remains responsible for integration and OAuth connections. Both use the existing browser-fulfilled interaction lifecycle, but they do not share request schemas or domain-specific controllers.
 
-## Recover partial saves without a transaction framework
+## Existing permissions
 
-**Suggestion (non-blocking):** preserve a successfully created vault entry if attaching it
-fails. Re-read the unique slug and current agent revision before retrying. Reuse existing
-revision conflicts and interaction identity. Remove distributed rollback, automatic vault
-delete, new durable setup records, and competing retry loops.
+V1 uses existing secret-edit, agent-edit, and run permissions. Desktop and mobile resolve the authenticated project's capability and fail closed while it is unknown. The API remains authoritative. No secret-use role or hardcoded role mapping was added.
 
-The tradeoff is visible partial completion: the user may see "Saved in vault; not attached"
-and need to retry attachment. That is less work than re-entering a lost credential and
-avoids deleting a secret another consumer might already use.
+## Deferred V2
 
-## Use existing restart behavior before live environment patching
-
-**Suggestion (non-blocking):** permit a supported reopen/rebuild at the next run boundary
-when process environments cannot update live. Preserve the conversation and durable files,
-but do not promise uninterrupted subprocesses. Add live patching only if measured restart
-cost or a concrete workflow makes this limitation unacceptable.
-
-Validation, runtime authorization, collision protection, redaction, cancellation, and
-no-stale-credential execution stay in the first milestone. Removing them would shift
-routine failures and recovery work onto the user.
+V2 may add host restrictions and opaque delivery. That work can introduce destination policy, allowlists, delivery modes, and Daytona-managed secret allocation after the readable flow has production evidence. V1 does not expose templates, advanced metadata, generic environment overrides, or live process patching.

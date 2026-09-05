@@ -79,6 +79,8 @@ interface AgentMessageProps {
      * Stable across renders (the message to retry is passed in, not closed over); the parent
      * passes it only on the last turn while a retry can actually run, so it gates position. */
     onRetry?: (messageId: string) => void
+    /** Live transport failure fallback; durable message metadata remains the reload source. */
+    liveRunError?: {message: string; code?: number}
 }
 
 /**
@@ -184,7 +186,9 @@ export const RunErrorBody = ({
     const expanded = stored ?? false
     const big = isBigError(text)
     const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
-    const offerRetry = !!onRetry && !!code && RETRYABLE_CODES.has(code)
+    // A transport failure has no runner code; the last-turn retry handler is the signal that it
+    // is safe to offer recovery. Classified runner failures remain allowlisted.
+    const offerRetry = !!onRetry && (!code || RETRYABLE_CODES.has(code))
 
     return (
         <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
@@ -363,6 +367,7 @@ const AgentMessage = ({
     precededByEmptyAssistant = false,
     turnTraceId,
     onRetry,
+    liveRunError,
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const isUser = message.role === "user"
@@ -379,7 +384,7 @@ const AgentMessage = ({
     // A failure can reach us two ways: recorded on the trace (backend), or stamped onto the turn
     // FE-side from the useChat stream error (AgentChatPanel). `errorText` is derived below, once
     // we know whether the turn produced an answer.
-    const runError = getMessageRunError(message)
+    const runError = liveRunError?.message ?? getMessageRunError(message)
     const runErrorCode = getMessageRunErrorCode(message)
     const fullText = message.parts
         .filter((p) => p.type === "text")

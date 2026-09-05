@@ -2,48 +2,49 @@
 
 ## Current phase
 
-Planning complete; implementation has not started. The design is prepared as a child of
-#6365. Neither the secret-handling prompt text nor runtime behavior changes in this PR.
+Implementation and independent review are complete. Runtime, SDK, runner, shared entity, shared UI, desktop, and mobile paths are present in the isolated feature worktree. The real-application request, resume, and targeted recovery checks passed. The remaining runtime matrix is listed below.
 
-## Decisions
+## Shipped decisions
 
-- The user approved two milestones: internal readable delivery first, host-restricted
-  policy second.
-- Milestone one includes explicit bindings, backend resolution, runner injection, a shared
-  select/create/attach flow, and an agent request card with correct save/resume behavior.
-- The child implementation includes guidance in #6365's shared platform module.
-- Text-only bindings, variable validation, redaction, failure handling, and conversation
-  continuity remain requirements of milestone one.
-- The simplification pass keeps ordinary agent revisions and the existing client-tool and
-  run lifecycle. It adds no apply endpoint, readiness polling, setup service, or new tables.
+- Variant revisions own `agent.sandbox.credentials` references.
+- The vault owns secret content and optional `default_env_var` metadata.
+- The shared form places the optional default directly below **Value**.
+- Request, secret default, and derived suggestion determine the initial binding in that order. User overrides apply only to the attachment.
+- Settings and `request_secret` share the Secret form controller. Advanced configuration and the request dock share the attachment drawer.
+- Secret attachments stay inside the existing **Advanced** agent configuration drawer.
+- Save, adoption, settlement, and resume form one ordered host transaction. Retry after partial save reuses the saved vault entry.
+- V1 uses existing secret-edit, agent-edit, and run permissions. It adds no role system.
+- Runtime values travel only in typed `sandboxCredentials` and participate in existing redaction and credential lifecycle controls.
 
-## Review decisions
+## Validation evidence
 
-The plan recommends persistent agent-variant bindings, permission to edit secrets as a
-requirement for attaching readable credentials, and a controlled reopen/rebuild when
-needed. Review those tradeoffs together with the card completion flow. The high-level
-milestone split and shared-guidance dependency are already agreed.
+- Local Pi S1 passed injection, same-slug rotation, removal, continuity, and no-plaintext assertions.
+- The real desktop request flow passed request, cancellation without repetition, dummy-secret save,
+  v1 commit, adoption before resume, same-session resume, and a matching Python SHA-256 file side
+  effect. The fixed value was a test sentinel, not a credential.
+- The real Advanced flow passed create/default/override, refresh, edit, removal, revision
+  adoption, partial-save retry without another vault create, dirty-draft blocking, and failed-removal retry. See [browser evidence](qa-browser-evidence.md).
+- Failed-resume recovery passed after an injected HTTP 503. Retry preserved the saved revision and session with no vault create or revision commit.
+- The frontend transaction suite passes six tests for commit and adoption behavior.
+- The real chat hook suite passes ten tests, including adopted-revision auto-resume.
+- The production Storybook build contains 719 entries. Headless Chrome rendered the native request card, request-to-create drawer, requested `GITHUB_TOKEN` default, and preserved designer reference.
+- The web lint run passed all 25 tasks.
+- Entity transforms and UI attachment helpers passed their package suites.
 
-## Evidence and validation
+The Daytona live run is blocked because the environment has no usable OpenAI credential. This is an environment blocker, not a passing Daytona result.
 
-Research inspected `origin/main` at `770b566e5e0e280c95088a591315da9c0af19375`, current GitHub issue/PR records, and #6365
-head `ecb28ea14b3664f64da010948b8bf621db0fa0b9`. Runtime and UI paths were read, not
-executed. See research.md for the remaining implementation checks and qa.md for exit gates.
+## Remaining release work
 
-Publication checks cover relative documentation links, whitespace, style, and the exact
-child diff. Runtime tests do not apply to this documentation-only change.
+- Run the remaining Pi, Claude, and Codex matrix across local and Daytona. Daytona currently needs
+  a usable model credential in the disposable project.
 
-## Workspace handoff
+Use [the browser checklist](qa-browser-checklist.md) for the remaining UI verification.
 
-The local parent contains an older design revision than the remote #6365 implementation.
-GitButler's remote-update dry run failed while merging workspace bases. GitButler writes
-were frozen; no workspace repair is part of this task. Publish through the recovery
-runbook's temporary-index path with the remote #6365 head as the exact parent. Do not
-push or rewrite the parent PR. The published child branch is not an applied local lane.
+## Storybook
 
-## Next work
+Native stories are published under:
 
-Review the design PR. After approval, implement milestone one in the order in plan.md.
-Update #5703's milestone wording when implementation tracking is reorganized; do not mark
-the issue complete on the strength of this plan. Milestone two needs its own detailed
-policy contract after the readable flow is working.
+- `@agenta/entity-ui/Secret/AgentSecretAttachmentDrawer`
+- `@agenta/entity-ui/Secret/SecretRequestDock`
+
+The original designer asset remains under `Design review/Agent custom secrets`. Storybook packages the reference through `.storybook` static directories, and its manager and preview heads preserve the cache-busting `index.json` behavior.

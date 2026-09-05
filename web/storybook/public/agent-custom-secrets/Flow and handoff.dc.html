@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="_ds/agenta-design-system-0263eb0f-a904-4476-a73b-7afca7b6d749/colors_and_type.css">
+  <link rel="stylesheet" href="_ds/agenta-design-system-0263eb0f-a904-4476-a73b-7afca7b6d749/ui_kits/web/kit.css">
+  <script src="_ds/agenta-design-system-0263eb0f-a904-4476-a73b-7afca7b6d749/_ds_bundle.js"></script>
+  <style>
+    html, body { margin: 0; background: #f6f5f3; }
+    * { box-sizing: border-box; }
+    a { color: var(--fg-link); } a:hover { color: var(--fg-link-hover); }
+  </style>
+</helmet>
+<div style="max-width:960px;margin:0 auto;padding:32px 24px 64px;font-family:var(--font-sans);color:var(--fg1);font-size:14px;line-height:1.55;display:flex;flex-direction:column;gap:40px">
+  <div style="display:flex;flex-direction:column;gap:8px">
+    <a href="Agent custom secrets.dc.html" style="font-size:13px">← Back to the prototype</a>
+    <h2 style="font-size:24px;font-weight:600;letter-spacing:-0.005em;margin:0">Agent custom secrets — flow and implementation handoff</h2>
+    <p style="color:var(--fg2);margin:0;max-width:720px;text-wrap:pretty">Milestone one: attach a saved text secret to an agent as an environment variable, from agent configuration or from an agent's request in chat. One shared drawer, ordinary agent revisions, resume as the application boundary.</p>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <h3 style="font-size:18px;font-weight:600;margin:0">Flow: where configuration is saved and where the conversation resumes</h3>
+    <div style="background:#fff;border:1px solid var(--border-secondary);border-radius:8px;padding:20px;overflow-x:auto">
+      <div style="display:grid;grid-template-columns:110px repeat(6, minmax(120px,1fr));gap:8px 6px;min-width:860px;font-size:12px">
+        <div style="color:var(--fg3);align-self:center">Chat</div>
+        <div style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">Agent calls <span style="font-family:var(--font-mono);font-size:11px">request_secret</span>; turn pauses</div>
+        <div style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">Request card in the dock: Configure / Not now</div>
+        <div></div><div></div>
+        <div style="padding:8px 10px;border:1px solid var(--tag-blue-text);border-radius:6px;background:var(--tag-blue-bg);color:var(--tag-blue-text)">Request settled once as <span style="font-family:var(--font-mono);font-size:11px">configured</span> (reference + variable, no value)</div>
+        <div style="padding:8px 10px;border:1px solid var(--tag-green-text);border-radius:6px;background:var(--tag-green-bg);color:var(--tag-green-text)"><span style="font-weight:600">Conversation resumes</span> — same session, saved revision. Credentials applied before the agent's next turn.</div>
+
+        <div style="color:var(--fg3);align-self:center">Attachment drawer</div>
+        <div></div>
+        <div style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">Choose existing text secret or create one; set variable name</div>
+        <div style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">1 · Save new secret to project vault (if creating)</div>
+        <div style="padding:8px 10px;border:1px solid var(--tag-amber-text);border-radius:6px;background:var(--tag-amber-bg);color:var(--tag-amber-text)"><span style="font-weight:600">2 · Configuration saved</span> — new revision of the target agent variant with the binding</div>
+        <div style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">3 · Conversation's configuration updated to the saved revision; drawer closes</div>
+        <div></div>
+
+        <div style="color:var(--fg3);align-self:center">Agent configuration</div>
+        <div style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">Advanced → Secrets group: + attach / row opens edit / trash removes</div>
+        <div style="padding:8px 10px;border:1px dashed var(--border);border-radius:6px;background:var(--bg-paper);color:var(--fg2)">Same drawer, same target label</div>
+        <div></div>
+        <div style="padding:8px 10px;border:1px dashed var(--border);border-radius:6px;background:var(--bg-paper);color:var(--fg2)">List shows the new row; version badge increments</div>
+        <div></div>
+        <div style="padding:8px 10px;border:1px dashed var(--border);border-radius:6px;background:var(--bg-paper);color:var(--fg2)">Takes effect at the next run boundary; may restart processes</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;font-size:13px">
+      <div style="background:#fff;border:1px solid var(--border-secondary);border-radius:8px;padding:12px 14px"><div style="font-weight:500;margin-bottom:4px">Secret creation fails</div><div style="color:var(--fg2)">Nothing attached. Drawer keeps entries, shows error, user retries. Request stays pending.</div></div>
+      <div style="background:#fff;border:1px solid var(--border-secondary);border-radius:8px;padding:12px 14px"><div style="font-weight:500;margin-bottom:4px">Saved in vault; not attached</div><div style="color:var(--fg2)">Step 1 done, step 2 failed. Picker locks to the saved secret; Retry attach reuses it. No second create.</div></div>
+      <div style="background:#fff;border:1px solid var(--border-secondary);border-radius:8px;padding:12px 14px"><div style="font-weight:500;margin-bottom:4px">Conflict</div><div style="color:var(--fg2)">Step 2 rejected. Banner names the change; Reload configuration refreshes the target, then attach again from the current revision.</div></div>
+      <div style="background:#fff;border:1px solid var(--border-secondary);border-radius:8px;padding:12px 14px"><div style="font-weight:500;margin-bottom:4px">Reload before resume</div><div style="color:var(--fg2)">Binding exists, request unsettled. Dock shows "Ready to continue" with Continue; no re-create.</div></div>
+      <div style="background:#fff;border:1px solid var(--border-secondary);border-radius:8px;padding:12px 14px"><div style="font-weight:500;margin-bottom:4px">Resume fails</div><div style="color:var(--fg2)">Configured result stands. Transcript shows a run error with Retry run — same saved revision, no create/attach.</div></div>
+      <div style="background:#fff;border:1px solid var(--border-secondary);border-radius:8px;padding:12px 14px"><div style="font-weight:500;margin-bottom:4px">Cancel</div><div style="color:var(--fg2)">Not now settles once as cancelled. Marker reads "GitHub token not configured"; agent acknowledges and does not re-ask automatically.</div></div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <h3 style="font-size:18px;font-weight:600;margin:0">Existing components reused</h3>
+    <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;color:var(--fg1)">
+      <li><span style="font-family:var(--font-mono);font-size:12px">SecretForm</span> + <span style="font-family:var(--font-mono);font-size:12px">useSecretForm</span> (entity-ui/secret) — the Create new tab, reduced to Name + a single-line masked Value field (format fixed to text, slug derived from the name and not shown).</li>
+      <li><span style="font-family:var(--font-mono);font-size:12px">EnhancedDrawer</span> + <span style="font-family:var(--font-mono);font-size:12px">DrawerFooter</span> — 600px right drawer, back-arrow header with title/subtitle, Cancel/primary footer with a left disclosure slot (same chrome as <span style="font-family:var(--font-mono);font-size:12px">CreateSecretDrawer</span>).</li>
+      <li>Connection dock pattern (<span style="font-family:var(--font-mono);font-size:12px">ConnectionDock</span> / <span style="font-family:var(--font-mono);font-size:12px">ConnectToolWidget</span>) — "The agent is waiting for you" card above the composer owns the actions; the transcript row is a passive marker that becomes the result chip. Cmd/Ctrl+Enter and Escape bindings carry over.</li>
+      <li>Shared client-tool registry and settle mechanism — one settlement per tool-call id, duplicate clicks and multiple mounted views handled as for <span style="font-family:var(--font-mono);font-size:12px">request_connection</span>.</li>
+      <li>Existing editor save/discard bar for unsaved configuration edits; existing revision commit with <span style="font-family:var(--font-mono);font-size:12px">base_revision_id</span> and its conflict response.</li>
+      <li>Tokens: six-slot tags (agent = blue, unavailable = amber, saved = green, text format = olive), warning/error/info banners, ink primary buttons, lime focus ring, JetBrains Mono for slugs and variable names.</li>
+    </ul>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <h3 style="font-size:18px;font-weight:600;margin:0">New components or variants</h3>
+    <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
+      <li><span style="font-family:var(--font-mono);font-size:12px">AttachSecretDrawer</span> (entity-ui) — target header, optional "Requested by the agent" block, Choose existing / Create new segmented picker, an optional Environment variable field inline on Create new (placeholder = name derived from the secret name or the agent's proposal) and an Advanced collapsible for renaming when choosing an existing secret or editing, with validation, banners for create-failed / saved-not-attached / conflict / attach-failed, edit and replace modes. Receives the run target and a <span style="font-family:var(--font-mono);font-size:12px">commitBinding</span> capability from the playground; never imports playground state.</li>
+      <li><span style="font-family:var(--font-mono);font-size:12px">SecretPickerList</span> — radio list over project secrets: name + format tag (no slug); JSON rows disabled with "JSON — can't be attached".</li>
+      <li><span style="font-family:var(--font-mono);font-size:12px">AgentSecretsSection</span> — a third compact <span style="font-family:var(--font-mono);font-size:12px">ConfigAccordionSection</span> group ("Secrets", Key icon) inside the existing Advanced section drawer (<span style="font-family:var(--font-mono);font-size:12px">useModelHarness.advancedDrawerBody</span>, beside Execution environment and Permissions); rows use the <span style="font-family:var(--font-mono);font-size:12px">ItemRow</span> pattern (avatar, mono variable name, secret name, hover trash, chevron); schema control for <span style="font-family:var(--font-mono);font-size:12px">agent.sandbox.credentials</span>: header with count and Add secret, rows (name, slug when names collide, variable, unavailable tag), edit/remove actions, inline remove confirmation, loading skeleton and empty state.</li>
+      <li><span style="font-family:var(--font-mono);font-size:12px">SecretRequestCard</span> — dock card variant for <span style="font-family:var(--font-mono);font-size:12px">request_secret</span>: pending (Configure / Not now), configuring, saved, resuming, ready-to-continue (Continue / Not now), permission notice.</li>
+      <li><span style="font-family:var(--font-mono);font-size:12px">SecretRequestWidget</span> — transcript marker/result row: "Set up GitHub token below" → "GITHUB_TOKEN attached" / "GitHub token not configured · Set up anyway".</li>
+      <li>Env-name validator shared with the SDK rule set (regex, reserved names, provider/MCP collisions, duplicates on the same agent).</li>
+    </ul>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <h3 style="font-size:18px;font-weight:600;margin:0">Exact product copy</h3>
+    <div style="background:#fff;border:1px solid var(--border-secondary);border-radius:8px;overflow:hidden">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:var(--bg-paper);color:var(--fg2);text-align:left"><th style="padding:8px 12px;font-weight:500;border-bottom:1px solid var(--border-secondary);width:34%">Where</th><th style="padding:8px 12px;font-weight:500;border-bottom:1px solid var(--border-secondary)">Copy</th></tr></thead>
+        <tbody>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Card header</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">The agent is waiting for you</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Card body</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)"><b>{name}</b> — {reason} · Proposed environment variable <span style="font-family:var(--font-mono);font-size:12px">{ENV}</span> · saved to {agent} · {variant}</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Card actions</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">Not now · Configure</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Transcript marker (pending)</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">Set up {name} below</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Card (after save)</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">Saved to {agent} · {variant} — Configuration saved to {agent} · {variant}. → Applying credentials and resuming the conversation…</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Transcript marker (settled)</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">{ENV} attached · {name} not configured · Set up anyway</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Card (after reload)</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">Ready to continue — {ENV} is attached to {agent} · {variant}. The conversation is paused where the agent asked for it. · Continue</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Run error (resume failed)</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">The agent couldn't resume this conversation. Your configuration is saved — nothing needs to be entered again. · Retry run</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Run error (secret deleted)</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">The run stopped before the agent started: the secret behind {ENV} is no longer in this project. Replace it or remove the attachment in Secrets, then send again.</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Drawer title / subtitle</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">Attach secret — Attached to [{agent} · {variant}] · Edit binding — Saved to [...] · Replace secret</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Target mismatch note</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">You're now viewing {selected}. This secret will still be attached to {target}, the agent that asked for it.</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Picker</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">Choose existing · Create new · Only text secrets can be attached. JSON secrets stay available for other uses. · JSON — can't be attached</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Create form hints</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">A label for people. Shown in Settings and in this agent's Secrets list. · Sent straight to the project vault. It won't appear in the conversation or be shown again.</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Advanced (drawer)</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">Create new: Environment variable (optional) — How the agent's scripts read it. Leave blank to use {DERIVED}[ and the agent's request]. · Choose existing / edit: Advanced · Available to the agent as {ENV} · Environment variable name · Derived from the secret's name. Rename it if the agent's scripts expect something else.</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Validation</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">Enter an environment variable name. · Use letters, digits and underscores only, and don't start with a digit. · {X} is reserved by the system and can't be overridden. · {X} is already set by the model connection. · {X} is already used by {secret} on this agent. · (warning) Environment variables are conventionally upper case.</td></tr>
+                    <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Footer actions</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">Cancel · Attach → Saving secret… → Attaching… · Save (edit) · Retry attach</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Banners</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">The secret couldn't be saved — Nothing was attached. Your entries are still here — check them and try again. · Saved in vault; not attached. — {name} is saved to the project, but attaching it to {target} failed. Retry attaches the saved secret without creating it again. · {target} was changed by someone else — … Reload to review the current configuration, then attach again. · Reload configuration</td></tr>
+                    <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Secrets section</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">Advanced (panel row, summary "Sandbox: daytona · N secrets") · Secrets (group) · Project secrets exposed to the agent's scripts as environment variables. · No secrets attached — Attach a project secret, for example a GitHub token as GITHUB_TOKEN. · Attach secret · Secret unavailable · Replace secret</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Remove confirmation (inline)</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">Remove {ENV} from {agent}? The secret stays in the project vault. This takes effect before the next run and may restart the agent's processes; the conversation and saved files are kept. · Remove attachment · Keep</td></tr>
+          <tr><td style="padding:8px 12px;border-bottom:1px solid var(--divider);color:var(--fg2)">Unsaved edits</td><td style="padding:8px 12px;border-bottom:1px solid var(--divider)">Save or discard your unsaved changes before attaching a secret. The attachment is saved as its own version, so it can't include edits you haven't reviewed.</td></tr>
+          <tr><td style="padding:8px 12px;color:var(--fg2)">Permissions</td><td style="padding:8px 12px">You don't have permission to attach secrets to this agent. Ask a project admin to attach {ENV}, then send your request again. · You can view attached secrets but not change them… · You can attach existing project secrets but not create new ones. Ask a project admin to add a secret first.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <h3 style="font-size:18px;font-weight:600;margin:0">State transitions and action behavior</h3>
+    <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
+      <li><b>Request card:</b> pending → configuring (drawer open; closing the drawer returns to pending, it is not a cancel) → saved (binding committed, conversation config updated) → resuming (settle <span style="font-family:var(--font-mono);font-size:12px">configured</span>, submit next run) → done. pending → cancelled via Not now (settle <span style="font-family:var(--font-mono);font-size:12px">cancelled</span> once). resuming → resumeFailed keeps the configured result; Retry run resubmits the same saved revision. Reload with binding present and request unsettled → recovered; Continue → resuming.</li>
+      <li><b>Drawer submit:</b> guarded by phase (idle only) and by the conflict banner. Create path: save secret → lock picker to the saved reference → attach. Attach path: commit revision with <span style="font-family:var(--font-mono);font-size:12px">base_revision_id</span>. Failures return to idle with a banner; the saved reference survives in the drawer for retry. Raw content is cleared the moment the vault accepts it and on close.</li>
+      <li><b>Target:</b> fixed at open (originating agent/variant for cards, selected agent for configuration). Switching the header selection shows the mismatch note and does not change the target.</li>
+      <li><b>Unsaved edits:</b> Add secret / Configure show the blocking notice and route to the existing Save / Discard bar; no side-effect save.</li>
+      <li><b>Config list actions:</b> Edit binding opens the drawer in edit mode (replace secret and/or rename variable, value never shown). Remove uses an inline confirmation (not a modal) and removes only the attachment. Replace secret on an unavailable row is edit mode with a warning and the variable kept.</li>
+      <li><b>Duplicate events:</b> Attach, Continue, Retry run and Not now are idempotent on status; the dock and marker never both offer actions for the same request.</li>
+      <li><b>Mobile:</b> single column with Chat / Configure tabs; the drawer is a full-screen sheet; card actions are 40px targets.</li>
+    </ul>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <h3 style="font-size:18px;font-weight:600;margin:0">Assumptions and open decisions</h3>
+    <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
+      <li>Visuals follow the v0.112.0 warm palette from the design system; the entity-ui drawer and connection dock were read from source, not rendered. The shipped shadcn Button/Drawer skins may differ slightly.</li>
+      <li>Per review: the variable name is derived from the secret (or the agent's proposal) and lives under Advanced; the footer disclosure sentence was removed. The brief asked for that sentence near Save — confirm dropping it is intended.</li>
+      <li>The picker defaults to Choose existing even when the agent asked for a secret. If telemetry shows most requests end in Create new, flip the default when no name-matching text secret exists.</li>
+      <li>Closing the drawer with Cancel returns the card to pending rather than settling the request; only Not now settles it. Confirm this matches the connect-flow contract.</li>
+      <li>Slugs are hidden everywhere in this flow (per review). Two secrets with the same display name are indistinguishable in the picker — decide whether Settings should enforce unique names or the picker should show a disambiguator on collision.</li>
+      <li>Conflict handling reloads the target revision in place and asks the user to attach again; it never merges. If the other user attached the same variable name, validation now flags the duplicate.</li>
+      <li>"Set up anyway" on a cancelled marker opens the configuration-origin drawer; the agent re-asks only when the user sends a new message. Alternative: re-issue the request automatically on attach.</li>
+      <li>Restart consequence copy now appears only in the inline remove confirmation (the edit-mode note was removed per review). Decide whether replace/rename should warn at all.</li>
+      <li>Permission split assumed: attach requires agent-edit + secret-edit; create additionally requires vault write. Copy addresses both cases without naming permissions.</li>
+    </ul>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

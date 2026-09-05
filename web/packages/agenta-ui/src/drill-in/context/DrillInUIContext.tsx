@@ -335,6 +335,12 @@ export interface DrillInUIComponents {
         selfHostingGuideUrl?: string
     }
 
+    /** Host-owned permissions for package surfaces. Missing capabilities fail closed. */
+    permissions?: {canEditSecrets: boolean}
+
+    /** Adopt a workflow revision created by a package-owned configuration action. */
+    onWorkflowRevisionCommitted?: (revisionId: string) => void
+
     /** Gateway tools integration for the tool selector */
     gatewayTools?: GatewayToolsBridge
 

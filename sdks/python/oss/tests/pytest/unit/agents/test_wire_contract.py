@@ -46,6 +46,8 @@ from agenta.sdk.agents import (
     TraceContext,
 )
 from agenta.sdk.agents.platform_instructions import compose_platform_instructions
+from agenta.sdk.agents.connections import EnvironmentCredentialBinding
+from agenta.sdk.agents.dtos import ResolvedSandboxCredential
 from agenta.sdk.agents.platform.gateway import _derived_tool_specs
 from agenta.sdk.agents.tools import (
     CompiledTool,
@@ -83,6 +85,7 @@ KNOWN_REQUEST_KEYS = {
     "harnessMode",
     "modelCapabilities",
     "modelConnection",
+    "sandboxCredentials",
     "messages",
     "context",
     "telemetry",
@@ -284,6 +287,12 @@ def _codex_payload():
             ],
             endpoint=Endpoint(base_url="https://api.openai.com/v1"),
         ),
+        sandbox_credentials=[
+            ResolvedSandboxCredential(
+                binding=EnvironmentCredentialBinding(name="GITHUB_TOKEN"),
+                value="github-secret",
+            )
+        ],
     )
     return request_to_wire(
         harness=HarnessKind.CODEX,

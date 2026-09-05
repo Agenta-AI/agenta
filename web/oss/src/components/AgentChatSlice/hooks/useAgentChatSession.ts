@@ -110,7 +110,14 @@ export const useAgentChatSession = ({
     // with the revision that was displayed when the session first mounted, even after a switch or a
     // self-commit. Reading `entityIdRef.current` at send time keeps runs on the live revision.
     const entityIdRef = useRef(entityId)
-    entityIdRef.current = entityId
+    const entityPropRef = useRef(entityId)
+    if (entityPropRef.current !== entityId) {
+        entityIdRef.current = entityId
+        entityPropRef.current = entityId
+    }
+    const adoptRevision = useCallback((next: string) => {
+        entityIdRef.current = next
+    }, [])
 
     // Turn Inspector capture write, read via ref so the transport `useMemo` doesn't depend on it.
     const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
@@ -130,6 +137,7 @@ export const useAgentChatSession = ({
                     const req = await buildRequestWithinDeadline(() =>
                         buildAgentRequest(entityIdRef.current, messages, {
                             sessionId: id ?? sessionId,
+                            secretSetup: true,
                         }),
                     )
                     captureRef.current(buildTurnCapture(req, generateId(), Date.now()))
@@ -537,6 +545,7 @@ export const useAgentChatSession = ({
         setStopped,
         handleStop,
         handleClientToolOutput,
+        adoptRevision,
         markLiveGate,
         answerApproval,
         resumeOrphaned,

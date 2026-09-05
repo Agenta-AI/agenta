@@ -17,3 +17,5 @@ export {
     connectIntegrationKey,
 } from "./useIntegrationIdentity"
 export {ConnectFocusContextProvider, useConnectFocus, type ConnectFocusValue} from "./connectFocus"
+
+export {SecretRequestDock} from "./SecretRequestDock"

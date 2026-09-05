@@ -150,6 +150,7 @@ export interface AgentConversation {
     /** Headless approval-dock state wired to the live-gate-aware response path. */
     approvals: ApprovalDock
     /** Settle a parked client tool part (widgets call this; the resume predicate auto-resends). */
+    adoptRevision: (revisionId: string) => void
     sendToolOutput: (args: ToolOutputSettleInput) => void
     /** Re-fetch the durable records and adopt the server transcript under the same guards as
      * revalidate-on-open (never mid-stream, only when strictly ahead). Wire push signals — a
@@ -205,7 +206,14 @@ export const useAgentConversation = ({
     // through a ref — capturing `entityId` by value would send every turn with the revision that
     // was displayed when the session first mounted.
     const entityIdRef = useRef(entityId)
-    entityIdRef.current = entityId
+    const entityPropRef = useRef(entityId)
+    if (entityPropRef.current !== entityId) {
+        entityIdRef.current = entityId
+        entityPropRef.current = entityId
+    }
+    const adoptRevision = useCallback((next: string) => {
+        entityIdRef.current = next
+    }, [])
 
     // Transport feeds the v6 stream request from the playground pipeline. `api` here is a
     // placeholder that `prepareSendMessagesRequest` overrides per request.
@@ -221,6 +229,7 @@ export const useAgentConversation = ({
                     const req = await buildRequestWithinDeadline(() =>
                         buildAgentRequest(entityIdRef.current, messages, {
                             sessionId: id ?? sessionId,
+                            secretSetup: true,
                         }),
                     )
                     return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
@@ -728,21 +737,29 @@ export const useAgentConversation = ({
         [regenerate, setMessages],
     )
 
-    // Per-mount executed-identity cache — the desktop's per-message toolSignature memo,
-    // recreated hook-side so the identity JSON.stringify doesn't re-run per streamed token.
-    const [executedFor] = useState(() => createExecutedToolIdentityCache())
-    const turns = useMemo(
-        () =>
-            buildTurnViewModels(messages, {
-                busy,
-                executedFor,
-                isClientToolPart: (part, ctx) =>
-                    (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
-            }),
-        [messages, busy, executedFor, isClientToolPart, renderMap],
-    )
-
     const parsedError = useMemo(() => (error ? parseAgentRunError(error) : undefined), [error])
+
+    // Per-mount executed-identity cache keeps tool identity work off streamed-token renders.
+    const [executedFor] = useState(() => createExecutedToolIdentityCache())
+    const turns = useMemo(() => {
+        const built = buildTurnViewModels(messages, {
+            busy,
+            executedFor,
+            isClientToolPart: (part, ctx) =>
+                (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
+        })
+        // A durable-log adoption can replace the local metadata stamp after a transport failure.
+        // While mounted, the live useChat error remains authoritative for the last settled turn.
+        const last = built.at(-1)
+        if (!parsedError || busy || !last || last.isUser) return built
+        last.status = {
+            ...last.status,
+            errorText: parsedError.message,
+            showError: true,
+            isError: last.status.noResponse,
+        }
+        return built
+    }, [messages, busy, executedFor, isClientToolPart, renderMap, parsedError])
 
     return {
         messages,
@@ -764,6 +781,7 @@ export const useAgentConversation = ({
         clearQueue,
         approvals,
         sendToolOutput,
+        adoptRevision,
         revalidate,
     }
 }

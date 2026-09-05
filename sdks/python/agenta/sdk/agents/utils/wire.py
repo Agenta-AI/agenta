@@ -159,6 +159,7 @@ def request_to_wire(
         **config.wire_mcp(),
         **config.wire_skills(),
         **config.wire_sandbox_permission(),
+        **config.wire_sandbox_credentials(),
         **config.wire_connection_ref(),
         **config.wire_model_connection(),
         **config.wire_harness_mode(),

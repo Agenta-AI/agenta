@@ -100,6 +100,13 @@ class WireCredentialBinding(_WireModel):
     name: str
 
 
+class WireSandboxCredential(_WireModel):
+    """One resolved credential delivered to the sandbox environment."""
+
+    binding: WireCredentialBinding
+    value: str
+
+
 class WireCredential(_WireModel):
     """One model credential, its binding, and its consumer usage contract."""
 
@@ -522,6 +529,9 @@ class WireRunRequest(_WireModel):
     connection: Optional[WireConnection] = None
     model_connection: Optional[WireModelConnection] = Field(
         default=None, alias="modelConnection"
+    )
+    sandbox_credentials: Optional[List[WireSandboxCredential]] = Field(
+        default=None, alias="sandboxCredentials"
     )
     harness_mode: Optional[str] = Field(default=None, alias="harnessMode")
     # Resolved model input modalities. Omitted when the resolver cannot determine them.

@@ -38,6 +38,8 @@ log = get_module_logger(__name__)
 
 REQUEST_CONNECTION_WORKFLOW_SLUG = "__ag__request_connection"
 REQUEST_CONNECTION_TOOL_NAME = "request_connection"
+REQUEST_SECRET_WORKFLOW_SLUG = "__ag__request_secret"
+REQUEST_SECRET_TOOL_NAME = "request_secret"
 
 
 class AgentaWorkflowToolResolver:
@@ -71,7 +73,7 @@ class AgentaWorkflowToolResolver:
             [
                 (tool_config.call_ref, tool_config.tool_name)
                 for tool_config in tools
-                if not _is_request_connection_workflow(tool_config)
+                if not _is_client_platform_workflow(tool_config)
             ]
         )
 
@@ -87,17 +89,9 @@ class AgentaWorkflowToolResolver:
                 log.warning("agent: %s", error)
                 raise error
             seen.add(call_ref)
-            if _is_request_connection_workflow(tool_config):
-                tool_specs.append(
-                    ClientToolSpec(
-                        kind="client",
-                        name=REQUEST_CONNECTION_TOOL_NAME,
-                        description=tool_config.description
-                        or "Request a connection from the user.",
-                        input_schema=expand_type_refs(tool_config.input_schema),
-                        render={"kind": "connect"},
-                    )
-                )
+            client_tool = _client_platform_tool(tool_config)
+            if client_tool is not None:
+                tool_specs.append(client_tool)
                 continue
             resolved_name = names_by_call_ref[call_ref]
             tool_specs.append(
@@ -128,6 +122,44 @@ class AgentaWorkflowToolResolver:
                 authorization=authorization,
             ),
         )
+
+
+def _workflow_matches(tool_config: ReferenceToolConfig, slug: str) -> bool:
+    workflow = getattr(tool_config, "workflow", None)
+    if getattr(workflow, "slug", None) == slug:
+        return True
+    call_ref = tool_config.call_ref
+    return call_ref == f"workflow.variant.{slug}" or call_ref.startswith(
+        f"workflow.variant.{slug}."
+    )
+
+
+def _is_client_platform_workflow(tool_config: ReferenceToolConfig) -> bool:
+    return _is_request_connection_workflow(tool_config) or _workflow_matches(
+        tool_config, REQUEST_SECRET_WORKFLOW_SLUG
+    )
+
+
+def _client_platform_tool(tool_config: ReferenceToolConfig) -> Optional[ClientToolSpec]:
+    if _is_request_connection_workflow(tool_config):
+        return ClientToolSpec(
+            kind="client",
+            name=REQUEST_CONNECTION_TOOL_NAME,
+            description=tool_config.description
+            or "Request a connection from the user.",
+            input_schema=expand_type_refs(tool_config.input_schema),
+            render={"kind": "connect"},
+        )
+    if _workflow_matches(tool_config, REQUEST_SECRET_WORKFLOW_SLUG):
+        return ClientToolSpec(
+            kind="client",
+            name=REQUEST_SECRET_TOOL_NAME,
+            description=tool_config.description
+            or "Request a custom secret from the user.",
+            input_schema=expand_type_refs(tool_config.input_schema),
+            render={"kind": "secret"},
+        )
+    return None
 
 
 def _is_request_connection_workflow(tool_config: ReferenceToolConfig) -> bool:

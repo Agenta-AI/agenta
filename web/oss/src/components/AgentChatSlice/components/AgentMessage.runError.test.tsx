@@ -45,6 +45,18 @@ describe("RunErrorBody", () => {
         expect(rendered).not.toContain("Add your key")
     })
 
+    it("offers Try again for an unclassified HTTP transport failure", () => {
+        const rendered = text(
+            <RunErrorBody
+                text="Service unavailable"
+                stateKey="turn-http-503"
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("Try again")
+    })
+
     it("hides Try again when no retry handler is wired (not the last turn, or busy)", () => {
         const rendered = text(
             <RunErrorBody

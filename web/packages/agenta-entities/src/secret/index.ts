@@ -31,6 +31,7 @@
 
 export type {
     AgentConnectionMode,
+    AgentSecretBinding,
     AgentModelCandidate,
     AgentModelSelection,
     BuildAgentModelCandidatesArgs,

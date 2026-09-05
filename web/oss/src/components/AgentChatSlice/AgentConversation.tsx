@@ -8,6 +8,7 @@ import {
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
 import {getMessageTraceId} from "@agenta/chat/assets"
+import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {ConnectionFocusProvider} from "@agenta/chat/components"
 import {
     stagedFilesToParts,
@@ -22,7 +23,12 @@ import {
     useVoiceComposer,
 } from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
-import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
+import {
+    ignoreStreamRejection,
+    isEmptyAssistantTurn,
+    isVisiblePart,
+    parseAgentRunError,
+} from "@agenta/chat/model"
 import {getPendingApprovals} from "@agenta/chat/model"
 import {sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
 import {clearSessionFresh} from "@agenta/chat/state"
@@ -32,6 +38,7 @@ import {
     modalitiesForModel,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {ContextRail} from "@agenta/entity-ui/drive"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
@@ -48,6 +55,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
 import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
@@ -100,6 +108,7 @@ const AgentConversation = ({
     /** Shared across the panel's session panes: the composer entrance plays only once. */
     revealPlayedRef: MutableRefObject<boolean>
 }) => {
+    const {hasPermission} = useProjectPermissions()
     const store = useStore()
     // Workflow artifact id for this conversation — the key for the agent's durable `agent-files`
     // mount, folded into the session drive by the Drive surfaces below (via the drive context).
@@ -135,6 +144,7 @@ const AgentConversation = ({
         setStopped,
         handleStop,
         handleClientToolOutput,
+        adoptRevision,
         markLiveGate,
         answerApproval,
         resumeOrphaned,
@@ -143,6 +153,7 @@ const AgentConversation = ({
     } = useAgentChatSession({entityId, sessionId, initialMessages, intent: scrollIntent})
 
     // Turn Inspector: open state, the focused turn, and the assistant → turn-number mapping.
+    const pendingSecret = useMemo(() => getPendingSecretInteractions(messages)[0], [messages])
     const {
         buildMode,
         inspectorEnabled,
@@ -390,7 +401,7 @@ const AgentConversation = ({
     // arriving below to jump to.
     const gateOpen = jumpGateOpen({
         approvals: pendingApprovals.length,
-        elicitationOpen: false,
+        elicitationOpen: Boolean(pendingSecret),
         connectionOpen: connects.open,
     })
     // Publish this session's run state (single source of truth: drives the tab bar's status dot
@@ -615,6 +626,9 @@ const AgentConversation = ({
     // question can sit at the top). Derived from layout, NOT from `busy` — so it persists when the turn
     // settles instead of being yanked away (which clamped the scroll and jumped the view).
     const reserveActive = activeStart > 0
+    // Message metadata persists failures, but a concurrent durable-log adoption can replace that
+    // local stamp. Keep the live useChat error authoritative for the last turn while mounted.
+    const liveRunError = useMemo(() => (error ? parseAgentRunError(error) : undefined), [error])
 
     // Stable per-session callbacks so <AgentTurn>'s memo holds across streamed commits.
     const handleInspectTurn = useCallback(
@@ -694,6 +708,7 @@ const AgentConversation = ({
                 // Content-visibility on settled rows — gated by CONTENT_VISIBILITY_ENABLED
                 // (currently off) and never under Virtuoso (it windows + corrupts measurement).
                 offscreenSkip={CONTENT_VISIBILITY_ENABLED && !useVirtuoso && index < activeStart}
+                liveRunError={isLast ? liveRunError : undefined}
             />
         )
     }
@@ -822,6 +837,18 @@ const AgentConversation = ({
                                     onApprovalResponse={handleApprovalResponse}
                                     connects={connects}
                                     elicits={elicits}
+                                    secretDock={
+                                        !busy && !stopped && pendingSecret ? (
+                                            <SecretRequestDock
+                                                key={pendingSecret.toolCallId}
+                                                meta={pendingSecret}
+                                                revisionId={entityId}
+                                                canEditSecrets={hasPermission("edit_secret")}
+                                                onAdoptRevision={adoptRevision}
+                                                onOutput={handleClientToolOutput}
+                                            />
+                                        ) : null
+                                    }
                                     onClientToolOutput={handleClientToolOutput}
                                     onSubmit={handleSubmit}
                                     onStop={handleStop}

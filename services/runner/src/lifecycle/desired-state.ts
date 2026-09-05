@@ -132,6 +132,8 @@ export function normalizeDesiredState(
           credentials: credentialShapes(request.modelConnection.credentials),
         }
       : null,
+    sandboxCredentials:
+      request.sandboxCredentials?.map((credential) => ({ binding: credential.binding })) ?? null,
   });
 
   // WORKSPACE FILES: the managed files the runner writes and OWNS. Instructions and skills only.

@@ -291,6 +291,8 @@ function configShape(request: AgentRunRequest) {
           ),
         }
       : null,
+    sandboxCredentials:
+      request.sandboxCredentials?.map((credential) => ({ binding: credential.binding })) ?? null,
     agentsMd: request.agentsMd ?? null,
     systemPrompt: request.systemPrompt ?? null,
     appendSystemPrompt: request.appendSystemPrompt ?? null,
@@ -652,6 +654,10 @@ export function computeCredentialEpoch(
         usage: credential.usage,
       }),
     ),
+    sandboxCredentials: (request.sandboxCredentials ?? []).map((credential) => ({
+      binding: credential.binding,
+      value: credential.value,
+    })),
     mcpCredentials: (request.mcpServers ?? []).flatMap((server) =>
       (server.connection?.credentials ?? []).map((credential) => ({
         server: server.name,
@@ -666,6 +672,10 @@ export function computeCredentialEpoch(
   // locally by the provider SDK, so they are baked into the daemon environment at create.
   const directMaterial = canonicalJson({
     modelEnvironment: request.modelConnection?.environment ?? {},
+    sandboxCredentials: (request.sandboxCredentials ?? []).map((credential) => ({
+      binding: credential.binding,
+      value: credential.value,
+    })),
     localUseCredentials: (request.modelConnection?.credentials ?? [])
       .filter((credential) => credential.usage === "local_use")
       .map((credential) => ({

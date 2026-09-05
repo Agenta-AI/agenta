@@ -507,6 +507,12 @@ export interface ModelCredentialBinding {
   name: string;
 }
 
+/** A resolved custom credential whose plaintext is required by code inside the sandbox. */
+export interface SandboxCredential {
+  binding: ModelCredentialBinding;
+  value: string;
+}
+
 /**
  * One secret the model provider needs, plus enough information to decide whether the sandbox is
  * allowed to see it.
@@ -669,6 +675,8 @@ export interface AgentRunRequest {
   connection?: { mode: string; slug?: string };
   /** Resolved model routing and credential bindings, grouped under their consumer. */
   modelConnection?: ModelConnection;
+  /** Resolved custom credentials delivered as readable sandbox environment variables. */
+  sandboxCredentials?: SandboxCredential[];
   /** The conversation so far; the runner picks the latest turn and replays the rest. */
   messages?: ChatMessage[];
   /** Deprecated: accepted and ignored. Pi activates every built-in tool on every run. */

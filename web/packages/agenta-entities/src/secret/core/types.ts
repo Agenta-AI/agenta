@@ -60,9 +60,16 @@ export type CustomSecretContent = CustomSecretSettingsDto["content"]
  * with the two fields named secrets need: the `format` and a `content` that is
  * a text blob or a flat json object — wider than `LlmProvider.key` (string only).
  */
+export interface AgentSecretBinding {
+    secret: {slug: string}
+    binding: {type: "env"; name: string}
+}
+
 export interface NamedSecretRow extends LlmProvider {
     slug?: string
     format: CustomSecretFormat
+    /** Optional environment-variable name suggested when this secret is attached to an agent. */
+    defaultEnvVar?: string
     /** Absent on a write-only record (the value never comes back) and on an update that keeps it. */
     content?: CustomSecretContent
 }

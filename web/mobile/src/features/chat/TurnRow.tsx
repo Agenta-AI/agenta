@@ -154,7 +154,7 @@ const ToolLines = ({item}: {item: ToolsItem}) => (
 )
 
 /** Desktop RunErrorBody's callout: the red card with a title and the reason inline. */
-const RunErrorCallout = ({text}: {text: string}) => {
+const RunErrorCallout = ({text, onRetry}: {text: string; onRetry?: () => void}) => {
     const [expanded, setExpanded] = useState(false)
     const big = text.length > 240 || text.split("\n").length > 4
     return (
@@ -176,6 +176,15 @@ const RunErrorCallout = ({text}: {text: string}) => {
                         className="text-colorError -ml-1 rounded px-1 py-0.5 text-[11px] font-medium"
                     >
                         {expanded ? "Show less" : "Show more"}
+                    </button>
+                ) : null}
+                {onRetry ? (
+                    <button
+                        type="button"
+                        onClick={onRetry}
+                        className="text-colorError mt-1 rounded border border-current px-2 py-1 text-xs font-medium"
+                    >
+                        Try again
                     </button>
                 ) : null}
             </div>
@@ -229,6 +238,7 @@ export const TurnRow = ({
     turn,
     onClientToolOutput,
     onRewind,
+    onRetry,
     sessionId,
     workflowId,
 }: {
@@ -239,6 +249,8 @@ export const TurnRow = ({
     onClientToolOutput?: ClientToolOutputHandler
     /** Re-run the conversation from this turn. Absent on the read-only transcript screen. */
     onRewind?: (turn: TurnViewModel) => void
+    /** Retry through the host rewind plan, including its completed-side-effect warning. */
+    onRetry?: (turn: TurnViewModel) => void
     /** Scopes the startup narration to this conversation. */
     sessionId: string
     /** The agent's workflow id, so its own icon rides the assistant bubbles. Display only. */
@@ -328,7 +340,10 @@ export const TurnRow = ({
                 return null
             })}
             {turn.status.showError ? (
-                <RunErrorCallout text={turn.status.errorText ?? "Something went wrong."} />
+                <RunErrorCallout
+                    text={turn.status.errorText ?? "Something went wrong."}
+                    onRetry={turn.isLast && onRetry ? () => onRetry(turn) : undefined}
+                />
             ) : null}
         </div>
     )

@@ -399,6 +399,7 @@ export function seedFromEnv(options?: {
 /** The shape `seedForRun` reads off an `AgentRunRequest` (structural, to avoid importing the
  * wire types into the redaction primitive). */
 export interface RunSeedSource {
+  sandboxCredentials?: Array<{ value?: string }>;
   /** Resolved model routing: typed credential values plus the materialized environment values. */
   modelConnection?: {
     environment?: Record<string, string>;
@@ -425,6 +426,7 @@ export function requestSecretValues(
   request: RunSeedSource,
 ): Array<string | undefined> {
   return [
+    ...(request.sandboxCredentials ?? []).map((credential) => credential.value),
     ...Object.values(request.modelConnection?.environment ?? {}),
     ...(request.modelConnection?.credentials ?? []).map(
       (credential) => credential.value,

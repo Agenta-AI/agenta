@@ -6,6 +6,7 @@ import {
     EDGE_FADE_MASK,
     jumpGateOpen,
 } from "@agenta/chat/assets"
+import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {
     ConnectionDock,
     ElicitationDock,
@@ -20,6 +21,7 @@ import {
 } from "@agenta/chat/hooks"
 import {getPendingApprovals, type TurnViewModel} from "@agenta/chat/model"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
+import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {modal} from "@agenta/ui/app-message"
 import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
@@ -28,6 +30,7 @@ import {useSetAtom} from "jotai"
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {useProjectPermission} from "../context/useProjectPermission"
 import {takePendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
 
@@ -39,6 +42,7 @@ import {
     PENDING_TASK_NOT_SENT_MESSAGE,
     pendingTaskDecision,
 } from "./pendingTaskPolicy"
+import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
@@ -80,6 +84,19 @@ export const LiveConversation = ({
     embedded?: boolean
 }) => {
     const conversation = useAgentConversation({entityId, sessionId})
+    const canEditSecrets = useProjectPermission(projectId, "edit_secret")
+    const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+    const adoptSecretRevision = useCallback(
+        (next: string) => {
+            conversation.adoptRevision(next)
+            pinRevision(next)
+        },
+        [conversation.adoptRevision, pinRevision],
+    )
+    const pendingSecret = useMemo(
+        () => getPendingSecretInteractions(conversation.messages)[0],
+        [conversation.messages],
+    )
 
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
@@ -229,7 +246,7 @@ export const LiveConversation = ({
     // surface has no question-form dock yet, so only approvals and connect cards can gate it.
     const gateOpen = jumpGateOpen({
         approvals: pendingApprovals.length,
-        elicitationOpen: false,
+        elicitationOpen: Boolean(pendingSecret),
         connectionOpen: connects.open,
     })
 
@@ -292,6 +309,7 @@ export const LiveConversation = ({
                         turn={turn}
                         onClientToolOutput={conversation.sendToolOutput}
                         onRewind={handleRewind}
+                        onRetry={handleRewind}
                         sessionId={sessionId}
                     />
                 ))}
@@ -357,6 +375,18 @@ export const LiveConversation = ({
                         ) : null}
                         {/* Parked question forms, between approval and connect — the same order as
                         desktop, and the same order as the keyboard precedence. */}
+                        {!streamingHere && !conversation.stopped && pendingSecret ? (
+                            <ContentRail>
+                                <SecretRequestDock
+                                    key={pendingSecret.toolCallId}
+                                    meta={pendingSecret}
+                                    revisionId={entityId}
+                                    onAdoptRevision={adoptSecretRevision}
+                                    canEditSecrets={canEditSecrets}
+                                    onOutput={conversation.sendToolOutput}
+                                />
+                            </ContentRail>
+                        ) : null}
                         {elicits.open ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                                 <ContentRail>

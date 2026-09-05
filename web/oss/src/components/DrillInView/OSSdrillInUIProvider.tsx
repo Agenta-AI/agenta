@@ -45,6 +45,7 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {getDefaultStore, useSetAtom} from "jotai"
 
 import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
@@ -94,6 +95,11 @@ function useGatewayToolsCatalogActions(integrationKey: string) {
  */
 export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
     const {llmProviderConfig, overlay: llmProviderOverlay} = useLLMProviderConfig()
+    const {hasPermission} = useProjectPermissions()
+    const permissions = useMemo(
+        () => ({canEditSecrets: hasPermission("edit_secret")}),
+        [hasPermission],
+    )
     const toolsEnabled = isToolsEnabled()
     const baseWorkflowReference = useWorkflowReferenceBridge()
     const {baseAppURL} = useURL()
@@ -119,10 +125,11 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
                 workflowReference,
                 openTrace,
                 deployment,
+                permissions,
                 // Rich concrete components vs the context's index-signature slots (pre-existing gap)
             }) as DrillInUIComponents,
         // openTrace is a module-level const (stable) — no dep needed.
-        [llmProviderConfig, workflowReference, deployment],
+        [llmProviderConfig, workflowReference, deployment, permissions],
     )
 
     if (!toolsEnabled) {
@@ -140,6 +147,7 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
                 llmProviderConfig={llmProviderConfig}
                 workflowReference={workflowReference}
                 deployment={deployment}
+                permissions={permissions}
             >
                 {children}
             </GatewayToolsEnabledProvider>
@@ -153,11 +161,13 @@ function GatewayToolsEnabledProvider({
     llmProviderConfig,
     workflowReference,
     deployment,
+    permissions,
 }: {
     children: ReactNode
     llmProviderConfig: ReturnType<typeof useLLMProviderConfig>["llmProviderConfig"]
     workflowReference: WorkflowReferenceBridge
     deployment: {isCloud: boolean}
+    permissions: {canEditSecrets: boolean}
 }) {
     const {connections, isLoading, error} = useToolConnectionsQuery()
     const setCatalogDrawerOpen = useSetAtom(toolCatalogDrawerOpenAtom)
@@ -216,9 +226,10 @@ function GatewayToolsEnabledProvider({
                 workflowReference,
                 openTrace,
                 deployment,
+                permissions,
                 // Rich concrete components vs the context's index-signature slots (pre-existing gap)
             }) as DrillInUIComponents,
-        [llmProviderConfig, gatewayTools, workflowReference, deployment],
+        [llmProviderConfig, gatewayTools, workflowReference, deployment, permissions],
     )
 
     return <DrillInUIProvider components={components}>{children}</DrillInUIProvider>

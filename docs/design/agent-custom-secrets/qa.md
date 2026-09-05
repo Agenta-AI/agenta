@@ -1,7 +1,22 @@
 # Acceptance checks
 
-These checks are required for implementation. They have not run for this documentation PR.
-Use dummy credentials and test endpoints for injection checks; do not print real secrets.
+These checks define the release target. Validation is partial and uses dummy credentials without
+printing secret values.
+
+## Validation snapshot
+
+- The real desktop flow passed request, cancellation, create, attach, revision adoption, resume in
+  the same session, and a SHA-256 side effect using a fixed dummy value. Cancellation settled once
+  and did not repeat the request. See [browser evidence](qa-browser-evidence.md).
+- The Advanced flow passed create with a default, attachment override, edit, removal, refresh, and
+  revision adoption. Its forced partial-save retry passed with one vault create across two commit attempts. The dirty-draft guard and failed-removal retry also passed in the browser.
+- Failed-resume recovery passed after an injected HTTP 503. The ordinary turn retry reused the
+  saved revision; a repeated request used Continue without another vault create or revision commit.
+- Local Pi passed the live S1 injection, rotation, removal, continuity, and no-plaintext checks.
+- Daytona reached the live endpoint but could not run because the disposable project had no usable
+  OpenAI credential. This is not a passing Daytona result.
+- The full Pi, Claude, and Codex matrix across local and Daytona has not run.
+
 
 ## Configuration and permissions
 
@@ -47,6 +62,13 @@ QA evidence but is not proof of a security boundary.
 Check traces, tool arguments/results, validation failures, analytics, saved diagnostics,
 and browser persistence for raw values. Injection travels as credential material over the
 protected internal transport; redact diagnostic copies of that request.
+
+Known-value redaction ignores values shorter than four characters to avoid replacing common
+text throughout model output. Include a one-to-three-character dummy value in QA and record
+that limitation rather than treating redaction as a complete confidentiality boundary. Readable
+environment delivery also cannot prevent a sandbox process from transforming or encoding a
+value before output. Guidance and redaction reduce accidental disclosure; host-restricted
+delivery is the stronger boundary planned for milestone two.
 
 ## Supported hosts and regressions
 

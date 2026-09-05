@@ -71,12 +71,14 @@ class PiHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
+            sandbox_credentials=list(config.sandbox_credentials),
             permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,
             system=_opt_str(extras.get("system")),
             append_system=_opt_str(extras.get("append_system")),
             platform_instructions=compose_platform_instructions(
-                config.gateway_integration_names
+                config.gateway_integration_names,
+                [credential.binding.name for credential in config.sandbox_credentials],
             ),
         )
 
@@ -96,7 +98,8 @@ class ClaudeHarness(Harness):
         return ClaudeAgentTemplate(
             agents_md=config.agent.instructions,
             platform_instructions=compose_platform_instructions(
-                config.gateway_integration_names
+                config.gateway_integration_names,
+                [credential.binding.name for credential in config.sandbox_credentials],
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -105,6 +108,7 @@ class ClaudeHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
+            sandbox_credentials=list(config.sandbox_credentials),
             permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,
         )
@@ -125,7 +129,8 @@ class CodexHarness(Harness):
         return CodexAgentTemplate(
             agents_md=config.agent.instructions,
             platform_instructions=compose_platform_instructions(
-                config.gateway_integration_names
+                config.gateway_integration_names,
+                [credential.binding.name for credential in config.sandbox_credentials],
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -134,6 +139,7 @@ class CodexHarness(Harness):
             mcp_servers=list(config.mcp_servers),
             skills=list(config.agent.skills),
             sandbox_permission=config.agent.sandbox_permission,
+            sandbox_credentials=list(config.sandbox_credentials),
             permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,
         )

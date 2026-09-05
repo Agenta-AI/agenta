@@ -1,21 +1,34 @@
-# Proposed contracts
+# Shipped contracts
 
-Current agent configuration has no general custom-secret bindings. The following shapes
-are proposals for implementation, not examples of endpoints already available.
+## Vault metadata
 
-## Saved configuration
+A text custom secret may carry one optional `default_env_var` setting:
 
-Put bindings under the sandbox configuration, which owns the process environment:
+```json
+{
+  "name": "GitHub token",
+  "slug": "github-token",
+  "format": "text",
+  "settings": {"default_env_var": "GITHUB_TOKEN"}
+}
+```
+
+The shared Secret form shows **Default environment variable** directly below **Value**. It is optional metadata, not an Advanced field or a secret template. Settings and `request_secret` use the same Secret form controller and vault mutation. Successful callbacks expose saved identity and metadata, never raw content.
+
+When choosing an attachment name, the request's `env_var` wins, followed by the selected secret's `default_env_var`, followed by a derived suggestion. A user edit becomes an attachment-only override and remains stable when the selected secret changes.
+
+## Variant configuration
+
+The authored reference lives under `parameters.agent.sandbox.credentials`:
 
 ```json
 {
   "agent": {
     "sandbox": {
-      "kind": "daytona",
       "credentials": [
         {
-          "secret": { "slug": "github-token" },
-          "binding": { "type": "env", "name": "GITHUB_TOKEN" }
+          "secret": {"slug": "github-token"},
+          "binding": {"type": "env", "name": "GITHUB_TOKEN"}
         }
       ]
     }
@@ -23,63 +36,34 @@ Put bindings under the sandbox configuration, which owns the process environment
 }
 ```
 
-This is the `parameters.agent` fragment. The SDK flattens it into its runtime model
-using the existing template parser. Omitted credentials and an empty list are identical.
-There is one environment binding per entry. Milestone one supports only `env` bindings
-and text custom secrets; it adds no delivery-mode picker.
+`secret.slug` is project-scoped vault identity. `binding.name` is variant configuration. V1 accepts text custom secrets and `env` bindings only. Omitted credentials and an empty list have the same meaning.
 
-| Field                                       | Role and owner                                                   | Lifetime                         |
-| ------------------------------------------- | ---------------------------------------------------------------- | -------------------------------- |
-| `secret.slug`                               | Credential reference selected by the user in the current project | Saved agent revision             |
-| `binding.type`, `binding.name`              | Environment binding configuration selected by the user           | Saved agent revision             |
-| Secret content                              | Credential material owned by the vault                           | Until value rotation or deletion |
-| Project, agent, session, tool-call identity | Existing authenticated execution context                         | Request or paused interaction    |
-| Future allowed hosts and delivery mode      | Policy owned by the vault secret                                 | Until an authorized policy edit  |
+Attachment requires permission to edit the secret and the agent. Desktop and mobile derive `edit_secret` from the authenticated project permission boundary. The backend enforces the write and runtime resolution boundaries.
 
-The agent suggests a variable name; the user approves it. Slugs and variable names are
-different identifiers. Do not derive the final variable name from the slug.
+Names use `^[A-Za-z_][A-Za-z0-9_]*$`. Resolution rejects missing, deleted, wrong-format, empty, duplicate, reserved, or colliding bindings. It resolves only slugs referenced by the current project and preserves nonempty text verbatim.
 
-Validate names with `^[A-Za-z_][A-Za-z0-9_]*$`. Reject duplicate bindings, platform-reserved
-names, provider/MCP collisions, and environment-control names such as `PATH`, `HOME`,
-`LD_PRELOAD`, `NODE_OPTIONS`, and `PYTHONPATH`. Use one canonical validation rule set with
-Python/TypeScript parity cases, including runner-owned environment names. Do not silently
-overwrite any existing environment owner.
+## Run transport
 
-Resolve only the referenced project secrets. Reject missing, deleted, wrong-kind, JSON,
-and empty text values before invoking the harness. Preserve nonempty text verbatim.
-The attachment flow requires the existing secret-edit permission and agent-edit permission;
-execution still requires run permission and project-scoped runtime resolution. The backend
-must enforce attachment permissions for every configuration write path, including agent
-commit tools, rather than relying on the form. This deliberately uses existing permissions
-for internal use; it does not add a new secret-use RBAC system.
+The SDK resolves authored references into `sandboxCredentials` before invoking the runner:
 
-## Runner input
+```json
+{
+  "sandboxCredentials": [
+    {
+      "binding": {"kind": "environment", "name": "GITHUB_TOKEN"},
+      "value": "resolved-at-run-time"
+    }
+  ]
+}
+```
 
-Add a typed `sandboxCredentials` collection to the internal run request. Each entry
-contains an environment binding and resolved credential value. It contains no vault
-access token and grants the runner no whole-vault lookup capability. Reuse the existing
-binding primitive and redaction treatment where compatible, but do not put these values
-inside `modelConnection` or an MCP connection.
+Values are runtime credential material. They participate in the credential epoch used for rotation and stale-session detection. Binding shape participates in configuration identity. The runner injects the materialized environment into local or Daytona execution and rebuilds an incompatible parked environment after rotation or removal.
 
-The authored reference is resolved before this transport boundary. The SDK serializer,
-Python wire model, TypeScript protocol, runner validator, and wire fixtures change together.
-Values must be redacted before request/error logging and tracing. Existing protected
-transport carries plaintext credential material to the runner, as it does for readable
-credentials today. A raw transport capture can contain credentials; saved diagnostic
-snapshots must be redacted. Never describe an unredacted internal request as value-free.
+The request can contain plaintext inside the protected SDK-to-runner transport. Redaction covers request logging, errors, traces, and saved diagnostics. Neither authored configuration nor client-tool output contains the value.
 
-The runner adds the collection to its environment composition and credential-change
-tracking. Binding structure participates in both existing configuration identity views;
-values participate in the existing credential epoch, never a public configuration hash.
-No generic arbitrary environment override or global change to Daytona hiding is needed.
+## `request_secret`
 
-## Agent request tool
-
-Add `request_secret` as a reserved platform client tool, following the static catalog
-and existing browser-fulfilled interaction mechanism. Do not overload OAuth-oriented
-`request_connection` inputs with unrelated fields.
-
-Proposed input:
+The reserved client tool uses `client:tool:request_secret:v0`. All input fields are required and additional fields are rejected:
 
 ```json
 {
@@ -89,47 +73,25 @@ Proposed input:
 }
 ```
 
-`name` and `reason` are display metadata. `env_var` is suggested binding configuration.
-The schema has no value field, project selector, agent selector, or destination policy.
-The host derives the target from the paused interaction and authenticated session.
-Only advertise this tool where the host can fulfill it; guidance must account for its
-absence. The agent receives configured variable names through safe configuration/tool
-metadata, so it need not run `printenv` to discover them.
+`name` and `reason` are display text. `env_var` is the requested binding suggestion. The authenticated paused interaction supplies project, agent, session, and tool-call identity.
 
-Successful setup returns a reference and the committed revision, not a value:
+A successful transaction creates or selects a vault secret, commits the binding to a variant revision, adopts that revision in the host, then settles the tool:
 
 ```json
 {
   "status": "configured",
-  "secret": { "slug": "github-token" },
+  "secret": {"slug": "github-token"},
   "env_var": "GITHUB_TOKEN",
   "revision_id": "019d952f-0000-0000-0000-000000000000"
 }
 ```
 
-Cancellation returns `{"status":"cancelled"}`. Other terminal failures use a bounded
-safe reason. `configured` means the binding was saved. The runtime must apply it before
-the resumed harness receives that result. Browser output is not authorization: the
-backend checks the saved revision, project, permissions, and requested binding again.
+Cancellation returns `{"status":"cancelled"}`. A malformed request cannot open configuration. A binding already present for the requested environment can continue without creating or attaching it again. If vault creation succeeds but attachment fails, retry reuses the saved slug and does not create a duplicate.
 
-## Platform instructions
+The host adopts the committed revision before auto-resume. A resume failure remains a visible conversation error and can be retried without repeating secret creation.
 
-Extend `AGENTA_PLATFORM_BASE` in the module introduced by #6365 as part of milestone
-one's child implementation. Do not edit the parent PR or ship a second prompt composer.
-The required text is:
+## Shared UI and guidance
 
-> Use configured credential variables only to authenticate the requested operation.
-> Do not inspect, print, enumerate, or include their values in messages or files.
-> If a required credential is unavailable and `request_secret` is available, use it
-> to open the secret setup flow. Otherwise explain that the user must configure the
-> credential in Agenta. Never ask the user to paste a credential into chat.
+The Secret form controller is shared by Settings and `request_secret`. The attachment drawer is shared by the **Advanced** configuration flow and the request dock. It receives bindings, requested metadata, edit identity, permission state, and a `commitBinding` callback. Agent settings render the section inside the existing **Advanced** drawer.
 
-Scripts and libraries may read variables for authentication. The restriction concerns
-exposing values to the model or other outputs. Review existing instructions that direct
-all credentials to `request_connection`: distinguish integration connections from custom
-shell credentials and keep generic `request_input` value-free.
-
-#6365 delivers text at environment build through Pi append-system text or Claude/Codex
-instruction files. It does not promise a fresh system message on every turn. The rollout
-must build fresh environments before enabling custom bindings; a warm environment created
-before the guidance was deployed must not begin consuming custom secrets without it.
+The shared platform instructions tell harnesses to use configured variables for authentication, never inspect or print their values, call `request_secret` when available, and never ask users to paste credentials into chat. `request_connection` remains for integration connections.
