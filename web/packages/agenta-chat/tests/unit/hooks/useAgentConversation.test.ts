@@ -19,7 +19,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {act, renderHook, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
-import {beforeEach, describe, expect, it, vi} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/playground/agent-chat", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/playground/agent-chat")>()
@@ -64,6 +64,7 @@ import {
     setSessionTurnId,
 } from "../../../src/state/sessionEphemera"
 import {sessionMessagesAtom, sessionStatusAtomFamily} from "../../../src/state/sessionMessages"
+import {SHARED_SENDER_ACCEPTANCE_TIMEOUT_MS} from "../../../src/transport/AgentChatTransport"
 
 const sseBody = (text: string, finishReason?: string): string => {
     const chunks = [
@@ -279,6 +280,8 @@ beforeEach(() => {
         requestBody: {session_id: opts?.sessionId},
     }))
 })
+
+afterEach(() => vi.useRealTimers())
 
 describe("useAgentConversation", () => {
     it("runs a full turn: send → stream → settle → persist + status publish", async () => {
@@ -721,7 +724,8 @@ describe("useAgentConversation", () => {
      * never started, so that card is the only signal the user gets and it has to survive the
      * reload.
      */
-    it("keeps a failure the server never accepted, so the reload still shows it", async () => {
+    it("turns an offline-before-send hang into a retryable failure card", async () => {
+        vi.useFakeTimers()
         vi.mocked(buildAgentRequest).mockImplementation(async (_entityId, _messages, opts) => ({
             invocationUrl: "https://agent.test/invoke",
             headers: {
@@ -731,22 +735,33 @@ describe("useAgentConversation", () => {
             },
             requestBody: {session_id: opts?.sessionId},
         }))
-        // The request never left: no acceptance, no turn id, nothing to converge on.
-        fetchMock.mockRejectedValue(new TypeError("Failed to fetch"))
+        // Chromium can leave an offline fetch pending instead of rejecting it.
+        fetchMock.mockImplementation(() => new Promise<Response>(() => undefined))
         const store = createStore()
         const sessionId = nextSessionId()
         markSessionFresh(sessionId)
         const {result} = mount(store, "rev-1", sessionId)
 
-        await act(async () => {
-            await result.current.send({text: "this one never left"})
-        })
+        act(() => void result.current.send({text: "this one never left"}))
+        await act(() => vi.advanceTimersByTimeAsync(SHARED_SENDER_ACCEPTANCE_TIMEOUT_MS))
+        vi.useRealTimers()
         await waitFor(() => expect(result.current.runStatus).toBe("error"), {timeout: 5000})
         expect(result.current.connectionWarning).toBeUndefined()
+        const failedTurn = result.current.turns.at(-1)
+        expect(failedTurn?.message.role).toBe("assistant")
+        expect(failedTurn?.status).toMatchObject({
+            showError: true,
+            errorText: TRANSPORT_ERROR_MESSAGE,
+        })
+        expect(result.current.rewind(failedTurn!.message)).not.toBeNull()
 
         await waitFor(() => {
             const persisted = store.get(sessionMessagesAtom)[sessionId]
             expect(persisted).toHaveLength(2)
+            expect(persisted[0]).toMatchObject({
+                role: "user",
+                parts: [{type: "text", text: "this one never left"}],
+            })
             const stamped = persisted[1].metadata as {runError?: {message?: string}}
             expect(stamped.runError?.message).toBe(TRANSPORT_ERROR_MESSAGE)
         })
