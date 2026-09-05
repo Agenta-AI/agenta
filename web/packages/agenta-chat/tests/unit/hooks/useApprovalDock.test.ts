@@ -228,7 +228,7 @@ describe("useApprovalDock", () => {
         const {result, rerender} = renderHook(
             (props: {messages: UIMessage[]}) =>
                 useApprovalDock({messages: props.messages, respond}),
-            {initialProps: {messages: [assistantWithGates("g1")] }},
+            {initialProps: {messages: [assistantWithGates("g1")]}},
         )
 
         act(() => result.current.respond(true))

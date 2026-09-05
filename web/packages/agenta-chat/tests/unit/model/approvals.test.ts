@@ -32,25 +32,22 @@ describe("getPendingApprovals", () => {
         expect(getPendingApprovals([])).toEqual([])
     })
 
-    it.each(["done", "error"])(
-        "retires a stale approval after its continuation is %s",
-        (state) => {
-            const [, message] = approvalTurnFixture as UIMessage[]
-            const stale = {
-                ...message,
-                metadata: {
-                    approvalContinuation: {
-                        sourceExecutionId: "source-turn",
-                        executionId: "continuation-turn",
-                        state,
-                        approvalIds: ["appr_1", "appr_2"],
-                    },
+    it.each(["done", "error"])("retires a stale approval after its continuation is %s", (state) => {
+        const [, message] = approvalTurnFixture as UIMessage[]
+        const stale = {
+            ...message,
+            metadata: {
+                approvalContinuation: {
+                    sourceExecutionId: "source-turn",
+                    executionId: "continuation-turn",
+                    state,
+                    approvalIds: ["appr_1", "appr_2"],
                 },
-            } as UIMessage
+            },
+        } as UIMessage
 
-            expect(getPendingApprovals([stale])).toEqual([])
-        },
-    )
+        expect(getPendingApprovals([stale])).toEqual([])
+    })
 
     it("keeps a later interaction out of an earlier continuation's terminal sweep", () => {
         const [, message] = approvalTurnFixture as UIMessage[]
