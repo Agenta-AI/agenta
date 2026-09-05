@@ -6,6 +6,7 @@ import {
     EDGE_FADE_MASK,
     jumpGateOpen,
     latestTurnId,
+    resolveStopExecution,
     shouldShowStopControl,
 } from "@agenta/chat/assets"
 import {
@@ -30,7 +31,7 @@ import {
     type TurnViewModel,
 } from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
-import {cancelSessionStream} from "@agenta/entities/session"
+import {cancelSessionExecution} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {message, modal} from "@agenta/ui/app-message"
 import {
@@ -185,7 +186,7 @@ export const LiveConversation = ({
     const takePendingTask = useSetAtom(takePendingTaskAtom)
     const sentPendingTaskFor = useRef<string | null>(null)
     const [pendingTaskError, setPendingTaskError] = useState<string | null>(null)
-    const {isHydrating, revalidate, send, stop} = conversation
+    const {isHydrating, revalidate, send, stop, voidPendingResume} = conversation
     useEffect(() => {
         const decision = pendingTaskDecision({
             sessionId,
@@ -289,10 +290,19 @@ export const LiveConversation = ({
         },
         [],
     )
+    const stopResolutionRef = useRef<AbortController | null>(null)
+    useEffect(
+        () => () => {
+            stopResolutionRef.current?.abort()
+        },
+        [sessionId],
+    )
 
     // Composer Stop cancels on the server before changing local presentation.
     const stopHere = useCallback(() => {
         if (stopping) return
+        // Fence a delayed approval release even when cancellation cannot be requested yet.
+        voidPendingResume()
         if (!projectId || !sessionId) return
         setStoppingHere(true)
         const wasParked = !streamingHereRef.current && conversation.hitlPending
@@ -301,21 +311,51 @@ export const LiveConversation = ({
             ? expectedStopExecutionIdRef.current
             : getSessionTurnId(sessionId)
         retryStopRef.current = false
-        expectedStopExecutionIdRef.current = expectedExecutionId
-        // Missing execution ids select the server's arrival-time guard.
-        void cancelSessionStream({
-            sessionId,
-            projectId,
-            expectedExecutionId,
-        })
-            .then((outcome) => {
+        let resolutionController: AbortController | null = null
+        const cancel = async () => {
+            let resolvedExecutionId = expectedExecutionId
+            if (!isRetry && !resolvedExecutionId && streamingHereRef.current) {
+                const controller = new AbortController()
+                resolutionController = controller
+                stopResolutionRef.current?.abort()
+                stopResolutionRef.current = controller
+                const resolution = await resolveStopExecution({
+                    readExecutionId: () => getSessionTurnId(sessionId),
+                    isRunActive: () => streamingHereRef.current,
+                    signal: controller.signal,
+                })
+                if (stopResolutionRef.current === controller) stopResolutionRef.current = null
+                if (resolution.status !== "resolved") return {resolution} as const
+                resolvedExecutionId = resolution.executionId
+            }
+            expectedStopExecutionIdRef.current = resolvedExecutionId
+            const outcome = await cancelSessionExecution({
+                sessionId,
+                projectId,
+                expectedExecutionId: resolvedExecutionId,
+            })
+            return {outcome} as const
+        }
+        void cancel()
+            .then((result) => {
+                if ("resolution" in result && result.resolution) {
+                    if (result.resolution.status === "settled") {
+                        setStoppingHere(false)
+                    } else if (result.resolution.status === "timed_out") {
+                        setStoppingHere(false)
+                        message.warning("Could not identify the run to stop. Please try again.")
+                    }
+                    return
+                }
+                const {outcome} = result
                 if (stopSessionIdRef.current !== sessionId) return
-                if (outcome.status === "cancelled") {
+                if (outcome?.accepted) {
                     const action = cancelledStopAction({
                         parkedAtRequest: wasParked,
                         parkedAtResponse: !streamingHereRef.current && hitlPendingRef.current,
                         streaming: streamingHereRef.current,
                         retry: isRetry,
+                        executionState: outcome.execution.state,
                     })
                     if (action === "settle-parked") {
                         settleParkedStop()
@@ -326,7 +366,7 @@ export const LiveConversation = ({
                         expectedStopExecutionIdRef.current = undefined
                         return
                     }
-                    if (action === "abort-retry") {
+                    if (action === "abort-settled" || action === "abort-retry") {
                         stop()
                         setStoppingHere(false)
                         expectedStopExecutionIdRef.current = undefined
@@ -339,16 +379,28 @@ export const LiveConversation = ({
                     }, 30_000)
                     return
                 }
-                if (isRetry) retryStopRef.current = true
                 setStoppingHere(false)
-                if (outcome.status === "idle") {
+                if (outcome && !outcome.conflict && outcome.execution.state === "idle") {
                     retryStopRef.current = false
                     expectedStopExecutionIdRef.current = undefined
                     return
                 }
-                message.warning(outcome.message)
+                if (outcome?.conflict) {
+                    retryStopRef.current = false
+                    expectedStopExecutionIdRef.current = undefined
+                } else if (isRetry) {
+                    retryStopRef.current = true
+                }
+                message.warning(
+                    outcome?.conflict
+                        ? "That run had already finished. The session is running something else now."
+                        : "Could not stop the run. It may still be running.",
+                )
             })
             .catch((error: unknown) => {
+                if (stopResolutionRef.current === resolutionController) {
+                    stopResolutionRef.current = null
+                }
                 if (stopSessionIdRef.current !== sessionId) return
                 if (isRetry) retryStopRef.current = true
                 setStoppingHere(false)
@@ -358,7 +410,15 @@ export const LiveConversation = ({
                         : "Could not stop the run. It may still be running.",
                 )
             })
-    }, [projectId, sessionId, stop, stopping, conversation.hitlPending, settleParkedStop])
+    }, [
+        projectId,
+        sessionId,
+        stop,
+        stopping,
+        conversation.hitlPending,
+        settleParkedStop,
+        voidPendingResume,
+    ])
 
     const interactionAvailability = getInteractionAvailability({
         stopped: conversation.stopped,

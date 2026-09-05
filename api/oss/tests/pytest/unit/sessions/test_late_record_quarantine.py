@@ -19,6 +19,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 from uuid import UUID, uuid4
 
+import pytest
+
 from oss.src.core.sessions.records.dtos import (
     RECORD_SETTLED_BY_ATTRIBUTE,
     SETTLED_BY_WATCHDOG,
@@ -37,6 +39,11 @@ from oss.src.utils.env import env
 _PROJECT = UUID("00000000-0000-0000-0000-0000000000aa")
 _SESSION = "sess-late-tail"
 _TURN = "turn-abc"
+
+
+@pytest.fixture(autouse=True)
+def _durable_stop_enabled(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
 
 
 class _StubDAO(RecordsDAOInterface):
@@ -182,7 +189,7 @@ def _quarantined(dao: _StubDAO) -> List[SessionRecordEvent]:
 # --------------------------------------------------------------------------- #
 
 
-async def test_a_thawed_runners_tail_is_quarantined_with_durable_stop_off(
+async def test_a_thawed_runners_tail_remains_visible_with_durable_stop_off(
     monkeypatch,
 ):
     """The live defect, in one test: four records land after the watchdog's ending."""
@@ -201,11 +208,10 @@ async def test_a_thawed_runners_tail_is_quarantined_with_durable_stop_off(
     ]
     results = await service.append_many(events=tail)
 
-    # Every record is still written — quarantine keeps the evidence — and every one of them
-    # is marked, so no read that rebuilds the transcript will show it.
+    # Flag-off retains the pre-milestone presentation: every late record remains visible.
     assert len(results) == 4
-    assert len(_quarantined(dao)) == 4
-    assert all(row.quarantined_at is not None for row in results)
+    assert _quarantined(dao) == []
+    assert all(row.quarantined_at is None for row in results)
 
 
 async def test_reject_policy_drops_a_late_tail(monkeypatch):

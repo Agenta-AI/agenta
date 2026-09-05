@@ -1,7 +1,12 @@
 import {act, createElement, useCallback} from "react"
 
 import {latestTurnId} from "@agenta/chat/assets"
-import {clearSessionTurnId, getSessionTurnId, setSessionTurnId} from "@agenta/chat/state"
+import {
+    clearSessionEphemera,
+    clearSessionTurnId,
+    getSessionTurnId,
+    setSessionTurnId,
+} from "@agenta/chat/state"
 import type {UIMessage} from "ai"
 import {createRoot} from "react-dom/client"
 import {afterAll, afterEach, beforeAll, describe, expect, it, vi} from "vitest"
@@ -20,7 +25,7 @@ const deferred = () => {
 
 beforeAll(() => vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true))
 afterAll(() => vi.unstubAllGlobals())
-afterEach(() => clearSessionTurnId(sessionId))
+afterEach(() => clearSessionEphemera(sessionId))
 
 describe("stopPinnedExecution", () => {
     it("starts the local abort while cancellation is still pending", async () => {
