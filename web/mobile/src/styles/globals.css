@@ -106,6 +106,7 @@
     --color-chip: var(--colorFillChip);
     --color-error-bg: var(--colorErrorBg);
     --color-controlItemBgHover: var(--controlItemBgHover);
+    --color-controlItemBgActive: var(--controlItemBgActive);
     --color-colorPrimary: var(--colorPrimary);
     --color-colorSuccess: var(--colorSuccess);
     --color-colorSuccessBg: var(--colorSuccessBg);
