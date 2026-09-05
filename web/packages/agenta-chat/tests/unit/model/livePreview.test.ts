@@ -314,10 +314,16 @@ describe("durable preview handoff", () => {
 
     it("renders a resumed execution whose paused turn had no preview frames", () => {
         let state = markSessionLivePreviewTerminal(createSessionLivePreviewState(), {
-            execution_id: "turn-1", created_at: "2026-09-06T00:00:00Z",
+            execution_id: "turn-1",
+            created_at: "2026-09-06T00:00:00Z",
         })
-        state = reduceSessionLivePreview(state, {...frame(0, "text-delta", {delta: "Resumed"}), created_at: "2026-09-06T00:00:01Z"})
-        expect(sessionLivePreviewMessages(state)[0].parts).toEqual([{type: "text", text: "Resumed"}])
+        state = reduceSessionLivePreview(state, {
+            ...frame(0, "text-delta", {delta: "Resumed"}),
+            created_at: "2026-09-06T00:00:01Z",
+        })
+        expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
+            {type: "text", text: "Resumed"},
+        ])
     })
 
     it("preserves a same-execution resumed prompt when paused adoption finishes late", () => {
