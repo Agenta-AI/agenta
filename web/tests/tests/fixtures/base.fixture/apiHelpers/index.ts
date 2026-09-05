@@ -451,6 +451,7 @@ export const appMatchesType = (
     type: APP_TYPE,
     latestRevision?: {flags?: ListAppsItem["flags"]},
 ): boolean => {
+    if (!latestRevision) return false
     const flags = {...(app.flags ?? {}), ...(latestRevision?.flags ?? {})}
     if (flags.is_agent) return false
     if (type === "chat") return !!flags.is_chat

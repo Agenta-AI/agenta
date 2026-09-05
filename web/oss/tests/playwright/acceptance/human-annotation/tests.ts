@@ -565,20 +565,19 @@ const selectHumanEvaluationModalTableInput = async ({
         ? activePane.locator("[data-row-key]").filter({hasText: rowText}).first()
         : activePane.locator("[data-row-key]").first()
     await expect(targetRow).toBeVisible({timeout: 30000})
-    const targetRowKey = await targetRow.getAttribute("data-row-key")
-    const stableRow = targetRowKey
-        ? modal.locator(`[data-row-key="${targetRowKey}"]`).first()
-        : targetRow
-    const selectionControl = stableRow
-        .getByRole("checkbox", {includeHidden: true})
-        .or(stableRow.getByRole("radio", {includeHidden: true}))
+    const selectedTabId = await modal.getByRole("tab", {selected: true}).getAttribute("id")
+    const selectionControl = targetRow
+        .getByRole("checkbox")
+        .or(targetRow.getByRole("radio"))
         .first()
-    await expect(stableRow).toBeVisible({timeout: 30000})
 
     if (!(await selectionControl.isChecked())) {
         await selectionControl.click()
     }
-    await expect(selectionControl).toBeChecked({timeout: 30000})
+    // Selection can advance the tab and replace grouped rows. Check the persisted summary.
+    await expect(
+        modal.locator(`[id="${selectedTabId}"]`).getByRole("img", {name: "check-circle"}),
+    ).toBeVisible({timeout: 30000})
 }
 
 const waitForHumanEvaluatorPane = async (modal: Locator) => {
@@ -615,59 +614,7 @@ const ensureSingleHumanEvaluatorSelection = async ({
     modal: Locator
     evaluatorName?: string
 }) => {
-    const activePane = await waitForHumanEvaluatorPane(modal)
-
-    if (!evaluatorName) {
-        const firstEvaluatorRow = activePane.locator("[data-row-key]").first()
-        const hasSelectedEvaluator = async () => {
-            // evaluateAll runs over every matched row regardless of count, so it can never
-            // throw a strict-mode violation — pollLocatorState would add nothing here.
-            const selectedRows = await activePane
-                .locator("[data-row-key]")
-                .evaluateAll((rows) =>
-                    rows.some(
-                        (row) =>
-                            row.className.includes("ant-table-row-selected") ||
-                            row.getAttribute("aria-selected") === "true",
-                    ),
-                )
-                .catch(() => false)
-
-            if (selectedRows) {
-                return true
-            }
-
-            return (
-                (await activePane
-                    .locator('input[type="checkbox"]:checked, input[type="radio"]:checked')
-                    .count()) > 0
-            )
-        }
-
-        await expect(firstEvaluatorRow).toBeVisible({timeout: 30000})
-
-        await expect
-            .poll(
-                async () => {
-                    if (await hasSelectedEvaluator()) return true
-
-                    const checkboxes = activePane.getByRole("checkbox")
-                    if ((await checkboxes.count()) > 1) {
-                        await checkboxes
-                            .nth(1)
-                            .click({force: true})
-                            .catch(() => null)
-                    } else {
-                        await firstEvaluatorRow.click({force: true}).catch(() => null)
-                    }
-
-                    return hasSelectedEvaluator()
-                },
-                {timeout: 30000},
-            )
-            .toBe(true)
-        return
-    }
+    await waitForHumanEvaluatorPane(modal)
 
     await selectHumanEvaluationModalTableInput({
         modal,

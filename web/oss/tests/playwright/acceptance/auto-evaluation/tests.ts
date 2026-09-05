@@ -191,20 +191,22 @@ const selectAutoEvaluationModalTableInput = async ({
         : activePane.locator("[data-row-key]").first()
     await expect(targetRow).toBeVisible({timeout: 30000})
 
-    const targetRowKey = await targetRow.getAttribute("data-row-key")
-    const stableRow = targetRowKey
-        ? modal.locator(`[data-row-key="${targetRowKey}"]`).first()
-        : targetRow
-    const selectionControl = stableRow
-        .getByRole("checkbox", {includeHidden: true})
-        .or(stableRow.getByRole("radio", {includeHidden: true}))
+    const selectedTabId = await modal.getByRole("tab", {selected: true}).getAttribute("id")
+    const selectionControl = targetRow
+        .getByRole("checkbox")
+        .or(targetRow.getByRole("radio"))
         .first()
-    await expect(stableRow).toBeVisible({timeout: 30000})
 
     if (!(await selectionControl.isChecked())) {
         await selectionControl.click()
     }
-    await expect(selectionControl).toBeChecked({timeout: 30000})
+    // Selection can advance the tab and replace grouped rows. Check the persisted summary.
+    await expect(
+        modal.locator(`[id="${selectedTabId}"]`).getByRole("img", {name: "check-circle"}),
+    ).toBeVisible({timeout: 30000})
+    if (rowText) {
+        await expect(modal.locator(`[id="${selectedTabId}"]`)).toContainText(rowText)
+    }
 }
 
 const waitForAutoResultsPage = async (page: Page, appId: string) => {
