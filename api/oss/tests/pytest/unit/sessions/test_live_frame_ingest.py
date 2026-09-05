@@ -261,8 +261,10 @@ async def test_publish_frame_uses_dedicated_bounded_stream():
     assert xadd["name"] == LIVE_FRAME_STREAM_NAME
     assert isinstance(xadd["fields"]["data"], bytes)
     assert xadd["maxlen"] == 4
-    assert xadd["approximate"] is False
+    # The live stream carries disposable frames, so trimming is approximate on the hot path.
+    assert xadd["approximate"] is True
     redis.xtrim.assert_awaited_once()
+    assert redis.xtrim.await_args.kwargs["approximate"] is True
 
 
 async def test_publish_durable_event_uses_dedicated_bounded_stream():
@@ -294,7 +296,7 @@ async def test_publish_durable_event_uses_dedicated_bounded_stream():
     assert xadd["name"] == LIVE_FRAME_STREAM_NAME
     assert xadd["name"] != RECORD_STREAM_NAME
     assert xadd["maxlen"] == 4
-    assert xadd["approximate"] is False
+    assert xadd["approximate"] is True
 
 
 async def test_publish_record_preserves_flag_off_retention_bound():
