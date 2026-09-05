@@ -13,8 +13,6 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {useNewAgentAction} from "./useNewAgentAction"
-
 /**
  * The full template catalogue — where the New agent menu's "Browse all templates" lands.
  *
@@ -25,8 +23,8 @@ import {useNewAgentAction} from "./useNewAgentAction"
  * `ScreenScaffold fill` is the shape — the scaffold owns the viewport height and the insets, the
  * gallery owns the scrolling inside it. Hand-rolling that column here would fork the screen shape.
  *
- * Picking a card creates from it, because there is no detail page here to send you to first — the
- * same thing the menu's template entries do.
+ * Picking a card opens the template's detail page — the create itself always happens on the
+ * create surface (`/agents/new?template=`), which the detail's "Use this template" leads to.
  */
 export const AgentTemplatesScreen = ({
     workspaceId,
@@ -38,7 +36,6 @@ export const AgentTemplatesScreen = ({
     useBindProjectContext(projectId)
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
-    const newAgent = useNewAgentAction(base)
     const [category, setCategory] = useState(ALL_TEMPLATES_CATEGORY)
 
     return (
@@ -47,43 +44,27 @@ export const AgentTemplatesScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     fill
-                    // The identity row the toolbar layout leaves to its host (the rail carries its
-                    // own), plus the creating strip — which only appears while something happens.
+                    // The identity row the toolbar layout leaves to its host (the rail carries
+                    // its own).
                     header={
-                        <>
-                            {BROWSE_RAIL_MODE ? null : (
-                                <div
-                                    className={`${pageContentWidthClass} flex shrink-0 flex-col gap-1 px-4 pb-3 pt-2 lg:px-16 lg:pt-14`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <NavDrawer
-                                            workspaceId={workspaceId}
-                                            projectId={projectId}
-                                        />
-                                        <h1 className="m-0 text-[24px] font-semibold leading-[1.3333333333333333]">
-                                            {TEMPLATE_GALLERY_COPY.title}
-                                        </h1>
-                                    </div>
-                                    {/* The toolbar frame leaves identity to the host, and the
-                                        desktop's `PageLayout` renders this line — without it /m
-                                        was the only surface that never said what the page is for. */}
-                                    <p className="text-muted-foreground m-0 text-[13px]">
-                                        {TEMPLATE_GALLERY_COPY.subtitle}
-                                    </p>
+                        BROWSE_RAIL_MODE ? undefined : (
+                            <div
+                                className={`${pageContentWidthClass} flex shrink-0 flex-col gap-1 px-4 pb-3 pt-2 lg:px-16 lg:pt-14`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                    <h1 className="m-0 text-[24px] font-semibold leading-[1.3333333333333333]">
+                                        {TEMPLATE_GALLERY_COPY.title}
+                                    </h1>
                                 </div>
-                            )}
-                            {newAgent.creating || newAgent.error ? (
-                                <div className="border-border shrink-0 border-b px-4 py-2 text-xs">
-                                    {newAgent.error ? (
-                                        <span className="text-destructive">{newAgent.error}</span>
-                                    ) : (
-                                        <span className="text-muted-foreground">
-                                            Creating agent…
-                                        </span>
-                                    )}
-                                </div>
-                            ) : null}
-                        </>
+                                {/* The toolbar frame leaves identity to the host, and the
+                                    desktop's `PageLayout` renders this line — without it /m
+                                    was the only surface that never said what the page is for. */}
+                                <p className="text-muted-foreground m-0 text-[13px]">
+                                    {TEMPLATE_GALLERY_COPY.subtitle}
+                                </p>
+                            </div>
+                        )
                     }
                 >
                     {/* The toolbar frame's body shares the header's column — the page cap and the

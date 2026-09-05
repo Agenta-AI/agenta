@@ -2,6 +2,7 @@ import {useEffect, useState, type ReactNode} from "react"
 
 import {
     chatPanelMaximizedAtom,
+    configPanelCollapsedOverrideAtom,
     configPanelCollapsedPreferenceAtom,
     phoneViewportAtom,
     resolveConfigPanelCollapsed,
@@ -106,12 +107,24 @@ export const SessionWorkspace = ({
     )
 
     // Resolved from the parts rather than read off `configPanelCollapsedAtom`: that atom answers
-    // for a device, and this surface gets to answer too. A stored preference still beats both.
-    const configCollapsed = resolveConfigPanelCollapsed(
-        useAtomValue(configPanelCollapsedPreferenceAtom),
-        useAtomValue(phoneViewportAtom),
-        collapseConfigByDefault,
-    )
+    // for a device, and this surface gets to answer too.
+    //
+    // `collapseConfigByDefault` surfaces (the create-an-agent page) LAND collapsed no matter
+    // what the session pages stored — the two surfaces must not share their landing state. The
+    // mount-scoped override does it: any user write (the `»` reveal, the pane's own collapse)
+    // clears it, so the controls work immediately and the preference resumes from that tap.
+    const setConfigOverride = useSetAtom(configPanelCollapsedOverrideAtom)
+    useEffect(() => {
+        if (!collapseConfigByDefault) return
+        setConfigOverride(true)
+        return () => setConfigOverride(null)
+    }, [collapseConfigByDefault, setConfigOverride])
+    const configOverride = useAtomValue(configPanelCollapsedOverrideAtom)
+    const configPreference = useAtomValue(configPanelCollapsedPreferenceAtom)
+    const phoneViewport = useAtomValue(phoneViewportAtom)
+    const configCollapsed =
+        configOverride ??
+        resolveConfigPanelCollapsed(configPreference, phoneViewport, collapseConfigByDefault)
     // Files dock as a resizable right-edge pane, as they do on the desktop, rather than an
     // overlay drawer. Scope is the AGENT, not the session: opening files then switching session
     // must not snap the pane shut.

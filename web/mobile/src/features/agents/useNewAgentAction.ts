@@ -1,6 +1,6 @@
 import {useCallback, useState} from "react"
 
-import {useAgentSetupStep} from "@agenta/entity-ui/onboarding"
+import {markSessionFresh} from "@agenta/chat/state"
 import {
     agentTemplateByKey,
     agentTemplateSeed,
@@ -9,6 +9,7 @@ import {
     invalidateWorkflowsListCache,
     type AgentSetupSelection,
 } from "@agenta/entities/workflow"
+import {useAgentSetupStep} from "@agenta/entity-ui/onboarding"
 import {useCreateAgent} from "@agenta/home-ui"
 import type {FileUIPart} from "ai"
 import {useSetAtom} from "jotai"
@@ -72,9 +73,6 @@ export const useNewAgentAction = (base: string) => {
                 setCreating(false)
                 return false
             }
-            // The agents list is a filtered view over the workflows list query; invalidate it or the
-            // new agent is missing from the roster until something else refetches.
-            void invalidateWorkflowsListCache()
 
             const typed = params?.seedMessage?.trim() ?? ""
             const seed = params?.setup ? appendSetupPreamble(typed, params.setup) : typed
@@ -83,7 +81,10 @@ export const useNewAgentAction = (base: string) => {
             const sessionId = seeded ? (params?.sessionId ?? newId()) : null
             if (sessionId) {
                 // The session does not exist server-side until its first turn — mint the id, stash
-                // the instruction, and let the chat screen's engine send it once.
+                // the instruction, and let the chat screen's engine send it once. Fresh-marked
+                // (idempotent for a caller-minted id): without it the chat treats the id as an
+                // EXISTING session and goes asking the server for history it doesn't have.
+                markSessionFresh(sessionId)
                 stashTask({
                     sessionId,
                     task: {agentId: created.appId, text: seed, parts: seedParts},
@@ -95,6 +96,11 @@ export const useNewAgentAction = (base: string) => {
             const navigated = await router
                 .push(agentHandoffPath({base, appId: created.appId, sessionId}))
                 .catch(() => false)
+            // AFTER the navigation, deliberately: the agents list is a filtered view over the
+            // workflows query, and Home's first-run surface flips to the overview the moment the
+            // refetch lands — invalidating before the push raced the hand-off and could strand
+            // the user on Home with the seed never sent (and the creator's error line unmounted).
+            void invalidateWorkflowsListCache()
             if (!navigated) {
                 // The agent exists; only the navigation failed. Release the latch, or the button
                 // stays dead for the rest of the mount.
@@ -142,12 +148,15 @@ export const useNewAgentAction = (base: string) => {
     const createFromPrompt = useCallback(
         (input: {
             text: string
+            /** A template pick carries the template's name; a plain description carries none. */
+            name?: string
             sessionId?: string
             parts?: FileUIPart[]
             setup?: AgentSetupSelection
             entityId?: string
         }) =>
             run({
+                name: input.name,
                 seedMessage: input.text,
                 sessionId: input.sessionId,
                 seedParts: input.parts,

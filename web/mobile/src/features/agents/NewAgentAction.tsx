@@ -1,11 +1,12 @@
-import {useRouter} from "next/router"
-
 import {AGENT_TEMPLATES} from "@agenta/entities/workflow"
 import {NewAgentButton} from "@agenta/home-ui"
+import {useRouter} from "next/router"
 
 /**
- * The SHARED create button, bound to this app's create — blank or from a starter template, off the
- * SAME catalogue the desktop offers.
+ * The SHARED create button, bound to this app's create surface (`/agents/new`) — every entry
+ * lands on the same structure: blank shows the template strip, a template pick arrives with
+ * `?template=` and gets the connect step in the strip's place. Nothing creates from here
+ * directly, so there is no in-place creating state to show.
  *
  * "Browse all templates" points at this app's own gallery route, which renders the SAME shared
  * gallery the desktop does. That route sits at the project root, NOT under `/agents`: the sidebar
@@ -13,20 +14,12 @@ import {NewAgentButton} from "@agenta/home-ui"
  * whole time you were browsing templates.
  */
 export const NewAgentAction = ({
-    create,
-    createFromTemplate,
-    creating,
-    error,
     label,
     base,
     align = "stretch",
 }: {
-    create: () => void
-    createFromTemplate: (templateKey: string) => void
-    creating: boolean
-    error: string | null
     label?: string
-    /** `/w/:workspace/p/:project` — the gallery link's base. */
+    /** `/w/:workspace/p/:project` — the create surface and gallery links' base. */
     base: string
     /**
      * How the button sits in its container. A header row wants it hugging the right edge; a rail
@@ -41,18 +34,13 @@ export const NewAgentAction = ({
         <span className={`flex flex-col gap-1 ${align === "end" ? "items-end" : "items-stretch"}`}>
             <NewAgentButton
                 label={label}
-                loading={creating}
-                onCreateBlank={create}
+                onCreateBlank={() => void router.push(`${base}/agents/new`)}
                 templates={AGENT_TEMPLATES}
-                // A menu has nowhere to show the connect step, so a pick OPENS the template instead of
-                // creating from it — the detail screen asks for what it needs, as every other surface
-                // does. Picking a template used to be the one route that skipped the question.
                 onPickTemplate={(templateKey: string) =>
-                    void router.push(`${base}/templates/${templateKey}`)
+                    void router.push(`${base}/agents/new?template=${templateKey}`)
                 }
                 browseHref={`${base}/templates`}
             />
-            {error ? <span className="text-destructive text-[11px]">{error}</span> : null}
         </span>
     )
 }
