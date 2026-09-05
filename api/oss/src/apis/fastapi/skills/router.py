@@ -7,11 +7,19 @@ from oss.src.utils.exceptions import intercept_exceptions
 
 from oss.src.core.skills.dtos import SkillRegistryQuery, SkillUsageQuery
 from oss.src.core.skills.service import SkillsService
+from oss.src.core.skills.import_service import (
+    SkillImportService,
+    SourceScanResult,
+    ImportResult,
+)
+from oss.src.apis.fastapi.skills.exceptions import handle_skills_exceptions
 from oss.src.apis.fastapi.skills.models import (
     SkillsQueryRequest,
     SkillsResponse,
     SkillUsageRequest,
     SkillUsageResponse,
+    SkillSourceScanRequest,
+    SkillSourceImportRequest,
 )
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 
@@ -27,10 +35,32 @@ class SkillsRouter:
         self,
         *,
         skills_service: SkillsService,
+        import_service: SkillImportService,
     ):
         self.skills_service = skills_service
+        self.import_service = import_service
 
         self.router = APIRouter()
+
+        self.router.add_api_route(
+            "/sources/scan",
+            self.scan_skill_source,
+            methods=["POST"],
+            operation_id="scan_skill_source",
+            status_code=status.HTTP_200_OK,
+            response_model=SourceScanResult,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/sources",
+            self.import_skill_source,
+            methods=["POST"],
+            operation_id="import_skill_source",
+            status_code=status.HTTP_200_OK,
+            response_model=ImportResult,
+            response_model_exclude_none=True,
+        )
 
         self.router.add_api_route(
             "/usage",
@@ -131,4 +161,64 @@ class SkillsRouter:
         return SkillUsageResponse(
             count=len(usage),
             usage=usage,
+        )
+
+    @intercept_exceptions()
+    @handle_skills_exceptions()
+    async def scan_skill_source(
+        self,
+        request: Request,
+        *,
+        scan_request: SkillSourceScanRequest,
+    ) -> SourceScanResult:
+        """
+        Preview a repo/marketplace as skill candidates — no writes.
+
+        Detects the layout (Claude marketplace manifest, single skill, or a
+        multi-skill tree), parses every candidate, and reports per-candidate
+        validity, issues, and skipped-file warnings — exactly what the import
+        drawer renders.
+        """
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_WORKFLOWS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        return await self.import_service.scan_source(
+            repo_url=scan_request.repo_url,
+            ref=scan_request.ref,
+        )
+
+    @intercept_exceptions()
+    @handle_skills_exceptions()
+    async def import_skill_source(
+        self,
+        request: Request,
+        *,
+        import_request: SkillSourceImportRequest,
+    ) -> ImportResult:
+        """
+        Import selected skills from a repo/marketplace as registry skills.
+
+        Each selected valid candidate becomes an ordinary skill workflow
+        (v1); provenance is recorded so sync can offer new versions later.
+        Snapshot-only — nothing runs from the source.
+        """
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        return await self.import_service.import_from_source(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            repo_url=import_request.repo_url,
+            ref=import_request.ref,
+            paths=import_request.paths,
+            sync_enabled=import_request.sync_enabled,
         )

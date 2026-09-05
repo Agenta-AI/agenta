@@ -28,3 +28,16 @@ class SkillUsageRequest(BaseModel):
 class SkillUsageResponse(BaseModel):
     count: int = 0
     usage: List[SkillUsageItem] = []
+
+
+class SkillSourceScanRequest(BaseModel):
+    repo_url: str
+    ref: Optional[str] = None
+
+
+class SkillSourceImportRequest(BaseModel):
+    repo_url: str
+    ref: Optional[str] = None
+    # Paths (from a prior scan) to import; omitted = every valid candidate.
+    paths: Optional[List[str]] = None
+    sync_enabled: bool = False

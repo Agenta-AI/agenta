@@ -127,6 +127,8 @@ from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
 from oss.src.apis.fastapi.skills.router import SkillsRouter
 from oss.src.core.skills.service import SkillsService
+from oss.src.core.skills.import_service import SkillImportService
+from oss.src.dbs.postgres.skills.dao import SkillSourcesDAO
 from oss.src.apis.fastapi.workflows.router import SimpleWorkflowsRouter
 from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
@@ -1046,8 +1048,16 @@ skills_service = SkillsService(
     workflows_service=workflows_service,
 )
 
+skill_sources_dao = SkillSourcesDAO()
+
+skill_import_service = SkillImportService(
+    simple_workflows_service=simple_workflows_service,
+    sources_dao=skill_sources_dao,
+)
+
 skills = SkillsRouter(
     skills_service=skills_service,
+    import_service=skill_import_service,
 )
 
 evaluators = EvaluatorsRouter(

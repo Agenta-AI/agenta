@@ -274,11 +274,26 @@ class WorkflowsConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class SkillsImportConfig(BaseModel):
+    """Skill-registry import (repo/marketplace fetch) limits."""
+
+    fetch_timeout_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SKILLS_IMPORT_TIMEOUT_SECONDS") or 30
+    )
+    # Cap on the DOWNLOADED tarball; per-file caps live in the parser contract.
+    max_tarball_mb: int = (
+        _parse_optional_positive_int_env("AGENTA_SKILLS_IMPORT_MAX_TARBALL_MB") or 50
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ApiConfig(BaseModel):
     """Agenta API sub-namespace."""
 
     caching: ApiCachingConfig = ApiCachingConfig()
     workflows: WorkflowsConfig = WorkflowsConfig()
+    skills_import: SkillsImportConfig = SkillsImportConfig()
 
     model_config = ConfigDict(extra="ignore")
 
