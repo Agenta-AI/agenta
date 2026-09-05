@@ -19,7 +19,7 @@ import {
 } from "@agenta/entities/workflow"
 import {atom, getDefaultStore} from "jotai"
 
-import {flushAgentAutoCommitAtom} from "./agentAutoCommit"
+import {flushAgentAutoCommitAtom, isAgentAutoCommitBusy} from "./agentAutoCommit"
 
 /** Prefix of a revert's commit message. */
 export const REVERT_MESSAGE_PREFIX = "Revert to v"
@@ -84,9 +84,10 @@ export interface RevertAgentRevisionParams {
  * was never committed. Schemas ride along — the commit sends `data.schemas`, so leaving them
  * behind would restore a configuration the old version never had.
  *
- * All-or-nothing: if the commit does not land, the draft goes back exactly as it was. Staging
+ * If the commit does not land, an untouched draft goes back exactly as it was. Staging
  * OVERWRITES an existing draft, so a pre-existing one is snapshotted and restored rather than
- * discarded, or a failed revert would eat edits it never owned.
+ * discarded, or a failed revert would eat edits it never owned. Edits made while the request
+ * is pending take precedence over this rollback.
  *
  * Resolves to whether a new version landed.
  */
@@ -95,6 +96,9 @@ export const revertAgentRevisionAtom = atom(
     async (get, set, {revisionId, targetRevisionId}: RevertAgentRevisionParams) => {
         if (!revisionId || !targetRevisionId || revisionId === targetRevisionId) return false
 
+        // A deferred flush would outlive our rollback and could commit the wrong draft.
+        if (isAgentAutoCommitBusy(revisionId)) return false
+
         const parameters = get(workflowMolecule.selectors.serverConfiguration(targetRevisionId))
         if (!parameters) return false
         const schemas = get(workflowMolecule.selectors.serverData(targetRevisionId))?.data?.schemas
@@ -102,7 +106,7 @@ export const revertAgentRevisionAtom = atom(
         // Staging overwrites whatever is there, so keep the original to put back on failure.
         const priorDraft = get(workflowDraftAtomFamily(revisionId))
         set(updateWorkflowDraftAtom, revisionId, {
-            data: {parameters, ...(schemas ? {schemas} : {})},
+            data: {parameters, schemas: schemas ?? {}},
         } as Partial<Workflow>)
 
         // Nothing staged means the target already matches the current configuration.
@@ -117,8 +121,10 @@ export const revertAgentRevisionAtom = atom(
             message: target?.message?.trim() || null,
         })
 
+        const stagedDraft = get(workflowDraftAtomFamily(revisionId))
         const landed = await set(flushAgentAutoCommitAtom, {revisionId, commitMessage})
-        if (!landed) {
+        // Draft writes replace the object; a newer one belongs to the edit made while saving.
+        if (!landed && get(workflowDraftAtomFamily(revisionId)) === stagedDraft) {
             if (priorDraft) set(workflowDraftAtomFamily(revisionId), priorDraft)
             else set(discardWorkflowDraftAtom, revisionId)
         }
