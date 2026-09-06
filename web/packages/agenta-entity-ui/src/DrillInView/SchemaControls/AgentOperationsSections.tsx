@@ -25,9 +25,8 @@ import {TriggerManagementSection, useAgentTriggers} from "./TriggerManagementSec
 // sync so the three region headers are indistinguishable. Colors come from the shared `--ag-*`
 // layer, never antd's runtime `--ant-*` vars: those don't exist on hosts without antd (/m), where
 // an undefined var drops the tint and the header loses its fill.
-// NO `w-full`: preflight is off, so these divs are content-box and `width:100%` + `px-4` made the
-// bar 32px wider than the sections below it, pushing its trailing content past the panel edge.
-// Stretching in the enclosing flex column gives the same width AND the same content box.
+// No `w-full`: preflight is off, so `width:100%` plus this bar's own `px-4` overflowed its parent
+// by 32px. The regions below drop it too, matching the sibling Configuration section.
 const barClass = (sticky: boolean) =>
     `h-[48px] flex items-center justify-between overflow-hidden ${
         sticky ? "sticky top-0 z-[10]" : ""
@@ -67,7 +66,7 @@ const sectionsBodyClass = "bg-[var(--ag-surface-section-content)] px-4"
 export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
     return (
         <>
-            <section className="flex w-full flex-col" aria-busy>
+            <section className="flex flex-col" aria-busy>
                 <AgentRegionHeaderBar title="Triggers" sticky={sticky}>
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
@@ -78,7 +77,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
                     <SkeletonSectionRow title={82} value={44} withAdd />
                 </div>
             </section>
-            <section className="flex w-full grow flex-col" aria-busy>
+            <section className="flex grow flex-col" aria-busy>
                 <AgentRegionHeaderBar title="Files" sticky={sticky}>
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
@@ -117,7 +116,7 @@ export function AgentOperationsSections({
 
     return (
         <>
-            <section className="flex w-full flex-col">
+            <section className="flex flex-col">
                 <AgentRegionHeaderBar title="Triggers" sticky={sticky}>
                     <ConfigRowTrailing>
                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
@@ -132,7 +131,7 @@ export function AgentOperationsSections({
 
             {/* Last region: it grows so its white sheet runs to the panel's bottom edge instead of
                 stopping at the last file row. */}
-            <section className="flex w-full grow flex-col">
+            <section className="flex grow flex-col">
                 <AgentRegionHeaderBar title="Files" sticky={sticky}>
                     {storageHeader}
                 </AgentRegionHeaderBar>

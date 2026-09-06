@@ -447,8 +447,15 @@ export function ConfigAccordionSection({
                 >
                     {summary && (!summaryCollapsedOnly || !isOpen) ? (
                         // antd `Text type="secondary"` is colorTextDescription, not colorTextSecondary.
-                        // Capped tighter below `sm`: 220px of summary left a phone's title 20px.
-                        <span className="min-w-0 max-w-[55%] truncate text-right text-xs text-colorTextDescription sm:max-w-[220px]">
+                        // The title gives way, not the summary — a percentage cap here resolved
+                        // against this shrink-to-fit cluster, i.e. the text's own width, so it
+                        // clipped even "1 file" to "1 f…". `preserveTitle` swaps which half yields.
+                        <span
+                            className={cn(
+                                "text-right text-xs text-colorTextDescription",
+                                preserveTitle ? "min-w-0 truncate" : "shrink-0 whitespace-nowrap",
+                            )}
+                        >
                             {summary}
                         </span>
                     ) : null}
