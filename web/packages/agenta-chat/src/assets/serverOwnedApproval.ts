@@ -35,13 +35,20 @@ export async function submitApprovalForCapability({
     recordLegacy,
     releaseLegacy,
 }: {
-    durableApprovals: boolean
+    durableApprovals: boolean | Promise<boolean>
     submitDurable: () => Promise<ApprovalSubmissionOutcome>
     retireDurable: () => void
     recordLegacy: () => Promise<void>
     releaseLegacy: () => void
 }): Promise<ApprovalSubmissionOutcome> {
-    if (durableApprovals) {
+    let durable: boolean
+    try {
+        durable = await durableApprovals
+    } catch (error) {
+        retireDurable()
+        throw error
+    }
+    if (durable) {
         return submitServerOwnedApproval({submit: submitDurable, retire: retireDurable})
     }
     await recordAnswerThenRelease({record: recordLegacy, release: releaseLegacy})

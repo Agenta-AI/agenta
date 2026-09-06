@@ -135,11 +135,10 @@ const Row = ({
                     Steer
                 </span>
             ) : null}
-            {/* Revealed on hover, but always present for keyboard and while this row is under
-                edit — an action you can only reach with a pointer is not an action on mobile. */}
+            {/* Keep Send Now visible without hover. */}
             <span
                 className={`flex shrink-0 items-center gap-0.5 transition-opacity ${
-                    editing || touchCls
+                    editing || touchCls || (onSendNow && message.source === "server")
                         ? "opacity-100"
                         : "opacity-0 focus-within:opacity-100 group-hover:opacity-100"
                 }`}
