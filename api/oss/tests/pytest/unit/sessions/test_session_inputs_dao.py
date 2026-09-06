@@ -1287,3 +1287,66 @@ async def test_send_now_parked_input_continuation_advances_when_runner_not_held(
             )
         ).scalar_one()
     assert count == 1
+
+
+async def test_send_now_reservation_blocks_concurrent_removal(input_scope, monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    inputs = SessionInputsDAO(engine=input_scope["engine"])
+    executions = SessionExecutionsDAO(engine=input_scope["engine"])
+    service = _cancel_service(input_scope, inputs, executions=executions)
+    service._resolve_target = AsyncMock(return_value=("source-turn", None))
+    row = await inputs.create_input(
+        user_id=input_scope["user_id"],
+        pending_input=_input(input_scope, key="reserved-send-now", message="selected"),
+    )
+    reserved = asyncio.Event()
+    release = asyncio.Event()
+    original_prioritize = inputs.prioritize_pending
+
+    async def pause_reserved(**kwargs):
+        selected = await original_prioritize(**kwargs)
+        reserved.set()
+        await release.wait()
+        return selected
+
+    monkeypatch.setattr(inputs, "prioritize_pending", pause_reserved)
+    args = dict(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        input_id=row.id,
+        user_id=input_scope["user_id"],
+    )
+    sending = asyncio.create_task(service.send_pending_input_now(**args))
+    await asyncio.wait_for(reserved.wait(), timeout=5)
+    removing = asyncio.create_task(inputs.remove_pending(**args))
+    await asyncio.sleep(0)
+    release.set()
+    admission = await sending
+    with pytest.raises(SessionInputNotRemovable):
+        await removing
+    assert admission.input.id == row.id
+    stored = await inputs.fetch_input(
+        project_id=args["project_id"], session_id=args["session_id"], input_id=row.id
+    )
+    assert stored.state == PendingInputState.pending
+    assert stored.content == row.content
+
+    async with input_scope["engine"].session() as transaction:
+        await transaction.execute(
+            text(
+                "UPDATE session_commands SET state='claimed' WHERE project_id=:project_id"
+            ),
+            {"project_id": args["project_id"]},
+        )
+    with pytest.raises(SessionInputNotRemovable):
+        await inputs.remove_pending(**args)
+    async with input_scope["engine"].session() as transaction:
+        await transaction.execute(
+            text(
+                "UPDATE session_commands SET state='obsolete', outcome='lost' WHERE project_id=:project_id"
+            ),
+            {"project_id": args["project_id"]},
+        )
+    removed = await inputs.remove_pending(**args)
+    assert removed.state == PendingInputState.removed

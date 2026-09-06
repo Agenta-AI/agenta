@@ -6,6 +6,8 @@ from sqlalchemy import and_, func, or_, select, text, update as sa_update
 
 from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputCreate
 from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
+from oss.src.core.sessions.inputs.types import SessionInputNotRemovable
+from oss.src.dbs.postgres.sessions.commands.dbes import SessionCommandDBE
 from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE
 from oss.src.dbs.postgres.sessions.inputs.mappings import (
     new_input_row,
@@ -215,6 +217,25 @@ class SessionInputsDAO(SessionInputsDAOInterface):
         user_id: Optional[UUID],
     ) -> Optional[PendingInput]:
         async with self.engine.session() as session:
+            # Serialize with admission before checking its committed command reservation.
+            await self._lock_session(session, project_id, session_id)
+            reserved = (
+                await session.execute(
+                    select(SessionCommandDBE.id)
+                    .where(
+                        SessionCommandDBE.project_id == project_id,
+                        SessionCommandDBE.session_id == session_id,
+                        SessionCommandDBE.kind == "cancel",
+                        SessionCommandDBE.state.in_(("pending", "claimed")),
+                        SessionCommandDBE.deleted_at.is_(None),
+                        SessionCommandDBE.data["steer_input_id"].astext
+                        == str(input_id),
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if reserved is not None:
+                raise SessionInputNotRemovable(str(input_id))
             row = (
                 await session.execute(
                     sa_update(SessionInputDBE)
