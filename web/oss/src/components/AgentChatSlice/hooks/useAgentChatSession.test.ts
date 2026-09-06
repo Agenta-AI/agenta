@@ -41,6 +41,9 @@ const state = vi.hoisted(() => ({
     busy: false,
     stop: vi.fn(),
     switchEntity: vi.fn(),
+    respondAnswer: vi.fn(),
+    addToolOutput: vi.fn(),
+    durableCapability: false,
     setCommitSignal: vi.fn(),
     invalidateCommit: vi.fn(),
 }))
@@ -58,7 +61,30 @@ vi.mock("@agenta/chat/assets", () => ({
     ) => build(),
     resolveStopExecution: state.resolveStopExecution,
     startupLabelFromDataPart: () => undefined,
-    submitApprovalForCapability: vi.fn(),
+    submitApprovalForCapability: async ({
+        durableApprovals,
+        submitDurable,
+        retireDurable,
+        recordLegacy,
+        releaseLegacy,
+    }: {
+        durableApprovals: boolean
+        submitDurable: () => Promise<unknown>
+        retireDurable: () => void
+        recordLegacy: () => Promise<void>
+        releaseLegacy: () => void
+    }) => {
+        if (durableApprovals) {
+            try {
+                return await submitDurable()
+            } finally {
+                retireDurable()
+            }
+        }
+        await recordLegacy()
+        releaseLegacy()
+        return {durable: false, recoverable: false}
+    },
 }))
 
 vi.mock("@agenta/chat/hooks", () => ({
@@ -155,7 +181,7 @@ vi.mock("@agenta/ui/app-message", () => ({message: {warning: vi.fn()}}))
 vi.mock("@ai-sdk/react", () => ({
     useChat: () => ({
         addToolApprovalResponse: vi.fn(),
-        addToolOutput: vi.fn(),
+        addToolOutput: state.addToolOutput,
         error: undefined,
         messages: state.messages,
         regenerate: state.regenerate,
@@ -172,11 +198,15 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("jotai", () => ({
     useAtomValue: () => state.projectId,
     useSetAtom: (atom: string) =>
-        atom === "switch-entity"
-            ? state.switchEntity
-            : atom === "commit-signal"
-              ? state.setCommitSignal
-              : vi.fn(),
+        atom === "respond-interaction-answer"
+            ? state.respondAnswer
+            : atom === "session-durable-approvals-capability"
+              ? () => Promise.resolve(state.durableCapability)
+              : atom === "switch-entity"
+                ? state.switchEntity
+                : atom === "commit-signal"
+                  ? state.setCommitSignal
+                  : vi.fn(),
     useStore: () => ({
         get: (atom: string) => {
             if (atom === "record-counts" || atom === "session-messages") return {}
@@ -227,6 +257,13 @@ describe("useAgentChatSession execution guard", () => {
         state.acceptedRunBySession.clear()
         state.turnDeliverySourceBySession.clear()
         state.turnIds.clear()
+        state.respondAnswer.mockReset().mockResolvedValue({
+            durable: true,
+            recoverable: false,
+            executionId: "questionnaire-child",
+        })
+        state.addToolOutput.mockReset().mockResolvedValue(undefined)
+        state.durableCapability = false
         state.sendMessage.mockClear()
         state.regenerate.mockClear()
         state.cancelSessionExecution.mockReset()
@@ -247,6 +284,49 @@ describe("useAgentChatSession execution guard", () => {
         state.stoppingTurnId = null
         state.stopStateLoading = false
         state.busy = false
+    })
+
+    it("answers a queued questionnaire through server ownership without SDK auto-resume", async () => {
+        state.durableCapability = true
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const root = createRoot(document.createElement("div"))
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+        const output = {action: "accept", content: {goal: "Correctness"}}
+        await act(async () => {
+            await expect(
+                result!.handleClientToolOutput({
+                    toolName: "request_input",
+                    toolCallId: "questionnaire",
+                    output,
+                }),
+            ).resolves.toEqual({
+                durable: true,
+                recoverable: false,
+                executionId: "questionnaire-child",
+            })
+        })
+        expect(state.respondAnswer).toHaveBeenCalledWith({
+            sessionId: "session-1",
+            toolCallId: "questionnaire",
+            resolution: {
+                tool_call_id: "questionnaire",
+                tool_name: "request_input",
+                outcome: "completed",
+                output,
+            },
+        })
+        expect(state.addToolOutput).not.toHaveBeenCalled()
+        expect(state.capturedHooks!.sendAutomaticallyWhen({messages: []})).toBe(false)
+        act(() => root.unmount())
     })
 
     it("deduplicates live-reader and native commit notifications through the same config switch", () => {

@@ -156,7 +156,7 @@ const AgentConversation = ({
         stopping,
         setStopped,
         handleStop,
-        handleClientToolOutput,
+        handleClientToolOutput: answerClientTool,
         markLiveGate,
         answerApproval,
         answerApprovals,
@@ -495,6 +495,18 @@ const AgentConversation = ({
             return outcome
         },
         [answerApproval, markLiveGate, submit],
+    )
+
+    const handleClientToolOutput = useCallback(
+        async (args: Parameters<typeof answerClientTool>[0]) => {
+            approvalResponseOwnerRef.current = args.toolCallId
+            const outcome = await answerClientTool(args)
+            if (approvalResponseOwnerRef.current === args.toolCallId) {
+                setRecoverableContinuation(outcome.recoverable)
+                setContinuationExecutionId(outcome.executionId ?? null)
+            }
+        },
+        [answerClientTool],
     )
 
     const handleApprovalResponses = useCallback(

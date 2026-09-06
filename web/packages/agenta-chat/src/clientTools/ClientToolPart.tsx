@@ -18,13 +18,13 @@ import {canonicalToolName, resolveClientToolWidget, resolveToolDisplay} from "..
 import {clientToolMeta} from "./meta"
 import UnhandledClientTool from "./UnhandledClientTool"
 
-/** Settle a parked client tool. The panel maps this onto `addToolOutput` (success or error). */
+/** Settle a parked client tool; await durable submission when the host owns it. */
 export type ClientToolOutputHandler = (args: {
     toolName: string
     toolCallId: string
     output?: Record<string, unknown>
     errorText?: string
-}) => void
+}) => void | Promise<void>
 
 const ClientToolPart = ({
     part,

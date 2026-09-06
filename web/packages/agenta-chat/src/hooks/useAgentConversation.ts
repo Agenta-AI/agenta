@@ -38,7 +38,6 @@ import {
     approvalResolution,
     buildAgentRequest,
     isResumeSend,
-    recordAnswerThenRelease,
     type LiveAgentInteraction,
 } from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
@@ -212,7 +211,7 @@ export interface AgentConversation {
     /** Headless approval-dock state wired to the live-gate-aware response path. */
     approvals: ApprovalDock
     /** Settle a parked client tool part (widgets call this; the resume predicate auto-resends). */
-    sendToolOutput: (args: ToolOutputSettleInput) => void
+    sendToolOutput: (args: ToolOutputSettleInput) => Promise<void>
     /** Re-fetch the durable records and adopt the server transcript under the same guards as
      * revalidate-on-open (never mid-stream, only when strictly ahead). Wire push signals — a
      * session watch relay, a foreground event — to this. */
@@ -857,29 +856,26 @@ export const useAgentConversation = ({
         }
     }, [pendingApprovalId])
 
-    // Settle a parked client tool (#4920). A widget calls this with the structured reference;
-    // `addToolOutput` matches the part by `toolCallId` on the last turn and the resume predicate
-    // auto-resends. `tool` is only the typed-tools key — matching is by id — so a cast onto the
-    // untyped UIMessage tool map is safe.
+    // Durable gates resume on the server; legacy gates still release the local SDK.
     const sendToolOutput = useCallback(
-        ({toolName, toolCallId, output, errorText}: ToolOutputSettleInput) => {
+        async ({toolName, toolCallId, output, errorText}: ToolOutputSettleInput) => {
+            approvalResponseOwnerRef.current = toolCallId
             liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
-            // Ordered like the approval half: the resume starts a turn whose sweep cancels every
-            // `pending` row, so the answer has to be durable first. Capped inside the helper.
-            void recordAnswerThenRelease({
-                record: () =>
-                    recordInteractionAnswer({
-                        sessionId,
-                        toolCallId,
-                        resolution: {
-                            tool_call_id: toolCallId,
-                            tool_name: toolName,
-                            ...(errorText !== undefined
-                                ? {outcome: "error", error: errorText}
-                                : {outcome: "completed", output: output ?? {}}),
-                        },
-                    }),
-                release: () => {
+            const resolution = {
+                tool_call_id: toolCallId,
+                tool_name: toolName,
+                ...(errorText !== undefined
+                    ? {outcome: "error", error: errorText}
+                    : {outcome: "completed", output: output ?? {}}),
+            }
+            const outcome = await submitApprovalForCapability({
+                durableApprovals: await supportsDurableApprovals(sessionId),
+                submitDurable: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
+                retireDurable: () => {
+                    liveGateInteractionRef.current = null
+                },
+                recordLegacy: () => recordInteractionAnswer({sessionId, toolCallId, resolution}),
+                releaseLegacy: () => {
                     if (errorText !== undefined) {
                         addToolOutput({
                             state: "output-error",
@@ -896,8 +892,18 @@ export const useAgentConversation = ({
                     }
                 },
             })
+            if (approvalResponseOwnerRef.current === toolCallId) {
+                setRecoverableContinuation(outcome.recoverable)
+                setContinuationExecutionId(outcome.executionId ?? null)
+            }
         },
-        [addToolOutput, recordInteractionAnswer, sessionId],
+        [
+            addToolOutput,
+            recordInteractionAnswer,
+            respondInteractionAnswer,
+            sessionId,
+            supportsDurableApprovals,
+        ],
     )
 
     // Publish this session's run state (single source of truth for session-list status dots).

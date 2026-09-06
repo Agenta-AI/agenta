@@ -9,8 +9,8 @@ session's durable records into wire messages and appends the approval envelope
 ``session-identity.ts`` ``approvalDecisionForToolCall``). The client payload
 stays minimal: ``{approved: bool, tool_call_id?, message?}``.
 
-Every other interaction kind keeps the original passthrough contract
-(``data.inputs = answer``).
+Agent ``client_tool`` answers replay the same conversation with their structured output or
+error as the tool result. Other interaction kinds retain ``data.inputs = answer``.
 
 The resume also carries the gated turn's own config when the runner stamped one on the row
 (``data.parameters``): sending it inline suppresses reference hydration in the SDK resolver,
@@ -233,6 +233,18 @@ def _gated_call_shape(
     return {"name": request.tool, "args": request.args}
 
 
+def _is_agent_interaction_answer(interaction: SessionInteraction, answer: Any) -> bool:
+    if not isinstance(answer, dict):
+        return False
+    return (
+        interaction.kind == SessionInteractionKind.user_approval
+        and isinstance(answer.get("approved"), bool)
+    ) or (
+        interaction.kind == SessionInteractionKind.client_tool
+        and answer.get("outcome") in ("completed", "error")
+    )
+
+
 def compose_approval_messages(
     records: List[SessionRecord],
     interaction: SessionInteraction,
@@ -288,14 +300,18 @@ def compose_approval_messages_many(
                 gated_call["input"] = shape["args"]
             messages.append({"role": "assistant", "content": [gated_call]})
 
-        envelope = {
-            "type": "tool_result",
-            "toolCallId": gated_id,
-            "output": {
+        envelope: Dict[str, Any] = {"type": "tool_result", "toolCallId": gated_id}
+        if interaction.kind == SessionInteractionKind.client_tool:
+            is_error = answer.get("outcome") == "error"
+            envelope["output"] = (
+                answer.get("error") if is_error else answer.get("output", {})
+            )
+            envelope["isError"] = is_error
+        else:
+            envelope["output"] = {
                 "approved": bool(answer.get("approved")),
                 "interactionToken": interaction.token,
-            },
-        }
+            }
         gated_name = gated_call.get("toolName") or shape.get("name")
         if gated_name:
             envelope["toolName"] = gated_name
@@ -347,11 +363,7 @@ class InteractionsDispatcher:
         interaction: SessionInteraction,
         answer: Any,
     ) -> Dict[str, Any]:
-        if (
-            interaction.kind == SessionInteractionKind.user_approval
-            and isinstance(answer, dict)
-            and isinstance(answer.get("approved"), bool)
-        ):
+        if _is_agent_interaction_answer(interaction, answer):
             records: List[SessionRecord] = []
             if self.records_service is not None:
                 try:
@@ -418,12 +430,7 @@ class InteractionsDispatcher:
         selector = (
             data.selector.model_dump(mode="json") if data and data.selector else None
         )
-        if all(
-            item.kind == SessionInteractionKind.user_approval
-            and isinstance(answer, dict)
-            and isinstance(answer.get("approved"), bool)
-            for item, answer in resolved
-        ):
+        if all(_is_agent_interaction_answer(item, answer) for item, answer in resolved):
             records: List[SessionRecord] = []
             if self.records_service is not None:
                 try:

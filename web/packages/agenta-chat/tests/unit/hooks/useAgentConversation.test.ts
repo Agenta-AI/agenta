@@ -21,10 +21,18 @@ import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {capabilitiesViaAtom, snapshotViaAtom, resumeContinuation} = vi.hoisted(() => ({
+const {
+    capabilitiesViaAtom,
+    snapshotViaAtom,
+    resumeContinuation,
+    durableApprovalCapability,
+    respondAnswer,
+} = vi.hoisted(() => ({
     capabilitiesViaAtom: vi.fn(),
     snapshotViaAtom: vi.fn(),
     resumeContinuation: vi.fn(),
+    durableApprovalCapability: vi.fn(),
+    respondAnswer: vi.fn(),
 }))
 
 const approvalRecord = vi.hoisted(() => ({
@@ -73,7 +81,8 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
             snapshotViaAtom(sessionId),
         ),
         resumeSessionContinuationAtom: atom(null, () => resumeContinuation()),
-        sessionDurableApprovalsCapabilityAtom: atom(null, () => false),
+        sessionDurableApprovalsCapabilityAtom: atom(null, () => durableApprovalCapability()),
+        respondInteractionAnswerAtom: atom(null, (_get, _set, args) => respondAnswer(args)),
     }
 })
 
@@ -309,6 +318,10 @@ const mount = (store: ReturnType<typeof createStore>, entityId: string, sessionI
     )
 
 beforeEach(() => {
+    durableApprovalCapability.mockReset().mockResolvedValue(false)
+    respondAnswer
+        .mockReset()
+        .mockResolvedValue({durable: true, recoverable: false, executionId: "questionnaire-child"})
     approvalRecord.defer = false
     approvalRecord.resolve = undefined
     FakeEventSource.instances = []
@@ -1153,4 +1166,41 @@ describe("useAgentConversation", () => {
             expect(last.status.isError).toBe(true)
         })
     })
+})
+
+describe("server-owned client-tool answers", () => {
+    it.each([false, true])(
+        "submits client-tool answer durably without a competing local resume (error=%s)",
+        async (failed) => {
+            durableApprovalCapability.mockResolvedValue(true)
+            resumeContinuation.mockResolvedValue(true)
+            const store = createStore()
+            const sessionId = nextSessionId()
+            markSessionFresh(sessionId)
+            const {result} = mount(store, "rev-1", sessionId)
+            const output = {action: "accept", content: {goal: "Correctness"}}
+
+            await act(async () => {
+                await result.current.sendToolOutput({
+                    toolName: "request_input",
+                    toolCallId: "questionnaire",
+                    ...(failed ? {errorText: "Questionnaire could not be rendered"} : {output}),
+                })
+            })
+
+            expect(respondAnswer).toHaveBeenCalledWith({
+                sessionId,
+                toolCallId: "questionnaire",
+                resolution: {
+                    tool_call_id: "questionnaire",
+                    tool_name: "request_input",
+                    ...(failed
+                        ? {outcome: "error", error: "Questionnaire could not be rendered"}
+                        : {outcome: "completed", output}),
+                },
+            })
+            expect(resumeContinuation).not.toHaveBeenCalled()
+            expect(fetchMock).not.toHaveBeenCalled()
+        },
+    )
 })
