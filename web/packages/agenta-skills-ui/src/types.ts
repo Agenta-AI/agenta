@@ -23,6 +23,21 @@ export interface SkillListItem {
     added?: boolean
     /** The version the agent pins, when added pinned. */
     pinnedVersion?: string
+    /** Import provenance, when this skill came from a repo source. */
+    source?: SkillSourceInfo
+}
+
+/** Where an imported skill came from — shown on the detail drawer and picker rows. */
+export interface SkillSourceInfo {
+    /** e.g. "obra/superpowers". */
+    label: string
+    repoUrl?: string
+    commitSha?: string
+    /** Humanized last-sync age, e.g. "5m ago". */
+    syncedAgo?: string
+    syncEnabled?: boolean
+    /** A local edit detached it from sync (kept, no longer updated). */
+    detached?: boolean
 }
 
 /** One revision row in the versions rail. */

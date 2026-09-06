@@ -76,6 +76,8 @@ export const skillRegistryItemSchema = z
         used_by_count: z.number().optional().nullable(),
         /** The import source this skill came from (see the response's `sources` block). */
         source_id: z.string().optional().nullable(),
+        /** A local edit detached this skill from its source (kept, no longer synced). */
+        source_detached: z.boolean().optional().nullable(),
     })
     .passthrough()
 export type SkillRegistryItem = z.infer<typeof skillRegistryItemSchema>

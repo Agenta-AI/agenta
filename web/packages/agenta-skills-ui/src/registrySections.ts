@@ -9,7 +9,7 @@ import type {RegistrySource, SkillRegistryItem} from "@agenta/skills"
 
 import type {SkillGallerySection} from "./SkillGallerySections"
 import type {SkillSourceNavEntry} from "./SkillsGalleryPage"
-import type {SkillListItem} from "./types"
+import type {SkillListItem, SkillSourceInfo} from "./types"
 
 const toUnixMs = (value?: string | null): number | undefined => {
     if (!value) return undefined
@@ -40,6 +40,22 @@ const sourceLabel = (source: RegistrySource): string => {
     return match?.[1]?.replace(/\.git$/, "") ?? source.slug ?? "Imported"
 }
 
+/** Provenance the drawer and picker rows show for an imported skill. */
+export const toSourceInfo = (
+    source: RegistrySource,
+    detached?: boolean | null,
+): SkillSourceInfo => {
+    const at = toUnixMs(source.updated_at ?? source.created_at)
+    return {
+        label: sourceLabel(source),
+        repoUrl: source.repo_url ?? undefined,
+        commitSha: source.last_seen_commit_sha ?? undefined,
+        syncedAgo: at ? timeAgo(at) || undefined : undefined,
+        syncEnabled: source.sync_enabled ?? undefined,
+        detached: detached ?? undefined,
+    }
+}
+
 export interface RegistrySections {
     sections: SkillGallerySection[]
     /** Rail entries: All / This project / one per repo / Agenta, with counts. */
@@ -53,10 +69,23 @@ export function buildRegistrySections(
     /** Rail selection; "all" shows everything. */
     selectedSource = "all",
 ): RegistrySections {
+    const sourceById = new Map(registrySources.filter((s) => s.id).map((s) => [s.id!, s]))
+    /** An item's list form with provenance attached, wherever it ends up grouped. */
+    const withSource = (
+        item: SkillRegistryItem,
+        origin: SkillListItem["origin"],
+    ): SkillListItem => {
+        const source = item.source_id ? sourceById.get(item.source_id) : undefined
+        const mapped = toSkillListItem(item, origin)
+        return source ? {...mapped, source: toSourceInfo(source, item.source_detached)} : mapped
+    }
+
     const bySource = new Map<string, SkillRegistryItem[]>()
     const unsourced: SkillRegistryItem[] = []
     for (const item of projectSkills) {
-        if (item.source_id) {
+        // A detached import is project-owned again for GROUPING; its provenance still
+        // rides the item so the drawer can say "modified locally".
+        if (item.source_id && !item.source_detached) {
             const list = bySource.get(item.source_id) ?? []
             list.push(item)
             bySource.set(item.source_id, list)
@@ -74,9 +103,7 @@ export function buildRegistrySections(
                 const at = toUnixMs(source.updated_at ?? source.created_at)
                 return at ? `synced ${timeAgo(at)}` : undefined
             })(),
-            skills: (bySource.get(source.id!) ?? []).map((item) =>
-                toSkillListItem(item, "imported"),
-            ),
+            skills: (bySource.get(source.id!) ?? []).map((item) => withSource(item, "imported")),
         }))
     // Links whose source row is gone still list — under This project, never dropped.
     const orphaned = [...bySource.keys()].filter(
@@ -88,7 +115,7 @@ export function buildRegistrySections(
         {
             key: "project",
             label: "This project",
-            skills: unsourced.map((item) => toSkillListItem(item, "project")),
+            skills: unsourced.map((item) => withSource(item, "project")),
         },
         ...sourceSections,
         {

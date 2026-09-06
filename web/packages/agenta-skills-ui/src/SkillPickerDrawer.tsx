@@ -68,6 +68,10 @@ function SkillRow({
                             <Lightning size={10} weight="fill" />
                             Agenta
                         </span>
+                    ) : option.source ? (
+                        <span className="max-w-40 truncate rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px font-mono text-[10px] text-[var(--ag-colorTextTertiary)]">
+                            {option.source.label}
+                        </span>
                     ) : null}
                     {option.added ? (
                         <span className="flex items-center gap-1 text-xs font-normal text-[var(--ag-colorSuccessText)]">

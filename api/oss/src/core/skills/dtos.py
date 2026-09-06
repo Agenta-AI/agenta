@@ -43,6 +43,8 @@ class SkillRegistryItem(BaseModel):
     used_by_count: Optional[int] = None
     # The import source this skill came from, when it was imported (repo grouping).
     source_id: Optional[UUID] = None
+    # A local edit detached this skill from its source (kept, no longer synced).
+    source_detached: Optional[bool] = None
 
 
 class SkillRegistryQuery(BaseModel):

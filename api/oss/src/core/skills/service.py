@@ -130,10 +130,10 @@ class SkillsService:
         sources: List[Any] = []
         if self.sources_dao is not None:
             links = await self.sources_dao.list_all_links(project_id=project_id)
+            # Detached links keep their provenance (the drawer says "modified locally");
+            # only the FE grouping treats them as project-owned again.
             source_by_workflow = {
-                str(link.workflow_id): link.source_id
-                for link in links
-                if not link.detached
+                str(link.workflow_id): (link.source_id, link.detached) for link in links
             }
             if source_by_workflow:
                 sources = await self.sources_dao.list_sources(project_id=project_id)
@@ -177,7 +177,16 @@ class SkillsService:
                         or counts_by_slug.get(revision.artifact_slug or "")
                         or 0
                     ),
-                    source_id=source_by_workflow.get(str(revision.artifact_id)),
+                    source_id=(
+                        source_by_workflow.get(str(revision.artifact_id), (None, None))[
+                            0
+                        ]
+                    ),
+                    source_detached=(
+                        source_by_workflow.get(str(revision.artifact_id), (None, None))[
+                            1
+                        ]
+                    ),
                 )
             )
 
