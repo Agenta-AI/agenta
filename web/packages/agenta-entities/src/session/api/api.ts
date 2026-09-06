@@ -13,6 +13,7 @@ import {z} from "zod"
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     mountFileContentResponseSchema,
+    pendingInputAdmissionResponseSchema,
     mountFileListResponseSchema,
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
@@ -209,7 +210,13 @@ export async function sendPendingSessionInputNow({
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
-    return !!data
+    return (
+        safeParseWithLogging(
+            pendingInputAdmissionResponseSchema,
+            data,
+            "[sendPendingSessionInputNow]",
+        ) !== null
+    )
 }
 
 const SESSION_CAPABILITY_TIMEOUT_SECONDS = 2

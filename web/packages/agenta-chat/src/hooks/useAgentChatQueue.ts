@@ -118,6 +118,8 @@ export const useAgentChatQueue = ({
     sessionId,
     server,
 }: UseAgentChatQueueArgs) => {
+    const serverBusyRef = useRef(server?.busy)
+    serverBusyRef.current = server?.busy
     const [queued, setQueued] = useState<QueuedMessage[]>(
         () => (sessionId && queuedBySession.get(sessionId)) || [],
     )
@@ -328,7 +330,7 @@ export const useAgentChatQueue = ({
             const capabilities = server?.resolveCapabilities
                 ? await server.resolveCapabilities()
                 : server?.capabilities
-            if (!capabilities?.steer || !server?.busy) {
+            if (!capabilities?.steer || !serverBusyRef.current || !server) {
                 throw new Error("The session is not ready to accept a Steer input.")
             }
             const message: QueuedMessage = {...item, id: generateId()}

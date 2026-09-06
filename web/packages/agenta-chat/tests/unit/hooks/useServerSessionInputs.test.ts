@@ -54,7 +54,9 @@ vi.mock("@agenta/playground/agent-chat", async (importOriginal) => ({
 const fetchMock = vi.fn<typeof globalThis.fetch>()
 vi.stubGlobal("fetch", fetchMock)
 
-beforeAll(() => {
+beforeAll(async () => {
+    // Load the real lazy editor before the one-second interaction assertions start.
+    await import("@agenta/ui/rich-chat-input")
     // Lexical asks the DOM selection's text node for geometry after Enter clears the editor.
     const rect = () => new DOMRect()
     for (const prototype of [

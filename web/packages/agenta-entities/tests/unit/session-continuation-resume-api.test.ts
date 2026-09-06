@@ -1,11 +1,16 @@
 import type {SessionCapabilities, SessionStreamResponse} from "@agentaai/api-client"
 import {beforeEach, describe, expect, expectTypeOf, it, vi} from "vitest"
 
-const {resume, fetchStream} = vi.hoisted(() => ({resume: vi.fn(), fetchStream: vi.fn()}))
+const {resume, fetchStream, sendNow} = vi.hoisted(() => ({
+    resume: vi.fn(),
+    fetchStream: vi.fn(),
+    sendNow: vi.fn(),
+}))
 
 vi.mock("@agenta/sdk/resources", () => ({
     getSessionsClient: () => ({
         resumeSessionContinuation: resume,
+        sendPendingSessionInputNow: sendNow,
         fetchSessionStream: fetchStream,
     }),
     getLowPrioritySessionsClient: vi.fn(),
@@ -15,6 +20,7 @@ vi.mock("@agenta/sdk/resources", () => ({
 
 import {
     fetchSessionCapabilities,
+    sendPendingSessionInputNow,
     fetchSessionDurableApprovalsCapability,
     invalidateSessionDurableApprovalsCapability,
     resumeSessionContinuation,
@@ -180,4 +186,18 @@ it("keeps missing project scope unknown", async () => {
         fetchSessionCapabilities({projectId: "", sessionId: "session-1"}),
     ).resolves.toBeNull()
     expect(fetchStream).not.toHaveBeenCalled()
+})
+
+it.each([
+    [{action: "execute", execution_id: "execution"}, true],
+    [{action: "pending"}, true],
+    [{action: "unknown"}, false],
+    [{}, false],
+    [{action: "pending", input: {id: "incomplete"}}, false],
+    [null, false],
+])("validates Send Now admission %j", async (response, accepted) => {
+    sendNow.mockResolvedValue(response)
+    await expect(
+        sendPendingSessionInputNow({projectId: "project", sessionId: "session", inputId: "input"}),
+    ).resolves.toBe(accepted)
 })

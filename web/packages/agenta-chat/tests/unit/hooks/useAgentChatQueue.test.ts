@@ -937,3 +937,31 @@ it("waits for cold Steer capabilities before admitting the explicit input", asyn
     )
     expect(view.sendQueued).not.toHaveBeenCalled()
 })
+
+it("refuses cold Steer if the session settles while capabilities resolve", async () => {
+    let resolve!: (capabilities: {queue: boolean; steer: boolean}) => void
+    const server = {
+        capabilities: {queue: false, steer: false},
+        busy: true,
+        queued: [],
+        submit: vi.fn().mockResolvedValue(undefined),
+        remove: vi.fn(),
+        resolveCapabilities: () =>
+            new Promise<{queue: boolean; steer: boolean}>((done) => {
+                resolve = done
+            }),
+    }
+    const view = setup({status: "streaming", messages: [], stopped: false, server})
+    let pending!: Promise<void>
+    act(() => {
+        pending = view.result.current.steer({text: "too late"})
+    })
+    void pending.catch(() => undefined)
+    view.rerender({status: "ready", messages: [], stopped: false, server: {...server, busy: false}})
+    await act(async () => {
+        resolve({queue: true, steer: true})
+        await expect(pending).rejects.toThrow("not ready")
+    })
+    expect(server.submit).not.toHaveBeenCalled()
+    expect(view.sendQueued).not.toHaveBeenCalled()
+})

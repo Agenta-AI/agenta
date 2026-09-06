@@ -265,6 +265,12 @@ export const pendingSessionInputSchema = z.object({
     promoted_execution_id: z.string().nullish(),
 })
 
+export const pendingInputAdmissionResponseSchema = z.object({
+    action: z.enum(["execute", "pending"]),
+    input: pendingSessionInputSchema.nullish(),
+    execution_id: z.string().nullish(),
+})
+
 /**
  * Atomic read for every reader of an open session.
  *
