@@ -14,8 +14,11 @@
  */
 import {useCallback, useMemo, useState} from "react"
 
+import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {SkillFormView} from "@agenta/entity-ui/drill-in"
 import {
+    addSkillToAgents,
+    buildSkillEmbedEntry,
     commitSkillRevision,
     fetchSkillRevisions,
     querySkillUsage,
@@ -26,15 +29,28 @@ import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {
     Button,
+    Checkbox,
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
     Input,
     Spinner,
 } from "@agenta/ui/ui"
-import {Lightning, PencilSimple, WarningCircle} from "@phosphor-icons/react"
+import {
+    CaretDown,
+    CaretLeft,
+    Lightning,
+    PencilSimple,
+    Plus,
+    WarningCircle,
+} from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
+import {useAtomValue} from "jotai"
 
 import {SkillAvatar, VersionTag} from "./SkillCard"
 import {SkillSaveBlastRadius} from "./SkillSaveBlastRadius"
@@ -47,7 +63,9 @@ export interface SkillDetailDrawerProps {
     projectId: string
     /** The clicked card. Null renders nothing (the drawer stays mounted for the exit animation). */
     skill: SkillListItem | null
+    /** Detail/edit width; the pick-agents step stays compact and the resize animates. */
     width?: number
+    agentsWidth?: number
 }
 
 const toFormValue = (skill?: Record<string, unknown>): Record<string, unknown> => ({
@@ -88,6 +106,7 @@ export function SkillDetailDrawer({
     projectId,
     skill,
     width = 960,
+    agentsWidth = 520,
 }: SkillDetailDrawerProps) {
     // The list item's id IS the workflow id (the hosts map workflow_id into it).
     const workflowId = skill?.id ?? ""
@@ -130,6 +149,16 @@ export function SkillDetailDrawer({
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
+    // The same drawer hosts the pick-agents step (artboard 3): back chevron, compact width.
+    const [step, setStep] = useState<"detail" | "agents">("detail")
+    const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set())
+    const [agentsBusy, setAgentsBusy] = useState(false)
+    const [agentsError, setAgentsError] = useState<string | null>(null)
+
+    // The canonical agent list (apps + head-revision is_agent flags) — `is_agent` is a
+    // REVISION flag, so a plain workflows/query cannot filter by it.
+    const roster = useAtomValue(agentWorkflowsListQueryStateAtom)
+
     // Fresh state per open — closing only closes, so the exit animation keeps its frame.
     const [wasOpen, setWasOpen] = useState(false)
     if (open !== wasOpen) {
@@ -141,6 +170,9 @@ export function SkillDetailDrawer({
             setSaveMessage("")
             setPending(null)
             setError(null)
+            setStep("detail")
+            setSelectedAgents(new Set())
+            setAgentsError(null)
         }
     }
 
@@ -210,6 +242,66 @@ export function SkillDetailDrawer({
         }
     }, [head, pending, projectId, revisionsQuery, saveMessage, workflowId])
 
+    const usedByIds = useMemo(() => new Set(usedBy.map((agent) => agent.id)), [usedBy])
+    const availableAgents = useMemo(
+        () =>
+            (roster.data ?? [])
+                .filter((workflow) => workflow.id && !usedByIds.has(workflow.id))
+                .map((workflow) => ({
+                    workflowId: workflow.id as string,
+                    name:
+                        (workflow.name as string | undefined) ||
+                        (workflow.slug as string | undefined) ||
+                        (workflow.id as string),
+                })),
+        [roster.data, usedByIds],
+    )
+    const toggleAgent = useCallback((workflowId: string) => {
+        setSelectedAgents((prev) => {
+            const next = new Set(prev)
+            if (next.has(workflowId)) next.delete(workflowId)
+            else next.add(workflowId)
+            return next
+        })
+    }, [])
+
+    const installToAgents = useCallback(
+        async (mode: "latest" | "pinned") => {
+            if (!skill || selectedAgents.size === 0) return
+            setAgentsBusy(true)
+            setAgentsError(null)
+            try {
+                const entry = buildSkillEmbedEntry({
+                    slug: skill.slug,
+                    workflowId: skill.id,
+                    name: skill.name,
+                    description: skill.description,
+                    mode,
+                    version: mode === "pinned" ? head?.version : undefined,
+                }) as unknown as Record<string, unknown>
+                const outcome = await addSkillToAgents({
+                    projectId,
+                    agentWorkflowIds: [...selectedAgents],
+                    entry,
+                    message: `Add skill ${skill.slug}`,
+                })
+                if (outcome.failed.length) {
+                    setAgentsError(
+                        `${outcome.failed.length} of ${selectedAgents.size} agents could not be updated: ${outcome.failed[0].error}`,
+                    )
+                    await usageQuery.refetch()
+                    return
+                }
+                invalidateSkillsListCache()
+                // Confirm returns to the registry (the drawer closes).
+                onClose()
+            } finally {
+                setAgentsBusy(false)
+            }
+        },
+        [head, onClose, projectId, selectedAgents, skill, usageQuery],
+    )
+
     const formValue = useMemo(
         () => (editing ? draft : toFormValue(selected?.skill)),
         [draft, editing, selected],
@@ -217,6 +309,16 @@ export function SkillDetailDrawer({
 
     const title = (
         <div className="flex min-w-0 items-center gap-2">
+            {step === "agents" ? (
+                <button
+                    type="button"
+                    aria-label="Back to skill"
+                    onClick={() => setStep("detail")}
+                    className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
+                >
+                    <CaretLeft size={16} />
+                </button>
+            ) : null}
             {skill ? <SkillAvatar origin={skill.origin} /> : null}
             <span className="min-w-0 truncate font-mono text-sm font-medium">
                 {skill?.slug ?? ""}
@@ -243,7 +345,8 @@ export function SkillDetailDrawer({
                 open={open}
                 onClose={onClose}
                 placement="right"
-                width={width}
+                // Compact for the pick-agents step, wide for the editor; the resize animates.
+                width={step === "agents" ? agentsWidth : width}
                 destroyOnClose
                 title={title}
                 styles={{
@@ -255,111 +358,261 @@ export function SkillDetailDrawer({
                     },
                 }}
                 footer={
-                    <div className="flex items-center justify-between gap-3">
-                        {error ? (
-                            <span className="flex min-w-0 items-start gap-1.5 text-xs text-[var(--ag-colorError)]">
-                                <WarningCircle size={14} className="mt-px shrink-0" />
-                                <span className="min-w-0">{error}</span>
-                            </span>
-                        ) : (
-                            <span />
-                        )}
-                        <span className="flex shrink-0 items-center gap-2">
-                            {editing ? (
-                                <>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => {
-                                            setEditing(false)
-                                            setError(null)
-                                        }}
-                                        disabled={busy}
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button onClick={() => askToCommit(draft, "")} disabled={busy}>
-                                        Save changes
-                                    </Button>
-                                </>
-                            ) : viewingOlder ? (
-                                <Button
-                                    onClick={() =>
-                                        askToCommit(
-                                            toFormValue(selected?.skill),
-                                            `Restore v${selected?.version}`,
-                                        )
-                                    }
-                                    disabled={busy}
-                                >
-                                    Restore as v{nextVersion}
-                                </Button>
-                            ) : !isBuiltin ? (
-                                <Button onClick={startEdit} disabled={busy || !head}>
-                                    <PencilSimple size={14} />
-                                    Edit skill
-                                </Button>
-                            ) : null}
-                        </span>
-                    </div>
-                }
-            >
-                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
-                    {!editing && usedBy.length ? (
-                        <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                            <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                Used by
-                            </span>
-                            {usedBy.map((agent) => (
-                                <span
-                                    key={agent.id}
-                                    className="flex items-center gap-1 rounded-full border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-2 py-px text-[11px]"
-                                >
-                                    <span className="max-w-40 truncate">{agent.name}</span>
-                                    <span className="text-[var(--ag-colorTextTertiary)]">
-                                        {agent.mode === "pinned"
-                                            ? `pinned v${agent.pinnedVersion ?? "?"}`
-                                            : "latest"}
-                                    </span>
+                    step === "agents" ? (
+                        <div className="flex items-center justify-between gap-3">
+                            {agentsError ? (
+                                <span className="flex min-w-0 items-start gap-1.5 text-xs text-[var(--ag-colorError)]">
+                                    <WarningCircle size={14} className="mt-px shrink-0" />
+                                    <span className="min-w-0">{agentsError}</span>
                                 </span>
-                            ))}
-                        </div>
-                    ) : null}
-
-                    {isBuiltin ? (
-                        <div className="flex flex-col gap-2 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-4 text-xs">
-                            <span className="font-mono font-medium">{skill?.slug}</span>
-                            <span className="text-[var(--ag-colorTextSecondary)]">
-                                {skill?.description || "No description."}
+                            ) : (
+                                <span />
+                            )}
+                            <span className="flex shrink-0 items-center">
+                                <Button
+                                    disabled={agentsBusy || selectedAgents.size === 0}
+                                    onClick={() => void installToAgents("latest")}
+                                    className="rounded-r-none"
+                                >
+                                    {agentsBusy ? <Spinner size="small" /> : null}
+                                    Add to {selectedAgents.size}{" "}
+                                    {selectedAgents.size === 1 ? "agent" : "agents"}
+                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            disabled={agentsBusy || selectedAgents.size === 0}
+                                            aria-label="Version options for the batch"
+                                            className="rounded-l-none border-l-0 px-1.5"
+                                        >
+                                            <CaretDown size={12} />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem
+                                            onSelect={() => void installToAgents("latest")}
+                                        >
+                                            Add — follow latest
+                                        </DropdownMenuItem>
+                                        {head?.version ? (
+                                            <DropdownMenuItem
+                                                onSelect={() => void installToAgents("pinned")}
+                                            >
+                                                Add pinned to v{head.version}
+                                            </DropdownMenuItem>
+                                        ) : null}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </span>
-                            <span className="text-[var(--ag-colorTextTertiary)]">
-                                Built-in skills are maintained by Agenta and cannot be edited.
-                            </span>
-                        </div>
-                    ) : revisionsQuery.isPending ? (
-                        <div className="flex flex-1 items-center justify-center">
-                            <Spinner size="small" />
                         </div>
                     ) : (
-                        <div className="min-h-0 flex-1 overflow-y-auto">
-                            <SkillFormView
-                                value={formValue}
-                                onChange={editing ? setDraft : () => undefined}
-                                disabled={!editing || busy}
-                                railBottomSlot={
-                                    !editing && versionRows.length ? (
-                                        <VersionsRailCard
-                                            versions={versionRows}
-                                            activeId={selected?.id}
-                                            onSelect={(row) =>
-                                                setSelectedId(row.id === head?.id ? null : row.id)
-                                            }
-                                        />
-                                    ) : undefined
-                                }
-                            />
+                        <div className="flex items-center justify-between gap-3">
+                            {error ? (
+                                <span className="flex min-w-0 items-start gap-1.5 text-xs text-[var(--ag-colorError)]">
+                                    <WarningCircle size={14} className="mt-px shrink-0" />
+                                    <span className="min-w-0">{error}</span>
+                                </span>
+                            ) : (
+                                <span />
+                            )}
+                            <span className="flex shrink-0 items-center gap-2">
+                                {editing ? (
+                                    <>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                setEditing(false)
+                                                setError(null)
+                                            }}
+                                            disabled={busy}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            onClick={() => askToCommit(draft, "")}
+                                            disabled={busy}
+                                        >
+                                            Save changes
+                                        </Button>
+                                    </>
+                                ) : viewingOlder ? (
+                                    <Button
+                                        onClick={() =>
+                                            askToCommit(
+                                                toFormValue(selected?.skill),
+                                                `Restore v${selected?.version}`,
+                                            )
+                                        }
+                                        disabled={busy}
+                                    >
+                                        Restore as v{nextVersion}
+                                    </Button>
+                                ) : !isBuiltin ? (
+                                    <>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setStep("agents")}
+                                            disabled={busy || !head}
+                                        >
+                                            <Plus size={14} />
+                                            Add to agent
+                                        </Button>
+                                        <Button onClick={startEdit} disabled={busy || !head}>
+                                            <PencilSimple size={14} />
+                                            Edit skill
+                                        </Button>
+                                    </>
+                                ) : null}
+                            </span>
                         </div>
-                    )}
-                </div>
+                    )
+                }
+            >
+                {step === "agents" ? (
+                    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+                        {roster.isPending ? (
+                            <div className="flex flex-1 items-center justify-center">
+                                <Spinner size="small" />
+                            </div>
+                        ) : (
+                            <>
+                                {availableAgents.length ? (
+                                    <div className="flex flex-col gap-1.5">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                            Add to
+                                        </span>
+                                        <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
+                                            {availableAgents.map((agent) => (
+                                                <label
+                                                    key={agent.workflowId}
+                                                    className="flex cursor-pointer items-center gap-2.5 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3 py-2 first:border-t-0"
+                                                >
+                                                    <Checkbox
+                                                        checked={selectedAgents.has(
+                                                            agent.workflowId,
+                                                        )}
+                                                        onCheckedChange={() =>
+                                                            toggleAgent(agent.workflowId)
+                                                        }
+                                                        disabled={agentsBusy}
+                                                        aria-label={`Add to ${agent.name}`}
+                                                    />
+                                                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
+                                                        {agent.name}
+                                                    </span>
+                                                    <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                                        will follow latest
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <span className="text-xs text-[var(--ag-colorTextSecondary)]">
+                                        Every agent in this project already has this skill.
+                                    </span>
+                                )}
+                                {usedBy.length ? (
+                                    <div className="flex flex-col gap-1.5">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                            Already added
+                                        </span>
+                                        <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
+                                            {usedBy.map((agent) => {
+                                                const stale =
+                                                    agent.mode === "pinned" &&
+                                                    agent.pinnedVersion &&
+                                                    head?.version &&
+                                                    Number(agent.pinnedVersion) <
+                                                        Number(head.version)
+                                                return (
+                                                    <div
+                                                        key={agent.id}
+                                                        className="flex items-center justify-between gap-2 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3 py-2 first:border-t-0"
+                                                    >
+                                                        <span className="min-w-0 truncate text-xs font-medium">
+                                                            {agent.name}
+                                                        </span>
+                                                        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                                            {agent.mode === "pinned"
+                                                                ? `pinned v${agent.pinnedVersion ?? "?"}`
+                                                                : "latest"}
+                                                            {stale ? (
+                                                                <span className="rounded bg-[var(--ag-colorWarningBg)] px-1.5 py-px text-[10px] text-[var(--ag-colorWarningText)]">
+                                                                    v{head?.version} available
+                                                                </span>
+                                                            ) : null}
+                                                        </span>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </>
+                        )}
+                    </div>
+                ) : (
+                    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
+                        {!editing && usedBy.length ? (
+                            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                    Used by
+                                </span>
+                                {usedBy.map((agent) => (
+                                    <span
+                                        key={agent.id}
+                                        className="flex items-center gap-1 rounded-full border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-2 py-px text-[11px]"
+                                    >
+                                        <span className="max-w-40 truncate">{agent.name}</span>
+                                        <span className="text-[var(--ag-colorTextTertiary)]">
+                                            {agent.mode === "pinned"
+                                                ? `pinned v${agent.pinnedVersion ?? "?"}`
+                                                : "latest"}
+                                        </span>
+                                    </span>
+                                ))}
+                            </div>
+                        ) : null}
+
+                        {isBuiltin ? (
+                            <div className="flex flex-col gap-2 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-4 text-xs">
+                                <span className="font-mono font-medium">{skill?.slug}</span>
+                                <span className="text-[var(--ag-colorTextSecondary)]">
+                                    {skill?.description || "No description."}
+                                </span>
+                                <span className="text-[var(--ag-colorTextTertiary)]">
+                                    Built-in skills are maintained by Agenta and cannot be edited.
+                                </span>
+                            </div>
+                        ) : revisionsQuery.isPending ? (
+                            <div className="flex flex-1 items-center justify-center">
+                                <Spinner size="small" />
+                            </div>
+                        ) : (
+                            <div className="min-h-0 flex-1 overflow-y-auto">
+                                <SkillFormView
+                                    value={formValue}
+                                    onChange={editing ? setDraft : () => undefined}
+                                    disabled={!editing || busy}
+                                    railBottomSlot={
+                                        !editing && versionRows.length ? (
+                                            <VersionsRailCard
+                                                versions={versionRows}
+                                                activeId={selected?.id}
+                                                onSelect={(row) =>
+                                                    setSelectedId(
+                                                        row.id === head?.id ? null : row.id,
+                                                    )
+                                                }
+                                            />
+                                        ) : undefined
+                                    }
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
             </EnhancedDrawer>
 
             {/* Radix Dialog, not EnhancedModal: /m renders this drawer and antd is banned there. */}

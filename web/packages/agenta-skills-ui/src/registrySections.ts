@@ -70,7 +70,10 @@ export function buildRegistrySections(
         .map((source) => ({
             key: `source:${source.id}`,
             label: sourceLabel(source),
-            tag: source.updated_at ? `synced ${timeAgo(toUnixMs(source.updated_at))}` : undefined,
+            tag: (() => {
+                const at = toUnixMs(source.updated_at ?? source.created_at)
+                return at ? `synced ${timeAgo(at)}` : undefined
+            })(),
             skills: (bySource.get(source.id!) ?? []).map((item) =>
                 toSkillListItem(item, "imported"),
             ),

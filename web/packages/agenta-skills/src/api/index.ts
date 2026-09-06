@@ -5,7 +5,11 @@
  * `workflows/query`, and the `/skills/*` resources are not in the generated client yet.
  * These functions keep the signatures a future Fern-backed swap must preserve.
  */
-import {createWorkflow, queryWorkflowRevisionsByWorkflow} from "@agenta/entities/workflow"
+import {
+    createWorkflow,
+    queryWorkflowRevisionsByWorkflow,
+    retrieveWorkflowRevision,
+} from "@agenta/entities/workflow"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {generateId} from "@agenta/shared/utils"
 import type {z} from "zod"
@@ -279,4 +283,87 @@ export async function commitSkillRevision({
         {params: {project_id: projectId}},
     )
     return response.data
+}
+
+export interface AddSkillToAgentsParams {
+    projectId: string
+    agentWorkflowIds: string[]
+    /** A fully-built skill embed entry (buildSkillEmbedEntry output). */
+    entry: Record<string, unknown>
+    message?: string
+}
+
+export interface AddSkillToAgentsResult {
+    added: string[]
+    failed: {workflowId: string; error: string}[]
+}
+
+/**
+ * Registry-side batch install (the pick-agents step): for each agent, read the HEAD
+ * revision, append the embed entry to `parameters.agent.skills`, and commit — the same
+ * whole-revision write the config panel's auto-commit performs, with the head's id as
+ * `base_revision_id` so a concurrent edit conflicts instead of being clobbered.
+ */
+export async function addSkillToAgents({
+    projectId,
+    agentWorkflowIds,
+    entry,
+    message,
+}: AddSkillToAgentsParams): Promise<AddSkillToAgentsResult> {
+    const result: AddSkillToAgentsResult = {added: [], failed: []}
+
+    for (const workflowId of agentWorkflowIds) {
+        try {
+            const head = (await retrieveWorkflowRevision({
+                projectId,
+                workflowRef: {id: workflowId},
+            })) as Record<string, unknown> | null
+            const data = head?.data as Record<string, unknown> | undefined
+            if (!head || !data) throw new Error("The agent's head revision could not be read.")
+
+            const parameters =
+                data.parameters && typeof data.parameters === "object"
+                    ? (data.parameters as Record<string, unknown>)
+                    : {}
+            const agent =
+                parameters.agent && typeof parameters.agent === "object"
+                    ? (parameters.agent as Record<string, unknown>)
+                    : {}
+            const skills = Array.isArray(agent.skills) ? agent.skills : []
+
+            const nextData = {
+                ...data,
+                parameters: {
+                    ...parameters,
+                    agent: {...agent, skills: [...skills, entry]},
+                },
+            }
+
+            await axios.post(
+                `${getAgentaApiUrl()}/workflows/revisions/commit`,
+                {
+                    workflow_revision: {
+                        workflow_id: workflowId,
+                        workflow_variant_id:
+                            typeof head.workflow_variant_id === "string"
+                                ? head.workflow_variant_id
+                                : undefined,
+                        slug: generateId().replace(/-/g, "").slice(0, 12),
+                        data: nextData,
+                        message: message || undefined,
+                        base_revision_id: typeof head.id === "string" ? head.id : undefined,
+                    },
+                },
+                {params: {project_id: projectId}},
+            )
+            result.added.push(workflowId)
+        } catch (err) {
+            result.failed.push({
+                workflowId,
+                error: err instanceof Error && err.message ? err.message : "commit failed",
+            })
+        }
+    }
+
+    return result
 }
