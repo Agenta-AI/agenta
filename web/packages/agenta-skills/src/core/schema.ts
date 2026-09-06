@@ -73,14 +73,33 @@ export const skillRegistryItemSchema = z
         skill_name: z.string().optional().nullable(),
         skill_description: z.string().optional().nullable(),
         files_count: z.number().optional().nullable(),
+        used_by_count: z.number().optional().nullable(),
+        /** The import source this skill came from (see the response's `sources` block). */
+        source_id: z.string().optional().nullable(),
     })
     .passthrough()
 export type SkillRegistryItem = z.infer<typeof skillRegistryItemSchema>
+
+export const registrySourceSchema = z
+    .object({
+        id: z.string().optional().nullable(),
+        slug: z.string().optional().nullable(),
+        repo_url: z.string().optional().nullable(),
+        ref: z.string().optional().nullable(),
+        last_seen_commit_sha: z.string().optional().nullable(),
+        sync_enabled: z.boolean().optional().nullable(),
+        created_at: z.string().optional().nullable(),
+        updated_at: z.string().optional().nullable(),
+    })
+    .passthrough()
+export type RegistrySource = z.infer<typeof registrySourceSchema>
 
 export const skillsQueryResponseSchema = z
     .object({
         count: z.number().optional(),
         skills: z.array(skillRegistryItemSchema).optional(),
+        /** Import sources referenced by skills[].source_id (per-repo grouping). */
+        sources: z.array(registrySourceSchema).optional(),
         /** Code-defined Agenta built-ins: a separate, unpaginated block. */
         builtin: z.array(skillRegistryItemSchema).optional(),
         windowing: skillsWindowingSchema.optional().nullable(),

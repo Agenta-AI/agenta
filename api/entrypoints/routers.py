@@ -1044,11 +1044,12 @@ simple_workflows = SimpleWorkflowsRouter(
     simple_workflows_service=simple_workflows_service,
 )
 
+skill_sources_dao = SkillSourcesDAO()
+
 skills_service = SkillsService(
     workflows_service=workflows_service,
+    sources_dao=skill_sources_dao,
 )
-
-skill_sources_dao = SkillSourcesDAO()
 
 skill_import_service = SkillImportService(
     simple_workflows_service=simple_workflows_service,

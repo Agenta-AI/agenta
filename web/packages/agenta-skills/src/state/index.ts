@@ -13,7 +13,7 @@ import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {querySkills} from "../api"
-import type {SkillRegistryItem, SkillsQueryResponse} from "../core/schema"
+import type {RegistrySource, SkillRegistryItem, SkillsQueryResponse} from "../core/schema"
 
 /** Server-side search text for the registry list ("" = no filter). */
 export const skillsSearchAtom = atom("")
@@ -52,6 +52,12 @@ export const builtinSkillsAtom = atom<SkillRegistryItem[]>((get) => {
             field?.toLowerCase().includes(search),
         ),
     )
+})
+
+/** Import sources referenced by skills[].source_id — the per-repo sections. */
+export const registrySourcesAtom = atom<RegistrySource[]>((get) => {
+    const query = get(skillsListQueryAtom)
+    return query.data?.sources ?? []
 })
 
 /** Drop every cached skills list; the next subscriber refetches. */

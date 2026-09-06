@@ -215,6 +215,21 @@ class SkillSourcesDAO:
             await session.commit()
             return [_link_dto(dbe) for dbe in dbes]
 
+    async def list_all_links(
+        self,
+        *,
+        project_id: UUID,
+    ) -> List[SkillSourceLink]:
+        """Every live link in the project — the registry list joins skills to sources."""
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(SkillSourceLinkDBE).filter(
+                    SkillSourceLinkDBE.project_id == project_id,
+                    SkillSourceLinkDBE.deleted_at.is_(None),
+                )
+            )
+            return [_link_dto(dbe) for dbe in result.scalars().all()]
+
     async def list_links(
         self,
         *,

@@ -49,8 +49,57 @@ class SkillsService:
         self,
         *,
         workflows_service: WorkflowsService,
+        sources_dao=None,
     ):
         self.workflows_service = workflows_service
+        # Optional: source attribution for imported skills (per-repo registry sections).
+        self.sources_dao = sources_dao
+
+    async def _usage_counts(
+        self, *, project_id: UUID
+    ) -> tuple[Dict[str, int], Dict[str, int]]:
+        """Per-skill embed counts across every agent's HEAD revision, keyed by the
+        referenced workflow id and slug (one count per agent per skill)."""
+        agent_heads = await self.workflows_service.query_workflow_head_revisions(
+            project_id=project_id,
+            #
+            workflow_revision_query=WorkflowRevisionQuery(
+                flags=WorkflowRevisionQueryFlags(is_agent=True),
+            ),
+        )
+
+        by_id: Dict[str, int] = {}
+        by_slug: Dict[str, int] = {}
+
+        for head in agent_heads:
+            parameters = None
+            if head.data is not None:
+                parameters = getattr(head.data, "parameters", None)
+                if parameters is None and isinstance(head.data, dict):
+                    parameters = head.data.get("parameters")
+            if not isinstance(parameters, dict):
+                continue
+            agent = parameters.get("agent")
+            skills = agent.get("skills") if isinstance(agent, dict) else None
+            if not isinstance(skills, list):
+                continue
+
+            seen_ids: set = set()
+            seen_slugs: set = set()
+            for embed in find_object_embeds({"skills": skills}):
+                references = embed.references or {}
+                for key in ("workflow", "workflow_revision"):
+                    ref = references.get(key)
+                    if ref is None:
+                        continue
+                    if ref.id and str(ref.id) not in seen_ids:
+                        seen_ids.add(str(ref.id))
+                        by_id[str(ref.id)] = by_id.get(str(ref.id), 0) + 1
+                    if ref.slug and ref.slug not in seen_slugs:
+                        seen_slugs.add(ref.slug)
+                        by_slug[ref.slug] = by_slug.get(ref.slug, 0) + 1
+
+        return by_id, by_slug
 
     async def list_registry_skills(
         self,
@@ -74,6 +123,20 @@ class SkillsService:
             #
             windowing=query.windowing,
         )
+
+        counts_by_id, counts_by_slug = await self._usage_counts(project_id=project_id)
+
+        source_by_workflow: Dict[str, Any] = {}
+        sources: List[Any] = []
+        if self.sources_dao is not None:
+            links = await self.sources_dao.list_all_links(project_id=project_id)
+            source_by_workflow = {
+                str(link.workflow_id): link.source_id
+                for link in links
+                if not link.detached
+            }
+            if source_by_workflow:
+                sources = await self.sources_dao.list_sources(project_id=project_id)
 
         skills: List[SkillRegistryItem] = []
 
@@ -109,6 +172,12 @@ class SkillsService:
                     skill_name=payload.get("name"),
                     skill_description=payload.get("description"),
                     files_count=len(files) if isinstance(files, list) else None,
+                    used_by_count=(
+                        counts_by_id.get(str(revision.artifact_id))
+                        or counts_by_slug.get(revision.artifact_slug or "")
+                        or 0
+                    ),
+                    source_id=source_by_workflow.get(str(revision.artifact_id)),
                 )
             )
 
@@ -116,6 +185,7 @@ class SkillsService:
 
         return SkillRegistryList(
             skills=skills,
+            sources=sources,
             builtin=builtin,
             windowing=query.windowing,
         )

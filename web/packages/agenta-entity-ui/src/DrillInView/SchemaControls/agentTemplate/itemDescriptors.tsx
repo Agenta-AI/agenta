@@ -26,8 +26,9 @@ export interface ItemDescriptor {
     avatarClassName?: string
     /** Custom properties the chip classes read (the light and dark tint and ink). */
     avatarStyle?: React.CSSProperties
-    /** Type tags shown on the right of a row (e.g. "built-in", "definition", "gmail"). */
-    tags: string[]
+    /** Type tags shown on the right of a row (e.g. "built-in", "definition", "gmail").
+     * An object form carries a semantic tone (e.g. green for "Latest"). */
+    tags: (string | {label: string; tone?: "success" | "warning" | "default"})[]
     /** Type label for the drawer header badge (e.g. "definition", "MCP server"). */
     typeLabel: string
     /** antd Tag colour for the header badge. */
@@ -319,14 +320,20 @@ export function describeSkill(skill: unknown): ItemDescriptor {
         }
     }
     if (isEmbedRefSkill(s)) {
+        // Registry-by-default: the raw "@ag.embed" marker is plumbing, not information.
+        // The row says what the author chose: follow the head, or stay pinned.
+        const pinned = embedRevisionVersion(s)
         return {
             name: staticEmbedName(s) ?? staticEmbedSlug(s) ?? "Skill reference",
+            description: typeof s.description === "string" ? (s.description as string) : undefined,
             mono: "sk",
             color: "#b45309",
-            tags: ["@ag.embed"],
-            typeLabel: "@ag.embed",
-            typeColor: "blue",
-            subtitle: "Referenced skill — inlined by the backend",
+            tags: pinned ? [{label: `Pinned v${pinned}`}] : [{label: "Latest", tone: "success"}],
+            typeLabel: "registry skill",
+            typeColor: "gold",
+            subtitle: pinned
+                ? `Registry skill — pinned to v${pinned}`
+                : "Registry skill — follows the latest version",
         }
     }
     return {
@@ -334,7 +341,8 @@ export function describeSkill(skill: unknown): ItemDescriptor {
         description: typeof s.description === "string" ? (s.description as string) : undefined,
         mono: "sk",
         color: "#b45309",
-        tags: ["skill"],
+        // No redundant "skill" tag inside the Skills section (ux-plan issue 3).
+        tags: [],
         typeLabel: "skill",
         typeColor: "gold",
         subtitle: "Inline SKILL.md package",

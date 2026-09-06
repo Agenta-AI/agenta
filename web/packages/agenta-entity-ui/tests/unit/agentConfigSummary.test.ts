@@ -26,6 +26,7 @@ describe("agentConfigSummary", () => {
             tools: 2,
             mcps: 0,
             skills: 0,
+            skillNames: [],
             sandbox: "Local",
             permissions: "Allow reads",
         })
@@ -70,5 +71,25 @@ describe("agentConfigSummary", () => {
         expect(prettifyKind("claude_code")).toBe("Claude code")
         expect(prettifyKind("some-future-kind")).toBe("Some future kind")
         expect(prettifyKind(null)).toBeNull()
+    })
+})
+
+describe("skillNames", () => {
+    it("names embed refs by sibling name, falls back to the referenced slug", () => {
+        const summary = agentConfigSummary({
+            agent: {
+                skills: [
+                    {
+                        "@ag.embed": {"@ag.references": {workflow: {slug: "pdf-tools"}}},
+                        name: "PDF tools",
+                    },
+                    {"@ag.embed": {"@ag.references": {workflow_revision: {slug: "csv-checker"}}}},
+                    {name: "inline-skill", body: "..."},
+                    {"@ag.embed": {}},
+                ],
+            },
+        })
+        expect(summary.skills).toBe(4)
+        expect(summary.skillNames).toEqual(["PDF tools", "csv-checker", "inline-skill"])
     })
 })

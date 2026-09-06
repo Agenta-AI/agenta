@@ -18,6 +18,8 @@ class SkillsQueryRequest(BaseModel):
 class SkillsResponse(BaseModel):
     count: int = 0
     skills: List[SkillRegistryItem] = []
+    # Import sources referenced by `skills[].source_id` (per-repo grouping + "synced" tag).
+    sources: List[SkillSource] = []
     builtin: List[SkillRegistryItem] = []
     windowing: Optional[Windowing] = None
 

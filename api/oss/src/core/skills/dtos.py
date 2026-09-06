@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Any
 from uuid import UUID
 from datetime import datetime
 
@@ -39,6 +39,11 @@ class SkillRegistryItem(BaseModel):
     skill_description: Optional[str] = None
     files_count: Optional[int] = None
 
+    # How many agents embed this skill (by workflow id or slug).
+    used_by_count: Optional[int] = None
+    # The import source this skill came from, when it was imported (repo grouping).
+    source_id: Optional[UUID] = None
+
 
 class SkillRegistryQuery(BaseModel):
     search: Optional[str] = None
@@ -48,6 +53,8 @@ class SkillRegistryQuery(BaseModel):
 
 class SkillRegistryList(BaseModel):
     skills: List[SkillRegistryItem] = []
+    # The import sources referenced by `skills[].source_id`, for per-repo grouping.
+    sources: List[Any] = []
     # Code-defined Agenta built-ins: a separate, unpaginated block — merging
     # synthetic catalog entries into keyset pagination has no correct cursor
     # semantics.

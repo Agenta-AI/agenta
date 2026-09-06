@@ -171,11 +171,15 @@ export function ItemRow({
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
                 {status ? <StatusTag status={status} /> : null}
-                {descriptor.tags.map((tag) => (
-                    <Tag key={tag} className={TAG_CLS}>
-                        {tag}
-                    </Tag>
-                ))}
+                {descriptor.tags.map((tag) => {
+                    const label = typeof tag === "string" ? tag : tag.label
+                    const tone = typeof tag === "string" ? undefined : tag.tone
+                    return (
+                        <Tag key={label} tone={tone} className={TAG_CLS}>
+                            {label}
+                        </Tag>
+                    )
+                })}
                 {locked ? <Tag className={TAG_CLS}>Locked</Tag> : null}
                 {extra}
                 {onRemove && !disabled && !locked ? (

@@ -22,6 +22,7 @@ export {
     type SkillAddChoice,
 } from "./SkillPickerDrawer"
 export {SkillSaveBlastRadius, type SkillSaveBlastRadiusProps} from "./SkillSaveBlastRadius"
+export {buildRegistrySections, toSkillListItem, type RegistrySections} from "./registrySections"
 export {SkillImportDrawer, type SkillImportDrawerProps} from "./SkillImportDrawer"
 export {SkillCreateDrawer, type SkillCreateDrawerProps} from "./SkillCreateDrawer"
 export {SkillUploadPanel, type SkillUploadPanelProps} from "./SkillUploadPanel"

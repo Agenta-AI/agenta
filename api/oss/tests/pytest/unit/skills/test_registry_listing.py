@@ -44,9 +44,11 @@ class _StubWorkflowsService:
         self._revisions = revisions
         self._workflows_by_id = workflows_by_id
         self.head_query_kwargs = None
+        self.head_query_calls = []
 
     async def query_workflow_head_revisions(self, **kwargs):
         self.head_query_kwargs = kwargs
+        self.head_query_calls.append(kwargs)
         return self._revisions
 
     async def fetch_workflow(self, *, project_id, workflow_ref, include_archived=None):
@@ -88,8 +90,12 @@ async def test_registry_lists_db_skills_with_artifact_identity():
 
     # the search term reaches the SQL-side artifact filter
     stub = service.workflows_service
-    assert stub.head_query_kwargs["artifact_search"] == "pdf"
-    assert stub.head_query_kwargs["workflow_revision_query"].flags.is_skill is True
+    # The list makes two head queries (skills, then agent usage counts); the
+    # SKILLS call carries the search + the is_skill flag.
+    skills_call = next(
+        c for c in stub.head_query_calls if c["workflow_revision_query"].flags.is_skill
+    )
+    assert skills_call["artifact_search"] == "pdf"
 
 
 @pytest.mark.asyncio

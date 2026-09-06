@@ -109,7 +109,11 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
             key: "skills",
             icon: <GraduationCapIcon size={16} />,
             title: "Skills",
-            ...(summary.skills ? stated(`${summary.skills} available`) : emptyAction("Add skills")),
+            ...(summary.skills
+                ? stated(`${summary.skills} ${summary.skills === 1 ? "skill" : "skills"}`)
+                : emptyAction("Add skills")),
+            // Expands to the skill names — the count alone says how many, never which.
+            expands: summary.skillNames.length > 0,
         },
         {
             key: "advanced",
@@ -156,18 +160,33 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
                         // `onOpen` is the primitive's "leaves for somewhere else" mode; only the
                         // expanding row (and a read-only host) omits it.
                         onOpen={row.expands || !onEdit ? undefined : onEdit}
+                        // A row with no expansion and nowhere to go is a STATEMENT: no caret,
+                        // no empty accordion (the /m overview passes no onEdit).
+                        collapsible={row.expands || Boolean(onEdit)}
                         defaultOpen={false}
                         // No row rules anywhere in this card: a line inside a section competes
                         // with the line that ends it. Rows separate by spacing.
                         noDivider
                     >
-                        {row.expands ? (
+                        {row.expands && row.key === "instructions" ? (
                             <InstructionsFileRow
                                 filename={INSTRUCTIONS_FILE}
                                 content={summary.instructions ?? ""}
                                 // The row demands a handler; a read-only host has nowhere to go.
                                 onOpen={onEdit ?? (() => undefined)}
                             />
+                        ) : null}
+                        {row.expands && row.key === "skills" ? (
+                            <div className="flex flex-wrap gap-1.5">
+                                {summary.skillNames.map((name) => (
+                                    <span
+                                        key={name}
+                                        className="rounded-full border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-2 py-px font-mono text-[11px]"
+                                    >
+                                        {name}
+                                    </span>
+                                ))}
+                            </div>
                         ) : null}
                     </ConfigAccordionSection>
                 ))

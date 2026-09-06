@@ -242,7 +242,10 @@ export function useChatSlashCommands({
                 description:
                     descriptor.description ??
                     (descriptor.name === token ? undefined : descriptor.name),
-                tail: descriptor.tags[0],
+                tail:
+                    typeof descriptor.tags[0] === "string"
+                        ? descriptor.tags[0]
+                        : descriptor.tags[0]?.label,
                 icon:
                     prefix === "skill" ? (
                         <GraduationCap size={14} />

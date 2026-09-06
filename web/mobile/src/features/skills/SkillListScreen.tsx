@@ -1,20 +1,19 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {timeAgo} from "@agenta/shared/utils"
-import {type SkillRegistryItem} from "@agenta/skills"
 import {
     builtinSkillsAtom,
+    registrySourcesAtom,
     skillsListDataAtom,
     skillsListQueryAtom,
     skillsSearchAtom,
 } from "@agenta/skills/state"
 import {
+    buildRegistrySections,
     NewSkillMenuButton,
     SkillCreateDrawer,
     SkillDetailDrawer,
     SkillGallerySections,
     SkillImportDrawer,
-    type SkillGallerySection,
     type SkillListItem,
 } from "@agenta/skills-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
@@ -29,25 +28,6 @@ import {BROWSE_RAIL_MODE} from "@/lib/browseLayout"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
-
-const toUnixMs = (value?: string | null): number | undefined => {
-    if (!value) return undefined
-    const ts = new Date(value).getTime()
-    return Number.isFinite(ts) ? ts : undefined
-}
-
-const toListItem = (item: SkillRegistryItem, origin: SkillListItem["origin"]): SkillListItem => ({
-    id: item.workflow_id ?? item.id ?? item.workflow_slug ?? "",
-    // Registry identity is the SKILL name; workflow_slug is the storage slug (__ag__… for builtins).
-    slug: item.skill_name ?? item.name ?? item.workflow_slug ?? "",
-    name: item.name ?? item.skill_name ?? item.workflow_slug ?? "",
-    description: item.description ?? item.skill_description ?? undefined,
-    origin,
-    // API sends "v1"; VersionTag adds the "v" prefix itself.
-    version: item.version?.replace(/^v/, "") ?? undefined,
-    filesCount: item.files_count ?? undefined,
-    age: timeAgo(toUnixMs(item.updated_at ?? item.created_at)) || undefined,
-})
 
 /**
  * The skill registry — where the nav's Skills entry lands. Same browse shape as agents and
@@ -69,20 +49,10 @@ export const SkillListScreen = ({
     const builtinSkills = useAtomValue(builtinSkillsAtom)
     const [search, setSearch] = useAtom(skillsSearchAtom)
 
-    const sections = useMemo<SkillGallerySection[]>(
-        () => [
-            {
-                key: "project",
-                label: "This project",
-                skills: projectSkills.map((item) => toListItem(item, "project")),
-            },
-            {
-                key: "agenta",
-                label: "Agenta",
-                skills: builtinSkills.map((item) => toListItem(item, "builtin")),
-            },
-        ],
-        [projectSkills, builtinSkills],
+    const registrySources = useAtomValue(registrySourcesAtom)
+    const {sections} = useMemo(
+        () => buildRegistrySections(projectSkills, builtinSkills, registrySources),
+        [projectSkills, builtinSkills, registrySources],
     )
 
     // Card tap -> the detail drawer (read-only editor + versions rail + used-by).
