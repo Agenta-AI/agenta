@@ -218,13 +218,22 @@ class SkillImportService:
                     workflow_ref=Reference(slug=skill.name),
                 )
                 if existing:
+                    # Slugs are unique per project INCLUDING archived workflows
+                    # (workflow_artifacts_project_id_slug_key is not partial), so an
+                    # archived skill still blocks the name — say so honestly.
+                    archived = getattr(existing, "deleted_at", None) is not None
                     result.skipped.append(
                         SkippedSkill(
                             path_in_repo=candidate.path_in_repo,
                             issues=[
                                 SkillIssue(
                                     code="name_collision",
-                                    message=f"A skill named {skill.name!r} already exists in this project.",
+                                    message=(
+                                        f"An archived skill named {skill.name!r} still holds "
+                                        "this name — unarchive it instead of importing."
+                                        if archived
+                                        else f"A skill named {skill.name!r} already exists in this project."
+                                    ),
                                     path=candidate.path_in_repo,
                                 )
                             ],
