@@ -28,4 +28,5 @@ export {SkillCreateDrawer, type SkillCreateDrawerProps} from "./SkillCreateDrawe
 export {SkillUploadPanel, type SkillUploadPanelProps} from "./SkillUploadPanel"
 export {SkillDetailDrawer, type SkillDetailDrawerProps} from "./SkillDetailDrawer"
 export {SkillPickerHost} from "./SkillPickerHost"
+export {SkillDetailHost} from "./SkillDetailHost"
 export {useSkillsBridge} from "./bridge"

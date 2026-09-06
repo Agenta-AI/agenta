@@ -236,6 +236,10 @@ export interface SkillsPickerHostProps {
 export interface SkillsBridge {
     enabled: boolean
     PickerHost: ComponentType<SkillsPickerHostProps>
+    /** Registry detail drawer for one skill, addressed by its embed slug. The panel opens
+     * it for project-owned embed refs instead of the raw JSON editor; absent (or an
+     * unresolvable slug) falls back to the JSON round-trip. */
+    DetailHost?: ComponentType<{open: boolean; onClose: () => void; slug: string | null}>
 }
 
 /**

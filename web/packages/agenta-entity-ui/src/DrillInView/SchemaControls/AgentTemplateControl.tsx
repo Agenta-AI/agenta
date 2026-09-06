@@ -66,6 +66,7 @@ import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermission
 import {
     embedRevisionVersion,
     isEmbedRefSkill,
+    isStaticSkill,
     staticEmbedSlug,
     toolReferenceSlug,
 } from "./agentTemplate/itemDescriptors"
@@ -96,6 +97,7 @@ import {
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
+import {type ConfigItemView} from "./ConfigItemDrawer"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
 import {InstructionsDrawer} from "./InstructionsDrawer"
@@ -497,6 +499,22 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Registry-backed picker via the drill-in bridge (artboard 4b); the inline-skill
     // editor stays the fallback on hosts that never wired the bridge.
     const [skillPickerOpen, setSkillPickerOpen] = useState(false)
+    // Row click on a project-owned embed ref opens the registry DETAIL drawer; static
+    // embeds and shapes the bridge can't resolve keep the JSON round-trip editor.
+    const [skillDetailSlug, setSkillDetailSlug] = useState<string | null>(null)
+    const openSkillItem = useCallback(
+        (kind: ItemKind, index: number, item: unknown, view: ConfigItemView) => {
+            if (skillsBridge?.DetailHost && isEmbedRefSkill(item) && !isStaticSkill(item)) {
+                const slug = staticEmbedSlug(item as Record<string, unknown>)
+                if (slug) {
+                    setSkillDetailSlug(slug)
+                    return
+                }
+            }
+            openEdit(kind, index, item, view)
+        },
+        [openEdit, skillsBridge],
+    )
     const handleAddSkill = useCallback(() => {
         if (skillsBridge?.enabled) setSkillPickerOpen(true)
         else openCreate("skill", ITEM_KINDS.skill.createSeed(), "form")
@@ -1058,7 +1076,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 <ConfigItemList
                     kind="skill"
                     items={skills}
-                    openEdit={openEdit}
+                    openEdit={openSkillItem}
                     removeItem={removeItem}
                     closeEditor={closeEditor}
                     disabled={disabled}
@@ -1280,6 +1298,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     added={addedSkillRefs}
                     onAdd={handleAddSkillEmbeds}
                     onRemove={handleRemoveSkillEmbeds}
+                />
+            ) : null}
+            {skillsBridge?.DetailHost ? (
+                <skillsBridge.DetailHost
+                    open={skillDetailSlug !== null}
+                    onClose={() => setSkillDetailSlug(null)}
+                    slug={skillDetailSlug}
                 />
             ) : null}
 
