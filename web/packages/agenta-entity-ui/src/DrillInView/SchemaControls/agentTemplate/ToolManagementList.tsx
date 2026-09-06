@@ -5,8 +5,6 @@ import {type CSSProperties, type ReactNode, useMemo} from "react"
 import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
 import {humanizeActionKey} from "@agenta/shared/utils"
 
-import type {ConfigItemView} from "../ConfigItemDrawer"
-import {integrationPermissionSummary} from "../integrationPolicy"
 import {ProviderLogo} from "../sectionGroups"
 import {integrationRowIndices, isHarnessBuiltinTool, type IntegrationRow} from "../toolUtils"
 
@@ -18,7 +16,6 @@ import {
 } from "./itemDescriptors"
 import {ITEM_KINDS} from "./itemKinds"
 import {ItemRow, type ItemRowStatus, type ItemRowStatusTone} from "./ItemRow"
-import {PolicyGlyph} from "./PermissionGlyph"
 
 /** Per-tool draft/validation status, keyed by the tool's index in the flat `tools` array. */
 type ToolStatusFor = (item: unknown, index: number) => ItemRowStatus | undefined
@@ -57,24 +54,6 @@ function rollupRowStatus(
     }
     if (!worst) return undefined
     return count > 1 ? {...worst, tooltip: `${count} entries — open the integration.`} : worst
-}
-
-/** Glyph plus short label for a row's saved policy. Custom appends its override count. */
-function PermissionSummary({row}: {row: IntegrationRow}) {
-    if (!row.entry) return null
-    const {preset, label} = integrationPermissionSummary(row.entry.permissions)
-    return (
-        <span
-            className={`flex items-center gap-1.5 text-xs ${
-                preset === "custom"
-                    ? "text-[var(--ag-colorWarningText)]"
-                    : "text-[var(--ag-colorTextSecondary)]"
-            }`}
-        >
-            <PolicyGlyph value={preset} />
-            {label}
-        </span>
-    )
 }
 
 function IntegrationListRow({
@@ -118,7 +97,6 @@ function IntegrationListRow({
             onEdit={onOpen}
             onRemove={onRemove}
             disabled={disabled}
-            extra={<PermissionSummary row={row} />}
             status={status}
         />
     )
@@ -205,7 +183,7 @@ export interface SubagentListProps {
     chromeBySlug?: Map<string, {glyph: ReactNode; className: string; style?: CSSProperties}>
     /** Each subagent's CURRENT agent name by slug. Only the caller can resolve the artifact. */
     nameBySlug?: Map<string, string>
-    openEdit: (kind: "tool", index: number, item: unknown, view: ConfigItemView) => void
+    openEdit: (kind: "tool", index: number, item: unknown) => void
     removeItem: (kind: "tool", index: number) => void
     closeEditor: () => void
     disabled?: boolean
@@ -273,7 +251,7 @@ export function SubagentList({
                         item,
                         nonAgentSlugs,
                     )}
-                    onEdit={() => openEdit("tool", index, item, ITEM_KINDS.tool.editView(item))}
+                    onEdit={() => openEdit("tool", index, item)}
                     onRemove={() => {
                         removeItem("tool", index)
                         closeEditor()

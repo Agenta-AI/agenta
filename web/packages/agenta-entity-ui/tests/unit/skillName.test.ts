@@ -1,14 +1,13 @@
 /** Mirrors the SDK's pydantic rules: a name the SDK rejects must be rejected here too. */
 import {describe, expect, it} from "vitest"
 
+import {ITEM_KINDS} from "../../src/DrillInView/SchemaControls/agentTemplate/itemKinds"
 import {
     isValidSkillName,
     skillDraftError,
     skillNameError,
     slugifySkillName,
 } from "../../src/DrillInView/SchemaControls/skillName"
-
-import {ITEM_KINDS} from "../../src/DrillInView/SchemaControls/agentTemplate/itemKinds"
 
 describe("skillNameError", () => {
     it("accepts the lowercase-hyphen slugs the harness requires", () => {

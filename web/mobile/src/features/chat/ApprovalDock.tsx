@@ -13,7 +13,7 @@ import type {ApprovalActions} from "./useApprovalActions"
  * (the engine for plain approve/deny + Approve all; the detached resume for a steer note). It
  * sits outside the transcript scroller so a paused run can never scroll out of reach.
  *
- * No `onDenyAll`: the engine has no batch deny, so Deny answers the current gate and steps.
+ * Batch deny rides the detached dispatcher; where a host supplies none, Deny steps gate by gate.
  */
 export const ApprovalDock = ({
     approvals,
@@ -52,6 +52,7 @@ export const ApprovalDock = ({
                         actions.respond({approvalId, approved, message})
                     }
                     onApproveAll={() => actions.approveAll()}
+                    onDenyAll={actions.denyAll ? () => actions.denyAll?.() : undefined}
                 />
             </ContentRail>
         </div>

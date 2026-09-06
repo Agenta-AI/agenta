@@ -1,7 +1,16 @@
-import {type RefObject, useCallback, useEffect, useRef, useState} from "react"
+import {
+    type MutableRefObject,
+    type RefObject,
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+} from "react"
 
-import {composerDraftBySession, isSessionFresh} from "@agenta/chat/state"
+import {isSessionFresh} from "@agenta/entities/session"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+
+import {composerDraftBySession} from "../state/sessionEphemera"
 
 /**
  * The composer's per-session unsent draft and its mount-time entrance flags. Markdown is read off
@@ -15,15 +24,15 @@ export const useComposerDraft = ({
     sessionId: string
     richInputRef: RefObject<RichChatInputHandle | null>
     /** Shared across the panel's session panes: the composer entrance plays only once. */
-    revealPlayedRef: React.MutableRefObject<boolean>
+    revealPlayedRef?: MutableRefObject<boolean>
 }) => {
     // Composer entrance plays once per PANEL mount — additional session panes mount the
     // composer fully shown (the replayed fade read as a "composer reload" on session switch).
     // Frozen at mount: recomputing per render would flip Reveal's `enabled` mid-entrance
     // (the latch effect below runs before the fade completes).
-    const [playComposerEntrance] = useState(() => !revealPlayedRef.current)
+    const [playComposerEntrance] = useState(() => !revealPlayedRef?.current)
     useEffect(() => {
-        revealPlayedRef.current = true
+        if (revealPlayedRef) revealPlayedRef.current = true
     }, [revealPlayedRef])
 
     // A brand-new session mounts a fresh pane — drop the cursor straight into the composer so the

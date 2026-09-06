@@ -42,7 +42,8 @@ export const AgentActionsMenu = ({
                 <button
                     type="button"
                     aria-label="Agent actions"
-                    className={`flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText ${className ?? ""}`}
+                    // ::after hit extender: 28px is under the touch guideline.
+                    className={`relative flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary after:absolute after:-inset-1.5 after:content-[''] hover:bg-colorFillTertiary hover:text-colorText ${className ?? ""}`}
                 >
                     <DotsThreeVertical size={16} weight="bold" />
                 </button>

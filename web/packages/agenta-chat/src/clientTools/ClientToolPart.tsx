@@ -9,7 +9,7 @@
 import {createElement, memo, useCallback} from "react"
 
 import {clientToolWidgets} from "@agenta/entity-ui/clientTools"
-import type {RenderHintLike} from "@agenta/playground"
+import type {RenderHintLike} from "@agenta/playground/agent-chat"
 import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import type {ToolUIPart} from "ai"
 

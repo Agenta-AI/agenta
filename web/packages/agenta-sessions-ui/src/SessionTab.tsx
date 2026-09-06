@@ -15,8 +15,12 @@
  */
 import {useCallback, useState, type ComponentProps, type CSSProperties, type ReactNode} from "react"
 
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {PushPin} from "@phosphor-icons/react"
 import clsx from "clsx"
+
+/** No hover to reveal the actions with, so they stay mounted — the pencil is the touch path. */
+const NO_HOVER_QUERY = "(hover: none)"
 
 /** The label's tail dissolves into the chip's own fill — never an ellipsis, never a painted
  * patch, so it works on any theme. Hover widens the fade to clear the action icons; the label
@@ -37,8 +41,8 @@ export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" 
     /** Pinned: a leading pin glyph, and why this chip leads the strip. */
     pinned?: boolean
     /**
-     * Called only while the chip is hovered or holds focus. Return null to suppress (the desktop
-     * does while its rename input owns the row).
+     * Called while the chip is hovered or holds focus — and always on a device with no hover, where
+     * nothing would ever reveal them. Return null to suppress (a rename input owns the row).
      */
     renderActions?: () => ReactNode
     onSelect: () => void
@@ -73,7 +77,8 @@ export const SessionTab = ({
         [onSelect],
     )
 
-    const actions = hot ? renderActions?.() : null
+    const noHover = useMediaQuery(NO_HOVER_QUERY)
+    const actions = hot || noHover ? renderActions?.() : null
 
     return (
         <div
@@ -88,10 +93,9 @@ export const SessionTab = ({
             onFocus={onEnter}
             onBlur={onBlurChip}
             className={clsx(
-                // Floor the width so short labels ("hi") still leave a clickable label zone to the
-                // left of the hover actions (rename/close overlay the right ~58px) — otherwise a
-                // tiny chip is fully covered on hover and the click lands on a button, not select.
-                "group relative flex h-7 min-w-[112px] max-w-[180px] cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors",
+                // One fixed width for every tab: the strip reads as a row, and a short label still
+                // leaves a clickable zone left of the hover actions (which overlay the right ~58px).
+                "group relative flex h-7 w-[180px] shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors",
                 // No card, no border — plain labels on the canvas, separated by the host's
                 // hairline divider. Selected reads by FILL alone: `colorFill` is the antd
                 // "pressed/active" step, ink-tinted in light and translucent white in dark,

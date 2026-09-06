@@ -40,6 +40,8 @@
         "@agenta/shared": "workspace:../packages/agenta-shared",
         "@agenta/ui": "workspace:../packages/agenta-ui",
         "@ai-sdk/react": "3.0.0-beta.153",
+        "@streamdown/code": "^1.1.1",
+        "@streamdown/math": "^1.0.2",
         "@tanstack/react-query": "^5.90.21",
         "ai": "6.0.0-beta.150",
         "class-variance-authority": "^0.7.1",

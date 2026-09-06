@@ -11,23 +11,47 @@
 import type {ReactNode} from "react"
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
-import {type SessionRowVm} from "@agenta/sessions/row"
+import {sessionRowStatusMeta, type SessionRowVm} from "@agenta/sessions/row"
 import {
     applySessionTabOrder,
+    openSessionTabRows,
+    sessionTabCloseTargets,
     sessionTabOrderAtomFamily,
+    sessionTabScope,
     setSessionTabOrderAtom,
+    useOpenSessionTabs,
+    usePublishRenderedSessionTabs,
     useSessionCardList,
+    useSessionTabOrderSeed,
+    type SessionTabCloseTargets,
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Skeleton, SimpleTooltip} from "@agenta/ui/ui"
+import {ArrowLineRightIcon, PencilSimpleIcon, XIcon, XSquareIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
+import InlineRenameInput from "./InlineRenameInput"
 import {type SessionMenuEntry} from "./menu"
+import {withShortcutKey} from "./menuShortcut"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
 import {SessionTabStrip} from "./SessionTabStrip"
+import {useInlineRename} from "./useInlineRename"
+
+/** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
+const renameTabRequestAtom = atom<{sessionId: string; nonce: number} | null>(null)
+
+/** Opens a tab's inline rename editor from a surface that does not render the rail. */
+export const useRequestSessionTabRename = () => {
+    const request = useSetAtom(renameTabRequestAtom)
+    return useCallback((sessionId: string) => request({sessionId, nonce: Date.now()}), [request])
+}
+
+/** No commit path wired: renaming is off, so the editor never opens to call this. */
+const renameUnavailable = async () => false
 
 export interface SessionTabRailProps extends UseSessionCardListArgs {
     /** The session on screen — its chip is the active one. */
@@ -48,6 +72,19 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
      */
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
+    /**
+     * Persists a rename. Given this, a tab renames IN PLACE — pencil, double-click, the menu's
+     * "Rename" and Alt+R all open the same editor; without it none of them mount.
+     */
+    onRenameTab?: (vm: SessionRowVm, name: string) => Promise<boolean>
+    /**
+     * Close one tab. The rail supplies the RENDERED order alongside it, because the survivor a
+     * host routes to is defined over what is on screen and only the rail knows that. Omit and no
+     * close affordance mounts at all.
+     */
+    onClose?: (vm: SessionRowVm, ordered: readonly string[]) => void
+    /** Close several — "Close other tabs" and "Close tabs to the right". */
+    onCloseMany?: (ids: string[], ordered: readonly string[]) => void
     /**
      * Drag to hand-arrange the tabs, persisted per agent. On by default — a tab strip is a place
      * users expect to arrange. Off leaves the rail in list order.
@@ -72,14 +109,23 @@ const RailTab = ({
     menuFor,
     onMenuSelect,
     draggable,
+    divided,
+    onClose,
+    onRename,
 }: {
     vm: SessionRowVm
     active: boolean
     onSelect: (vm: SessionRowVm) => void
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
+    /** Omit where tabs are not closeable — then no × mounts. */
+    onClose?: () => void
+    /** Omit where tabs are not renameable — then no pencil mounts and no editor opens. */
+    onRename?: (name: string) => Promise<boolean>
     /** A drag slot only inside a reorder group — a lone `Reorder.Item` has no context to drag in. */
     draggable: boolean
+    /** Hairline before this tab. Suppressed either side of the filled active chip. */
+    divided?: boolean
 }) => {
     const ref = useRef<HTMLDivElement>(null)
     // Reveal the active chip ONLY when it is actually off-screen. Scrolling on every activation
@@ -103,13 +149,95 @@ const RailTab = ({
         }
     }, [active])
     const handleSelect = useCallback(() => onSelect(vm), [onSelect, vm])
+    // The SAME rename machine the session rows use, so Enter/blur commit and Escape abandons here
+    // exactly as they do in a list — and the commit lands on the host's one rename path.
+    const rename = useInlineRename({current: vm.title, onCommit: onRename ?? renameUnavailable})
+    const startRename = rename.start
+    // Alt+R is raised outside the rail, so the request arrives as state. The nonce is consumed once.
+    const request = useAtomValue(renameTabRequestAtom)
+    const consumedNonceRef = useRef<number | null>(null)
+    useEffect(() => {
+        if (!onRename || request?.sessionId !== vm.id) return
+        if (consumedNonceRef.current === request.nonce) return
+        consumedNonceRef.current = request.nonce
+        startRename()
+    }, [onRename, request, startRename, vm.id])
 
     const chip = (
-        <SessionRowContextMenu entries={menuFor?.(vm)} onSelect={(key) => onMenuSelect?.(vm, key)}>
+        <SessionRowContextMenu
+            entries={menuFor?.(vm)}
+            onSelect={(key) => {
+                if (key === "rename" && onRename) {
+                    startRename()
+                    return
+                }
+                onMenuSelect?.(vm, key)
+            }}
+        >
             <SessionTab
                 active={active}
-                label={vm.title}
+                label={
+                    rename.renaming ? (
+                        // The editor owns its own events: a click here must not select the tab and
+                        // Space/Enter must reach the input, not the chip's activation handler.
+                        <span
+                            className="block w-full"
+                            onClick={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                            }}
+                            onDoubleClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => event.stopPropagation()}
+                        >
+                            <InlineRenameInput
+                                rename={rename}
+                                className="h-5 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-xs leading-5 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+                            />
+                        </span>
+                    ) : (
+                        <span className="block" onDoubleClick={onRename ? startRename : undefined}>
+                            {vm.title}
+                        </span>
+                    )
+                }
                 onSelect={handleSelect}
+                renderActions={
+                    onClose || onRename
+                        ? () =>
+                              rename.renaming ? null : (
+                                  <>
+                                      {onRename ? (
+                                          <button
+                                              type="button"
+                                              aria-label={`Rename ${vm.title}`}
+                                              onClick={(event) => {
+                                                  event.stopPropagation()
+                                                  startRename()
+                                              }}
+                                              // Hover-revealed where there IS a hover; on touch the
+                                              // chip's actions are always mounted, so it stays visible.
+                                              className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none transition-opacity focus-visible:opacity-100 focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+                                          >
+                                              <PencilSimpleIcon size={12} />
+                                          </button>
+                                      ) : null}
+                                      {onClose ? (
+                                          <button
+                                              type="button"
+                                              aria-label={`Close ${vm.title}`}
+                                              onClick={(event) => {
+                                                  event.stopPropagation()
+                                                  onClose()
+                                              }}
+                                              className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                          >
+                                              <XIcon size={12} />
+                                          </button>
+                                      ) : null}
+                                  </>
+                              )
+                        : undefined
+                }
                 statusDot={
                     <SimpleTooltip title={vm.status.label}>
                         <span
@@ -126,12 +254,13 @@ const RailTab = ({
         </SessionRowContextMenu>
     )
 
+    const wrapper = clsx("mr-1.5 shrink-0", divided && TAB_DIVIDER)
     return draggable ? (
-        <SessionTabDragItem ref={ref} id={vm.id} className="mr-1.5 shrink-0">
+        <SessionTabDragItem ref={ref} id={vm.id} className={wrapper}>
             {chip}
         </SessionTabDragItem>
     ) : (
-        <div ref={ref} className="mr-1.5 shrink-0">
+        <div ref={ref} className={wrapper}>
             {chip}
         </div>
     )
@@ -149,6 +278,33 @@ const noop = () => undefined
  */
 const MOVE_LEFT = "__rail-move-left"
 const MOVE_RIGHT = "__rail-move-right"
+
+/** Chrome's tab-close verbs, likewise reserved and handled here. */
+const CLOSE = "__rail-close"
+const CLOSE_OTHERS = "__rail-close-others"
+const CLOSE_RIGHT = "__rail-close-right"
+
+const closeEntries = (targets: SessionTabCloseTargets): SessionMenuEntry[] => [
+    {type: "divider"},
+    {
+        key: CLOSE,
+        label: withShortcutKey("Close", "session.close"),
+        icon: <XIcon size={14} />,
+        disabled: !targets.closable,
+    },
+    {
+        key: CLOSE_OTHERS,
+        label: "Close other tabs",
+        icon: <XSquareIcon size={14} />,
+        disabled: targets.others.length === 0,
+    },
+    {
+        key: CLOSE_RIGHT,
+        label: "Close tabs to the right",
+        icon: <ArrowLineRightIcon size={14} />,
+        disabled: targets.toRight.length === 0,
+    },
+]
 
 const moveEntries = (index: number, count: number): SessionMenuEntry[] =>
     count < 2
@@ -168,6 +324,14 @@ const moved = (ids: string[], index: number, direction: -1 | 1): string[] => {
     return next
 }
 
+/** The hairline the tab chips are "separated by" — see SessionTab's own note. Drawn in the gap
+ *  left of a tab, so it never touches the chip's own fill. */
+const TAB_DIVIDER =
+    "relative before:absolute before:-left-[7px] before:top-1/2 before:h-3.5 before:w-px before:-translate-y-1/2 before:bg-colorBorderSecondary before:content-['']"
+
+/** The pending tab has no stream yet, so it wears the same idle chrome every quiet row does. */
+const IDLE_STATUS = sessionRowStatusMeta("idle")
+
 export const SessionTabRail = ({
     activeSessionId,
     onSelect,
@@ -177,6 +341,9 @@ export const SessionTabRail = ({
     activeFallbackTitle,
     menuFor,
     onMenuSelect,
+    onClose,
+    onCloseMany,
+    onRenameTab,
     reorderable = true,
     className,
     ...listArgs
@@ -187,12 +354,27 @@ export const SessionTabRail = ({
     const listRows = useMemo(() => list.groups.flatMap((group) => group.rows), [list.groups])
     // A rail is arranged by hand, so the user's order wins over the list's. Scoped to the agent
     // whose sessions these are — arranging one agent's rail says nothing about another's.
-    const orderScope = listArgs.agentId ?? "__project__"
+    const orderScope = sessionTabScope(listArgs.agentId)
     const savedOrder = useAtomValue(sessionTabOrderAtomFamily(orderScope))
     const setSavedOrder = useSetAtom(setSessionTabOrderAtom)
-    const rows = useMemo(() => applySessionTabOrder(listRows, savedOrder), [listRows, savedOrder])
+    const arranged = useMemo(
+        () => applySessionTabOrder(listRows, savedOrder),
+        [listRows, savedOrder],
+    )
+    const listedIds = useMemo(() => arranged.map((vm) => vm.id), [arranged])
+    // Rank every session the list carries, open or not, so reopening one restores its old slot.
+    useSessionTabOrderSeed(orderScope, listedIds)
+    // Membership is the user's own: tabs are an explicit set here, not a view of the server list.
+    const openIds = useOpenSessionTabs(orderScope, listedIds, activeSessionId)
+    const rows = useMemo(
+        () => openSessionTabRows(arranged, openIds, activeSessionId),
+        [arranged, openIds, activeSessionId],
+    )
     const hasActive = rows.some((vm) => vm.id === activeSessionId)
     const orderedIds = useMemo(() => rows.map((vm) => vm.id), [rows])
+    // Published so a keyboard surface outside the rail can address "the Nth tab".
+    usePublishRenderedSessionTabs(orderScope, orderedIds)
+    const closeTabs = useMemo(() => rows.map((vm) => ({id: vm.id, pinned: vm.isPinned})), [rows])
     // Persist the WHOLE visible order on every drop, so sessions the saved order had never seen are
     // captured by the first arrangement that touches them.
     const handleReorder = useCallback(
@@ -203,23 +385,17 @@ export const SessionTabRail = ({
     return (
         <SessionTabStrip
             onAdd={onNew}
+            addTooltip={
+                <span className="flex items-center gap-1.5">
+                    New session <ShortcutKeys id="session.new" tone="inverse" />
+                </span>
+            }
             extra={extra}
             leadingExtra={leadingExtra}
             remeasureKey={rows.length}
             reorder={reorderable ? {ids: orderedIds, onReorder: handleReorder} : undefined}
             className={className}
         >
-            {!hasActive && !list.isPending ? (
-                // Outside the reorder group on purpose: it stands in for a session the list does
-                // not hold, so it has no place in an order the list defines.
-                <div className="mr-1.5 shrink-0">
-                    <SessionTab
-                        active
-                        label={activeFallbackTitle || "This session"}
-                        onSelect={noop}
-                    />
-                </div>
-            ) : null}
             {list.isPending && rows.length === 0
                 ? [0, 1].map((i) => <Skeleton key={i} className="mr-1.5 h-7 w-[112px] shrink-0" />)
                 : rows.map((vm, index) => (
@@ -227,10 +403,20 @@ export const SessionTabRail = ({
                           key={vm.id}
                           vm={vm}
                           active={vm.id === activeSessionId}
+                          divided={
+                              index > 0 &&
+                              vm.id !== activeSessionId &&
+                              rows[index - 1]?.id !== activeSessionId
+                          }
                           onSelect={onSelect}
                           draggable={reorderable}
+                          onClose={onClose ? () => onClose(vm, orderedIds) : undefined}
+                          onRename={onRenameTab ? (name) => onRenameTab(vm, name) : undefined}
                           menuFor={(row) => [
                               ...(menuFor?.(row) ?? []),
+                              ...(onClose
+                                  ? closeEntries(sessionTabCloseTargets(closeTabs, row.id))
+                                  : []),
                               ...(reorderable ? moveEntries(index, rows.length) : []),
                           ]}
                           onMenuSelect={(row, key) => {
@@ -240,10 +426,47 @@ export const SessionTabRail = ({
                                   )
                                   return
                               }
+                              if (key === CLOSE) {
+                                  onClose?.(row, orderedIds)
+                                  return
+                              }
+                              if (key === CLOSE_OTHERS || key === CLOSE_RIGHT) {
+                                  const targets = sessionTabCloseTargets(closeTabs, row.id)
+                                  onCloseMany?.(
+                                      key === CLOSE_OTHERS ? targets.others : targets.toRight,
+                                      orderedIds,
+                                  )
+                                  return
+                              }
                               onMenuSelect?.(row, key)
                           }}
                       />
                   ))}
+            {!hasActive && !list.isPending ? (
+                // Last, and outside the reorder group on purpose: it stands in for a session the
+                // list does not hold yet, so it belongs at the end and has no place in an order
+                // the list defines.
+                <div className="mr-1.5 shrink-0">
+                    <SessionTab
+                        active
+                        label={activeFallbackTitle || "New session"}
+                        // Idle, like any session with no run yet — the strip reads as one row of
+                        // tabs rather than one tab missing its dot.
+                        statusDot={
+                            <SimpleTooltip title={IDLE_STATUS.label}>
+                                <span
+                                    aria-label={IDLE_STATUS.label}
+                                    className={clsx(
+                                        "h-1.5 w-1.5 shrink-0 rounded-full",
+                                        IDLE_STATUS.dotClassName,
+                                    )}
+                                />
+                            </SimpleTooltip>
+                        }
+                        onSelect={noop}
+                    />
+                </div>
+            ) : null}
         </SessionTabStrip>
     )
 }

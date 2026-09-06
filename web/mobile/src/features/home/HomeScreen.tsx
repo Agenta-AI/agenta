@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {NextTriggersSection} from "@agenta/entity-ui/agent"
+import {NextTriggersSection, useAgentActions} from "@agenta/entity-ui/agent"
 import {AgentsPanel, HomeOverview, UsageCard, type AgentsPanelEntry} from "@agenta/home-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue} from "jotai"
@@ -21,6 +21,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {FirstRunScreen} from "../onboarding/FirstRunScreen"
 import {resolveHomeSurface} from "../onboarding/homeSurface"
 import {FirstRunLoading} from "../onboarding/states/FirstRunStates"
+import {SessionAutomationDrawers} from "../sessions/SessionAutomationDrawers"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {HomeComposer} from "./HomeComposer"
@@ -48,6 +49,8 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
     const presets = useMotionPresets()
+    // The shared agent verbs, same as the roster's cards and the overview header's kebab.
+    const agentActions = useAgentActions()
     const surface = resolveHomeSurface({
         agentCount: agents.length,
         isPending: agentsQuery.isPending,
@@ -58,22 +61,27 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
         [agents],
     )
 
-    // Rename/archive/playground have no mobile surface, so their menu entries are simply not
-    // offered — the card renders without them rather than with dead actions.
+    // Playground has no mobile surface, so that entry alone is not offered — the card renders
+    // without it rather than with a dead action.
     const agentEntries = useMemo<AgentsPanelEntry[]>(
         () =>
-            agents.map((agent) => ({
-                agent: {
-                    id: agent.id,
-                    name: agent.name || agent.slug || "Untitled agent",
-                    description: agent.description,
-                    updatedAt: agent.updated_at ?? undefined,
-                },
-                createdAt: agent.created_at ?? undefined,
-                onOpenOverview: () => void router.push(`${base}/agents/${agent.id}`),
-            })),
+            agents.map((agent) => {
+                const name = agent.name || agent.slug || "Untitled agent"
+                return {
+                    agent: {
+                        id: agent.id,
+                        name,
+                        description: agent.description,
+                        updatedAt: agent.updated_at ?? undefined,
+                    },
+                    createdAt: agent.created_at ?? undefined,
+                    onOpenOverview: () => void router.push(`${base}/agents/${agent.id}`),
+                    onRename: () => agentActions.rename({id: agent.id, name}),
+                    onArchive: () => agentActions.remove({id: agent.id, name}),
+                }
+            }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [agents, base],
+        [agents, base, agentActions],
     )
 
     // A first run swaps only the BODY: the shell, its header and the nav drawer stay put, so a
@@ -118,6 +126,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             onOpenSession={sessionMenu.open}
             sessionMenuFor={sessionMenu.menuFor}
             onSessionMenuSelect={sessionMenu.onMenuSelect}
+            onSessionRenameRow={sessionMenu.onRenameRow}
             alwaysShowPin
             agentsPanel={
                 <AgentsPanel
@@ -149,6 +158,9 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                     {surface === "home" ? homeBody : firstRunBody}
                 </ScreenScaffold>
             </AppShell>
+            {/* The automation-run rows' trigger drawers, at screen level so one survives its row
+                unmounting underneath it. */}
+            <SessionAutomationDrawers base={base} />
         </>
     )
 }

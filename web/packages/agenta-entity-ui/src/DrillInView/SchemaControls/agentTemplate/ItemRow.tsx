@@ -295,10 +295,7 @@ export function InstructionsFileRow({
 }) {
     const descriptor = describeInstruction(filename, content)
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length
-    const meta =
-        wordCount > 0
-            ? `Markdown · ${wordCount} word${wordCount === 1 ? "" : "s"}`
-            : "Markdown · empty"
+    const meta = wordCount > 0 ? `${wordCount} word${wordCount === 1 ? "" : "s"}` : "empty"
     return (
         <div
             role="button"
@@ -311,8 +308,10 @@ export function InstructionsFileRow({
                 }
             }}
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
+            // Same border and ground as the integration and subagent rows above: --ag-c-EAEFF5 is
+            // a fixed light hex, so this row's edge vanished against a dark section.
             className={cn(
-                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-c-EAEFF5)] px-3 py-2.5 transition-colors",
+                "group flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-surface-section-content)] px-3 py-2.5 transition-colors",
                 !status && "hover:border-[var(--ag-zinc-5)]",
             )}
         >

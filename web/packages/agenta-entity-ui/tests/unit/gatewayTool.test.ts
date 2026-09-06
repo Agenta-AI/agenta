@@ -167,13 +167,11 @@ describe("ITEM_KINDS.tool drill-in routing", () => {
     const canonical = {type: "gateway", integration: "slack", action: "OPEN_DM", connection: "c"}
     const builtin = {type: "web_search_preview"}
 
-    it("opens a canonical gateway tool in the Form, JSON toggle available", () => {
-        expect(ITEM_KINDS.tool.editView(canonical)).toBe("form")
+    it("opens a canonical gateway tool in the Form", () => {
         expect(ITEM_KINDS.tool.jsonOnly(canonical)).toBe(false)
     })
 
     it("keeps a bare builtin tool JSON-only (regression)", () => {
-        expect(ITEM_KINDS.tool.editView(builtin)).toBe("json")
         expect(ITEM_KINDS.tool.jsonOnly(builtin)).toBe(true)
     })
 })

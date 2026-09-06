@@ -18,6 +18,7 @@ import {AutosizeTextarea, Button, Checkbox, LoadingButton} from "@agenta/ui/ui"
 import {CaretRight, ShieldCheck} from "@phosphor-icons/react"
 
 import {useAlwaysAllowTool} from "../hooks/useAlwaysAllowTool"
+import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 import {describeApproval, describeBatchItems} from "../model/approvalPreview"
 import type {PendingApproval} from "../model/approvals"
 
@@ -104,6 +105,7 @@ export const ApprovalCard = ({
     }, [responding])
 
     const {infoFor, grantMany} = useAlwaysAllowTool(entityId)
+    const hasKeyboard = useHardwareKeyboard()
 
     // A commit gate parses its whole delta + manifest, so memoize on the gate id (a gate's payload
     // is immutable) rather than re-parsing on every keystroke and `responding` toggle.
@@ -138,9 +140,9 @@ export const ApprovalCard = ({
     const touchCls = touch
         ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
         : ""
-    // The keycaps ride on the actions themselves, so the gesture reads without a hover. A touch
-    // reader has no keyboard, so they earn no space there.
-    const showKeys = !touch
+    // The keycaps ride on the actions themselves, so the gesture reads without a hover. Gated on
+    // the keyboard, not on `touch`: that prop sizes the buttons, and /m serves desktop browsers too.
+    const showKeys = hasKeyboard
 
     const approve = () => {
         if (responding) return

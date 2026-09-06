@@ -1,10 +1,7 @@
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {useAgentIconChrome} from "@agenta/entity-ui/agent"
-import {
-    AGENT_CHIP_BOX,
-    AgentPageHeader,
-    AgentRevisionStatus,
-} from "@agenta/playground-ui/agent-page-header"
+import {AgentIdentity} from "@agenta/entity-ui/agent"
+import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
+import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {useAtomValue} from "jotai"
 
 import {NavDrawer} from "../nav/NavDrawer"
@@ -34,9 +31,6 @@ export const SessionTopBar = ({
 }) => {
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
-    // Only override the bar's chip once this agent has an icon; uncustomised, the shared bar draws
-    // its own, so /m has no reason to carry a second robot.
-    const chrome = useAgentIconChrome(agentId, {size: 15, fallbackGlyph: null})
 
     return (
         <AgentPageHeader
@@ -45,19 +39,16 @@ export const SessionTopBar = ({
             // the agent icon exactly like the desktop playground's. Getting back to the sessions
             // list is the drawer's Sessions entry, or the tab rail above the conversation.
             leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
-            name={name || "Agent"}
-            icon={
-                chrome.customised ? (
-                    <span className={`${AGENT_CHIP_BOX} ${chrome.className}`} style={chrome.style}>
-                        {chrome.glyph}
-                    </span>
-                ) : undefined
-            }
+            // One slot for both halves: the shared identity owns the chip and the inline rename,
+            // and falls back to a plain chip + label when no agent is resolved yet.
+            identity={<AgentIdentity workflowId={agentId} name={name || "Agent"} />}
             revision={
                 entityId ? (
                     <AgentRevisionStatus revisionId={entityId} historyWorkflowId={agentId} />
                 ) : undefined
             }
+            // The desktop puts this at the header's right edge too, not on the tab strip.
+            actions={<ShortcutsHelpButton />}
         />
     )
 }

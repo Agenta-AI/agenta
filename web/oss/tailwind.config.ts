@@ -132,6 +132,7 @@ const themeAwareColors = {
     colorBgContainerDisabled: v("colorBgContainerDisabled"),
     colorInfoBg: v("colorInfoBg"),
     controlItemBgActive: v("controlItemBgActive"),
+    controlItemBgHover: v("controlItemBgHover"),
     colorWhite: v("colorWhite"),
 }
 

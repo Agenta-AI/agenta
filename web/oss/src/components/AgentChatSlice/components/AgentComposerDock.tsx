@@ -6,11 +6,14 @@ import {
     ChatComposer,
     ConnectionWarningStrip,
     MicPermissionNotice,
+    PermissionsPickerPanel,
     RecordingBar,
     RunningElsewhereStrip,
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {
+    useChatSlashCommands,
+    type useComposerDraft,
     type ConnectionDockState,
     type ElicitationDockState,
     type QueuedMessage,
@@ -30,15 +33,16 @@ import {useSetAtom} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
+import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import Reveal from "@/oss/components/pages/agent-home/PlaygroundOnboarding/Reveal"
 import TemplateStrip from "@/oss/components/TemplateStrip"
 import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
 import AgentIntentActions from "@/oss/components/TemplateStrip/components/AgentIntentActions"
 
 import {SESSION_SPRING} from "../assets/sessionMotion"
-import {useChatSlashCommands} from "../hooks/useChatSlashCommands"
-import {type useComposerDraft} from "../hooks/useComposerDraft"
 import {type useOnboardingChat} from "../hooks/useOnboardingChat"
+import {useChatScopeKey} from "../state/scope"
+import {addSessionAtomFamily} from "../state/sessions"
 
 import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock from "./ApprovalDock"
@@ -47,7 +51,6 @@ import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
 import ElicitationDock from "./ElicitationDock"
 import QueuedMessagesDock from "./QueuedMessagesDock"
-import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 
 /**
  * Everything below the transcript: the held-message queue, the connect-model banner, the HITL
@@ -162,9 +165,16 @@ const AgentComposerDock = ({
     // A click outside is a deliberate move elsewhere, so it is the one close that must NOT pull
     // focus back. Everything else — apply, Escape, back to commands — returns you to typing.
     const skipFocusRestoreRef = useRef(false)
+    // `/new` mirrors the session rail's `+`: same action, same onboarding gate.
+    const addSession = useSetAtom(addSessionAtomFamily(useChatScopeKey()))
+    const newSessionLocked = !!useOptionalOnboardingContext()?.newSessionLocked
     const slash = useChatSlashCommands({
         entityId,
         suspended: onboardingActive,
+        newSessionLocked,
+        onNewSession: useCallback(() => {
+            addSession()
+        }, [addSession]),
         // Blur only. The palette has already removed the `/…` run it consumed — and ONLY that run,
         // so a `hello /model` keeps its `hello` — which clearing the composer here would destroy.
         // Blur matters because the picker autofocuses its search, and a still-focused editor takes

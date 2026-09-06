@@ -38,11 +38,6 @@ import type {SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {ChatCircleDots, Cpu, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
-
-import {useChatScopeKey} from "../state/scope"
-import {addSessionAtomFamily} from "../state/sessions"
-
 /** Which picker the palette drilled into, or null when the palette is just a list. */
 export type SlashPicker = "model" | "permissions" | null
 
@@ -61,10 +56,16 @@ export function useChatSlashCommands({
     suspended,
     /** Fires as a picker opens, so the host can hand it the keyboard. */
     onPickerOpen,
+    /** Host gate for `/new` — onboarding holds you in the founding conversation. */
+    newSessionLocked,
+    /** Starts a fresh session; omit it and the palette offers no `/new` at all. */
+    onNewSession,
 }: {
     entityId: string
     suspended?: boolean
     onPickerOpen?: () => void
+    newSessionLocked?: boolean
+    onNewSession?: () => void
 }) {
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
@@ -76,12 +77,6 @@ export function useChatSlashCommands({
     const capabilities = candidateState.capabilities
     const setConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const raiseDraftSignal = useSetAtom(draftConfigChangeSignalAtom)
-
-    // `/new` is the palette's shortcut for the session rail's `+`, so it shares that button's
-    // state and its one gate: onboarding holds you in the founding conversation until it settles.
-    const scope = useChatScopeKey()
-    const addSession = useSetAtom(addSessionAtomFamily(scope))
-    const newSessionLocked = !!useOptionalOnboardingContext()?.newSessionLocked
 
     const [picker, setPicker] = useState<SlashPicker>(null)
 
@@ -310,16 +305,18 @@ export function useChatSlashCommands({
                       onSelect: () => openPicker("permissions"),
                   }
                 : null,
-            newSessionLocked
-                ? null
-                : {
+            // The palette's shortcut for the session rail's `+`: it mirrors that button, gate
+            // included, and a host that has no such button offers no row.
+            onNewSession && !newSessionLocked
+                ? {
                       key: "new",
                       label: "/new",
                       description: "Start a fresh session with this agent",
                       icon: <ChatCircleDots size={14} />,
                       kind: "action" as const,
-                      onSelect: () => addSession(),
-                  },
+                      onSelect: () => onNewSession(),
+                  }
+                : null,
         ])
 
         /**
@@ -371,7 +368,7 @@ export function useChatSlashCommands({
         currentPermissionLabel,
         modelAvailable,
         newSessionLocked,
-        addSession,
+        onNewSession,
         openPicker,
         permissionsAvailable,
         suspended,

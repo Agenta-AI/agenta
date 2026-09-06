@@ -36,20 +36,6 @@ export const toAntdMenuEntries = (items: SessionMenuEntry[]): MenuProps["items"]
               },
     )
 
-export const mergeSessionMenuEntries = (
-    sessionItems: SessionMenuEntry[],
-    automationItems: SessionMenuEntry[],
-): SessionMenuEntry[] => {
-    if (!automationItems.length) return sessionItems
-    const dividerIndex = sessionItems.findIndex((item) => "type" in item)
-    if (dividerIndex < 0) return [...sessionItems, ...automationItems]
-    return [
-        ...sessionItems.slice(0, dividerIndex),
-        ...automationItems,
-        ...sessionItems.slice(dividerIndex),
-    ]
-}
-
 export function selectSessionContextMenuItem(
     event: {stopPropagation: () => void},
     key: string,

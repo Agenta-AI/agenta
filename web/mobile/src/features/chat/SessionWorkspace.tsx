@@ -1,12 +1,28 @@
-import {useEffect, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {
+    chatPanelMaximizedAtom,
+    configPanelCollapsedAtom,
+    FILES_PANE_MAX,
+    FILES_PANE_MIN,
+    filesPaneWidthAtom,
+    RIGHT_PANEL_MAX,
+    RIGHT_PANEL_MIN,
+    rightPanelWidthAtom,
+    useCanPanesCoexist,
+} from "@agenta/chat/state"
 import {DriveSessionProvider, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
+import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
+import {sessionRoutePath} from "@agenta/sessions/link"
+import {renderedSessionTabsAtomFamily, sessionTabScope} from "@agenta/sessions/state"
+import {useRequestSessionTabRename, useSessionActions} from "@agenta/sessions-ui"
 import {useMediaQuery} from "@agenta/ui/hooks"
+import {useSessionShortcuts} from "@agenta/ui/shortcuts"
 import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import {AppShell} from "../nav/AppShell"
 
@@ -15,6 +31,8 @@ import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
+import {useSessionTabClose} from "./useSessionTabClose"
+import {useStartBlankSession} from "./useStartBlankSession"
 
 // Build's config panel carries the whole schema-form surface (DrillInView + the editor). Chat
 // mode never renders it, so it loads on demand instead of riding in the session page's bundle —
@@ -34,9 +52,8 @@ const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane
  * node rendered in two containers mounts twice even when one is CSS-hidden, which ran two chat
  * engines at once.
  *
- * Pane geometry is the desktop's: 440 default and max, 300 min, controlled px so a drag persists
- * for the mount. Below `md` there is no room for two panes (300 pane + 420 fill), so the split
- * collapses to one visible pane and the mode picks which.
+ * Pane geometry is the desktop's, shared from `@agenta/chat/state`. Below `md` there is no room
+ * for two panes, so the split collapses to one visible pane and the mode picks which.
  */
 export const SessionWorkspace = ({
     entityId,
@@ -83,7 +100,11 @@ export const SessionWorkspace = ({
     // overlay drawer. Scope is the AGENT, not the session: opening files then switching session
     // must not snap the pane shut.
     const filesScope = agentId ?? sessionId
-    const {open: filesOpen} = useSessionFilesPane(filesScope, sessionId)
+    const {
+        open: filesOpen,
+        close: closeFilesPane,
+        toggle: toggleFilesPane,
+    } = useSessionFilesPane(filesScope, sessionId)
     // Tailwind's `md`. Client-only, so the first paint is the phone layout — the right guess here.
     const twoPane = useMediaQuery("(min-width: 768px)")
     // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
@@ -94,13 +115,15 @@ export const SessionWorkspace = ({
         twoPane,
         hasEntity: Boolean(entityId),
     })
-    // Controlled px, as on the desktop: the dragged width persists for the mount; 440 is the
-    // config panel's cap and its default.
-    const [paneSize, setPaneSize] = useState(440)
-    // The files pane needs its own width, for the same reason the config pane does: a hardcoded
-    // `paneSize` means a drag has nowhere to write, so the divider moves under the pointer and the
-    // pane snaps straight back. 380 is its default, within the 320/560 bounds below.
-    const [filesPaneSize, setFilesPaneSize] = useState(380)
+    // Live px during a drag, mirrored from the shared persisted width — which is written at
+    // pointer-up, not per frame, so a drag does not hammer localStorage.
+    const [storedPaneWidth, setStoredPaneWidth] = useAtom(rightPanelWidthAtom)
+    const [paneSize, setPaneSize] = useState(storedPaneWidth)
+    useEffect(() => setPaneSize(storedPaneWidth), [storedPaneWidth])
+    // The files pane keeps its own persisted width — the two panes are dragged independently.
+    const [storedFilesWidth, setStoredFilesWidth] = useAtom(filesPaneWidthAtom)
+    const [filesPaneSize, setFilesPaneSize] = useState(storedFilesWidth)
+    useEffect(() => setFilesPaneSize(storedFilesWidth), [storedFilesWidth])
 
     // Both panes slide rather than snap, on the same shared mechanism the desktop uses. Without
     // it the pane's width flipped in one frame and its content unmounted before the flip, so
@@ -108,15 +131,117 @@ export const SessionWorkspace = ({
     const configSlide = usePaneSlide(showPane)
     const filesSlide = usePaneSlide(twoPane && filesOpen)
 
+    // The desktop's coexistence rule, same threshold: too narrow to seat the config pane, the
+    // transcript and the Files pane at fair widths, so the two side panes take turns and the
+    // transcript keeps its floor. Only meaningful in two-pane layouts — below `md` the panes
+    // already alternate. Transition-edge effects, so they cannot evict each other in a loop.
+    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
+    const panesMustAlternate = twoPane && !canPanesCoexist
+    const prevFilesOpenRef = useRef(filesOpen)
+    useEffect(() => {
+        if (filesOpen && !prevFilesOpenRef.current && panesMustAlternate) setConfigCollapsed(true)
+        prevFilesOpenRef.current = filesOpen
+    }, [filesOpen, panesMustAlternate, setConfigCollapsed])
+    const prevConfigCollapsedRef = useRef(configCollapsed)
+    useEffect(() => {
+        if (!configCollapsed && prevConfigCollapsedRef.current && panesMustAlternate)
+            closeFilesPane()
+        prevConfigCollapsedRef.current = configCollapsed
+    }, [configCollapsed, panesMustAlternate, closeFilesPane])
+    // Shrinking past the threshold with both open keeps Files, the surface opened deliberately.
+    const prevAlternateRef = useRef(panesMustAlternate)
+    useEffect(() => {
+        if (panesMustAlternate && !prevAlternateRef.current && filesOpen && !configCollapsed)
+            setConfigCollapsed(true)
+        prevAlternateRef.current = panesMustAlternate
+    }, [panesMustAlternate, filesOpen, configCollapsed, setConfigCollapsed])
+
+    // The SAME session shortcuts the desktop playground binds. The rail publishes the tabs it
+    // renders, so `Alt+1…9` addresses exactly what is on screen. A phone sends no Alt chord, so
+    // mounting this on a touch surface is inert rather than harmful.
+    const router = useRouter()
+    const tabScope = sessionTabScope(agentId)
+    const openTabIds = useAtomValue(renderedSessionTabsAtomFamily(tabScope))
+    const shortcutSessions = useMemo(() => openTabIds.map((id) => ({id})), [openTabIds])
+    const startBlank = useStartBlankSession(base)
+    const closeTabs = useSessionTabClose({agentId, sessionId, base})
+    const sessionActions = useSessionActions()
+    // Alt+R opens the active TAB's inline editor — the rail listens for this request.
+    const requestTabRename = useRequestSessionTabRename()
+    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
+    useSessionShortcuts({
+        sessions: shortcutSessions,
+        activeId: sessionId,
+        onJump: useCallback(
+            (id: string) => {
+                if (id !== sessionId) void router.push(sessionRoutePath(base, id))
+            },
+            [base, router, sessionId],
+        ),
+        onRename: requestTabRename,
+        onArchive: useCallback(
+            (id: string) =>
+                void sessionActions.setArchived({
+                    sessionId: id,
+                    appId: agentId ?? null,
+                    archived: false,
+                }),
+            [agentId, sessionActions],
+        ),
+        onNewSession: useCallback(() => {
+            if (agentId) startBlank(agentId)
+        }, [agentId, startBlank]),
+        onCloseSession: useCallback(
+            (id: string) => closeTabs([id], openTabIds),
+            [closeTabs, openTabIds],
+        ),
+        // No search box in the sessions pane yet — reveal the pane, which is the half of the
+        // desktop's binding that exists here.
+        onSearch: useCallback(
+            () => setChatMaximized(!chatMaximized),
+            [chatMaximized, setChatMaximized],
+        ),
+        onToggleConfigPanel: useCallback(
+            () => setConfigCollapsed(!configCollapsed),
+            [configCollapsed, setConfigCollapsed],
+        ),
+        onToggleFilesPane: toggleFilesPane,
+    })
+
     // The same surface treatment the desktop layout applies: the workspace is a recessed ground,
     // the config panel is raised above it, the conversation is the recessed canvas. Without these
     // the shared panels render flat — identical components, missing surface ladder.
-    const pane =
-        showConfig && entityId ? (
-            <ConfigPane entityId={entityId} sessionId={sessionId} />
-        ) : (
-            <SessionsPane agentId={agentId} base={base} activeSessionId={sessionId} />
-        )
+    //
+    // The config surface is a whole schema form, so unmounting it on a toggle put ~100ms of main
+    // thread behind every one. It mounts on first use (the `next/dynamic` chunk still loads on
+    // demand) and is `display:none` after that, as the desktop's session panes are.
+    const wantsConfig = showConfig && Boolean(entityId)
+    const configMountedRef = useRef(false)
+    if (wantsConfig) configMountedRef.current = true
+    // The pane stays on screen for its closing slide, so it keeps the half it was already showing
+    // rather than swapping content mid-motion.
+    const lastPaneKindRef = useRef<"config" | "sessions">("sessions")
+    if (showPane) lastPaneKindRef.current = wantsConfig ? "config" : "sessions"
+    const paneKind = showPane ? (wantsConfig ? "config" : "sessions") : lastPaneKindRef.current
+    const pane = (
+        <>
+            {configMountedRef.current && entityId ? (
+                <div
+                    className={
+                        configSlide.keepMounted && paneKind === "config"
+                            ? "h-full min-h-0 w-full"
+                            : "hidden"
+                    }
+                >
+                    <ConfigPane entityId={entityId} sessionId={sessionId} />
+                </div>
+            ) : null}
+            {configSlide.keepMounted && paneKind === "sessions" ? (
+                <SessionsPane agentId={agentId} base={base} activeSessionId={sessionId} />
+            ) : null}
+        </>
+    )
 
     return (
         <AppShell workspaceId={workspaceId} projectId={projectId}>
@@ -140,8 +265,10 @@ export const SessionWorkspace = ({
                         <SplitPane
                             paneSide="start"
                             paneSize={twoPane && showPane ? paneSize : 0}
-                            paneMin={300}
-                            paneMax={440}
+                            paneMin={RIGHT_PANEL_MIN}
+                            paneMax={RIGHT_PANEL_MAX}
+                            // Not the desktop's 460 chat floor: `md` is 768, and 768-460 leaves
+                            // the pane under its own min.
                             fillMin={420}
                             // Phone: no divider, no drag, and the visible half takes the full width.
                             animate={configSlide.animate}
@@ -153,15 +280,17 @@ export const SessionWorkspace = ({
                             // Controlled width: the drag must write through per tick, or the pane only
                             // snaps at pointer-up.
                             onResize={(size) => setPaneSize(size)}
-                            onResizeEnd={(size) => setPaneSize(size)}
+                            onResizeEnd={(size) => setStoredPaneWidth(size)}
                             className="h-full"
-                            pane={configSlide.keepMounted ? pane : null}
+                            pane={pane}
                             fill={
                                 <SplitPane
                                     paneSide="end"
                                     paneSize={twoPane && filesOpen ? filesPaneSize : 0}
-                                    paneMin={320}
-                                    paneMax={560}
+                                    paneMin={FILES_PANE_MIN}
+                                    paneMax={FILES_PANE_MAX}
+                                    // Lower than the desktop's chat floor for the same reason the
+                                    // config split's is.
                                     fillMin={360}
                                     animate={filesSlide.animate}
                                     barHidden={!twoPane || !filesOpen}
@@ -169,7 +298,7 @@ export const SessionWorkspace = ({
                                     // Controlled width, so the drag must write through per tick or the
                                     // pane only moves at pointer-up.
                                     onResize={(size) => setFilesPaneSize(size)}
-                                    onResizeEnd={(size) => setFilesPaneSize(size)}
+                                    onResizeEnd={(size) => setStoredFilesWidth(size)}
                                     className="h-full"
                                     pane={
                                         filesSlide.keepMounted ? (

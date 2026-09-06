@@ -31,7 +31,8 @@ const PermissionsPickerPanel = ({
     onDismiss: (reason: "escape" | "outside") => void
     /** Step back one level: the host restores the `/` this picker consumed. */
     onBackToCommands: () => void
-    onOpenConfig: () => void
+    /** Omitted where the host has no config surface to send you to (mobile). */
+    onOpenConfig?: () => void
 }) => {
     const applied = current ?? DEFAULT_PERMISSION_POLICY
     // Arrows move, Enter applies — no confirmation keystroke, matching the one-click mouse model.
@@ -116,13 +117,15 @@ const PermissionsPickerPanel = ({
 
             <div className="flex items-center gap-1.5 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-[13px] py-[7px] text-[10.5px] text-[var(--ag-colorTextTertiary)]">
                 <span>Changes this agent&apos;s draft config.</span>
-                <button
-                    type="button"
-                    onClick={onOpenConfig}
-                    className="cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorPrimary)]"
-                >
-                    Edit rules in config →
-                </button>
+                {onOpenConfig ? (
+                    <button
+                        type="button"
+                        onClick={onOpenConfig}
+                        className="cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorPrimary)]"
+                    >
+                        Edit rules in config →
+                    </button>
+                ) : null}
                 <button
                     type="button"
                     onClick={onBackToCommands}

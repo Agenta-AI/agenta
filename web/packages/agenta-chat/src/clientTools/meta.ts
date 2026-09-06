@@ -4,7 +4,7 @@
  * gate, which `ToolActivity` owns).
  */
 import {clientToolWidgets} from "@agenta/entity-ui/clientTools"
-import {renderKindFor, type RenderHintLike} from "@agenta/playground"
+import {renderKindFor, type RenderHintLike} from "@agenta/playground/agent-chat"
 import type {ToolUIPart} from "ai"
 
 import {hasClientToolWidget, type ClientToolMeta} from "../skin"

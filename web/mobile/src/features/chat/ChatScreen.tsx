@@ -74,6 +74,10 @@ export const ChatScreen = ({
     const lastEntityIdRef = useRef<string | null>(null)
     if (entityId) lastEntityIdRef.current = entityId
     const heldEntityId = entityId ?? lastEntityIdRef.current
+    // Held for the same gap: a blink to null re-scopes the files pane and the tab rail (#6542, #6544).
+    const lastAgentIdRef = useRef<string | null>(null)
+    if (resolvedAgentId) lastAgentIdRef.current = resolvedAgentId
+    const heldAgentId = resolvedAgentId ?? lastAgentIdRef.current
     // Only a FIRST load has nothing to hold — that is the one time a spinner is honest.
     const showLoading = resolving && !heldEntityId
     const liveness = useLivenessPoll(projectId)
@@ -104,7 +108,7 @@ export const ChatScreen = ({
             stoppingTurnId={liveStream?.stopping_turn_id}
             sharedReader={sharedReader}
             livenessUpdatedAt={liveness.dataUpdatedAt}
-            agentId={resolvedAgentId}
+            agentId={heldAgentId}
         />
     ) : (
         <ReplayScreen
@@ -113,7 +117,7 @@ export const ChatScreen = ({
             projectId={projectId}
             workspaceId={workspaceId}
             running={running}
-            agentId={resolvedAgentId}
+            agentId={heldAgentId}
         />
     )
 
@@ -122,7 +126,7 @@ export const ChatScreen = ({
             // Held, not raw: the config pane keys off this, and letting it blink to null mid-switch
             // is what unmounted the pane.
             entityId={heldEntityId}
-            agentId={resolvedAgentId}
+            agentId={heldAgentId}
             sessionId={sessionId}
             workspaceId={workspaceId}
             projectId={projectId}

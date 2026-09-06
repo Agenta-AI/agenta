@@ -23,9 +23,7 @@
 import {type ReactNode} from "react"
 
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Badge, type BadgeProps, Button, Segmented} from "@agenta/ui/ui"
-
-export type ConfigItemView = "form" | "json"
+import {Badge, type BadgeProps, Button} from "@agenta/ui/ui"
 
 // The badge `color` is an antd preset hue name supplied by the item-kind descriptors
 // (`typeColor: "cyan" | "blue" | …`), which type it as a plain string — so resolve it to a Badge
@@ -58,18 +56,12 @@ export interface ConfigItemDrawerProps {
     mode: "create" | "edit"
     /** Item title shown in the header. */
     title: ReactNode
-    /** Leading icon shown before the title. */
-    icon?: ReactNode
     /** Type badge shown next to the title (e.g. "definition", "MCP server"). */
     badge?: {text: ReactNode; color?: string}
     /** One-line description of the item type, shown muted under the title. */
     subtitle?: ReactNode
     /** Muted note shown on the left of the footer (e.g. the item's scope). */
     footerNote?: ReactNode
-    /** Current view. */
-    view: ConfigItemView
-    /** Called when the user flips the Form/JSON toggle. */
-    onViewChange: (view: ConfigItemView) => void
     /** Discard the draft and dismiss the drawer (Cancel / close button). */
     onCancel: () => void
     /** Commit the draft to the config. */
@@ -80,17 +72,13 @@ export interface ConfigItemDrawerProps {
     form: ReactNode
     /** JSON-view body. */
     json: ReactNode
-    /** Hide the Form/JSON toggle and show JSON only (e.g. items with no structured form). */
+    /** Show the raw JSON instead of the form, for an item with no structured form. */
     jsonOnly?: boolean
-    /** Hide the Form/JSON toggle and keep the FORM. For an item whose raw shape is an internal
-     *  detail the reader has no reason to edit. */
-    formOnly?: boolean
-    /** Header action shown where the Form/JSON toggle would be, for an item that has no toggle
-     *  and does have an action of its own (a subagent's "Open agent" link). */
+    /** Header action, for an item with an action of its own (a subagent's "Open agent" link). */
     headerExtra?: ReactNode
     /** Drawer width in px. @default 600 */
     width?: number
-    /** Read-only mode: disables the toggle and the Save action. */
+    /** Read-only mode: disables the Save action. */
     disabled?: boolean
     /**
      * Full-bleed body: drops the default 16px padding and makes the body a full-height flex column
@@ -104,27 +92,22 @@ export function ConfigItemDrawer({
     open,
     mode,
     title,
-    icon,
     badge,
     subtitle,
     footerNote,
-    view,
-    onViewChange,
     onCancel,
     onSave,
     saveDisabled = false,
     form,
     json,
     jsonOnly = false,
-    formOnly = false,
     headerExtra,
     width = 600,
     disabled = false,
     contentFlush = false,
 }: ConfigItemDrawerProps) {
-    const effectiveView = jsonOnly ? "json" : formOnly ? "form" : view
     // Flush layout only helps the form; keep the JSON editor padded and independently scrollable.
-    const flushForm = contentFlush && effectiveView === "form"
+    const flushForm = contentFlush && !jsonOnly
 
     return (
         <EnhancedDrawer
@@ -137,52 +120,31 @@ export function ConfigItemDrawer({
             // so the content component's logic only runs while the drawer is open.
             destroyOnClose
             title={
+                // One line: title · subtitle. Stacked, the subtitle doubled the header height for
+                // a few muted words, and the leading icon repeated the row the drawer opened from.
                 <div className="flex min-w-0 items-center gap-2">
-                    {icon ? <span className="flex shrink-0 items-center">{icon}</span> : null}
-                    <div className="min-w-0">
-                        <div className="flex min-w-0 items-center gap-2">
-                            <span className="truncate text-sm font-medium">{title}</span>
-                            {badge ? (
-                                <Badge
-                                    variant={badgeVariantFor(badge.color)}
-                                    // `text-xs` displaces Badge's `text-badge-md` and
-                                    // brings no line-height; antd Tag keeps its absolute
-                                    // tagLineHeight (lineHeightSM x fontSizeSM = 22.4px).
-                                    className="shrink-0 text-xs font-normal leading-[22.4px]"
-                                >
-                                    {badge.text}
-                                </Badge>
-                            ) : null}
-                        </div>
-                        {subtitle ? (
-                            <div className="truncate text-xs font-normal text-[var(--ag-zinc-5)]">
-                                {subtitle}
-                            </div>
-                        ) : null}
-                    </div>
+                    <span className="min-w-0 truncate text-sm font-medium">{title}</span>
+                    {badge ? (
+                        <Badge
+                            variant={badgeVariantFor(badge.color)}
+                            // `text-xs` displaces Badge's `text-badge-md` and brings no
+                            // line-height; antd Tag keeps its absolute tagLineHeight
+                            // (lineHeightSM x fontSizeSM = 22.4px).
+                            className="shrink-0 text-xs font-normal leading-[22.4px]"
+                        >
+                            {badge.text}
+                        </Badge>
+                    ) : null}
+                    {subtitle ? (
+                        <span className="min-w-0 truncate text-xs font-normal text-[var(--ag-zinc-5)]">
+                            · {subtitle}
+                        </span>
+                    ) : null}
                 </div>
             }
-            extra={
-                jsonOnly || formOnly ? (
-                    (headerExtra ?? null)
-                ) : (
-                    <Segmented
-                        size="sm"
-                        value={effectiveView}
-                        onChange={(v) => onViewChange(v as ConfigItemView)}
-                        options={[
-                            // The sm track keeps `text-field-md` (14px); this drops the labels to
-                            // 12px to match the rest of the header.
-                            {label: "Form", value: "form", className: "text-field-sm"},
-                            {label: "JSON", value: "json", className: "text-field-sm"},
-                        ]}
-                        disabled={disabled}
-                        aria-label="Item view"
-                    />
-                )
-            }
+            extra={headerExtra ?? null}
             footer={
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center justify-between gap-3">
                     {footerNote ? (
                         <span className="min-w-0 truncate text-xs text-[var(--ag-zinc-5)]">
                             {footerNote}
@@ -215,7 +177,7 @@ export function ConfigItemDrawer({
                     : {padding: 16},
             }}
         >
-            {effectiveView === "form" ? (
+            {!jsonOnly ? (
                 form
             ) : contentFlush ? (
                 // Body already provides the padding here (flushForm is false in JSON view); the

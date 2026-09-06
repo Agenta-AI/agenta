@@ -23,6 +23,7 @@ export {default as MicPermissionNotice} from "./MicPermissionNotice"
 export {default as VoiceInputButton} from "./VoiceInputButton"
 export {default as RecordingBar} from "./RecordingBar"
 export {default as RecordingWaveform} from "./RecordingWaveform"
+export {ToolIOBlock, type ToolIOBlockProps} from "./ToolIOBlock"
 export {TurnFooter} from "./TurnFooter"
 export {TurnMetrics} from "./TurnMetrics"
 export {TurnTimestamp} from "./TurnTimestamp"
@@ -34,3 +35,11 @@ export {ConnectionDock, type ConnectionDockProps} from "./ConnectionDock"
 export {ElicitationDock, type ElicitationDockProps} from "./ElicitationDock"
 export {ConnectionFocusProvider, type ConnectionFocusProviderProps} from "./ConnectionFocusProvider"
 export {default as QueuedMessagesDock, type QueuedMessagesDockProps} from "./QueuedMessagesDock"
+export {
+    default as ChatMarkdown,
+    CHAT_MARKDOWN_STRUCTURAL_CLASS,
+    type ChatMarkdownProps,
+    type ChatMarkdownLinkResolver,
+    type UseChatMarkdownLinkResolver,
+} from "./ChatMarkdown"
+export {PermissionsPickerPanel, useRovingList, type RovingListOptions} from "./SlashCommand"

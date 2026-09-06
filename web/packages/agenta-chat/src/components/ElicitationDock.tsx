@@ -249,6 +249,17 @@ const LiveCard = ({
         [stepper, settle],
     )
 
+    const decline = useCallback(
+        () => settleAnd(toOutput(buildDeclineResult("Declined the request."))),
+        [settleAnd],
+    )
+
+    // A skip with no next step and no review to land on must settle, or the run parks forever.
+    const skipStep = useCallback(() => {
+        if (!isReview && !stepper.canGoForward) return decline()
+        stepper.skip()
+    }, [isReview, stepper, decline])
+
     const multi = isMultiSelect(step)
 
     /** Focus the trailing "Other" text field. It is a row you type into, never one you pick. */
@@ -314,7 +325,7 @@ const LiveCard = ({
         }
         if (mod && (event.key === "Backspace" || event.key === "Delete")) {
             event.preventDefault()
-            stepper.skip()
+            skipStep()
             return
         }
         if (mod) return
@@ -462,7 +473,8 @@ const LiveCard = ({
                     <ReviewList stepper={stepper} />
                 ) : step ? (
                     <>
-                        <span className="text-[13px] font-medium leading-tight line-clamp-2">
+                        {/* Capped and scrollable, not clamped: nothing shifts, nothing is lost. */}
+                        <span className="block max-h-20 overflow-y-auto text-sm font-medium leading-snug sm:max-h-[34px] sm:text-[13px] sm:leading-tight">
                             {stepper.isMultiStep ? (
                                 <span className="text-colorText">{stepper.position}. </span>
                             ) : null}
@@ -495,11 +507,7 @@ const LiveCard = ({
                 <Button
                     variant="ghost"
                     className={touchCls}
-                    onClick={() =>
-                        isReview
-                            ? settleAnd(toOutput(buildDeclineResult("Declined the request.")))
-                            : stepper.skip()
-                    }
+                    onClick={isReview ? decline : skipStep}
                 >
                     {isReview ? "Decline" : "Skip"}
                 </Button>

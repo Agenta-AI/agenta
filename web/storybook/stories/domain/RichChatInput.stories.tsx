@@ -1,11 +1,11 @@
 import {useEffect, useRef, useState} from "react"
 
+import {PermissionsPickerPanel} from "@agenta/chat/components"
 import {
     PERMISSION_POLICY_OPTIONS,
     permissionPolicyLabel,
     type PermissionPolicy,
 } from "@agenta/entity-ui/drill-in"
-import PermissionsPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/SlashCommand/PermissionsPickerPanel"
 import {
     RichChatInput,
     type RichChatInputHandle,

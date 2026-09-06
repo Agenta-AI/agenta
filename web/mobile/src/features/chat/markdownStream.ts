@@ -1,4 +1,5 @@
 import type {RenderItem} from "@agenta/chat/model"
+import type {ReasoningUIPart} from "ai"
 
 /**
  * Array position of the last `text` render item in a turn, or `-1` when the turn has none.
@@ -31,3 +32,6 @@ export const isLiveTextItem = (
     const last = lastTextItemIndex(turn.items)
     return last >= 0 && position === last
 }
+
+// A reasoning part carries its own AI SDK state, so liveness reads off the part, not the turn.
+export const isLiveReasoningPart = (part: ReasoningUIPart): boolean => part.state === "streaming"

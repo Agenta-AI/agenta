@@ -334,7 +334,9 @@ export function describeSkill(skill: unknown): ItemDescriptor {
         description: typeof s.description === "string" ? (s.description as string) : undefined,
         mono: "sk",
         color: "#b45309",
-        tags: ["skill"],
+        // No "skill" tag: the section it sits in is already Skills. The other branches tag what a
+        // reader cannot otherwise tell — that it is static, or an @ag.embed reference.
+        tags: [],
         typeLabel: "skill",
         typeColor: "gold",
         subtitle: "Inline SKILL.md package",

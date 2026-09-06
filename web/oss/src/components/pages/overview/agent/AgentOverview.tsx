@@ -1,10 +1,10 @@
 import {useCallback} from "react"
 
 import {AgentOverviewBody} from "@agenta/entity-ui/agent"
+import {sessionRouteModes} from "@agenta/sessions/state"
 import {RichChatInput} from "@agenta/ui/rich-chat-input"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
-import {sessionRouteModes} from "@/oss/components/pages/sessions/assets/sessionRouteScope"
 import {useSessionCardVerbs} from "@/oss/components/pages/sessions/components/useSessionCardVerbs"
 import {
     SeedAttachButton,

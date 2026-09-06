@@ -18,6 +18,7 @@ import {
 } from "@agenta/chat/hooks"
 import {
     useAgentModelKeyStatus,
+    useComposerDraft,
     useConnectionDock,
     useElicitationDock,
     useVoiceComposer,
@@ -68,7 +69,6 @@ import MessageAttachmentViewer from "./components/MessageAttachmentViewer"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import TranscriptPlaceholder from "./components/TranscriptPlaceholder"
 import {useAgentChatSession} from "./hooks/useAgentChatSession"
-import {useComposerDraft} from "./hooks/useComposerDraft"
 import {useFirstRunSeed} from "./hooks/useFirstRunSeed"
 import {useOnboardingChat} from "./hooks/useOnboardingChat"
 import {useScrollIntent} from "./hooks/useScrollIntent"

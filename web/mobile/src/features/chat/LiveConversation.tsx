@@ -1,8 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    BOTTOM_FADE_HOVER_HIDE,
-    BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
     jumpGateOpen,
     latestTurnId,
@@ -33,6 +31,7 @@ import {
 import {getSessionTurnId} from "@agenta/chat/state"
 import {cancelSessionExecution} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
+import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {
     ChatBubble,
@@ -41,6 +40,7 @@ import {
     turnRowClass,
 } from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {isAltChord} from "@agenta/ui/shortcuts"
 import {useAtomValue, useSetAtom} from "jotai"
 import {User} from "lucide-react"
 
@@ -497,9 +497,10 @@ export const LiveConversation = ({
     // so the warning about tools that already ran, and putting a rewound user message back into
     // the composer, are this surface's job — same division the desktop uses. `composerRef` is
     // declared above, with the parked task that also refills the input.
+    const {rewind} = conversation
     const handleRewind = useCallback(
         (turn: TurnViewModel) => {
-            const plan = conversation.rewind(turn.message)
+            const plan = rewind(turn.message)
             if (!plan) return
             const run = () => {
                 plan.confirm()
@@ -521,8 +522,39 @@ export const LiveConversation = ({
                 onOk: run,
             })
         },
-        [conversation],
+        [rewind],
     )
+
+    // The desktop's run-level shortcuts, with its guards — what makes Stop's `Escape` true here.
+    const scrollerRef = autoScroll.ref
+    // Read through a ref: `pendingApprovals` is rebuilt every streamed commit, so depending on it
+    // would re-register the listener on the hot path.
+    const shortcutRef = useRef({streamingHere, pendingApprovals, approvalActions, stopHere})
+    shortcutRef.current = {streamingHere, pendingApprovals, approvalActions, stopHere}
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            // Radix lets a cancelled Escape through and never touches Alt+G; the pane can hide us.
+            if (e.defaultPrevented || isOverlayOpen()) return
+            if (!isOnScreen(scrollerRef.current)) return
+            const current = shortcutRef.current
+            if (e.key === "Escape" && !e.isComposing && current.streamingHere) {
+                e.preventDefault()
+                // `stopHere`, not the local abort: Escape must cancel the run on the server too.
+                current.stopHere()
+                return
+            }
+            // ONE gate, never "Approve all" — a mis-press must not grant a tool nobody read.
+            if (isAltChord(e) && e.code === "KeyG" && current.pendingApprovals.length > 0) {
+                e.preventDefault()
+                current.approvalActions.respond({
+                    approved: true,
+                    approvalId: current.pendingApprovals[0].approvalId,
+                })
+            }
+        }
+        document.addEventListener("keydown", onKey)
+        return () => document.removeEventListener("keydown", onKey)
+    }, [scrollerRef])
 
     let body
     if (conversation.isHydrating) {
@@ -609,15 +641,6 @@ export const LiveConversation = ({
                 scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
                 footer={
                     <div className="relative">
-                        {/* Bottom fade: a sibling overlay, NOT a second mask. A mask on the scroller
-                        would fade any hover toolbar that scrolls into the band, and no z-index
-                        escapes an ancestor's mask — the desktop learned this the same way. It sits
-                        above the footer and is dropped while a turn is hovered. */}
-                        <div
-                            aria-hidden
-                            className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
-                            style={BOTTOM_FADE_OVERLAY_STYLE}
-                        />
                         {/* What you have lined up. Yields to the gate docks entirely: those are
                         blocked runs wanting an answer, and stacking a second card above one
                         buries the composer. It comes back when the gate clears. */}
@@ -706,6 +729,7 @@ export const LiveConversation = ({
                             </ContentRail>
                         ) : null}
                         <Composer
+                            entityId={entityId}
                             sessionId={sessionId}
                             onSend={({text, parts}) => {
                                 setStoppingHere(false)

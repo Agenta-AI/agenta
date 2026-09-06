@@ -25,11 +25,11 @@ import {
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
-import {buildRenderMap} from "@agenta/playground"
 import {
     agentShouldResumeAfterApproval,
     approvalResolution,
     buildAgentRequest,
+    buildRenderMap,
     isResumeSend,
     recordAnswerThenRelease,
     type LiveAgentInteraction,
@@ -57,6 +57,7 @@ import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionSta
 import {
     buildTurnViewModels,
     createExecutedToolIdentityCache,
+    createTurnViewModelCache,
     type ClientToolPartPredicate,
     type TurnViewModel,
 } from "../model/turnViewModel"
@@ -987,11 +988,14 @@ export const useAgentConversation = ({
     // Per-mount executed-identity cache — the desktop's per-message toolSignature memo,
     // recreated hook-side so the identity JSON.stringify doesn't re-run per streamed token.
     const [executedFor] = useState(() => createExecutedToolIdentityCache())
+    // Per-mount view-model cache: unchanged turns keep object identity, so `TurnRow`'s memo holds.
+    const [turnCache] = useState(() => createTurnViewModelCache())
     const turns = useMemo(
         () =>
             buildTurnViewModels(displayMessages, {
                 busy: busy || (includePreview && previewMessages.length > 0),
                 executedFor,
+                cache: turnCache,
                 isClientToolPart: (part, ctx) =>
                     (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
             }),
@@ -999,6 +1003,7 @@ export const useAgentConversation = ({
             displayMessages,
             busy,
             executedFor,
+            turnCache,
             isClientToolPart,
             includePreview,
             previewMessages.length,
