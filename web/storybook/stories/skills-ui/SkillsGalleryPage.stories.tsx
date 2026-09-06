@@ -61,6 +61,17 @@ const IMPORTED_SKILLS: SkillListItem[] = [
         filesCount: 2,
         usedByCount: 0,
         age: "5d ago",
+        source: {label: "anthropics/skills", commitSha: "41bbe19", syncedAgo: "5d ago"},
+    },
+    {
+        id: "s5",
+        slug: "retired-skill",
+        name: "Retired skill",
+        description: "An archived skill — dimmed, only visible with Show archived.",
+        origin: "project",
+        version: "4",
+        archived: true,
+        age: "2w ago",
     },
 ]
 
