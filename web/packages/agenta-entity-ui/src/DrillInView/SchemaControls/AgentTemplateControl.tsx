@@ -165,6 +165,10 @@ const ModelHarnessSectionBody = ({
 
 // The four list sections whose open-state is controlled so the accordion can auto-expand when
 // the agent populates them (see `useAutoExpandOnPopulate`).
+/** Stable no-op stand-in when no skills bridge is wired (hook order must not depend on data). */
+const useNoHeadVersions = (): Record<string, string> => EMPTY_HEAD_VERSIONS
+const EMPTY_HEAD_VERSIONS: Record<string, string> = {}
+
 const CONTROLLED_SECTION_KEYS = new Set(["tools", "subagents", "mcp", "skills", "triggers"])
 
 export const AgentTemplateControl = memo(function AgentTemplateControl({
@@ -818,7 +822,30 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         }
     }, [statusForKind, toolResolutionStatus])
     const mcpStatusFor = useMemo(() => statusForKind("mcp"), [statusForKind])
-    const skillStatusFor = useMemo(() => statusForKind("skill"), [statusForKind])
+    // Registry head versions for the pinned-row nudge. The bridge's presence is host-stable,
+    // so the conditional hook resolution keeps a stable hook order in practice.
+    const useHeadVersions = skillsBridge?.useHeadVersions ?? useNoHeadVersions
+    const skillHeadVersions = useHeadVersions()
+    const skillStatusFor = useMemo(() => {
+        const base = statusForKind("skill")
+        return (item: unknown, index: number) => {
+            const status = base(item, index)
+            if (status) return status
+            // Gold nudge on pinned embeds whose registry head moved past the pin.
+            if (!isEmbedRefSkill(item) || isStaticSkill(item)) return undefined
+            const record = item as Record<string, unknown>
+            const pinned = embedRevisionVersion(record)
+            if (!pinned) return undefined
+            const slug = staticEmbedSlug(record)
+            const head = slug ? skillHeadVersions[slug] : undefined
+            if (!head || Number(pinned) >= Number(head)) return undefined
+            return {
+                tone: "incomplete" as const,
+                label: `v${head} available`,
+                tooltip: `Pinned to v${pinned}; the registry head is v${head}. Re-add pinned to update, or switch the reference to Latest.`,
+            }
+        }
+    }, [statusForKind, skillHeadVersions])
 
     // Section headers: a blocking problem (invalid) outranks unsaved edits (draft).
     const sectionInvalidTip = (key: string): string | null => {

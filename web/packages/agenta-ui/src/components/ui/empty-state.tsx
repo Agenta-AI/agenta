@@ -112,10 +112,13 @@ const emptyImageVariants = cva(
 
 export interface EmptyStateProps
     extends
-        Omit<React.HTMLAttributes<HTMLDivElement>, "children">,
+        Omit<React.HTMLAttributes<HTMLDivElement>, "children" | "title">,
         VariantProps<typeof emptyStateVariants> {
     /** `"default"` (large illustration) · `"simple"` (small) · a custom ReactNode. */
     image?: "default" | "simple" | React.ReactNode
+    /** Bold headline above the description. Without this prop a `title=` used to fall
+     * through to the HTML title ATTRIBUTE and render as a tooltip instead of text. */
+    title?: React.ReactNode
     description?: React.ReactNode
     children?: React.ReactNode
 }
@@ -123,6 +126,7 @@ export interface EmptyStateProps
 export function EmptyState({
     className,
     image = "default",
+    title,
     description,
     children,
     ...props
@@ -148,8 +152,16 @@ export function EmptyState({
             <div data-slot="empty-state-image" className={emptyImageVariants({simple: isSimple})}>
                 {imageNode}
             </div>
+            {title != null ? (
+                <div data-slot="empty-state-title" className="font-medium text-colorText">
+                    {title}
+                </div>
+            ) : null}
             {description != null ? (
-                <div data-slot="empty-state-description" className="text-colorTextDescription">
+                <div
+                    data-slot="empty-state-description"
+                    className={cn("text-colorTextDescription", title != null && "mt-1")}
+                >
                     {description}
                 </div>
             ) : null}

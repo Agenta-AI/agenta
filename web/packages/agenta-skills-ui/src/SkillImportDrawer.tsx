@@ -243,8 +243,18 @@ export function SkillImportDrawer({
                                             onCheckedChange={() => toggle(path)}
                                         />
                                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                            <span className="truncate font-mono text-xs font-medium">
-                                                {name}
+                                            <span className="flex min-w-0 items-center gap-1.5">
+                                                <span className="min-w-0 truncate font-mono text-xs font-medium">
+                                                    {name}
+                                                </span>
+                                                {candidate.valid ? (
+                                                    <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px font-mono text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                                        SKILL.md
+                                                        {candidate.skill?.files?.length
+                                                            ? ` +${candidate.skill.files.length}`
+                                                            : ""}
+                                                    </span>
+                                                ) : null}
                                             </span>
                                             <span className="line-clamp-1 text-xs text-[var(--ag-colorTextSecondary)]">
                                                 {candidate.valid

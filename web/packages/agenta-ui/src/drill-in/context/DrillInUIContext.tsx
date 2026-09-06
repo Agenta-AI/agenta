@@ -236,6 +236,10 @@ export interface SkillsPickerHostProps {
 export interface SkillsBridge {
     enabled: boolean
     PickerHost: ComponentType<SkillsPickerHostProps>
+    /** Registry head versions by embed slug (no "v" prefix) — the panel's pinned rows use
+     * it for the "vN available" nudge. A hook (required, not optional: hook order) that
+     * may answer {} while the registry list loads. */
+    useHeadVersions: () => Record<string, string>
     /** Registry detail drawer for one skill, addressed by its embed slug. The panel opens
      * it for project-owned embed refs instead of the raw JSON editor; absent (or an
      * unresolvable slug) falls back to the JSON round-trip. */
