@@ -7,7 +7,11 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {firstEnabledIndex, initialIndex, stepIndex} from "../../../src/components/SlashCommand/useRovingList"
+import {
+    firstEnabledIndex,
+    initialIndex,
+    stepIndex,
+} from "../../../src/components/SlashCommand/useRovingList"
 
 const items = ["pi_core", "claude", "codex"]
 
