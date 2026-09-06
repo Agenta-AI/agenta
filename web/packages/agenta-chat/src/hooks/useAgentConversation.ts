@@ -745,7 +745,7 @@ export const useAgentConversation = ({
             approvalResponseOwnerRef.current = args.id
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
             const outcome = await submitApprovalForCapability({
-                durableApprovals: await supportsDurableApprovals(sessionId),
+                durableApprovals: supportsDurableApprovals(sessionId),
                 submitDurable: () =>
                     respondInteractionAnswer({
                         sessionId,
@@ -783,7 +783,7 @@ export const useAgentConversation = ({
             approvalResponseOwnerRef.current = args.ids[0]
             liveGateInteractionRef.current = {kind: "approval", id: args.ids[0]}
             const outcome = await submitApprovalForCapability({
-                durableApprovals: await supportsDurableApprovals(sessionId),
+                durableApprovals: supportsDurableApprovals(sessionId),
                 submitDurable: () =>
                     respondInteractionAnswers({
                         sessionId,
@@ -871,7 +871,7 @@ export const useAgentConversation = ({
                     : {outcome: "completed", output: output ?? {}}),
             }
             const outcome = await submitApprovalForCapability({
-                durableApprovals: await supportsDurableApprovals(sessionId),
+                durableApprovals: supportsDurableApprovals(sessionId),
                 submitDurable: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
                 retireDurable: () => {
                     liveGateInteractionRef.current = null

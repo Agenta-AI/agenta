@@ -46,19 +46,16 @@ import {User} from "lucide-react"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {Button} from "@/components/ui/button"
 
-import {pendingTasksAtom, takePendingTaskAtom} from "../home/pendingTask"
+import {pendingTasksAtom, failPendingTaskAtom, sendPendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
-import {
-    MODEL_KEY_WAIT_LIMIT_MS,
-    PENDING_TASK_NOT_SENT_MESSAGE,
-    pendingTaskDecision,
-} from "./pendingTaskPolicy"
+import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {cancelledStopAction} from "./stopHereState"
@@ -173,55 +170,43 @@ export const LiveConversation = ({
         input?.focus()
     }, [cancelEdit])
 
-    // A task started from Home lands here as a stashed message: the session did not exist when
-    // it was typed, and the first send is what creates it. Ref-guarded and the slot is consumed
-    // on read, so a re-render (or React 18's double-invoke in dev) cannot send it twice. Held
-    // until hydration settles, or the engine would send into a transcript it is still filling,
-    // and held while the vault is unresolved or the model gate is up, so the first message is not
-    // spent on a run that cannot succeed — it goes out on its own the moment a key lands (or the
-    // vault says one already exists). The guard holds the SESSION it
-    // fired for, not a bare flag: this component survives a session switch, and a flag would
-    // swallow the next session's stashed task.
-
-    // Peek at the parked task WITHOUT consuming it — used only for display while the gate holds.
-    // `takePendingTaskAtom` removes the entry; this read leaves it in place for the send effect.
+    // Keep Home tasks session-scoped until admission; failures require an explicit retry.
     const pendingTasks = useAtomValue(pendingTasksAtom)
-    const heldTaskText = pendingTasks[sessionId]?.text ?? null
-
-    const takePendingTask = useSetAtom(takePendingTaskAtom)
-    const sentPendingTaskFor = useRef<string | null>(null)
-    const [pendingTaskError, setPendingTaskError] = useState<string | null>(null)
+    const pendingTask = pendingTasks[sessionId]
+    const heldTaskText = pendingTask?.delivery === "sending" ? null : pendingTask?.text
+    const sendPendingTask = useSetAtom(sendPendingTaskAtom)
+    const failPendingTask = useSetAtom(failPendingTaskAtom)
+    const pendingTaskError = pendingTask?.delivery === "failed"
     const {isHydrating, revalidate, send, stop, voidPendingResume} = conversation
     useEffect(() => {
+        if (!pendingTask || pendingTask.delivery) return
         const decision = pendingTaskDecision({
             sessionId,
-            sentFor: sentPendingTaskFor.current,
+            sentFor: null,
             hydrating: isHydrating,
             modelKeyLoading,
             modelKeyWaitedMs,
             modelBlocked,
         })
         if (decision === "hold") return
-        const task = takePendingTask(sessionId)
-        if (!task) return
-        // Consumed either way — a released task must not replay on the next render.
-        sentPendingTaskFor.current = sessionId
         if (decision === "abandon") {
-            setPendingTaskError(PENDING_TASK_NOT_SENT_MESSAGE)
-            // Hand the text back so "try again" is one tap. The composer is usable here: the gate
-            // is not up, because an unresolved vault never raises it.
-            if (task.text) composerRef.current?.setMarkdown(task.text)
+            failPendingTask(sessionId)
             return
         }
-        void send({text: task.text, parts: task.parts})
+        void sendPendingTask({
+            sessionId,
+            send: (task) => send({text: task.text, parts: task.parts}),
+        })
     }, [
+        pendingTask,
         isHydrating,
         modelKeyLoading,
         modelKeyWaitedMs,
         modelBlocked,
         send,
         sessionId,
-        takePendingTask,
+        sendPendingTask,
+        failPendingTask,
     ])
 
     const queryClient = useQueryClient()
@@ -550,11 +535,7 @@ export const LiveConversation = ({
     } else {
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-                {/* A task typed before any provider key exists is held in `pendingTasksAtom`
-                    (not yet sent — the gate is up). Render it as a user bubble so the person
-                    can see what they wrote, matching desktop parity: the desktop shows the
-                    held seed above the connect-model banner. Cleared the moment the gate
-                    drops and the send effect fires (`takePendingTaskAtom` removes the entry). */}
+                {/* A held or failed Home task stays visible until accepted. */}
                 {heldTaskText ? (
                     <div className={`${turnRowClass} justify-end`}>
                         <ChatBubble
@@ -717,13 +698,43 @@ export const LiveConversation = ({
                                 gateActive={modelBlocked}
                             />
                         </ContentRail>
-                        {/* The parked task gave up waiting for the vault. Its text is back in the
-                        composer, so this says what happened and the send is one tap away. */}
+                        {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (
                             <ContentRail>
-                                <p className="text-destructive m-0 mb-2 text-xs">
-                                    {pendingTaskError}
-                                </p>
+                                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                                    <span role="alert" className="text-destructive">
+                                        The message was not sent. Your text and attachments are
+                                        saved.
+                                    </span>
+                                    {pendingTask?.parts?.map((part, index) => (
+                                        <span
+                                            key={`${part.url}-${index}`}
+                                            className="text-muted-foreground"
+                                        >
+                                            {part.filename || "Attachment"}
+                                        </span>
+                                    ))}
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={
+                                            isHydrating ||
+                                            modelBlocked ||
+                                            (modelKeyLoading &&
+                                                modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
+                                        }
+                                        onClick={() =>
+                                            void sendPendingTask({
+                                                sessionId,
+                                                retry: true,
+                                                send: (task) =>
+                                                    send({text: task.text, parts: task.parts}),
+                                            })
+                                        }
+                                    >
+                                        Retry message
+                                    </Button>
+                                </div>
                             </ContentRail>
                         ) : null}
                         <Composer

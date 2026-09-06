@@ -49,3 +49,24 @@ describe("submitApprovalForCapability", () => {
         expect(releaseLegacy).toHaveBeenCalledOnce()
     })
 })
+
+it("retires only local ownership when capability discovery fails before answering", async () => {
+    const failure = new Error("Session is unavailable")
+    const submitDurable = vi.fn()
+    const retireDurable = vi.fn()
+    const recordLegacy = vi.fn()
+    const releaseLegacy = vi.fn()
+    await expect(
+        submitApprovalForCapability({
+            durableApprovals: Promise.reject(failure),
+            submitDurable,
+            retireDurable,
+            recordLegacy,
+            releaseLegacy,
+        }),
+    ).rejects.toBe(failure)
+    expect(retireDurable).toHaveBeenCalledOnce()
+    expect(submitDurable).not.toHaveBeenCalled()
+    expect(recordLegacy).not.toHaveBeenCalled()
+    expect(releaseLegacy).not.toHaveBeenCalled()
+})

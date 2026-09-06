@@ -8,8 +8,9 @@ import {
     updatePendingSessionInputAtom,
 } from "@agenta/entities/session"
 import {buildAgentRequest} from "@agenta/playground/agent-chat"
+import {projectIdAtom} from "@agenta/shared/state"
 import type {FileUIPart, UIMessage} from "ai"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
 
@@ -25,6 +26,7 @@ export interface ServerSessionInputs {
     sendNow: (id: string) => Promise<void>
     edit: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
     refresh: () => Promise<void>
+    resolveCapabilities: () => Promise<SessionPendingInputView["capabilities"]>
 }
 
 const emptyView = reduceSessionPendingInputs(null)
@@ -45,21 +47,25 @@ export const useServerSessionInputs = ({
     isSharedReaderReady?: () => boolean
     onExecuted?: () => void
 }): ServerSessionInputs => {
+    const projectId = useAtomValue(projectIdAtom)
+    const scope = JSON.stringify([projectId, sessionId])
+    const scopeRef = useRef(scope)
+    scopeRef.current = scope
     const fetchSnapshot = useSetAtom(fetchSessionSnapshotAtom)
     const fetchCapabilities = useSetAtom(fetchSessionCapabilitiesAtom)
     const removeInput = useSetAtom(removePendingSessionInputAtom)
     const sendInputNow = useSetAtom(sendPendingSessionInputNowAtom)
     const updateInput = useSetAtom(updatePendingSessionInputAtom)
-    const [viewState, setViewState] = useState<{sessionId: string; view: SessionPendingInputView}>(
-        () => ({sessionId, view: emptyView}),
+    const [viewState, setViewState] = useState<{scope: string; view: SessionPendingInputView}>(
+        () => ({scope, view: emptyView}),
     )
-    const view = viewState.sessionId === sessionId ? viewState.view : emptyView
+    const view = viewState.scope === scope ? viewState.view : emptyView
     const messagesRef = useRef(messages)
     const entityIdRef = useRef(entityId)
     const onExecutedRef = useRef(onExecuted)
     const isSharedReaderReadyRef = useRef(isSharedReaderReady)
     const loadInFlightRef = useRef<{
-        sessionId: string
+        scope: string
         promise: Promise<SessionPendingInputView | null>
     } | null>(null)
     messagesRef.current = messages
@@ -68,40 +74,41 @@ export const useServerSessionInputs = ({
     isSharedReaderReadyRef.current = isSharedReaderReady
 
     const load = useCallback((): Promise<SessionPendingInputView | null> => {
-        if (loadInFlightRef.current?.sessionId === sessionId) {
+        if (loadInFlightRef.current?.scope === scope) {
             return loadInFlightRef.current.promise
         }
         const promise = (async () => {
             const capabilities = await fetchCapabilities(sessionId)
+            if (!capabilities) return null
             if (!capabilities.queue) return emptyView
             const snapshot = await fetchSnapshot(sessionId)
             return snapshot ? reduceSessionPendingInputs(snapshot) : null
         })()
-        const entry = {sessionId, promise}
+        const entry = {scope, promise}
         loadInFlightRef.current = entry
         const clear = () => {
             if (loadInFlightRef.current === entry) loadInFlightRef.current = null
         }
         void promise.then(clear, clear)
         return promise
-    }, [fetchCapabilities, fetchSnapshot, sessionId])
+    }, [fetchCapabilities, fetchSnapshot, sessionId, scope])
 
     const refresh = useCallback(async () => {
         const next = await load()
-        if (next) setViewState({sessionId, view: next})
-    }, [load, sessionId])
+        if (next && scopeRef.current === scope) setViewState({scope, view: next})
+    }, [load, scope])
 
     useEffect(() => {
         let cancelled = false
         void load().then((next) => {
             if (!cancelled && next) {
-                setViewState({sessionId, view: next})
+                setViewState({scope, view: next})
             }
         })
         return () => {
             cancelled = true
         }
-    }, [load, sessionId])
+    }, [load, scope])
 
     // Pending-input events arrive in a later increment. Until then, a small capability-gated
     // snapshot poll gives every mounted browser the same durable order.
@@ -110,6 +117,14 @@ export const useServerSessionInputs = ({
         const timer = setInterval(() => void refresh(), 2_000)
         return () => clearInterval(timer)
     }, [refresh, view.capabilities.queue])
+
+    const resolveCapabilities = useCallback(async () => {
+        const capabilities = await fetchCapabilities(sessionId)
+        if (!capabilities || scopeRef.current !== scope) {
+            throw new Error("Session capabilities are unavailable. Please try again.")
+        }
+        return {queue: capabilities.queue, steer: capabilities.steer}
+    }, [fetchCapabilities, sessionId, scope])
 
     const submit = useCallback(
         async (message: QueuedMessage, policy: "queue" | "steer") => {
@@ -217,5 +232,6 @@ export const useServerSessionInputs = ({
         sendNow,
         edit,
         refresh,
+        resolveCapabilities,
     }
 }

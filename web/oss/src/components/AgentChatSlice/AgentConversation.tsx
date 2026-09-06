@@ -644,8 +644,14 @@ const AgentConversation = ({
         if (consumedRunNonceRef.current === pendingRun.nonce) return
         consumedRunNonceRef.current = pendingRun.nonce
         scrollIntent.follow()
-        submit({text: pendingRun.text})
-        setPendingRun(null)
+        void Promise.resolve(submit({text: pendingRun.text}))
+            .then(() =>
+                setPendingRun((current) => (current?.nonce === pendingRun.nonce ? null : current)),
+            )
+            .catch(() => {
+                richInputRef.current?.setMarkdown(pendingRun.text)
+                attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+            })
     }, [pendingRun, activeSessionId, sessionId, submit, setPendingRun])
 
     // Run-level shortcuts. They live here, not in the panel's session hook, because only this
@@ -720,9 +726,12 @@ const AgentConversation = ({
             // Clear any prior "stopped" marker — it's resolved by asking again.
             scrollIntent.armGlide()
             setStopped(false)
+            // Clear only the pending run this manual retry took over, after admission succeeds.
+            const pendingRunNonce = consumedRunNonceRef.current
             // One path: `submit` sends now or queues behind held messages via the shared release gate.
             if (policy === "steer") await steer({text: trimmed, fileParts})
             else await submit({text: trimmed, fileParts, stagedFiles})
+            setPendingRun((current) => (current?.nonce === pendingRunNonce ? null : current))
         }
         // The message left the composer — drop its persisted draft (and any pending capture).
         composer.clearDraft()
