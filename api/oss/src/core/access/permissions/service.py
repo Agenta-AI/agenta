@@ -248,17 +248,14 @@ async def check_rbac_permission(
         bool: True if the user belongs to the workspace and has the specified permission, False otherwise.
     """
 
-    assert project_id is not None, (
-        "Project_ID is required to check object-level permissions"
-    )
+    if project_id is None:
+        raise ValueError("Project_ID is required to check object-level permissions")
 
     # Assert that either permission or role is provided, but not both
-    assert (permission is not None) or (role is not None), (
-        "Either 'permission' or 'role' must be provided, but neither is provided"
-    )
-    assert not ((permission is not None) and (role is not None)), (
-        "'permission' and 'role' cannot both be provided at the same time"
-    )
+    if permission is None and role is None:
+        raise ValueError("Either 'permission' or 'role' must be provided, but neither is provided")
+    if permission is not None and role is not None:
+        raise ValueError("'permission' and 'role' cannot both be provided at the same time")
 
     if project_id is not None:
         project = await db_manager.get_project_by_id(project_id)
@@ -279,7 +276,8 @@ async def check_rbac_permission(
         return False
 
     user_id = user_org_workspace_data["id"]
-    assert isinstance(user_id, str), "User ID must be a string"
+    if not isinstance(user_id, str):
+        raise TypeError("User ID must be a string")
     has_access = await check_project_has_role_or_permission(
         project, user_id, role, permission
     )
@@ -301,9 +299,8 @@ async def check_project_has_role_or_permission(
         permission (Optional[str], optional): The permission to check for. Defaults to None.
     """
 
-    assert role is not None or permission is not None, (
-        "Either role or permission must be provided"
-    )
+    if role is None and permission is None:
+        raise ValueError("Either role or permission must be provided")
 
     # Fetch project members first - needed for both demo check and permission check
     project_members = await db_manager.get_project_members(project_id=str(project.id))
