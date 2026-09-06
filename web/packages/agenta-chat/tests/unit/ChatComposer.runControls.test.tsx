@@ -157,7 +157,13 @@ describe("queued row Send Now", () => {
     })
 
     it("does not offer the server action on a local fallback row", () => {
-        render(<QueuedMessagesDock queued={[{id: "local", text: "draft", source: "local"}]} onSendNow={vi.fn()} onRemove={vi.fn()} />)
+        render(
+            <QueuedMessagesDock
+                queued={[{id: "local", text: "draft", source: "local"}]}
+                onSendNow={vi.fn()}
+                onRemove={vi.fn()}
+            />,
+        )
         expect(screen.queryByRole("button", {name: "Send Now"})).toBeNull()
     })
 })

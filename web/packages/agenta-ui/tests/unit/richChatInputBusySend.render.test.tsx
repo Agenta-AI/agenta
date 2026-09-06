@@ -27,12 +27,22 @@ describe("busy composer standard Send", () => {
 
     it("shows standard Send for attachment-only drafts and respects upload blocking", () => {
         const onSubmit = vi.fn()
-        const view = render(<RichChatInput streaming onStop={vi.fn()} onSubmit={onSubmit} sendForceEnabled sendDisabled />)
+        const view = render(
+            <RichChatInput
+                streaming
+                onStop={vi.fn()}
+                onSubmit={onSubmit}
+                sendForceEnabled
+                sendDisabled
+            />,
+        )
         const send = screen.getByRole("button", {name: "Send"}) as HTMLButtonElement
         expect(send.disabled).toBe(true)
         fireEvent.click(send)
         expect(onSubmit).not.toHaveBeenCalled()
-        view.rerender(<RichChatInput streaming onStop={vi.fn()} onSubmit={onSubmit} sendForceEnabled />)
+        view.rerender(
+            <RichChatInput streaming onStop={vi.fn()} onSubmit={onSubmit} sendForceEnabled />,
+        )
         fireEvent.click(screen.getByRole("button", {name: "Send"}))
         expect(onSubmit).toHaveBeenCalledWith("")
     })

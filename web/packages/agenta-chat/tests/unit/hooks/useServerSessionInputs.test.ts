@@ -14,13 +14,15 @@ import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
 import type {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
 import {useServerSessionInputs} from "../../../src/hooks/useServerSessionInputs"
 
-const {buildAgentRequest, fetchCapabilities, fetchSnapshot, removeInput, sendInputNow} = vi.hoisted(() => ({
-    buildAgentRequest: vi.fn(),
-    fetchCapabilities: vi.fn(),
-    fetchSnapshot: vi.fn(),
-    removeInput: vi.fn(),
-    sendInputNow: vi.fn(),
-}))
+const {buildAgentRequest, fetchCapabilities, fetchSnapshot, removeInput, sendInputNow} = vi.hoisted(
+    () => ({
+        buildAgentRequest: vi.fn(),
+        fetchCapabilities: vi.fn(),
+        fetchSnapshot: vi.fn(),
+        removeInput: vi.fn(),
+        sendInputNow: vi.fn(),
+    }),
+)
 
 vi.mock("@agenta/entities/session", async () => {
     const {atom} = await import("jotai")
@@ -31,7 +33,10 @@ vi.mock("@agenta/entities/session", async () => {
         fetchSessionSnapshotAtom: atom(null, (_get, _set, sessionId: string) =>
             fetchSnapshot(sessionId),
         ),
-        sendPendingSessionInputNowAtom: atom(null, (_get, _set, params: {sessionId: string; inputId: string}) => sendInputNow(params)),
+        sendPendingSessionInputNowAtom: atom(
+            null,
+            (_get, _set, params: {sessionId: string; inputId: string}) => sendInputNow(params),
+        ),
         removePendingSessionInputAtom: atom(
             null,
             (_get, _set, params: {sessionId: string; inputId: string}) => removeInput(params),
@@ -581,12 +586,18 @@ describe("useServerSessionInputs", () => {
     })
 })
 
-
 describe("selected queued input Send Now", () => {
     it("uses the selected row identity without invoking or removing its content", async () => {
         fetchSnapshot.mockResolvedValue(runningSnapshot())
         sendInputNow.mockResolvedValue(true)
-        const {result} = renderHook(() => useServerSessionInputs({entityId: "revision-1", sessionId: "session-1", messages: [], locallyBusy: true}))
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [],
+                locallyBusy: true,
+            }),
+        )
         await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
         await act(() => result.current.sendNow("selected-row"))
         expect(sendInputNow).toHaveBeenCalledWith({sessionId: "session-1", inputId: "selected-row"})
@@ -598,7 +609,14 @@ describe("selected queued input Send Now", () => {
     it("surfaces an admission failure without removing the pending input", async () => {
         fetchSnapshot.mockResolvedValue(runningSnapshot())
         sendInputNow.mockResolvedValue(false)
-        const {result} = renderHook(() => useServerSessionInputs({entityId: "revision-1", sessionId: "session-1", messages: [], locallyBusy: true}))
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [],
+                locallyBusy: true,
+            }),
+        )
         await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
         await expect(result.current.sendNow("selected-row")).rejects.toThrow("could not be sent")
         expect(removeInput).not.toHaveBeenCalled()
@@ -606,7 +624,14 @@ describe("selected queued input Send Now", () => {
 
     it("does not call the action when the server capability is disabled", async () => {
         fetchCapabilities.mockResolvedValue({durableApprovals: false, queue: false, steer: false})
-        const {result} = renderHook(() => useServerSessionInputs({entityId: "revision-1", sessionId: "session-1", messages: [], locallyBusy: true}))
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [],
+                locallyBusy: true,
+            }),
+        )
         await expect(result.current.sendNow("selected-row")).rejects.toThrow("not available")
         expect(sendInputNow).not.toHaveBeenCalled()
     })
