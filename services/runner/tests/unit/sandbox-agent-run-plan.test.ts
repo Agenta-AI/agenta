@@ -357,6 +357,7 @@ describe("buildRunPlan", () => {
           (log ?? (() => {}))("resolved alpha");
           return {
             skills: [{ name: "alpha", dir: "/skills/alpha" }],
+            dropped: [],
             cleanup: () => {},
           };
         },
@@ -1134,6 +1135,7 @@ describe("buildRunPlan", () => {
         resolveSkillDirs: (_skills, log) => {
           (log ?? (() => {}))("resolved claude skills");
           return {
+            dropped: [],
             skills: [
               { name: "alpha", dir: "/skills/alpha" },
               { name: "beta", dir: "/skills/beta" },

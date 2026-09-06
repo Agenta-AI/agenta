@@ -20,6 +20,7 @@ describe("Pi trace spool protocol", () => {
         propagation: { traceparent: "00-a-b-01", baggage: "tenant=x" },
         capture: { content: false },
         skills: ["one", 2, "two"],
+        skillsDropped: ["gone: duplicate name", 3],
         redaction: { knownValues: ["secret-value", null] },
       }),
       {
@@ -30,6 +31,7 @@ describe("Pi trace spool protocol", () => {
         propagation: { traceparent: "00-a-b-01", baggage: "tenant=x" },
         capture: { content: false },
         skills: ["one", "two"],
+        skillsDropped: ["gone: duplicate name"],
         redaction: { knownValues: ["secret-value"] },
       },
     );

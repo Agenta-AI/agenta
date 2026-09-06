@@ -89,6 +89,7 @@ describe("createPiTraceTurnExport", () => {
         channelId: CHANNEL,
         capture: { content: true },
         skills: [],
+    skillsDropped: [],
         redaction: { knownValues: [] },
       }),
     ).toBe(true);
@@ -149,6 +150,7 @@ describe("createPiTraceTurnExport", () => {
       channelId: CHANNEL,
       capture: { content: true },
       skills: [],
+    skillsDropped: [],
       redaction: { knownValues: [] },
     });
     await memory.host.remove(join(DIR, PI_TRACE_CONTROL_FILE));
@@ -194,6 +196,7 @@ describe("createPiTraceTurnExport", () => {
       channelId: CHANNEL,
       capture: { content: true },
       skills: [],
+    skillsDropped: [],
       redaction: { knownValues: [] },
     });
     await memory.host.remove(join(DIR, PI_TRACE_CONTROL_FILE));

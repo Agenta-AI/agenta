@@ -23,6 +23,8 @@ export interface PiTurnTraceControl {
     content: boolean;
   };
   skills: string[];
+  /** "name: reason" per skill that did not materialize (may be empty). */
+  skillsDropped: string[];
   redaction: {
     knownValues: string[];
   };
@@ -72,6 +74,11 @@ export function parsePiTurnTraceControl(value: unknown): PiTurnTraceControl {
         .filter((item): item is string => typeof item === "string")
         .slice(0, 256)
     : [];
+  const skillsDropped = Array.isArray(raw.skillsDropped)
+    ? raw.skillsDropped
+        .filter((item): item is string => typeof item === "string")
+        .slice(0, 256)
+    : [];
   const redaction =
     raw.redaction && typeof raw.redaction === "object"
       ? (raw.redaction as Record<string, unknown>)
@@ -94,6 +101,7 @@ export function parsePiTurnTraceControl(value: unknown): PiTurnTraceControl {
       : undefined,
     capture: { content: capture?.content !== false },
     skills,
+    skillsDropped,
     redaction: { knownValues },
   };
 }

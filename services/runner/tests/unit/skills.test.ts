@@ -388,3 +388,34 @@ describe("resolveSkillDirs size caps count CODE POINTS, not UTF-16 units", () =>
     assert.equal(logs.filter((m) => /oversized skill file/.test(m)).length, 1);
   });
 });
+
+describe("dropped visibility", () => {
+  it("reports every whole-skill drop as a name: reason line", () => {
+    const out = resolveSkillDirs([
+      SKILL,
+      { ...SKILL }, // duplicate name -> dropped, first one kept
+      { name: "../escape", description: "d", body: "b" } as never,
+    ]);
+    try {
+      assert.deepEqual(
+        out.skills.map((s) => s.name),
+        [SKILL.name],
+      );
+      assert.deepEqual(out.dropped, [
+        `${SKILL.name}: duplicate name`,
+        `"../escape": unsafe name`,
+      ]);
+    } finally {
+      out.cleanup();
+    }
+  });
+
+  it("is empty when everything materializes", () => {
+    const out = resolveSkillDirs([SKILL]);
+    try {
+      assert.deepEqual(out.dropped, []);
+    } finally {
+      out.cleanup();
+    }
+  });
+});

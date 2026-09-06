@@ -811,6 +811,8 @@ export interface RunConfig {
    * extension owns the agent span (the runner's sandbox-agent otel is span-less there).
    */
   skills?: string[];
+  /** "name: reason" per skill that did NOT materialize; stamped beside `skills` (F-029). */
+  skillsDropped?: string[];
   /** Per-run known-value redactor; scrubs the run's live secrets from exported spans. */
   redactor?: Redactor;
   /** Filled by the extension on agent_start so the runner can flush/return it. */
@@ -1002,6 +1004,7 @@ export function createAgentaOtel(
     provider: init.provider,
     requestModel: init.requestModel,
     skills: init.skills,
+    skillsDropped: init.skillsDropped,
     redactor: init.redactor,
   };
 
@@ -1046,6 +1049,7 @@ export function createAgentaOtel(
     config.provider = next.provider;
     config.requestModel = next.requestModel;
     config.skills = next.skills;
+    config.skillsDropped = next.skillsDropped;
     config.redactor = next.redactor;
     config.traceId = undefined;
     runUsage.input = 0;
@@ -1081,6 +1085,9 @@ export function createAgentaOtel(
       if (config.skills && config.skills.length > 0) {
         agentSpan.setAttribute("ag.meta.skills.loaded", config.skills);
         agentSpan.setAttribute("ag.meta.skills.count", config.skills.length);
+      }
+      if (config.skillsDropped && config.skillsDropped.length > 0) {
+        agentSpan.setAttribute("ag.meta.skills.dropped", config.skillsDropped);
       }
       if (config.sessionId) {
         agentSpan.setAttribute("session.id", config.sessionId);
@@ -1504,6 +1511,8 @@ export interface SandboxAgentOtelInit extends Omit<
    * a trace shows which skills loaded (F-029), not just the author config echoed elsewhere.
    */
   skills?: string[];
+  /** "name: reason" per skill that did NOT materialize; stamped beside `skills`. */
+  skillsDropped?: string[];
   /**
    * Emit the span tree from the ACP event stream. Default true. Set false when the
    * harness instruments itself (e.g. Pi via the agenta extension propagates the trace
@@ -1769,6 +1778,9 @@ export function createSandboxAgentOtel(
     if (init.skills && init.skills.length > 0) {
       agentSpan.setAttribute("ag.meta.skills.loaded", init.skills);
       agentSpan.setAttribute("ag.meta.skills.count", init.skills.length);
+    }
+    if (init.skillsDropped && init.skillsDropped.length > 0) {
+      agentSpan.setAttribute("ag.meta.skills.dropped", init.skillsDropped);
     }
     const sessionId = input.sessionId ?? init.sessionId;
     if (sessionId) {

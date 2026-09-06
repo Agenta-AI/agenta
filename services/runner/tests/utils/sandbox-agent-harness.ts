@@ -239,7 +239,7 @@ export function fakeHarness(options: FakeOptions = {}) {
       durable ?? options.cwd ?? "/tmp/agenta-fake-cwd",
     createDaytonaCwd: (durable?: string) =>
       durable ?? "/home/sandbox/agenta-fake-cwd",
-    resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
+    resolveSkillDirs: () => ({ skills: [], dropped: [], cleanup: () => {} }),
     buildDaemonEnv: (agent, daemonOptions) => {
       calls.daemonAgent = agent;
       calls.daemonOptions = daemonOptions;

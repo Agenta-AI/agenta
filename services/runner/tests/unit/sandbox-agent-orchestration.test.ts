@@ -895,6 +895,7 @@ describe("runSandboxAgent orchestration", () => {
     const { calls, deps } = fakeHarness({ cwd });
     deps.resolveSkillDirs = () => ({
       skills: [{ name: "release-notes", dir: skill }],
+      dropped: [],
       cleanup: () => {},
     });
 
@@ -936,6 +937,7 @@ describe("runSandboxAgent orchestration", () => {
     const { calls, deps } = fakeHarness();
     deps.resolveSkillDirs = () => ({
       skills: [{ name: "release-notes", dir: skill }],
+      dropped: [],
       cleanup: () => {},
     });
     let agentDirSkillCount = -1;

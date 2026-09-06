@@ -487,6 +487,7 @@ const factory = (pi: ExtensionAPI): void => {
       sessionId: control.sessionId,
       turnId: control.turnId,
       skills: control.skills,
+      skillsDropped: control.skillsDropped,
       redactor,
       serializedBatchTransport: createPiFileSpanExporter({
         directory: dirname(traceControlPath),

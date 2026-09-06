@@ -57,22 +57,22 @@
       "@sandbox-agent/cli-darwin-x64",
       "@sandbox-agent/cli-linux-arm64",
       "esbuild"
-    ],
-    "patchedDependencies": {
-      "acp-http-client@0.4.2": "patches/acp-http-client@0.4.2.patch",
-      "pi-acp@0.0.29": "patches/pi-acp@0.0.29.patch",
-      "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch"
-    },
-    "overrides": {
-      "@hono/node-server": "1.19.15",
-      "brace-expansion": "5.0.9",
-      "fast-uri": "3.1.5",
-      "hono": "4.12.34",
-      "ip-address": "10.3.1",
-      "postcss": "8.5.23",
-      "protobufjs": "7.6.5",
-      "shell-quote": "1.9.0",
-      "tar": "7.5.21"
-    }
+    ]
+  },
+  "overrides": {
+    "@hono/node-server": "1.19.15",
+    "brace-expansion": "5.0.9",
+    "fast-uri": "3.1.5",
+    "hono": "4.12.34",
+    "ip-address": "10.3.1",
+    "postcss": "8.5.23",
+    "protobufjs": "7.6.5",
+    "shell-quote": "1.9.0",
+    "tar": "7.5.21"
+  },
+  "patchedDependencies": {
+    "acp-http-client@0.4.2": "patches/acp-http-client@0.4.2.patch",
+    "pi-acp@0.0.29": "patches/pi-acp@0.0.29.patch",
+    "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch"
   }
 }
