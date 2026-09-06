@@ -135,8 +135,7 @@ const Row = ({
                     Steer
                 </span>
             ) : null}
-            {/* Keep Send Now discoverable without hovering. Other row actions also stay visible
-                during editing, keyboard focus, and on touch surfaces. */}
+            {/* Keep Send Now visible without hover. */}
             <span
                 className={`flex shrink-0 items-center gap-0.5 transition-opacity ${
                     editing || touchCls || (onSendNow && message.source === "server")
