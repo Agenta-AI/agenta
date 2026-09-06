@@ -64,6 +64,7 @@ def test_catalog_ships_platform_builder_ops():
     assert set(PLATFORM_OPS) - {"read_config"} == {
         "discover_tools",
         "query_workflows",
+        "search_skills",
         "query_spans",
         "rename_session",
         "rename_agent",

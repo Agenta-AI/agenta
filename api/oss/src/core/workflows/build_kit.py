@@ -37,6 +37,8 @@ _AUTO_ALLOWED_BUILD_KIT_OPS = frozenset({"rename_session", "rename_agent"})
 # Cut ops stay catalog opt-ins.
 DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "discover_tools",
+    # Registry discovery: search + the self-config commit IS the agent-driven install.
+    "search_skills",
     *_READ_CONFIG_OPS,
     "commit_revision",
     "annotate_trace",

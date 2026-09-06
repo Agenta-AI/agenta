@@ -529,6 +529,25 @@ _DISCOVER_TOOLS_INPUT_SCHEMA: Dict[str, Any] = {
 
 # Workflows query (read): list the project's workflow artifacts, so an agent building or improving
 # agents can find what already exists. Filters mirror ``WorkflowQueryRequest`` (all optional).
+_SEARCH_SKILLS_DESCRIPTION = (
+    "Search the project's skill registry (name and description match; empty search lists "
+    "everything). Answers with each skill's slug, name, description, head version and "
+    "file count, plus the Agenta built-ins in a separate `builtin` block. To give this "
+    "agent a skill from the results, append an `@ag.embed` entry to `skills` via "
+    "`commit_revision` — the exact entry shape is documented in the configuration "
+    "reference's skills section (reference by `workflow.slug` to follow the latest "
+    "version; `workflow_revision` with `version` to pin)."
+)
+_SEARCH_SKILLS_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "search": {
+            "type": "string",
+            "description": "Case-insensitive match on skill name and description.",
+        },
+    },
+}
+
 _QUERY_WORKFLOWS_DESCRIPTION = (
     "Query the project's workflow artifacts (agents, prompts) with optional filters and "
     "pagination. Use it to find existing workflows before creating or referencing one."
@@ -1556,6 +1575,14 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/workflows/query",
             input_schema=_QUERY_WORKFLOWS_INPUT_SCHEMA,
+            read_only=True,
+        ),
+        PlatformOp(
+            op="search_skills",
+            description=_SEARCH_SKILLS_DESCRIPTION,
+            method="POST",
+            path="/api/skills/query",
+            input_schema=_SEARCH_SKILLS_INPUT_SCHEMA,
             read_only=True,
         ),
         PlatformOp(
