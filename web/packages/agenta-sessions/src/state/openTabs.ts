@@ -21,9 +21,13 @@ import {atomFamily} from "jotai-family"
  *   list is a capped, origin-filtered window; falling out of it is not a close.
  * - The active session always renders and always joins the set, so navigating anywhere reopens a tab.
  */
+// getOnInit: without it the atom reads `{}` until storage loads, and the seed effect would
+// overwrite the persisted tabs with whatever the first server list showed.
 const openIdsByScopeAtom = atomWithStorage<Record<string, string[]>>(
     "agenta:sessions:open-tabs",
     {},
+    undefined,
+    {getOnInit: true},
 )
 
 /** Scope key: one agent's tabs open and close independently of another's. */

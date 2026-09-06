@@ -62,6 +62,8 @@ export const AgentNameInline = ({
     const [error, setError] = useState<string | null>(null)
     /** Escape must win the race with the blur that unmounting the field fires. */
     const cancelled = useRef(false)
+    /** Enter then blur both commit; two in flight can resolve out of order and undo the later name. */
+    const committing = useRef(false)
 
     const startEditing = () => {
         setDraft(name)
@@ -71,7 +73,7 @@ export const AgentNameInline = ({
     }
 
     const commit = async () => {
-        if (cancelled.current) return
+        if (cancelled.current || committing.current) return
         const next = draft.trim()
         if (!next || next === name) {
             setEditing(false)
@@ -81,8 +83,13 @@ export const AgentNameInline = ({
             setError("An agent with this name already exists")
             return
         }
-        const ok = await commitRename(workflowId, next)
-        if (ok) onRenamed?.(next)
+        committing.current = true
+        try {
+            const ok = await commitRename(workflowId, next)
+            if (ok) onRenamed?.(next)
+        } finally {
+            committing.current = false
+        }
         setEditing(false)
     }
 

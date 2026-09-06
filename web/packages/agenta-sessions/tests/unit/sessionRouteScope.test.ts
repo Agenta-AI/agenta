@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {sessionScopeFromRouteQuery} from "./sessionRouteScope"
+import {sessionScopeFromRouteQuery} from "../../src/state/filters"
 
 describe("sessionScopeFromRouteQuery", () => {
     it("maps mode=automation to the automation session scope", () => {
