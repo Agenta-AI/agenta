@@ -11,6 +11,7 @@ import {
 import {
     NewSkillMenuButton,
     SkillCreateDrawer,
+    SkillDetailDrawer,
     SkillGallerySections,
     SkillImportDrawer,
     type SkillGallerySection,
@@ -84,7 +85,14 @@ export const SkillListScreen = ({
         [projectSkills, builtinSkills],
     )
 
-    const noop = useCallback(() => undefined, [])
+    // Card tap -> the detail drawer (read-only editor + versions rail + used-by).
+    const [detailSkill, setDetailSkill] = useState<SkillListItem | null>(null)
+    const [detailOpen, setDetailOpen] = useState(false)
+    const openSkill = useCallback((item: SkillListItem) => {
+        setDetailSkill(item)
+        setDetailOpen(true)
+    }, [])
+    const closeDetail = useCallback(() => setDetailOpen(false), [])
     const [importOpen, setImportOpen] = useState(false)
     const openImport = useCallback(() => setImportOpen(true), [])
     const closeImport = useCallback(() => setImportOpen(false), [])
@@ -128,7 +136,7 @@ export const SkillListScreen = ({
         <div className="flex flex-col gap-6">
             <SkillGallerySections
                 sections={sections}
-                onOpenSkill={noop}
+                onOpenSkill={openSkill}
                 search={search}
                 loading={query.isPending}
             />
@@ -156,6 +164,12 @@ export const SkillListScreen = ({
                     )}
                 </ScreenScaffold>
             </AppShell>
+            <SkillDetailDrawer
+                open={detailOpen}
+                onClose={closeDetail}
+                projectId={projectId}
+                skill={detailSkill}
+            />
             <SkillImportDrawer open={importOpen} onClose={closeImport} projectId={projectId} />
             <SkillCreateDrawer
                 open={createMode !== null}

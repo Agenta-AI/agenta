@@ -5,8 +5,9 @@
  * `workflows/query`, and the `/skills/*` resources are not in the generated client yet.
  * These functions keep the signatures a future Fern-backed swap must preserve.
  */
-import {createWorkflow} from "@agenta/entities/workflow"
+import {createWorkflow, queryWorkflowRevisionsByWorkflow} from "@agenta/entities/workflow"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
+import {generateId} from "@agenta/shared/utils"
 import type {z} from "zod"
 
 import {
@@ -186,4 +187,96 @@ export async function importSkillSource({
     )
 
     return parseOrWarn(skillSourceImportResponseSchema, response.data, "[importSkillSource]")
+}
+
+/** One row of a skill workflow's revision history, as the detail drawer consumes it. */
+export interface SkillRevision {
+    id: string
+    /** Numeric-ish tag without the "v" prefix, e.g. "3". */
+    version?: string
+    message?: string
+    createdAt?: string
+    variantId?: string
+    /** The stored `data.parameters.skill` payload (snake_case), when the revision has one. */
+    skill?: Record<string, unknown>
+}
+
+export interface FetchSkillRevisionsParams {
+    projectId: string
+    workflowId: string
+}
+
+/** A skill workflow's revision log, newest first, with each revision's stored content. */
+export async function fetchSkillRevisions({
+    projectId,
+    workflowId,
+}: FetchSkillRevisionsParams): Promise<SkillRevision[]> {
+    if (!projectId || !workflowId) return []
+    const response = await queryWorkflowRevisionsByWorkflow(workflowId, projectId)
+    const revisions = (response.workflow_revisions ?? []) as Record<string, unknown>[]
+    return (
+        revisions
+            .map((rev): SkillRevision => {
+                const data = rev.data as Record<string, unknown> | undefined
+                const parameters = data?.parameters as Record<string, unknown> | undefined
+                const skill = parameters?.skill
+                return {
+                    id: String(rev.id ?? ""),
+                    version:
+                        rev.version != null ? String(rev.version).replace(/^v/, "") : undefined,
+                    message: typeof rev.message === "string" ? rev.message : undefined,
+                    createdAt: typeof rev.created_at === "string" ? rev.created_at : undefined,
+                    variantId:
+                        typeof rev.workflow_variant_id === "string"
+                            ? rev.workflow_variant_id
+                            : undefined,
+                    skill:
+                        skill && typeof skill === "object" && !Array.isArray(skill)
+                            ? (skill as Record<string, unknown>)
+                            : undefined,
+                }
+            })
+            .filter((rev) => rev.id)
+            // v0 is the empty bootstrap revision — history starts at v1.
+            .filter((rev) => rev.version !== "0")
+            .sort((a, b) => Number(b.version ?? 0) - Number(a.version ?? 0))
+    )
+}
+
+export interface CommitSkillRevisionParams {
+    projectId: string
+    workflowId: string
+    variantId?: string
+    /** Validated skill content (skillContentSchema) — becomes `data.parameters.skill`. */
+    skill: Record<string, unknown>
+    message?: string
+}
+
+/**
+ * Commits a new revision on an existing skill workflow, with the skill flags stamped
+ * explicitly (the registry query filters on the REVISION flag — same contract as
+ * `createSkillWorkflow`). The server infers them from the URI too; explicit is the belt.
+ */
+export async function commitSkillRevision({
+    projectId,
+    workflowId,
+    variantId,
+    skill,
+    message,
+}: CommitSkillRevisionParams) {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/workflows/revisions/commit`,
+        {
+            workflow_revision: {
+                workflow_id: workflowId,
+                workflow_variant_id: variantId ?? undefined,
+                slug: generateId().replace(/-/g, "").slice(0, 12),
+                data: {uri: AGENTA_BUILTIN_SKILL_URI, parameters: {skill}},
+                flags: {is_skill: true, is_snippet: true},
+                message: message || undefined,
+            },
+        },
+        {params: {project_id: projectId}},
+    )
+    return response.data
 }

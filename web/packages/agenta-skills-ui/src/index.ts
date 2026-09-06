@@ -25,3 +25,4 @@ export {SkillSaveBlastRadius, type SkillSaveBlastRadiusProps} from "./SkillSaveB
 export {SkillImportDrawer, type SkillImportDrawerProps} from "./SkillImportDrawer"
 export {SkillCreateDrawer, type SkillCreateDrawerProps} from "./SkillCreateDrawer"
 export {SkillUploadPanel, type SkillUploadPanelProps} from "./SkillUploadPanel"
+export {SkillDetailDrawer, type SkillDetailDrawerProps} from "./SkillDetailDrawer"

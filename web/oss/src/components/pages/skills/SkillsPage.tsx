@@ -11,6 +11,7 @@ import {
 } from "@agenta/skills/state"
 import {
     SkillCreateDrawer,
+    SkillDetailDrawer,
     SkillImportDrawer,
     SkillsGalleryPage,
     type SkillGallerySection,
@@ -70,9 +71,17 @@ export default function SkillsPage() {
         [projectSkills.length, builtinSkills.length],
     )
 
-    // Card drawer + write/upload land with the follow-up checkpoints; see plan-web.md W3.3/W5.
     const noop = useCallback(() => undefined, [])
     const projectId = useAtomValue(projectIdAtom)
+    // Card click -> the detail drawer (read-only editor + versions rail + used-by).
+    const [detailSkill, setDetailSkill] = useState<SkillListItem | null>(null)
+    const [detailOpen, setDetailOpen] = useState(false)
+    const openSkill = useCallback((item: SkillListItem) => {
+        setDetailSkill(item)
+        setDetailOpen(true)
+    }, [])
+    // Keep the item through the exit animation; only the open flag flips.
+    const closeDetail = useCallback(() => setDetailOpen(false), [])
     const [importOpen, setImportOpen] = useState(false)
     const openImport = useCallback(() => setImportOpen(true), [])
     const closeImport = useCallback(() => setImportOpen(false), [])
@@ -96,9 +105,15 @@ export default function SkillsPage() {
                 search={search}
                 onSearchChange={setSearch}
                 sections={sections}
-                onOpenSkill={noop}
+                onOpenSkill={openSkill}
                 createActions={createActions}
                 loading={query.isPending}
+            />
+            <SkillDetailDrawer
+                open={detailOpen}
+                onClose={closeDetail}
+                projectId={projectId ?? ""}
+                skill={detailSkill}
             />
             <SkillImportDrawer
                 open={importOpen}
