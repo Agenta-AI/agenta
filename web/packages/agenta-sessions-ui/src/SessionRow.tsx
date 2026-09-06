@@ -155,11 +155,14 @@ const SessionRowImpl = ({
                     {row.activityAt ? timeAgo(Date.parse(row.activityAt)) : "—"}
                 </span>
 
+                {/* Phone-hidden: the trailing controls crowd the title at this width, and the
+                    "..." menu already carries Pin/Unpin. */}
                 {onTogglePin ? (
                     <SessionPinButton
                         pinned={row.isPinned}
                         onToggle={() => onTogglePin(row.id)}
                         revealOnHover={revealActionsOnHover}
+                        className="hidden sm:block"
                     />
                 ) : null}
 
