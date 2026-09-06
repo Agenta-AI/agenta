@@ -6,6 +6,8 @@ from uuid import uuid4
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from oss.src.apis.fastapi.sessions.models import SessionInteractionCreateRequest
 from oss.src.core.sessions.interactions.dtos import SessionInteractionKind
 from oss.src.core.sessions.records.dtos import SessionRecord
@@ -984,3 +986,75 @@ def test_keyed_references_drops_families_the_invoke_does_not_accept():
     assert keyed_references([SessionReference(key="application", slug="app-1")]) == {
         "application": {"slug": "app-1"}
     }
+
+
+@pytest.mark.parametrize("outcome", ["completed", "error"])
+async def test_client_tool_answer_replays_questionnaire_result(outcome):
+    project_id = uuid4()
+    interaction = _make_interaction(
+        kind=SessionInteractionKind.client_tool,
+        request={
+            "tool": "__ag__request_input",
+            "tool_call_id": "form-call",
+            "args": {"title": "Choose"},
+        },
+    )
+    records = [
+        _record(
+            project_id,
+            source="user",
+            rtype="message",
+            attributes={"text": "ask a questionnaire"},
+        ),
+        _record(
+            project_id,
+            rtype="tool_call",
+            attributes={
+                "id": "form-call",
+                "name": "__ag__request_input",
+                "input": {"title": "Choose"},
+            },
+            index=1,
+        ),
+    ]
+    answer = {
+        "tool_call_id": "form-call",
+        "tool_name": "__ag__request_input",
+        "outcome": outcome,
+    }
+    result = {"action": "accept", "content": {"selected": "blue", "default": "UTC"}}
+    if outcome == "error":
+        answer["error"] = "Questionnaire could not be rendered"
+    else:
+        answer["output"] = result
+    dispatch_fn = AsyncMock()
+    dispatcher = _dispatcher_with(interaction, records, dispatch_fn)
+    execution_id = str(uuid4())
+    await dispatcher.respond(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer=answer,
+        continuation_execution_id=execution_id,
+    )
+    request = dispatch_fn.await_args.kwargs["request"]
+    assert dispatch_fn.await_args.kwargs["run_id"] == execution_id
+    messages = request.data.inputs["messages"]
+    assert messages[0] == {"role": "user", "content": "ask a questionnaire"}
+    assert messages[-1]["role"] == "assistant"
+    assert messages[-1]["content"][-1] == {
+        "type": "tool_result",
+        "toolCallId": "form-call",
+        "toolName": "__ag__request_input",
+        "output": answer["error"] if outcome == "error" else result,
+        "isError": outcome == "error",
+    }
+    assert (
+        sum(
+            block.get("type") == "tool_call"
+            for m in messages
+            if isinstance(m.get("content"), list)
+            for block in m["content"]
+        )
+        == 1
+    )

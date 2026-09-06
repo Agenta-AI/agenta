@@ -18,13 +18,13 @@ import {canonicalToolName, resolveClientToolWidget, resolveToolDisplay} from "..
 import {clientToolMeta} from "./meta"
 import UnhandledClientTool from "./UnhandledClientTool"
 
-/** Settle a parked client tool. The panel maps this onto `addToolOutput` (success or error). */
+/** Settle a parked client tool; await durable submission when the host owns it. */
 export type ClientToolOutputHandler = (args: {
     toolName: string
     toolCallId: string
     output?: Record<string, unknown>
     errorText?: string
-}) => void
+}) => void | Promise<void>
 
 const ClientToolPart = ({
     part,
@@ -53,13 +53,13 @@ const ClientToolPart = ({
     const settle = useCallback(
         (args: {output: Record<string, unknown>} | {errorText: string}) => {
             if ("errorText" in args) {
-                onOutput({
+                return onOutput({
                     toolName: meta.toolName,
                     toolCallId: meta.toolCallId,
                     errorText: args.errorText,
                 })
             } else {
-                onOutput({
+                return onOutput({
                     toolName: meta.toolName,
                     toolCallId: meta.toolCallId,
                     output: args.output,

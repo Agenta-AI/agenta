@@ -63,7 +63,6 @@ import {
     isHitlPending,
     isResumeSend,
     playgroundController,
-    recordAnswerThenRelease,
     type LiveAgentInteraction,
 } from "@agenta/playground"
 import {agentSelfCommitSignalAtom} from "@agenta/shared/state"
@@ -498,30 +497,30 @@ export const useAgentChatSession = ({
         if (isResumeSend({from, to: status})) liveGateInteractionRef.current = null
     }, [status])
 
-    // Settle a parked client tool (#4920). The dispatcher calls this from a widget (e.g. the connect
-    // widget) with the structured reference; `addToolOutput` matches the part by `toolCallId` on the
-    // last turn and the resume predicate auto-resends. `tool` is only the typed-tools key — matching
-    // is by id — so a cast onto the untyped UIMessage tool map is safe.
-    const handleClientToolOutput = useCallback<ClientToolOutputHandler>(
-        ({toolName, toolCallId, output, errorText}) => {
-            // Set synchronously: it holds off transcript adoption for the whole ordered window.
+    // Durable gates resume on the server; legacy gates still release the local SDK.
+    const handleClientToolOutput = useCallback(
+        async ({
+            toolName,
+            toolCallId,
+            output,
+            errorText,
+        }: Parameters<ClientToolOutputHandler>[0]) => {
             liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
-            // Ordered, not raced — the resume starts a turn whose sweep cancels every `pending`
-            // row, so the answer has to be durable first. Capped inside the helper.
-            void recordAnswerThenRelease({
-                record: () =>
-                    recordInteractionAnswer({
-                        sessionId,
-                        toolCallId,
-                        resolution: {
-                            tool_call_id: toolCallId,
-                            tool_name: toolName,
-                            ...(errorText !== undefined
-                                ? {outcome: "error", error: errorText}
-                                : {outcome: "completed", output: output ?? {}}),
-                        },
-                    }),
-                release: () => {
+            const resolution = {
+                tool_call_id: toolCallId,
+                tool_name: toolName,
+                ...(errorText !== undefined
+                    ? {outcome: "error", error: errorText}
+                    : {outcome: "completed", output: output ?? {}}),
+            }
+            const outcome = await submitApprovalForCapability({
+                durableApprovals: await supportsDurableApprovals(sessionId),
+                submitDurable: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
+                retireDurable: () => {
+                    liveGateInteractionRef.current = null
+                },
+                recordLegacy: () => recordInteractionAnswer({sessionId, toolCallId, resolution}),
+                releaseLegacy: () => {
                     if (errorText !== undefined) {
                         addToolOutput({
                             state: "output-error",
@@ -538,8 +537,15 @@ export const useAgentChatSession = ({
                     }
                 },
             })
+            return outcome
         },
-        [addToolOutput, recordInteractionAnswer, sessionId],
+        [
+            addToolOutput,
+            recordInteractionAnswer,
+            respondInteractionAnswer,
+            sessionId,
+            supportsDurableApprovals,
+        ],
     )
 
     // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this

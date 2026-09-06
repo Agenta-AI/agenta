@@ -58,7 +58,7 @@ export const sessionDurableApprovalsCapabilityAtom = atom(
 )
 
 /**
- * Submit an approval through the response endpoint and preserve its failure for the card.
+ * Submit a gate answer through the response endpoint and preserve its failure for the card.
  * HTTP 202 means the server durably owns continuation; HTTP 200 is the flag-off server dispatcher
  * path. Both are server-owned, so callers never also release the local AI SDK gate.
  */
@@ -70,10 +70,13 @@ export const respondInteractionAnswerAtom = atom(
         params: {
             sessionId: string
             toolCallId: string
-            approved: boolean
-        },
+        } & ({approved: boolean} | {resolution: Record<string, unknown>}),
     ): Promise<{durable: boolean; recoverable: boolean; executionId?: string}> => {
-        const {sessionId, toolCallId, approved} = params
+        const {sessionId, toolCallId} = params
+        const answer =
+            "resolution" in params
+                ? params.resolution
+                : {approved: params.approved, tool_call_id: toolCallId}
         const projectId = get(projectIdAtom) ?? ""
         if (!projectId || !sessionId) throw new Error("Approval has no project or session scope.")
 
@@ -91,9 +94,12 @@ export const respondInteractionAnswerAtom = atom(
         const result = await respondInteraction({
             interactionId: row.id,
             projectId,
-            answer: {approved, tool_call_id: toolCallId},
+            answer,
             expectedExecutionId: row.turnId,
-            idempotencyKey: `approval:${row.id}:${approved ? "approve" : "deny"}`,
+            idempotencyKey:
+                "resolution" in params
+                    ? `client-tool:${row.id}`
+                    : `approval:${row.id}:${params.approved ? "approve" : "deny"}`,
         })
         if (!result) throw new Error("Approval could not be submitted.")
         await queryClient.invalidateQueries({queryKey: rowsQueryKey})
