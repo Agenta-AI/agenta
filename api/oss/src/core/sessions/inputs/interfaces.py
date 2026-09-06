@@ -70,6 +70,18 @@ class SessionInputsDAOInterface(ABC):
         pass
 
     @abstractmethod
+    async def prioritize_pending(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        input_id: UUID,
+        user_id: Optional[UUID],
+        transaction: Any,
+    ) -> Optional[PendingInput]:
+        pass
+
+    @abstractmethod
     async def promote_next(
         self,
         *,

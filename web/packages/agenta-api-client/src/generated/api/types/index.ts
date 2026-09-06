@@ -717,3 +717,4 @@ export * from "./Workspace.js";
 export * from "./WorkspaceMemberResponse.js";
 export * from "./WorkspacePermission.js";
 export * from "./WorkspaceResponse.js";
+export * from "./PendingInputAdmissionResponse.js";

@@ -16,12 +16,15 @@ import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
 import type {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
 import {useServerSessionInputs} from "../../../src/hooks/useServerSessionInputs"
 
-const {buildAgentRequest, fetchCapabilities, fetchSnapshot, removeInput} = vi.hoisted(() => ({
-    buildAgentRequest: vi.fn(),
-    fetchCapabilities: vi.fn(),
-    fetchSnapshot: vi.fn(),
-    removeInput: vi.fn(),
-}))
+const {buildAgentRequest, fetchCapabilities, fetchSnapshot, removeInput, sendInputNow} = vi.hoisted(
+    () => ({
+        buildAgentRequest: vi.fn(),
+        fetchCapabilities: vi.fn(),
+        fetchSnapshot: vi.fn(),
+        removeInput: vi.fn(),
+        sendInputNow: vi.fn(),
+    }),
+)
 
 vi.mock("@agenta/entities/session", async () => {
     const {atom} = await import("jotai")
@@ -31,6 +34,10 @@ vi.mock("@agenta/entities/session", async () => {
         ),
         fetchSessionSnapshotAtom: atom(null, (_get, _set, sessionId: string) =>
             fetchSnapshot(sessionId),
+        ),
+        sendPendingSessionInputNowAtom: atom(
+            null,
+            (_get, _set, params: {sessionId: string; inputId: string}) => sendInputNow(params),
         ),
         removePendingSessionInputAtom: atom(
             null,
@@ -73,6 +80,7 @@ beforeEach(() => {
     fetchCapabilities.mockResolvedValue({durableApprovals: true, queue: true, steer: true})
     fetchSnapshot.mockReset()
     removeInput.mockReset()
+    sendInputNow.mockReset()
     fetchMock.mockReset()
 })
 
@@ -600,5 +608,56 @@ describe("useServerSessionInputs", () => {
         expect(inputRef.current?.getMarkdown()).toBe("keep this draft")
         expect(screen.queryByText("1 queued message")).toBeNull()
         closeFreshResponse()
+    })
+})
+
+describe("selected queued input Send Now", () => {
+    it("uses the selected row identity without invoking or removing its content", async () => {
+        fetchSnapshot.mockResolvedValue(runningSnapshot())
+        sendInputNow.mockResolvedValue(true)
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [],
+                locallyBusy: true,
+            }),
+        )
+        await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
+        await act(() => result.current.sendNow("selected-row"))
+        expect(sendInputNow).toHaveBeenCalledWith({sessionId: "session-1", inputId: "selected-row"})
+        expect(removeInput).not.toHaveBeenCalled()
+        expect(fetchMock).not.toHaveBeenCalled()
+        expect(fetchSnapshot.mock.calls.length).toBeGreaterThan(1)
+    })
+
+    it("surfaces an admission failure without removing the pending input", async () => {
+        fetchSnapshot.mockResolvedValue(runningSnapshot())
+        sendInputNow.mockResolvedValue(false)
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [],
+                locallyBusy: true,
+            }),
+        )
+        await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
+        await expect(result.current.sendNow("selected-row")).rejects.toThrow("could not be sent")
+        expect(removeInput).not.toHaveBeenCalled()
+    })
+
+    it("does not call the action when the server capability is disabled", async () => {
+        fetchCapabilities.mockResolvedValue({durableApprovals: false, queue: false, steer: false})
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [],
+                locallyBusy: true,
+            }),
+        )
+        await expect(result.current.sendNow("selected-row")).rejects.toThrow("not available")
+        expect(sendInputNow).not.toHaveBeenCalled()
     })
 })

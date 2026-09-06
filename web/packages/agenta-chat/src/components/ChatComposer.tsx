@@ -60,8 +60,6 @@ export interface ChatComposerProps {
     stopShortcutEnabled?: boolean
     /** Capability-gated controls shown beside Stop while the session is busy. */
     busyActions?: {label: string; onSubmit: (text: string) => void}[]
-    /** Explain the manual Stop rule while durable Queue is available. */
-    showQueuePauseCopy?: boolean
     /** Read at event time — attachments are refused right now (a voice take in flight…). */
     attachmentsBlocked?: () => boolean
     /** The composer itself is unusable (gates the paperclip alongside `uploadsEnabled`). */
@@ -97,7 +95,6 @@ export const ChatComposer = ({
     onStop,
     stopShortcutEnabled = true,
     busyActions,
-    showQueuePauseCopy,
     attachmentsBlocked,
     composerDisabled,
     onViewAttachment,
@@ -186,7 +183,7 @@ export const ChatComposer = ({
                 onPasteFile={(pasted) => {
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))
                 }}
-                sendForceEnabled={files.length > 0 && attachmentsSettled}
+                sendForceEnabled={files.length > 0}
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}
                 streaming={streaming}
@@ -230,13 +227,6 @@ export const ChatComposer = ({
                     </HeightCollapse>
                 }
                 trailing={trailing}
-                footer={
-                    showQueuePauseCopy ? (
-                        <p className="m-0 text-[11px] text-colorTextTertiary">
-                            Stop pauses the queue. It resumes after your next message.
-                        </p>
-                    ) : null
-                }
             />
         </Suspense>
     )

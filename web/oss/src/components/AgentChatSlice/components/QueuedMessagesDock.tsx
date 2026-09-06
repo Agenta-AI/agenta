@@ -18,6 +18,7 @@ interface AgentQueuedMessagesDockProps {
     /** The run is parked on the user, so the queue is held rather than merely waiting. */
     held: boolean
     onRemove: (id: string) => void
+    onSendNow?: (id: string) => Promise<void>
     onEdit: (message: QueuedMessage) => void
     onCancelEdit: () => void
     editingId: string | null
@@ -28,6 +29,7 @@ const AgentQueuedMessagesDock = ({
     queued,
     held,
     onRemove,
+    onSendNow,
     onEdit,
     onCancelEdit,
     editingId,
@@ -46,6 +48,7 @@ const AgentQueuedMessagesDock = ({
                 queued={shownRef.current}
                 held={held}
                 onRemove={onRemove}
+                onSendNow={onSendNow}
                 onEdit={onEdit}
                 onCancelEdit={onCancelEdit}
                 editingId={editingId}

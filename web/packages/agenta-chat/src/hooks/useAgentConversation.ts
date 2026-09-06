@@ -199,6 +199,7 @@ export interface AgentConversation {
      * connect). Typed messages queue rather than send while this holds. */
     hitlPending: boolean
     removeQueued: (id: string) => void
+    sendQueuedNow?: (id: string) => Promise<void>
     /** Id of the held message the composer is editing, or null. */
     editingId: string | null
     /** Borrow the composer for `id`, stashing the draft it currently holds. */
@@ -712,6 +713,7 @@ export const useAgentConversation = ({
         submit,
         steer,
         removeQueued,
+        sendQueuedNow,
         ownsContinuation,
         queueEnabled,
         steerEnabled,
@@ -1271,6 +1273,7 @@ export const useAgentConversation = ({
         steer: steerInput,
         hitlPending,
         removeQueued,
+        sendQueuedNow,
         editingId,
         beginEdit,
         cancelEdit,

@@ -6,6 +6,8 @@ from sqlalchemy import and_, func, or_, select, text, update as sa_update
 
 from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputCreate
 from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
+from oss.src.core.sessions.inputs.types import SessionInputNotRemovable
+from oss.src.dbs.postgres.sessions.commands.dbes import SessionCommandDBE
 from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE
 from oss.src.dbs.postgres.sessions.inputs.mappings import (
     new_input_row,
@@ -215,6 +217,25 @@ class SessionInputsDAO(SessionInputsDAOInterface):
         user_id: Optional[UUID],
     ) -> Optional[PendingInput]:
         async with self.engine.session() as session:
+            # Serialize with admission before checking its committed command reservation.
+            await self._lock_session(session, project_id, session_id)
+            reserved = (
+                await session.execute(
+                    select(SessionCommandDBE.id)
+                    .where(
+                        SessionCommandDBE.project_id == project_id,
+                        SessionCommandDBE.session_id == session_id,
+                        SessionCommandDBE.kind == "cancel",
+                        SessionCommandDBE.state.in_(("pending", "claimed")),
+                        SessionCommandDBE.deleted_at.is_(None),
+                        SessionCommandDBE.data["steer_input_id"].astext
+                        == str(input_id),
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if reserved is not None:
+                raise SessionInputNotRemovable(str(input_id))
             row = (
                 await session.execute(
                     sa_update(SessionInputDBE)
@@ -233,6 +254,45 @@ class SessionInputsDAO(SessionInputsDAOInterface):
                 )
             ).scalar_one_or_none()
             return to_pending_input(row) if row else None
+
+    async def prioritize_pending(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        input_id: UUID,
+        user_id: Optional[UUID],
+        transaction: Any,
+    ) -> Optional[PendingInput]:
+        await self._lock_session(transaction, project_id, session_id)
+        row = (
+            await transaction.execute(
+                select(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        if row.state == "pending" and row.policy != "steer":
+            minimum = (
+                await transaction.execute(
+                    select(func.min(SessionInputDBE.position)).where(
+                        SessionInputDBE.project_id == project_id,
+                        SessionInputDBE.session_id == session_id,
+                    )
+                )
+            ).scalar_one()
+            row.position = minimum - 1
+            row.policy = "steer"
+            row.updated_at = datetime.now(timezone.utc)
+            row.updated_by_id = user_id
+            await transaction.flush()
+        return to_pending_input(row)
 
     async def promote_next(
         self,

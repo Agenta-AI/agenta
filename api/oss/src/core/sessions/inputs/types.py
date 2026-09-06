@@ -26,3 +26,9 @@ class SessionInputNotRemovable(SessionInputError):
 class SessionInputIdempotencyConflict(SessionInputError):
     def __init__(self):
         super().__init__("This idempotency key was already used for a different input.")
+
+
+class SessionInputRemoved(SessionInputError):
+    def __init__(self, input_id: str):
+        self.input_id = input_id
+        super().__init__("The queued input was removed and cannot be sent.")

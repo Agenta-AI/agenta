@@ -437,6 +437,7 @@ const AgentConversation = ({
         submit,
         steer,
         removeQueued,
+        sendQueuedNow,
         ownsContinuation,
         queueEnabled,
         steerEnabled,
@@ -1036,6 +1037,7 @@ const AgentConversation = ({
                                         queue={{
                                             queued,
                                             removeQueued,
+                                            sendQueuedNow,
                                             editingId,
                                             beginEdit,
                                             cancelEdit,
