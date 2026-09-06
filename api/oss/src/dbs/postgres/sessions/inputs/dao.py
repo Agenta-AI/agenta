@@ -234,6 +234,45 @@ class SessionInputsDAO(SessionInputsDAOInterface):
             ).scalar_one_or_none()
             return to_pending_input(row) if row else None
 
+    async def prioritize_pending(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        input_id: UUID,
+        user_id: Optional[UUID],
+        transaction: Any,
+    ) -> Optional[PendingInput]:
+        await self._lock_session(transaction, project_id, session_id)
+        row = (
+            await transaction.execute(
+                select(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        if row.state == "pending" and row.policy != "steer":
+            minimum = (
+                await transaction.execute(
+                    select(func.min(SessionInputDBE.position)).where(
+                        SessionInputDBE.project_id == project_id,
+                        SessionInputDBE.session_id == session_id,
+                    )
+                )
+            ).scalar_one()
+            row.position = minimum - 1
+            row.policy = "steer"
+            row.updated_at = datetime.now(timezone.utc)
+            row.updated_by_id = user_id
+            await transaction.flush()
+        return to_pending_input(row)
+
     async def promote_next(
         self,
         *,

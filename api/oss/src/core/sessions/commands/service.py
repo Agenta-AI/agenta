@@ -66,6 +66,12 @@ from oss.src.core.sessions.interactions.dtos import (
 )
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
+from oss.src.core.sessions.inputs.dtos import PendingInputAdmission, PendingInputState
+from oss.src.core.sessions.inputs.types import (
+    SessionInputBusy,
+    SessionInputNotFound,
+    SessionInputRemoved,
+)
 from oss.src.core.sessions.streams.dtos import (
     SessionStreamCommandRequest,
     SessionStreamCommandResponse,
@@ -174,6 +180,163 @@ class SessionCommandsService:
         self._inputs = inputs_dao
 
     # -- admission ---------------------------------------------------------- #
+
+    async def send_pending_input_now(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        input_id: UUID,
+    ) -> PendingInputAdmission:
+        if not validate_session_id(session_id):
+            raise SessionIdInvalid(session_id)
+        if not (env.agenta.sessions.queue and env.agenta.sessions.steer):
+            raise SessionInputBusy()
+        if self._inputs is None or self._executions is None:
+            raise SessionInputBusy()
+        received_at = datetime.now(timezone.utc)
+        target_id, _ = await self._resolve_target(
+            project_id=project_id, session_id=session_id, expected_turn_id=None
+        )
+        if target_id is None:
+            stream = await self._streams.fetch_header(
+                project_id=project_id, session_id=session_id
+            )
+            target_id = stream.turn_id if stream else None
+        if target_id is None:
+            raise SessionInputBusy()
+
+        continuation = None
+        cancelled_interactions = 0
+        async with self._dao.transaction() as transaction:
+            execution = await self._executions.lock_for_control(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=target_id,
+                transaction=transaction,
+            )
+            if execution.terminal_outcome is not None:
+                successor = await self._executions.lock_active_continuation(
+                    project_id=project_id,
+                    session_id=session_id,
+                    transaction=transaction,
+                )
+                if successor is not None:
+                    execution = successor
+                    target_id = successor.execution_id
+            item = await self._inputs.prioritize_pending(
+                project_id=project_id,
+                session_id=session_id,
+                input_id=input_id,
+                user_id=user_id,
+                transaction=transaction,
+            )
+            if item is None:
+                raise SessionInputNotFound(str(input_id))
+            if item.state == PendingInputState.removed:
+                raise SessionInputRemoved(str(input_id))
+            if item.state == PendingInputState.promoted:
+                return PendingInputAdmission(
+                    action="pending",
+                    input=item,
+                    execution_id=item.promoted_execution_id,
+                )
+
+            if execution.terminal_outcome is not None:
+                cancelled_interactions = (
+                    await self._interactions.cancel_session_pending(
+                        project_id=project_id,
+                        session_id=session_id,
+                        only_turn_id=target_id,
+                        transaction=transaction,
+                        publish=False,
+                    )
+                )
+                continuation = await self._promote_next_input(
+                    project_id=project_id,
+                    session_id=session_id,
+                    parent_execution_id=target_id,
+                    input_id=input_id,
+                    transaction=transaction,
+                )
+                assert continuation is not None, "Locked pending input was not promoted"
+                command = continuation.command
+                item = item.model_copy(
+                    update={
+                        "state": PendingInputState.promoted,
+                        "promoted_execution_id": continuation.execution_id,
+                    }
+                )
+            else:
+                command = await self._dao.fetch_open_command(
+                    project_id=project_id,
+                    session_id=session_id,
+                    kind=SessionCommandKind.cancel,
+                    target_turn_id=target_id,
+                    transaction=transaction,
+                )
+                if command is None:
+                    await self._executions.set_state(
+                        project_id=project_id,
+                        session_id=session_id,
+                        execution_id=target_id,
+                        state=SessionExecutionState.stopping,
+                        transaction=transaction,
+                    )
+                    command = await self._dao.create_command(
+                        user_id=user_id,
+                        command=SessionCommandCreate(
+                            project_id=project_id,
+                            session_id=session_id,
+                            kind=SessionCommandKind.cancel,
+                            target_turn_id=target_id,
+                            expected_turn_id=target_id,
+                            created_at=received_at,
+                            idempotency_key=f"send-now:{input_id}",
+                            data={"steer_input_id": str(input_id)},
+                        ),
+                        stopping_turn_id=target_id,
+                        transaction=transaction,
+                    )
+                command = await self._dao.bind_steer_input(
+                    project_id=project_id,
+                    command_id=command.id,
+                    input_id=input_id,
+                    transaction=transaction,
+                )
+                if command is None:
+                    raise SessionInputBusy(current_execution_id=target_id)
+                cancelled_interactions = (
+                    await self._interactions.cancel_session_pending(
+                        project_id=project_id,
+                        session_id=session_id,
+                        only_turn_id=target_id,
+                        transaction=transaction,
+                        publish=False,
+                    )
+                )
+        if cancelled_interactions:
+            await self._interactions.publish_session_pending_cancelled(
+                project_id=project_id,
+                session_id=session_id,
+            )
+        if continuation is not None:
+            await self._reconcile_stopped_redis(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=target_id,
+            )
+            receipt = await self._deliver(command)
+            if receipt is None or receipt.status != "accepted":
+                await self._mark_continuation_recoverable(continuation, receipt)
+        elif command.state == SessionCommandState.pending:
+            await self._deliver(command)
+        return PendingInputAdmission(
+            action="pending",
+            input=item,
+            execution_id=continuation.execution_id if continuation else target_id,
+        )
 
     async def request_cancel_legacy(
         self,
@@ -1863,7 +2026,11 @@ class SessionCommandsService:
                         steer_input_id = (settled.data or {}).get("steer_input_id")
                         if (
                             result.won
-                            and outcome == SessionCommandOutcome.stopped
+                            and outcome
+                            in (
+                                SessionCommandOutcome.stopped,
+                                SessionCommandOutcome.not_running,
+                            )
                             and env.agenta.sessions.queue
                             and env.agenta.sessions.steer
                             and isinstance(steer_input_id, str)

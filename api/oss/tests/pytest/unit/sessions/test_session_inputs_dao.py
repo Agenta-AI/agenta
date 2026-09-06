@@ -3,7 +3,7 @@
 import asyncio
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import ANY, AsyncMock
 import uuid
 
 from fastapi import HTTPException
@@ -26,7 +26,11 @@ from oss.src.core.sessions.commands.types import ExecutionExpectationFailed
 from oss.src.core.sessions.executions.dtos import SessionExecutionState
 from oss.src.core.sessions.inputs.dtos import PendingInputCreate, PendingInputState
 from oss.src.core.sessions.inputs.service import SessionInputsService, input_fingerprint
-from oss.src.core.sessions.inputs.types import SessionInputNotRemovable
+from oss.src.core.sessions.inputs.types import (
+    SessionInputBusy,
+    SessionInputNotRemovable,
+    SessionInputRemoved,
+)
 from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
 from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
 from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
@@ -916,3 +920,370 @@ async def test_admission_follows_approval_continuation_before_stream_header_catc
         assert admission.action == "pending"
         assert admission.execution_id == "approved-child"
         assert len(await inputs.list_pending(**scope)) == 1
+
+
+@pytest.mark.parametrize("idle", [False, True])
+async def test_send_now_preserves_selected_row_and_remaining_order(
+    input_scope, monkeypatch, idle
+):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    inputs = SessionInputsDAO(engine=input_scope["engine"])
+    executions = SessionExecutionsDAO(engine=input_scope["engine"])
+    service = _cancel_service(input_scope, inputs, executions=executions)
+    service._resolve_target = AsyncMock(return_value=("source-turn", None))
+    service._reconcile_stopped_redis = AsyncMock()
+    rows = []
+    for index in range(3):
+        values = _input(input_scope, key=f"send-now-{index}", message=str(index))
+        values.content["attachments"] = [{"file_id": f"file-{index}"}]
+        rows.append(
+            await inputs.create_input(
+                user_id=input_scope["user_id"], pending_input=values
+            )
+        )
+    if idle:
+        await executions.settle(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+            execution_id="source-turn",
+            terminal_outcome="completed",
+            settled_by="runner",
+        )
+    args = dict(
+        project_id=input_scope["project_id"],
+        user_id=input_scope["user_id"],
+        session_id=input_scope["session_id"],
+        input_id=rows[2].id,
+    )
+    first, second = await asyncio.gather(
+        service.send_pending_input_now(**args), service.send_pending_input_now(**args)
+    )
+    assert first.input.id == second.input.id == rows[2].id
+    stored = await inputs.fetch_input(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        input_id=rows[2].id,
+    )
+    assert stored.content == rows[2].content
+    assert stored.idempotency_key == rows[2].idempotency_key
+    assert stored.request_fingerprint == rows[2].request_fingerprint
+    remaining = await inputs.list_pending(
+        project_id=input_scope["project_id"], session_id=input_scope["session_id"]
+    )
+    assert [item.id for item in remaining if item.id != rows[2].id] == [
+        rows[0].id,
+        rows[1].id,
+    ]
+    assert [item.position for item in remaining if item.id != rows[2].id] == [
+        rows[0].position,
+        rows[1].position,
+    ]
+    async with input_scope["engine"].session() as transaction:
+        commands = (
+            (
+                await transaction.execute(
+                    text(
+                        "SELECT kind, data FROM session_commands WHERE project_id=:project_id"
+                    ),
+                    {"project_id": input_scope["project_id"]},
+                )
+            )
+            .mappings()
+            .all()
+        )
+    assert len(commands) == 1
+    assert commands[0]["kind"] == ("continue_input" if idle else "cancel")
+    if idle:
+        assert stored.state == PendingInputState.promoted
+        assert commands[0]["data"]["input_id"] == str(rows[2].id)
+        assert (
+            commands[0]["data"]["request"]["attachments"]
+            == rows[2].content["attachments"]
+        )
+    else:
+        assert stored.state == PendingInputState.pending
+        assert remaining[0].id == rows[2].id
+        assert commands[0]["data"]["steer_input_id"] == str(rows[2].id)
+
+
+async def test_send_now_does_not_resurrect_removed_input(input_scope, monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    inputs = SessionInputsDAO(engine=input_scope["engine"])
+    row = await inputs.create_input(
+        user_id=input_scope["user_id"],
+        pending_input=_input(input_scope, key="removed-send-now", message="removed"),
+    )
+    await inputs.remove_pending(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        input_id=row.id,
+        user_id=input_scope["user_id"],
+    )
+    service = _cancel_service(
+        input_scope,
+        inputs,
+        executions=SessionExecutionsDAO(engine=input_scope["engine"]),
+    )
+    service._resolve_target = AsyncMock(return_value=("source-turn", None))
+    with pytest.raises(SessionInputRemoved, match="removed"):
+        await service.send_pending_input_now(
+            project_id=input_scope["project_id"],
+            user_id=input_scope["user_id"],
+            session_id=input_scope["session_id"],
+            input_id=row.id,
+        )
+    async with input_scope["engine"].session() as transaction:
+        count = (
+            await transaction.execute(
+                text(
+                    "SELECT count(*) FROM session_commands WHERE project_id=:project_id"
+                ),
+                {"project_id": input_scope["project_id"]},
+            )
+        ).scalar_one()
+    assert count == 0
+
+
+async def test_send_now_stop_promotes_selected_once_and_holds_other_rows(
+    input_scope, monkeypatch
+):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    inputs = SessionInputsDAO(engine=input_scope["engine"])
+    executions = SessionExecutionsDAO(engine=input_scope["engine"])
+    service = _cancel_service(input_scope, inputs, executions=executions)
+    service._resolve_target = AsyncMock(return_value=("source-turn", None))
+    rows = [
+        await inputs.create_input(
+            user_id=input_scope["user_id"],
+            pending_input=_input(input_scope, key=f"selected-{i}", message=str(i)),
+        )
+        for i in range(3)
+    ]
+    args = dict(
+        project_id=input_scope["project_id"],
+        user_id=input_scope["user_id"],
+        session_id=input_scope["session_id"],
+        input_id=rows[1].id,
+    )
+    await service.send_pending_input_now(**args)
+    commands = SessionCommandsDAO(engine=input_scope["engine"])
+    cancel = await commands.fetch_by_idempotency_key(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        idempotency_key=f"send-now:{rows[1].id}",
+    )
+    settlement = _settlement_service(input_scope, inputs)
+    await settlement.settle(
+        command_id=cancel.id,
+        project_id=input_scope["project_id"],
+        replica_id=None,
+        expected_states=[SessionCommandState.pending],
+        state=SessionCommandState.applied,
+        outcome=SessionCommandOutcome.stopped,
+        execution_id="source-turn",
+    )
+    retry = await service.send_pending_input_now(**args)
+    assert retry.input.state == PendingInputState.promoted
+    async with input_scope["engine"].session() as transaction:
+        continuations = (
+            (
+                await transaction.execute(
+                    text(
+                        "SELECT data FROM session_commands WHERE project_id=:project_id AND kind='continue_input'"
+                    ),
+                    {"project_id": input_scope["project_id"]},
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert len(continuations) == 1
+    assert continuations[0]["input_id"] == str(rows[1].id)
+    pending = await inputs.list_pending(
+        project_id=input_scope["project_id"], session_id=input_scope["session_id"]
+    )
+    assert [row.id for row in pending if row.state == PendingInputState.pending] == [
+        rows[0].id,
+        rows[2].id,
+    ]
+
+
+async def test_competing_send_now_keeps_losing_row_unchanged(input_scope, monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    inputs = SessionInputsDAO(engine=input_scope["engine"])
+    service = _cancel_service(
+        input_scope,
+        inputs,
+        executions=SessionExecutionsDAO(engine=input_scope["engine"]),
+    )
+    service._resolve_target = AsyncMock(return_value=("source-turn", None))
+    rows = [
+        await inputs.create_input(
+            user_id=input_scope["user_id"],
+            pending_input=_input(input_scope, key=f"compete-{i}", message=str(i)),
+        )
+        for i in range(2)
+    ]
+    outcomes = await asyncio.gather(
+        *(
+            service.send_pending_input_now(
+                project_id=input_scope["project_id"],
+                user_id=input_scope["user_id"],
+                session_id=input_scope["session_id"],
+                input_id=row.id,
+            )
+            for row in rows
+        ),
+        return_exceptions=True,
+    )
+    assert sum(isinstance(outcome, SessionInputBusy) for outcome in outcomes) == 1
+    loser = rows[
+        next(
+            i
+            for i, outcome in enumerate(outcomes)
+            if isinstance(outcome, SessionInputBusy)
+        )
+    ]
+    stored = await inputs.fetch_input(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        input_id=loser.id,
+    )
+    assert stored.policy == "queue"
+    assert stored.position == loser.position
+    assert stored.content == loser.content
+
+
+async def test_send_now_route_rejects_cross_session_and_removed_rows(
+    input_scope, monkeypatch
+):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    inputs = SessionInputsDAO(engine=input_scope["engine"])
+    service = _cancel_service(
+        input_scope,
+        inputs,
+        executions=SessionExecutionsDAO(engine=input_scope["engine"]),
+    )
+    service._resolve_target = AsyncMock(return_value=("source-turn", None))
+    row = await inputs.create_input(
+        user_id=input_scope["user_id"],
+        pending_input=_input(input_scope, key="route-selected", message="original"),
+    )
+    router = SessionControlRouter(
+        commands_service=service, inputs_service=SimpleNamespace()
+    )
+    request = SimpleNamespace(
+        state=SimpleNamespace(
+            project_id=input_scope["project_id"], user_id=input_scope["user_id"]
+        )
+    )
+    with pytest.raises(HTTPException) as missing:
+        await router.send_pending_input_now(request, "another-session", row.id)
+    assert missing.value.status_code == 404
+    await inputs.remove_pending(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        input_id=row.id,
+        user_id=input_scope["user_id"],
+    )
+    with pytest.raises(HTTPException) as removed:
+        await router.send_pending_input_now(request, input_scope["session_id"], row.id)
+    assert removed.value.status_code == 409
+    assert removed.value.detail["code"] == "pending_input_removed"
+
+
+async def test_send_now_parked_input_continuation_advances_when_runner_not_held(
+    input_scope, monkeypatch
+):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    monkeypatch.setattr(
+        commands_service_module, "get_running_owner", AsyncMock(return_value=None)
+    )
+    inputs = SessionInputsDAO(engine=input_scope["engine"])
+    executions = SessionExecutionsDAO(engine=input_scope["engine"])
+    async with input_scope["engine"].session() as transaction:
+        await executions.create_continuation(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+            execution_id="parked-input-child",
+            parent_execution_id="source-turn",
+            source_interaction_id=None,
+            transaction=transaction,
+        )
+        await executions.set_state(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+            execution_id="parked-input-child",
+            state=SessionExecutionState.running,
+            transaction=transaction,
+        )
+    first = await inputs.create_input(
+        user_id=input_scope["user_id"],
+        pending_input=_input(input_scope, key="held-first", message="later"),
+    )
+    selected = await inputs.create_input(
+        user_id=input_scope["user_id"],
+        pending_input=_input(input_scope, key="held-selected", message="now"),
+    )
+    service = _settlement_service(input_scope, inputs, executions=executions)
+    service._resolve_target = AsyncMock(return_value=(None, None))
+    service._streams.fetch_header = AsyncMock(
+        return_value=SimpleNamespace(
+            turn_id="parked-input-child", flags=SimpleNamespace(is_running=False)
+        )
+    )
+    service._interactions.cancel_session_pending.return_value = 1
+
+    class ParkedDelivery(_UnreachableDelivery):
+        async def deliver(self, *, command):
+            return DeliveryReceipt(
+                status="not_held"
+                if command.kind == SessionCommandKind.cancel
+                else "unreachable"
+            )
+
+    service._delivery = ParkedDelivery()
+    await service.send_pending_input_now(
+        project_id=input_scope["project_id"],
+        user_id=input_scope["user_id"],
+        session_id=input_scope["session_id"],
+        input_id=selected.id,
+    )
+    stored = await inputs.fetch_input(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        input_id=selected.id,
+    )
+    assert stored.state == PendingInputState.promoted
+    pending = await inputs.list_pending(
+        project_id=input_scope["project_id"], session_id=input_scope["session_id"]
+    )
+    assert [row.id for row in pending if row.state == PendingInputState.pending] == [
+        first.id
+    ]
+    service._interactions.cancel_session_pending.assert_any_await(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        only_turn_id="parked-input-child",
+        transaction=ANY,
+        publish=False,
+    )
+    async with input_scope["engine"].session() as transaction:
+        count = (
+            await transaction.execute(
+                text(
+                    "SELECT count(*) FROM session_commands WHERE project_id=:project_id AND kind='continue_input'"
+                ),
+                {"project_id": input_scope["project_id"]},
+            )
+        ).scalar_one()
+    assert count == 1
