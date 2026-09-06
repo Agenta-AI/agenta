@@ -175,11 +175,5 @@ export {
     type SectionIndicatorTone,
     useAccordionSectionOpen,
 } from "./ConfigAccordionSection"
-export {
-    ConfigRowAffordance,
-    ConfigRowCaret,
-    ConfigRowTrailing,
-    CONFIG_ROW_AFFORDANCE_SIZE,
-    type ConfigRowTrailingProps,
-} from "./ConfigRowTrailing"
+export {ConfigRowCaret, ConfigRowTrailing, type ConfigRowTrailingProps} from "./ConfigRowTrailing"
 export {useRecentFlag} from "./useRecentFlag"

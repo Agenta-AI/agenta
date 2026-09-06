@@ -1,3 +1,5 @@
+import {useEffect, useRef} from "react"
+
 import {querySessions} from "@agenta/entities/session"
 import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
 import {isValidUUID} from "@agenta/shared/utils"
@@ -57,9 +59,21 @@ export const useAgentEntity = (
         refetchOnWindowFocus: false,
     })
 
+    // The project key means nothing here remounts per session, so a list cached before this
+    // session existed would never be re-read. Re-read once per missing session — a session with
+    // no turns yet is a real miss, so never retry beyond that.
+    const {isSuccess, isFetching, refetch} = sessionsQuery
+    const missedRef = useRef<string | null>(null)
+    const missing = isSuccess && !row && !fallbackAgentId
+    useEffect(() => {
+        if (!missing || missedRef.current === sessionId) return
+        missedRef.current = sessionId
+        void refetch()
+    }, [missing, sessionId, refetch])
+
     // A route-supplied agent IS the answer, so do not gate the screen on a list fetch that by
     // definition cannot contain a session the client minted a moment ago.
-    const awaitingList = sessionsQuery.isPending && !fallbackAgentId
+    const awaitingList = (sessionsQuery.isPending || (missing && isFetching)) && !fallbackAgentId
 
     return {
         agentId,

@@ -131,10 +131,8 @@ export const SessionWorkspace = ({
     const configSlide = usePaneSlide(showPane)
     const filesSlide = usePaneSlide(twoPane && filesOpen)
 
-    // The desktop's coexistence rule, same threshold: too narrow to seat the config pane, the
-    // transcript and the Files pane at fair widths, so the two side panes take turns and the
-    // transcript keeps its floor. Only meaningful in two-pane layouts — below `md` the panes
-    // already alternate. Transition-edge effects, so they cannot evict each other in a loop.
+    // The desktop's coexistence rule: too narrow for both side panes, so they take turns.
+    // Edge-triggered, so they cannot evict each other in a loop.
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
     const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
     const panesMustAlternate = twoPane && !canPanesCoexist
@@ -212,10 +210,8 @@ export const SessionWorkspace = ({
     // The same surface treatment the desktop layout applies: the workspace is a recessed ground,
     // the config panel is raised above it, the conversation is the recessed canvas. Without these
     // the shared panels render flat — identical components, missing surface ladder.
-    //
-    // The config surface is a whole schema form, so unmounting it on a toggle put ~100ms of main
-    // thread behind every one. It mounts on first use (the `next/dynamic` chunk still loads on
-    // demand) and is `display:none` after that, as the desktop's session panes are.
+    // Kept mounted and `display:none` after first use: unmounting this schema form put ~100ms
+    // of main thread behind every toggle.
     const wantsConfig = showConfig && Boolean(entityId)
     const configMountedRef = useRef(false)
     if (wantsConfig) configMountedRef.current = true

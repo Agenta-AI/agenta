@@ -863,12 +863,6 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                             )
                                         })}
                                     </div>
-
-                                    {footerContent && (
-                                        <div className="mt-auto w-full max-sm:hidden">
-                                            {footerContent}
-                                        </div>
-                                    )}
                                 </div>
 
                                 {hoveredGroup && (
@@ -905,7 +899,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 )}
                             </div>
                             {footerContent ? (
-                                <div className="w-full sm:hidden">{footerContent}</div>
+                                // One render, not one per breakpoint: width-matched to the
+                                // provider column it used to sit in, full width on a phone.
+                                <div className="max-sm:!w-full" style={{width: providerPanelWidth}}>
+                                    {footerContent}
+                                </div>
                             ) : null}
                         </>
                     )}

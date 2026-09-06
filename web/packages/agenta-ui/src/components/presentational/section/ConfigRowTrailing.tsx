@@ -23,19 +23,13 @@ import {CaretDown, CaretRight} from "@phosphor-icons/react"
 import {cn} from "../../../utils/styles"
 
 /** Side of the affordance column, in px — the phosphor caret box every config row ends with. */
-export const CONFIG_ROW_AFFORDANCE_SIZE = 14
+const AFFORDANCE_SIZE = 14
 
 /**
  * The reserved affordance column on its own, for rows that assemble their own trailing cluster.
  * Renders empty when there is no affordance, which is what keeps a caret-less row on the axis.
  */
-export function ConfigRowAffordance({
-    children,
-    className,
-}: {
-    children?: ReactNode
-    className?: string
-}) {
+function ConfigRowAffordance({children, className}: {children?: ReactNode; className?: string}) {
     return (
         <span
             aria-hidden={children ? undefined : true}
@@ -57,9 +51,9 @@ export function ConfigRowAffordance({
 export function ConfigRowCaret({open = false, className}: {open?: boolean; className?: string}) {
     const cls = cn("text-[var(--ag-zinc-5)]", className)
     return open ? (
-        <CaretDown size={CONFIG_ROW_AFFORDANCE_SIZE} className={cn("translate-x-[2.2px]", cls)} />
+        <CaretDown size={AFFORDANCE_SIZE} className={cn("translate-x-[2.2px]", cls)} />
     ) : (
-        <CaretRight size={CONFIG_ROW_AFFORDANCE_SIZE} className={cn("translate-x-[3.9px]", cls)} />
+        <CaretRight size={AFFORDANCE_SIZE} className={cn("translate-x-[3.9px]", cls)} />
     )
 }
 

@@ -129,6 +129,8 @@ export function SectionRail({
             <div
                 className={clsx(
                     "min-w-0 flex-1 flex-col gap-1.5 border-0 border-solid border-[var(--ag-colorBorder)] sm:border-l sm:pl-4",
+                    // Side by side on a phone too, so it keeps the divider and a tighter gutter.
+                    !drillIn && "border-l pl-2",
                     bleed && "-my-4 py-4",
                     showDetail ? "flex" : "hidden sm:flex",
                 )}

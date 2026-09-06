@@ -21,16 +21,19 @@ import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {TriggerManagementSection, useAgentTriggers} from "./TriggerManagementSection"
 
-// A visual copy of the Configuration header bar's classes (AgentConfigHeader) — keep the two in
-// sync so the three region headers are indistinguishable. Colors come from the shared `--ag-*`
-// layer, never antd's runtime `--ant-*` vars: those don't exist on hosts without antd (/m), where
-// an undefined var drops the tint and the header loses its fill.
-// No `w-full`: preflight is off, so `width:100%` plus this bar's own `px-4` overflowed its parent
-// by 32px. The regions below drop it too, matching the sibling Configuration section.
+/**
+ * The geometry every panel region header shares, fill excluded — AgentConfigHeader renders the
+ * Configuration bar from this too, so the three cannot drift.
+ *
+ * No `w-full`: preflight is off, so `width:100%` plus the bar's own `px-4` overflows its parent
+ * by 32px. Colors come from the `--ag-*` layer, never antd's runtime `--ant-*` vars, which do not
+ * exist on hosts without antd (/m) — an undefined var drops the tint and the bar loses its fill.
+ */
+export const CONFIG_REGION_BAR =
+    "h-[48px] flex items-center justify-between overflow-hidden border-b border-colorBorderSecondary py-2 px-4"
+
 const barClass = (sticky: boolean) =>
-    `h-[48px] flex items-center justify-between overflow-hidden ${
-        sticky ? "sticky top-0 z-[10]" : ""
-    } border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-surface-section-header)]`
+    `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-header)]`
 const titleClass = "text-[13px] font-semibold text-colorText"
 
 /** A region header bar. `children` follow the {@link ConfigRowTrailing} convention. */

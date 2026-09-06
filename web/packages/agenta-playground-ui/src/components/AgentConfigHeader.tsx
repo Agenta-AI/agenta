@@ -1,5 +1,7 @@
 import type {ReactNode} from "react"
 
+import {CONFIG_REGION_BAR} from "@agenta/entity-ui/drill-in"
+
 import {CommitVariantChangesButton} from "./CommitVariantChanges"
 
 export interface AgentConfigHeaderProps {
@@ -49,11 +51,9 @@ export const AgentConfigHeader = ({
     className,
 }: AgentConfigHeaderProps) => (
     <section
-        // No `w-full`: preflight is off, so this is content-box and `width:100%` + `px-4` made the
-        // bar 32px wider than the config sections below, pushing its trailing control off their axis.
-        className={`h-[48px] flex items-center justify-between overflow-hidden ${
+        className={`${CONFIG_REGION_BAR} ${
             embedded ? "grow" : "sticky top-0 z-[10]"
-        } border-b border-colorBorderSecondary py-2 px-4 bg-colorBgContainer bg-[image:linear-gradient(var(--ag-colorFillTertiary),var(--ag-colorFillTertiary))] ${
+        } bg-colorBgContainer bg-[image:linear-gradient(var(--ag-colorFillTertiary),var(--ag-colorFillTertiary))] ${
             className ?? ""
         }`}
     >
