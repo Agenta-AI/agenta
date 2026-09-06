@@ -33,12 +33,10 @@ vi.mock("../../src/session/state/interactionStatus", async () => {
 })
 import {respondInteractionAnswerAtom} from "../../src/session/state/interactionAnswer"
 beforeEach(() => {
-    respond
-        .mockReset()
-        .mockResolvedValue({
-            accepted: true,
-            execution: {id: "answer-child", state: "pending_delivery"},
-        })
+    respond.mockReset().mockResolvedValue({
+        accepted: true,
+        execution: {id: "answer-child", state: "pending_delivery"},
+    })
     transition.mockReset()
 })
 it("preserves questionnaire content and stable retry identity without legacy transition", async () => {

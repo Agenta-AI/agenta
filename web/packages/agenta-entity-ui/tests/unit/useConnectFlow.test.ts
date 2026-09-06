@@ -14,7 +14,10 @@ import {describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/entities/gatewayTool", () => ({
     useToolIntegrationDetail: () => ({integration: {auth_schemes: ["oauth"]}, isLoading: false}),
-    useToolsConnections: () => ({handleCreate: async () => ({connection: {}}), invalidate: vi.fn()}),
+    useToolsConnections: () => ({
+        handleCreate: async () => ({connection: {}}),
+        invalidate: vi.fn(),
+    }),
 }))
 
 import {
@@ -111,27 +114,46 @@ describe("extractConnectErrorMessage", () => {
     })
 })
 
-
 describe("durable connection answer", () => {
     it("keeps a rejected parked answer retryable instead of reporting connected", async () => {
-        const settle = vi.fn().mockRejectedValueOnce(new Error("Answer was not saved")).mockResolvedValue(undefined)
-        const meta = {toolCallId: "connect-1", input: {integration: "github"}, settled: false} as Parameters<typeof useConnectFlow>[0]
+        const settle = vi
+            .fn()
+            .mockRejectedValueOnce(new Error("Answer was not saved"))
+            .mockResolvedValue(undefined)
+        const meta = {
+            toolCallId: "connect-1",
+            input: {integration: "github"},
+            settled: false,
+        } as Parameters<typeof useConnectFlow>[0]
         vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
         const host = document.createElement("div")
         const root = createRoot(host)
         let flow!: ReturnType<typeof useConnectFlow>
-        const Probe = () => { flow = useConnectFlow(meta, settle); return null }
-        await act(async () => { root.render(createElement(Probe)) })
-        await act(async () => { await flow.runConnect(true) })
+        const Probe = () => {
+            flow = useConnectFlow(meta, settle)
+            return null
+        }
+        await act(async () => {
+            root.render(createElement(Probe))
+        })
+        await act(async () => {
+            await flow.runConnect(true)
+        })
         expect(flow.errorText).toBe("Answer was not saved")
         expect(flow.outcome).toBeNull()
         expect(flow.phase).toBe("idle")
-        await act(async () => { await flow.runConnect(true) })
+        await act(async () => {
+            await flow.runConnect(true)
+        })
         expect(flow.outcome?.connected).toBe(true)
         expect(flow.errorText).toBeNull()
         expect(settle).toHaveBeenCalledTimes(2)
-        expect(settle).toHaveBeenLastCalledWith({output: {connected: true, integration: "github", slug: "github"}})
-        await act(async () => { root.unmount() })
+        expect(settle).toHaveBeenLastCalledWith({
+            output: {connected: true, integration: "github", slug: "github"},
+        })
+        await act(async () => {
+            root.unmount()
+        })
         vi.unstubAllGlobals()
     })
 })
