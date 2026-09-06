@@ -15,6 +15,9 @@ const SNAPSHOTS = new Map<
 // Matches the tab rail's open-tab cap — the sessions a switch can plausibly land back on.
 const SNAPSHOT_LIMIT = 12
 
+/** Logout is a client-side route change, so these outlive it without this. */
+export const clearTranscriptSnapshots = () => SNAPSHOTS.clear()
+
 const rememberSnapshot = (
     id: string,
     messages: UIMessage[],

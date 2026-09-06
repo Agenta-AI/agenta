@@ -15,7 +15,13 @@ import {atomFamily} from "jotai-family"
  * Only surfaces where the user can ARRANGE sessions write here (the tab rail). A list that is
  * sorted by something real — activity, status — has no business reading it.
  */
-const orderByScopeAtom = atomWithStorage<Record<string, string[]>>("agenta:sessions:tab-order", {})
+// getOnInit: same reason as the open-tab set — a pre-hydration `{}` lets the seed clobber it.
+const orderByScopeAtom = atomWithStorage<Record<string, string[]>>(
+    "agenta:sessions:tab-order",
+    {},
+    undefined,
+    {getOnInit: true},
+)
 
 /** Scope key: an agent's rail is arranged separately from another agent's. */
 const scopeKey = (projectId: string, scope: string) => `${projectId}:${scope}`

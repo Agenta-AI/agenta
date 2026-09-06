@@ -527,28 +527,34 @@ export const LiveConversation = ({
 
     // The desktop's run-level shortcuts, with its guards — what makes Stop's `Escape` true here.
     const scrollerRef = autoScroll.ref
+    // Read through a ref: `pendingApprovals` is rebuilt every streamed commit, so depending on it
+    // would re-register the listener on the hot path.
+    const shortcutRef = useRef({streamingHere, pendingApprovals, approvalActions, stopHere})
+    shortcutRef.current = {streamingHere, pendingApprovals, approvalActions, stopHere}
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
             // Radix lets a cancelled Escape through and never touches Alt+G; the pane can hide us.
             if (e.defaultPrevented || isOverlayOpen()) return
             if (!isOnScreen(scrollerRef.current)) return
-            if (e.key === "Escape" && !e.isComposing && streamingHere) {
+            const current = shortcutRef.current
+            if (e.key === "Escape" && !e.isComposing && current.streamingHere) {
                 e.preventDefault()
-                stop()
+                // `stopHere`, not the local abort: Escape must cancel the run on the server too.
+                current.stopHere()
                 return
             }
             // ONE gate, never "Approve all" — a mis-press must not grant a tool nobody read.
-            if (isAltChord(e) && e.code === "KeyG" && pendingApprovals.length > 0) {
+            if (isAltChord(e) && e.code === "KeyG" && current.pendingApprovals.length > 0) {
                 e.preventDefault()
-                approvalActions.respond({
+                current.approvalActions.respond({
                     approved: true,
-                    approvalId: pendingApprovals[0].approvalId,
+                    approvalId: current.pendingApprovals[0].approvalId,
                 })
             }
         }
         document.addEventListener("keydown", onKey)
         return () => document.removeEventListener("keydown", onKey)
-    }, [scrollerRef, streamingHere, stop, pendingApprovals, approvalActions])
+    }, [scrollerRef])
 
     let body
     if (conversation.isHydrating) {
