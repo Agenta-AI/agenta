@@ -659,33 +659,33 @@ export const useAgentChatSession = ({
     // config. Deduped by revision id so a re-render (token stream) doesn't re-invalidate.
     const committedRevisionsSeenRef = useRef<Set<string>>(new Set())
     const setAgentCommitSignal = useSetAtom(agentSelfCommitSignalAtom)
+    const onCommittedRevision = useCallback(
+        (data?: {revisionId?: string; version?: string}) => {
+            const key = data?.revisionId ?? JSON.stringify(data ?? {}) ?? "committed"
+            if (committedRevisionsSeenRef.current.has(key)) return
+            committedRevisionsSeenRef.current.add(key)
+            invalidateAgentCommittedRevisionCache()
+            if (data?.revisionId && data.revisionId !== entityId) {
+                const prevParameters = store.get(workflowMolecule.selectors.configuration(entityId))
+                setAgentCommitSignal({
+                    revisionId: data.revisionId,
+                    version: data.version,
+                    prevParameters: prevParameters ?? null,
+                    at: Date.now(),
+                })
+                switchEntity({currentEntityId: entityId, newEntityId: data.revisionId})
+            }
+        },
+        [entityId, switchEntity, store, setAgentCommitSignal],
+    )
     useEffect(() => {
         for (const message of messages) {
             for (const part of message.parts) {
                 if ((part as {type?: string}).type !== "data-committed-revision") continue
-                const data = (part as {data?: {revisionId?: string; version?: string}}).data
-                // A stable key per commit: prefer the revision id, fall back to the whole payload.
-                const key = data?.revisionId ?? JSON.stringify(data ?? {}) ?? "committed"
-                if (committedRevisionsSeenRef.current.has(key)) continue
-                committedRevisionsSeenRef.current.add(key)
-                invalidateAgentCommittedRevisionCache()
-                if (data?.revisionId && data.revisionId !== entityId) {
-                    // Capture the OUTGOING revision's parameters before switching, so the config
-                    // panel can show what the agent changed (per-section indicators + summary).
-                    const prevParameters = store.get(
-                        workflowMolecule.selectors.configuration(entityId),
-                    )
-                    setAgentCommitSignal({
-                        revisionId: data.revisionId,
-                        version: data.version,
-                        prevParameters: prevParameters ?? null,
-                        at: Date.now(),
-                    })
-                    switchEntity({currentEntityId: entityId, newEntityId: data.revisionId})
-                }
+                onCommittedRevision((part as {data?: {revisionId?: string; version?: string}}).data)
             }
         }
-    }, [messages, entityId, switchEntity, store, setAgentCommitSignal])
+    }, [messages, onCommittedRevision])
 
     const projectId = useAtomValue(projectIdAtom)
     const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
@@ -912,6 +912,7 @@ export const useAgentChatSession = ({
         runningElsewhere,
         sharedReaderAdvertised,
         refreshFromRecords,
+        onCommittedRevision,
         setSharedSenderReady,
         revalidate,
         stopped,

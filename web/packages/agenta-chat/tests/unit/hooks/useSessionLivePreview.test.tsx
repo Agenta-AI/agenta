@@ -66,6 +66,125 @@ describe("useSessionLivePreview", () => {
         vi.unstubAllGlobals()
     })
 
+    it.each(["live", "reconnect", "history"])(
+        "delivers live commit callbacks after confirmed adoption without replaying history (%s)",
+        async (mode) => {
+            const output = {
+                status: "committed",
+                workflow_revision: {
+                    id: "revision-2",
+                    workflow_variant_id: "variant-1",
+                    version: "2",
+                },
+            }
+            const rows = [
+                {
+                    ...record("call", {
+                        type: "tool_call",
+                        id: "commit-1",
+                        name: "commit_revision",
+                        input: {},
+                    }),
+                    sequence: 1,
+                },
+                {
+                    ...record("result", {
+                        type: "tool_result",
+                        id: "commit-1",
+                        output: JSON.stringify(output),
+                    }),
+                    sequence: 2,
+                },
+            ]
+            mocks.fetchSessionSnapshot.mockResolvedValue({
+                session: {flags: {is_running: true}},
+                read: {latest_sequence: mode === "history" ? 2 : 0},
+            })
+            mocks.querySessionTranscript.mockResolvedValue(mode === "history" ? rows : [])
+            // A watch may already have adopted this watermark: confirmation returns true
+            // without replacing messages. The notification must still reach the host.
+            const onDisconnect = vi.fn().mockResolvedValue(true)
+            const onCommittedRevision = vi.fn()
+            const store = createStore()
+            store.set(projectIdAtom, "project-1")
+            const wrapper = ({children}: {children: ReactNode}) =>
+                createElement(Provider, {store}, children)
+            renderHook(
+                () =>
+                    useSessionLivePreview({
+                        sessionId: "session-1",
+                        sharedReaderAdvertised: true,
+                        runningElsewhere: false,
+                        sender: true,
+                        onDisconnect,
+                        onCommittedRevision,
+                    }),
+                {wrapper},
+            )
+            await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledOnce())
+            const notificationParts = () =>
+                onCommittedRevision.mock.calls.map(([revision]) => revision)
+            expect(notificationParts()).toEqual([])
+            if (mode === "history") return
+
+            mocks.querySessionTranscript.mockResolvedValue(rows)
+            const connection = mocks.connectSessionLiveEvents.mock.calls[0][0]
+            const event = {
+                version: 1,
+                kind: "event",
+                session_id: "session-1",
+                execution_id: "turn-1",
+                frame_or_event_id: "result",
+                sequence: 2,
+                watermark: 2,
+                type: "tool.completed",
+                payload: {tool_call_id: "commit-1", name: "commit_revision", output},
+                created_at: "2026-09-06T00:00:00Z",
+            }
+            if (mode === "live") act(() => connection.onEvent(event))
+            else {
+                mocks.fetchSessionSnapshot.mockResolvedValue({
+                    session: {flags: {is_running: false}},
+                    read: {latest_sequence: 2},
+                })
+                act(() => {
+                    connection.onDisconnect({reason: "connection_lost", reconnect: true})
+                    document.dispatchEvent(new Event("visibilitychange"))
+                })
+            }
+            await waitFor(() => expect(notificationParts()).toHaveLength(1))
+            expect(notificationParts()[0]).toEqual({
+                revisionId: "revision-2",
+                variantId: "variant-1",
+                version: "2",
+            })
+            const current = mocks.connectSessionLiveEvents.mock.calls.at(-1)![0]
+            act(() => current.onEvent(event))
+            await act(async () => Promise.resolve())
+            expect(notificationParts()).toHaveLength(1)
+            // A later terminal adoption must not lose the live commit; host revision-ID dedup
+            // handles repeated notifications while transcript messages remain side-effect-free.
+            act(() =>
+                current.onEvent({
+                    ...event,
+                    sequence: 3,
+                    watermark: 3,
+                    frame_or_event_id: "done",
+                    type: "execution.stopped",
+                    payload: {},
+                }),
+            )
+            await waitFor(() => expect(notificationParts()).toHaveLength(2))
+            for (const [transcript] of onDisconnect.mock.calls) {
+                expect(
+                    transcript.messages
+                        .flatMap((message: {parts: {type: string}[]}) => message.parts)
+                        .some((part: {type: string}) => part.type === "data-committed-revision"),
+                ).toBe(false)
+            }
+        },
+    )
+
     it("keeps the flag-off path snapshot-free", async () => {
         const store = createStore()
         store.set(projectIdAtom, "project-1")

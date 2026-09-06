@@ -40,6 +40,9 @@ const state = vi.hoisted(() => ({
     hydrationBusyRef: undefined as {current: boolean} | undefined,
     busy: false,
     stop: vi.fn(),
+    switchEntity: vi.fn(),
+    setCommitSignal: vi.fn(),
+    invalidateCommit: vi.fn(),
 }))
 
 vi.mock("@agenta/chat/assets", () => ({
@@ -122,7 +125,7 @@ vi.mock("@agenta/entities/session", () => ({
 
 vi.mock("@agenta/entities/trace", () => ({markTraceAsFresh: vi.fn()}))
 vi.mock("@agenta/entities/workflow", () => ({
-    invalidateAgentCommittedRevisionCache: vi.fn(),
+    invalidateAgentCommittedRevisionCache: state.invalidateCommit,
     workflowMolecule: {
         selectors: {configuration: () => "workflow-configuration"},
     },
@@ -168,7 +171,12 @@ vi.mock("@tanstack/react-query", () => ({
 
 vi.mock("jotai", () => ({
     useAtomValue: () => state.projectId,
-    useSetAtom: () => vi.fn(),
+    useSetAtom: (atom: string) =>
+        atom === "switch-entity"
+            ? state.switchEntity
+            : atom === "commit-signal"
+              ? state.setCommitSignal
+              : vi.fn(),
     useStore: () => ({
         get: (atom: string) => {
             if (atom === "record-counts" || atom === "session-messages") return {}
@@ -224,6 +232,10 @@ describe("useAgentChatSession execution guard", () => {
         state.cancelSessionExecution.mockReset()
         state.resolveStopExecution.mockReset()
         state.stop.mockReset()
+        state.switchEntity.mockClear()
+        state.setCommitSignal.mockClear()
+        state.invalidateCommit.mockClear()
+        state.messages = []
         state.resolveStopExecution.mockImplementation(async ({readExecutionId}) => {
             const executionId = readExecutionId()
             return executionId ? {status: "resolved", executionId} : {status: "settled"}
@@ -235,6 +247,46 @@ describe("useAgentChatSession execution guard", () => {
         state.stoppingTurnId = null
         state.stopStateLoading = false
         state.busy = false
+    })
+
+    it("deduplicates live-reader and native commit notifications through the same config switch", () => {
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const root = createRoot(document.createElement("div"))
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+        const revision = {revisionId: "revision-2", version: "2"}
+        act(() => {
+            result!.onCommittedRevision(revision)
+            result!.onCommittedRevision(revision)
+        })
+        state.messages = [
+            {
+                id: "commit",
+                role: "assistant",
+                parts: [{type: "data-committed-revision", data: revision}],
+            } as UIMessage,
+        ]
+        act(() => root.render(createElement(Probe)))
+        expect(state.invalidateCommit).toHaveBeenCalledOnce()
+        expect(state.switchEntity).toHaveBeenCalledExactlyOnceWith({
+            currentEntityId: "revision-1",
+            newEntityId: "revision-2",
+        })
+        expect(state.setCommitSignal).toHaveBeenCalledExactlyOnceWith({
+            revisionId: "revision-2",
+            version: "2",
+            prevParameters: null,
+            at: expect.any(Number),
+        })
+        act(() => root.unmount())
     })
 
     it("allows durable hydration for an accepted shared sender while protecting local streaming", async () => {
