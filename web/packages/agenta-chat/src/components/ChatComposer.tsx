@@ -186,7 +186,7 @@ export const ChatComposer = ({
                 onPasteFile={(pasted) => {
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))
                 }}
-                sendForceEnabled={files.length > 0 && attachmentsSettled}
+                sendForceEnabled={files.length > 0}
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}
                 streaming={streaming}

@@ -77,11 +77,9 @@ const AgentComposerDock = ({
     elicits,
     onClientToolOutput,
     onSubmit,
-    onSteer,
     onStop,
     stopping,
     queueEnabled,
-    steerEnabled,
     stopShortcutEnabled,
     richInputRef,
     composer,
@@ -101,6 +99,7 @@ const AgentComposerDock = ({
     queue: {
         queued: QueuedMessage[]
         removeQueued: (id: string) => void
+        sendQueuedNow?: (id: string) => Promise<void>
         editingId: string | null
         beginEdit: (id: string, draft?: string) => void
         cancelEdit: () => string
@@ -323,6 +322,7 @@ const AgentComposerDock = ({
                     queued={queue.queued}
                     held={hitlPending}
                     onRemove={queue.removeQueued}
+                    onSendNow={queue.sendQueuedNow}
                     onEdit={editQueued}
                     onCancelEdit={cancelQueuedEdit}
                     editingId={queue.editingId}
@@ -477,16 +477,6 @@ const AgentComposerDock = ({
                         stopping={stopping}
                         onStop={onStop}
                         stopShortcutEnabled={stopShortcutEnabled}
-                        busyActions={
-                            inputBusy && queueEnabled
-                                ? [
-                                      {label: "Queue", onSubmit: submitMessage},
-                                      ...(steerEnabled
-                                          ? [{label: "Steer", onSubmit: onSteer}]
-                                          : []),
-                                  ]
-                                : undefined
-                        }
                         showQueuePauseCopy={inputBusy && queueEnabled}
                         attachments={attachments}
                         attachmentsBlocked={attachmentsBlocked}

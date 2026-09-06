@@ -195,6 +195,23 @@ export async function removePendingSessionInput({
     return !!data
 }
 
+export async function sendPendingSessionInputNow({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    inputId,
+}: SessionScopedParams & {inputId: string}): Promise<boolean> {
+    if (!projectId || !sessionId || !inputId) return false
+    const data = await callFern("[sendPendingSessionInputNow]", () =>
+        getSessionsClient().sendPendingSessionInputNow(
+            {session_id: sessionId, input_id: inputId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return !!data
+}
+
 const SESSION_CAPABILITY_TIMEOUT_SECONDS = 2
 const SESSION_CAPABILITY_NEGATIVE_RETRY_MS = 30_000
 

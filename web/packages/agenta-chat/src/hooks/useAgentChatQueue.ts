@@ -31,6 +31,7 @@ export interface ServerQueueAdapter {
     queued: QueuedMessage[]
     submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
     remove: (id: string) => Promise<void>
+    sendNow?: (id: string) => Promise<void>
 }
 
 interface UseAgentChatQueueArgs {
@@ -419,6 +420,8 @@ export const useAgentChatQueue = ({
         submit,
         steer,
         removeQueued,
+        sendQueuedNow:
+            server?.capabilities.queue && server.capabilities.steer ? server.sendNow : undefined,
         /** This tab received the durable respond body for this still-running execution. */
         ownsContinuation,
         queueEnabled: !!server?.capabilities.queue,

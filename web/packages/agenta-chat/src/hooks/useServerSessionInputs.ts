@@ -4,6 +4,7 @@ import {
     fetchSessionCapabilitiesAtom,
     fetchSessionSnapshotAtom,
     removePendingSessionInputAtom,
+    sendPendingSessionInputNowAtom,
 } from "@agenta/entities/session"
 import {buildAgentRequest} from "@agenta/playground/agent-chat"
 import type {UIMessage} from "ai"
@@ -20,6 +21,7 @@ export interface ServerSessionInputs {
     queued: QueuedMessage[]
     submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
     remove: (id: string) => Promise<void>
+    sendNow: (id: string) => Promise<void>
     refresh: () => Promise<void>
 }
 
@@ -44,6 +46,7 @@ export const useServerSessionInputs = ({
     const fetchSnapshot = useSetAtom(fetchSessionSnapshotAtom)
     const fetchCapabilities = useSetAtom(fetchSessionCapabilitiesAtom)
     const removeInput = useSetAtom(removePendingSessionInputAtom)
+    const sendInputNow = useSetAtom(sendPendingSessionInputNowAtom)
     const [viewState, setViewState] = useState<{sessionId: string; view: SessionPendingInputView}>(
         () => ({sessionId, view: emptyView}),
     )
@@ -169,6 +172,19 @@ export const useServerSessionInputs = ({
         [refresh, removeInput, sessionId],
     )
 
+    const sendNow = useCallback(
+        async (id: string) => {
+            if (!view.capabilities.queue || !view.capabilities.steer) {
+                throw new Error("Send Now is not available for this session.")
+            }
+            if (!(await sendInputNow({sessionId, inputId: id}))) {
+                throw new Error("The queued message could not be sent. Try again.")
+            }
+            await refresh()
+        },
+        [refresh, sendInputNow, sessionId, view.capabilities.queue, view.capabilities.steer],
+    )
+
     return {
         capabilities: view.capabilities,
         executionState: view.executionState,
@@ -176,6 +192,7 @@ export const useServerSessionInputs = ({
         queued: view.queued,
         submit,
         remove,
+        sendNow,
         refresh,
     }
 }

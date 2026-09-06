@@ -76,10 +76,12 @@ export const Held: Story = {
     render: () => <Live initial={THREE} held />,
 }
 
-/** Durable rows are shared across browsers: removable, not locally editable, with Steer marked. */
+/** Durable rows are shared across browsers, with a selected-row Send Now action. */
 export const ServerBacked: Story = {
     render: () => (
         <Live
+            onSendNow={async () => {}}
+            touch
             editable
             initial={[
                 {...THREE[0], source: "server", editable: false, policy: "steer"},
@@ -153,4 +155,16 @@ export const WithAttachments: Story = {
 /** Touch: identical chrome, invisibly extended tap areas. */
 export const Touch: Story = {
     render: () => <Live initial={THREE} touch />,
+}
+
+export const SendNowFailure: Story = {
+    render: () => (
+        <Live
+            initial={[{...THREE[0], source: "server"}]}
+            touch
+            onSendNow={async () => {
+                throw new Error("Unavailable")
+            }}
+        />
+    ),
 }
