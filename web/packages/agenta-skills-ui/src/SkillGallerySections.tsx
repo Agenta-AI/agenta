@@ -8,6 +8,7 @@ import {useMemo} from "react"
 import {EmptyState} from "@agenta/ui/ui"
 
 import {SkillCard} from "./SkillCard"
+import {SourceRefreshButton} from "./SourceRefreshButton"
 import type {SkillListItem} from "./types"
 
 export interface SkillGallerySection {
@@ -15,6 +16,8 @@ export interface SkillGallerySection {
     label: string
     /** e.g. "synced 3d ago" on an imported repo section. */
     tag?: string
+    /** Set on imported-repo sections; enables the Refresh action. */
+    sourceId?: string
     skills: SkillListItem[]
 }
 
@@ -69,6 +72,11 @@ export function SkillGallerySections({
                         {section.tag ? (
                             <span className="rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
                                 {section.tag}
+                            </span>
+                        ) : null}
+                        {section.sourceId ? (
+                            <span className="ml-auto">
+                                <SourceRefreshButton sourceId={section.sourceId} />
                             </span>
                         ) : null}
                     </div>

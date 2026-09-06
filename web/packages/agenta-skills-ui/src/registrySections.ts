@@ -100,6 +100,7 @@ export function buildRegistrySections(
         .map((source) => ({
             key: `source:${source.id}`,
             label: sourceLabel(source),
+            sourceId: source.id ?? undefined,
             tag: (() => {
                 const at = toUnixMs(source.updated_at ?? source.created_at)
                 return at ? `synced ${timeAgo(at)}` : undefined

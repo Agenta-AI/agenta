@@ -224,3 +224,22 @@ export const skillSourceImportResponseSchema = z
     })
     .passthrough()
 export type SkillSourceImportResponse = z.infer<typeof skillSourceImportResponseSchema>
+
+export const refreshedLinkSchema = z
+    .object({
+        path_in_repo: z.string().optional().nullable(),
+        workflow_id: z.string().optional().nullable(),
+        /** updated | unchanged | detached | conflict | missing_in_source | invalid_in_source */
+        status: z.string(),
+        revision_id: z.string().optional().nullable(),
+    })
+    .passthrough()
+
+export const refreshSourceResponseSchema = z
+    .object({
+        source: skillSourceSchema.optional(),
+        commit_sha: z.string().optional().nullable(),
+        links: z.array(refreshedLinkSchema).optional(),
+    })
+    .passthrough()
+export type RefreshSourceResponse = z.infer<typeof refreshSourceResponseSchema>

@@ -17,10 +17,12 @@ import {generateId} from "@agenta/shared/utils"
 import type {z} from "zod"
 
 import {
+    refreshSourceResponseSchema,
     skillsQueryResponseSchema,
     skillSourceImportResponseSchema,
     skillSourceScanResponseSchema,
     skillUsageResponseSchema,
+    type RefreshSourceResponse,
     type SkillsQueryResponse,
     type SkillSourceImportResponse,
     type SkillSourceScanResponse,
@@ -389,4 +391,22 @@ export async function unarchiveSkill({
     workflowId: string
 }) {
     return unarchiveWorkflow(projectId, workflowId)
+}
+
+/** `POST /skills/sources/{id}/refresh` — re-scan the repo and commit changed skills.
+ * Hand-edited skills detach instead of being overwritten. Throws on HTTP errors. */
+export async function refreshSkillSource({
+    projectId,
+    sourceId,
+}: {
+    projectId: string
+    sourceId: string
+}): Promise<RefreshSourceResponse | null> {
+    if (!projectId || !sourceId) return null
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/skills/sources/${sourceId}/refresh`,
+        {},
+        {params: {project_id: projectId}},
+    )
+    return refreshSourceResponseSchema.safeParse(response.data).data ?? null
 }
