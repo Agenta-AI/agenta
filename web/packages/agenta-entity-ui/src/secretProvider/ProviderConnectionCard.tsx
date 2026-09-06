@@ -182,6 +182,7 @@ const ProviderConnectionCard = ({
 
     const credentialStatus = probe?.credential.status ?? null
     const discovered = probe?.discovery.status === "fetched"
+    const discoveryStatus = probe?.discovery.status ?? null
 
     // Standard providers name a family the harness catalog knows; the credential-set kinds carry
     // whatever the endpoint serves, so their list comes from discovery and manual entry alone.
@@ -469,8 +470,10 @@ const ProviderConnectionCard = ({
                         >
                             {credentialFailed ? (
                                 <WarningCircle size={14} className="mt-0.5 shrink-0" />
-                            ) : (
+                            ) : credentialStatus === "valid" ? (
                                 <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorSuccess" />
+                            ) : (
+                                <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-colorWarning" />
                             )}
                             <span>
                                 {statusLine}
@@ -514,6 +517,8 @@ const ProviderConnectionCard = ({
                 <ActiveModelsSection
                     options={modelOptions}
                     manualPlaceholder={manualModelPlaceholderForKind(kind)}
+                    title={title}
+                    discoveryStatus={discoveryStatus}
                     onToggle={toggleModel}
                     onSelectAll={() => setCheckedModels(modelOptions.map((option) => option.id))}
                     onClear={() => setCheckedModels([])}

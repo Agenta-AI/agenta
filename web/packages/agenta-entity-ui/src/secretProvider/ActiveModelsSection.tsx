@@ -17,6 +17,7 @@ import {useMemo, useState} from "react"
 
 import {
     activeModelsCount,
+    type DiscoveryStatus,
     modelListView,
     relativeFetchTime,
     type ModelOption,
@@ -35,8 +36,12 @@ export interface ActiveModelsSectionProps {
     onAddManual: (id: string) => void
     /** What the manual row offers to add against — the API's list, or one endpoint's. */
     manualPlaceholder: string
+    /** Used in the fallback note when discovery did not return the provider's own list. */
+    title: string
     /** Set only when a live fetch answered — drives the timestamp line and the re-fetch action. */
     fetchedAt?: string | null
+    /** Shows whether the list came from discovery or a bundled fallback. */
+    discoveryStatus?: DiscoveryStatus | null
     onRefetch?: () => void
     refetching?: boolean
 }
@@ -58,7 +63,9 @@ const ActiveModelsSection = ({
     onClear,
     onAddManual,
     manualPlaceholder,
+    title,
     fetchedAt,
+    discoveryStatus,
     onRefetch,
     refetching,
 }: ActiveModelsSectionProps) => {
@@ -83,6 +90,13 @@ const ActiveModelsSection = ({
         onAddManual(id)
         setManualId("")
     }
+
+    const catalogNote =
+        discoveryStatus === "fetched"
+            ? null
+            : discoveryStatus == null
+              ? `Showing Agenta's shipped catalog. ${title}'s own list has not been fetched yet.`
+              : `Showing Agenta's shipped catalog. ${title}'s own list was not fetched.`
 
     return (
         <section className="flex min-h-0 flex-1 flex-col gap-2">
@@ -120,6 +134,12 @@ const ActiveModelsSection = ({
                         onValueChange={setSearch}
                     />
                 </div>
+
+                {catalogNote ? (
+                    <p className="m-0 border-0 border-b border-solid border-colorSplit px-3 py-2 text-colorTextTertiary">
+                        {catalogNote}
+                    </p>
+                ) : null}
 
                 {visible.length === 0 ? (
                     <p className="m-0 border-0 border-b border-solid border-colorSplit px-3 py-3 text-colorTextSecondary">
