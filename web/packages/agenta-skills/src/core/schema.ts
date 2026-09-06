@@ -229,7 +229,7 @@ export const refreshedLinkSchema = z
     .object({
         path_in_repo: z.string().optional().nullable(),
         workflow_id: z.string().optional().nullable(),
-        /** updated | unchanged | detached | conflict | missing_in_source | invalid_in_source */
+        /** updated | update_available | unchanged | detached | conflict | missing_in_source | invalid_in_source */
         status: z.string(),
         revision_id: z.string().optional().nullable(),
     })

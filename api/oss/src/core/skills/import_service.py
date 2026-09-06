@@ -70,7 +70,7 @@ class ImportResult(BaseModel):
 class RefreshedLink(BaseModel):
     path_in_repo: str
     workflow_id: Optional[str] = None
-    # updated | unchanged | detached | conflict | missing_in_source | invalid_in_source
+    # updated | update_available | unchanged | detached | conflict | missing_in_source | invalid_in_source
     status: str
     revision_id: Optional[str] = None
     issues: List[SkillIssue] = []
@@ -304,8 +304,14 @@ class SkillImportService:
         user_id,
         #
         source_id,
+        apply: Optional[bool] = None,
     ) -> RefreshResult:
         """Re-scan a source and commit new versions of its linked skills (WP-A6).
+
+        Whether changes are COMMITTED follows the source's `sync_enabled` flag
+        unless the caller passes `apply` explicitly (the one-off "Apply" click):
+        with sync off, changed skills report `update_available` and nothing is
+        written — sync offers versions, it never applies them uninvited.
 
         Locally edited skills are DETACHED, never overwritten: the link's
         `content_hash` records what sync last wrote, so a head that no longer
@@ -319,6 +325,7 @@ class SkillImportService:
             raise SkillSourceNotFoundError(
                 f"Skill source {source_id} was not found in this project.",
             )
+        effective_apply = apply if apply is not None else bool(source.sync_enabled)
 
         with make_workdir() as workdir:
             fetched: FetchedSource = await self.fetcher.fetch(
@@ -397,6 +404,10 @@ class SkillImportService:
                         link_id=link.id,
                         detached=True,
                     )
+                    continue
+
+                if not effective_apply:
+                    entry.status = "update_available"
                     continue
 
                 skill = candidate.skill

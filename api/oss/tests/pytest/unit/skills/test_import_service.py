@@ -317,6 +317,7 @@ async def test_import_includes_extra_files(fixture_tree):
 
 
 async def _import_then(fixture_tree: Path, service, **kwargs):
+    kwargs.setdefault("sync_enabled", True)
     result = await service.import_from_source(
         project_id=PROJECT_ID,
         user_id=USER_ID,
@@ -424,3 +425,44 @@ async def test_refresh_skips_detached_links(fixture_tree):
 
     assert _statuses(result)["skills/alpha"] == "detached"
     assert not simple.workflows_service.commits
+
+
+@pytest.mark.asyncio
+async def test_refresh_with_sync_off_reports_without_committing(fixture_tree):
+    service, simple, dao = _service(fixture_tree)
+    source = await _import_then(fixture_tree, service, sync_enabled=False)
+
+    (fixture_tree / "skills/alpha/SKILL.md").write_text(
+        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
+    )
+
+    result = await service.refresh_source(
+        project_id=PROJECT_ID, user_id=USER_ID, source_id=source.id
+    )
+
+    # Sync is off: the change is OFFERED, never applied.
+    assert _statuses(result)["skills/alpha"] == "update_available"
+    assert not simple.workflows_service.commits
+    link = next(x for x in dao.links if x.path_in_repo == "skills/alpha")
+    assert link.imported_commit_sha == "abc1234"  # untouched
+
+
+@pytest.mark.asyncio
+async def test_refresh_apply_overrides_sync_off(fixture_tree):
+    service, simple, dao = _service(fixture_tree)
+    source = await _import_then(fixture_tree, service, sync_enabled=False)
+
+    (fixture_tree / "skills/alpha/SKILL.md").write_text(
+        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
+    )
+    service.fetcher.commit_sha = "def5678"
+
+    result = await service.refresh_source(
+        project_id=PROJECT_ID, user_id=USER_ID, source_id=source.id, apply=True
+    )
+
+    # The explicit one-off Apply commits even though the source stays sync-off.
+    assert _statuses(result)["skills/alpha"] == "updated"
+    assert len(simple.workflows_service.commits) == 1
+    link = next(x for x in dao.links if x.path_in_repo == "skills/alpha")
+    assert link.imported_commit_sha == "def5678"

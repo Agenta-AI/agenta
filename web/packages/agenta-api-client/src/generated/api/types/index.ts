@@ -517,6 +517,7 @@ export * from "./SimpleWorkflowsResponse.js";
 export * from "./SkillIssue.js";
 export * from "./SkillRegistryItem.js";
 export * from "./SkillSource.js";
+export * from "./SkillSourceRefreshRequest.js";
 export * from "./SkillSourcesResponse.js";
 export * from "./SkillsResponse.js";
 export * from "./SkillUsageItem.js";

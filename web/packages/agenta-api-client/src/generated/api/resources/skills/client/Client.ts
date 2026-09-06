@@ -243,7 +243,8 @@ export class SkillsClient {
      *
      * @example
      *     await client.skills.refreshSkillSource({
-     *         source_id: "source_id"
+     *         source_id: "source_id",
+     *         body: {}
      *     })
      */
     public refreshSkillSource(
@@ -257,7 +258,7 @@ export class SkillsClient {
         request: AgentaApi.RefreshSkillSourceRequest,
         requestOptions?: SkillsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.RefreshResult>> {
-        const { source_id: sourceId } = request;
+        const { source_id: sourceId, body: _body } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -273,7 +274,10 @@ export class SkillsClient {
             ),
             method: "POST",
             headers: _headers,
+            contentType: "application/json",
             queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,

@@ -50,3 +50,8 @@ class SkillSourceImportRequest(BaseModel):
 class SkillSourcesResponse(BaseModel):
     count: int = 0
     sources: List[SkillSource] = []
+
+
+class SkillSourceRefreshRequest(BaseModel):
+    # Override the source's sync_enabled for this one refresh (the explicit Apply click).
+    apply: Optional[bool] = None

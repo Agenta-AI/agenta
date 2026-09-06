@@ -193,6 +193,13 @@ drift.
    intervening commit lacks the `skill_sync` meta. Repo-deleted paths → link
    `missing_in_source`, never delete the workflow.
 4. Trigger v1: manual endpoint + lazy FE call from the registry page. No cron.
+5. **`sync_enabled` gates the commit, not the check** (added 2026-09-06): a
+   refresh on a sync-off source is check-only — changed skills report
+   `update_available` and nothing is written. The endpoint takes an optional
+   body `{apply: bool}` to override for one refresh (the FE's explicit "Apply"
+   action next to the pending-updates summary). Sync-on sources keep today's
+   behavior: refresh commits directly. Detach/missing detection runs in both
+   modes (it is state observation, not a write).
 
 ## Non-goals
 

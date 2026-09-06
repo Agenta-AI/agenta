@@ -1,3 +1,4 @@
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status
@@ -21,6 +22,7 @@ from oss.src.apis.fastapi.skills.models import (
     SkillUsageResponse,
     SkillSourceScanRequest,
     SkillSourceImportRequest,
+    SkillSourceRefreshRequest,
     SkillSourcesResponse,
 )
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
@@ -270,6 +272,7 @@ class SkillsRouter:
         request: Request,
         *,
         source_id: UUID,
+        refresh_request: Optional[SkillSourceRefreshRequest] = None,
     ) -> RefreshResult:
         """
         Re-scan a source and commit new versions of its linked skills.
@@ -289,4 +292,5 @@ class SkillsRouter:
             user_id=UUID(request.state.user_id),
             #
             source_id=source_id,
+            apply=refresh_request.apply if refresh_request else None,
         )

@@ -407,18 +407,22 @@ export async function unarchiveSkill({
     return unarchiveWorkflow(projectId, workflowId)
 }
 
-/** `POST /skills/sources/{id}/refresh` — re-scan the repo and commit changed skills.
- * Hand-edited skills detach instead of being overwritten. Throws on HTTP errors. */
+/** `POST /skills/sources/{id}/refresh` — re-scan the repo. Whether changes are COMMITTED
+ * follows the source's sync_enabled flag; `apply: true` is the one-off override (the
+ * explicit Apply click on a sync-off source). Hand-edited skills detach instead of being
+ * overwritten. Throws on HTTP errors. */
 export async function refreshSkillSource({
     projectId,
     sourceId,
+    apply,
 }: {
     projectId: string
     sourceId: string
+    apply?: boolean
 }): Promise<RefreshSourceResponse | null> {
     if (!projectId || !sourceId) return null
     const data = await getSkillsClient().refreshSkillSource(
-        {source_id: sourceId},
+        {source_id: sourceId, body: apply === undefined ? null : {apply}},
         {queryParams: {project_id: projectId}},
     )
     return refreshSourceResponseSchema.safeParse(data).data ?? null
