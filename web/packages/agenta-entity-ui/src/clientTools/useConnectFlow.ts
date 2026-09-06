@@ -209,6 +209,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     // One-shot guard so THIS instance settles the parked call at most once, plus shared cleanup for
     // the running popup's listener/poll/timeout. `meta.settled` covers the OTHER instance's settle.
     const settledRef = useRef(false)
+    const pendingAnswerRef = useRef<ConnectOutput | {errorText: string} | null>(null)
     const activeRef = useRef(active)
     activeRef.current = active
     const popupRef = useRef<Window | null>(null)
@@ -230,8 +231,8 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
             setPhase("idle")
             setErrorText(null)
             const onSubmissionError = (error: unknown) => {
-                // The connection may exist, but the parked answer has not been saved. Keep
-                // the live action retryable instead of treating it as a settled manual retry.
+                // Retry the same answer without creating the connection again.
+                pendingAnswerRef.current = result
                 settledRef.current = false
                 setOutcome(null)
                 setErrorText(
@@ -250,7 +251,9 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
                         ? {connected: false, reason: result.errorText}
                         : {connected: result.connected === true, reason: result.reason},
                 )
-                void Promise.resolve(submission).catch(onSubmissionError)
+                void Promise.resolve(submission).then(() => {
+                    pendingAnswerRef.current = null
+                }, onSubmissionError)
             } catch (error) {
                 onSubmissionError(error)
             }
@@ -281,6 +284,10 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
             if (phase === "connecting") return
             if (settleParkedCall && (!activeRef.current || settledRef.current || meta.settled))
                 return
+            if (settleParkedCall && pendingAnswerRef.current) {
+                finish(pendingAnswerRef.current)
+                return
+            }
             // The integration-detail lookup that picks the real auth mode hasn't resolved yet —
             // proceeding here would send the agent's raw (possibly wrong, e.g. "oauth" for a
             // toolkit that only supports api_key) hint. The button is disabled for this same
@@ -410,6 +417,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     // Explicit cancel while the popup is open: settle the parked call as cancelled (or, when the
     // call is already settled — a manual retry — just stop).
     const cancel = useCallback(() => {
+        if (pendingAnswerRef.current) return
         teardown()
         if (!settledRef.current && !meta.settled)
             finish({connected: false, integration, slug, reason: "cancelled"})
@@ -420,7 +428,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     // can respond gracefully / offer an alternative. Distinct from "cancelled" (abandoned popup) so
     // the agent can tell an explicit decline from a mishap.
     const decline = useCallback(() => {
-        if (settledRef.current || meta.settled) return
+        if (settledRef.current || meta.settled || pendingAnswerRef.current) return
         finish({connected: false, integration, slug, reason: "declined"})
     }, [finish, integration, slug, meta.settled])
 

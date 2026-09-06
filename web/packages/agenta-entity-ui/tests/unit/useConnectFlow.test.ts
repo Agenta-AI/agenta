@@ -12,10 +12,12 @@ import {act, createElement} from "react"
 import {createRoot} from "react-dom/client"
 import {describe, expect, it, vi} from "vitest"
 
+const {handleCreate} = vi.hoisted(() => ({handleCreate: vi.fn(async () => ({connection: {}}))}))
+
 vi.mock("@agenta/entities/gatewayTool", () => ({
     useToolIntegrationDetail: () => ({integration: {auth_schemes: ["oauth"]}, isLoading: false}),
     useToolsConnections: () => ({
-        handleCreate: async () => ({connection: {}}),
+        handleCreate,
         invalidate: vi.fn(),
     }),
 }))
@@ -143,10 +145,16 @@ describe("durable connection answer", () => {
         expect(flow.outcome).toBeNull()
         expect(flow.phase).toBe("idle")
         await act(async () => {
+            flow.decline()
+            flow.cancel()
+        })
+        expect(settle).toHaveBeenCalledTimes(1)
+        await act(async () => {
             await flow.runConnect(true)
         })
         expect(flow.outcome?.connected).toBe(true)
         expect(flow.errorText).toBeNull()
+        expect(handleCreate).toHaveBeenCalledTimes(1)
         expect(settle).toHaveBeenCalledTimes(2)
         expect(settle).toHaveBeenLastCalledWith({
             output: {connected: true, integration: "github", slug: "github"},

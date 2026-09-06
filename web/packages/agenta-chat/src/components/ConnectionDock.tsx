@@ -560,6 +560,7 @@ const ConnectBody = ({
                             variant="ghost"
                             className={`text-colorTextSecondary ${touchCls}`}
                             onClick={decline}
+                            disabled={Boolean(errorText)}
                         >
                             Not now
                         </Button>
@@ -573,7 +574,7 @@ const ConnectBody = ({
                             }
                             onClick={() => runConnect(true)}
                         >
-                            {phase === "error" ? "Retry" : "Connect"}
+                            {phase === "error" || errorText ? "Retry" : "Connect"}
                         </Button>
                     </>
                 )}
