@@ -15,6 +15,8 @@ describe("buildSkillEmbedEntry", () => {
         expect(entry).toEqual({
             "@ag.embed": {
                 "@ag.references": {workflow: {slug: "pdf-tools", id: "wf-1"}},
+                // Without the selector the resolver inlines revision.data and the run fails.
+                "@ag.selector": {path: "parameters.skill"},
             },
             name: "PDF tools",
             description: "Extract and merge PDFs",

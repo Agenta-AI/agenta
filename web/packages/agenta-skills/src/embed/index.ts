@@ -31,6 +31,9 @@ export interface SkillEmbedTarget {
 export interface SkillEmbedEntry {
     "@ag.embed": {
         "@ag.references": Record<string, Record<string, unknown>>
+        /** REQUIRED for skills: without it the resolver inlines the whole revision.data
+         * (uri + parameters) and the runner rejects the entry as an invalid SkillTemplate. */
+        "@ag.selector": {path: string}
     }
     name: string
     description?: string
@@ -53,7 +56,10 @@ export function buildSkillEmbedEntry(target: SkillEmbedTarget): SkillEmbedEntry 
           }
 
     return {
-        "@ag.embed": {"@ag.references": references},
+        "@ag.embed": {
+            "@ag.references": references,
+            "@ag.selector": {path: "parameters.skill"},
+        },
         name: target.name,
         ...(target.description ? {description: target.description} : {}),
     }
