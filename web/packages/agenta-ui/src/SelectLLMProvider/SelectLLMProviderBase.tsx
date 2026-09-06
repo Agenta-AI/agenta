@@ -635,8 +635,10 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 onCloseAutoFocus={anchorRef ? (e) => e.preventDefault() : undefined}
                 onPointerDownOutside={onDismissOutside ? () => onDismissOutside() : undefined}
                 onKeyDown={handleKeyDown}
+                collisionPadding={8}
                 className={clsx(
-                    "p-1",
+                    // The cascade asks for a fixed 400px, which overhangs both edges of a phone.
+                    "p-1 max-w-[var(--radix-popover-content-available-width)]",
                     // antd's `popupMatchSelectWidth`: the cascade sizes itself, everything else
                     // tracks the trigger.
                     shouldUseProviderPanels ? "w-auto" : "w-[var(--radix-popover-trigger-width)]",
@@ -650,7 +652,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 <div
                     ref={panelRef}
                     className="flex flex-col gap-1"
-                    style={shouldUseProviderPanels ? {width: providerDropdownWidthCss} : undefined}
+                    style={
+                        shouldUseProviderPanels
+                            ? {width: providerDropdownWidthCss, maxWidth: "100%"}
+                            : undefined
+                    }
                 >
                     {panelHeader ? (
                         <div className="-mx-1 -mt-1 mb-1 border-0 border-b border-solid border-border bg-muted/40 px-3 py-1.5">
@@ -770,126 +776,138 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
                     {/* When not searching and has model options with showGroup: provider/model panels */}
                     {showPanels && (
-                        <div className="relative flex min-h-[220px] min-w-0">
-                            <div
-                                className="flex min-w-0 flex-col"
-                                style={{width: providerPanelWidth}}
-                            >
+                        <>
+                            <div className="relative flex min-h-[220px] min-w-0">
                                 <div
-                                    className="py-1"
-                                    role="listbox"
-                                    id={providerListId}
-                                    aria-label="Providers"
+                                    // Keep the 132px in step with the flyout's own narrow width below.
+                                    className="flex min-w-0 flex-col max-sm:!w-[132px]"
+                                    style={{width: providerPanelWidth}}
                                 >
-                                    {filteredProviders.map((group, idx) => {
-                                        const Icon = getProviderIcon(
-                                            group.iconKey || group.label || "",
-                                        )
-                                        const isHovered = hoveredProvider === groupKeyOf(group)
-                                        // A group naming itself (a connection) is shown verbatim;
-                                        // a provider-family label still gets its display name.
-                                        const displayName = group.iconKey
-                                            ? (group.label ?? "")
-                                            : getProviderDisplayName(group.label || "")
+                                    <div
+                                        className="py-1"
+                                        role="listbox"
+                                        id={providerListId}
+                                        aria-label="Providers"
+                                    >
+                                        {filteredProviders.map((group, idx) => {
+                                            const Icon = getProviderIcon(
+                                                group.iconKey || group.label || "",
+                                            )
+                                            const isHovered = hoveredProvider === groupKeyOf(group)
+                                            // A group naming itself (a connection) is shown verbatim;
+                                            // a provider-family label still gets its display name.
+                                            const displayName = group.iconKey
+                                                ? (group.label ?? "")
+                                                : getProviderDisplayName(group.label || "")
 
-                                        return (
-                                            <div
-                                                key={`provider-${groupKeyOf(group)}-${idx}`}
-                                                id={providerOptionId(idx)}
-                                                role="option"
-                                                // The open column IS this listbox's chosen row —
-                                                // there is no other provider value to mark.
-                                                aria-selected={isHovered}
-                                                data-active={isHovered && activeModelIndex === null}
-                                                onMouseEnter={() => {
-                                                    setHoveredProvider(groupKeyOf(group))
-                                                    setActiveModelIndex(null)
-                                                }}
-                                                onClick={() => {
-                                                    setHoveredProvider(groupKeyOf(group))
-                                                    setActiveModelIndex(0)
-                                                }}
-                                                className={clsx(
-                                                    ROW_CLASS,
-                                                    "hover:bg-muted",
-                                                    isHovered && "bg-muted",
-                                                )}
-                                            >
-                                                {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
-                                                <span className="flex min-w-0 flex-1 flex-col">
-                                                    <span className="flex min-w-0 items-center gap-1.5">
-                                                        <span className="truncate text-xs">
-                                                            {displayName}
+                                            return (
+                                                <div
+                                                    key={`provider-${groupKeyOf(group)}-${idx}`}
+                                                    id={providerOptionId(idx)}
+                                                    role="option"
+                                                    // The open column IS this listbox's chosen row —
+                                                    // there is no other provider value to mark.
+                                                    aria-selected={isHovered}
+                                                    data-active={
+                                                        isHovered && activeModelIndex === null
+                                                    }
+                                                    onMouseEnter={() => {
+                                                        setHoveredProvider(groupKeyOf(group))
+                                                        setActiveModelIndex(null)
+                                                    }}
+                                                    onClick={() => {
+                                                        setHoveredProvider(groupKeyOf(group))
+                                                        setActiveModelIndex(0)
+                                                    }}
+                                                    className={clsx(
+                                                        ROW_CLASS,
+                                                        "hover:bg-muted",
+                                                        isHovered && "bg-muted",
+                                                    )}
+                                                >
+                                                    {Icon && (
+                                                        <Icon className="w-4 h-4 flex-shrink-0" />
+                                                    )}
+                                                    <span className="flex min-w-0 flex-1 flex-col">
+                                                        <span className="flex min-w-0 items-center gap-1.5">
+                                                            <span className="truncate text-xs">
+                                                                {displayName}
+                                                            </span>
+                                                            {group.tag ? (
+                                                                <span
+                                                                    className={clsx(
+                                                                        "shrink-0 rounded-control-sm px-1.5 text-[11px]",
+                                                                        group.tagTone === "olive"
+                                                                            ? "bg-[var(--ag-ref-environment-bg)] text-[var(--ag-ref-environment-text)]"
+                                                                            : "bg-muted text-colorTextSecondary",
+                                                                    )}
+                                                                >
+                                                                    {group.tag}
+                                                                </span>
+                                                            ) : null}
                                                         </span>
-                                                        {group.tag ? (
-                                                            <span
-                                                                className={clsx(
-                                                                    "shrink-0 rounded-control-sm px-1.5 text-[11px]",
-                                                                    group.tagTone === "olive"
-                                                                        ? "bg-[var(--ag-ref-environment-bg)] text-[var(--ag-ref-environment-text)]"
-                                                                        : "bg-muted text-colorTextSecondary",
-                                                                )}
-                                                            >
-                                                                {group.tag}
+                                                        {group.caption ? (
+                                                            <span className="truncate text-[11px] text-colorTextTertiary">
+                                                                {group.caption}
                                                             </span>
                                                         ) : null}
                                                     </span>
-                                                    {group.caption ? (
-                                                        <span className="truncate text-[11px] text-colorTextTertiary">
-                                                            {group.caption}
-                                                        </span>
-                                                    ) : null}
-                                                </span>
-                                                <span className="text-field-sm tabular-nums text-colorTextTertiary">
-                                                    {group.options.length}
-                                                </span>
-                                                <CaretRight
-                                                    size={12}
-                                                    className="flex-shrink-0 text-colorTextTertiary"
-                                                />
-                                            </div>
-                                        )
-                                    })}
+                                                    <span className="text-field-sm tabular-nums text-colorTextTertiary">
+                                                        {group.options.length}
+                                                    </span>
+                                                    <CaretRight
+                                                        size={12}
+                                                        className="flex-shrink-0 text-colorTextTertiary"
+                                                    />
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+
+                                    {footerContent && (
+                                        <div className="mt-auto w-full max-sm:hidden">
+                                            {footerContent}
+                                        </div>
+                                    )}
                                 </div>
 
-                                {footerContent && (
-                                    <div className="mt-auto w-full">{footerContent}</div>
+                                {hoveredGroup && (
+                                    <div
+                                        role="listbox"
+                                        id={modelListId}
+                                        aria-label={hoveredGroup.label ?? "Models"}
+                                        className="absolute inset-y-0 right-0 overflow-y-auto border-0 border-l border-solid border-border py-1 max-sm:!w-[calc(100%-132px)]"
+                                        style={{width: modelListWidthCss}}
+                                        onWheel={handleWheelScroll}
+                                    >
+                                        {(() => {
+                                            // One running index across the sections: the keyboard walks
+                                            // the flyout as one list, so the rows must number as one.
+                                            let rowIndex = -1
+                                            const single = flyoutSections.length === 1
+                                            return flyoutSections.map((section) => (
+                                                <div
+                                                    key={section.key}
+                                                    role="group"
+                                                    aria-label={section.label || undefined}
+                                                >
+                                                    {section.label
+                                                        ? renderSectionLabel(section, single)
+                                                        : null}
+                                                    {section.options.map((option) => {
+                                                        rowIndex += 1
+                                                        return renderModelRow(option, rowIndex)
+                                                    })}
+                                                </div>
+                                            ))
+                                        })()}
+                                    </div>
                                 )}
                             </div>
-
-                            {hoveredGroup && (
-                                <div
-                                    role="listbox"
-                                    id={modelListId}
-                                    aria-label={hoveredGroup.label ?? "Models"}
-                                    className="absolute inset-y-0 right-0 overflow-y-auto border-0 border-l border-solid border-border py-1"
-                                    style={{width: modelListWidthCss}}
-                                    onWheel={handleWheelScroll}
-                                >
-                                    {(() => {
-                                        // One running index across the sections: the keyboard walks
-                                        // the flyout as one list, so the rows must number as one.
-                                        let rowIndex = -1
-                                        const single = flyoutSections.length === 1
-                                        return flyoutSections.map((section) => (
-                                            <div
-                                                key={section.key}
-                                                role="group"
-                                                aria-label={section.label || undefined}
-                                            >
-                                                {section.label
-                                                    ? renderSectionLabel(section, single)
-                                                    : null}
-                                                {section.options.map((option) => {
-                                                    rowIndex += 1
-                                                    return renderModelRow(option, rowIndex)
-                                                })}
-                                            </div>
-                                        ))
-                                    })()}
-                                </div>
-                            )}
-                        </div>
+                            {footerContent ? (
+                                <div className="w-full sm:hidden">{footerContent}</div>
+                            ) : null}
+                        </>
                     )}
 
                     {panelFooter ? (
