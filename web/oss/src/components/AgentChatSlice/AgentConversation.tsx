@@ -388,6 +388,7 @@ const AgentConversation = ({
         sessionId,
         messages,
         locallyBusy: busy,
+        isSharedReaderReady: () => readerReady,
         onExecuted: revalidate,
     })
 
