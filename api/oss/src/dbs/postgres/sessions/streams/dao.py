@@ -538,6 +538,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                     SessionExecutionDBE.project_id == project_id,
                     SessionExecutionDBE.session_id == session_id,
                     SessionExecutionDBE.execution_id == stream.expected_turn_id,
+                    SessionExecutionDBE.terminal_outcome.is_not(None),
                 )
                 .exists()
             )
@@ -561,7 +562,11 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                         SessionStreamDBE.flags.contains(
                             {"is_alive": True, "is_running": True}
                         ),
-                        ~terminal_execution_exists,
+                        # Final idle beats must persist after settlement; active beats
+                        # must not revive an execution that has already ended.
+                        (~terminal_execution_exists)
+                        if stream.flags is None or stream.flags.is_running
+                        else True,
                     )
                     .values(**values)
                     .returning(SessionStreamDBE)
