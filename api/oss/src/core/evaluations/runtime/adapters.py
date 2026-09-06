@@ -36,6 +36,37 @@ def _read_field(source: Any, field: str) -> Any:
     return getattr(source, field, None)
 
 
+def _collect_prompt_input_keys(parameters: Any) -> set:
+    """Collect every prompt ``input_keys`` declared anywhere in ``parameters``.
+
+    Prompt handlers (``completion_v0``/``chat_v0``) validate the runtime inputs
+    against ``prompt.input_keys`` at invoke time. For builtin prompt workflows
+    ``schemas.inputs.properties`` only declares the STRUCTURAL inputs (e.g.
+    ``messages`` for chat), not the template variables (e.g. ``context``) — those
+    live in ``input_keys``. Projection must keep these keys, otherwise a template
+    variable that has no matching schema property is dropped and the workflow is
+    invoked with empty inputs (``Invalid inputs: Expected ['context'] Got []``).
+
+    Walks the tree so it is robust to wrapping (``{"ag_config": {...}}``) and to
+    multiple prompt configs.
+    """
+    keys: set = set()
+
+    def _walk(node: Any) -> None:
+        if isinstance(node, dict):
+            input_keys = node.get("input_keys")
+            if isinstance(input_keys, list):
+                keys.update(key for key in input_keys if isinstance(key, str))
+            for value in node.values():
+                _walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item)
+
+    _walk(parameters)
+    return keys
+
+
 def _project_inputs(inputs: Any, data: Any) -> Any:
     """Project source inputs onto the revision's declared input schema.
 
@@ -43,7 +74,10 @@ def _project_inputs(inputs: Any, data: Any) -> Any:
     ground-truth/bookkeeping keys like ``correct_answer`` or ``testcase_id``.
     The invoked workflow should only receive the inputs its revision declares,
     so filter ``inputs`` down to the keys present in
-    ``data.schemas.inputs.properties``.
+    ``data.schemas.inputs.properties``, widened by the prompt's declared
+    ``input_keys`` so template variables absent from the schema (e.g. ``context``
+    for a builtin chat workflow, whose schema declares only ``messages``) are not
+    stripped.
 
     If the revision declares no input schema (no ``properties``), inputs pass
     through unchanged so untyped/legacy revisions are not broken.
@@ -59,7 +93,10 @@ def _project_inputs(inputs: Any, data: Any) -> Any:
     if not isinstance(properties, dict) or not properties:
         return inputs
 
-    return {key: value for key, value in inputs.items() if key in properties}
+    parameters = _read_field(data, "parameters") if data is not None else None
+    allowed = set(properties.keys()) | _collect_prompt_input_keys(parameters)
+
+    return {key: value for key, value in inputs.items() if key in allowed}
 
 
 def _dump_model(source: Any, **kwargs: Any) -> Any:
