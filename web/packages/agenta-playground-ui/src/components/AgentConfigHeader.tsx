@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import {CONFIG_REGION_BAR} from "@agenta/entity-ui/drill-in"
+import {CONFIG_REGION_BAR} from "@agenta/ui/components/presentational"
 
 import {CommitVariantChangesButton} from "./CommitVariantChanges"
 

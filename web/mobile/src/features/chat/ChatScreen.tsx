@@ -3,6 +3,7 @@ import {useMemo, useRef, useState} from "react"
 import {
     buildTurnViewModels,
     createExecutedToolIdentityCache,
+    createTurnViewModelCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
 import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
@@ -181,9 +182,11 @@ const ReplayScreen = ({
     // remounted per session.
 
     const executedFor = useMemo(() => createExecutedToolIdentityCache(), [sessionId])
+    // Without this every view model is a fresh object per poll, so TurnRow's memo never hits.
+    const turnCache = useMemo(() => createTurnViewModelCache(), [sessionId])
     const turns = useMemo(
-        () => buildTurnViewModels(messages, {busy: false, executedFor}),
-        [messages, executedFor],
+        () => buildTurnViewModels(messages, {busy: false, executedFor, cache: turnCache}),
+        [messages, executedFor, turnCache],
     )
     // Keyed on `turns` (new array per poll) so streamed growth also re-pins.
     const autoScroll = useTranscriptAutoScroll(turns)

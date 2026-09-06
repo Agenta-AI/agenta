@@ -69,15 +69,13 @@ export function SectionRail({
     // The rail opens, picking a section pushes its panel, a back link returns — side by side left
     // the panel a sliver on a phone.
     const [mobileView, setMobileView] = useState<"list" | "detail">("list")
-    const showList = !drillIn || mobileView === "list"
-    const showDetail = !drillIn || mobileView === "detail"
     return (
         <div className={clsx("flex gap-2", fill && "min-h-0 flex-1")}>
             <div
                 className={clsx(
                     "flex flex-col gap-0.5 sm:shrink-0",
                     railWidth,
-                    drillIn && (showList ? "max-sm:!w-full" : "max-sm:hidden"),
+                    drillIn && (mobileView === "list" ? "max-sm:!w-full" : "max-sm:hidden"),
                 )}
             >
                 {items.map((item) => {
@@ -132,7 +130,7 @@ export function SectionRail({
                     // Side by side on a phone too, so it keeps the divider and a tighter gutter.
                     !drillIn && "border-l pl-2",
                     bleed && "-my-4 py-4",
-                    showDetail ? "flex" : "hidden sm:flex",
+                    !drillIn || mobileView === "detail" ? "flex" : "hidden sm:flex",
                 )}
             >
                 {drillIn ? (

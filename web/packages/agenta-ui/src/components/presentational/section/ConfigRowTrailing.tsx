@@ -1,20 +1,7 @@
 /**
- * ConfigRowTrailing — the trailing-edge convention every config panel row follows.
- *
- * The agent playground's config pane stacks three kinds of row built by different components:
- * region header bars (Configuration / Triggers / Files), accordion section headers (Model,
- * Instructions, Integrations…) and nested item cards. Each ended on its own axis, so the pane's
- * right-hand column read ragged.
- *
- * Rows that carry an affordance now reserve the same fixed-width column for it — empty when the
- * row has none — so summaries end on one axis and carets/locks/folders on another.
- *
- * @example
- * ```tsx
- * <ConfigRowTrailing affordance={<ConfigRowCaret open={isOpen} />}>
- *   <span>{summary}</span>
- * </ConfigRowTrailing>
- * ```
+ * The trailing-edge convention every config-panel row follows: content, then one fixed-width
+ * affordance column, so carets, locks and folders across three different row components land on
+ * a single axis instead of each ending where its own glyph happens to sit.
  */
 import type {ReactNode} from "react"
 
@@ -40,14 +27,7 @@ function ConfigRowAffordance({children, className}: {children?: ReactNode; class
     )
 }
 
-/**
- * The collapse/expand (or drawer) caret for a config row.
- *
- * Both phosphor carets draw their ink inset from their own box, by different amounts (2.2px down,
- * 3.9px right at 14px), so a bare glyph lands off the column's axis and MOVES when the row toggles.
- * The transforms cancel exactly that, putting both ink edges on the column edge; keep them here
- * rather than at call sites.
- */
+/** Both phosphor carets inset their ink differently, so a bare glyph sits off-axis and MOVES on toggle. */
 export function ConfigRowCaret({open = false, className}: {open?: boolean; className?: string}) {
     const cls = cn("text-[var(--ag-zinc-5)]", className)
     return open ? (
@@ -82,3 +62,11 @@ export function ConfigRowTrailing({
         </div>
     )
 }
+
+/**
+ * The geometry every config-panel region header shares, fill excluded, so the Configuration,
+ * Triggers and Files bars cannot drift. No `w-full`: preflight is off on the desktop, so
+ * `width:100%` plus the bar's own `px-4` overflows its parent by 32px.
+ */
+export const CONFIG_REGION_BAR =
+    "h-[48px] flex items-center justify-between overflow-hidden border-b border-colorBorderSecondary py-2 px-4"

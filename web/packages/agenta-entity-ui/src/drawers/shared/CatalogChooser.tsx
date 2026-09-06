@@ -719,9 +719,9 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
         <div className={`flex h-full min-h-[260px] ${fullBleedRail ? "" : "gap-3"}`}>
             {railPresent && (
                 <div
-                    className={`ag-drawer-rail min-h-0 w-[150px] flex-col sm:flex sm:w-[220px] sm:shrink-0 ${
+                    className={`ag-drawer-rail min-h-0 flex-col sm:flex sm:w-[220px] sm:shrink-0 ${
                         fullBleedRail ? "py-4 pl-3 pr-1" : "py-1"
-                    } ${mobileView === "rail" ? "flex max-sm:!w-full" : "hidden"}`}
+                    } ${mobileView === "rail" ? "flex w-full" : "hidden"}`}
                 >
                     {hasConnections && (
                         // Connections stay pinned at the top — the category list below scrolls on its

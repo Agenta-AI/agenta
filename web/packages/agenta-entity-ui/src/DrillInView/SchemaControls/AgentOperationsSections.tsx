@@ -14,23 +14,12 @@
  */
 import {type ReactNode} from "react"
 
-import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
+import {CONFIG_REGION_BAR, ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {TriggerManagementSection, useAgentTriggers} from "./TriggerManagementSection"
-
-/**
- * The geometry every panel region header shares, fill excluded — AgentConfigHeader renders the
- * Configuration bar from this too, so the three cannot drift.
- *
- * No `w-full`: preflight is off, so `width:100%` plus the bar's own `px-4` overflows its parent
- * by 32px. Colors come from the `--ag-*` layer, never antd's runtime `--ant-*` vars, which do not
- * exist on hosts without antd (/m) — an undefined var drops the tint and the bar loses its fill.
- */
-export const CONFIG_REGION_BAR =
-    "h-[48px] flex items-center justify-between overflow-hidden border-b border-colorBorderSecondary py-2 px-4"
 
 const barClass = (sticky: boolean) =>
     `${CONFIG_REGION_BAR} ${sticky ? "sticky top-0 z-[10]" : ""} bg-[var(--ag-surface-section-header)]`
