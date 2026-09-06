@@ -1569,6 +1569,12 @@ async def test_edit_pending_scope_and_invalid_content_leave_row_unchanged(input_
     ],
 )
 def test_edit_pending_canonical_content_keeps_attachments(original):
+    with pytest.raises(ValueError):
+        PendingInputAttachment(
+            uri="agenta://invalid",
+            mime_type="text/plain",
+            attachment_id="",
+        )
     content = {
         "data": {"inputs": {"messages": [{"role": "user", "content": original}]}}
     }
