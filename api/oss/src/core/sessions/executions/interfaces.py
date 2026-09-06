@@ -33,6 +33,16 @@ class SessionExecutionsDAOInterface(ABC):
         """Ensure and row-lock the source execution for Stop/answer arbitration."""
         raise NotImplementedError
 
+    async def lock_active_continuation(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        transaction: Any,
+    ) -> Optional[SessionExecutionSettlement]:
+        """Lock the unsettled continuation that still owns this session."""
+        raise NotImplementedError
+
     async def create_continuation(
         self,
         *,

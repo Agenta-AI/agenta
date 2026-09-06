@@ -850,3 +850,69 @@ async def test_stop_settlement_wins_before_steer_bind(input_scope, monkeypatch):
         engine=input_scope["engine"]
     ).fetch_command(command_id=command.id)
     assert settled_command.data is None
+
+
+@pytest.mark.parametrize("policy", ["queue", "steer"])
+@pytest.mark.parametrize(
+    "state", ["pending_delivery", "running", "recoverable", "terminal"]
+)
+async def test_admission_follows_approval_continuation_before_stream_header_catches_up(
+    input_scope, monkeypatch, policy, state
+):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    inputs = SessionInputsDAO(engine=input_scope["engine"])
+    executions = SessionExecutionsDAO(engine=input_scope["engine"])
+    scope = {
+        "project_id": input_scope["project_id"],
+        "session_id": input_scope["session_id"],
+    }
+    async with input_scope["engine"].session() as transaction:
+        await executions.settle(
+            **scope,
+            execution_id="source-turn",
+            terminal_outcome="continued",
+            settled_by="interaction_response",
+            transaction=transaction,
+        )
+        await executions.create_continuation(
+            **scope,
+            execution_id="approved-child",
+            parent_execution_id="source-turn",
+            source_interaction_id=None,
+            transaction=transaction,
+        )
+        if state == "terminal":
+            await executions.settle(
+                **scope,
+                execution_id="approved-child",
+                terminal_outcome="completed",
+                settled_by="runner",
+                transaction=transaction,
+            )
+        else:
+            await executions.set_state(
+                **scope,
+                execution_id="approved-child",
+                state=SessionExecutionState(state),
+                transaction=transaction,
+            )
+    service = SessionInputsService(
+        inputs_dao=inputs,
+        streams_service=_BusyStreams(),
+        executions_dao=executions,
+    )
+    admission = await service.admit(
+        **scope,
+        user_id=input_scope["user_id"],
+        content={"message": "after approved work"},
+        policy=policy,
+        idempotency_key="approval-start-gap",
+    )
+    if state == "terminal":
+        assert admission.action == "execute"
+        assert await inputs.list_pending(**scope) == []
+    else:
+        assert admission.action == "pending"
+        assert admission.execution_id == "approved-child"
+        assert len(await inputs.list_pending(**scope)) == 1
