@@ -1,16 +1,18 @@
 import type {SessionCapabilities, SessionStreamResponse} from "@agentaai/api-client"
 import {beforeEach, describe, expect, expectTypeOf, it, vi} from "vitest"
 
-const {resume, fetchStream, sendNow} = vi.hoisted(() => ({
+const {resume, fetchStream, sendNow, updateInput} = vi.hoisted(() => ({
     resume: vi.fn(),
     fetchStream: vi.fn(),
     sendNow: vi.fn(),
+    updateInput: vi.fn(),
 }))
 
 vi.mock("@agenta/sdk/resources", () => ({
     getSessionsClient: () => ({
         resumeSessionContinuation: resume,
         sendPendingSessionInputNow: sendNow,
+        updatePendingSessionInput: updateInput,
         fetchSessionStream: fetchStream,
     }),
     getLowPrioritySessionsClient: vi.fn(),
@@ -20,6 +22,7 @@ vi.mock("@agenta/sdk/resources", () => ({
 
 import {
     fetchSessionCapabilities,
+    updatePendingSessionInput,
     sendPendingSessionInputNow,
     fetchSessionDurableApprovalsCapability,
     invalidateSessionDurableApprovalsCapability,
@@ -199,5 +202,36 @@ it.each([
     sendNow.mockResolvedValue(response)
     await expect(
         sendPendingSessionInputNow({projectId: "project", sessionId: "session", inputId: "input"}),
+    ).resolves.toBe(accepted)
+})
+
+it.each([
+    [
+        {
+            input: {
+                id: "input",
+                session_id: "session",
+                content: {data: {inputs: {messages: []}}},
+                position: 1,
+                state: "pending",
+                policy: "queue",
+            },
+        },
+        true,
+    ],
+    [{}, false],
+    [{input: null}, false],
+    [{input: {id: "input"}}, false],
+    [{action: "pending"}, false],
+    [null, false],
+])("validates a queued edit receipt %j", async (response, accepted) => {
+    updateInput.mockResolvedValue(response)
+    await expect(
+        updatePendingSessionInput({
+            projectId: "project",
+            sessionId: "session",
+            inputId: "input",
+            text: "edited",
+        }),
     ).resolves.toBe(accepted)
 })

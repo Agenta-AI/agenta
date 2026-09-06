@@ -215,9 +215,19 @@ export const useAgentChatQueue = ({
         return message
     }, [])
 
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const stashRef = useRef("")
+    const editSessionRef = useRef<{id: string; server: boolean} | null>(null)
+
     // A message held before an approval answer predates the server-owned continuation. Move it
     // under the same durable admission before that continuation can promote a different input.
     const migrationRef = useRef<string | null>(null)
+    const migrationPromiseRef = useRef<{
+        id: string
+        promise: Promise<void>
+        retry: () => Promise<void>
+        failed: boolean
+    } | null>(null)
     const migrationRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const [migrationRetry, setMigrationRetry] = useState(0)
     useEffect(
@@ -235,14 +245,16 @@ export const useAgentChatQueue = ({
             !server?.capabilities.queue ||
             !submitToServer ||
             !head ||
+            editingId === head.id ||
             migrationRef.current
         ) {
             return
         }
 
         migrationRef.current = head.id
-        void submitToServer(head, "queue")
-            .then(() => {
+        const retry = () =>
+            submitToServer(head, "queue").then(() => {
+                if (editSessionRef.current?.id === head.id) editSessionRef.current.server = true
                 if (sessionId) {
                     const stored = queuedBySession.get(sessionId)
                     if (stored) {
@@ -253,7 +265,11 @@ export const useAgentChatQueue = ({
                 }
                 setQueued((items) => items.filter((item) => item.id !== head.id))
             })
+        const migration = {id: head.id, promise: retry(), retry, failed: false}
+        migrationPromiseRef.current = migration
+        void migration.promise
             .catch(() => {
+                migration.failed = true
                 if (migrationRef.current !== head.id) return
                 migrationRef.current = null
                 migrationRetryTimerRef.current = setTimeout(() => {
@@ -264,10 +280,13 @@ export const useAgentChatQueue = ({
             })
             .finally(() => {
                 if (migrationRef.current === head.id) migrationRef.current = null
+                if (migrationPromiseRef.current === migration && !migration.failed)
+                    migrationPromiseRef.current = null
             })
     }, [
         continuationExecutionId,
         continuationHold,
+        editingId,
         migrationRetry,
         queued,
         sessionId,
@@ -344,14 +363,14 @@ export const useAgentChatQueue = ({
     // An edit session BORROWS the composer: the target's text goes in, and whatever the user had
     // already typed is stashed and handed back when the session ends (either way). Without that,
     // clicking edit on a half-written message would silently destroy it.
-    const [editingId, setEditingId] = useState<string | null>(null)
-    const stashRef = useRef("")
-    const editSessionRef = useRef<{server: boolean} | null>(null)
 
     /** Open a session on `id`, stashing the composer's current draft. */
     const beginEdit = useCallback(
         (id: string, draft = "") => {
-            editSessionRef.current = {server: !!server?.queued.some((message) => message.id === id)}
+            editSessionRef.current = {
+                id,
+                server: !!server?.queued.some((message) => message.id === id),
+            }
             stashRef.current = draft
             setEditingId(id)
         },
@@ -389,10 +408,31 @@ export const useAgentChatQueue = ({
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const id = editingId
             const editSession = editSessionRef.current
-            if (id && editSession?.server) {
+            const migration =
+                migrationPromiseRef.current?.id === id ? migrationPromiseRef.current : null
+            if (
+                id &&
+                (editSession?.server ||
+                    migration ||
+                    server?.queued.some((message) => message.id === id))
+            ) {
                 const save = server?.edit
                 if (!save) return Promise.reject(new Error("This queued message cannot be edited."))
-                return save(id, item).then(
+                if (editSession && server?.queued.some((message) => message.id === id))
+                    editSession.server = true
+                if (migration?.failed) {
+                    migration.failed = false
+                    migration.promise = migration.retry().catch((error: unknown) => {
+                        migration.failed = true
+                        throw error
+                    })
+                }
+                const saved = migration
+                    ? migration.promise.then(() =>
+                          editSessionRef.current === editSession ? save(id, item) : undefined,
+                      )
+                    : save(id, item)
+                return saved.then(
                     () => {
                         if (editSessionRef.current !== editSession) return ""
                         editSessionRef.current = null

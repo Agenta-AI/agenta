@@ -1073,3 +1073,162 @@ it("refuses cold Steer if the session settles while capabilities resolve", async
     expect(server.submit).not.toHaveBeenCalled()
     expect(view.sendQueued).not.toHaveBeenCalled()
 })
+
+it("holds local-to-server migration while its row is being edited", async () => {
+    const props = {...settledEmpty, status: "streaming"}
+    const {result, rerender} = setup(props)
+    act(() => result.current.submit({text: "old"}))
+    const id = result.current.queued[0].id
+    act(() => result.current.beginEdit(id, "draft"))
+    const server: ServerQueueAdapter = {
+        capabilities: {queue: true, steer: true},
+        busy: true,
+        queued: [],
+        submit: vi.fn().mockResolvedValue(undefined),
+        remove: vi.fn(),
+        edit: vi.fn(),
+    }
+    rerender({...props, server, continuationExecutionId: "continuation"})
+    expect(server.submit).not.toHaveBeenCalled()
+    await act(async () => {
+        await result.current.commitEdit({text: "edited before migration"})
+    })
+    expect(server.submit).toHaveBeenCalledOnce()
+    expect(server.submit).toHaveBeenCalledWith(
+        expect.objectContaining({id, text: "edited before migration"}),
+        "queue",
+    )
+})
+
+it.each(["pending", "accepted", "promoted"] as const)(
+    "keeps same-row durable editing when migration is %s and snapshot lags",
+    async (state) => {
+        const props = {...settledEmpty, status: "streaming"}
+        const {result, rerender, sendQueued} = setup(props)
+        act(() => result.current.submit({text: "old"}))
+        const id = result.current.queued[0].id
+        let accept!: () => void
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: true,
+            queued: [],
+            submit: vi.fn(
+                () =>
+                    new Promise<void>((resolve) => {
+                        accept = resolve
+                    }),
+            ),
+            remove: vi.fn(),
+            edit:
+                state === "promoted"
+                    ? vi.fn().mockRejectedValue(new Error("already promoted"))
+                    : vi.fn().mockResolvedValue(undefined),
+        }
+        rerender({...props, server, continuationExecutionId: "continuation"})
+        expect(server.submit).toHaveBeenCalledOnce()
+        act(() => result.current.beginEdit(id, "original draft"))
+        if (state !== "pending")
+            await act(async () => {
+                accept()
+                await Promise.resolve()
+            })
+        let saving!: string | Promise<string>
+        act(() => {
+            saving = result.current.commitEdit({text: "corrected"})
+        })
+        if (state === "pending") {
+            expect(server.edit).not.toHaveBeenCalled()
+            await act(async () => {
+                accept()
+                expect(await saving).toBe("original draft")
+            })
+        } else if (state === "promoted") {
+            await act(async () => {
+                await expect(saving).rejects.toThrow("already promoted")
+            })
+            expect(result.current.editingId).toBe(id)
+        } else {
+            await act(async () => {
+                expect(await saving).toBe("original draft")
+            })
+        }
+        expect(server.edit).toHaveBeenCalledWith(id, {text: "corrected"})
+        expect(server.submit).toHaveBeenCalledOnce()
+        expect(sendQueued).not.toHaveBeenCalled()
+    },
+)
+
+it("retains observed server ownership after a failed edit and a later missing snapshot row", async () => {
+    const props = {...settledEmpty, status: "streaming"}
+    const {result, rerender} = setup(props)
+    act(() => result.current.submit({text: "old"}))
+    const id = result.current.queued[0].id
+    act(() => result.current.beginEdit(id, "draft"))
+    const server: ServerQueueAdapter = {
+        capabilities: {queue: true, steer: true},
+        busy: true,
+        queued: [{id, text: "old", source: "server"}],
+        submit: vi.fn(),
+        remove: vi.fn(),
+        edit: vi
+            .fn()
+            .mockRejectedValueOnce(new Error("retry"))
+            .mockRejectedValueOnce(new Error("promoted")),
+    }
+    rerender({...props, server})
+    await act(async () => {
+        await expect(result.current.commitEdit({text: "corrected"})).rejects.toThrow("retry")
+    })
+    rerender({...props, server: {...server, queued: []}})
+    await act(async () => {
+        await expect(result.current.commitEdit({text: "corrected"})).rejects.toThrow("promoted")
+    })
+    expect(server.edit).toHaveBeenCalledTimes(2)
+    expect(server.submit).not.toHaveBeenCalled()
+    expect(result.current.queued[0].text).toBe("old")
+})
+
+it("replays the original admission after an ambiguous migration failure before patching the edit", async () => {
+    const props = {...settledEmpty, status: "streaming"}
+    const {result, rerender, unmount} = setup(props)
+    act(() => result.current.submit({text: "original admission"}))
+    const original = result.current.queued[0]
+    let reject!: (error: Error) => void
+    const server: ServerQueueAdapter = {
+        capabilities: {queue: true, steer: true},
+        busy: true,
+        queued: [],
+        submit: vi
+            .fn()
+            .mockImplementationOnce(
+                () =>
+                    new Promise<void>((_yes, no) => {
+                        reject = no
+                    }),
+            )
+            .mockResolvedValueOnce(undefined),
+        remove: vi.fn(),
+        edit: vi.fn().mockResolvedValue(undefined),
+    }
+    rerender({...props, server, continuationExecutionId: "continuation"})
+    act(() => result.current.beginEdit(original.id, "draft"))
+    let saving!: string | Promise<string>
+    act(() => {
+        saving = result.current.commitEdit({text: "corrected"})
+    })
+    await act(async () => {
+        reject(new Error("response lost"))
+        await expect(saving).rejects.toThrow("response lost")
+    })
+    expect(result.current.editingId).toBe(original.id)
+    expect(server.edit).not.toHaveBeenCalled()
+    await act(async () => {
+        expect(await result.current.commitEdit({text: "corrected"})).toBe("draft")
+    })
+    expect(server.submit).toHaveBeenNthCalledWith(1, original, "queue")
+    expect(server.submit).toHaveBeenNthCalledWith(2, original, "queue")
+    expect(server.edit).toHaveBeenCalledOnce()
+    expect(server.edit).toHaveBeenCalledWith(original.id, {text: "corrected"})
+    expect(result.current.queued).toEqual([])
+    unmount()
+})

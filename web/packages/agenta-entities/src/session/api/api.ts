@@ -14,6 +14,7 @@ import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     mountFileContentResponseSchema,
     pendingInputAdmissionResponseSchema,
+    pendingInputResponseSchema,
     mountFileListResponseSchema,
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
@@ -216,7 +217,10 @@ export async function updatePendingSessionInput({
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
-    return !!data
+    return (
+        safeParseWithLogging(pendingInputResponseSchema, data, "[updatePendingSessionInput]") !==
+        null
+    )
 }
 
 export async function sendPendingSessionInputNow({
