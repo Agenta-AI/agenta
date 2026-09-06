@@ -7,11 +7,16 @@
  * chat session state that package can't reach.
  */
 import {configFilesDrawerOpenAtomFamily, useConfigDrive} from "@agenta/entities/drive"
+import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {CircleNotch, FolderOpen} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {DriveWarningBadge, FOCUS_RING} from "./DriveFileRow"
+
+// `-mr-1` bleeds the hit area's right padding outward so the folder glyph, not the padding, lands
+// on the panel's affordance axis.
+const BROWSE_BUTTON = `-mr-1 flex cursor-pointer items-center rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`
 
 export default function StorageFilesHeader({
     revisionId,
@@ -25,11 +30,19 @@ export default function StorageFilesHeader({
     const setDrawerOpen = useSetAtom(configFilesDrawerOpenAtomFamily(revisionId ?? ""))
 
     if (drive.isLoading) {
-        return <SkeletonBlock className="h-[14px] w-[44px]" />
+        return (
+            <ConfigRowTrailing>
+                <SkeletonBlock className="h-[14px] w-[44px]" />
+            </ConfigRowTrailing>
+        )
     }
 
     if (drive.errored) {
-        return <span className="text-xs text-[var(--ag-colorTextTertiary)]">Unavailable</span>
+        return (
+            <ConfigRowTrailing>
+                <span className="text-xs text-[var(--ag-colorTextTertiary)]">Unavailable</span>
+            </ConfigRowTrailing>
+        )
     }
 
     const count = drive.fileCount
@@ -49,16 +62,25 @@ export default function StorageFilesHeader({
                         e.currentTarget.blur()
                         setDrawerOpen(true)
                     }}
-                    className={`flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`}
+                    className={BROWSE_BUTTON}
                 >
-                    No files
-                    <DriveWarningBadge show>
-                        <FolderOpen size={13} />
-                    </DriveWarningBadge>
+                    <ConfigRowTrailing
+                        affordance={
+                            <DriveWarningBadge show>
+                                <FolderOpen size={13} />
+                            </DriveWarningBadge>
+                        }
+                    >
+                        No files
+                    </ConfigRowTrailing>
                 </button>
             )
         }
-        return <span className="text-xs text-[var(--ag-colorTextTertiary)]">No files</span>
+        return (
+            <ConfigRowTrailing>
+                <span className="text-xs text-[var(--ag-colorTextTertiary)]">No files</span>
+            </ConfigRowTrailing>
+        )
     }
 
     return (
@@ -70,21 +92,25 @@ export default function StorageFilesHeader({
                 e.currentTarget.blur()
                 setDrawerOpen(true)
             }}
-            className={`flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`}
+            className={BROWSE_BUTTON}
         >
-            {/* The count survives a session switch (React Query keeps the swapped mount's last-known
-                value while it revalidates), so a spinner signals the shown count is being refreshed —
-                without it, a switch looks frozen on the previous session's number. */}
-            {drive.isFetching ? (
-                <CircleNotch size={11} className="animate-spin" aria-label="Refreshing" />
-            ) : null}
-            {label}
-            {/* Opens the Files drawer (a side panel), NOT a new tab — a folder-open glyph, not the
-                external-link arrow that read as "leaves the page". A mount failure badges this folder
-                (the button already opens the drawer, where the retry lives). */}
-            <DriveWarningBadge show={drive.partialErrored}>
-                <FolderOpen size={13} />
-            </DriveWarningBadge>
+            <ConfigRowTrailing
+                // Opens the Files drawer (a side panel), NOT a new tab — a folder-open glyph, not the
+                // external-link arrow that read as "leaves the page". A mount failure badges it.
+                affordance={
+                    <DriveWarningBadge show={drive.partialErrored}>
+                        <FolderOpen size={13} />
+                    </DriveWarningBadge>
+                }
+            >
+                {/* The count survives a session switch (React Query keeps the swapped mount's
+                    last-known value while it revalidates), so a spinner signals the shown count is
+                    being refreshed — without it, a switch looks frozen on the previous number. */}
+                {drive.isFetching ? (
+                    <CircleNotch size={11} className="animate-spin" aria-label="Refreshing" />
+                ) : null}
+                {label}
+            </ConfigRowTrailing>
         </button>
     )
 }

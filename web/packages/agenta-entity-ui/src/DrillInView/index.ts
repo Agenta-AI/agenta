@@ -373,6 +373,7 @@ export type {
 export {
     AgentOperationsSections,
     AgentOperationsSkeleton,
+    AgentRegionHeaderBar,
 } from "./SchemaControls/AgentOperationsSections"
 
 // Triggers section internals — surfaced so the Storybook component inventory can render
