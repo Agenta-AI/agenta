@@ -56,6 +56,8 @@ function SkillRow({
 }) {
     return (
         <CatalogListRow
+            // Membership tint: an added row reads as "on the agent" without moving anything.
+            className={option.added ? "bg-[var(--ag-colorSuccessBg)]" : undefined}
             leading={<SkillAvatar origin={option.origin} />}
             title={<span className="font-mono">{option.name || option.slug}</span>}
             titleSuffix={
@@ -171,8 +173,6 @@ export function SkillPickerDrawer({
         )
     }, [options, search])
 
-    // Grouped so "already on this agent" reads as its own set, not a suffix on a row.
-    const addedOptions = useMemo(() => visible.filter((o) => o.added), [visible])
     // Add all acts on what the search shows, never on hidden rows.
     const addable = useMemo(() => visible.filter((o) => !o.added), [visible])
 
@@ -232,71 +232,44 @@ export function SkillPickerDrawer({
                         }
                     />
                 ) : (
-                    <>
-                        {addedOptions.length ? (
-                            <div className="flex flex-col gap-2">
-                                <SubSectionHeader
-                                    label="On this agent"
-                                    count={addedOptions.length}
+                    <div className="flex flex-col gap-2">
+                        <SubSectionHeader
+                            label="Skills"
+                            count={visible.length}
+                            action={
+                                addable.length > 1 ? (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={busy}
+                                        onClick={() =>
+                                            void run(() =>
+                                                onAdd(
+                                                    addable.map((skill) => ({
+                                                        skill,
+                                                        mode: "latest" as const,
+                                                    })),
+                                                ),
+                                            )
+                                        }
+                                    >
+                                        Add all
+                                    </Button>
+                                ) : undefined
+                            }
+                        />
+                        <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
+                            {visible.map((option) => (
+                                <SkillRow
+                                    key={option.id}
+                                    option={option}
+                                    busy={busy}
+                                    onAdd={(mode) => void run(() => onAdd([{skill: option, mode}]))}
+                                    onRemove={() => void run(() => onRemove([option]))}
                                 />
-                                <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
-                                    {addedOptions.map((option) => (
-                                        <SkillRow
-                                            key={option.id}
-                                            option={option}
-                                            busy={busy}
-                                            onAdd={(mode) =>
-                                                void run(() => onAdd([{skill: option, mode}]))
-                                            }
-                                            onRemove={() => void run(() => onRemove([option]))}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        ) : null}
-                        {addable.length ? (
-                            <div className="flex flex-col gap-2">
-                                <SubSectionHeader
-                                    label={addedOptions.length ? "Available" : "Skills"}
-                                    count={addable.length}
-                                    action={
-                                        addable.length > 1 ? (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={busy}
-                                                onClick={() =>
-                                                    void run(() =>
-                                                        onAdd(
-                                                            addable.map((skill) => ({
-                                                                skill,
-                                                                mode: "latest" as const,
-                                                            })),
-                                                        ),
-                                                    )
-                                                }
-                                            >
-                                                Add all
-                                            </Button>
-                                        ) : undefined
-                                    }
-                                />
-                                <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
-                                    {addable.map((option) => (
-                                        <SkillRow
-                                            key={option.id}
-                                            option={option}
-                                            busy={busy}
-                                            onAdd={(mode) =>
-                                                void run(() => onAdd([{skill: option, mode}]))
-                                            }
-                                            onRemove={() => void run(() => onRemove([option]))}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        ) : null}
-                    </>
+                            ))}
+                        </div>
+                    </div>
                 )}
             </div>
         </EnhancedDrawer>
