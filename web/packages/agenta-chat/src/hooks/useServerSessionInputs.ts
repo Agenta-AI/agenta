@@ -30,12 +30,15 @@ export const useServerSessionInputs = ({
     sessionId,
     messages,
     locallyBusy,
+    isSharedReaderReady,
     onExecuted,
 }: {
     entityId: string
     sessionId: string
     messages: UIMessage[]
     locallyBusy: boolean
+    /** Read current transport readiness when admitting input, including after reconnect. */
+    isSharedReaderReady?: () => boolean
     onExecuted?: () => void
 }): ServerSessionInputs => {
     const fetchSnapshot = useSetAtom(fetchSessionSnapshotAtom)
@@ -48,6 +51,7 @@ export const useServerSessionInputs = ({
     const messagesRef = useRef(messages)
     const entityIdRef = useRef(entityId)
     const onExecutedRef = useRef(onExecuted)
+    const isSharedReaderReadyRef = useRef(isSharedReaderReady)
     const loadInFlightRef = useRef<{
         sessionId: string
         promise: Promise<SessionPendingInputView | null>
@@ -55,6 +59,7 @@ export const useServerSessionInputs = ({
     messagesRef.current = messages
     entityIdRef.current = entityId
     onExecutedRef.current = onExecuted
+    isSharedReaderReadyRef.current = isSharedReaderReady
 
     const load = useCallback((): Promise<SessionPendingInputView | null> => {
         if (loadInFlightRef.current?.sessionId === sessionId) {
@@ -113,7 +118,10 @@ export const useServerSessionInputs = ({
             const request = await buildAgentRequest(
                 entityIdRef.current,
                 [...messagesRef.current, outbound],
-                {sessionId},
+                {
+                    sessionId,
+                    ...(isSharedReaderReadyRef.current?.() ? {sharedResponse: true} : {}),
+                },
             )
             if (!request) throw new Error("The agent is not ready to accept input.")
 
