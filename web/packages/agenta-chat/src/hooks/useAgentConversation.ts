@@ -691,6 +691,7 @@ export const useAgentConversation = ({
         sessionId,
         messages,
         locallyBusy: busy,
+        isSharedReaderReady: () => sharedSenderReadyRef.current,
         onExecuted: () => {
             void loadSessionMessages(sessionId, adoptServerTranscript).then(adoptServerTranscript)
         },

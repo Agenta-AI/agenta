@@ -348,6 +348,46 @@ describe("useServerSessionInputs", () => {
         expect(result.current.executionState).toBe("running")
     })
 
+    it.each(["queue", "steer"] as const)(
+        "negotiates the current reader readiness for %s admission",
+        async (policy) => {
+            fetchSnapshot.mockResolvedValue(runningSnapshot())
+            buildAgentRequest.mockResolvedValue({
+                invocationUrl: "https://agent.test/invoke",
+                headers: {},
+                requestBody: {},
+            })
+            fetchMock.mockImplementation(async () => new Response(null, {status: 202}))
+            const {result, rerender} = renderHook(
+                ({ready}) =>
+                    useServerSessionInputs({
+                        entityId: "revision-1",
+                        sessionId: "session-1",
+                        messages: [],
+                        locallyBusy: false,
+                        isSharedReaderReady: () => ready,
+                    }),
+                {initialProps: {ready: false}},
+            )
+            await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
+            const submit = result.current.submit
+            await act(() => submit({id: "before-ready", text: "first", source: "local"}, policy))
+            expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({sessionId: "session-1"})
+            rerender({ready: true})
+            await act(() => submit({id: "ready", text: "next", source: "local"}, policy))
+            expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({
+                sessionId: "session-1",
+                sharedResponse: true,
+            })
+            rerender({ready: false})
+            await act(() => submit({id: "disconnected", text: "last", source: "local"}, policy))
+            expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({sessionId: "session-1"})
+            expect(
+                fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)).on_busy),
+            ).toEqual([policy, policy, policy])
+        },
+    )
+
     it("reads queue support from the snapshot and submits durable admission", async () => {
         fetchSnapshot.mockResolvedValue({
             session: {
