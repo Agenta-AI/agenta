@@ -97,6 +97,29 @@ class SessionExecutionsDAO(SessionExecutionsDAOInterface):
         ).scalar_one()
         return _to_dto(row)
 
+    async def lock_active_continuation(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        transaction: Any,
+    ) -> Optional[SessionExecutionSettlement]:
+        row = (
+            await transaction.execute(
+                select(SessionExecutionDBE)
+                .where(
+                    SessionExecutionDBE.project_id == project_id,
+                    SessionExecutionDBE.session_id == session_id,
+                    SessionExecutionDBE.parent_execution_id.is_not(None),
+                    SessionExecutionDBE.terminal_outcome.is_(None),
+                )
+                .order_by(SessionExecutionDBE.execution_id)
+                .limit(1)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        return _to_dto(row) if row is not None else None
+
     async def create_continuation(
         self,
         *,

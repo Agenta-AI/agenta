@@ -174,6 +174,19 @@ class SessionInputsService:
                         if successor is not None
                         else None
                     )
+                    if successor_execution_id is None and self._executions is not None:
+                        # Redis can announce a resumed turn before the durable header moves off
+                        # its terminal parent. Approval children have no promoted input row.
+                        continuation = await self._executions.lock_active_continuation(
+                            project_id=project_id,
+                            session_id=session_id,
+                            transaction=transaction,
+                        )
+                        successor_execution_id = (
+                            continuation.execution_id
+                            if continuation is not None
+                            else None
+                        )
                     if successor_execution_id is None:
                         return PendingInputAdmission(action="execute")
             if not retry_after_interaction:
