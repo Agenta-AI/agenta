@@ -18,14 +18,22 @@ import type {RegistrySource, SkillRegistryItem, SkillsQueryResponse} from "../co
 /** Server-side search text for the registry list ("" = no filter). */
 export const skillsSearchAtom = atom("")
 
+/** Include archived skills in the registry list (off by default). */
+export const skillsShowArchivedAtom = atom(false)
+
 export const skillsListQueryAtom = atomWithQuery((get) => {
     const projectId = get(projectIdAtom)
     const search = get(skillsSearchAtom).trim()
+    const includeArchived = get(skillsShowArchivedAtom)
     return {
-        queryKey: ["skills", "registry", "list", projectId, search],
+        queryKey: ["skills", "registry", "list", projectId, search, includeArchived],
         queryFn: async (): Promise<SkillsQueryResponse> => {
             if (!projectId) return {count: 0, skills: [], builtin: []}
-            return querySkills({projectId, search: search || undefined})
+            return querySkills({
+                projectId,
+                search: search || undefined,
+                includeArchived: includeArchived || undefined,
+            })
         },
         enabled: Boolean(get(sessionAtom)) && !!projectId,
         staleTime: 30_000,

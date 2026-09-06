@@ -25,6 +25,8 @@ export interface SkillListItem {
     pinnedVersion?: string
     /** Import provenance, when this skill came from a repo source. */
     source?: SkillSourceInfo
+    /** The workflow is archived (visible only with the show-archived toggle). */
+    archived?: boolean
 }
 
 /** Where an imported skill came from — shown on the detail drawer and picker rows. */

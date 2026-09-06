@@ -7,6 +7,7 @@ import {
     skillsListDataAtom,
     skillsListQueryAtom,
     skillsSearchAtom,
+    skillsShowArchivedAtom,
 } from "@agenta/skills/state"
 import {
     buildRegistrySections,
@@ -28,6 +29,7 @@ export default function SkillsPage() {
     const projectSkills = useAtomValue(skillsListDataAtom)
     const builtinSkills = useAtomValue(builtinSkillsAtom)
     const [search, setSearch] = useAtom(skillsSearchAtom)
+    const [showArchived, setShowArchived] = useAtom(skillsShowArchivedAtom)
 
     const registrySources = useAtomValue(registrySourcesAtom)
     const [selectedSource, setSelectedSource] = useState("all")
@@ -72,6 +74,8 @@ export default function SkillsPage() {
                 onOpenSkill={openSkill}
                 createActions={createActions}
                 loading={query.isPending}
+                showArchived={showArchived}
+                onShowArchivedChange={setShowArchived}
             />
             <SkillDetailDrawer
                 open={detailOpen}

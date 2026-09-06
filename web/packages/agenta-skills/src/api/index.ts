@@ -6,9 +6,11 @@
  * These functions keep the signatures a future Fern-backed swap must preserve.
  */
 import {
+    archiveWorkflow,
     createWorkflow,
     queryWorkflowRevisionsByWorkflow,
     retrieveWorkflowRevision,
+    unarchiveWorkflow,
 } from "@agenta/entities/workflow"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {generateId} from "@agenta/shared/utils"
@@ -366,4 +368,25 @@ export async function addSkillToAgents({
     }
 
     return result
+}
+
+/** Archive a registry skill (its slug stays reserved; unarchive brings it back). */
+export async function archiveSkill({
+    projectId,
+    workflowId,
+}: {
+    projectId: string
+    workflowId: string
+}) {
+    return archiveWorkflow(projectId, workflowId)
+}
+
+export async function unarchiveSkill({
+    projectId,
+    workflowId,
+}: {
+    projectId: string
+    workflowId: string
+}) {
+    return unarchiveWorkflow(projectId, workflowId)
 }

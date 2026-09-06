@@ -32,6 +32,7 @@ export const toSkillListItem = (
     filesCount: item.files_count ?? undefined,
     usedByCount: item.used_by_count ?? undefined,
     age: timeAgo(toUnixMs(item.updated_at ?? item.created_at)) || undefined,
+    archived: item.archived ?? undefined,
 })
 
 /** A source section's label: "owner/repo" from the URL, else the slug. */

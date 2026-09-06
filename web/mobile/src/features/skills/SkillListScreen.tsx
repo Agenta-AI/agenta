@@ -6,6 +6,7 @@ import {
     skillsListDataAtom,
     skillsListQueryAtom,
     skillsSearchAtom,
+    skillsShowArchivedAtom,
 } from "@agenta/skills/state"
 import {
     buildRegistrySections,
@@ -18,7 +19,7 @@ import {
 } from "@agenta/skills-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
-import {SearchInput} from "@agenta/ui/ui"
+import {Checkbox, SearchInput} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -48,6 +49,7 @@ export const SkillListScreen = ({
     const projectSkills = useAtomValue(skillsListDataAtom)
     const builtinSkills = useAtomValue(builtinSkillsAtom)
     const [search, setSearch] = useAtom(skillsSearchAtom)
+    const [showArchived, setShowArchived] = useAtom(skillsShowArchivedAtom)
 
     const registrySources = useAtomValue(registrySourcesAtom)
     const {sections} = useMemo(
@@ -99,6 +101,14 @@ export const SkillListScreen = ({
                 onValueChange={setSearch}
                 placeholder="Search skills by name…"
             />
+            <label className="text-muted-foreground flex cursor-pointer items-center gap-2 text-xs">
+                <Checkbox
+                    checked={showArchived}
+                    onCheckedChange={(next) => setShowArchived(next === true)}
+                    aria-label="Show archived skills"
+                />
+                Show archived
+            </label>
         </div>
     )
 

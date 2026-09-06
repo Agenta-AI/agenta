@@ -34,6 +34,8 @@ class SkillRegistryItem(BaseModel):
     updated_at: Optional[datetime] = None
 
     is_static: bool = False
+    # The workflow is archived (only listed when include_archived was requested).
+    archived: bool = False
 
     skill_name: Optional[str] = None
     skill_description: Optional[str] = None

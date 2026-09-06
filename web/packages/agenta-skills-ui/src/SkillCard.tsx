@@ -63,6 +63,7 @@ export function SkillCard({skill, onOpen}: SkillCardProps) {
             className={cn(
                 "box-border flex cursor-pointer flex-col gap-2 rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)] p-3 text-left",
                 "transition-colors hover:border-[var(--ag-colorBorder)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--ag-colorPrimaryBorder)]",
+                skill.archived && "opacity-60",
             )}
         >
             <span className="flex min-w-0 items-center gap-2">
@@ -70,6 +71,11 @@ export function SkillCard({skill, onOpen}: SkillCardProps) {
                 <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
                     {skill.slug}
                 </span>
+                {skill.archived ? (
+                    <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
+                        Archived
+                    </span>
+                ) : null}
                 {skill.version ? <VersionTag version={skill.version} /> : null}
             </span>
             <span className="line-clamp-2 min-h-8 text-xs text-[var(--ag-colorTextSecondary)]">

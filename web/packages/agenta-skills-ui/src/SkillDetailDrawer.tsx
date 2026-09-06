@@ -18,11 +18,13 @@ import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {SkillFormView} from "@agenta/entity-ui/drill-in"
 import {
     addSkillToAgents,
+    archiveSkill,
     buildSkillEmbedEntry,
     commitSkillRevision,
     fetchSkillRevisions,
     querySkillUsage,
     skillContentSchema,
+    unarchiveSkill,
     type SkillRevision,
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
@@ -155,6 +157,33 @@ export function SkillDetailDrawer({
     const [agentsBusy, setAgentsBusy] = useState(false)
     const [agentsError, setAgentsError] = useState<string | null>(null)
 
+    // Archive keeps the slug reserved; the registry hides the skill until unarchived.
+    const [archiveOpen, setArchiveOpen] = useState(false)
+    const [archiveBusy, setArchiveBusy] = useState(false)
+    const runArchive = useCallback(async () => {
+        if (!workflowId) return
+        setArchiveBusy(true)
+        try {
+            await archiveSkill({projectId, workflowId})
+            invalidateSkillsListCache()
+            setArchiveOpen(false)
+            onClose()
+        } finally {
+            setArchiveBusy(false)
+        }
+    }, [onClose, projectId, workflowId])
+    const runUnarchive = useCallback(async () => {
+        if (!workflowId) return
+        setArchiveBusy(true)
+        try {
+            await unarchiveSkill({projectId, workflowId})
+            invalidateSkillsListCache()
+            onClose()
+        } finally {
+            setArchiveBusy(false)
+        }
+    }, [onClose, projectId, workflowId])
+
     // The canonical agent list (apps + head-revision is_agent flags) — `is_agent` is a
     // REVISION flag, so a plain workflows/query cannot filter by it.
     const roster = useAtomValue(agentWorkflowsListQueryStateAtom)
@@ -173,6 +202,7 @@ export function SkillDetailDrawer({
             setStep("detail")
             setSelectedAgents(new Set())
             setAgentsError(null)
+            setArchiveOpen(false)
         }
     }
 
@@ -335,6 +365,11 @@ export function SkillDetailDrawer({
                     Provided by Agenta — read-only
                 </span>
             ) : null}
+            {skill?.archived ? (
+                <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
+                    Archived
+                </span>
+            ) : null}
         </div>
     )
 
@@ -485,8 +520,25 @@ export function SkillDetailDrawer({
                                     >
                                         Restore as v{nextVersion}
                                     </Button>
+                                ) : skill?.archived ? (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => void runUnarchive()}
+                                        disabled={archiveBusy}
+                                    >
+                                        {archiveBusy ? <Spinner size="small" /> : null}
+                                        Unarchive
+                                    </Button>
                                 ) : !isBuiltin ? (
                                     <>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setArchiveOpen(true)}
+                                            disabled={busy}
+                                            className="text-[var(--ag-colorError)]"
+                                        >
+                                            Archive
+                                        </Button>
                                         <Button
                                             variant="outline"
                                             onClick={() => setStep("agents")}
@@ -652,6 +704,52 @@ export function SkillDetailDrawer({
                     </div>
                 )}
             </EnhancedDrawer>
+
+            <Dialog
+                open={archiveOpen}
+                onOpenChange={(next) => {
+                    if (!next && !archiveBusy) setArchiveOpen(false)
+                }}
+            >
+                <DialogContent className="sm:max-w-[440px]">
+                    <DialogHeader>
+                        <DialogTitle>Archive {skill?.slug}</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 text-xs text-[var(--ag-colorTextSecondary)]">
+                        {usedBy.length ? (
+                            <div className="flex items-start gap-1.5 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-[var(--ag-colorWarningText)]">
+                                <WarningCircle size={14} className="mt-px shrink-0" />
+                                <span>
+                                    {usedBy.length}{" "}
+                                    {usedBy.length === 1
+                                        ? "agent still references"
+                                        : "agents still reference"}{" "}
+                                    this skill — runs will fail to resolve it until it is unarchived
+                                    or removed from the config.
+                                </span>
+                            </div>
+                        ) : null}
+                        <p className="m-0">
+                            The skill disappears from the registry (find it again with Show
+                            archived). Its name stays reserved, and unarchiving restores it with its
+                            full history.
+                        </p>
+                        <div className="flex items-center justify-end gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setArchiveOpen(false)}
+                                disabled={archiveBusy}
+                            >
+                                Cancel
+                            </Button>
+                            <Button onClick={() => void runArchive()} disabled={archiveBusy}>
+                                {archiveBusy ? <Spinner size="small" /> : null}
+                                Archive skill
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* Radix Dialog, not EnhancedModal: /m renders this drawer and antd is banned there. */}
             <Dialog

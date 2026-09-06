@@ -6,6 +6,7 @@
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {SearchInput} from "@agenta/ui/ui"
+import {Checkbox} from "@agenta/ui/ui"
 
 import {NewSkillMenuButton, type NewSkillMenuButtonProps} from "./NewSkillMenuButton"
 import {SkillGallerySections, type SkillGallerySection} from "./SkillGallerySections"
@@ -31,6 +32,9 @@ export interface SkillsGalleryPageProps {
         "onWrite" | "onUpload" | "onImport" | "availability"
     >
     loading?: boolean
+    /** Archived skills stay hidden until this is on (they keep their slug reserved). */
+    showArchived?: boolean
+    onShowArchivedChange?: (value: boolean) => void
 }
 
 function SourceNavRow({
@@ -71,6 +75,8 @@ export function SkillsGalleryPage({
     onOpenSkill,
     createActions,
     loading,
+    showArchived,
+    onShowArchivedChange,
 }: SkillsGalleryPageProps) {
     return (
         <FilterRailLayout
@@ -93,6 +99,16 @@ export function SkillsGalleryPage({
                             />
                         ))}
                     </nav>
+                    {onShowArchivedChange ? (
+                        <label className="flex cursor-pointer items-center gap-2 px-2.5 text-xs text-[var(--ag-colorTextSecondary)]">
+                            <Checkbox
+                                checked={Boolean(showArchived)}
+                                onCheckedChange={(next) => onShowArchivedChange(next === true)}
+                                aria-label="Show archived skills"
+                            />
+                            Show archived
+                        </label>
+                    ) : null}
                 </>
             }
             contentClassName="overflow-y-auto"

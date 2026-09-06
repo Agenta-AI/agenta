@@ -169,6 +169,7 @@ class SkillsService:
                     created_at=revision.created_at,
                     updated_at=revision.updated_at or revision.created_at,
                     is_static=False,
+                    archived=bool(workflow and workflow.deleted_at),
                     skill_name=payload.get("name"),
                     skill_description=payload.get("description"),
                     files_count=len(files) if isinstance(files, list) else None,

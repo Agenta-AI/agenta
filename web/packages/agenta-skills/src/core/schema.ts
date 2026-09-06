@@ -70,6 +70,8 @@ export const skillRegistryItemSchema = z
         created_at: z.string().optional().nullable(),
         updated_at: z.string().optional().nullable(),
         is_static: z.boolean().optional().nullable(),
+        /** Only listed when include_archived was requested. */
+        archived: z.boolean().optional().nullable(),
         skill_name: z.string().optional().nullable(),
         skill_description: z.string().optional().nullable(),
         files_count: z.number().optional().nullable(),

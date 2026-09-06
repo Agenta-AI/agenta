@@ -1641,6 +1641,15 @@ class GitDAO(GitDAOInterface):
                 head_ids_stmt = head_ids_stmt.filter(
                     self.RevisionDBE.deleted_at.is_(None),  # type: ignore
                 )
+                # Archiving a workflow stamps the ARTIFACT, not each revision — without
+                # this an archived workflow's head kept listing in the registry.
+                live_artifact_ids = select(self.ArtifactDBE.id).filter(  # type: ignore
+                    self.ArtifactDBE.project_id == project_id,  # type: ignore
+                    self.ArtifactDBE.deleted_at.is_(None),  # type: ignore
+                )
+                head_ids_stmt = head_ids_stmt.filter(
+                    self.RevisionDBE.artifact_id.in_(live_artifact_ids)  # type: ignore
+                )
 
             if artifact_search:
                 artifact_ids_subquery = select(self.ArtifactDBE.id).filter(  # type: ignore
