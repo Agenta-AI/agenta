@@ -36,9 +36,6 @@ export const toAntdMenuEntries = (items: SessionMenuEntry[]): MenuProps["items"]
               },
     )
 
-// One definition, in the package, so mobile's row menu orders these the same way.
-export {mergeSessionMenuEntries} from "@agenta/sessions-ui"
-
 export function selectSessionContextMenuItem(
     event: {stopPropagation: () => void},
     key: string,
