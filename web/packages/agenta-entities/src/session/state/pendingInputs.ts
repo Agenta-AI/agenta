@@ -6,6 +6,7 @@ import {
     fetchSessionSnapshot,
     removePendingSessionInput,
     sendPendingSessionInputNow,
+    updatePendingSessionInput,
 } from "../api/api"
 
 export const fetchSessionCapabilitiesAtom = atom(null, async (get, _set, sessionId: string) => {
@@ -31,5 +32,22 @@ export const sendPendingSessionInputNowAtom = atom(
     async (get, _set, params: {sessionId: string; inputId: string}) => {
         const projectId = get(projectIdAtom) ?? ""
         return sendPendingSessionInputNow({projectId, ...params})
+    },
+)
+
+export const updatePendingSessionInputAtom = atom(
+    null,
+    async (
+        get,
+        _set,
+        params: {
+            sessionId: string
+            inputId: string
+            text: string
+            attachments?: {uri: string; mime_type: string; filename?: string}[]
+        },
+    ) => {
+        const projectId = get(projectIdAtom) ?? ""
+        return updatePendingSessionInput({projectId, ...params})
     },
 )

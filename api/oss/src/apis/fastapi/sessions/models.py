@@ -29,7 +29,7 @@ from oss.src.core.sessions.interactions.dtos import (
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
 from oss.src.core.sessions.types import SessionReference
-from oss.src.core.sessions.inputs.dtos import PendingInput
+from oss.src.core.sessions.inputs.dtos import PendingInputUpdate, PendingInput
 from oss.src.core.shared.dtos import OTelSpanId, Windowing
 from oss.src.dbs.postgres.sessions.streams.dao import MAX_SESSION_QUERY_LIMIT
 
@@ -607,3 +607,7 @@ class SessionControlOutcomeResponse(BaseModel):
 
 class SessionContinuationResumeResponse(BaseModel):
     resumed: bool
+
+
+class PendingInputUpdateRequest(PendingInputUpdate):
+    pass

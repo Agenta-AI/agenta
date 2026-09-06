@@ -24,10 +24,22 @@ from oss.src.core.sessions.commands import service as commands_service_module
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.commands.types import ExecutionExpectationFailed
 from oss.src.core.sessions.executions.dtos import SessionExecutionState
-from oss.src.core.sessions.inputs.dtos import PendingInputCreate, PendingInputState
-from oss.src.core.sessions.inputs.service import SessionInputsService, input_fingerprint
+from oss.src.core.sessions.inputs.dtos import (
+    PendingInputCreate,
+    PendingInputState,
+    PendingInputUpdate,
+    PendingInputAttachment,
+)
+from oss.src.core.sessions.inputs.service import (
+    SessionInputsService,
+    input_fingerprint,
+    edit_pending_input_content,
+)
 from oss.src.core.sessions.inputs.types import (
     SessionInputBusy,
+    SessionInputNotEditable,
+    SessionInputContentInvalid,
+    SessionInputNotFound,
     SessionInputNotRemovable,
     SessionInputRemoved,
 )
@@ -1350,3 +1362,231 @@ async def test_send_now_reservation_blocks_concurrent_removal(input_scope, monke
         )
     removed = await inputs.remove_pending(**args)
     assert removed.state == PendingInputState.removed
+
+
+@pytest.mark.asyncio
+async def test_edit_pending_preserves_payload_identity_and_retry_attachments(
+    input_scope,
+):
+    dao = SessionInputsDAO(engine=input_scope["engine"])
+    service = SessionInputsService(inputs_dao=dao, streams_service=_BusyStreams())
+    values = _input(input_scope, key="edit-existing", message="unused")
+    values.content = {
+        "data": {
+            "inputs": {
+                "messages": [
+                    {"role": "system", "content": "history"},
+                    {
+                        "id": "user-id",
+                        "role": "user",
+                        "parts": [
+                            {"type": "text", "text": "before"},
+                            {
+                                "type": "file",
+                                "url": "agenta://old",
+                                "mediaType": "text/plain",
+                                "opaque": True,
+                            },
+                        ],
+                    },
+                ]
+            },
+            "parameters": {"agent": {"instructions": "keep-config"}},
+        },
+        "references": {"revision": {"id": "keep-revision"}},
+    }
+    values.request_fingerprint = input_fingerprint(
+        content=values.content, policy=values.policy
+    )
+    row = await dao.create_input(user_id=input_scope["user_id"], pending_input=values)
+    update = PendingInputUpdate(
+        text="after",
+        attachments=[
+            PendingInputAttachment(
+                uri="agenta://new", mime_type="text/plain", filename="new.txt"
+            )
+        ],
+    )
+    for _ in range(2):
+        edited = await service.update(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+            input_id=row.id,
+            user_id=input_scope["user_id"],
+            update=update,
+        )
+    original_retry = await service.admit(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        user_id=input_scope["user_id"],
+        content=values.content,
+        policy=values.policy,
+        idempotency_key=values.idempotency_key,
+    )
+    assert original_retry.input.id == row.id
+    assert original_retry.input.content == edited.content
+    assert edited.id == row.id and edited.position == row.position
+    assert (
+        edited.request_fingerprint == row.request_fingerprint
+        and edited.idempotency_key == row.idempotency_key
+    )
+    assert edited.content["references"] == values.content["references"]
+    assert edited.content["data"]["parameters"] == values.content["data"]["parameters"]
+    messages = edited.content["data"]["inputs"]["messages"]
+    assert messages[0] == values.content["data"]["inputs"]["messages"][0]
+    assert messages[1]["id"] == "user-id"
+    assert messages[1]["parts"] == [
+        {"type": "text", "text": "after"},
+        {
+            "type": "file",
+            "url": "agenta://old",
+            "mediaType": "text/plain",
+            "opaque": True,
+        },
+        {
+            "type": "file",
+            "url": "agenta://new",
+            "mediaType": "text/plain",
+            "filename": "new.txt",
+        },
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("row_state", ["pending", "claimed", "promoted", "removed"])
+async def test_edit_pending_rejects_promoted_and_reserved_rows(input_scope, row_state):
+    dao = SessionInputsDAO(engine=input_scope["engine"])
+    service = SessionInputsService(inputs_dao=dao, streams_service=_BusyStreams())
+    row = await dao.create_input(
+        user_id=input_scope["user_id"],
+        pending_input=_input(input_scope, key="edit-reserved", message="original"),
+    )
+    if row_state in ("pending", "claimed"):
+        await _pending_command(input_scope, data={"steer_input_id": str(row.id)})
+        if row_state == "claimed":
+            async with input_scope["engine"].session() as tx:
+                await tx.execute(
+                    text(
+                        "UPDATE session_commands SET state='claimed' WHERE project_id=:project"
+                    ),
+                    {"project": input_scope["project_id"]},
+                )
+    else:
+        async with input_scope["engine"].session() as tx:
+            await tx.execute(
+                text("UPDATE session_inputs SET state=:state WHERE id=:id"),
+                {"state": row_state, "id": row.id},
+            )
+    with pytest.raises(SessionInputNotEditable):
+        await service.update(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+            input_id=row.id,
+            user_id=input_scope["user_id"],
+            update=PendingInputUpdate(text="changed"),
+        )
+    stored = await dao.fetch_input(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        input_id=row.id,
+    )
+    assert stored.content == row.content
+
+
+@pytest.mark.asyncio
+async def test_promotion_waits_for_edited_head_instead_of_skipping_it(input_scope):
+    dao = SessionInputsDAO(engine=input_scope["engine"])
+    first = await dao.create_input(
+        user_id=input_scope["user_id"],
+        pending_input=_input(input_scope, key="edit-first", message="first"),
+    )
+    await dao.create_input(
+        user_id=input_scope["user_id"],
+        pending_input=_input(input_scope, key="edit-second", message="second"),
+    )
+    async with dao.transaction() as tx:
+        await dao.lock_pending_for_edit(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+            input_id=first.id,
+            transaction=tx,
+        )
+        promotion = asyncio.create_task(
+            dao.promote_next(
+                project_id=input_scope["project_id"],
+                session_id=input_scope["session_id"],
+                execution_id="next",
+            )
+        )
+        await asyncio.sleep(0.05)
+        assert not promotion.done()
+        await dao.update_content(
+            project_id=input_scope["project_id"],
+            session_id=input_scope["session_id"],
+            input_id=first.id,
+            content={"edited": "head"},
+            user_id=input_scope["user_id"],
+            transaction=tx,
+        )
+    promoted = await asyncio.wait_for(promotion, 2)
+    assert promoted.id == first.id
+    assert promoted.content == {"edited": "head"}
+
+
+@pytest.mark.asyncio
+async def test_edit_pending_scope_and_invalid_content_leave_row_unchanged(input_scope):
+    dao = SessionInputsDAO(engine=input_scope["engine"])
+    service = SessionInputsService(inputs_dao=dao, streams_service=_BusyStreams())
+    row = await dao.create_input(
+        user_id=input_scope["user_id"],
+        pending_input=_input(input_scope, key="invalid-edit", message="opaque"),
+    )
+    args = dict(
+        project_id=input_scope["project_id"],
+        session_id=input_scope["session_id"],
+        input_id=row.id,
+        user_id=input_scope["user_id"],
+        update=PendingInputUpdate(text="new"),
+    )
+    with pytest.raises(SessionInputNotFound):
+        await service.update(**{**args, "project_id": uuid.uuid4()})
+    with pytest.raises(SessionInputContentInvalid):
+        await service.update(**args)
+    stored = await dao.fetch_input(
+        project_id=args["project_id"], session_id=args["session_id"], input_id=row.id
+    )
+    assert stored.content == row.content
+
+
+@pytest.mark.parametrize(
+    "original",
+    [
+        "before",
+        [
+            {"type": "text", "text": "before"},
+            {"type": "attachment", "uri": "agenta://old", "opaque": True},
+        ],
+    ],
+)
+def test_edit_pending_canonical_content_keeps_attachments(original):
+    content = {
+        "data": {"inputs": {"messages": [{"role": "user", "content": original}]}}
+    }
+    update = PendingInputUpdate(
+        text="after",
+        attachments=[
+            PendingInputAttachment(uri="agenta://new", mime_type="text/plain")
+        ],
+    )
+    edited = edit_pending_input_content(content, update)
+    assert edit_pending_input_content(edited, update) == edited
+    blocks = edited["data"]["inputs"]["messages"][0]["content"]
+    assert blocks[0] == {"type": "text", "text": "after"}
+    assert blocks[-1] == {
+        "type": "attachment",
+        "uri": "agenta://new",
+        "mime_type": "text/plain",
+    }
+    if isinstance(original, list):
+        assert blocks[1] == original[1]
+    assert content["data"]["inputs"]["messages"][0]["content"] == original

@@ -640,7 +640,7 @@ export const LiveConversation = ({
                         />
                         {/* What you have lined up stays visible while a gate is open: the queued
                         message is the acknowledgement that the user's Send was not lost. */}
-                        {conversation.queued.length > 0 ? (
+                        {conversation.queued.length > 0 || conversation.editingId ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                                 <ContentRail>
                                     <QueuedMessagesDock
@@ -728,15 +728,18 @@ export const LiveConversation = ({
                         ) : null}
                         <Composer
                             sessionId={sessionId}
-                            onSend={({text, parts}) => {
+                            onSend={async ({text, parts}) => {
                                 setStoppingHere(false)
                                 // An open edit rewrites its held message instead of sending. The
                                 // input clears on submit, so the displaced draft goes back after.
                                 if (!conversation.editingId) {
-                                    conversation.send({text, parts})
+                                    await conversation.send({text, parts})
                                     return
                                 }
-                                const draft = conversation.commitEdit({text, fileParts: parts})
+                                const draft = await conversation.commitEdit({
+                                    text,
+                                    fileParts: parts,
+                                })
                                 if (draft)
                                     requestAnimationFrame(() =>
                                         composerRef.current?.setMarkdown(draft),

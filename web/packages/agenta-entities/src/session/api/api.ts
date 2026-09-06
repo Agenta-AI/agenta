@@ -195,6 +195,29 @@ export async function removePendingSessionInput({
     return !!data
 }
 
+export async function updatePendingSessionInput({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    inputId,
+    text,
+    attachments,
+}: SessionScopedParams & {
+    inputId: string
+    text: string
+    attachments?: {uri: string; mime_type: string; filename?: string}[]
+}): Promise<boolean> {
+    if (!projectId || !sessionId || !inputId) return false
+    const data = await callFern("[updatePendingSessionInput]", () =>
+        getSessionsClient().updatePendingSessionInput(
+            {session_id: sessionId, input_id: inputId, text, attachments},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return !!data
+}
+
 export async function sendPendingSessionInputNow({
     sessionId,
     projectId,

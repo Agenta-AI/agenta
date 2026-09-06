@@ -35,7 +35,7 @@ const AgentQueuedMessagesDock = ({
     editingId,
     className,
 }: AgentQueuedMessagesDockProps) => {
-    const open = queued.length > 0
+    const open = queued.length > 0 || !!editingId
     // Latch the last non-empty queue: emptying it starts the collapse, and without this the rows
     // would vanish first and leave an empty box folding shut.
     const shownRef = useRef(queued)

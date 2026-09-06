@@ -712,7 +712,7 @@ const AgentConversation = ({
         if (editingId) {
             // A rewrite of a held message: nothing is sent, so the transcript must not move.
             // The input clears itself on submit, so the displaced draft goes back after that.
-            const draft = commitEdit({text: trimmed, fileParts, stagedFiles})
+            const draft = await commitEdit({text: trimmed, fileParts, stagedFiles})
             if (draft) requestAnimationFrame(() => richInputRef.current?.setMarkdown(draft))
         } else {
             // Glide to the bottom; the min-h-full active turn makes that show the new question at the

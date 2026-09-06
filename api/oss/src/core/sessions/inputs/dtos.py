@@ -1,9 +1,9 @@
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from oss.src.core.shared.dtos import Identifier, Lifecycle
 
@@ -45,3 +45,16 @@ class PendingInputPromotion(BaseModel):
     input: PendingInput
     execution_id: str
     created_at: datetime
+
+
+class PendingInputAttachment(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    uri: str = Field(min_length=1)
+    mime_type: str = Field(min_length=1)
+    filename: Optional[str] = None
+
+
+class PendingInputUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str
+    attachments: List[PendingInputAttachment] = Field(default_factory=list)

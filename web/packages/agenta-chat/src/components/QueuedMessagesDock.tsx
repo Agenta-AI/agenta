@@ -125,21 +125,11 @@ const Row = ({
                     {attachmentCount ? "(attachments only)" : "(empty message)"}
                 </span>
             )}
-            {attachmentCount > files.length ? (
-                <span className="shrink-0 text-[10px] text-colorTextTertiary">
-                    {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"}
-                </span>
-            ) : null}
-            {message.policy === "steer" ? (
-                <span className="shrink-0 rounded bg-colorFillTertiary px-1.5 py-0.5 text-[10px] font-medium text-colorTextSecondary">
-                    Steer
-                </span>
-            ) : null}
-            {/* Revealed on hover, but always present for keyboard and while this row is under
-                edit — an action you can only reach with a pointer is not an action on mobile. */}
+            {/* Keep Send Now discoverable without hovering. Other row actions also stay visible
+                during editing, keyboard focus, and on touch surfaces. */}
             <span
                 className={`flex shrink-0 items-center gap-0.5 transition-opacity ${
-                    editing || touchCls
+                    editing || touchCls || (onSendNow && message.source === "server")
                         ? "opacity-100"
                         : "opacity-0 focus-within:opacity-100 group-hover:opacity-100"
                 }`}
@@ -252,6 +242,8 @@ const QueuedMessagesDock = ({
         ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
         : ""
 
+    const editingMissingRow = !!editingId && !queued.some((message) => message.id === editingId)
+
     return (
         <div className={`${CARD_SURFACE} ${className}`}>
             {/* px-3 so the icon starts on the same 13px line as the row text below it and the
@@ -280,6 +272,14 @@ const QueuedMessagesDock = ({
                     />
                 </Button>
             </div>
+            {editingMissingRow ? (
+                <div className="flex items-center gap-2 px-3 pb-2 text-xs text-colorTextSecondary">
+                    <span className="flex-1">This message is no longer queued.</span>
+                    <Button size="sm" variant="ghost" onClick={onCancelEdit}>
+                        Cancel editing
+                    </Button>
+                </div>
+            ) : null}
             {/* The composer sits directly below, so a hard mount/unmount teleports it by the
                 body's full height. `HeightCollapse` is the app's one collapse primitive — the same
                 motion as the accordion sections and the sibling docks — and it owns aria-hidden

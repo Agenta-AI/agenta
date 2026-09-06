@@ -48,7 +48,7 @@ describe("pending input reducer", () => {
         ])
     })
 
-    it("reduces neutral text and attachment blocks without making server rows editable", () => {
+    it("makes pending rows editable while preserving opaque attachment counts", () => {
         const queued = pendingInputToQueuedMessage(
             input("input-1", 1, [
                 {type: "text", text: "Check this"},
@@ -62,7 +62,7 @@ describe("pending input reducer", () => {
             text: "Check this",
             attachmentCount: 2,
             source: "server",
-            editable: false,
+            editable: true,
         })
         expect(queued?.fileParts).toEqual([
             {
@@ -91,7 +91,12 @@ describe("pending input reducer", () => {
         })
 
         expect(view.queued).toEqual([
-            expect.objectContaining({id: "input-1", text: "retry me", source: "server"}),
+            expect.objectContaining({
+                id: "input-1",
+                text: "retry me",
+                source: "server",
+                editable: false,
+            }),
         ])
     })
 

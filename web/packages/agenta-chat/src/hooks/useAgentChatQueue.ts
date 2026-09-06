@@ -32,6 +32,7 @@ export interface ServerQueueAdapter {
     submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
     remove: (id: string) => Promise<void>
     sendNow?: (id: string) => Promise<void>
+    edit?: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
 }
 
 interface UseAgentChatQueueArgs {
@@ -327,12 +328,17 @@ export const useAgentChatQueue = ({
     // clicking edit on a half-written message would silently destroy it.
     const [editingId, setEditingId] = useState<string | null>(null)
     const stashRef = useRef("")
+    const editSessionRef = useRef<{server: boolean} | null>(null)
 
     /** Open a session on `id`, stashing the composer's current draft. */
-    const beginEdit = useCallback((id: string, draft = "") => {
-        stashRef.current = draft
-        setEditingId(id)
-    }, [])
+    const beginEdit = useCallback(
+        (id: string, draft = "") => {
+            editSessionRef.current = {server: !!server?.queued.some((message) => message.id === id)}
+            stashRef.current = draft
+            setEditingId(id)
+        },
+        [server],
+    )
 
     /** Take the stashed draft back, once. Both ends of a session hand the composer back. */
     const takeStash = useCallback(() => {
@@ -343,6 +349,7 @@ export const useAgentChatQueue = ({
 
     /** Close the session without touching the message. Returns the draft to restore. */
     const cancelEdit = useCallback(() => {
+        editSessionRef.current = null
         setEditingId(null)
         return takeStash()
     }, [takeStash])
@@ -355,8 +362,7 @@ export const useAgentChatQueue = ({
      * Attachments MERGE rather than replace — the composer only submits newly staged files, so
      * replacing would delete the queued message's originals on every text-only edit.
      *
-     * The queue drains on its own, so the target can leave mid-edit. Nothing is left to rewrite
-     * then, and the content becomes a new queued message instead of vanishing.
+     * A drained local target becomes a new message; durable edits instead preserve server refusal.
      *
      * Returns the stashed draft, exactly as `cancelEdit` does: committing consumes the composer,
      * so the text the session displaced has to come back here too or it is lost for good.
@@ -364,6 +370,23 @@ export const useAgentChatQueue = ({
     const commitEdit = useCallback(
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const id = editingId
+            const editSession = editSessionRef.current
+            if (id && editSession?.server) {
+                const save = server?.edit
+                if (!save) return Promise.reject(new Error("This queued message cannot be edited."))
+                return save(id, item).then(
+                    () => {
+                        if (editSessionRef.current !== editSession) return ""
+                        editSessionRef.current = null
+                        setEditingId(null)
+                        return takeStash()
+                    },
+                    (error: unknown) => {
+                        if (editSessionRef.current !== editSession) return ""
+                        throw error
+                    },
+                )
+            }
             setEditingId(null)
             const draft = takeStash()
             const target = id ? queuedRef.current.find((m) => m.id === id) : undefined
@@ -392,7 +415,7 @@ export const useAgentChatQueue = ({
             )
             return draft
         },
-        [editingId, submit, takeStash],
+        [editingId, server, submit, takeStash],
     )
 
     // Release the queue head once the stream settles; the latch caps it at one per settle. Both
