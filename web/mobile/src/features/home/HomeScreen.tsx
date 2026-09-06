@@ -119,6 +119,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
                     align="end"
                     creating={newAgent.creating}
                     error={newAgent.error}
+                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
                 />
             }
             composer={agents.length > 0 ? <HomeComposer agents={agents} base={base} /> : null}
