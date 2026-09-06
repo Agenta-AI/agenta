@@ -185,6 +185,97 @@ describe("useSessionLivePreview", () => {
         },
     )
 
+    it("retires an old approval preview when recovery adopts a newer running turn", async () => {
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: false}},
+            execution: null,
+            read: {latest_sequence: 0},
+        })
+        mocks.querySessionTranscript.mockResolvedValue([])
+        const onDisconnect = vi.fn().mockResolvedValue(true)
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const wrapper = ({children}: {children: ReactNode}) =>
+            createElement(Provider, {store}, children)
+        const {result} = renderHook(
+            () =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: true,
+                    runningElsewhere: true,
+                    onDisconnect,
+                }),
+            {wrapper},
+        )
+        await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledOnce())
+        const first = mocks.connectSessionLiveEvents.mock.calls[0][0]
+        const tool = {
+            type: "tool_call",
+            id: "bash-call",
+            name: "bash",
+            input: {command: "sleep 12"},
+        }
+        mocks.querySessionTranscript.mockResolvedValue([record("call", tool)])
+        onDisconnect.mockResolvedValueOnce(false)
+        act(() => {
+            first.onFrame({
+                version: 1,
+                kind: "frame",
+                session_id: "session-1",
+                execution_id: "old-turn",
+                frame_or_event_id: "old:0",
+                frame_index: 0,
+                entity_id: "bash-call",
+                type: "tool-input-available",
+                payload: {toolCallId: "bash-call", toolName: "bash", input: tool.input},
+                created_at: "2026-09-06T00:00:00Z",
+            })
+            first.onEvent({
+                version: 1,
+                kind: "event",
+                session_id: "session-1",
+                execution_id: "old-turn",
+                frame_or_event_id: "paused",
+                sequence: 2,
+                watermark: 2,
+                type: "execution.stopped",
+                payload: {reason: "paused"},
+                created_at: "2026-09-06T00:00:01Z",
+            })
+        })
+        await waitFor(() => expect(onDisconnect).toHaveBeenCalledTimes(2))
+        expect(result.current.messages[0].parts).toMatchObject([{toolCallId: "bash-call"}])
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: true}},
+            execution: {turn_id: "new-turn", end_time: null},
+            read: {latest_sequence: 3},
+        })
+        act(() => {
+            first.onDisconnect({reason: "connection_lost", reconnect: true})
+            document.dispatchEvent(new Event("visibilitychange"))
+        })
+        await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(2))
+        expect(result.current.messages).toEqual([])
+        const second = mocks.connectSessionLiveEvents.mock.calls[1][0]
+        act(() =>
+            second.onFrame({
+                version: 1,
+                kind: "frame",
+                session_id: "session-1",
+                execution_id: "new-turn",
+                frame_or_event_id: "new:0",
+                frame_index: 0,
+                entity_id: "new-answer",
+                type: "text-delta",
+                payload: {delta: "New answer stays visible"},
+                created_at: "2026-09-06T00:00:02Z",
+            }),
+        )
+        expect(result.current.messages[0].parts).toEqual([
+            {type: "text", text: "New answer stays visible"},
+        ])
+    })
+
     it("keeps the flag-off path snapshot-free", async () => {
         const store = createStore()
         store.set(projectIdAtom, "project-1")

@@ -7,6 +7,7 @@ import {
     isSessionSnapshotRunning,
     reduceSessionLivePreview,
     retireSessionLivePreview,
+    retireCoveredSessionLivePreview,
     markSessionLivePreviewTerminal,
     sessionLivePreviewMessages,
     shouldRefreshLegacyObserverLiveness,
@@ -33,6 +34,60 @@ const frame = (
 })
 
 describe("session live preview reducer", () => {
+    it("hands a paused tool preview to its durable approval without leaving running dots", () => {
+        const toolCallId = "native-bash-call"
+        const state = reduceSessionLivePreview(
+            createSessionLivePreviewState(),
+            frame(
+                0,
+                "tool-input-available",
+                {toolCallId, toolName: "bash", input: {command: "sleep 12"}},
+                toolCallId,
+            ),
+        )
+        const durable = [
+            {
+                id: "saved-approval",
+                role: "assistant" as const,
+                parts: [
+                    {
+                        type: "tool-bash" as const,
+                        toolCallId,
+                        state: "approval-requested" as const,
+                        input: {command: "sleep 12"},
+                        approval: {id: "approval-1"},
+                    },
+                ],
+            },
+        ]
+        const retired = retireCoveredSessionLivePreview(state, state, new Set(), durable)
+        expect(sessionLivePreviewMessages(retired)).toEqual([])
+        expect(durable[0].parts[0].state).toBe("approval-requested")
+
+        const completedWhileReading = reduceSessionLivePreview(
+            state,
+            frame(1, "tool-output-error", {toolCallId, errorText: "tool failed"}, toolCallId),
+        )
+        const preserved = retireCoveredSessionLivePreview(
+            completedWhileReading,
+            state,
+            new Set(),
+            durable,
+        )
+        expect(sessionLivePreviewMessages(preserved)[0].parts).toMatchObject([
+            {state: "output-error"},
+        ])
+        const alreadyCompleted = retireCoveredSessionLivePreview(
+            completedWhileReading,
+            completedWhileReading,
+            new Set(),
+            durable,
+        )
+        expect(sessionLivePreviewMessages(alreadyCompleted)[0].parts).toMatchObject([
+            {state: "output-error"},
+        ])
+    })
+
     it("removes the control-only invoke message but preserves an invoke error", () => {
         const accepted = {
             id: "accepted",

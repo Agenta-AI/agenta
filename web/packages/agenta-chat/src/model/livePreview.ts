@@ -333,6 +333,18 @@ export const retireCoveredSessionLivePreview = (
             message.parts.flatMap((part) => (part.type === "reasoning" ? [part.text] : [])),
         ),
     )
+    const durableToolIds = new Set(
+        adoptedMessages.flatMap((message) =>
+            message.parts.flatMap((part) =>
+                (part.type === "dynamic-tool" || part.type.startsWith("tool-")) &&
+                "toolCallId" in part &&
+                "state" in part &&
+                part.state !== "input-streaming"
+                    ? [part.toolCallId]
+                    : [],
+            ),
+        ),
+    )
     const byExecution = {...state.byExecution}
     for (const executionId of boundary.executionOrder) {
         const captured = boundary.byExecution[executionId]
@@ -343,6 +355,9 @@ export const retireCoveredSessionLivePreview = (
             if (!entity || current.byEntity[id]?.part !== entity.part) return false
             return (
                 coveredEntityIds.has(id) ||
+                ((entity.part.state === "input-streaming" ||
+                    entity.part.state === "input-available") &&
+                    durableToolIds.has(String(entity.part.toolCallId))) ||
                 (entity.complete === true &&
                     entity.part.type === "reasoning" &&
                     durableReasoning.has(String(entity.part.text)))
