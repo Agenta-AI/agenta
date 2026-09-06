@@ -171,3 +171,20 @@ def test_non_dict_payload_reads_as_absent_instead_of_raising():
         "execution.started",
     ]
     assert [event.sequence for event in events] == [1, 2]
+
+
+def test_maps_runner_done_records_to_terminal_events():
+    for reason in (None, "paused", "cancelled"):
+        attributes = {"type": "done"}
+        if reason is not None:
+            attributes["stopReason"] = reason
+        record = _record(sequence=7, record_type="done", attributes=attributes)
+        events = durable_events_from_records([record])
+        assert len(events) == 1
+        event = events[0]
+        assert event.type == "execution.stopped"
+        assert event.execution_id == record.turn_id
+        assert event.sequence == 7
+        assert event.watermark == 7
+        assert event.payload.stopped_at == record.created_at
+        assert event.payload.reason == (reason or "completed")

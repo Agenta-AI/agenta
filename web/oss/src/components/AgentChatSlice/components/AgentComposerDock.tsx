@@ -11,7 +11,6 @@ import {
     ConnectionWarningStrip,
     MicPermissionNotice,
     RecordingBar,
-    RunningElsewhereStrip,
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {
@@ -63,7 +62,6 @@ const AgentComposerDock = ({
     entityId,
     messages,
     busy,
-    showRunningElsewhere,
     connectionWarning,
     hitlPending,
     queue,
@@ -97,8 +95,6 @@ const AgentComposerDock = ({
     entityId: string
     messages: UIMessage[]
     busy: boolean
-    /** Show the disconnected/flag-off fallback for a run this browser is not driving. */
-    showRunningElsewhere: boolean
     /** The sender request disconnected after the session accepted the turn. */
     connectionWarning?: string
     hitlPending: boolean
@@ -339,9 +335,6 @@ const AgentComposerDock = ({
                 </div>
                 {/* Sits with the other docked strips so a session running in another browser reads
                     as busy instead of frozen (#5530). */}
-                {showRunningElsewhere && !chromeHidden ? (
-                    <RunningElsewhereStrip className={CHAT_COLUMN} />
-                ) : null}
                 {connectionWarning && !chromeHidden ? (
                     <ConnectionWarningStrip className={CHAT_COLUMN} message={connectionWarning} />
                 ) : null}

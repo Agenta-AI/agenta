@@ -369,6 +369,9 @@ export const useAgentChatSession = ({
     messagesRef.current = messages
     const busyRef = useRef(busy || acceptedRunPending)
     busyRef.current = busy || acceptedRunPending
+    // Accepted shared turns receive their content through durable hydration.
+    const localRenderBusyRef = useRef(busy && !acceptedRunPending)
+    localRenderBusyRef.current = busy && !acceptedRunPending
 
     useEffect(() => {
         dispatchStopped({type: "transcript", messages})
@@ -395,7 +398,7 @@ export const useAgentChatSession = ({
         sessionId,
         initialMessages,
         messagesRef,
-        busyRef,
+        busyRef: localRenderBusyRef,
         seenIdsRef,
         restoredIdsRef,
         recordWatermarkRef,

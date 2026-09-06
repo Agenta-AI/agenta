@@ -219,6 +219,7 @@ export interface AgentConversation {
     revalidate: () => void
     /** Atomic snapshot says an unfinished backend execution is still running after refresh. */
     runningFromSnapshot: boolean
+    sharedSettledAt: number
     /** The shared live-event channel completed replay and is following new frames. */
     readerReady: boolean
     /** This browser's accepted turn is still owned by the shared session path. */
@@ -1039,6 +1040,7 @@ export const useAgentConversation = ({
     const {
         messages: previewMessages,
         runningFromSnapshot,
+        sharedSettledAt,
         readerReady,
     } = useSessionLivePreview({
         sessionId,
@@ -1270,6 +1272,7 @@ export const useAgentConversation = ({
         sendToolOutput,
         revalidate,
         runningFromSnapshot,
+        sharedSettledAt,
         readerReady,
         acceptedRunPending,
         interactionChanged,

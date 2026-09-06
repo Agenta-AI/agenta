@@ -77,7 +77,11 @@ import {useScrollIntent} from "./hooks/useScrollIntent"
 import {useTranscriptScroll} from "./hooks/useTranscriptScroll"
 import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
-import {deriveSessionRemoteTurnPresentation, shouldShowRunningElsewhere} from "./state/liveness"
+import {
+    deriveSessionRemoteTurnPresentation,
+    sessionLivenessUpdatedAtAtom,
+    refreshSessionLivenessAtom,
+} from "./state/liveness"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -168,6 +172,7 @@ const AgentConversation = ({
     const {
         messages: previewMessages,
         runningFromSnapshot,
+        sharedSettledAt,
         readerReady,
     } = useSessionLivePreview({
         sessionId,
@@ -178,9 +183,16 @@ const AgentConversation = ({
         onExecutionSettled: settleSharedTurn,
         onDisconnect: refreshFromRecords,
     })
+    const livenessUpdatedAt = useAtomValue(sessionLivenessUpdatedAtAtom)
+    const refreshLiveness = useSetAtom(refreshSessionLivenessAtom)
+    useEffect(() => {
+        if (sharedSettledAt) void refreshLiveness()
+    }, [sharedSettledAt, refreshLiveness])
     const remoteTurn = deriveSessionRemoteTurnPresentation({
         livenessRunning: livenessRunningElsewhere,
-        snapshotRunning: runningFromSnapshot || acceptedRunPending,
+        livenessUpdatedAt,
+        sharedSettledAt,
+        snapshotRunning: runningFromSnapshot,
         sharedReaderAdvertised,
         readerReady,
         ownedContinuation: acceptedRunPending,
@@ -445,11 +457,6 @@ const AgentConversation = ({
         sendQueued,
         sessionId,
         server: serverInputs,
-    })
-    const showRunningElsewhere = shouldShowRunningElsewhere({
-        runningElsewhere: livenessRunningElsewhere,
-        executionState: serverInputs.executionState,
-        pendingInputCount: serverInputs.queued.length,
     })
 
     // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision made
@@ -1000,9 +1007,6 @@ const AgentConversation = ({
                                         entityId={entityId}
                                         messages={messages}
                                         busy={busy}
-                                        showRunningElsewhere={
-                                            remoteTurn.showStrip && showRunningElsewhere
-                                        }
                                         connectionWarning={connectionWarning}
                                         hitlPending={hitlPending}
                                         queue={{
