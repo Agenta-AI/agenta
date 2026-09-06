@@ -324,7 +324,10 @@ export const useAgentChatQueue = ({
 
     const steer = useCallback(
         async (item: {text: string; fileParts?: FileUIPart[]}) => {
-            if (!server?.capabilities.steer || !server.busy) {
+            const capabilities = server?.resolveCapabilities
+                ? await server.resolveCapabilities()
+                : server?.capabilities
+            if (!capabilities?.steer || !server?.busy) {
                 throw new Error("The session is not ready to accept a Steer input.")
             }
             const message: QueuedMessage = {...item, id: generateId()}

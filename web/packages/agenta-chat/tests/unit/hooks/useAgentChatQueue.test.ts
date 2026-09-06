@@ -905,3 +905,35 @@ it("uses current busy state when validated legacy capability arrives", async () 
         "hold while starting",
     ])
 })
+
+it("waits for cold Steer capabilities before admitting the explicit input", async () => {
+    let resolve!: (capabilities: {queue: boolean; steer: boolean}) => void
+    const server = {
+        capabilities: {queue: false, steer: false},
+        busy: true,
+        queued: [],
+        submit: vi.fn().mockResolvedValue(undefined),
+        remove: vi.fn(),
+        resolveCapabilities: () =>
+            new Promise<{queue: boolean; steer: boolean}>((done) => {
+                resolve = done
+            }),
+    }
+    const view = setup({status: "streaming", messages: [], stopped: false, server})
+    let pending!: Promise<void>
+    act(() => {
+        pending = view.result.current.steer({text: "change direction"})
+    })
+    void pending.catch(() => undefined)
+    expect(server.submit).not.toHaveBeenCalled()
+    expect(resolve).toBeTypeOf("function")
+    await act(async () => {
+        resolve({queue: true, steer: true})
+        await pending
+    })
+    expect(server.submit).toHaveBeenCalledWith(
+        expect.objectContaining({text: "change direction"}),
+        "steer",
+    )
+    expect(view.sendQueued).not.toHaveBeenCalled()
+})
