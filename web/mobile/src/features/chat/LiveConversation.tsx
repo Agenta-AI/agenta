@@ -647,6 +647,7 @@ export const LiveConversation = ({
                                         queued={conversation.queued}
                                         held={conversation.hitlPending}
                                         onRemove={conversation.removeQueued}
+                                        onSendNow={conversation.sendQueuedNow}
                                         onEdit={editQueued}
                                         onCancelEdit={cancelQueuedEdit}
                                         editingId={conversation.editingId}

@@ -94,6 +94,7 @@ const Row = ({
     onEdit,
     onCancelEdit,
     onRemove,
+    onSendNow,
 }: {
     message: QueuedMessage
     editing: boolean
@@ -101,13 +102,16 @@ const Row = ({
     onEdit?: (message: QueuedMessage) => void
     onCancelEdit?: () => void
     onRemove: (id: string) => void
+    onSendNow?: (id: string) => Promise<void>
 }) => {
+    const [sending, setSending] = useState(false)
+    const [error, setError] = useState<string | null>(null)
     const text = message.text.trim()
     const files = message.fileParts ?? []
     const attachmentCount = Math.max(files.length, message.attachmentCount ?? 0)
     return (
         <div
-            className={`group flex min-h-8 items-center gap-1.5 rounded-lg px-2 transition-colors ${
+            className={`group flex min-h-8 flex-wrap items-center gap-1.5 rounded-lg px-2 transition-colors ${
                 editing ? "bg-colorFillTertiary" : "hover:bg-colorFillTertiary"
             }`}
         >
@@ -135,11 +139,32 @@ const Row = ({
                 edit — an action you can only reach with a pointer is not an action on mobile. */}
             <span
                 className={`flex shrink-0 items-center gap-0.5 transition-opacity ${
-                    editing
+                    editing || touchCls
                         ? "opacity-100"
                         : "opacity-0 focus-within:opacity-100 group-hover:opacity-100"
                 }`}
             >
+                {onSendNow && message.source === "server" ? (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className={`h-6 !text-xs text-colorTextSecondary ${touchCls}`}
+                        disabled={sending || editing}
+                        onClick={async () => {
+                            setSending(true)
+                            setError(null)
+                            try {
+                                await onSendNow(message.id)
+                            } catch {
+                                setError("Could not send this queued message. Try again.")
+                            } finally {
+                                setSending(false)
+                            }
+                        }}
+                    >
+                        Send Now
+                    </Button>
+                ) : null}
                 {editing ? (
                     <Button
                         size="sm"
@@ -170,6 +195,11 @@ const Row = ({
                     <Trash size={13} />
                 </Button>
             </span>
+            {error ? (
+                <span role="alert" className="basis-full pb-1 text-xs text-colorError">
+                    {error}
+                </span>
+            ) : null}
         </div>
     )
 }
@@ -180,6 +210,7 @@ export interface QueuedMessagesDockProps {
     /** The run is parked on the user (HITL), so the queue is held rather than merely waiting. */
     held?: boolean
     onRemove: (id: string) => void
+    onSendNow?: (id: string) => Promise<void>
     /** Hand a row's content to the host's composer. Omit on surfaces without an editable input. */
     onEdit?: (message: QueuedMessage) => void
     /** Abandon the edit; the host puts the stashed draft back. */
@@ -195,6 +226,7 @@ const QueuedMessagesDock = ({
     queued,
     held = false,
     onRemove,
+    onSendNow,
     onEdit,
     onCancelEdit,
     editingId = null,
@@ -263,6 +295,7 @@ const QueuedMessagesDock = ({
                             onEdit={onEdit}
                             onCancelEdit={onCancelEdit}
                             onRemove={onRemove}
+                            onSendNow={onSendNow}
                         />
                     ))}
                 </div>

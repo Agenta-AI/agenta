@@ -38,7 +38,6 @@ export const Composer = ({
     stopping = false,
     onStop,
     queueEnabled = false,
-    steerEnabled = false,
     inputBusy = streaming,
     inputRef,
     placeholder,
@@ -209,23 +208,6 @@ export const Composer = ({
                         streaming={stoppable}
                         stopping={stopping}
                         onStop={onStop}
-                        busyActions={
-                            inputBusy && queueEnabled
-                                ? [
-                                      {label: "Queue", onSubmit: submit},
-                                      ...(steerEnabled && onSteer
-                                          ? [
-                                                {
-                                                    label: "Steer",
-                                                    onSubmit: (text: string) =>
-                                                        submit(text, [], "steer"),
-                                                },
-                                            ]
-                                          : []),
-                                  ]
-                                : undefined
-                        }
-                        showQueuePauseCopy={inputBusy && queueEnabled}
                         extraPrefix={
                             <VoiceInputButton
                                 inputRef={richInputRef}

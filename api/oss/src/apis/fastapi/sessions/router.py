@@ -110,6 +110,7 @@ from oss.src.core.sessions.inputs.types import (
     SessionInputIdempotencyConflict,
     SessionInputNotFound,
     SessionInputNotRemovable,
+    SessionInputRemoved,
 )
 from oss.src.core.sessions.inputs.dtos import PendingInputState
 from oss.src.core.sessions.attachments.dtos import Attachment
@@ -2575,6 +2576,14 @@ class SessionControlRouter:
         )
         if inputs_service is not None:
             self.router.add_api_route(
+                "/sessions/{session_id}/inputs/{input_id}/send-now",
+                self.send_pending_input_now,
+                methods=["POST"],
+                operation_id="send_pending_session_input_now",
+                response_model=PendingInputAdmissionResponse,
+                tags=["Sessions"],
+            )
+            self.router.add_api_route(
                 "/sessions/control/inputs/admit",
                 self.admit_session_input,
                 methods=["POST"],
@@ -2582,6 +2591,49 @@ class SessionControlRouter:
                 include_in_schema=False,
                 tags=["Sessions"],
             )
+
+    @intercept_exceptions()
+    @_handle_input_exceptions()
+    @_handle_command_exceptions()
+    async def send_pending_input_now(
+        self, request: Request, session_id: str, input_id: UUID
+    ) -> JSONResponse:
+        _validate_session_id_http(session_id)
+        project_id = UUID(str(request.state.project_id))
+        user_id = request.state.user_id
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+        try:
+            admission = await self._service.send_pending_input_now(
+                project_id=project_id,
+                user_id=UUID(str(user_id)) if user_id else None,
+                session_id=session_id,
+                input_id=input_id,
+            )
+        except (SessionInputNotFound, SessionInputRemoved) as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND
+                if isinstance(error, SessionInputNotFound)
+                else status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "pending_input_not_found"
+                    if isinstance(error, SessionInputNotFound)
+                    else "pending_input_removed",
+                    "message": str(error),
+                    "retryable": False,
+                    "details": {"input_id": error.input_id},
+                },
+            ) from error
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=PendingInputAdmissionResponse(**admission.model_dump()).model_dump(
+                mode="json", exclude_none=True
+            ),
+        )
 
     @intercept_exceptions()
     @_handle_input_exceptions()

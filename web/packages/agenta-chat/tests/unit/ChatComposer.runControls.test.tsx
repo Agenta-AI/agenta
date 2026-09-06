@@ -129,3 +129,41 @@ describe("ChatComposer running controls", () => {
         expect(onStop).not.toHaveBeenCalled()
     })
 })
+
+describe("queued row Send Now", () => {
+    it("targets the chosen row and retains every row when admission fails", async () => {
+        const sendNow = vi.fn().mockRejectedValue(new Error("unavailable"))
+        const remove = vi.fn()
+        render(
+            <QueuedMessagesDock
+                queued={[
+                    {id: "older", text: "older message", source: "server"},
+                    {id: "selected", text: "chosen message", source: "server"},
+                ]}
+                onSendNow={sendNow}
+                onRemove={remove}
+                touch
+            />,
+        )
+        fireEvent.click(screen.getAllByRole("button", {name: "Send Now"})[1])
+        expect(await screen.findByRole("alert")).toBeTruthy()
+        expect(sendNow).toHaveBeenCalledWith("selected")
+        expect(remove).not.toHaveBeenCalled()
+        expect(screen.getByText("older message")).toBeTruthy()
+        expect(screen.getByText("chosen message")).toBeTruthy()
+        sendNow.mockResolvedValueOnce(undefined)
+        fireEvent.click(screen.getAllByRole("button", {name: "Send Now"})[1])
+        expect(sendNow).toHaveBeenCalledTimes(2)
+    })
+
+    it("does not offer the server action on a local fallback row", () => {
+        render(
+            <QueuedMessagesDock
+                queued={[{id: "local", text: "draft", source: "local"}]}
+                onSendNow={vi.fn()}
+                onRemove={vi.fn()}
+            />,
+        )
+        expect(screen.queryByRole("button", {name: "Send Now"})).toBeNull()
+    })
+})

@@ -22,6 +22,7 @@ export {
     fetchSessionCapabilities,
     fetchSessionDurableApprovalsCapability,
     removePendingSessionInput,
+    sendPendingSessionInputNow,
     invalidateSessionDurableApprovalsCapability,
     commandSessionStream,
     cancelSessionExecution,
@@ -108,6 +109,7 @@ export {
     fetchSessionCapabilitiesAtom,
     fetchSessionSnapshotAtom,
     removePendingSessionInputAtom,
+    sendPendingSessionInputNowAtom,
 } from "./state/pendingInputs"
 export {
     deriveStreamNest,

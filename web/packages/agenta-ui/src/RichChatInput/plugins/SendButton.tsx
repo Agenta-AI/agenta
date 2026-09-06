@@ -16,7 +16,7 @@ interface SendButtonProps {
     disabled?: boolean
     /** Tooltip shown when a caller blocks submit. */
     disabledReason?: ReactNode
-    /** When true, the button becomes a Stop button for the in-flight stream. */
+    /** Keep Stop accessible for the in-flight stream, beside Send when a draft exists. */
     streaming?: boolean
     stopping?: boolean
     /** Request a durable stop — required for the `streaming` state. */
@@ -26,8 +26,7 @@ interface SendButtonProps {
 }
 
 /** Circular send button. Mirrors the Cmd/Ctrl+Enter path via the shared submit helper.
- * While a stream is in flight it morphs into a Stop button (single affordance, no extra
- * stop control alongside it). */
+ * While a stream is in flight, an empty composer shows Stop; a draft shows Send beside Stop. */
 export function SendButton({
     onSubmit,
     forceEnabled,
@@ -48,6 +47,7 @@ export function SendButton({
     }, [editor])
 
     const handleClick = () => {
+        if (disabled) return
         if (empty) {
             if (forceEnabled) onSubmit("")
             return
@@ -67,7 +67,7 @@ export function SendButton({
                         key={action.label}
                         size="sm"
                         variant="ghost"
-                        disabled={empty && !forceEnabled}
+                        disabled={disabled || (empty && !forceEnabled)}
                         onClick={() => {
                             if (empty) {
                                 if (forceEnabled) action.onSubmit("")
@@ -109,6 +109,9 @@ export function SendButton({
                             />
                         </Button>
                     </span>
+                ) : null}
+                {!empty || forceEnabled ? (
+                    <ComposerSendButton onClick={handleClick} disabled={disabled} />
                 ) : null}
             </span>
         )
