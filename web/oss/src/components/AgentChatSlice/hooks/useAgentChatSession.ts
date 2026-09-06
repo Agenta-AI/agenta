@@ -427,7 +427,7 @@ export const useAgentChatSession = ({
     const answerApproval = useCallback(
         async (approvalId: string, approved: boolean) => {
             return submitApprovalForCapability({
-                durableApprovals: await supportsDurableApprovals(sessionId),
+                durableApprovals: supportsDurableApprovals(sessionId),
                 submitDurable: () =>
                     respondInteractionAnswer({
                         sessionId,
@@ -459,7 +459,7 @@ export const useAgentChatSession = ({
     const answerApprovals = useCallback(
         async (toolCallIds: string[], approved: boolean) => {
             return submitApprovalForCapability({
-                durableApprovals: await supportsDurableApprovals(sessionId),
+                durableApprovals: supportsDurableApprovals(sessionId),
                 submitDurable: () => respondInteractionAnswers({sessionId, toolCallIds, approved}),
                 retireDurable: () => {
                     liveGateInteractionRef.current = null
@@ -514,7 +514,7 @@ export const useAgentChatSession = ({
                     : {outcome: "completed", output: output ?? {}}),
             }
             const outcome = await submitApprovalForCapability({
-                durableApprovals: await supportsDurableApprovals(sessionId),
+                durableApprovals: supportsDurableApprovals(sessionId),
                 submitDurable: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
                 retireDurable: () => {
                     liveGateInteractionRef.current = null

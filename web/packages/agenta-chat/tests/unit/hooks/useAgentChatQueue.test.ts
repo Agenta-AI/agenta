@@ -784,3 +784,124 @@ describe("useAgentChatQueue: reclaiming a sent message", () => {
         expect(result.current.takeLastSent()).toMatchObject({text: "held"})
     })
 })
+
+describe("cold session capability admission", () => {
+    it.each([true, false])(
+        "waits for queue=%s before choosing the first send owner",
+        async (queue) => {
+            let resolve!: (value: {queue: boolean; steer: boolean}) => void
+            const capability = new Promise<{queue: boolean; steer: boolean}>((done) => {
+                resolve = done
+            })
+            const submitServer = vi.fn().mockResolvedValue(undefined)
+            const server = {
+                capabilities: {queue: false, steer: false},
+                busy: false,
+                queued: [],
+                submit: submitServer,
+                remove: vi.fn(),
+                resolveCapabilities: () => capability,
+            }
+            const {result, sendQueued} = setup({...settledEmpty, server})
+            const fileParts = [
+                {
+                    type: "file",
+                    url: "https://qa.invalid/file",
+                    mediaType: "text/plain",
+                    filename: "notes.txt",
+                },
+            ] as FileUIPart[]
+            let submission: unknown
+            act(() => {
+                submission = result.current.submit({text: "first", fileParts})
+            })
+            expect(sendQueued).not.toHaveBeenCalled()
+            expect(submitServer).not.toHaveBeenCalled()
+            await act(async () => {
+                resolve({queue, steer: queue})
+                await submission
+            })
+            if (queue) {
+                expect(submitServer).toHaveBeenCalledWith(
+                    expect.objectContaining({text: "first", fileParts}),
+                    "queue",
+                )
+                expect(sendQueued).not.toHaveBeenCalled()
+            } else {
+                expect(sendQueued).toHaveBeenCalledWith(
+                    expect.objectContaining({text: "first", fileParts}),
+                )
+                expect(submitServer).not.toHaveBeenCalled()
+            }
+        },
+    )
+    it("rejects unknown capability admission instead of falling back to native", async () => {
+        const failure = new Error("Session is unavailable")
+        const server = {
+            capabilities: {queue: false, steer: false},
+            busy: false,
+            queued: [],
+            submit: vi.fn(),
+            remove: vi.fn(),
+            resolveCapabilities: () => Promise.reject(failure),
+        }
+        const {result, sendQueued} = setup({...settledEmpty, server})
+        await expect(result.current.submit({text: "keep this draft"})).rejects.toBe(failure)
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(server.submit).not.toHaveBeenCalled()
+    })
+})
+
+it("keeps an edit and its displaced draft when a drained target cannot be readmitted", async () => {
+    const server = {
+        capabilities: {queue: false, steer: false},
+        busy: false,
+        queued: [],
+        submit: vi.fn(),
+        remove: vi.fn(),
+        resolveCapabilities: vi.fn().mockRejectedValue(new Error("unavailable")),
+    }
+    const view = setup({status: "ready", messages: [], stopped: false, server})
+    act(() => view.result.current.beginEdit("already-drained", "my displaced draft"))
+    await act(async () => {
+        await expect(view.result.current.commitEdit({text: "edited answer"})).rejects.toThrow(
+            "unavailable",
+        )
+    })
+    expect(view.result.current.editingId).toBe("already-drained")
+    let restored: string | undefined
+    act(() => {
+        restored = view.result.current.cancelEdit()
+    })
+    expect(restored).toBe("my displaced draft")
+    expect(view.sendQueued).not.toHaveBeenCalled()
+})
+
+it("uses current busy state when validated legacy capability arrives", async () => {
+    let resolve!: (caps: {queue: boolean; steer: boolean}) => void
+    const server = {
+        capabilities: {queue: false, steer: false},
+        busy: false,
+        queued: [],
+        submit: vi.fn(),
+        remove: vi.fn(),
+        resolveCapabilities: () =>
+            new Promise<{queue: boolean; steer: boolean}>((done) => {
+                resolve = done
+            }),
+    }
+    const view = setup({status: "ready", messages: [], stopped: false, server})
+    let pending: void | Promise<void>
+    act(() => {
+        pending = view.result.current.submit({text: "hold while starting"})
+    })
+    view.rerender({status: "streaming", messages: [], stopped: false, server})
+    await act(async () => {
+        resolve({queue: false, steer: false})
+        await pending
+    })
+    expect(view.sendQueued).not.toHaveBeenCalled()
+    expect(view.result.current.queued.map((message) => message.text)).toEqual([
+        "hold while starting",
+    ])
+})

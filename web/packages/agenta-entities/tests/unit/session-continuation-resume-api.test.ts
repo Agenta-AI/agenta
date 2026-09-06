@@ -75,7 +75,7 @@ describe("fetchSessionDurableApprovalsCapability", () => {
 
         const scope = {projectId: "project-1", sessionId: "session-1"}
 
-        await expect(fetchSessionDurableApprovalsCapability(scope)).resolves.toBe(false)
+        await expect(fetchSessionDurableApprovalsCapability(scope)).resolves.toBe(true)
         await vi.waitFor(() =>
             expect(fetchSessionDurableApprovalsCapability(scope)).resolves.toBe(true),
         )
@@ -127,46 +127,57 @@ describe("fetchSessionDurableApprovalsCapability", () => {
         expect(fetchStream).toHaveBeenCalledTimes(2)
     })
 
-    it.each([
-        ["older API", {stream: null}],
-        ["failed request", null],
-    ])("uses legacy behavior for %s", async (_case, response) => {
-        fetchStream.mockResolvedValue(response)
+    it.each([["older API", {stream: null}]])(
+        "uses legacy behavior for %s",
+        async (_case, response) => {
+            fetchStream.mockResolvedValue(response)
 
-        await expect(
-            fetchSessionDurableApprovalsCapability({
-                projectId: "project-1",
-                sessionId: "session-1",
-            }),
-        ).resolves.toBe(false)
-    })
+            await expect(
+                fetchSessionDurableApprovalsCapability({
+                    projectId: "project-1",
+                    sessionId: "session-1",
+                }),
+            ).resolves.toBe(false)
+        },
+    )
 
-    it("does not delay a legacy send while capability negotiation is slow", async () => {
-        fetchStream.mockImplementation(() => new Promise(() => undefined))
-        const prepare = vi.fn().mockResolvedValue("legacy send")
-
-        const capability = await fetchSessionDurableApprovalsCapability({
-            projectId: "project-1",
-            sessionId: "session-1",
-        })
-        const result = capability ? "durable path" : await prepare()
-
-        expect(result).toBe("legacy send")
-        expect(prepare).toHaveBeenCalledOnce()
-        expect(fetchStream).toHaveBeenCalledOnce()
-    })
-
-    it("caches a failed negotiation instead of retrying it on every send", async () => {
-        const error = vi.spyOn(console, "error").mockImplementation(() => undefined)
-        fetchStream.mockRejectedValue(new Error("route unavailable"))
+    it("retries unknown capability without caching it as unsupported", async () => {
+        fetchStream
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce({stream: null, capabilities: {durable_approvals: true}})
         const scope = {projectId: "project-1", sessionId: "session-1"}
-
-        await fetchSessionDurableApprovalsCapability(scope)
-        await vi.waitFor(() => expect(error).toHaveBeenCalledOnce())
-        await fetchSessionDurableApprovalsCapability(scope)
-        await fetchSessionDurableApprovalsCapability(scope)
-
-        expect(fetchStream).toHaveBeenCalledOnce()
-        error.mockRestore()
+        await expect(fetchSessionDurableApprovalsCapability(scope)).rejects.toThrow(
+            "capabilities are unavailable",
+        )
+        await expect(fetchSessionDurableApprovalsCapability(scope)).resolves.toBe(true)
+        expect(fetchStream).toHaveBeenCalledTimes(2)
     })
+})
+
+it("keeps an initial approval answer waiting for capability discovery", async () => {
+    let resolve!: (value: unknown) => void
+    fetchStream.mockImplementation(
+        () =>
+            new Promise((done) => {
+                resolve = done
+            }),
+    )
+    let settled = false
+    const result = fetchSessionDurableApprovalsCapability({
+        projectId: "project-1",
+        sessionId: "session-1",
+    }).then((value) => {
+        settled = true
+        return value
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    resolve({stream: null, capabilities: {durable_approvals: true}})
+    await expect(result).resolves.toBe(true)
+})
+it("keeps missing project scope unknown", async () => {
+    await expect(
+        fetchSessionCapabilities({projectId: "", sessionId: "session-1"}),
+    ).resolves.toBeNull()
+    expect(fetchStream).not.toHaveBeenCalled()
 })

@@ -207,7 +207,7 @@ export interface AgentConversation {
     cancelEdit: () => string
     /** Rewrite the edited message with the composer's content (or queue it anew if it drained).
      *  Returns the draft the session displaced, for the host to put back. */
-    commitEdit: (item: {text: string; fileParts?: FileUIPart[]}) => string
+    commitEdit: (item: {text: string; fileParts?: FileUIPart[]}) => string | Promise<string>
     /** Headless approval-dock state wired to the live-gate-aware response path. */
     approvals: ApprovalDock
     /** Settle a parked client tool part (widgets call this; the resume predicate auto-resends). */
@@ -743,7 +743,7 @@ export const useAgentConversation = ({
             approvalResponseOwnerRef.current = args.id
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
             const outcome = await submitApprovalForCapability({
-                durableApprovals: await supportsDurableApprovals(sessionId),
+                durableApprovals: supportsDurableApprovals(sessionId),
                 submitDurable: () =>
                     respondInteractionAnswer({
                         sessionId,
@@ -781,7 +781,7 @@ export const useAgentConversation = ({
             approvalResponseOwnerRef.current = args.ids[0]
             liveGateInteractionRef.current = {kind: "approval", id: args.ids[0]}
             const outcome = await submitApprovalForCapability({
-                durableApprovals: await supportsDurableApprovals(sessionId),
+                durableApprovals: supportsDurableApprovals(sessionId),
                 submitDurable: () =>
                     respondInteractionAnswers({
                         sessionId,
@@ -869,7 +869,7 @@ export const useAgentConversation = ({
                     : {outcome: "completed", output: output ?? {}}),
             }
             const outcome = await submitApprovalForCapability({
-                durableApprovals: await supportsDurableApprovals(sessionId),
+                durableApprovals: supportsDurableApprovals(sessionId),
                 submitDurable: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
                 retireDurable: () => {
                     liveGateInteractionRef.current = null

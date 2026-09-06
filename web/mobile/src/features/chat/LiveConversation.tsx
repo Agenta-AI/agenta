@@ -727,15 +727,18 @@ export const LiveConversation = ({
                         ) : null}
                         <Composer
                             sessionId={sessionId}
-                            onSend={({text, parts}) => {
+                            onSend={async ({text, parts}) => {
                                 setStoppingHere(false)
                                 // An open edit rewrites its held message instead of sending. The
                                 // input clears on submit, so the displaced draft goes back after.
                                 if (!conversation.editingId) {
-                                    conversation.send({text, parts})
+                                    await conversation.send({text, parts})
                                     return
                                 }
-                                const draft = conversation.commitEdit({text, fileParts: parts})
+                                const draft = await conversation.commitEdit({
+                                    text,
+                                    fileParts: parts,
+                                })
                                 if (draft)
                                     requestAnimationFrame(() =>
                                         composerRef.current?.setMarkdown(draft),

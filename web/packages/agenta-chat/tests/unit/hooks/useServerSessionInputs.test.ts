@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import {createElement, createRef, Fragment, useMemo, useRef, useState, type RefObject} from "react"
 
+import {projectIdAtom} from "@agenta/shared/state"
+import {createStore, Provider} from "jotai"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {act, cleanup, fireEvent, render, renderHook, screen, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
@@ -272,6 +274,29 @@ const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolea
 }
 
 describe("useServerSessionInputs", () => {
+    it("reloads capabilities when project scope becomes available", async () => {
+        const store = createStore()
+        fetchCapabilities.mockImplementation(async () =>
+            store.get(projectIdAtom) ? {queue: true, steer: true, durableApprovals: true} : null,
+        )
+        fetchSnapshot.mockResolvedValue(runningSnapshot([]))
+        const {result} = renderHook(
+            () =>
+                useServerSessionInputs({
+                    entityId: "revision-1",
+                    sessionId: "session-1",
+                    messages: [],
+                    locallyBusy: false,
+                }),
+            {wrapper: ({children}) => createElement(Provider, {store}, children)},
+        )
+        await waitFor(() => expect(fetchCapabilities).toHaveBeenCalledOnce())
+        expect(fetchSnapshot).not.toHaveBeenCalled()
+        act(() => store.set(projectIdAtom, "project-ready"))
+        await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
+        expect(fetchCapabilities).toHaveBeenCalledTimes(2)
+    })
+
     it("does not request a queue snapshot when the capability is absent", async () => {
         fetchCapabilities.mockResolvedValue({
             durableApprovals: false,

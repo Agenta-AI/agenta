@@ -27,6 +27,7 @@ export interface QueuedMessage {
 
 export interface ServerQueueAdapter {
     capabilities: {queue: boolean; steer: boolean}
+    resolveCapabilities?: () => Promise<{queue: boolean; steer: boolean}>
     busy: boolean
     queued: QueuedMessage[]
     submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
@@ -178,6 +179,9 @@ export const useAgentChatQueue = ({
         !continuationHold &&
         (canReleaseQueuedMessage(status, messages) || ((stopped || resumeOrphaned) && settled))
 
+    const canReleaseNowRef = useRef(canReleaseNow)
+    canReleaseNowRef.current = canReleaseNow
+
     // A stop voids the gate for release (above), so it must void it for reporting too — else the
     // aborted turn's lingering `approval-requested` part still reads as "awaiting" while `submit`
     // sends immediately. Keep `hitlPending` in lockstep with the release decision.
@@ -271,29 +275,38 @@ export const useAgentChatQueue = ({
     const submit = useCallback(
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const message: QueuedMessage = {...item, id: generateId()}
-            if (server?.capabilities.queue) {
-                return server.submit(message, "queue")
-            }
-            if (recoverable && retryContinuation) {
-                setQueued((q) => [...q, message])
-                if (!retryingContinuationRef.current) {
-                    retryingContinuationRef.current = true
-                    void retryContinuation()
-                        .catch(() => false)
-                        .finally(() => {
-                            retryingContinuationRef.current = false
-                        })
+            const admit = (queue: boolean) => {
+                if (queue && server) {
+                    return server.submit(message, "queue")
                 }
-                return
+                if (recoverable && retryContinuation) {
+                    setQueued((q) => [...q, message])
+                    if (!retryingContinuationRef.current) {
+                        retryingContinuationRef.current = true
+                        void retryContinuation()
+                            .catch(() => false)
+                            .finally(() => {
+                                retryingContinuationRef.current = false
+                            })
+                    }
+                    return
+                }
+                if (
+                    !releasingRef.current &&
+                    queuedRef.current.length === 0 &&
+                    canReleaseNowRef.current
+                ) {
+                    releasingRef.current = true
+                    lastSentRef.current = message
+                    markRunOwned()
+                    sendQueued(message)
+                } else {
+                    setQueued((q) => [...q, message])
+                }
             }
-            if (!releasingRef.current && queuedRef.current.length === 0 && canReleaseNow) {
-                releasingRef.current = true
-                lastSentRef.current = message
-                markRunOwned()
-                sendQueued(message)
-            } else {
-                setQueued((q) => [...q, message])
-            }
+            return server?.resolveCapabilities
+                ? server.resolveCapabilities().then((capabilities) => admit(capabilities.queue))
+                : admit(server?.capabilities.queue === true)
         },
         [canReleaseNow, recoverable, retryContinuation, markRunOwned, sendQueued, server],
     )
@@ -363,13 +376,17 @@ export const useAgentChatQueue = ({
     const commitEdit = useCallback(
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const id = editingId
-            setEditingId(null)
-            const draft = takeStash()
             const target = id ? queuedRef.current.find((m) => m.id === id) : undefined
             if (!target) {
-                submit(item)
-                return draft
+                const submission = submit(item)
+                const finish = () => {
+                    setEditingId(null)
+                    return takeStash()
+                }
+                return submission ? submission.then(finish) : finish()
             }
+            setEditingId(null)
+            const draft = takeStash()
             const fileParts = [...(target.fileParts ?? []), ...(item.fileParts ?? [])]
             const stagedFiles = [...(target.stagedFiles ?? []), ...(item.stagedFiles ?? [])]
             // Edited down to nothing and carrying no files: there is no message left to hold.

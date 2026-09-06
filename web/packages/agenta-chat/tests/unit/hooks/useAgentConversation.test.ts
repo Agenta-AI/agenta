@@ -396,7 +396,9 @@ describe("useAgentConversation", () => {
 
         act(() => void result.current.send({text: "start"}))
         await waitFor(() => expect(result.current.acceptedRunPending).toBe(true))
-        act(() => void result.current.send({text: "held on mobile"}))
+        await act(async () => {
+            await result.current.send({text: "held on mobile"})
+        })
         expect(result.current.queued.map((message) => message.text)).toEqual(["held on mobile"])
         expect(fetchMock).toHaveBeenCalledTimes(1)
 
@@ -407,6 +409,22 @@ describe("useAgentConversation", () => {
         act(() => second.finish())
         await waitFor(() => expect(result.current.acceptedRunPending).toBe(false))
         expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it("keeps the composer draft when initial capabilities are unknown", async () => {
+        capabilitiesViaAtom.mockResolvedValue(null)
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        composerDraftBySession.set(sessionId, "keep first message")
+        const {result} = mount(store, "rev-1", sessionId)
+        await act(async () => {
+            await expect(result.current.send({text: "keep first message"})).rejects.toThrow(
+                "capabilities are unavailable",
+            )
+        })
+        expect(composerDraftBySession.get(sessionId)).toBe("keep first message")
+        expect(fetchMock).not.toHaveBeenCalled()
     })
 
     it("keeps a Steer draft when durable admission is refused", async () => {
@@ -1169,6 +1187,42 @@ describe("useAgentConversation", () => {
 })
 
 describe("server-owned client-tool answers", () => {
+    it("waits for initial capabilities before submitting a questionnaire answer", async () => {
+        let resolve!: (enabled: boolean) => void
+        durableApprovalCapability.mockImplementation(
+            () =>
+                new Promise<boolean>((done) => {
+                    resolve = done
+                }),
+        )
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+        const answer = {
+            toolName: "request_input",
+            toolCallId: "questionnaire",
+            output: {action: "accept", content: {goal: "Correctness"}},
+        }
+        let pending!: Promise<void>
+        act(() => {
+            pending = result.current.sendToolOutput(answer)
+        })
+        await act(async () => {
+            await Promise.resolve()
+        })
+        expect(respondAnswer).not.toHaveBeenCalled()
+        expect(resumeContinuation).not.toHaveBeenCalled()
+        expect(fetchMock).not.toHaveBeenCalled()
+        await act(async () => {
+            resolve(true)
+            await pending
+        })
+        expect(respondAnswer).toHaveBeenCalledOnce()
+        expect(resumeContinuation).not.toHaveBeenCalled()
+        expect(fetchMock).not.toHaveBeenCalled()
+    })
+
     it.each([false, true])(
         "submits client-tool answer durably without a competing local resume (error=%s)",
         async (failed) => {
