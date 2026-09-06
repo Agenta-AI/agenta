@@ -166,6 +166,7 @@ const AgentConversation = ({
         runningElsewhere: livenessRunningElsewhere,
         sharedReaderAdvertised,
         refreshFromRecords,
+        onCommittedRevision,
         revalidate,
         setSharedSenderReady,
     } = useAgentChatSession({entityId, sessionId, initialMessages, intent: scrollIntent})
@@ -182,6 +183,7 @@ const AgentConversation = ({
         onReadyChange: setSharedSenderReady,
         onExecutionSettled: settleSharedTurn,
         onDisconnect: refreshFromRecords,
+        onCommittedRevision,
     })
     const livenessUpdatedAt = useAtomValue(sessionLivenessUpdatedAtAtom)
     const refreshLiveness = useSetAtom(refreshSessionLivenessAtom)

@@ -12,6 +12,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {liveCommittedRevisions, type CommittedRevision} from "../assets/committedRevisions"
 import type {SessionTranscript} from "../assets/loadSession"
 import {transcriptToMessages} from "../assets/transcriptToMessages"
 import {
@@ -43,6 +44,7 @@ export const useSessionLivePreview = ({
     runningElsewhere,
     sender,
     onReadyChange,
+    onCommittedRevision,
     onExecutionSettled,
     onDisconnect,
 }: {
@@ -53,6 +55,8 @@ export const useSessionLivePreview = ({
     runningElsewhere: boolean
     /** Subscribe before this browser sends its next turn. */
     sender?: boolean
+    /** Reports commits learned after initial hydration, once their transcript is adopted. */
+    onCommittedRevision?: (revision: CommittedRevision) => void
     /** Non-reactive request-pipeline signal: true only while the shared event route is ready. */
     onReadyChange?: (ready: boolean) => void
     /** Reports the shared path's durable terminal verdict for the current execution. */
@@ -73,6 +77,8 @@ export const useSessionLivePreview = ({
     const [runningFromSnapshot, setRunningFromSnapshot] = useState(false)
     const [readerReady, setReaderReady] = useState(false)
     const [sharedSettledAt, setSharedSettledAt] = useState(0)
+    const onCommittedRevisionRef = useRef(onCommittedRevision)
+    onCommittedRevisionRef.current = onCommittedRevision
     const onDisconnectRef = useRef(onDisconnect)
     onDisconnectRef.current = onDisconnect
     const retryHydrationRef = useRef<() => void>(() => undefined)
@@ -106,6 +112,7 @@ export const useSessionLivePreview = ({
         let reconnectDelayMs = RECONNECT_INITIAL_DELAY_MS
         let generation = 0
         let durable = createSessionDurableEventState()
+        let liveBaselineSequence: number | undefined
 
         const close = () => {
             connection?.close()
@@ -136,7 +143,11 @@ export const useSessionLivePreview = ({
 
         const readBoundedTranscript = async (
             throughSequence: number,
-        ): Promise<{transcript: SessionTranscript; coveredEntityIds: Set<string>} | null> => {
+        ): Promise<{
+            transcript: SessionTranscript
+            coveredEntityIds: Set<string>
+            committedRevisions: CommittedRevision[]
+        } | null> => {
             if (!projectId) return null
             const [records, interactionRowStates] = await Promise.all([
                 querySessionTranscript({sessionId, projectId, throughSequence}),
@@ -164,6 +175,7 @@ export const useSessionLivePreview = ({
                     interactionRows: interactionRowStates,
                 },
                 coveredEntityIds,
+                committedRevisions: liveCommittedRevisions(records, liveBaselineSequence),
             }
         }
 
@@ -207,6 +219,9 @@ export const useSessionLivePreview = ({
                         scheduleReconnect()
                         return
                     }
+                    for (const revision of bounded.committedRevisions)
+                        onCommittedRevisionRef.current?.(revision)
+                    liveBaselineSequence ??= snapshot.read.latest_sequence
                     if (!snapshotRunning) clearPreview(sessionId)
                     else
                         setPreview((current) => ({
@@ -278,6 +293,8 @@ export const useSessionLivePreview = ({
                             const adopted = transcript ? await adoptTranscript(transcript) : false
                             if (disposed || currentGeneration !== generation) return
                             if (adopted) {
+                                for (const revision of bounded?.committedRevisions ?? [])
+                                    onCommittedRevisionRef.current?.(revision)
                                 setPreview((current) =>
                                     retireSessionLivePreview(
                                         bounded && previewBoundary
