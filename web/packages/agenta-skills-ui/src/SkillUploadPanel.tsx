@@ -191,7 +191,9 @@ export function SkillUploadPanel({onSingleSkill, onImportMany, disabled}: SkillU
                     {readError
                         ? "Couldn't read that — drop a skill folder, a .zip, or a .skill file."
                         : multiple
-                          ? `No single skill at the root — ${scan!.candidates.length} skills found in nested folders. Pick the ones to import.`
+                          ? scan!.candidates.some((c) => c.dir === "")
+                              ? `This folder contains ${scan!.candidates.length} skills (the root plus nested ones). Pick the ones to import.`
+                              : `No single skill at the root — ${scan!.candidates.length} skills found in nested folders. Pick the ones to import.`
                           : "No SKILL.md found in the upload. A skill needs a SKILL.md with name and description frontmatter."}
                 </span>
             </div>
