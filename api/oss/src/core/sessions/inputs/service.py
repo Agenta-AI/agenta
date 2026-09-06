@@ -95,8 +95,25 @@ def edit_pending_input_content(
         if isinstance(block, dict)
         and isinstance(block.get("uri", block.get("url")), str)
     }
+    attachment_ids = set()
+    for block in kept:
+        if not isinstance(block, dict):
+            continue
+        attachment_id = block.get("attachmentId", block.get("attachment_id"))
+        provider_metadata = block.get("providerMetadata")
+        agenta_metadata = (
+            provider_metadata.get("agenta")
+            if isinstance(provider_metadata, dict)
+            else None
+        )
+        if not attachment_id and isinstance(agenta_metadata, dict):
+            attachment_id = agenta_metadata.get("attachmentId")
+        if isinstance(attachment_id, str) and attachment_id:
+            attachment_ids.add(attachment_id)
     for attachment in update.attachments:
-        if attachment.uri in uris:
+        if attachment.uri in uris or (
+            attachment.attachment_id and attachment.attachment_id in attachment_ids
+        ):
             continue
         if field == "parts":
             block = {
@@ -104,12 +121,34 @@ def edit_pending_input_content(
                 "url": attachment.uri,
                 "mediaType": attachment.mime_type,
             }
+            if attachment.attachment_id is not None:
+                block["providerMetadata"] = {
+                    "agenta": {"attachmentId": attachment.attachment_id}
+                }
+            if attachment.filename is not None:
+                block["filename"] = attachment.filename
+        elif attachment.attachment_id is not None:
+            block = {
+                "type": "attachment",
+                "attachmentId": attachment.attachment_id,
+                "mimeType": attachment.mime_type,
+            }
             if attachment.filename is not None:
                 block["filename"] = attachment.filename
         else:
-            block = {"type": "attachment", **attachment.model_dump(exclude_none=True)}
+            block = {
+                "type": "image"
+                if attachment.mime_type.startswith("image/")
+                else "resource",
+                "uri": attachment.uri,
+                "mimeType": attachment.mime_type,
+            }
+            if attachment.filename is not None:
+                block["filename"] = attachment.filename
         kept.append(block)
         uris.add(attachment.uri)
+        if attachment.attachment_id:
+            attachment_ids.add(attachment.attachment_id)
     message[field] = kept
     return edited
 

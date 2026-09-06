@@ -694,6 +694,7 @@ describe("durable queued input editing", () => {
                         url: "https://files.test/new.pdf",
                         mediaType: "application/pdf",
                         filename: "new.pdf",
+                        providerMetadata: {agenta: {attachmentId: "attachment-1"}},
                     },
                 ],
             }),
@@ -707,6 +708,7 @@ describe("durable queued input editing", () => {
                     uri: "https://files.test/new.pdf",
                     mime_type: "application/pdf",
                     filename: "new.pdf",
+                    attachment_id: "attachment-1",
                 },
             ],
         })

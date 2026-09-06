@@ -1583,10 +1583,124 @@ def test_edit_pending_canonical_content_keeps_attachments(original):
     blocks = edited["data"]["inputs"]["messages"][0]["content"]
     assert blocks[0] == {"type": "text", "text": "after"}
     assert blocks[-1] == {
-        "type": "attachment",
+        "type": "resource",
         "uri": "agenta://new",
-        "mime_type": "text/plain",
+        "mimeType": "text/plain",
     }
     if isinstance(original, list):
         assert blocks[1] == original[1]
     assert content["data"]["inputs"]["messages"][0]["content"] == original
+
+
+def test_edit_pending_canonical_content_preserves_durable_attachment_identity():
+    old_attachment_id = "01995d1a-2f83-7c4d-8a6b-123456789abc"
+    new_attachment_id = "01996b6c-7b6b-7000-8000-000000000001"
+    original_attachment = {
+        "type": "attachment",
+        "attachmentId": old_attachment_id,
+        "mimeType": "application/pdf",
+        "filename": "old.pdf",
+    }
+    content = {
+        "data": {
+            "inputs": {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "before"},
+                            original_attachment,
+                        ],
+                    }
+                ]
+            }
+        }
+    }
+    update = PendingInputUpdate(
+        text="after",
+        attachments=[
+            PendingInputAttachment(
+                uri="https://files.test/old.pdf",
+                mime_type="application/pdf",
+                filename="old.pdf",
+                attachment_id=old_attachment_id,
+            ),
+            PendingInputAttachment(
+                uri="https://files.test/new.png",
+                mime_type="image/png",
+                filename="new.png",
+                attachment_id=new_attachment_id,
+            ),
+        ],
+    )
+
+    edited = edit_pending_input_content(content, update)
+    assert edit_pending_input_content(edited, update) == edited
+    assert edited["data"]["inputs"]["messages"][0]["content"] == [
+        {"type": "text", "text": "after"},
+        original_attachment,
+        {
+            "type": "attachment",
+            "attachmentId": new_attachment_id,
+            "mimeType": "image/png",
+            "filename": "new.png",
+        },
+    ]
+
+
+def test_edit_pending_ui_parts_preserves_durable_attachment_identity():
+    old_attachment_id = "01995d1a-2f83-7c4d-8a6b-123456789abc"
+    new_attachment_id = "01996b6c-7b6b-7000-8000-000000000001"
+    original_file = {
+        "type": "file",
+        "url": "https://files.test/old.pdf",
+        "mediaType": "application/pdf",
+        "filename": "old.pdf",
+        "providerMetadata": {"agenta": {"attachmentId": old_attachment_id}},
+    }
+    content = {
+        "data": {
+            "inputs": {
+                "messages": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            {"type": "text", "text": "before"},
+                            original_file,
+                        ],
+                    }
+                ]
+            }
+        }
+    }
+    update = PendingInputUpdate(
+        text="after",
+        attachments=[
+            PendingInputAttachment(
+                uri="https://other-host.test/old.pdf",
+                mime_type="application/pdf",
+                filename="old.pdf",
+                attachment_id=old_attachment_id,
+            ),
+            PendingInputAttachment(
+                uri="https://files.test/new.png",
+                mime_type="image/png",
+                filename="new.png",
+                attachment_id=new_attachment_id,
+            ),
+        ],
+    )
+
+    edited = edit_pending_input_content(content, update)
+    assert edit_pending_input_content(edited, update) == edited
+    assert edited["data"]["inputs"]["messages"][0]["parts"] == [
+        {"type": "text", "text": "after"},
+        original_file,
+        {
+            "type": "file",
+            "url": "https://files.test/new.png",
+            "mediaType": "image/png",
+            "filename": "new.png",
+            "providerMetadata": {"agenta": {"attachmentId": new_attachment_id}},
+        },
+    ]

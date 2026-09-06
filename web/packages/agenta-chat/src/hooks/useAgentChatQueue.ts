@@ -408,18 +408,19 @@ export const useAgentChatQueue = ({
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const id = editingId
             const editSession = editSessionRef.current
+            const serverOwnsInput =
+                editSession?.server || server?.queued.some((message) => message.id === id)
+            if (id && serverOwnsInput) {
+                if (editSession) editSession.server = true
+                setQueued((queue) => queue.filter((message) => message.id !== id))
+                if (migrationRef.current === id) migrationRef.current = null
+                if (migrationPromiseRef.current?.id === id) migrationPromiseRef.current = null
+            }
             const migration =
                 migrationPromiseRef.current?.id === id ? migrationPromiseRef.current : null
-            if (
-                id &&
-                (editSession?.server ||
-                    migration ||
-                    server?.queued.some((message) => message.id === id))
-            ) {
+            if (id && (serverOwnsInput || migration)) {
                 const save = server?.edit
                 if (!save) return Promise.reject(new Error("This queued message cannot be edited."))
-                if (editSession && server?.queued.some((message) => message.id === id))
-                    editSession.server = true
                 if (migration?.failed) {
                     migration.failed = false
                     migration.promise = migration.retry().catch((error: unknown) => {

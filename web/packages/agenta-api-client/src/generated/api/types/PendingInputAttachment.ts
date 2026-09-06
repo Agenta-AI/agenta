@@ -4,4 +4,5 @@ export interface PendingInputAttachment {
     uri: string;
     mime_type: string;
     filename?: (string | null) | undefined;
+    attachment_id?: (string | null) | undefined;
 }

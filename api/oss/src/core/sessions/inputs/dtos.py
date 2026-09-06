@@ -52,6 +52,7 @@ class PendingInputAttachment(BaseModel):
     uri: str = Field(min_length=1)
     mime_type: str = Field(min_length=1)
     filename: Optional[str] = None
+    attachment_id: Optional[str] = None
 
 
 class PendingInputUpdate(BaseModel):

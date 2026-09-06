@@ -151,7 +151,7 @@ const Row = ({
                             }
                         }}
                     >
-                        Send Now
+                        {sending || message.policy === "steer" ? "Sending" : "Send Now"}
                     </Button>
                 ) : null}
                 {editing ? (

@@ -12,6 +12,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import type {FileUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
 
 import type {QueuedMessage} from "./useAgentChatQueue"
@@ -200,6 +201,7 @@ export const useServerSessionInputs = ({
                 attachments: item.fileParts?.map((part) => ({
                     uri: part.url,
                     mime_type: part.mediaType,
+                    attachment_id: attachmentIdForPart(part) ?? undefined,
                     ...(part.filename ? {filename: part.filename} : {}),
                 })),
             })

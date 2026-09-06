@@ -1185,50 +1185,62 @@ it("retains observed server ownership after a failed edit and a later missing sn
     })
     expect(server.edit).toHaveBeenCalledTimes(2)
     expect(server.submit).not.toHaveBeenCalled()
-    expect(result.current.queued[0].text).toBe("old")
+    expect(result.current.queued).toEqual([])
+    expect(result.current.editingId).toBe(id)
 })
 
-it("replays the original admission after an ambiguous migration failure before patching the edit", async () => {
-    const props = {...settledEmpty, status: "streaming"}
-    const {result, rerender, unmount} = setup(props)
-    act(() => result.current.submit({text: "original admission"}))
-    const original = result.current.queued[0]
-    let reject!: (error: Error) => void
-    const server: ServerQueueAdapter = {
-        capabilities: {queue: true, steer: true},
-        busy: true,
-        queued: [],
-        submit: vi
-            .fn()
-            .mockImplementationOnce(
-                () =>
-                    new Promise<void>((_yes, no) => {
-                        reject = no
-                    }),
-            )
-            .mockResolvedValueOnce(undefined),
-        remove: vi.fn(),
-        edit: vi.fn().mockResolvedValue(undefined),
-    }
-    rerender({...props, server, continuationExecutionId: "continuation"})
-    act(() => result.current.beginEdit(original.id, "draft"))
-    let saving!: string | Promise<string>
-    act(() => {
-        saving = result.current.commitEdit({text: "corrected"})
-    })
-    await act(async () => {
-        reject(new Error("response lost"))
-        await expect(saving).rejects.toThrow("response lost")
-    })
-    expect(result.current.editingId).toBe(original.id)
-    expect(server.edit).not.toHaveBeenCalled()
-    await act(async () => {
-        expect(await result.current.commitEdit({text: "corrected"})).toBe("draft")
-    })
-    expect(server.submit).toHaveBeenNthCalledWith(1, original, "queue")
-    expect(server.submit).toHaveBeenNthCalledWith(2, original, "queue")
-    expect(server.edit).toHaveBeenCalledOnce()
-    expect(server.edit).toHaveBeenCalledWith(original.id, {text: "corrected"})
-    expect(result.current.queued).toEqual([])
-    unmount()
-})
+it.each([false, true])(
+    "recovers an ambiguous migration before editing (server observed=%s)",
+    async (observed) => {
+        const props = {...settledEmpty, status: "streaming"}
+        const {result, rerender, unmount} = setup(props)
+        act(() => result.current.submit({text: "original admission"}))
+        const original = result.current.queued[0]
+        let reject!: (error: Error) => void
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: true,
+            queued: [],
+            submit: vi
+                .fn()
+                .mockImplementationOnce(
+                    () =>
+                        new Promise<void>((_yes, no) => {
+                            reject = no
+                        }),
+                )
+                .mockResolvedValueOnce(undefined),
+            remove: vi.fn(),
+            edit: vi.fn().mockResolvedValue(undefined),
+        }
+        rerender({...props, server, continuationExecutionId: "continuation"})
+        act(() => result.current.beginEdit(original.id, "draft"))
+        let saving!: string | Promise<string>
+        act(() => {
+            saving = result.current.commitEdit({text: "corrected"})
+        })
+        await act(async () => {
+            reject(new Error("response lost"))
+            await expect(saving).rejects.toThrow("response lost")
+        })
+        expect(result.current.editingId).toBe(original.id)
+        expect(server.edit).not.toHaveBeenCalled()
+        if (observed) {
+            rerender({
+                ...props,
+                server: {...server, queued: [{...original, source: "server"}]},
+                continuationExecutionId: "continuation",
+            })
+        }
+        await act(async () => {
+            expect(await result.current.commitEdit({text: "corrected"})).toBe("draft")
+        })
+        expect(server.submit).toHaveBeenNthCalledWith(1, original, "queue")
+        if (observed) expect(server.submit).toHaveBeenCalledOnce()
+        else expect(server.submit).toHaveBeenNthCalledWith(2, original, "queue")
+        expect(server.edit).toHaveBeenCalledOnce()
+        expect(server.edit).toHaveBeenCalledWith(original.id, {text: "corrected"})
+        expect(result.current.queued).toEqual(observed ? [{...original, source: "server"}] : [])
+        unmount()
+    },
+)

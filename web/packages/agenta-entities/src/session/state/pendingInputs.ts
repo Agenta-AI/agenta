@@ -44,7 +44,12 @@ export const updatePendingSessionInputAtom = atom(
             sessionId: string
             inputId: string
             text: string
-            attachments?: {uri: string; mime_type: string; filename?: string}[]
+            attachments?: {
+                uri: string
+                mime_type: string
+                filename?: string
+                attachment_id?: string
+            }[]
         },
     ) => {
         const projectId = get(projectIdAtom) ?? ""

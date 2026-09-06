@@ -48,7 +48,7 @@ describe("pending input reducer", () => {
         ])
     })
 
-    it("makes pending rows editable while preserving opaque attachment counts", () => {
+    it("makes pending rows editable and retains uploaded attachment references", () => {
         const queued = pendingInputToQueuedMessage(
             input("input-1", 1, [
                 {type: "text", text: "Check this"},
@@ -67,9 +67,54 @@ describe("pending input reducer", () => {
         expect(queued?.fileParts).toEqual([
             {
                 type: "file",
+                url: expect.stringContaining(
+                    "/sessions/attachments/asset-1/content?session_id=session-1",
+                ),
+                mediaType: "application/octet-stream",
+                filename: "brief.pdf",
+                providerMetadata: {agenta: {attachmentId: "asset-1"}},
+            },
+            {
+                type: "file",
                 url: "https://files.test/image.png",
                 mediaType: "image/png",
                 filename: undefined,
+            },
+        ])
+    })
+
+    it.each(["content", "parts"])("preserves durable file identity from %s", (field) => {
+        const attachmentId = "01995d1a-2f83-7c4d-8a6b-123456789abc"
+        const row = input("input-1", 1, "")
+        const block =
+            field === "content"
+                ? {
+                      type: "attachment",
+                      attachmentId,
+                      mimeType: "text/plain",
+                      filename: "notes.txt",
+                      size: 42,
+                  }
+                : {
+                      type: "file",
+                      url: "https://old-host.test/content",
+                      mediaType: "text/plain",
+                      filename: "notes.txt",
+                      providerMetadata: {agenta: {attachmentId, size: 42}},
+                  }
+        row.content.data.inputs.messages = [
+            {role: "user", [field]: [block]},
+        ] as typeof row.content.data.inputs.messages
+        const queued = pendingInputToQueuedMessage(row)
+        expect(queued?.fileParts).toEqual([
+            {
+                type: "file",
+                url: expect.stringContaining(
+                    `/sessions/attachments/${attachmentId}/content?session_id=session-1`,
+                ),
+                mediaType: "text/plain",
+                filename: "notes.txt",
+                providerMetadata: {agenta: {attachmentId, size: 42}},
             },
         ])
     })

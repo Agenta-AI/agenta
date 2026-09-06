@@ -208,7 +208,12 @@ export async function updatePendingSessionInput({
 }: SessionScopedParams & {
     inputId: string
     text: string
-    attachments?: {uri: string; mime_type: string; filename?: string}[]
+    attachments?: {
+        uri: string
+        mime_type: string
+        filename?: string
+        attachment_id?: string
+    }[]
 }): Promise<boolean> {
     if (!projectId || !sessionId || !inputId) return false
     const data = await callFern("[updatePendingSessionInput]", () =>
