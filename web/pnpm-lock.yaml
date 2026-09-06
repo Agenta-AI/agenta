@@ -2177,6 +2177,9 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/sdk':
+        specifier: workspace:../agenta-sdk
+        version: link:../agenta-sdk
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared

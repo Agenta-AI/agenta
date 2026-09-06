@@ -18,6 +18,7 @@ import { ProjectsClient } from "./api/resources/projects/client/Client.js";
 import { QueriesClient } from "./api/resources/queries/client/Client.js";
 import { SecretsClient } from "./api/resources/secrets/client/Client.js";
 import { SessionsClient } from "./api/resources/sessions/client/Client.js";
+import { SkillsClient } from "./api/resources/skills/client/Client.js";
 import { StatusClient } from "./api/resources/status/client/Client.js";
 import { TestcasesClient } from "./api/resources/testcases/client/Client.js";
 import { TestsetsClient } from "./api/resources/testsets/client/Client.js";
@@ -57,6 +58,7 @@ export class AgentaApiClient {
     protected _sessions: SessionsClient | undefined;
     protected _applications: ApplicationsClient | undefined;
     protected _workflows: WorkflowsClient | undefined;
+    protected _skills: SkillsClient | undefined;
     protected _evaluators: EvaluatorsClient | undefined;
     protected _environments: EnvironmentsClient | undefined;
     protected _tools: ToolsClient | undefined;
@@ -139,6 +141,10 @@ export class AgentaApiClient {
 
     public get workflows(): WorkflowsClient {
         return (this._workflows ??= new WorkflowsClient(this._options));
+    }
+
+    public get skills(): SkillsClient {
+        return (this._skills ??= new SkillsClient(this._options));
     }
 
     public get evaluators(): EvaluatorsClient {

@@ -10,8 +10,8 @@ export type { FetchInteractionRequest } from "./FetchInteractionRequest.js";
 export type { FetchSessionMountsRequest } from "./FetchSessionMountsRequest.js";
 export type { FetchSessionStreamRequest } from "./FetchSessionStreamRequest.js";
 export type { FetchTurnRequest } from "./FetchTurnRequest.js";
-export type { GetSessionSnapshotRequest } from "./GetSessionSnapshotRequest.js";
 export type { GetRecordEventRequest } from "./GetRecordEventRequest.js";
+export type { GetSessionSnapshotRequest } from "./GetSessionSnapshotRequest.js";
 export type { SessionAttachmentReferenceRequest } from "./SessionAttachmentReferenceRequest.js";
 export type { SessionDetachRequest } from "./SessionDetachRequest.js";
 export type { SessionHeartbeatRequest } from "./SessionHeartbeatRequest.js";
@@ -22,7 +22,6 @@ export type { SessionInteractionRespondRequest } from "./SessionInteractionRespo
 export type { SessionInteractionTransitionRequest } from "./SessionInteractionTransitionRequest.js";
 export type { SessionMountQueryRequest } from "./SessionMountQueryRequest.js";
 export type { SessionQueryRequest } from "./SessionQueryRequest.js";
-export type { SessionRecordIngestRequest } from "./SessionRecordIngestRequest.js";
 export type { SessionRecordQueryRequest } from "./SessionRecordQueryRequest.js";
 export type { SessionStreamCommandRequest } from "./SessionStreamCommandRequest.js";
 export type { SessionStreamQueryRequest } from "./SessionStreamQueryRequest.js";
@@ -33,4 +32,5 @@ export type { SetSessionStreamHeaderRequest } from "./SetSessionStreamHeaderRequ
 export type { SignSessionMountCredentialsRequest } from "./SignSessionMountCredentialsRequest.js";
 export type { UnarchiveSessionRequest } from "./UnarchiveSessionRequest.js";
 export type { WatchProjectRequest } from "./WatchProjectRequest.js";
+export type { WatchSessionEventsRequest } from "./WatchSessionEventsRequest.js";
 export type { WatchSessionStreamRequest } from "./WatchSessionStreamRequest.js";

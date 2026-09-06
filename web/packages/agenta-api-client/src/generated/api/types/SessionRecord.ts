@@ -18,4 +18,5 @@ export interface SessionRecord {
     attributes?: (Record<string, unknown> | null) | undefined;
     turn_id?: (string | null) | undefined;
     span_id?: (string | null) | undefined;
+    quarantined_at?: (string | null) | undefined;
 }

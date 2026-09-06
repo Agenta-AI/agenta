@@ -23,6 +23,7 @@
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
+        "@agenta/sdk": "workspace:../agenta-sdk",
         "@agenta/shared": "workspace:../agenta-shared"
     },
     "peerDependencies": {

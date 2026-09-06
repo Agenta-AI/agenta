@@ -1,9 +1,9 @@
 /**
- * Skills API — the dedicated `/skills/*` endpoints (WP-A2/A3).
- *
- * Raw axios in the entities style: the generated Fern client cannot send a flags body to
- * `workflows/query`, and the `/skills/*` resources are not in the generated client yet.
- * These functions keep the signatures a future Fern-backed swap must preserve.
+ * Skills API — the dedicated `/skills/*` endpoints (WP-A2/A3), through the Fern-generated
+ * client (`getSkillsClient()`). Zod validation stays at the boundary: Fern's compile-time
+ * types under-declare backend extra="allow" fields, so the local schemas remain the
+ * independent drift check. Workflow-level writes (create/commit/roster) still ride the
+ * entities layer, whose own Fern migration is tracked separately.
  */
 import {
     archiveWorkflow,
@@ -12,6 +12,7 @@ import {
     retrieveWorkflowRevision,
     unarchiveWorkflow,
 } from "@agenta/entities/workflow"
+import {getSkillsClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
 import {generateId} from "@agenta/shared/utils"
 import type {z} from "zod"
@@ -61,18 +62,18 @@ export async function querySkills({
         return {count: 0, skills: [], builtin: []}
     }
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/skills/query`,
+    const data = await getSkillsClient().queryRegistrySkills(
         {
             ...(search ? {search} : {}),
             ...(includeArchived !== undefined ? {include_archived: includeArchived} : {}),
-            ...(windowing ? {windowing} : {}),
+            // Fern narrows `order` to an enum the lenient local windowing type doesn't share.
+            ...(windowing ? {windowing: windowing as never} : {}),
         },
-        {params: {project_id: projectId}},
+        {queryParams: {project_id: projectId}},
     )
 
     return (
-        parseOrWarn(skillsQueryResponseSchema, response.data, "[querySkills]") ?? {
+        parseOrWarn(skillsQueryResponseSchema, data, "[querySkills]") ?? {
             count: 0,
             skills: [],
             builtin: [],
@@ -96,17 +97,16 @@ export async function querySkillUsage({
         return {count: 0, usage: []}
     }
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/skills/usage`,
+    const data = await getSkillsClient().querySkillUsage(
         {
             ...(workflowId ? {workflow_id: workflowId} : {}),
             ...(workflowSlug ? {workflow_slug: workflowSlug} : {}),
         },
-        {params: {project_id: projectId}},
+        {queryParams: {project_id: projectId}},
     )
 
     return (
-        parseOrWarn(skillUsageResponseSchema, response.data, "[querySkillUsage]") ?? {
+        parseOrWarn(skillUsageResponseSchema, data, "[querySkillUsage]") ?? {
             count: 0,
             usage: [],
         }
@@ -155,13 +155,12 @@ export async function scanSkillSource({
 }: ScanSkillSourceParams): Promise<SkillSourceScanResponse | null> {
     if (!projectId || !repoUrl) return null
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/skills/sources/scan`,
+    const data = await getSkillsClient().scanSkillSource(
         {repo_url: repoUrl, ...(ref ? {ref} : {})},
-        {params: {project_id: projectId}},
+        {queryParams: {project_id: projectId}},
     )
 
-    return parseOrWarn(skillSourceScanResponseSchema, response.data, "[scanSkillSource]")
+    return parseOrWarn(skillSourceScanResponseSchema, data, "[scanSkillSource]")
 }
 
 export interface ImportSkillSourceParams {
@@ -183,18 +182,17 @@ export async function importSkillSource({
 }: ImportSkillSourceParams): Promise<SkillSourceImportResponse | null> {
     if (!projectId || !repoUrl) return null
 
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/skills/sources`,
+    const data = await getSkillsClient().importSkillSource(
         {
             repo_url: repoUrl,
             ...(ref ? {ref} : {}),
             ...(paths?.length ? {paths} : {}),
             sync_enabled: Boolean(syncEnabled),
         },
-        {params: {project_id: projectId}},
+        {queryParams: {project_id: projectId}},
     )
 
-    return parseOrWarn(skillSourceImportResponseSchema, response.data, "[importSkillSource]")
+    return parseOrWarn(skillSourceImportResponseSchema, data, "[importSkillSource]")
 }
 
 /** One row of a skill workflow's revision history, as the detail drawer consumes it. */
@@ -403,10 +401,9 @@ export async function refreshSkillSource({
     sourceId: string
 }): Promise<RefreshSourceResponse | null> {
     if (!projectId || !sourceId) return null
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/skills/sources/${sourceId}/refresh`,
-        {},
-        {params: {project_id: projectId}},
+    const data = await getSkillsClient().refreshSkillSource(
+        {source_id: sourceId},
+        {queryParams: {project_id: projectId}},
     )
-    return refreshSourceResponseSchema.safeParse(response.data).data ?? null
+    return refreshSourceResponseSchema.safeParse(data).data ?? null
 }

@@ -16,6 +16,7 @@ import {MountsClient} from "@agentaai/api-client/resources/mounts"
 import {ProjectsClient} from "@agentaai/api-client/resources/projects"
 import {SecretsClient} from "@agentaai/api-client/resources/secrets"
 import {SessionsClient} from "@agentaai/api-client/resources/sessions"
+import {SkillsClient} from "@agentaai/api-client/resources/skills"
 import {TestsetsClient} from "@agentaai/api-client/resources/testsets"
 import {ToolsClient} from "@agentaai/api-client/resources/tools"
 import {TracesClient} from "@agentaai/api-client/resources/traces"
@@ -25,6 +26,11 @@ import {WebhooksClient} from "@agentaai/api-client/resources/webhooks"
 import {WorkflowsClient} from "@agentaai/api-client/resources/workflows"
 
 import {buildClientOptions, withLowPriorityFetch} from "./config"
+
+let _skills: SkillsClient | undefined
+export function getSkillsClient(): SkillsClient {
+    return (_skills ??= new SkillsClient(buildClientOptions()))
+}
 
 let _applications: ApplicationsClient | undefined
 export function getApplicationsClient(): ApplicationsClient {

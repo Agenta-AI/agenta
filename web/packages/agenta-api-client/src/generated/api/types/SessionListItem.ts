@@ -25,9 +25,12 @@ export interface SessionListItem {
     project_id: string;
     session_id: string;
     flags?: AgentaApi.SessionStreamFlags | undefined;
+    capabilities?: AgentaApi.SessionCapabilities | undefined;
     tags?: (Record<string, unknown> | null) | undefined;
     meta?: (Record<string, unknown> | null) | undefined;
     turn_id?: (string | null) | undefined;
+    turn_started_at?: (string | null) | undefined;
+    stopping_turn_id?: (string | null) | undefined;
     references?: (AgentaApi.SessionReference[] | null) | undefined;
     archived_at?: (string | null) | undefined;
     origin?: (AgentaApi.SessionOrigin | null) | undefined;
