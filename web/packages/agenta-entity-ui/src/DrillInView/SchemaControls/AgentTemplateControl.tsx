@@ -63,7 +63,12 @@ import {
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
 import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
-import {toolReferenceSlug} from "./agentTemplate/itemDescriptors"
+import {
+    embedRevisionVersion,
+    isEmbedRefSkill,
+    staticEmbedSlug,
+    toolReferenceSlug,
+} from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
@@ -168,7 +173,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     disabled,
     className,
 }: AgentTemplateControlProps) {
-    const {gatewayTools, workflowReference} = useDrillInUI()
+    const {gatewayTools, workflowReference, skills: skillsBridge} = useDrillInUI()
     const config = (value ?? {}) as Record<string, unknown>
 
     // Latest config, so an async write (e.g. after a schema lookup) doesn't clobber concurrent edits.
@@ -489,9 +494,44 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         () => (Array.isArray(config.skills) ? (config.skills as unknown[]) : []),
         [config.skills],
     )
-    const handleAddSkill = useCallback(
-        () => openCreate("skill", ITEM_KINDS.skill.createSeed(), "form"),
-        [openCreate],
+    // Registry-backed picker via the drill-in bridge (artboard 4b); the inline-skill
+    // editor stays the fallback on hosts that never wired the bridge.
+    const [skillPickerOpen, setSkillPickerOpen] = useState(false)
+    const handleAddSkill = useCallback(() => {
+        if (skillsBridge?.enabled) setSkillPickerOpen(true)
+        else openCreate("skill", ITEM_KINDS.skill.createSeed(), "form")
+    }, [openCreate, skillsBridge])
+    /** Embed slugs already on this agent, with their pin — what the picker marks "Added". */
+    const addedSkillRefs = useMemo(
+        () =>
+            skills
+                .filter((entry) => isEmbedRefSkill(entry))
+                .flatMap((entry): {slug: string; pinnedVersion?: string}[] => {
+                    const record = entry as Record<string, unknown>
+                    const slug = staticEmbedSlug(record)
+                    if (!slug) return []
+                    const pinnedVersion = embedRevisionVersion(record)
+                    return [pinnedVersion ? {slug, pinnedVersion} : {slug}]
+                }),
+        [skills],
+    )
+    const handleAddSkillEmbeds = useCallback(
+        (entries: Record<string, unknown>[]) => setAgentField("skills", [...skills, ...entries]),
+        [setAgentField, skills],
+    )
+    const handleRemoveSkillEmbeds = useCallback(
+        (slugs: string[]) => {
+            const drop = new Set(slugs)
+            setAgentField(
+                "skills",
+                skills.filter((entry) => {
+                    if (!isEmbedRefSkill(entry)) return true
+                    const slug = staticEmbedSlug(entry as Record<string, unknown>)
+                    return !slug || !drop.has(slug)
+                }),
+            )
+        },
+        [setAgentField, skills],
     )
 
     // Controlled open-state for the list sections so the accordion can react to the agent
@@ -1232,6 +1272,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>
+
+            {skillsBridge?.enabled ? (
+                <skillsBridge.PickerHost
+                    open={skillPickerOpen}
+                    onClose={() => setSkillPickerOpen(false)}
+                    added={addedSkillRefs}
+                    onAdd={handleAddSkillEmbeds}
+                    onRemove={handleRemoveSkillEmbeds}
+                />
+            ) : null}
 
             {workflowReference?.enabled && (
                 <SubagentDrawerContainer

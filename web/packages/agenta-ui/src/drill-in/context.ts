@@ -218,6 +218,8 @@ export {
     useDrillInUI,
     type DrillInUIComponents,
     type GatewayToolsBridge,
+    type SkillsBridge,
+    type SkillsPickerHostProps,
     type WorkflowReferenceBridge,
     type WorkflowReferenceCatalogEntry,
     type SubagentDetail,

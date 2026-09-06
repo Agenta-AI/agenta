@@ -115,6 +115,8 @@ export type {
     DrillInUIComponents,
     DrillInUIProviderProps,
     GatewayToolsBridge,
+    SkillsBridge,
+    SkillsPickerHostProps,
     WorkflowReferenceBridge,
     WorkflowReferenceUI,
     WorkflowReferenceType,

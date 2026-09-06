@@ -20,6 +20,8 @@ export interface SkillImportDrawerProps {
     open: boolean
     onClose: () => void
     projectId: string
+    /** Fires once per successful import with what landed — e.g. to also add them to an agent. */
+    onImported?: (imported: {name?: string; workflowId?: string; pathInRepo: string}[]) => void
     width?: number
 }
 
@@ -31,7 +33,13 @@ const issueText = (issues?: {message?: string | null}[] | null): string =>
         .filter(Boolean)
         .join(" ") || "Invalid skill."
 
-export function SkillImportDrawer({open, onClose, projectId, width = 480}: SkillImportDrawerProps) {
+export function SkillImportDrawer({
+    open,
+    onClose,
+    projectId,
+    onImported,
+    width = 480,
+}: SkillImportDrawerProps) {
     const [step, setStep] = useState<Step>("url")
     const [repoUrl, setRepoUrl] = useState("")
     const [busy, setBusy] = useState(false)
@@ -103,6 +111,15 @@ export function SkillImportDrawer({open, onClose, projectId, width = 480}: Skill
             invalidateSkillsListCache()
             setResult(response)
             setStep("done")
+            if (onImported && response.imported?.length) {
+                onImported(
+                    response.imported.map((entry) => ({
+                        name: entry.name ?? undefined,
+                        workflowId: entry.workflow_id ?? undefined,
+                        pathInRepo: entry.path_in_repo,
+                    })),
+                )
+            }
         } catch (err) {
             setError(
                 err instanceof Error && err.message
@@ -112,7 +129,7 @@ export function SkillImportDrawer({open, onClose, projectId, width = 480}: Skill
         } finally {
             setBusy(false)
         }
-    }, [projectId, repoUrl, selected, syncEnabled])
+    }, [onImported, projectId, repoUrl, selected, syncEnabled])
 
     const toggle = useCallback((path: string) => {
         setSelected((prev) => {

@@ -284,7 +284,7 @@ export function staticEmbedName(skill: Record<string, unknown>): string | undefi
 }
 
 /** A pinned revision's version, when the embed references a `workflow_revision`. */
-function embedRevisionVersion(skill: Record<string, unknown>): string | undefined {
+export function embedRevisionVersion(skill: Record<string, unknown>): string | undefined {
     const refs = asObj(asObj(skill["@ag.embed"])?.["@ag.references"])
     const version = asObj(refs?.workflow_revision)?.version
     return typeof version === "string" ? version : undefined

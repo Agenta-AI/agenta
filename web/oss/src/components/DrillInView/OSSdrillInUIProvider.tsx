@@ -36,10 +36,12 @@ import {
     useWorkflowReferenceBridge,
     type DrillInUIComponents,
     type GatewayToolsBridge,
+    type SkillsBridge,
     type WorkflowReferenceBridge,
 } from "@agenta/entity-ui/drill-in"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {isToolsEnabled} from "@agenta/shared/api"
+import {useSkillsBridge} from "@agenta/skills-ui"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {getDefaultStore, useSetAtom} from "jotai"
@@ -108,6 +110,8 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
     )
     // Deployment policy never changes at runtime; a stable identity keeps the context value stable.
     const deployment = useMemo(() => ({isCloud: isDemo()}), [])
+    // Registry-backed "Add skill" flow for the agent config panel.
+    const skills = useSkillsBridge()
 
     // Stable context value: every DrillInUIContext consumer re-renders when this identity changes.
     const baseComponents = useMemo(
@@ -117,12 +121,13 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
                 EditorProvider,
                 SharedEditor,
                 workflowReference,
+                skills,
                 openTrace,
                 deployment,
                 // Rich concrete components vs the context's index-signature slots (pre-existing gap)
             }) as DrillInUIComponents,
         // openTrace is a module-level const (stable) — no dep needed.
-        [llmProviderConfig, workflowReference, deployment],
+        [llmProviderConfig, workflowReference, skills, deployment],
     )
 
     if (!toolsEnabled) {
@@ -139,6 +144,7 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
             <GatewayToolsEnabledProvider
                 llmProviderConfig={llmProviderConfig}
                 workflowReference={workflowReference}
+                skills={skills}
                 deployment={deployment}
             >
                 {children}
@@ -152,11 +158,13 @@ function GatewayToolsEnabledProvider({
     children,
     llmProviderConfig,
     workflowReference,
+    skills,
     deployment,
 }: {
     children: ReactNode
     llmProviderConfig: ReturnType<typeof useLLMProviderConfig>["llmProviderConfig"]
     workflowReference: WorkflowReferenceBridge
+    skills: SkillsBridge
     deployment: {isCloud: boolean}
 }) {
     const {connections, isLoading, error} = useToolConnectionsQuery()
@@ -214,11 +222,12 @@ function GatewayToolsEnabledProvider({
                 SharedEditor,
                 gatewayTools,
                 workflowReference,
+                skills,
                 openTrace,
                 deployment,
                 // Rich concrete components vs the context's index-signature slots (pre-existing gap)
             }) as DrillInUIComponents,
-        [llmProviderConfig, gatewayTools, workflowReference, deployment],
+        [llmProviderConfig, gatewayTools, workflowReference, skills, deployment],
     )
 
     return <DrillInUIProvider components={components}>{children}</DrillInUIProvider>

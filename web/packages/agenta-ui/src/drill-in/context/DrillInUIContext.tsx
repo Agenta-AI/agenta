@@ -215,6 +215,29 @@ export interface WorkflowReferenceBridge {
     agentHref?: (workflowId: string) => string | null
 }
 
+/** Props the agent-config panel hands the injected skills picker (artboard 4b). */
+export interface SkillsPickerHostProps {
+    open: boolean
+    onClose: () => void
+    /** Skills already referenced by the agent: their embed slugs, with the pin when pinned. */
+    added: {slug: string; pinnedVersion?: string}[]
+    /** Append fully-built `@ag.embed` entries to the agent's skills list. */
+    onAdd: (entries: Record<string, unknown>[]) => void
+    /** Remove the embed entries whose referenced slug matches. */
+    onRemove: (slugs: string[]) => void
+}
+
+/**
+ * Bridge for the registry-backed "Add skill" flow. Injected as a COMPONENT so this package
+ * stays dependency-free: the implementation (registry list, create/upload/import drawers)
+ * lives in @agenta/skills-ui and is wired by each host's DrillInUIProvider. Parallels
+ * {@link GatewayToolsBridge}. Absent → the panel falls back to the inline-skill editor.
+ */
+export interface SkillsBridge {
+    enabled: boolean
+    PickerHost: ComponentType<SkillsPickerHostProps>
+}
+
 /**
  * Interface for injectable UI components
  */
@@ -340,6 +363,9 @@ export interface DrillInUIComponents {
 
     /** Workflow-as-tool reference integration for the tool selector (#4860) */
     workflowReference?: WorkflowReferenceBridge
+
+    /** Registry-backed skills picker for the agent config's Skills section */
+    skills?: SkillsBridge
 
     /** Open a trace in the host application. */
     openTrace?: (params: {traceId: string; spanId?: string | null}) => void

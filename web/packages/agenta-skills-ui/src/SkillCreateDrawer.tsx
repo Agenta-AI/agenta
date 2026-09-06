@@ -30,6 +30,13 @@ export interface SkillCreateDrawerProps {
     projectId: string
     /** "write" opens the editor; "upload" opens the full-drawer dropzone (1c). */
     mode?: "write" | "upload"
+    /** Fires once per created skill — e.g. to also add it to the agent being edited. */
+    onCreated?: (created: {
+        slug: string
+        workflowId?: string
+        name: string
+        description?: string
+    }) => void
     /** Editor-stage width; the upload stage stays at `uploadWidth` and the resize animates. */
     width?: number
     uploadWidth?: number
@@ -58,6 +65,7 @@ export function SkillCreateDrawer({
     onClose,
     projectId,
     mode = "write",
+    onCreated,
     width = 960,
     uploadWidth = 520,
 }: SkillCreateDrawerProps) {
@@ -101,9 +109,18 @@ export function SkillCreateDrawer({
         async (skill: Record<string, unknown>) => {
             const parsed = skillContentSchema.safeParse(skill)
             if (!parsed.success) throw new Error(firstIssue(parsed.error))
-            await createSkillWorkflow({projectId, skill: parsed.data})
+            const created = (await createSkillWorkflow({projectId, skill: parsed.data})) as
+                | Record<string, unknown>
+                | undefined
+            onCreated?.({
+                slug: parsed.data.name,
+                workflowId:
+                    typeof created?.workflow_id === "string" ? created.workflow_id : undefined,
+                name: parsed.data.name,
+                description: parsed.data.description,
+            })
         },
-        [projectId],
+        [onCreated, projectId],
     )
 
     const create = useCallback(async () => {
@@ -115,8 +132,17 @@ export function SkillCreateDrawer({
         setBusy(true)
         setError(null)
         try {
-            await createSkillWorkflow({projectId, skill: parsed.data})
+            const created = (await createSkillWorkflow({projectId, skill: parsed.data})) as
+                | Record<string, unknown>
+                | undefined
             invalidateSkillsListCache()
+            onCreated?.({
+                slug: parsed.data.name,
+                workflowId:
+                    typeof created?.workflow_id === "string" ? created.workflow_id : undefined,
+                name: parsed.data.name,
+                description: parsed.data.description,
+            })
             close()
         } catch (err) {
             const status = (err as {response?: {status?: number}})?.response?.status
@@ -130,7 +156,7 @@ export function SkillCreateDrawer({
         } finally {
             setBusy(false)
         }
-    }, [close, projectId, value])
+    }, [close, onCreated, projectId, value])
 
     // The recovery list's batch import: each selected candidate becomes its own skill.
     const importMany = useCallback(

@@ -8,6 +8,8 @@ export {
     defaultShowMessage,
     type DrillInUIComponents,
     type GatewayToolsBridge,
+    type SkillsBridge,
+    type SkillsPickerHostProps,
     type WorkflowReferenceBridge,
     type WorkflowReferenceUI,
     type WorkflowReferenceType,

@@ -1,6 +1,7 @@
 import {type PropsWithChildren, useMemo} from "react"
 
 import {DrillInUIProvider, useWorkflowReferenceBridge} from "@agenta/entity-ui/drill-in"
+import {useSkillsBridge} from "@agenta/skills-ui"
 
 /**
  * The host facts the shared config panel reads off DrillInUIContext.
@@ -14,7 +15,9 @@ import {DrillInUIProvider, useWorkflowReferenceBridge} from "@agenta/entity-ui/d
  */
 export const DrillInBridgeProvider = ({children}: PropsWithChildren) => {
     const workflowReference = useWorkflowReferenceBridge()
-    const components = useMemo(() => ({workflowReference}), [workflowReference])
+    // Registry-backed "Add skill" flow — without this /m keeps the inline-skill editor.
+    const skills = useSkillsBridge()
+    const components = useMemo(() => ({workflowReference, skills}), [workflowReference, skills])
 
     return <DrillInUIProvider components={components}>{children}</DrillInUIProvider>
 }
