@@ -11,6 +11,7 @@ import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
 import {SearchInput} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
+import Link from "next/link"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -65,6 +66,8 @@ export const AgentListScreen = ({
     const hasQuery = search.trim().length > 0
 
     // Identical content in both shells — a toolbar above the results, or the rail beside them.
+    // Toolbar shape mirrors the desktop Agents page: title row, then
+    // [create] [search] ... [archived link].
     const browseControls = (
         <div
             className={
@@ -78,6 +81,9 @@ export const AgentListScreen = ({
                 <h1 className="text-colorText m-0 min-w-0 flex-1 truncate text-[24px] font-semibold leading-[1.3333333333333333]">
                     Agents
                 </h1>
+            </div>
+
+            <div className="flex min-w-0 items-center gap-3">
                 <NewAgentAction
                     create={() => void newAgent.create()}
                     createFromTemplate={newAgent.createFromTemplate}
@@ -86,13 +92,19 @@ export const AgentListScreen = ({
                     error={newAgent.error}
                     align="end"
                 />
+                <SearchInput
+                    value={search}
+                    onValueChange={setSearch}
+                    placeholder="Search agents by name…"
+                    className="max-w-80"
+                />
+                <Link
+                    href={`${base}/agents/archived`}
+                    className="text-muted-foreground ml-auto shrink-0 text-xs hover:underline"
+                >
+                    Archived agents
+                </Link>
             </div>
-
-            <SearchInput
-                value={search}
-                onValueChange={setSearch}
-                placeholder="Search agents by name…"
-            />
         </div>
     )
 

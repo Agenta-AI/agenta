@@ -19,7 +19,7 @@ import {
 } from "@agenta/skills-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
-import {Checkbox, SearchInput} from "@agenta/ui/ui"
+import {SearchInput} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -89,26 +89,31 @@ export const SkillListScreen = ({
                 <h1 className="text-colorText m-0 min-w-0 flex-1 truncate text-[24px] font-semibold leading-[1.3333333333333333]">
                     Skills
                 </h1>
+            </div>
+
+            {/* Toolbar shape mirrors the desktop pages: [create] [search] ... [archived link].
+                Skills' archived view is inline (Archived tags in the same grid), so the link
+                toggles rather than routes. */}
+            <div className="flex min-w-0 items-center gap-3">
                 <NewSkillMenuButton
                     onWrite={openWrite}
                     onUpload={openUpload}
                     onImport={openImport}
                 />
-            </div>
-
-            <SearchInput
-                value={search}
-                onValueChange={setSearch}
-                placeholder="Search skills by name…"
-            />
-            <label className="text-muted-foreground flex cursor-pointer items-center gap-2 text-xs">
-                <Checkbox
-                    checked={showArchived}
-                    onCheckedChange={(next) => setShowArchived(next === true)}
-                    aria-label="Show archived skills"
+                <SearchInput
+                    value={search}
+                    onValueChange={setSearch}
+                    placeholder="Search skills by name…"
+                    className="max-w-80"
                 />
-                Show archived
-            </label>
+                <button
+                    type="button"
+                    onClick={() => setShowArchived(!showArchived)}
+                    className="text-muted-foreground ml-auto shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs hover:underline"
+                >
+                    {showArchived ? "Hide archived" : "Archived skills"}
+                </button>
+            </div>
         </div>
     )
 
