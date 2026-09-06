@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.sessions.interactions.dtos import SessionInteractionStatus
 from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputState
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.inputs.types import (
@@ -192,7 +193,7 @@ async def test_detached_executing_continuation_keeps_input_in_the_queue(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_parked_continuation_still_allows_input_to_execute(monkeypatch):
+async def test_no_recoverable_continuation_keeps_idle_input_executable(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "queue", True)
     continuation_resumer = AsyncMock(return_value=None)
     dao = MemoryInputsDAO()
@@ -206,7 +207,7 @@ async def test_parked_continuation_still_allows_input_to_execute(monkeypatch):
         project_id=uuid4(),
         user_id=uuid4(),
         session_id="session-1",
-        content={"message": "steer the parked turn"},
+        content={"message": "normal idle input"},
         policy="queue",
         idempotency_key="key-1",
     )
@@ -356,3 +357,146 @@ async def test_steer_is_saved_ahead_of_queued_input(monkeypatch):
     pending = await service.list_pending(project_id=project_id, session_id="session-1")
     assert [item.id for item in pending] == [steered.input.id, queued.input.id]
     assert steered.execution_id == "execution-1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("terminal_outcome", [None, "completed"])
+async def test_queue_waits_for_unanswered_approval_even_after_execution_settles(
+    monkeypatch, terminal_outcome
+):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    pending = SimpleNamespace(status=SessionInteractionStatus.pending)
+    interactions = SimpleNamespace(
+        fetch_turn_interactions=AsyncMock(return_value=[pending])
+    )
+    executions = SimpleNamespace(
+        lock_for_control=AsyncMock(
+            return_value=SimpleNamespace(terminal_outcome=terminal_outcome)
+        )
+    )
+    resumer = AsyncMock(return_value=None)
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(
+        inputs_dao=dao,
+        streams_service=Streams(running=False),
+        executions_dao=executions,
+        interactions_dao=interactions,
+        continuation_resumer=resumer,
+    )
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "after approval"},
+        policy="queue",
+        idempotency_key="queued-1",
+    )
+    assert admitted.action == "pending"
+    assert admitted.input == dao.items[0]
+    assert admitted.execution_id == "execution-1"
+    assert pending.status == SessionInteractionStatus.pending
+    resumer.assert_not_awaited()
+    if terminal_outcome:
+        assert (
+            interactions.fetch_turn_interactions.await_args.kwargs["for_update"] is True
+        )
+
+
+@pytest.mark.asyncio
+async def test_steer_can_replace_unanswered_approval(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    monkeypatch.setattr(env.agenta.sessions, "steer", True)
+    interactions = SimpleNamespace(fetch_turn_interactions=AsyncMock())
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(
+        inputs_dao=dao,
+        streams_service=Streams(running=False),
+        interactions_dao=interactions,
+        continuation_resumer=AsyncMock(return_value=None),
+    )
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "replace this"},
+        policy="steer",
+        idempotency_key="steer-1",
+    )
+    assert admitted.action == "execute"
+    assert dao.items == []
+    interactions.fetch_turn_interactions.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status", [SessionInteractionStatus.resolved, SessionInteractionStatus.cancelled]
+)
+async def test_idle_queue_does_not_wait_on_old_answered_approval(monkeypatch, status):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    interactions = SimpleNamespace(
+        fetch_turn_interactions=AsyncMock(return_value=[SimpleNamespace(status=status)])
+    )
+    service = SessionInputsService(
+        inputs_dao=MemoryInputsDAO(),
+        streams_service=Streams(running=False),
+        interactions_dao=interactions,
+        continuation_resumer=AsyncMock(return_value=None),
+    )
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "now"},
+        policy="queue",
+        idempotency_key="idle-1",
+    )
+    assert admitted.action == "execute"
+
+
+@pytest.mark.asyncio
+async def test_approval_winning_queue_lock_keeps_input_behind_its_continuation(
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
+    interactions = SimpleNamespace(
+        fetch_turn_interactions=AsyncMock(
+            side_effect=[
+                [SimpleNamespace(status=SessionInteractionStatus.pending)],
+                [SimpleNamespace(status=SessionInteractionStatus.responded)],
+                [SimpleNamespace(status=SessionInteractionStatus.responded)],
+            ]
+        )
+    )
+    executions = SimpleNamespace(
+        lock_for_control=AsyncMock(
+            side_effect=[
+                SimpleNamespace(terminal_outcome="completed"),
+                SimpleNamespace(terminal_outcome=None),
+            ]
+        )
+    )
+    resumer = AsyncMock(return_value="approved-continuation")
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(
+        inputs_dao=dao,
+        streams_service=Streams(running=False),
+        interactions_dao=interactions,
+        executions_dao=executions,
+        continuation_resumer=resumer,
+    )
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "after the approved tool"},
+        policy="queue",
+        idempotency_key="queue-approval-race",
+    )
+    assert admitted.action == "pending"
+    assert admitted.execution_id == "approved-continuation"
+    assert len(dao.items) == 1
+    resumer.assert_awaited_once()
+    assert (
+        executions.lock_for_control.await_args.kwargs["execution_id"]
+        == "approved-continuation"
+    )
