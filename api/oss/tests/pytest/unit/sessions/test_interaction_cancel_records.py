@@ -19,9 +19,10 @@ class _RecordingPublisher:
         self.journal = journal
         self.calls = []
 
-    async def interaction(self, *, project_id, session_id, status):
+    async def interaction(self, *, project_id, session_id, status, interactions=None):
         self.journal.append("publish")
         self.calls.append((project_id, session_id, status))
+        self.pushed = interactions
 
 
 class _RecordingRecordsService:

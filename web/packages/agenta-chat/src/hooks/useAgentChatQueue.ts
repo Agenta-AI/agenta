@@ -1,7 +1,12 @@
 // Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {canReleaseQueuedMessage, isHitlPending} from "@agenta/playground/agent-chat"
+import {
+    approvalContinuationSettled,
+    canReleaseQueuedMessage,
+    hasRunningApprovalContinuation,
+    isHitlPending,
+} from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
@@ -14,6 +19,21 @@ export interface QueuedMessage {
     text: string
     fileParts?: FileUIPart[]
     stagedFiles?: ComposerAttachment[]
+    attachmentCount?: number
+    policy?: "queue" | "steer"
+    source?: "local" | "server"
+    editable?: boolean
+}
+
+export interface ServerQueueAdapter {
+    capabilities: {queue: boolean; steer: boolean}
+    resolveCapabilities?: () => Promise<{queue: boolean; steer: boolean}>
+    busy: boolean
+    queued: QueuedMessage[]
+    submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
+    remove: (id: string) => Promise<void>
+    sendNow?: (id: string) => Promise<void>
+    edit?: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
 }
 
 interface UseAgentChatQueueArgs {
@@ -31,16 +51,48 @@ interface UseAgentChatQueueArgs {
      * mount can fire the auto-resume. Holding for it would freeze the queue forever with no
      * dock and no stop (AGE-3937), so it voids the hold exactly like a user stop. */
     resumeOrphaned?: boolean
+    /** The approval answer is durable but its continuation was not delivered. A composer Send
+     * keeps the message held and uses the click to retry that continuation first. */
+    recoverable?: boolean
+    retryContinuation?: () => Promise<boolean>
+    /**
+     * Execution id of the durable approval continuation this mount just started, read from the
+     * respond body (`execution.id`). Non-null means the server owns the next turn: nothing may
+     * release until that execution's own terminal record lands in the transcript.
+     *
+     * It exists because the transcript-derived hold cannot cover the whole window. The
+     * `approvalContinuation` metadata only appears once the continuation's FIRST record is
+     * persisted — measured at 8 seconds after the answer on a local sandbox — and a transcript
+     * adopted inside that gap shows a paused turn with an answered gate, which every release path
+     * reads as settled.
+     */
+    continuationExecutionId?: string | null
+    /** Mark this tab as the next run's owner before a released send reaches the transport. */
+    markRunOwned: () => void
     /** Send one released message into the conversation (wraps `useChat`'s `sendMessage`). Must be
      * referentially stable so the release effect doesn't churn on every streamed token. */
     sendQueued: (item: QueuedMessage) => void
     /** Persist held messages under this key across pane remounts (route re-entry, tab
      * close/reopen) — a restored queue releases normally once the conversation settles. */
     sessionId?: string
+    /** Durable server queue. Omit (or advertise queue=false) for the browser-local fallback. */
+    server?: ServerQueueAdapter
 }
 
 // In-memory, page-session lifetime — same as the composer drafts it accompanies.
 const queuedBySession = new Map<string, QueuedMessage[]>()
+
+/**
+ * Ceiling on the id-keyed continuation hold.
+ *
+ * A continuation that is never delivered writes no records at all (observed twice in nine
+ * approvals), so its terminal record never arrives and an unbounded hold would freeze the queue
+ * with no dock to unblock it — the AGE-3937 trap this file already carries scars from. After the
+ * ceiling the hold falls back to the transcript-derived one, which is self-clearing: a
+ * continuation that produced records always produces a terminal record too. Well past the
+ * 8-to-11 seconds a local sandbox needs to write the continuation's first record.
+ */
+export const CONTINUATION_HOLD_MAX_MS = 45_000
 
 /**
  * Holds user messages typed while a turn is in flight and releases them ONE AT A TIME once the
@@ -59,9 +111,16 @@ export const useAgentChatQueue = ({
     acceptedRunPending = false,
     stopped,
     resumeOrphaned = false,
+    recoverable = false,
+    retryContinuation,
+    continuationExecutionId = null,
+    markRunOwned,
     sendQueued,
     sessionId,
+    server,
 }: UseAgentChatQueueArgs) => {
+    const serverBusyRef = useRef(server?.busy)
+    serverBusyRef.current = server?.busy
     const [queued, setQueued] = useState<QueuedMessage[]>(
         () => (sessionId && queuedBySession.get(sessionId)) || [],
     )
@@ -75,11 +134,57 @@ export const useAgentChatQueue = ({
 
     // Settled = the stream is over (done or failed). A stop lands here (abort → "ready").
     const settled = status === "ready" || status === "error"
+
+    // ── The durable-continuation hold ─────────────────────────────────────────────────────────
+    // A server-owned continuation is a TURN. Sending into it starts a second turn for the same
+    // session, and the runner resolves that collision by superseding: it tears down the warm
+    // sandbox mid-call, so the tool the user just approved comes back "Command aborted" and the
+    // sent message dies with it. Nothing below may release while one is in flight.
+    const [, forceHoldRecheck] = useState(0)
+    const holdStartedAtRef = useRef<{id: string; at: number} | null>(null)
+    if (continuationExecutionId) {
+        if (holdStartedAtRef.current?.id !== continuationExecutionId) {
+            holdStartedAtRef.current = {id: continuationExecutionId, at: Date.now()}
+        }
+    } else {
+        holdStartedAtRef.current = null
+    }
+    const holdStartedAt = holdStartedAtRef.current
+    const idHoldExpired =
+        !!holdStartedAt && Date.now() - holdStartedAt.at >= CONTINUATION_HOLD_MAX_MS
+    const idHold =
+        !!continuationExecutionId &&
+        !idHoldExpired &&
+        !approvalContinuationSettled(messages, continuationExecutionId)
+    // The ceiling needs a render to take effect; nothing else re-renders a queue that is holding.
+    useEffect(() => {
+        if (!holdStartedAt || idHoldExpired) return
+        const remaining = holdStartedAt.at + CONTINUATION_HOLD_MAX_MS - Date.now()
+        const timer = setTimeout(() => forceHoldRecheck((n) => n + 1), Math.max(remaining, 0))
+        return () => clearTimeout(timer)
+    }, [holdStartedAt, idHoldExpired])
+
+    // A user stop cancels the continuation too, so it outranks the hold exactly as it outranks
+    // every other gate here.
+    const continuationHold = !stopped && (idHold || hasRunningApprovalContinuation(messages))
+    // Ownership is scoped by the respond body's execution id, so an observer rendering the same
+    // continuation records never claims it. Keep ownership past the gap ceiling once that exact
+    // execution is visibly running; the ceiling only protects a continuation that wrote nothing.
+    const ownsContinuation =
+        idHold ||
+        (!!continuationExecutionId &&
+            hasRunningApprovalContinuation(messages) &&
+            !approvalContinuationSettled(messages, continuationExecutionId))
+
     // Releasable now: the normal gate, OR a settled turn whose hold was voided — by a user stop,
     // or by an orphaned restored resume shape that nothing in this mount can ever fire.
     const canReleaseNow =
         !acceptedRunPending &&
+        !continuationHold &&
         (canReleaseQueuedMessage(status, messages) || ((stopped || resumeOrphaned) && settled))
+
+    const canReleaseNowRef = useRef(canReleaseNow)
+    canReleaseNowRef.current = canReleaseNow
 
     // A stop voids the gate for release (above), so it must void it for reporting too — else the
     // aborted turn's lingering `approval-requested` part still reads as "awaiting" while `submit`
@@ -88,6 +193,7 @@ export const useAgentChatQueue = ({
 
     // One latch shared by both send paths caps releases to one per settle and preserves FIFO.
     const releasingRef = useRef(false)
+    const retryingContinuationRef = useRef(false)
     const queuedRef = useRef(queued)
     useEffect(() => {
         queuedRef.current = queued
@@ -109,37 +215,167 @@ export const useAgentChatQueue = ({
         return message
     }, [])
 
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const stashRef = useRef("")
+    const editSessionRef = useRef<{id: string; server: boolean} | null>(null)
+
+    // A message held before an approval answer predates the server-owned continuation. Move it
+    // under the same durable admission before that continuation can promote a different input.
+    const migrationRef = useRef<string | null>(null)
+    const migrationPromiseRef = useRef<{
+        id: string
+        promise: Promise<void>
+        retry: () => Promise<void>
+        failed: boolean
+    } | null>(null)
+    const migrationRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const [migrationRetry, setMigrationRetry] = useState(0)
+    useEffect(
+        () => () => {
+            if (migrationRetryTimerRef.current) clearTimeout(migrationRetryTimerRef.current)
+        },
+        [],
+    )
+    useEffect(() => {
+        const head = queued[0]
+        const submitToServer = server?.submit
+        if (
+            !continuationExecutionId ||
+            !continuationHold ||
+            !server?.capabilities.queue ||
+            !submitToServer ||
+            !head ||
+            editingId === head.id ||
+            migrationRef.current
+        ) {
+            return
+        }
+
+        migrationRef.current = head.id
+        const retry = () =>
+            submitToServer(head, "queue").then(() => {
+                if (editSessionRef.current?.id === head.id) editSessionRef.current.server = true
+                if (sessionId) {
+                    const stored = queuedBySession.get(sessionId)
+                    if (stored) {
+                        const remaining = stored.filter((item) => item.id !== head.id)
+                        if (remaining.length > 0) queuedBySession.set(sessionId, remaining)
+                        else queuedBySession.delete(sessionId)
+                    }
+                }
+                setQueued((items) => items.filter((item) => item.id !== head.id))
+            })
+        const migration = {id: head.id, promise: retry(), retry, failed: false}
+        migrationPromiseRef.current = migration
+        void migration.promise
+            .catch(() => {
+                migration.failed = true
+                if (migrationRef.current !== head.id) return
+                migrationRef.current = null
+                migrationRetryTimerRef.current = setTimeout(() => {
+                    migrationRetryTimerRef.current = null
+                    migrationRef.current = null
+                    setMigrationRetry((attempt) => attempt + 1)
+                }, 2_000)
+            })
+            .finally(() => {
+                if (migrationRef.current === head.id) migrationRef.current = null
+                if (migrationPromiseRef.current === migration && !migration.failed)
+                    migrationPromiseRef.current = null
+            })
+    }, [
+        continuationExecutionId,
+        continuationHold,
+        editingId,
+        migrationRetry,
+        queued,
+        sessionId,
+        server?.capabilities.queue,
+        server?.submit,
+    ])
+
     // Send now only if idle, unlatched, and the queue is empty; otherwise append (FIFO).
     const submit = useCallback(
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const message: QueuedMessage = {...item, id: generateId()}
-            if (!releasingRef.current && queuedRef.current.length === 0 && canReleaseNow) {
-                releasingRef.current = true
-                lastSentRef.current = message
-                sendQueued(message)
-            } else {
-                setQueued((q) => [...q, message])
+            const admit = (queue: boolean) => {
+                if (queue && server) {
+                    return server.submit(message, "queue")
+                }
+                if (recoverable && retryContinuation) {
+                    setQueued((q) => [...q, message])
+                    if (!retryingContinuationRef.current) {
+                        retryingContinuationRef.current = true
+                        void retryContinuation()
+                            .catch(() => false)
+                            .finally(() => {
+                                retryingContinuationRef.current = false
+                            })
+                    }
+                    return
+                }
+                if (
+                    !releasingRef.current &&
+                    queuedRef.current.length === 0 &&
+                    canReleaseNowRef.current
+                ) {
+                    releasingRef.current = true
+                    lastSentRef.current = message
+                    markRunOwned()
+                    sendQueued(message)
+                } else {
+                    setQueued((q) => [...q, message])
+                }
             }
+            return server?.resolveCapabilities
+                ? server.resolveCapabilities().then((capabilities) => admit(capabilities.queue))
+                : admit(server?.capabilities.queue === true)
         },
-        [canReleaseNow, sendQueued],
+        [canReleaseNow, recoverable, retryContinuation, markRunOwned, sendQueued, server],
     )
 
-    const removeQueued = useCallback((id: string) => {
-        setQueued((q) => q.filter((m) => m.id !== id))
-    }, [])
+    const removeQueued = useCallback(
+        (id: string) => {
+            if (server?.queued.some((message) => message.id === id)) {
+                void server.remove(id).catch(() => {})
+                return
+            }
+            setQueued((q) => q.filter((m) => m.id !== id))
+        },
+        [server],
+    )
+
+    const steer = useCallback(
+        async (item: {text: string; fileParts?: FileUIPart[]}) => {
+            const capabilities = server?.resolveCapabilities
+                ? await server.resolveCapabilities()
+                : server?.capabilities
+            if (!capabilities?.steer || !serverBusyRef.current || !server) {
+                throw new Error("The session is not ready to accept a Steer input.")
+            }
+            const message: QueuedMessage = {...item, id: generateId()}
+            await server.submit(message, "steer")
+        },
+        [server],
+    )
 
     // ── Editing a held message ────────────────────────────────────────────────────────────────
     // An edit session BORROWS the composer: the target's text goes in, and whatever the user had
     // already typed is stashed and handed back when the session ends (either way). Without that,
     // clicking edit on a half-written message would silently destroy it.
-    const [editingId, setEditingId] = useState<string | null>(null)
-    const stashRef = useRef("")
 
     /** Open a session on `id`, stashing the composer's current draft. */
-    const beginEdit = useCallback((id: string, draft = "") => {
-        stashRef.current = draft
-        setEditingId(id)
-    }, [])
+    const beginEdit = useCallback(
+        (id: string, draft = "") => {
+            editSessionRef.current = {
+                id,
+                server: !!server?.queued.some((message) => message.id === id),
+            }
+            stashRef.current = draft
+            setEditingId(id)
+        },
+        [server],
+    )
 
     /** Take the stashed draft back, once. Both ends of a session hand the composer back. */
     const takeStash = useCallback(() => {
@@ -150,6 +386,7 @@ export const useAgentChatQueue = ({
 
     /** Close the session without touching the message. Returns the draft to restore. */
     const cancelEdit = useCallback(() => {
+        editSessionRef.current = null
         setEditingId(null)
         return takeStash()
     }, [takeStash])
@@ -162,8 +399,7 @@ export const useAgentChatQueue = ({
      * Attachments MERGE rather than replace — the composer only submits newly staged files, so
      * replacing would delete the queued message's originals on every text-only edit.
      *
-     * The queue drains on its own, so the target can leave mid-edit. Nothing is left to rewrite
-     * then, and the content becomes a new queued message instead of vanishing.
+     * A drained local target becomes a new message; durable edits instead preserve server refusal.
      *
      * Returns the stashed draft, exactly as `cancelEdit` does: committing consumes the composer,
      * so the text the session displaced has to come back here too or it is lost for good.
@@ -171,13 +407,56 @@ export const useAgentChatQueue = ({
     const commitEdit = useCallback(
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const id = editingId
-            setEditingId(null)
-            const draft = takeStash()
+            const editSession = editSessionRef.current
+            const serverOwnsInput =
+                editSession?.server || server?.queued.some((message) => message.id === id)
+            if (id && serverOwnsInput) {
+                if (editSession) editSession.server = true
+                setQueued((queue) => queue.filter((message) => message.id !== id))
+                if (migrationRef.current === id) migrationRef.current = null
+                if (migrationPromiseRef.current?.id === id) migrationPromiseRef.current = null
+            }
+            const migration =
+                migrationPromiseRef.current?.id === id ? migrationPromiseRef.current : null
+            if (id && (serverOwnsInput || migration)) {
+                const save = server?.edit
+                if (!save) return Promise.reject(new Error("This queued message cannot be edited."))
+                if (migration?.failed) {
+                    migration.failed = false
+                    migration.promise = migration.retry().catch((error: unknown) => {
+                        migration.failed = true
+                        throw error
+                    })
+                }
+                const saved = migration
+                    ? migration.promise.then(() =>
+                          editSessionRef.current === editSession ? save(id, item) : undefined,
+                      )
+                    : save(id, item)
+                return saved.then(
+                    () => {
+                        if (editSessionRef.current !== editSession) return ""
+                        editSessionRef.current = null
+                        setEditingId(null)
+                        return takeStash()
+                    },
+                    (error: unknown) => {
+                        if (editSessionRef.current !== editSession) return ""
+                        throw error
+                    },
+                )
+            }
             const target = id ? queuedRef.current.find((m) => m.id === id) : undefined
             if (!target) {
-                submit(item)
-                return draft
+                const submission = submit(item)
+                const finish = () => {
+                    setEditingId(null)
+                    return takeStash()
+                }
+                return submission ? submission.then(finish) : finish()
             }
+            setEditingId(null)
+            const draft = takeStash()
             const fileParts = [...(target.fileParts ?? []), ...(item.fileParts ?? [])]
             const stagedFiles = [...(target.stagedFiles ?? []), ...(item.stagedFiles ?? [])]
             // Edited down to nothing and carrying no files: there is no message left to hold.
@@ -199,7 +478,7 @@ export const useAgentChatQueue = ({
             )
             return draft
         },
-        [editingId, submit, takeStash],
+        [editingId, server, submit, takeStash],
     )
 
     // Release the queue head once the stream settles; the latch caps it at one per settle. Both
@@ -211,20 +490,29 @@ export const useAgentChatQueue = ({
             releasingRef.current = false
             return
         }
-        if (releasingRef.current || queued.length === 0) return
+        if (releasingRef.current || migrationRef.current || queued.length === 0) return
         if (!canReleaseNow) return
         releasingRef.current = true
         const [head, ...rest] = queued
         setQueued(rest)
         // A released head also needs refusal recovery because it has left the queue.
         lastSentRef.current = head
+        markRunOwned()
         sendQueued(head)
-    }, [settled, canReleaseNow, queued, sendQueued])
+    }, [settled, canReleaseNow, queued, markRunOwned, sendQueued])
 
     return {
-        queued,
+        queued: [...(server?.queued ?? []), ...queued],
         submit,
+        steer,
         removeQueued,
+        sendQueuedNow:
+            server?.capabilities.queue && server.capabilities.steer ? server.sendNow : undefined,
+        /** This tab received the durable respond body for this still-running execution. */
+        ownsContinuation,
+        queueEnabled: !!server?.capabilities.queue,
+        steerEnabled: !!server?.capabilities.steer,
+        serverBusy: !!server?.busy,
         /** The conversation is paused on a HITL approval — typed messages should queue, not send. */
         hitlPending,
         /** Id of the held message the composer is currently editing, or null. */

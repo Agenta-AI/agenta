@@ -6,6 +6,7 @@
 import {
     fetchSessionInteractionStatesAtom,
     fetchSessionRecordsAtom,
+    revalidateSessionInteractionsAtom,
     type SessionInteractionRowStates,
 } from "@agenta/entities/session"
 import type {UIMessage} from "ai"
@@ -82,6 +83,9 @@ export const loadSessionMessages = async (
     // notice instead of leaking an unhandled rejection.
     try {
         const store = getDefaultStore()
+        await Promise.resolve(store.set(revalidateSessionInteractionsAtom, sessionId)).catch(
+            () => undefined,
+        )
         // The best-effort lifecycle join must never gate transcript loading.
         const [{records, refreshed}, interactionRowStates] = await Promise.all([
             store.set(fetchSessionRecordsAtom, sessionId),
@@ -89,15 +93,24 @@ export const loadSessionMessages = async (
         ])
         if (refreshed && onRefreshed) {
             void refreshed
-                .then((fresh) => {
+                .then(async (fresh) => {
                     if (!fresh || fresh.length === 0) return
-                    const freshMsgs = transcriptToMessages(fresh, {interactionRowStates})
+                    await Promise.resolve(
+                        store.set(revalidateSessionInteractionsAtom, sessionId),
+                    ).catch(() => undefined)
+                    const freshInteractionRowStates = await store.set(
+                        fetchSessionInteractionStatesAtom,
+                        sessionId,
+                    )
+                    const freshMsgs = transcriptToMessages(fresh, {
+                        interactionRowStates: freshInteractionRowStates,
+                    })
                     if (freshMsgs && freshMsgs.length > 0) {
                         onRefreshed({
                             messages: freshMsgs,
                             recordCount: fresh.length,
                             sequenceCursor: sequenceCursorForRecords(fresh),
-                            interactionRows: interactionRowStates,
+                            interactionRows: freshInteractionRowStates,
                         })
                     }
                 })

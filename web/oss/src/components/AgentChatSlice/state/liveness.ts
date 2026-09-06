@@ -34,6 +34,9 @@ const aliveStreamsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => {
     }
 })
 
+export const sessionLivenessUpdatedAtAtom = atom((get) => get(aliveStreamsQueryAtom).dataUpdatedAt)
+export const refreshSessionLivenessAtom = atom(null, (get) => get(aliveStreamsQueryAtom).refetch())
+
 /** `session_id → live stream` map for O(1) per-dot lookup off the single shared query. */
 const aliveStreamsMapAtom = atom((get) => {
     const streams = get(aliveStreamsQueryAtom).data ?? []
@@ -125,8 +128,23 @@ export const isRunningElsewhere = ({
     return localSettledAt === undefined || livenessUpdatedAt > localSettledAt
 }
 
-/** Desktop presentation for a remote/shared-path run. The strip is only the disconnected fallback. */
+/** Desktop presentation for a remote/shared-path run. */
 export const deriveSessionRemoteTurnPresentation = deriveRemoteTurnPresentation
+
+/**
+ * The session snapshot is the execution authority for the open conversation. A stale stream-row
+ * liveness flag must not put a remote-run warning beside a durable queued item when that snapshot
+ * already says the execution is idle.
+ */
+export const shouldShowRunningElsewhere = ({
+    runningElsewhere,
+    executionState,
+    pendingInputCount,
+}: {
+    runningElsewhere: boolean
+    executionState: "idle" | "running" | "stopping"
+    pendingInputCount: number
+}): boolean => runningElsewhere && !(executionState === "idle" && pendingInputCount > 0)
 
 /** `isRunningElsewhere` bound to this session's local status and the shared liveness query. */
 export const sessionRunningElsewhereAtomFamily = atomFamily((sessionId: string) =>

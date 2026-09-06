@@ -85,6 +85,7 @@ class _FakePgSession:
                 for row in self._rows:
                     if row.id in ids:
                         row.flags = dict(flags_val)
+                        row.updated_at = datetime.now(timezone.utc)
                         matched += 1
                 return _FakeResult([], rowcount=matched)
             return _FakeResult([])

@@ -10,7 +10,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select, update as sa_update
+from sqlalchemy import and_, cast, func, or_, select, update as sa_update
+from sqlalchemy.dialects.postgresql import JSON, JSONB
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.utils.logging import get_module_logger
@@ -32,6 +33,7 @@ from oss.src.dbs.postgres.sessions.commands.mappings import (
     map_command_dbe_to_dto,
     map_command_dto_to_dbe_create,
 )
+from oss.src.dbs.postgres.sessions.executions.dbes import SessionExecutionDBE
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -95,13 +97,56 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         user_id: Optional[UUID],
         command: SessionCommandCreate,
         stopping_turn_id: Optional[str] = None,
+        transaction: Optional[Any] = None,
     ) -> SessionCommand:
-        result = await self.create_command_with_status(
-            user_id=user_id,
-            command=command,
-            stopping_turn_id=stopping_turn_id,
-        )
-        return result.command
+        if transaction is None:
+            result = await self.create_command_with_status(
+                user_id=user_id,
+                command=command,
+                stopping_turn_id=stopping_turn_id,
+            )
+            return result.command
+
+        dbe = map_command_dto_to_dbe_create(user_id=user_id, command=command)
+
+        async def execute(session: Any) -> SessionCommand:
+            session.add(dbe)
+            if stopping_turn_id is not None:
+                await session.execute(
+                    sa_update(SessionStreamDBE)
+                    .where(
+                        SessionStreamDBE.project_id == command.project_id,
+                        SessionStreamDBE.session_id == command.session_id,
+                        SessionStreamDBE.deleted_at.is_(None),
+                    )
+                    .values(stopping_turn_id=stopping_turn_id)
+                )
+            await session.flush()
+            return map_command_dbe_to_dto(dbe)
+
+        try:
+            async with transaction.begin_nested():
+                return await execute(transaction)
+        except IntegrityError:
+            if command.idempotency_key is not None:
+                existing = await self.fetch_by_idempotency_key(
+                    project_id=command.project_id,
+                    session_id=command.session_id,
+                    idempotency_key=command.idempotency_key,
+                    transaction=transaction,
+                )
+                if existing is not None:
+                    return existing
+            open_command = await self.fetch_open_command(
+                project_id=command.project_id,
+                session_id=command.session_id,
+                kind=command.kind,
+                target_turn_id=command.target_turn_id,
+                transaction=transaction,
+            )
+            if open_command is None:
+                raise
+            return open_command
 
     async def create_command_with_status(
         self,
@@ -110,15 +155,7 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         command: SessionCommandCreate,
         stopping_turn_id: Optional[str] = None,
     ) -> CommandCreateResult:
-        """Insert the command and stamp the session row's `stopping_turn_id` together.
-
-        One transaction, on purpose. A user whose Stop was recorded but whose session row never
-        learned it is waiting has a session that renders as plainly running while a command
-        exists to stop it, and nothing later reconciles the two.
-
-        `session_streams` is written from here rather than through the streams DAO because
-        sharing one transaction is the whole requirement, and the streams DAO opens its own.
-        """
+        """Insert the command and stamp the session row's status atomically."""
         dbe = map_command_dto_to_dbe_create(user_id=user_id, command=command)
 
         try:
@@ -140,15 +177,6 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                 command=map_command_dbe_to_dto(dbe), inserted=True
             )
         except IntegrityError:
-            # One of two unique constraints refused this insert, and both mean the same thing:
-            # a command for this intent already exists. Return it rather than a second command.
-            #
-            #   uq_session_commands_idempotency  — the caller retried with the same key.
-            #   uq_session_commands_open_target  — another request is already stopping this
-            #                                      execution, which is what makes two Stops in
-            #                                      the SAME INSTANT one command. Admission's own
-            #                                      read cannot see a row that has not committed
-            #                                      yet, so the database is the decider.
             if command.idempotency_key is not None:
                 existing = await self.fetch_by_idempotency_key(
                     project_id=command.project_id,
@@ -173,8 +201,9 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         project_id: UUID,
         session_id: str,
         idempotency_key: str,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
-        async with self.engine.session() as session:
+        async def execute(session: Any) -> Optional[SessionCommand]:
             stmt = select(SessionCommandDBE).where(
                 SessionCommandDBE.project_id == project_id,
                 SessionCommandDBE.session_id == session_id,
@@ -182,7 +211,12 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             )
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
-        return map_command_dbe_to_dto(dbe) if dbe is not None else None
+            return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def fetch_open_command(
         self,
@@ -191,8 +225,9 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         session_id: str,
         kind: SessionCommandKind,
         target_turn_id: Optional[str],
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
-        async with self.engine.session() as session:
+        async def execute(session: Any) -> Optional[SessionCommand]:
             stmt = (
                 select(SessionCommandDBE)
                 .where(
@@ -212,15 +247,188 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
             )
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
+            return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
+
+    async def bind_steer_input(
+        self,
+        *,
+        project_id: UUID,
+        command_id: UUID,
+        input_id: UUID,
+        transaction: Optional[Any] = None,
+    ) -> Optional[SessionCommand]:
+        async def execute(session: Any) -> Optional[SessionCommand]:
+            row = (
+                await session.execute(
+                    sa_update(SessionCommandDBE)
+                    .where(
+                        SessionCommandDBE.project_id == project_id,
+                        SessionCommandDBE.id == command_id,
+                        SessionCommandDBE.state.in_(_OPEN_STATES),
+                        or_(
+                            SessionCommandDBE.data["steer_input_id"].astext.is_(None),
+                            SessionCommandDBE.data["steer_input_id"].astext
+                            == str(input_id),
+                        ),
+                    )
+                    .values(
+                        data=cast(
+                            func.coalesce(
+                                cast(SessionCommandDBE.data, JSONB), cast({}, JSONB)
+                            ).op("||")(cast({"steer_input_id": str(input_id)}, JSONB)),
+                            JSON,
+                        )
+                    )
+                    .returning(SessionCommandDBE)
+                )
+            ).scalar_one_or_none()
+            return map_command_dbe_to_dto(row) if row is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
+
+    async def fetch_resumable_continuation(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Optional[SessionCommand]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(SessionCommandDBE)
+                .join(
+                    SessionExecutionDBE,
+                    and_(
+                        SessionExecutionDBE.project_id == SessionCommandDBE.project_id,
+                        SessionExecutionDBE.session_id == SessionCommandDBE.session_id,
+                        SessionExecutionDBE.execution_id
+                        == SessionCommandDBE.target_turn_id,
+                    ),
+                )
+                .where(
+                    SessionCommandDBE.project_id == project_id,
+                    SessionCommandDBE.session_id == session_id,
+                    SessionCommandDBE.kind.in_(
+                        (
+                            SessionCommandKind.continue_interaction.value,
+                            SessionCommandKind.continue_input.value,
+                        )
+                    ),
+                    or_(
+                        and_(
+                            SessionCommandDBE.state.in_(_OPEN_STATES),
+                            SessionExecutionDBE.state.in_(
+                                ("pending_delivery", "recoverable")
+                            ),
+                        ),
+                        and_(
+                            SessionCommandDBE.state
+                            == SessionCommandState.obsolete.value,
+                            SessionCommandDBE.outcome.in_(("lost", "failed")),
+                            SessionExecutionDBE.state == "recoverable",
+                        ),
+                        and_(
+                            SessionCommandDBE.state
+                            == SessionCommandState.applied.value,
+                            SessionCommandDBE.outcome == "started",
+                            # `running` belongs here beside `recoverable`. A delivered
+                            # continuation that is still executing OWNS the session's next turn,
+                            # and `resume_recoverable_continuation` already says exactly that:
+                            # its `state == running` branch returns True without redelivering.
+                            # That branch was unreachable while this filter dropped `running`, so
+                            # the Send preflight answered "nobody owns this" and the browser
+                            # invoked the runner directly — which supersedes the continuation,
+                            # tears down its warm sandbox mid-call and returns the tool call the
+                            # user had just approved as aborted.
+                            SessionExecutionDBE.state.in_(("recoverable", "running")),
+                        ),
+                    ),
+                    SessionCommandDBE.deleted_at.is_(None),
+                )
+                .order_by(SessionCommandDBE.created_at)
+                .limit(1)
+            )
+            dbe = (await session.execute(stmt)).scalar_one_or_none()
         return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
+    async def reopen_continuation(
+        self,
+        *,
+        project_id: UUID,
+        command_id: UUID,
+        target_turn_id: str,
+        replacement_turn_id: str,
+        transaction: Optional[Any] = None,
+    ) -> Optional[SessionCommand]:
+        async def execute(session: Any) -> Optional[SessionCommand]:
+            stmt = (
+                sa_update(SessionCommandDBE)
+                .where(
+                    SessionCommandDBE.project_id == project_id,
+                    SessionCommandDBE.id == command_id,
+                    SessionCommandDBE.target_turn_id == target_turn_id,
+                    SessionCommandDBE.kind.in_(
+                        (
+                            SessionCommandKind.continue_interaction.value,
+                            SessionCommandKind.continue_input.value,
+                        )
+                    ),
+                    or_(
+                        and_(
+                            SessionCommandDBE.state
+                            == SessionCommandState.obsolete.value,
+                            SessionCommandDBE.outcome.in_(("lost", "failed")),
+                        ),
+                        and_(
+                            SessionCommandDBE.state
+                            == SessionCommandState.applied.value,
+                            SessionCommandDBE.outcome == "started",
+                        ),
+                    ),
+                    select(SessionExecutionDBE.execution_id)
+                    .where(
+                        SessionExecutionDBE.project_id == SessionCommandDBE.project_id,
+                        SessionExecutionDBE.session_id == SessionCommandDBE.session_id,
+                        SessionExecutionDBE.execution_id == replacement_turn_id,
+                        SessionExecutionDBE.state == "pending_delivery",
+                    )
+                    .exists(),
+                )
+                .values(
+                    target_turn_id=replacement_turn_id,
+                    state=SessionCommandState.pending.value,
+                    outcome=None,
+                    settled_at=None,
+                    claimed_by=None,
+                    claim_expires_at=None,
+                    claim_count=0,
+                    updated_at=datetime.now(timezone.utc),
+                )
+                .returning(SessionCommandDBE)
+            )
+            dbe = (await session.execute(stmt)).scalar_one_or_none()
+            return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def fetch_command(
         self,
         *,
         command_id: UUID,
         project_id: Optional[UUID] = None,
+        transaction: Optional[Any] = None,
     ) -> Optional[SessionCommand]:
-        async with self.engine.session() as session:
+        async def execute(session: Any) -> Optional[SessionCommand]:
             stmt = select(SessionCommandDBE).where(
                 SessionCommandDBE.id == command_id,
             )
@@ -228,7 +436,12 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                 stmt = stmt.where(SessionCommandDBE.project_id == project_id)
             result = await session.execute(stmt)
             dbe = result.scalars().first()
-        return map_command_dbe_to_dto(dbe) if dbe is not None else None
+            return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
 
     async def claim_commands(
         self,
@@ -411,12 +624,18 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
                         SessionCommandDBE.claimed_by == settle.replica_id,
                     )
                 )
-            stmt = stmt.values(
+            values = dict(
                 state=settle.state.value,
                 outcome=settle.outcome.value,
                 settled_at=now,
                 updated_at=now,
-            ).returning(SessionCommandDBE)
+            )
+            if settle.replica_id is not None:
+                # A pending continuation can report before the API records its delivery claim.
+                # Persisting that reporter makes a lost HTTP response retryable by the same
+                # runner, while a different replica still receives admitted=false.
+                values["claimed_by"] = settle.replica_id
+            stmt = stmt.values(**values).returning(SessionCommandDBE)
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
             return map_command_dbe_to_dto(dbe) if dbe is not None else None

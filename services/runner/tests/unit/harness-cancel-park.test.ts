@@ -328,8 +328,12 @@ describe("the terminal done record", () => {
     assert.equal(doneRecordFor("paused").stopReason, "paused");
   });
 
+  it("carries an error so a failed turn cannot settle as a normal completion", () => {
+    assert.equal(doneRecordFor("error").stopReason, "error");
+  });
+
   it("omits the field for a completed turn and for every harness-reported reason", () => {
-    // An explicit two-value allowlist, so `end_turn` / `max_tokens` / a future harness string
+    // An explicit allowlist, so `end_turn` / `max_tokens` / a future harness string
     // cannot start appearing on the terminal record by accident.
     assert.equal(doneRecordFor("end_turn").stopReason, undefined);
     assert.equal(doneRecordFor("max_tokens").stopReason, undefined);

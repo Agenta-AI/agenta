@@ -96,6 +96,7 @@ def request_to_wire(
     detached: bool = False,
     turn_id: Optional[str] = None,
     project_id: Optional[str] = None,
+    control_command_id: Optional[str] = None,
     effective_parameters: Optional[Dict[str, Any]] = None,
     gateway_policy: Optional[ResolvedGatewayPolicy] = None,
 ) -> Dict[str, Any]:
@@ -177,6 +178,8 @@ def request_to_wire(
         payload["detached"] = True
     if project_id is not None:
         payload["projectId"] = project_id
+    if control_command_id is not None:
+        payload["controlCommandId"] = control_command_id
     if session_id:
         stamped = stamp_effective_parameters(effective_parameters)
         if stamped:

@@ -132,12 +132,12 @@ export function ownedSessionCount(now: number = Date.now()): number {
  * Authenticates AS the invoke caller (the run credential) — project scope is resolved server-side
  * from that credential, so no `project_id` rides the request.
  *
- * Returns both signals the one response body carries: `streamId` (the `session_streams` row
+ * Returns the signals the one response body carries: `streamId` (the `session_streams` row
  * uuid — the free gift of a call the runner already makes every turn, no new round-trip) and
  * `interrupted: true` when the API reports `is_current_turn: false` (a cancel/steer/kill took
  * this turn's alive/running lock since the last beat — W7.4, the control-signal path). A
- * network/HTTP failure yields `confirmed: false`; callers use that to fail closed for initial
- * admission while later watchdog beats remain best effort for a turn already admitted.
+ * network/HTTP failure is unconfirmed and unowned. Initial admission fails closed, and a durable
+ * continuation additionally requires an explicit ownership response before reporting `started`.
  */
 async function sendHeartbeat(
   sessionId: string,
@@ -149,6 +149,7 @@ async function sendHeartbeat(
   streamId: string | undefined;
   interrupted: boolean;
   confirmed: boolean;
+  owned: boolean;
 }> {
   try {
     const url = `${apiBase()}/sessions/streams/heartbeat`;
@@ -172,7 +173,12 @@ async function sendHeartbeat(
     });
     if (!res.ok) {
       log(`heartbeat HTTP ${res.status} session=${sessionId} turn=${turnId}`);
-      return { streamId: undefined, interrupted: false, confirmed: false };
+      return {
+        streamId: undefined,
+        interrupted: false,
+        confirmed: false,
+        owned: false,
+      };
     }
     const body = (await res.json()) as {
       stream?: { id?: unknown } | null;
@@ -194,12 +200,18 @@ async function sendHeartbeat(
     log(
       `heartbeat OK session=${sessionId} turn=${turnId} running=${isRunning}${interrupted ? " INTERRUPTED" : ""}`,
     );
-    return { streamId, interrupted, confirmed: true };
+    const owned = body.is_current_turn === true;
+    return { streamId, interrupted, confirmed: true, owned };
   } catch (err) {
     log(
       `heartbeat failed session=${sessionId} turn=${turnId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
     );
-    return { streamId: undefined, interrupted: false, confirmed: false };
+    return {
+      streamId: undefined,
+      interrupted: false,
+      confirmed: false,
+      owned: false,
+    };
   }
 }
 
@@ -283,10 +295,14 @@ export async function startAliveWatchdog(
   proposal?: SessionProposal,
 ): Promise<{
   release: () => Promise<void>;
+  /** Stop heartbeating without publishing turn-end; used before durable admission. */
+  abandon: () => void;
   credential: () => string;
   streamId: () => string | undefined;
   /** False when the FIRST beat reported `is_current_turn: false` — another turn owns the session. */
   admitted: boolean;
+  /** True only when the awaited first heartbeat confirmed this turn owns the session. */
+  firstBeatOwned: boolean;
 }> {
   // Session coordination and standalone turns share this lease. The watchdog owns it here so
   // heartbeat, persistence, and trace export all observe the same current credential.
@@ -300,6 +316,7 @@ export async function startAliveWatchdog(
   const handleBeat = (result: {
     streamId: string | undefined;
     interrupted: boolean;
+    owned: boolean;
   }): void => {
     if (result.streamId) streamId = result.streamId;
     if (result.interrupted && !interruptedFired) {
@@ -365,8 +382,13 @@ export async function startAliveWatchdog(
         proposal,
       );
     },
+    abandon() {
+      clearInterval(interval);
+      credentialLease.release();
+    },
     credential: credentialLease.credential,
     streamId: () => streamId,
+    firstBeatOwned: first.owned,
   };
 }
 

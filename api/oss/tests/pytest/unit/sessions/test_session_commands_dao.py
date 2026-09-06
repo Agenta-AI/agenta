@@ -11,6 +11,7 @@ written by exactly one writer.
 import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import text
@@ -23,16 +24,28 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandState,
 )
 from oss.src.core.sessions.commands.interfaces import SessionScope
+from oss.src.core.sessions.commands.interfaces import DeliveryReceipt
 from oss.src.core.sessions.commands.service import SessionCommandsService
-from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.commands.types import (
+    ExecutionExpectationFailed,
+    IdempotencyKeyReused,
+    InteractionResponseConflict,
+)
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
 from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
+from oss.src.core.sessions.executions.dtos import SessionExecutionState
+from oss.src.core.sessions.interactions.dtos import (
+    SessionInteractionStatus,
+    SessionInteractionTransition,
+)
+from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
+from oss.src.utils.env import env
 
 
 pytestmark = pytest.mark.integration
@@ -182,6 +195,33 @@ async def test_a_repeated_idempotency_key_returns_the_first_row(command_scope):
     )
 
     assert second.id == first.id
+    assert (
+        await dao.count_open(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+        )
+        == 1
+    )
+
+
+async def test_concurrent_shared_transactions_replay_one_idempotent_command(
+    command_scope,
+):
+    dao = SessionCommandsDAO(engine=command_scope["engine"])
+
+    async def insert():
+        async with command_scope["engine"].session() as transaction:
+            return await dao.create_command(
+                user_id=command_scope["user_id"],
+                command=_create(command_scope, idempotency_key="shared-retry"),
+                transaction=transaction,
+            )
+
+    first, second = await asyncio.wait_for(
+        asyncio.gather(insert(), insert()), timeout=5
+    )
+
+    assert first.id == second.id
     assert (
         await dao.count_open(
             project_id=command_scope["project_id"],
@@ -563,7 +603,13 @@ async def test_old_pending_commands_are_returned_for_redelivery(command_scope):
     now = datetime.now(timezone.utc)
     command = await dao.create_command(
         user_id=command_scope["user_id"],
-        command=_create(command_scope, created_at=now - timedelta(minutes=5)),
+        # The integration database is intentionally reused between runs. Put this row ahead of
+        # any accumulated abandoned-command backlog so the DAO's production batch limit does not
+        # make the assertion depend on how many earlier test runs used the same database.
+        command=_create(
+            command_scope,
+            created_at=datetime(1970, 1, 1, tzinfo=timezone.utc),
+        ),
     )
 
     rows = await dao.expire_claims(
@@ -678,6 +724,692 @@ async def test_execution_ending_marker_is_one_way(command_scope):
     assert (
         stored[(command_scope["session_id"], "turn-A")].ending_written_at == written_at
     )
+
+
+async def _insert_pending_interaction(scope, *, token: str):
+    interaction_id = uuid.uuid4()
+    async with scope["engine"].session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO session_interactions "
+                "(project_id, id, session_id, turn_id, token, kind, status) "
+                "VALUES (:project_id, :id, :session_id, 'turn-A', :token, "
+                "'user_approval', 'pending')"
+            ),
+            {
+                "project_id": scope["project_id"],
+                "id": interaction_id,
+                "session_id": scope["session_id"],
+                "token": token,
+            },
+        )
+    return interaction_id
+
+
+class _UnreachableDelivery:
+    async def deliver(self, **kwargs):
+        return DeliveryReceipt(status="unreachable")
+
+    async def acknowledge(self, **kwargs):
+        return None
+
+
+def _commands_service(scope, *, executions=None):
+    interactions = SessionInteractionsDAO(engine=scope["engine"])
+    service = SessionCommandsService(
+        commands_dao=SessionCommandsDAO(engine=scope["engine"]),
+        streams_service=None,
+        interactions_service=SessionInteractionsService(interactions_dao=interactions),
+        lock_engine=None,
+        delivery=_UnreachableDelivery(),
+        executions_dao=executions or SessionExecutionsDAO(engine=scope["engine"]),
+    )
+    service._resolve_target = AsyncMock(return_value=("turn-A", None))
+    return service
+
+
+async def test_full_service_stop_and_answer_have_one_postgres_winner(command_scope):
+    interaction_id = await _insert_pending_interaction(
+        command_scope, token="service-race"
+    )
+    service = _commands_service(command_scope)
+
+    results = await asyncio.gather(
+        service.request_cancel(
+            project_id=command_scope["project_id"],
+            user_id=command_scope["user_id"],
+            session_id=command_scope["session_id"],
+            expected_execution_id="turn-A",
+            idempotency_key="stop-race",
+        ),
+        service.respond_interaction(
+            project_id=command_scope["project_id"],
+            user_id=command_scope["user_id"],
+            interaction_id=interaction_id,
+            answer={"approved": True},
+            expected_execution_id="turn-A",
+            idempotency_key="answer-race",
+        ),
+        return_exceptions=True,
+    )
+
+    assert sum(not isinstance(result, Exception) for result in results) == 1
+    loser = next(result for result in results if isinstance(result, Exception))
+    assert isinstance(loser, (ExecutionExpectationFailed, InteractionResponseConflict))
+
+    interaction = await SessionInteractionsDAO(
+        engine=command_scope["engine"]
+    ).fetch_interaction(
+        project_id=command_scope["project_id"], interaction_id=interaction_id
+    )
+    assert interaction.status in (
+        SessionInteractionStatus.cancelled,
+        SessionInteractionStatus.responded,
+    )
+
+
+async def test_full_service_stop_between_parallel_answers_cancels_the_remainder(
+    command_scope,
+):
+    first_id = await _insert_pending_interaction(command_scope, token="parallel-first")
+    second_id = await _insert_pending_interaction(
+        command_scope, token="parallel-second"
+    )
+    service = _commands_service(command_scope)
+
+    first = await service.respond_interaction(
+        project_id=command_scope["project_id"],
+        user_id=command_scope["user_id"],
+        interaction_id=first_id,
+        answer={"approved": True},
+        expected_execution_id="turn-A",
+        idempotency_key="parallel-answer-first",
+    )
+    assert first.command is None
+    assert first.waiting_for_interactions is True
+
+    stopped = await service.request_cancel(
+        project_id=command_scope["project_id"],
+        user_id=command_scope["user_id"],
+        session_id=command_scope["session_id"],
+        expected_execution_id="turn-A",
+        idempotency_key="parallel-stop",
+    )
+    assert stopped.accepted is True
+
+    with pytest.raises(InteractionResponseConflict):
+        await service.respond_interaction(
+            project_id=command_scope["project_id"],
+            user_id=command_scope["user_id"],
+            interaction_id=second_id,
+            answer={"approved": True},
+            expected_execution_id="turn-A",
+            idempotency_key="parallel-answer-second",
+        )
+
+    interactions = SessionInteractionsDAO(engine=command_scope["engine"])
+    first_row = await interactions.fetch_interaction(
+        project_id=command_scope["project_id"], interaction_id=first_id
+    )
+    second_row = await interactions.fetch_interaction(
+        project_id=command_scope["project_id"], interaction_id=second_id
+    )
+    assert first_row.status == SessionInteractionStatus.responded
+    assert second_row.status == SessionInteractionStatus.cancelled
+    async with command_scope["engine"].session() as session:
+        continuation_count = await session.scalar(
+            text(
+                "SELECT count(*) FROM session_executions "
+                "WHERE project_id = :project_id AND session_id = :session_id "
+                "AND parent_execution_id = 'turn-A'"
+            ),
+            {
+                "project_id": command_scope["project_id"],
+                "session_id": command_scope["session_id"],
+            },
+        )
+    assert continuation_count == 0
+
+
+async def test_full_service_parallel_answers_create_one_terminal_continuation(
+    command_scope,
+):
+    first_id = await _insert_pending_interaction(
+        command_scope, token="parallel-continue-first"
+    )
+    second_id = await _insert_pending_interaction(
+        command_scope, token="parallel-continue-second"
+    )
+    service = _commands_service(command_scope)
+
+    first = await service.respond_interaction(
+        project_id=command_scope["project_id"],
+        user_id=command_scope["user_id"],
+        interaction_id=first_id,
+        answer={"approved": True},
+        expected_execution_id="turn-A",
+        idempotency_key="parallel-continue-answer-first",
+    )
+    assert first.command is None
+
+    second = await service.respond_interaction(
+        project_id=command_scope["project_id"],
+        user_id=command_scope["user_id"],
+        interaction_id=second_id,
+        answer={"approved": False},
+        expected_execution_id="turn-A",
+        idempotency_key="parallel-continue-answer-second",
+    )
+    assert second.command is not None
+
+    async with command_scope["engine"].session() as session:
+        before = (
+            await session.execute(
+                text(
+                    "SELECT execution_id, terminal_outcome FROM session_executions "
+                    "WHERE project_id = :project_id AND session_id = :session_id "
+                    "AND parent_execution_id = 'turn-A'"
+                ),
+                {
+                    "project_id": command_scope["project_id"],
+                    "session_id": command_scope["session_id"],
+                },
+            )
+        ).all()
+    assert before == [(second.execution_id, None)]
+
+    assert await service.settle_execution_completed(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+        execution_id=second.execution_id,
+    )
+    async with command_scope["engine"].session() as session:
+        outcomes = (
+            (
+                await session.execute(
+                    text(
+                        "SELECT terminal_outcome FROM session_executions "
+                        "WHERE project_id = :project_id AND session_id = :session_id "
+                        "AND parent_execution_id = 'turn-A'"
+                    ),
+                    {
+                        "project_id": command_scope["project_id"],
+                        "session_id": command_scope["session_id"],
+                    },
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert outcomes == ["completed"]
+
+
+async def test_full_service_failure_rolls_back_answer_execution_and_command(
+    command_scope,
+):
+    interaction_id = await _insert_pending_interaction(
+        command_scope, token="service-rollback"
+    )
+    async with command_scope["engine"].session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO session_executions "
+                "(project_id, session_id, execution_id, state) "
+                "VALUES (:project_id, :session_id, 'turn-A', 'active')"
+            ),
+            {
+                "project_id": command_scope["project_id"],
+                "session_id": command_scope["session_id"],
+            },
+        )
+    service = _commands_service(command_scope)
+    create_command = service._dao.create_command
+
+    async def fail_after_command_insert(**kwargs):
+        await create_command(**kwargs)
+        raise RuntimeError("abort transaction")
+
+    service._dao.create_command = fail_after_command_insert
+
+    with pytest.raises(RuntimeError, match="abort transaction"):
+        await service.respond_interaction(
+            project_id=command_scope["project_id"],
+            user_id=command_scope["user_id"],
+            interaction_id=interaction_id,
+            answer={"approved": True},
+            expected_execution_id="turn-A",
+            idempotency_key="answer-rollback",
+        )
+
+    interaction = await SessionInteractionsDAO(
+        engine=command_scope["engine"]
+    ).fetch_interaction(
+        project_id=command_scope["project_id"], interaction_id=interaction_id
+    )
+    assert interaction.status == SessionInteractionStatus.pending
+    async with command_scope["engine"].session() as session:
+        execution = (
+            await session.execute(
+                text(
+                    "SELECT state, terminal_outcome FROM session_executions "
+                    "WHERE project_id = :project_id AND session_id = :session_id "
+                    "AND execution_id = 'turn-A'"
+                ),
+                {
+                    "project_id": command_scope["project_id"],
+                    "session_id": command_scope["session_id"],
+                },
+            )
+        ).one()
+        continuation_count = await session.scalar(
+            text(
+                "SELECT count(*) FROM session_executions "
+                "WHERE project_id = :project_id AND session_id = :session_id "
+                "AND parent_execution_id = 'turn-A'"
+            ),
+            {
+                "project_id": command_scope["project_id"],
+                "session_id": command_scope["session_id"],
+            },
+        )
+        commands = await session.scalar(
+            text(
+                "SELECT count(*) FROM session_commands "
+                "WHERE project_id = :project_id AND session_id = :session_id"
+            ),
+            {
+                "project_id": command_scope["project_id"],
+                "session_id": command_scope["session_id"],
+            },
+        )
+    assert execution == ("active", None)
+    assert continuation_count == 0
+    assert commands == 0
+
+
+async def test_full_service_concurrent_same_key_same_answer_replays_ids(command_scope):
+    interaction_id = await _insert_pending_interaction(
+        command_scope, token="service-same"
+    )
+    service = _commands_service(command_scope)
+    request = dict(
+        project_id=command_scope["project_id"],
+        user_id=command_scope["user_id"],
+        interaction_id=interaction_id,
+        answer={"approved": True},
+        expected_execution_id="turn-A",
+        idempotency_key="answer-same",
+    )
+
+    first, second = await asyncio.gather(
+        service.respond_interaction(**request),
+        service.respond_interaction(**request),
+    )
+
+    assert first.command.id == second.command.id
+    assert first.execution_id == second.execution_id
+
+
+async def test_full_service_concurrent_same_key_conflicting_answer_is_409_domain(
+    command_scope,
+):
+    interaction_id = await _insert_pending_interaction(
+        command_scope, token="service-conflict"
+    )
+    service = _commands_service(command_scope)
+    common = dict(
+        project_id=command_scope["project_id"],
+        user_id=command_scope["user_id"],
+        interaction_id=interaction_id,
+        expected_execution_id="turn-A",
+        idempotency_key="answer-conflict",
+    )
+
+    results = await asyncio.gather(
+        service.respond_interaction(answer={"approved": True}, **common),
+        service.respond_interaction(answer={"approved": False}, **common),
+        return_exceptions=True,
+    )
+
+    assert sum(not isinstance(result, Exception) for result in results) == 1
+    conflict = next(result for result in results if isinstance(result, Exception))
+    assert isinstance(conflict, IdempotencyKeyReused)
+
+
+async def test_live_continuation_is_a_send_candidate_and_reopens_after_recovery(
+    command_scope,
+):
+    commands = SessionCommandsDAO(engine=command_scope["engine"])
+    executions = SessionExecutionsDAO(engine=command_scope["engine"])
+    interaction_id = await _insert_pending_interaction(
+        command_scope, token="running-blocker"
+    )
+    async with commands.transaction() as transaction:
+        await executions.create_continuation(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="continuation-running",
+            parent_execution_id="turn-A",
+            source_interaction_id=interaction_id,
+            transaction=transaction,
+        )
+        command = await commands.create_command(
+            user_id=command_scope["user_id"],
+            command=_create(
+                command_scope,
+                kind=SessionCommandKind.continue_interaction,
+                target_turn_id="continuation-running",
+                expected_turn_id="turn-A",
+                data={
+                    "interaction_id": str(interaction_id),
+                    "continuation_execution_id": "continuation-running",
+                },
+                state=SessionCommandState.applied,
+                outcome=SessionCommandOutcome.started,
+                settled_at=datetime.now(timezone.utc),
+            ),
+            transaction=transaction,
+        )
+        await executions.set_state(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="continuation-running",
+            state=SessionExecutionState.running,
+            transaction=transaction,
+        )
+
+    # A `running` continuation row now REACHES the service, which decides between the two live
+    # shapes `running` covers. The DAO deliberately does not: the discriminator is the Redis
+    # `running` lock, which only the service reads.
+    #
+    #   * PARKED on its own approval — no Redis `running` lock. A Send is a steer and is
+    #     allowed. This is review finding N2 and it stays.
+    #   * EXECUTING inside a tool call — the lock names this execution. A Send starts a second
+    #     turn, the runner supersedes, the warm sandbox is destroyed mid-call and the tool the
+    #     user had just approved returns "Command aborted" (increment-6 browser pass, round 8,
+    #     session 9d40cfcc-6485-4250-8d2e-17f1f12f55f4). It is refused.
+    #
+    # Both are covered by the two `resume_recoverable_continuation` tests below.
+    blocker = await commands.fetch_resumable_continuation(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+    )
+    assert blocker is not None and blocker.id == command.id
+    # Being a Send candidate is not the same as being retargetable: only a recovered execution
+    # reopens.
+    assert (
+        await commands.reopen_continuation(
+            project_id=command_scope["project_id"],
+            command_id=command.id,
+            target_turn_id="continuation-running",
+            replacement_turn_id="continuation-retry",
+        )
+        is None
+    )
+
+    await executions.set_state(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+        execution_id="continuation-running",
+        state=SessionExecutionState.recoverable,
+        expected_states=[SessionExecutionState.running],
+    )
+    blocker = await commands.fetch_resumable_continuation(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+    )
+    assert blocker is not None and blocker.id == command.id
+    async with commands.transaction() as transaction:
+        await executions.create_continuation(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="continuation-retry",
+            parent_execution_id="continuation-running",
+            source_interaction_id=None,
+            transaction=transaction,
+        )
+    reopened = await commands.reopen_continuation(
+        project_id=command_scope["project_id"],
+        command_id=command.id,
+        target_turn_id="continuation-running",
+        replacement_turn_id="continuation-retry",
+    )
+    assert reopened is not None
+    assert reopened.state == SessionCommandState.pending
+    assert reopened.claimed_by is None
+    assert reopened.target_turn_id == "continuation-retry"
+
+
+async def _park_continuation_on_its_own_gate(command_scope, *, token: str) -> None:
+    """The shape a continuation leaves when it raises its OWN approval and stops on the user."""
+    async with command_scope["engine"].session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO session_interactions "
+                "(project_id, id, session_id, turn_id, token, kind, status) "
+                "VALUES (:project_id, :id, :session_id, 'continuation-live', :token, "
+                "'user_approval', 'pending')"
+            ),
+            {
+                "project_id": command_scope["project_id"],
+                "id": uuid.uuid4(),
+                "session_id": command_scope["session_id"],
+                "token": token,
+            },
+        )
+
+
+async def _seed_live_continuation(command_scope, *, token: str) -> None:
+    commands = SessionCommandsDAO(engine=command_scope["engine"])
+    executions = SessionExecutionsDAO(engine=command_scope["engine"])
+    interaction_id = await _insert_pending_interaction(command_scope, token=token)
+    async with commands.transaction() as transaction:
+        await executions.create_continuation(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="continuation-live",
+            parent_execution_id="turn-A",
+            source_interaction_id=interaction_id,
+            transaction=transaction,
+        )
+        await commands.create_command(
+            user_id=command_scope["user_id"],
+            command=_create(
+                command_scope,
+                kind=SessionCommandKind.continue_interaction,
+                target_turn_id="continuation-live",
+                expected_turn_id="turn-A",
+                data={
+                    "interaction_id": str(interaction_id),
+                    "continuation_execution_id": "continuation-live",
+                },
+                state=SessionCommandState.applied,
+                outcome=SessionCommandOutcome.started,
+                settled_at=datetime.now(timezone.utc),
+            ),
+            transaction=transaction,
+        )
+        await executions.set_state(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+            execution_id="continuation-live",
+            state=SessionExecutionState.running,
+            transaction=transaction,
+        )
+
+
+async def test_executing_continuation_refuses_a_competing_send(
+    command_scope, monkeypatch
+):
+    """The continuation is inside a tool call: Send must be refused, not superseded.
+
+    Its execution holds no pending gate of its own, which is exactly the state the runner was
+    in when a released message tore down the warm sandbox and turned the approved call into
+    "Command aborted".
+    """
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+    await _seed_live_continuation(command_scope, token="live-executing")
+    service = _commands_service(command_scope)
+
+    assert (
+        await service.resume_recoverable_continuation(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+        )
+        == "continuation-live"
+    )
+
+
+async def test_parked_continuation_still_accepts_a_send(command_scope, monkeypatch):
+    """The continuation raised its own approval gate: a Send is a steer and stays allowed.
+
+    The park writes a pending interaction row against the continuation's own execution, so the
+    same `running` row in Postgres must not be read as ownership. This is review finding N2.
+    """
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+    await _seed_live_continuation(command_scope, token="live-parked")
+    await _park_continuation_on_its_own_gate(command_scope, token="live-parked-gate")
+    service = _commands_service(command_scope)
+
+    assert (
+        await service.resume_recoverable_continuation(
+            project_id=command_scope["project_id"],
+            session_id=command_scope["session_id"],
+        )
+        is None
+    )
+
+
+async def test_stop_and_answer_have_one_postgres_serialized_winner(command_scope):
+    commands = SessionCommandsDAO(engine=command_scope["engine"])
+    executions = SessionExecutionsDAO(engine=command_scope["engine"])
+    interactions = SessionInteractionsDAO(engine=command_scope["engine"])
+    interaction_id = await _insert_pending_interaction(command_scope, token="race")
+
+    async def stop():
+        async with commands.transaction() as transaction:
+            source = await executions.lock_for_control(
+                project_id=command_scope["project_id"],
+                session_id=command_scope["session_id"],
+                execution_id="turn-A",
+                transaction=transaction,
+            )
+            if source.terminal_outcome is not None:
+                return False
+            await executions.set_state(
+                project_id=command_scope["project_id"],
+                session_id=command_scope["session_id"],
+                execution_id="turn-A",
+                state=SessionExecutionState.stopping,
+                transaction=transaction,
+            )
+            await interactions.cancel_session_pending(
+                project_id=command_scope["project_id"],
+                session_id=command_scope["session_id"],
+                only_turn_id="turn-A",
+                transaction=transaction,
+            )
+            return True
+
+    async def answer():
+        async with commands.transaction() as transaction:
+            source = await executions.lock_for_control(
+                project_id=command_scope["project_id"],
+                session_id=command_scope["session_id"],
+                execution_id="turn-A",
+                transaction=transaction,
+            )
+            interaction = await interactions.fetch_interaction(
+                project_id=command_scope["project_id"],
+                interaction_id=interaction_id,
+                transaction=transaction,
+                for_update=True,
+            )
+            if (
+                source.terminal_outcome is not None
+                or source.state == SessionExecutionState.stopping
+                or interaction.status != SessionInteractionStatus.pending
+            ):
+                return False
+            await interactions.transition_interaction(
+                transition=SessionInteractionTransition(
+                    project_id=command_scope["project_id"],
+                    session_id=command_scope["session_id"],
+                    token="race",
+                    status=SessionInteractionStatus.responded,
+                    resolution={"approved": True},
+                ),
+                transaction=transaction,
+            )
+            await executions.settle(
+                project_id=command_scope["project_id"],
+                session_id=command_scope["session_id"],
+                execution_id="turn-A",
+                terminal_outcome="continued",
+                settled_by="interaction_response",
+                transaction=transaction,
+            )
+            return True
+
+    winners = await asyncio.gather(stop(), answer())
+    assert sum(winners) == 1
+
+    interaction = await interactions.fetch_interaction(
+        project_id=command_scope["project_id"], interaction_id=interaction_id
+    )
+    assert interaction.status in (
+        SessionInteractionStatus.cancelled,
+        SessionInteractionStatus.responded,
+    )
+
+
+async def test_continuation_transaction_rolls_back_the_answer_on_failure(command_scope):
+    commands = SessionCommandsDAO(engine=command_scope["engine"])
+    executions = SessionExecutionsDAO(engine=command_scope["engine"])
+    interactions = SessionInteractionsDAO(engine=command_scope["engine"])
+    interaction_id = await _insert_pending_interaction(command_scope, token="rollback")
+
+    with pytest.raises(RuntimeError, match="abort transaction"):
+        async with commands.transaction() as transaction:
+            await executions.lock_for_control(
+                project_id=command_scope["project_id"],
+                session_id=command_scope["session_id"],
+                execution_id="turn-A",
+                transaction=transaction,
+            )
+            await interactions.transition_interaction(
+                transition=SessionInteractionTransition(
+                    project_id=command_scope["project_id"],
+                    session_id=command_scope["session_id"],
+                    token="rollback",
+                    status=SessionInteractionStatus.responded,
+                    resolution={"approved": True},
+                ),
+                transaction=transaction,
+            )
+            await executions.create_continuation(
+                project_id=command_scope["project_id"],
+                session_id=command_scope["session_id"],
+                execution_id="continuation-rollback",
+                parent_execution_id="turn-A",
+                source_interaction_id=interaction_id,
+                transaction=transaction,
+            )
+            raise RuntimeError("abort transaction")
+
+    interaction = await interactions.fetch_interaction(
+        project_id=command_scope["project_id"], interaction_id=interaction_id
+    )
+    assert interaction.status == SessionInteractionStatus.pending
+    async with command_scope["engine"].session() as session:
+        count = await session.scalar(
+            text(
+                "SELECT count(*) FROM session_executions "
+                "WHERE project_id = :project_id AND execution_id = 'continuation-rollback'"
+            ),
+            {"project_id": command_scope["project_id"]},
+        )
+    assert count == 0
 
 
 async def test_terminal_core_facts_commit_in_one_transaction(command_scope):

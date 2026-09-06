@@ -12,6 +12,7 @@ import type {
     SessionInteractionKind,
     SessionInteractionStatusCode,
 } from "../core/schema"
+import {sessionInteractionWatchEventSchema} from "../core/schema"
 
 const SESSION_INTERACTION_ROWS_STALE_MS = 15_000
 
@@ -26,7 +27,9 @@ const sessionInteractionRowsQueryOptions = (projectId: string, sessionId: string
 })
 
 export interface SessionInteractionRowState {
+    id?: string
     token: string
+    turnId?: string
     status: SessionInteractionStatusCode
     kind: SessionInteractionKind
     resolution?: Record<string, unknown>
@@ -35,21 +38,38 @@ export interface SessionInteractionRowState {
 
 export type SessionInteractionRowStates = ReadonlyMap<string, SessionInteractionRowState>
 
-function interactionStatesFromRows(rows: SessionInteraction[]): SessionInteractionRowStates {
+export function interactionStatesFromRows(rows: SessionInteraction[]): SessionInteractionRowStates {
     const states = new Map<string, SessionInteractionRowState>()
     for (const row of rows) {
         if (typeof row.token !== "string" || !row.token) continue
 
         const toolCallId = row.data?.request?.tool_call_id
         states.set(row.token, {
+            id: row.id ?? row.token,
             token: row.token,
             status: row.status as SessionInteractionStatusCode,
             kind: row.kind as SessionInteractionKind,
             ...(row.data?.resolution ? {resolution: row.data.resolution} : {}),
             ...(typeof toolCallId === "string" && toolCallId ? {toolCallId} : {}),
+            ...(typeof row.turn_id === "string" && row.turn_id ? {turnId: row.turn_id} : {}),
         })
     }
     return states
+}
+
+/** Row states delivered by the session watch relay; undefined means the caller must refetch. */
+export function interactionStatesFromWatchEvent(
+    data: string,
+    sessionId: string,
+): SessionInteractionRowStates | undefined {
+    try {
+        const parsed = sessionInteractionWatchEventSchema.safeParse(JSON.parse(data))
+        if (!parsed.success || parsed.data.session_id !== sessionId || !parsed.data.interactions)
+            return undefined
+        return interactionStatesFromRows(parsed.data.interactions)
+    } catch {
+        return undefined
+    }
 }
 
 /**
@@ -75,15 +95,18 @@ export const fetchSessionInteractionStatesAtom = atom(
     },
 )
 
-export const revalidateSessionInteractionsAtom = atom(null, (get, _set, sessionId: string) => {
-    const projectId = get(projectIdAtom) ?? ""
-    if (!projectId || !sessionId) return
-    // Keep an initial rows fetch in flight while marking its cache entry stale.
-    void get(queryClientAtom).invalidateQueries(
-        {queryKey: sessionInteractionRowsQueryKey(projectId, sessionId)},
-        {cancelRefetch: false},
-    )
-})
+export const revalidateSessionInteractionsAtom = atom(
+    null,
+    async (get, _set, sessionId: string) => {
+        const projectId = get(projectIdAtom) ?? ""
+        if (!projectId || !sessionId) return
+        // Keep an initial rows fetch in flight while marking its cache entry stale.
+        await get(queryClientAtom).invalidateQueries(
+            {queryKey: sessionInteractionRowsQueryKey(projectId, sessionId)},
+            {cancelRefetch: false},
+        )
+    },
+)
 
 /** A row whose lifecycle has ended; `pending` is the only other value the API returns. */
 const isTerminalRow = (row: SessionInteractionRowState): boolean =>

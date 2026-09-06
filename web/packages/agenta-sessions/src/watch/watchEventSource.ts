@@ -4,6 +4,8 @@ const RETRY_BASE_MS = 1_000
 const RETRY_MAX_MS = 30_000
 const MIN_INTERVAL_MS = 3_000
 
+export const shouldCoalesceWatchEvent = (eventName: string): boolean => eventName !== "interaction"
+
 const retryDelayMs = (attempt: number): number =>
     Math.round(Math.min(RETRY_BASE_MS * 2 ** attempt, RETRY_MAX_MS) * (0.5 + Math.random() / 2))
 
@@ -26,8 +28,10 @@ export type RefreshSession = () => Promise<unknown>
  *   refreshes the session first, because the usual fatal cause is a 401 at the access-token
  *   refresh boundary and a stream carries no interceptor to refresh-and-retry the way the
  *   Fern/axios calls do.
- * - Handlers are coalesced to one call per event name per `MIN_INTERVAL_MS`, so a burst of server
- *   events (or a reconnect loop) cannot fan out into a refetch storm.
+ * - Most handlers are coalesced to one call per event name per `MIN_INTERVAL_MS`, so a burst of
+ *   server events (or a reconnect loop) cannot fan out into a refetch storm. Interaction events
+ *   bypass that window because a reader must see an approval answer within one second even when
+ *   it follows the pending event immediately.
  */
 export const useWatchEventSource = ({
     url,
@@ -68,6 +72,10 @@ export const useWatchEventSource = ({
         }
 
         const notify = (eventName: string, event: MessageEvent<string>) => {
+            if (!shouldCoalesceWatchEvent(eventName)) {
+                onRef.current[eventName]?.(event)
+                return
+            }
             pendingEvents.set(eventName, event)
             const now = Date.now()
             const elapsed = lastNotifiedAt === null ? MIN_INTERVAL_MS : now - lastNotifiedAt

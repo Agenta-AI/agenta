@@ -49,3 +49,21 @@ class SessionCommandNotClaimable(SessionCommandError):
         self.state = state
         self.message = f"session command '{command_id}' is '{state}' and cannot be settled by this caller"
         super().__init__(self.message)
+
+
+class InteractionResponseConflict(SessionCommandError):
+    def __init__(
+        self, *, code: str, message: str, details: Optional[dict] = None
+    ) -> None:
+        self.code = code
+        self.message = message
+        self.details = details or {}
+        super().__init__(message)
+
+
+class IdempotencyKeyReused(InteractionResponseConflict):
+    def __init__(self) -> None:
+        super().__init__(
+            code="idempotency_key_reused",
+            message="This idempotency key was already used for a different response.",
+        )

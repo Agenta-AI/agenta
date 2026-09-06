@@ -286,6 +286,7 @@ WorkflowServiceBaseRequest = WorkflowBaseRequest
 
 class WorkflowInvokeRequest(WorkflowBaseRequest):
     data: Optional[WorkflowRequestData] = None
+    on_busy: Optional[Literal["reject", "queue", "steer"]] = None
 
 
 # back-compat alias

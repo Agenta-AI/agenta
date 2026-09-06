@@ -5,6 +5,7 @@ export * from "./useApprovalDock"
 export * from "./useConnectionDock"
 export * from "./useElicitationDock"
 export * from "./useAgentConversation"
+export * from "./useServerSessionInputs"
 // Kept on this lane: the release consolidated this hook into its app copy, which this
 // lane does not have — oss renders the package copy. See F-18 / WP-0 rule 1.
 export * from "./useAgentModelKeyStatus"

@@ -1,6 +1,7 @@
 # /agenta/sdk/decorators/routing.py
 
 import warnings
+import httpx
 from typing import Any, Callable, Optional, AsyncGenerator, Union
 from json import dumps
 from uuid import UUID
@@ -43,6 +44,7 @@ from agenta.sdk.middlewares.running.vault import invalidate_secrets_cache
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
 from agenta.sdk.decorators.running import auto_workflow, inspect_workflow, Workflow
 from agenta.sdk.engines.running.errors import ErrorStatus
+from agenta.sdk.agents.platform.connection import PlatformConnection
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +235,79 @@ def apply_invoke_prelude(req: Request, request: WorkflowInvokeRequest) -> None:
                     m.to_wire() for m in vercel_messages_to_agenta_messages(_msgs)
                 ],
             }
+
+
+async def admit_session_input(
+    req: Request,
+    request: WorkflowInvokeRequest,
+    credentials: Optional[str],
+) -> Optional[Response]:
+    if request.on_busy is None or request.session_id is None:
+        return None
+    if isinstance(request.meta, dict) and request.meta.get("promoted_input_id"):
+        return None
+
+    connection = PlatformConnection(authorization=credentials)
+    api_base = connection.base_url()
+    if not api_base:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "code": "service_unavailable",
+                "message": "Session admission is unavailable.",
+                "retryable": True,
+                "next_step": "Retry with the same idempotency key.",
+            },
+        )
+    headers = connection.headers(authorization=credentials)
+    idempotency_key = req.headers.get("Idempotency-Key")
+    if idempotency_key:
+        headers["Idempotency-Key"] = idempotency_key
+    try:
+        async with httpx.AsyncClient(timeout=connection.timeout) as client:
+            response = await client.post(
+                f"{api_base}/sessions/control/inputs/admit",
+                headers=headers,
+                json={
+                    "session_id": request.session_id,
+                    "content": request.model_dump(mode="json", exclude_none=True),
+                    "on_busy": request.on_busy,
+                },
+            )
+    except httpx.HTTPError:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "code": "service_unavailable",
+                "message": "Session admission is unavailable.",
+                "retryable": True,
+                "next_step": "Retry with the same idempotency key.",
+            },
+        )
+
+    if response.status_code == 200:
+        body = response.json()
+        execution_id = body.get("execution_id")
+        if isinstance(execution_id, str) and execution_id:
+            request.meta = {**(request.meta or {}), "run_id": execution_id}
+        return None
+
+    try:
+        body = response.json()
+    except ValueError:
+        body = {
+            "code": "internal_error",
+            "message": "Session admission returned an invalid response.",
+            "retryable": True,
+            "next_step": "Retry with the same idempotency key.",
+        }
+    if (
+        isinstance(body, dict)
+        and set(body) == {"detail"}
+        and isinstance(body["detail"], dict)
+    ):
+        body = body["detail"]
+    return JSONResponse(status_code=response.status_code, content=body)
 
 
 def _get_request_tracing_context(req: Request) -> TracingContext:
@@ -632,6 +707,11 @@ class route:
             apply_invoke_prelude(req, request)
 
             try:
+                admission_response = await admit_session_input(
+                    req, request, credentials
+                )
+                if admission_response is not None:
+                    return admission_response
                 with tracing_context_manager(_get_request_tracing_context(req)):
                     response = await wf.invoke(
                         request=request,

@@ -49,6 +49,9 @@ class LocalBackend(Backend):
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
         detached: bool = False,
+        turn_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> Session:
