@@ -36,3 +36,4 @@ export type { SignSessionMountCredentialsRequest } from "./SignSessionMountCrede
 export type { UnarchiveSessionRequest } from "./UnarchiveSessionRequest.js";
 export type { WatchProjectRequest } from "./WatchProjectRequest.js";
 export type { WatchSessionStreamRequest } from "./WatchSessionStreamRequest.js";
+export type { SendPendingSessionInputNowRequest } from "./SendPendingSessionInputNowRequest.js";
