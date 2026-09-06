@@ -102,6 +102,9 @@ class _StubSourcesDAO:
     async def fetch_source(self, *, project_id, source_id):
         return next((s for s in self.sources if s.id == source_id), None)
 
+    async def fetch_source_by_slug(self, *, project_id, slug):
+        return next((s for s in self.sources if s.slug == slug), None)
+
     async def update_source(self, *, project_id, source_id, **updates):
         source = await self.fetch_source(project_id=project_id, source_id=source_id)
         if source is None:
@@ -207,6 +210,31 @@ async def test_import_creates_workflows_and_links(fixture_tree):
     assert link.source_id == result.source.id
     assert link.imported_commit_sha == "abc1234"
     assert len(link.content_hash) == 64
+
+
+@pytest.mark.asyncio
+async def test_reimport_reuses_the_existing_source_row(fixture_tree):
+    # A second import from the same repo must not insert a second source
+    # (uq_skill_sources_project_id_slug made it a 500 in the drawer flow).
+    service, _, dao = _service(fixture_tree)
+    first = await service.import_from_source(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        repo_url="github.com/acme/skills",
+        paths=["skills/alpha"],
+    )
+    second = await service.import_from_source(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        repo_url="github.com/acme/skills",
+        paths=["skills/beta"],
+        sync_enabled=True,
+    )
+
+    assert len(dao.sources) == 1
+    assert second.source.id == first.source.id
+    assert second.source.sync_enabled is True
+    assert [i.name for i in second.imported] == ["beta"]
 
 
 @pytest.mark.asyncio

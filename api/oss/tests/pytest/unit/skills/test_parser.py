@@ -83,6 +83,23 @@ def test_marketplace_layout(tmp_path):
     assert result.candidates[0].valid
 
 
+def test_marketplace_plugins_sharing_a_source_root_yield_one_candidate_each(tmp_path):
+    # anthropics/skills lists several plugins with the same source root; without
+    # dedup every skill dir was scanned once per plugin (imported AND skipped
+    # as a name collision in the same import request).
+    (tmp_path / ".claude-plugin").mkdir()
+    (tmp_path / ".claude-plugin" / "marketplace.json").write_text(
+        '{"plugins": [{"name": "a", "source": "./"}, {"name": "b", "source": "./"}]}',
+        encoding="utf-8",
+    )
+    _write_skill(tmp_path / "skills" / "docx", name="docx")
+
+    result = scan_tree(tmp_path)
+
+    assert result.layout == "marketplace"
+    assert [c.path_in_repo for c in result.candidates] == ["skills/docx"]
+
+
 def test_sdk_contract_violations_are_issues(tmp_path):
     root = tmp_path / "bad"
     root.mkdir()

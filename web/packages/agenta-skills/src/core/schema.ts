@@ -111,3 +111,93 @@ export const skillUsageResponseSchema = z
     })
     .passthrough()
 export type SkillUsageResponse = z.infer<typeof skillUsageResponseSchema>
+
+// ---------------------------------------------------------------------------
+// Sources: scan + import (mirrors /skills/sources/* — parser.py + import_service.py)
+// ---------------------------------------------------------------------------
+
+export const skillIssueSchema = z
+    .object({
+        code: z.string().optional().nullable(),
+        message: z.string().optional().nullable(),
+        path: z.string().optional().nullable(),
+    })
+    .passthrough()
+export type SkillIssue = z.infer<typeof skillIssueSchema>
+
+export const scanCandidateSchema = z
+    .object({
+        path_in_repo: z.string(),
+        valid: z.boolean().optional(),
+        /** ParsedSkill; only the fields the import UI renders are declared. */
+        skill: z
+            .object({
+                name: z.string().optional().nullable(),
+                description: z.string().optional().nullable(),
+                files: z.array(z.unknown()).optional().nullable(),
+            })
+            .passthrough()
+            .optional()
+            .nullable(),
+        issues: z.array(skillIssueSchema).optional(),
+        warnings: z.array(skillIssueSchema).optional(),
+    })
+    .passthrough()
+export type ScanCandidate = z.infer<typeof scanCandidateSchema>
+
+export const skillSourceScanResponseSchema = z
+    .object({
+        repo_url: z.string().optional().nullable(),
+        ref: z.string().optional().nullable(),
+        commit_sha: z.string().optional().nullable(),
+        scan: z
+            .object({
+                /** marketplace | single | multi | none */
+                layout: z.string().optional(),
+                candidates: z.array(scanCandidateSchema).optional(),
+                issues: z.array(skillIssueSchema).optional(),
+            })
+            .passthrough(),
+    })
+    .passthrough()
+export type SkillSourceScanResponse = z.infer<typeof skillSourceScanResponseSchema>
+
+export const skillSourceSchema = z
+    .object({
+        id: z.string().optional().nullable(),
+        slug: z.string().optional().nullable(),
+        repo_url: z.string().optional().nullable(),
+        ref: z.string().optional().nullable(),
+        last_seen_commit_sha: z.string().optional().nullable(),
+        sync_enabled: z.boolean().optional(),
+    })
+    .passthrough()
+export type SkillSource = z.infer<typeof skillSourceSchema>
+
+export const skillSourceImportResponseSchema = z
+    .object({
+        source: skillSourceSchema,
+        imported: z
+            .array(
+                z
+                    .object({
+                        path_in_repo: z.string(),
+                        workflow_id: z.string().optional().nullable(),
+                        name: z.string().optional().nullable(),
+                    })
+                    .passthrough(),
+            )
+            .optional(),
+        skipped: z
+            .array(
+                z
+                    .object({
+                        path_in_repo: z.string(),
+                        issues: z.array(skillIssueSchema).optional(),
+                    })
+                    .passthrough(),
+            )
+            .optional(),
+    })
+    .passthrough()
+export type SkillSourceImportResponse = z.infer<typeof skillSourceImportResponseSchema>

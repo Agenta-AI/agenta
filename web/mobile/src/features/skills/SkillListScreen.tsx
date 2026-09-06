@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {timeAgo} from "@agenta/shared/utils"
 import {type SkillRegistryItem} from "@agenta/skills"
@@ -8,7 +8,14 @@ import {
     skillsListQueryAtom,
     skillsSearchAtom,
 } from "@agenta/skills/state"
-import {SkillGallerySections, type SkillGallerySection, type SkillListItem} from "@agenta/skills-ui"
+import {
+    NewSkillMenuButton,
+    SkillCreateDrawer,
+    SkillGallerySections,
+    SkillImportDrawer,
+    type SkillGallerySection,
+    type SkillListItem,
+} from "@agenta/skills-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
 import {SearchInput} from "@agenta/ui/ui"
@@ -30,11 +37,13 @@ const toUnixMs = (value?: string | null): number | undefined => {
 
 const toListItem = (item: SkillRegistryItem, origin: SkillListItem["origin"]): SkillListItem => ({
     id: item.workflow_id ?? item.id ?? item.workflow_slug ?? "",
-    slug: item.workflow_slug ?? item.skill_name ?? "",
-    name: item.name ?? item.workflow_slug ?? "",
+    // Registry identity is the SKILL name; workflow_slug is the storage slug (__ag__… for builtins).
+    slug: item.skill_name ?? item.name ?? item.workflow_slug ?? "",
+    name: item.name ?? item.skill_name ?? item.workflow_slug ?? "",
     description: item.description ?? item.skill_description ?? undefined,
     origin,
-    version: item.version ?? undefined,
+    // API sends "v1"; VersionTag adds the "v" prefix itself.
+    version: item.version?.replace(/^v/, "") ?? undefined,
     filesCount: item.files_count ?? undefined,
     age: timeAgo(toUnixMs(item.updated_at ?? item.created_at)) || undefined,
 })
@@ -76,6 +85,15 @@ export const SkillListScreen = ({
     )
 
     const noop = useCallback(() => undefined, [])
+    const [importOpen, setImportOpen] = useState(false)
+    const openImport = useCallback(() => setImportOpen(true), [])
+    const closeImport = useCallback(() => setImportOpen(false), [])
+    // Write and Upload share the create drawer; the MODE decides its opening state —
+    // Upload starts as the full-drawer dropzone and morphs into the editor (1c → 1d).
+    const [createMode, setCreateMode] = useState<"write" | "upload" | null>(null)
+    const openWrite = useCallback(() => setCreateMode("write"), [])
+    const openUpload = useCallback(() => setCreateMode("upload"), [])
+    const closeCreate = useCallback(() => setCreateMode(null), [])
 
     // Identical content in both shells — a toolbar above the results, or the rail beside them.
     const browseControls = (
@@ -91,6 +109,11 @@ export const SkillListScreen = ({
                 <h1 className="text-colorText m-0 min-w-0 flex-1 truncate text-[24px] font-semibold leading-[1.3333333333333333]">
                     Skills
                 </h1>
+                <NewSkillMenuButton
+                    onWrite={openWrite}
+                    onUpload={openUpload}
+                    onImport={openImport}
+                />
             </div>
 
             <SearchInput
@@ -133,6 +156,13 @@ export const SkillListScreen = ({
                     )}
                 </ScreenScaffold>
             </AppShell>
+            <SkillImportDrawer open={importOpen} onClose={closeImport} projectId={projectId} />
+            <SkillCreateDrawer
+                open={createMode !== null}
+                onClose={closeCreate}
+                projectId={projectId}
+                mode={createMode ?? "write"}
+            />
         </>
     )
 }

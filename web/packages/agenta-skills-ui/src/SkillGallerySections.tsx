@@ -35,13 +35,21 @@ export function SkillGallerySections({
     const visibleSections = useMemo(() => sections.filter((s) => s.skills.length > 0), [sections])
 
     if (!loading && visibleSections.length === 0) {
+        // The @agenta/ui/ui EmptyState has no title prop; both lines go in description.
         return (
             <EmptyState
-                title={search.trim() ? "No skills match your search" : "No skills yet"}
+                image="simple"
                 description={
-                    search.trim()
-                        ? "Try a different name or description."
-                        : "Write one from scratch, upload a folder, or import from a repo."
+                    <span className="flex flex-col gap-1 text-xs">
+                        <span className="font-medium text-[var(--ag-colorText)]">
+                            {search.trim() ? "No skills match your search" : "No skills yet"}
+                        </span>
+                        <span>
+                            {search.trim()
+                                ? "Try a different name or description."
+                                : "Write one from scratch, upload a folder, or import from a repo."}
+                        </span>
+                    </span>
                 }
             />
         )

@@ -45,6 +45,7 @@
 @source "../../node_modules/@agenta/navigation/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/navigation-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/auth-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/skills-ui/src/**/*.{ts,tsx}";
 
 /* Class-based dark mode: .dark is set on <html> pre-paint by _document.tsx. */
 @custom-variant dark (&:is(.dark *));

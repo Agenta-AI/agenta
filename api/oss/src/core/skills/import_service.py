@@ -167,17 +167,35 @@ class SkillImportService:
             ]
 
             owner, repo = parse_github_url(repo_url)
-            source = await self.sources_dao.create_source(
+            slug = f"{owner}-{repo}".lower()
+            # Re-importing from a known repo reuses its source row (the slug is
+            # unique per project) instead of violating the constraint.
+            source = await self.sources_dao.fetch_source_by_slug(
                 project_id=project_id,
-                user_id=user_id,
-                source_create=SkillSourceCreate(
-                    slug=f"{owner}-{repo}".lower(),
-                    repo_url=repo_url,
-                    ref=ref,
-                    last_seen_commit_sha=fetched.commit_sha,
-                    sync_enabled=sync_enabled,
-                ),
+                slug=slug,
             )
+            if source and source.id:
+                source = (
+                    await self.sources_dao.update_source(
+                        project_id=project_id,
+                        source_id=source.id,
+                        last_seen_commit_sha=fetched.commit_sha,
+                        sync_enabled=sync_enabled,
+                    )
+                    or source
+                )
+            else:
+                source = await self.sources_dao.create_source(
+                    project_id=project_id,
+                    user_id=user_id,
+                    source_create=SkillSourceCreate(
+                        slug=slug,
+                        repo_url=repo_url,
+                        ref=ref,
+                        last_seen_commit_sha=fetched.commit_sha,
+                        sync_enabled=sync_enabled,
+                    ),
+                )
 
             result = ImportResult(source=source)
             link_creates: List[SkillSourceLinkCreate] = []

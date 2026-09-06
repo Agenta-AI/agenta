@@ -38,10 +38,20 @@ export const skillsListDataAtom = atom<SkillRegistryItem[]>((get) => {
     return query.data?.skills ?? []
 })
 
-/** Code-defined Agenta built-ins (separate, unpaginated block). */
+/**
+ * Code-defined Agenta built-ins (separate, unpaginated block). The API returns
+ * them unfiltered, so the registry search is applied client-side here.
+ */
 export const builtinSkillsAtom = atom<SkillRegistryItem[]>((get) => {
     const query = get(skillsListQueryAtom)
-    return query.data?.builtin ?? []
+    const builtin = query.data?.builtin ?? []
+    const search = get(skillsSearchAtom).trim().toLowerCase()
+    if (!search) return builtin
+    return builtin.filter((item) =>
+        [item.skill_name, item.name, item.description, item.skill_description].some((field) =>
+            field?.toLowerCase().includes(search),
+        ),
+    )
 })
 
 /** Drop every cached skills list; the next subscriber refetches. */

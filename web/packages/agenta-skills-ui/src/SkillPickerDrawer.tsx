@@ -211,12 +211,22 @@ export function SkillPickerDrawer({
                 />
 
                 {!loading && visible.length === 0 ? (
+                    // The @agenta/ui/ui EmptyState has no title prop; both lines go in description.
                     <EmptyState
-                        title={search.trim() ? "No skills match your search" : "No skills yet"}
+                        image="simple"
                         description={
-                            search.trim()
-                                ? "Try a different name."
-                                : "Create one below — it lands in the registry and on this agent."
+                            <span className="flex flex-col gap-1 text-xs">
+                                <span className="font-medium text-[var(--ag-colorText)]">
+                                    {search.trim()
+                                        ? "No skills match your search"
+                                        : "No skills yet"}
+                                </span>
+                                <span>
+                                    {search.trim()
+                                        ? "Try a different name."
+                                        : "Create one below — it lands in the registry and on this agent."}
+                                </span>
+                            </span>
                         }
                     />
                 ) : (

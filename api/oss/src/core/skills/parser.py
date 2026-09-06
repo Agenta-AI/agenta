@@ -302,7 +302,9 @@ def _marketplace_skill_dirs(root: Path) -> List[Path]:
             dirs.extend(
                 sorted(p.parent for p in skills_root.rglob(SKILL_MD) if p.is_file())
             )
-    return dirs
+    # Plugins may share a source root; one candidate per directory.
+    seen: set = set()
+    return [d for d in dirs if not (d in seen or seen.add(d))]
 
 
 def scan_tree(root: Path) -> ScanResult:

@@ -89,6 +89,23 @@ class SkillSourcesDAO:
             dbe = result.scalar_one_or_none()
             return _source_dto(dbe) if dbe else None
 
+    async def fetch_source_by_slug(
+        self,
+        *,
+        project_id: UUID,
+        slug: str,
+    ) -> Optional[SkillSource]:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(SkillSourceDBE).filter(
+                    SkillSourceDBE.project_id == project_id,
+                    SkillSourceDBE.slug == slug,
+                    SkillSourceDBE.deleted_at.is_(None),
+                )
+            )
+            dbe = result.scalar_one_or_none()
+            return _source_dto(dbe) if dbe else None
+
     async def list_sources(
         self,
         *,

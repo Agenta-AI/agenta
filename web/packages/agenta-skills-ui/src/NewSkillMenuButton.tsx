@@ -19,6 +19,8 @@ export interface NewSkillMenuButtonProps {
     disabled?: boolean
     /** "outline" for in-drawer placements; "default" for the page header. */
     variant?: "default" | "outline"
+    /** Per-entry gating while flows ship incrementally; every entry defaults available. */
+    availability?: {write?: boolean; upload?: boolean; import?: boolean}
 }
 
 export function NewSkillMenuButton({
@@ -27,6 +29,7 @@ export function NewSkillMenuButton({
     onImport,
     disabled,
     variant = "default",
+    availability,
 }: NewSkillMenuButtonProps) {
     return (
         <DropdownMenu>
@@ -38,15 +41,15 @@ export function NewSkillMenuButton({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={onWrite}>
+                <DropdownMenuItem onSelect={onWrite} disabled={availability?.write === false}>
                     <PencilSimple size={14} />
                     Write from scratch
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onUpload}>
+                <DropdownMenuItem onSelect={onUpload} disabled={availability?.upload === false}>
                     <DownloadSimple size={14} />
                     Upload a folder, .zip or .skill
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={onImport}>
+                <DropdownMenuItem onSelect={onImport} disabled={availability?.import === false}>
                     <GitBranch size={14} />
                     Import from a repo…
                 </DropdownMenuItem>
