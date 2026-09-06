@@ -208,7 +208,6 @@ export const Composer = ({
                         streaming={stoppable}
                         stopping={stopping}
                         onStop={onStop}
-                        showQueuePauseCopy={inputBusy && queueEnabled}
                         extraPrefix={
                             <VoiceInputButton
                                 inputRef={richInputRef}

@@ -144,7 +144,6 @@ const AgentComposerDock = ({
     /** Read at event time — attachments are refused right now (a take in flight, or the above). */
     attachmentsBlocked: () => boolean
 }) => {
-    const inputBusy = busy || queue.serverBusy
     const stoppable = isComposerRunStoppable({
         localStreaming: busy,
         serverBusy: queue.serverBusy,
@@ -477,7 +476,6 @@ const AgentComposerDock = ({
                         stopping={stopping}
                         onStop={onStop}
                         stopShortcutEnabled={stopShortcutEnabled}
-                        showQueuePauseCopy={inputBusy && queueEnabled}
                         attachments={attachments}
                         attachmentsBlocked={attachmentsBlocked}
                         composerDisabled={composerDisabled}
