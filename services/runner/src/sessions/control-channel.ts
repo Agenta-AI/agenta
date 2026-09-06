@@ -116,6 +116,7 @@ export async function applyCommand(
   if (seen) {
     // A no-op that STILL acknowledges. Aborting a second time could kill a newer turn; not
     // acknowledging would leave the command open until the settlement sweep gave up on it.
+    await seen.settled;
     const outcome: ControlOutcome = {
       result: seen.result,
       execution: {
@@ -139,12 +140,17 @@ export async function applyCommand(
 
   // Remember BEFORE aborting. A duplicate that arrives while the first abort is still settling
   // must find the command already taken, not start a second one.
+  let settleCommand!: () => void;
+  const settled = new Promise<void>((resolve) => {
+    settleCommand = resolve;
+  });
   rememberCommand(
     {
       commandId: command.id,
       executionId: outcome.execution.id,
       executionState: outcome.execution.state,
       result: outcome.result,
+      settled,
     },
     now(),
   );
@@ -156,6 +162,11 @@ export async function applyCommand(
         // ACP `session/cancel` to the harness and lets the environment be PARKED rather than
         // deleted (see `cancel-turn.ts` and `shouldPark`). Stop keeps the session warm.
         live.abort();
+        if ((await live.released) === false) {
+          throw new Error(
+            "Stopped execution did not finish releasing its environment.",
+          );
+        }
         log(
           `aborted command=${command.id} session=${command.sessionId} turn=${live.turnId}`,
         );
@@ -187,10 +198,9 @@ export async function applyCommand(
     }
   }
 
-  // Reported as soon as the abort is issued, not after the harness settles. The command's job
-  // is to deliver the Stop; the turn's own teardown then writes its transcript and parks the
-  // sandbox on its own clock, which can take seconds. Waiting for it would make a Stop that
-  // worked look stuck.
+  settleCommand();
+  // The transport already acknowledged Stop. A stopped outcome may promote Steer, so it
+  // must follow teardown rather than merely issuing the abort.
   await report(command, outcome).catch((error) => {
     log(
       `outcome report failed command=${command.id}: ${

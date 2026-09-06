@@ -943,6 +943,7 @@ async function runAndStreamWithApiBaseResolved(
   }
 
   let result: AgentRunResult;
+  let teardownCompleted = true;
   try {
     // Not a bare `await run(...)`: an await inside the run that never settles would keep this
     // function parked forever, and with it the terminal record below AND the alive watchdog's
@@ -985,6 +986,7 @@ async function runAndStreamWithApiBaseResolved(
       // The run is still pending and may never settle. Give the turn the ending the runner
       // owes it, and let the abandoned run keep its own teardown if it ever unwinds.
       turnClosed = true;
+      teardownCompleted = false;
       const message = `${ABANDONED_TURN_MARKER}: ${outcome.reason}`;
       process.stderr.write(
         `[sessions] ABANDONED session=${sessionId ?? "-"} turn=${turnId ?? "-"}: ${outcome.reason}\n`,
@@ -1031,7 +1033,7 @@ async function runAndStreamWithApiBaseResolved(
     // Same `finally` as the watchdog release, so a run that threw still leaves the registry
     // clean. Scoped to this turn id, so a turn that finishes after its successor registered
     // cannot unregister the successor.
-    if (sessionOwned) unregisterExecution(sessionId, turnId);
+    if (sessionOwned) unregisterExecution(sessionId, turnId, teardownCompleted);
   }
 
   // Streaming delivered the events live, so don't echo them in the terminal record.
