@@ -94,8 +94,8 @@ export interface ClientToolMeta {
 
 /** Settle the parked part. Mirrors OSS `SettleClientTool`: exactly one of `output`/`errorText`. */
 export interface SettleClientTool {
-    (args: {output: Record<string, unknown>}): void
-    (args: {errorText: string}): void
+    (args: {output: Record<string, unknown>}): void | Promise<void>
+    (args: {errorText: string}): void | Promise<void>
 }
 
 /** Props every client-tool widget receives — mirrors OSS `ClientToolHandlerProps`. */

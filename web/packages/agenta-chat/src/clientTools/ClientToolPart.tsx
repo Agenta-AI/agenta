@@ -53,13 +53,13 @@ const ClientToolPart = ({
     const settle = useCallback(
         (args: {output: Record<string, unknown>} | {errorText: string}) => {
             if ("errorText" in args) {
-                onOutput({
+                return onOutput({
                     toolName: meta.toolName,
                     toolCallId: meta.toolCallId,
                     errorText: args.errorText,
                 })
             } else {
-                onOutput({
+                return onOutput({
                     toolName: meta.toolName,
                     toolCallId: meta.toolCallId,
                     output: args.output,

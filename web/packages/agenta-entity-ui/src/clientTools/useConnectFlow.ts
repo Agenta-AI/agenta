@@ -228,12 +228,31 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
             teardown()
             // Leave "connecting" and record the terminal result so the chip paints now.
             setPhase("idle")
-            if ("errorText" in result) {
-                setOutcome({connected: false, reason: result.errorText})
-                settle({errorText: result.errorText})
-            } else {
-                setOutcome({connected: result.connected === true, reason: result.reason})
-                settle({output: result as Record<string, unknown>})
+            setErrorText(null)
+            const onSubmissionError = (error: unknown) => {
+                // The connection may exist, but the parked answer has not been saved. Keep
+                // the live action retryable instead of treating it as a settled manual retry.
+                settledRef.current = false
+                setOutcome(null)
+                setErrorText(
+                    error instanceof Error
+                        ? error.message
+                        : "Could not save the answer. Try again.",
+                )
+            }
+            try {
+                const submission =
+                    "errorText" in result
+                        ? settle({errorText: result.errorText})
+                        : settle({output: result as Record<string, unknown>})
+                setOutcome(
+                    "errorText" in result
+                        ? {connected: false, reason: result.errorText}
+                        : {connected: result.connected === true, reason: result.reason},
+                )
+                void Promise.resolve(submission).catch(onSubmissionError)
+            } catch (error) {
+                onSubmissionError(error)
             }
         },
         [settle, teardown],
