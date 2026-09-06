@@ -338,6 +338,44 @@ export function SkillDetailDrawer({
         </div>
     )
 
+    // Provenance rides the HEADER as a subtitle line, so the body keeps its full height.
+    const titleWithSource = skill?.source ? (
+        <div className="flex min-w-0 flex-col gap-0.5">
+            {title}
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-normal text-[var(--ag-colorTextSecondary)]">
+                {skill.source.repoUrl ? (
+                    <a
+                        href={skill.source.repoUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-mono text-[var(--ag-colorTextSecondary)] underline decoration-[var(--ag-colorBorder)] underline-offset-2 hover:text-[var(--ag-colorText)] hover:decoration-[var(--ag-colorText)]"
+                    >
+                        {skill.source.label}
+                    </a>
+                ) : (
+                    <span className="font-mono">{skill.source.label}</span>
+                )}
+                {skill.source.commitSha ? (
+                    <span className="rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px font-mono text-[10px]">
+                        {skill.source.commitSha.slice(0, 7)}
+                    </span>
+                ) : null}
+                {skill.source.detached ? (
+                    <span className="rounded bg-[var(--ag-colorWarningBg)] px-1.5 py-px text-[10px] text-[var(--ag-colorWarningText)]">
+                        modified locally — no longer synced
+                    </span>
+                ) : skill.source.syncedAgo ? (
+                    <span className="text-[var(--ag-colorTextTertiary)]">
+                        synced {skill.source.syncedAgo}
+                        {skill.source.syncEnabled === false ? " · sync off" : ""}
+                    </span>
+                ) : null}
+            </div>
+        </div>
+    ) : (
+        title
+    )
+
     return (
         <>
             <EnhancedDrawer
@@ -348,7 +386,7 @@ export function SkillDetailDrawer({
                 // Compact for the pick-agents step, wide for the editor; the resize animates.
                 width={step === "agents" ? agentsWidth : width}
                 destroyOnClose
-                title={title}
+                title={titleWithSource}
                 styles={{
                     body: {
                         padding: 0,
@@ -554,42 +592,6 @@ export function SkillDetailDrawer({
                     </div>
                 ) : (
                     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
-                        {!editing && skill?.source ? (
-                            <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-[11px] text-[var(--ag-colorTextSecondary)]">
-                                <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                    Source
-                                </span>
-                                {skill.source.repoUrl ? (
-                                    <a
-                                        href={skill.source.repoUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="font-mono text-[var(--ag-colorText)] underline decoration-[var(--ag-colorBorder)] underline-offset-2 hover:decoration-[var(--ag-colorText)]"
-                                    >
-                                        {skill.source.label}
-                                    </a>
-                                ) : (
-                                    <span className="font-mono text-[var(--ag-colorText)]">
-                                        {skill.source.label}
-                                    </span>
-                                )}
-                                {skill.source.commitSha ? (
-                                    <span className="rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px font-mono text-[10px]">
-                                        {skill.source.commitSha.slice(0, 7)}
-                                    </span>
-                                ) : null}
-                                {skill.source.detached ? (
-                                    <span className="rounded bg-[var(--ag-colorWarningBg)] px-1.5 py-px text-[10px] text-[var(--ag-colorWarningText)]">
-                                        modified locally — no longer synced
-                                    </span>
-                                ) : skill.source.syncedAgo ? (
-                                    <span className="text-[var(--ag-colorTextTertiary)]">
-                                        synced {skill.source.syncedAgo}
-                                        {skill.source.syncEnabled === false ? " · sync off" : ""}
-                                    </span>
-                                ) : null}
-                            </div>
-                        ) : null}
                         {!editing && usedBy.length ? (
                             <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                                 <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
