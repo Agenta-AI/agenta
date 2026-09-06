@@ -9,8 +9,12 @@ import {
 } from "../../src/state/openTabs"
 
 const rows = (...ids: string[]) => ids.map((id) => ({id}))
+// A trailing `*` marks the tab pinned; strip exactly that, not every `*` in the id.
 const tabs = (...specs: string[]) =>
-    specs.map((spec) => ({id: spec.replace("*", ""), pinned: spec.endsWith("*")}))
+    specs.map((spec) => {
+        const pinned = spec.endsWith("*")
+        return {id: pinned ? spec.slice(0, -1) : spec, pinned}
+    })
 
 describe("sessionTabScope", () => {
     it("separates an agent's tabs from the project-wide rail", () => {
