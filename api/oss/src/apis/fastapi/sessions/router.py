@@ -110,6 +110,8 @@ from oss.src.core.sessions.inputs.types import (
     SessionInputIdempotencyConflict,
     SessionInputNotFound,
     SessionInputNotRemovable,
+    SessionInputNotEditable,
+    SessionInputContentInvalid,
     SessionInputRemoved,
 )
 from oss.src.core.sessions.inputs.dtos import PendingInputState
@@ -204,6 +206,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionResponse,
     SessionsResponse,
     PendingInputResponse,
+    PendingInputUpdateRequest,
     PendingInputAdmissionRequest,
     PendingInputAdmissionResponse,
     SessionCapabilities,
@@ -2132,6 +2135,14 @@ class SessionsRootRouter:
             # both the reconnect watermark and the durable queue.
             self.router.add_api_route(
                 "/sessions/{session_id}/inputs/{input_id}",
+                self.update_pending_input,
+                methods=["PATCH"],
+                operation_id="update_pending_session_input",
+                response_model=PendingInputResponse,
+                tags=["Sessions"],
+            )
+            self.router.add_api_route(
+                "/sessions/{session_id}/inputs/{input_id}",
                 self.remove_pending_input,
                 methods=["DELETE"],
                 operation_id="remove_pending_session_input",
@@ -2302,6 +2313,63 @@ class SessionsRootRouter:
             sessions=sessions,
             windowing=response_windowing,
         )
+
+    @intercept_exceptions()
+    async def update_pending_input(
+        self,
+        request: Request,
+        session_id: str,
+        input_id: UUID,
+        payload: PendingInputUpdateRequest,
+    ) -> PendingInputResponse:
+        _validate_session_id_http(session_id)
+        project_id = UUID(str(request.state.project_id))
+        user_id = request.state.user_id
+        if not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+        try:
+            item = await self.inputs_service.update(
+                project_id=project_id,
+                user_id=UUID(str(user_id)) if user_id else None,
+                session_id=session_id,
+                input_id=input_id,
+                update=payload,
+            )
+        except SessionInputNotFound as error:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "pending_input_not_found",
+                    "message": str(error),
+                    "retryable": False,
+                    "details": {"input_id": str(input_id)},
+                },
+            ) from error
+        except SessionInputNotEditable as error:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "pending_input_not_editable",
+                    "message": str(error),
+                    "retryable": False,
+                    "details": {"input_id": str(input_id)},
+                },
+            ) from error
+        except SessionInputContentInvalid as error:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "pending_input_content_invalid",
+                    "message": str(error),
+                    "retryable": False,
+                    "details": {"input_id": str(input_id)},
+                },
+            ) from error
+        return PendingInputResponse(input=item)
 
     @intercept_exceptions()
     async def remove_pending_input(

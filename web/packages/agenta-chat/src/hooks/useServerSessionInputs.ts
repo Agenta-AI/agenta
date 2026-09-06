@@ -5,12 +5,14 @@ import {
     fetchSessionSnapshotAtom,
     removePendingSessionInputAtom,
     sendPendingSessionInputNowAtom,
+    updatePendingSessionInputAtom,
 } from "@agenta/entities/session"
 import {buildAgentRequest} from "@agenta/playground/agent-chat"
 import {projectIdAtom} from "@agenta/shared/state"
-import type {UIMessage} from "ai"
+import type {FileUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
 
 import type {QueuedMessage} from "./useAgentChatQueue"
@@ -23,6 +25,7 @@ export interface ServerSessionInputs {
     submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
     remove: (id: string) => Promise<void>
     sendNow: (id: string) => Promise<void>
+    edit: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
     refresh: () => Promise<void>
     resolveCapabilities: () => Promise<SessionPendingInputView["capabilities"]>
 }
@@ -53,6 +56,7 @@ export const useServerSessionInputs = ({
     const fetchCapabilities = useSetAtom(fetchSessionCapabilitiesAtom)
     const removeInput = useSetAtom(removePendingSessionInputAtom)
     const sendInputNow = useSetAtom(sendPendingSessionInputNowAtom)
+    const updateInput = useSetAtom(updatePendingSessionInputAtom)
     const [viewState, setViewState] = useState<{scope: string; view: SessionPendingInputView}>(
         () => ({scope, view: emptyView}),
     )
@@ -187,6 +191,26 @@ export const useServerSessionInputs = ({
         [refresh, removeInput, sessionId],
     )
 
+    const edit = useCallback(
+        async (id: string, item: {text: string; fileParts?: FileUIPart[]}) => {
+            if (!view.capabilities.queue) throw new Error("Queue editing is not available.")
+            const updated = await updateInput({
+                sessionId,
+                inputId: id,
+                text: item.text,
+                attachments: item.fileParts?.map((part) => ({
+                    uri: part.url,
+                    mime_type: part.mediaType,
+                    attachment_id: attachmentIdForPart(part) ?? undefined,
+                    ...(part.filename ? {filename: part.filename} : {}),
+                })),
+            })
+            if (!updated) throw new Error("The queued message could not be updated. Try again.")
+            await refresh()
+        },
+        [refresh, sessionId, updateInput, view.capabilities.queue],
+    )
+
     const sendNow = useCallback(
         async (id: string) => {
             if (!view.capabilities.queue || !view.capabilities.steer) {
@@ -208,6 +232,7 @@ export const useServerSessionInputs = ({
         submit,
         remove,
         sendNow,
+        edit,
         refresh,
         resolveCapabilities,
     }

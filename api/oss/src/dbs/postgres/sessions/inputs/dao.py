@@ -1,12 +1,15 @@
 from datetime import datetime, timezone
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select, text, update as sa_update
 
 from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputCreate
 from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
-from oss.src.core.sessions.inputs.types import SessionInputNotRemovable
+from oss.src.core.sessions.inputs.types import (
+    SessionInputNotRemovable,
+    SessionInputNotEditable,
+)
 from oss.src.dbs.postgres.sessions.commands.dbes import SessionCommandDBE
 from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE
 from oss.src.dbs.postgres.sessions.inputs.mappings import (
@@ -305,6 +308,7 @@ class SessionInputsDAO(SessionInputsDAOInterface):
         transaction: Optional[Any] = None,
     ) -> Optional[PendingInput]:
         async def execute(session: Any) -> Optional[PendingInput]:
+            await self._lock_session(session, project_id, session_id)
             stmt = select(SessionInputDBE).where(
                 SessionInputDBE.project_id == project_id,
                 SessionInputDBE.session_id == session_id,
@@ -333,3 +337,67 @@ class SessionInputsDAO(SessionInputsDAOInterface):
             return await execute(transaction)
         async with self.engine.session() as session:
             return await execute(session)
+
+    async def lock_pending_for_edit(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, transaction: Any
+    ) -> Optional[PendingInput]:
+        await self._lock_session(transaction, project_id, session_id)
+        row = (
+            await transaction.execute(
+                select(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        reserved = (
+            await transaction.execute(
+                select(SessionCommandDBE.id)
+                .where(
+                    SessionCommandDBE.project_id == project_id,
+                    SessionCommandDBE.session_id == session_id,
+                    SessionCommandDBE.kind == "cancel",
+                    SessionCommandDBE.state.in_(("pending", "claimed")),
+                    SessionCommandDBE.deleted_at.is_(None),
+                    SessionCommandDBE.data["steer_input_id"].astext == str(input_id),
+                )
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if row.state != "pending" or reserved is not None:
+            raise SessionInputNotEditable(str(input_id))
+        return to_pending_input(row)
+
+    async def update_content(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        input_id: UUID,
+        content: Dict[str, Any],
+        user_id: Optional[UUID],
+        transaction: Any,
+    ) -> PendingInput:
+        row = (
+            await transaction.execute(
+                sa_update(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                    SessionInputDBE.state == "pending",
+                )
+                .values(
+                    content=content,
+                    updated_at=datetime.now(timezone.utc),
+                    updated_by_id=user_id,
+                )
+                .returning(SessionInputDBE)
+            )
+        ).scalar_one()
+        return to_pending_input(row)

@@ -84,11 +84,11 @@ export const ServerBacked: Story = {
             touch
             editable
             initial={[
-                {...THREE[0], source: "server", editable: false, policy: "steer"},
+                {...THREE[0], source: "server", editable: true, policy: "steer"},
                 {
                     ...THREE[1],
                     source: "server",
-                    editable: false,
+                    editable: true,
                     policy: "queue",
                     attachmentCount: 1,
                 },
@@ -166,5 +166,19 @@ export const SendNowFailure: Story = {
                 throw new Error("Unavailable")
             }}
         />
+    ),
+}
+
+export const EditedRowNoLongerQueued: Story = {
+    render: () => (
+        <Frame>
+            <QueuedMessagesDock
+                queued={[]}
+                editingId="already-promoted"
+                onRemove={noop}
+                onCancelEdit={noop}
+                touch
+            />
+        </Frame>
     ),
 }

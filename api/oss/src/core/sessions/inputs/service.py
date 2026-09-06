@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import hashlib
 import json
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -8,6 +10,7 @@ from oss.src.core.sessions.inputs.dtos import (
     PendingInputAdmission,
     PendingInputCreate,
     PendingInputState,
+    PendingInputUpdate,
 )
 from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
 from oss.src.core.sessions.inputs.types import (
@@ -15,6 +18,7 @@ from oss.src.core.sessions.inputs.types import (
     SessionInputIdempotencyConflict,
     SessionInputNotFound,
     SessionInputNotRemovable,
+    SessionInputContentInvalid,
 )
 from oss.src.core.sessions.interactions.dtos import SessionInteractionStatus
 from oss.src.core.sessions.interactions.interfaces import (
@@ -33,6 +37,120 @@ def input_fingerprint(*, content: Dict[str, Any], policy: str) -> str:
         ensure_ascii=False,
     ).encode()
     return hashlib.sha256(canonical).hexdigest()
+
+
+def edit_pending_input_content(
+    content: Dict[str, Any], update: PendingInputUpdate
+) -> Dict[str, Any]:
+    edited = deepcopy(content)
+    data = edited.get("data")
+    inputs = data.get("inputs") if isinstance(data, dict) else None
+    messages = inputs.get("messages") if isinstance(inputs, dict) else None
+    if not isinstance(messages, list):
+        raise SessionInputContentInvalid(
+            "The queued input has no editable user message."
+        )
+    message = next(
+        (
+            item
+            for item in reversed(messages)
+            if isinstance(item, dict) and item.get("role") == "user"
+        ),
+        None,
+    )
+    if message is None:
+        raise SessionInputContentInvalid(
+            "The queued input has no editable user message."
+        )
+    original = message.get("content")
+    field = "content"
+    if isinstance(original, str):
+        if not update.attachments:
+            message[field] = update.text
+            return edited
+        blocks = [{"type": "text", "text": original}]
+    elif isinstance(original, list):
+        blocks = original
+    elif isinstance(message.get("parts"), list):
+        field = "parts"
+        blocks = message[field]
+    else:
+        raise SessionInputContentInvalid(
+            "The queued user message uses an unsupported content format."
+        )
+    kept = []
+    wrote_text = False
+    for block in blocks:
+        if isinstance(block, dict) and block.get("type") == "text":
+            if not wrote_text:
+                kept.append({**block, "text": update.text})
+                wrote_text = True
+        else:
+            kept.append(block)
+    if not wrote_text and update.text:
+        kept.insert(0, {"type": "text", "text": update.text})
+    uris = {
+        block.get("uri", block.get("url"))
+        for block in kept
+        if isinstance(block, dict)
+        and isinstance(block.get("uri", block.get("url")), str)
+    }
+    attachment_ids = set()
+    for block in kept:
+        if not isinstance(block, dict):
+            continue
+        attachment_id = block.get("attachmentId", block.get("attachment_id"))
+        provider_metadata = block.get("providerMetadata")
+        agenta_metadata = (
+            provider_metadata.get("agenta")
+            if isinstance(provider_metadata, dict)
+            else None
+        )
+        if not attachment_id and isinstance(agenta_metadata, dict):
+            attachment_id = agenta_metadata.get("attachmentId")
+        if isinstance(attachment_id, str) and attachment_id:
+            attachment_ids.add(attachment_id)
+    for attachment in update.attachments:
+        if attachment.uri in uris or (
+            attachment.attachment_id and attachment.attachment_id in attachment_ids
+        ):
+            continue
+        if field == "parts":
+            block = {
+                "type": "file",
+                "url": attachment.uri,
+                "mediaType": attachment.mime_type,
+            }
+            if attachment.attachment_id is not None:
+                block["providerMetadata"] = {
+                    "agenta": {"attachmentId": attachment.attachment_id}
+                }
+            if attachment.filename is not None:
+                block["filename"] = attachment.filename
+        elif attachment.attachment_id is not None:
+            block = {
+                "type": "attachment",
+                "attachmentId": attachment.attachment_id,
+                "mimeType": attachment.mime_type,
+            }
+            if attachment.filename is not None:
+                block["filename"] = attachment.filename
+        else:
+            block = {
+                "type": "image"
+                if attachment.mime_type.startswith("image/")
+                else "resource",
+                "uri": attachment.uri,
+                "mimeType": attachment.mime_type,
+            }
+            if attachment.filename is not None:
+                block["filename"] = attachment.filename
+        kept.append(block)
+        uris.add(attachment.uri)
+        if attachment.attachment_id:
+            attachment_ids.add(attachment.attachment_id)
+    message[field] = kept
+    return edited
 
 
 class SessionInputsService:
@@ -275,3 +393,31 @@ class SessionInputsService:
         if existing is not None and existing.state != PendingInputState.pending:
             raise SessionInputNotRemovable(str(input_id))
         raise SessionInputNotFound(str(input_id))
+
+    async def update(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        input_id: UUID,
+        user_id: Optional[UUID],
+        update: PendingInputUpdate,
+    ) -> PendingInput:
+        async with self._dao.transaction() as transaction:
+            item = await self._dao.lock_pending_for_edit(
+                project_id=project_id,
+                session_id=session_id,
+                input_id=input_id,
+                transaction=transaction,
+            )
+            if item is None:
+                raise SessionInputNotFound(str(input_id))
+            content = edit_pending_input_content(item.content, update)
+            return await self._dao.update_content(
+                project_id=project_id,
+                session_id=session_id,
+                input_id=input_id,
+                content=content,
+                user_id=user_id,
+                transaction=transaction,
+            )

@@ -125,16 +125,6 @@ const Row = ({
                     {attachmentCount ? "(attachments only)" : "(empty message)"}
                 </span>
             )}
-            {attachmentCount > files.length ? (
-                <span className="shrink-0 text-[10px] text-colorTextTertiary">
-                    {attachmentCount} attachment{attachmentCount === 1 ? "" : "s"}
-                </span>
-            ) : null}
-            {message.policy === "steer" ? (
-                <span className="shrink-0 rounded bg-colorFillTertiary px-1.5 py-0.5 text-[10px] font-medium text-colorTextSecondary">
-                    Steer
-                </span>
-            ) : null}
             {/* Keep Send Now visible without hover. */}
             <span
                 className={`flex shrink-0 items-center gap-0.5 transition-opacity ${
@@ -161,7 +151,7 @@ const Row = ({
                             }
                         }}
                     >
-                        Send Now
+                        {sending || message.policy === "steer" ? "Sending" : "Send Now"}
                     </Button>
                 ) : null}
                 {editing ? (
@@ -251,6 +241,8 @@ const QueuedMessagesDock = ({
         ? "relative after:absolute after:-inset-x-1 after:-inset-y-2 after:content-['']"
         : ""
 
+    const editingMissingRow = !!editingId && !queued.some((message) => message.id === editingId)
+
     return (
         <div className={`${CARD_SURFACE} ${className}`}>
             {/* px-3 so the icon starts on the same 13px line as the row text below it and the
@@ -279,6 +271,14 @@ const QueuedMessagesDock = ({
                     />
                 </Button>
             </div>
+            {editingMissingRow ? (
+                <div className="flex items-center gap-2 px-3 pb-2 text-xs text-colorTextSecondary">
+                    <span className="flex-1">This message is no longer queued.</span>
+                    <Button size="sm" variant="ghost" onClick={onCancelEdit}>
+                        Cancel editing
+                    </Button>
+                </div>
+            ) : null}
             {/* The composer sits directly below, so a hard mount/unmount teleports it by the
                 body's full height. `HeightCollapse` is the app's one collapse primitive — the same
                 motion as the accordion sections and the sibling docks — and it owns aria-hidden

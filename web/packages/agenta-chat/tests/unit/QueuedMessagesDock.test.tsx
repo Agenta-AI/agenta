@@ -1,5 +1,9 @@
+// @vitest-environment jsdom
 import {renderToStaticMarkup} from "react-dom/server"
-import {describe, expect, it} from "vitest"
+import {cleanup, fireEvent, render, screen} from "@testing-library/react"
+import {afterEach, describe, expect, it, vi} from "vitest"
+
+afterEach(cleanup)
 
 import QueuedMessagesDock from "../../src/components/QueuedMessagesDock"
 
@@ -17,3 +21,20 @@ describe("QueuedMessagesDock", () => {
         expect(markup).toContain("continue afterward")
     })
 })
+
+it.each([false, true])(
+    "keeps cancel editing reachable after the edited row leaves (touch=%s)",
+    (touch) => {
+        const cancel = vi.fn()
+        const props = {onRemove: vi.fn(), onCancelEdit: cancel, editingId: "edited", touch}
+        const {rerender} = render(
+            <QueuedMessagesDock {...props} queued={[{id: "edited", text: "draft"}]} />,
+        )
+        fireEvent.click(screen.getByRole("button", {name: "Collapse"}))
+        rerender(<QueuedMessagesDock {...props} queued={[]} />)
+        expect(screen.getByText("This message is no longer queued.")).toBeTruthy()
+        fireEvent.click(screen.getByRole("button", {name: "Cancel editing"}))
+        expect(cancel).toHaveBeenCalledOnce()
+        expect(props.onRemove).not.toHaveBeenCalled()
+    },
+)

@@ -14,6 +14,7 @@ import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     mountFileContentResponseSchema,
     pendingInputAdmissionResponseSchema,
+    pendingInputResponseSchema,
     mountFileListResponseSchema,
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
@@ -194,6 +195,37 @@ export async function removePendingSessionInput({
         ),
     )
     return !!data
+}
+
+export async function updatePendingSessionInput({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    inputId,
+    text,
+    attachments,
+}: SessionScopedParams & {
+    inputId: string
+    text: string
+    attachments?: {
+        uri: string
+        mime_type: string
+        filename?: string
+        attachment_id?: string
+    }[]
+}): Promise<boolean> {
+    if (!projectId || !sessionId || !inputId) return false
+    const data = await callFern("[updatePendingSessionInput]", () =>
+        getSessionsClient().updatePendingSessionInput(
+            {session_id: sessionId, input_id: inputId, text, attachments},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    return (
+        safeParseWithLogging(pendingInputResponseSchema, data, "[updatePendingSessionInput]") !==
+        null
+    )
 }
 
 export async function sendPendingSessionInputNow({

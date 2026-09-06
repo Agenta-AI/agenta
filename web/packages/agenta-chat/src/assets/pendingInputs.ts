@@ -3,6 +3,8 @@ import type {FileUIPart} from "ai"
 
 import type {QueuedMessage} from "../hooks/useAgentChatQueue"
 
+import {attachmentContentUrl} from "./transcriptToMessages"
+
 export interface SessionPendingInputView {
     capabilities: {queue: boolean; steer: boolean}
     executionState: "idle" | "running" | "stopping"
@@ -14,19 +16,33 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
         ? (value as Record<string, unknown>)
         : null
 
-const filePartFromBlock = (block: Record<string, unknown>): FileUIPart | null => {
-    const url = block.uri ?? block.url
+const filePartFromBlock = (
+    block: Record<string, unknown>,
+    sessionId: string,
+): FileUIPart | null => {
+    const metadata = asRecord(block.providerMetadata)
+    const agenta = asRecord(metadata?.agenta)
+    const attachmentId = block.attachmentId ?? block.attachment_id ?? agenta?.attachmentId
+    const reference = typeof attachmentId === "string" && attachmentId ? attachmentId : null
+    const url = reference ? attachmentContentUrl(sessionId, reference) : (block.uri ?? block.url)
     if (typeof url !== "string" || !url) return null
+    const mediaType = block.mimeType ?? block.mime_type ?? block.mediaType
+    const size = block.size ?? agenta?.size
     return {
         type: "file",
         url,
-        mediaType:
-            typeof block.mime_type === "string"
-                ? block.mime_type
-                : typeof block.mediaType === "string"
-                  ? block.mediaType
-                  : "application/octet-stream",
+        mediaType: typeof mediaType === "string" ? mediaType : "application/octet-stream",
         filename: typeof block.filename === "string" ? block.filename : undefined,
+        ...(reference
+            ? {
+                  providerMetadata: {
+                      agenta: {
+                          attachmentId: reference,
+                          ...(typeof size === "number" ? {size} : {}),
+                      },
+                  },
+              }
+            : {}),
     }
 }
 
@@ -52,7 +68,7 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
             if (block.type === "text" && typeof block.text === "string") text += block.text
             if (["attachment", "image", "resource"].includes(String(block.type))) {
                 attachmentCount += 1
-                const part = filePartFromBlock(block)
+                const part = filePartFromBlock(block, input.session_id)
                 if (part) fileParts.push(part)
             }
         }
@@ -63,7 +79,7 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
             if (part.type === "text" && typeof part.text === "string") text += part.text
             if (part.type === "file") {
                 attachmentCount += 1
-                const filePart = filePartFromBlock(part)
+                const filePart = filePartFromBlock(part, input.session_id)
                 if (filePart) fileParts.push(filePart)
             }
         }
@@ -76,7 +92,7 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
         attachmentCount,
         policy: input.policy,
         source: "server",
-        editable: false,
+        editable: input.state === "pending",
     }
 }
 

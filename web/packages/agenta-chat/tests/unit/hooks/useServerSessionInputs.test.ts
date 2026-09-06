@@ -16,15 +16,21 @@ import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
 import type {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
 import {useServerSessionInputs} from "../../../src/hooks/useServerSessionInputs"
 
-const {buildAgentRequest, fetchCapabilities, fetchSnapshot, removeInput, sendInputNow} = vi.hoisted(
-    () => ({
-        buildAgentRequest: vi.fn(),
-        fetchCapabilities: vi.fn(),
-        fetchSnapshot: vi.fn(),
-        removeInput: vi.fn(),
-        sendInputNow: vi.fn(),
-    }),
-)
+const {
+    buildAgentRequest,
+    fetchCapabilities,
+    fetchSnapshot,
+    removeInput,
+    sendInputNow,
+    updateInput,
+} = vi.hoisted(() => ({
+    buildAgentRequest: vi.fn(),
+    fetchCapabilities: vi.fn(),
+    fetchSnapshot: vi.fn(),
+    removeInput: vi.fn(),
+    sendInputNow: vi.fn(),
+    updateInput: vi.fn(),
+}))
 
 vi.mock("@agenta/entities/session", async () => {
     const {atom} = await import("jotai")
@@ -35,6 +41,7 @@ vi.mock("@agenta/entities/session", async () => {
         fetchSessionSnapshotAtom: atom(null, (_get, _set, sessionId: string) =>
             fetchSnapshot(sessionId),
         ),
+        updatePendingSessionInputAtom: atom(null, (_get, _set, params) => updateInput(params)),
         sendPendingSessionInputNowAtom: atom(
             null,
             (_get, _set, params: {sessionId: string; inputId: string}) => sendInputNow(params),
@@ -83,6 +90,7 @@ beforeEach(() => {
     fetchSnapshot.mockReset()
     removeInput.mockReset()
     sendInputNow.mockReset()
+    updateInput.mockReset()
     fetchMock.mockReset()
 })
 
@@ -661,5 +669,52 @@ describe("selected queued input Send Now", () => {
         )
         await expect(result.current.sendNow("selected-row")).rejects.toThrow("not available")
         expect(sendInputNow).not.toHaveBeenCalled()
+    })
+})
+
+describe("durable queued input editing", () => {
+    it("patches only the chosen row text and new attachments, then reloads the shared snapshot", async () => {
+        fetchSnapshot.mockResolvedValue(runningSnapshot())
+        updateInput.mockResolvedValue(true)
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [],
+                locallyBusy: true,
+            }),
+        )
+        await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
+        await act(() =>
+            result.current.edit("row-2", {
+                text: "corrected",
+                fileParts: [
+                    {
+                        type: "file",
+                        url: "https://files.test/new.pdf",
+                        mediaType: "application/pdf",
+                        filename: "new.pdf",
+                        providerMetadata: {agenta: {attachmentId: "attachment-1"}},
+                    },
+                ],
+            }),
+        )
+        expect(updateInput).toHaveBeenCalledWith({
+            sessionId: "session-1",
+            inputId: "row-2",
+            text: "corrected",
+            attachments: [
+                {
+                    uri: "https://files.test/new.pdf",
+                    mime_type: "application/pdf",
+                    filename: "new.pdf",
+                    attachment_id: "attachment-1",
+                },
+            ],
+        })
+        expect(fetchSnapshot.mock.calls.length).toBeGreaterThan(1)
+        expect(removeInput).not.toHaveBeenCalled()
+        expect(buildAgentRequest).not.toHaveBeenCalled()
+        expect(fetchMock).not.toHaveBeenCalled()
     })
 })

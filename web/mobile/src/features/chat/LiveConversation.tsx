@@ -621,7 +621,7 @@ export const LiveConversation = ({
                         />
                         {/* What you have lined up stays visible while a gate is open: the queued
                         message is the acknowledgement that the user's Send was not lost. */}
-                        {conversation.queued.length > 0 ? (
+                        {conversation.queued.length > 0 || conversation.editingId ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                                 <ContentRail>
                                     <QueuedMessagesDock

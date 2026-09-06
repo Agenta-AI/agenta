@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, AsyncContextManager, List, Optional
+from typing import Any, AsyncContextManager, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputCreate
@@ -92,4 +92,23 @@ class SessionInputsDAOInterface(ABC):
         only_policy: Optional[str] = None,
         transaction: Optional[Any] = None,
     ) -> Optional[PendingInput]:
+        pass
+
+    @abstractmethod
+    async def lock_pending_for_edit(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, transaction: Any
+    ) -> Optional[PendingInput]:
+        pass
+
+    @abstractmethod
+    async def update_content(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        input_id: UUID,
+        content: Dict[str, Any],
+        user_id: Optional[UUID],
+        transaction: Any,
+    ) -> PendingInput:
         pass

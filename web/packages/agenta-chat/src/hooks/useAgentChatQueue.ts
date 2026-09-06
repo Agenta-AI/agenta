@@ -33,6 +33,7 @@ export interface ServerQueueAdapter {
     submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
     remove: (id: string) => Promise<void>
     sendNow?: (id: string) => Promise<void>
+    edit?: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
 }
 
 interface UseAgentChatQueueArgs {
@@ -214,9 +215,19 @@ export const useAgentChatQueue = ({
         return message
     }, [])
 
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const stashRef = useRef("")
+    const editSessionRef = useRef<{id: string; server: boolean} | null>(null)
+
     // A message held before an approval answer predates the server-owned continuation. Move it
     // under the same durable admission before that continuation can promote a different input.
     const migrationRef = useRef<string | null>(null)
+    const migrationPromiseRef = useRef<{
+        id: string
+        promise: Promise<void>
+        retry: () => Promise<void>
+        failed: boolean
+    } | null>(null)
     const migrationRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const [migrationRetry, setMigrationRetry] = useState(0)
     useEffect(
@@ -234,14 +245,16 @@ export const useAgentChatQueue = ({
             !server?.capabilities.queue ||
             !submitToServer ||
             !head ||
+            editingId === head.id ||
             migrationRef.current
         ) {
             return
         }
 
         migrationRef.current = head.id
-        void submitToServer(head, "queue")
-            .then(() => {
+        const retry = () =>
+            submitToServer(head, "queue").then(() => {
+                if (editSessionRef.current?.id === head.id) editSessionRef.current.server = true
                 if (sessionId) {
                     const stored = queuedBySession.get(sessionId)
                     if (stored) {
@@ -252,7 +265,11 @@ export const useAgentChatQueue = ({
                 }
                 setQueued((items) => items.filter((item) => item.id !== head.id))
             })
+        const migration = {id: head.id, promise: retry(), retry, failed: false}
+        migrationPromiseRef.current = migration
+        void migration.promise
             .catch(() => {
+                migration.failed = true
                 if (migrationRef.current !== head.id) return
                 migrationRef.current = null
                 migrationRetryTimerRef.current = setTimeout(() => {
@@ -263,10 +280,13 @@ export const useAgentChatQueue = ({
             })
             .finally(() => {
                 if (migrationRef.current === head.id) migrationRef.current = null
+                if (migrationPromiseRef.current === migration && !migration.failed)
+                    migrationPromiseRef.current = null
             })
     }, [
         continuationExecutionId,
         continuationHold,
+        editingId,
         migrationRetry,
         queued,
         sessionId,
@@ -343,14 +363,19 @@ export const useAgentChatQueue = ({
     // An edit session BORROWS the composer: the target's text goes in, and whatever the user had
     // already typed is stashed and handed back when the session ends (either way). Without that,
     // clicking edit on a half-written message would silently destroy it.
-    const [editingId, setEditingId] = useState<string | null>(null)
-    const stashRef = useRef("")
 
     /** Open a session on `id`, stashing the composer's current draft. */
-    const beginEdit = useCallback((id: string, draft = "") => {
-        stashRef.current = draft
-        setEditingId(id)
-    }, [])
+    const beginEdit = useCallback(
+        (id: string, draft = "") => {
+            editSessionRef.current = {
+                id,
+                server: !!server?.queued.some((message) => message.id === id),
+            }
+            stashRef.current = draft
+            setEditingId(id)
+        },
+        [server],
+    )
 
     /** Take the stashed draft back, once. Both ends of a session hand the composer back. */
     const takeStash = useCallback(() => {
@@ -361,6 +386,7 @@ export const useAgentChatQueue = ({
 
     /** Close the session without touching the message. Returns the draft to restore. */
     const cancelEdit = useCallback(() => {
+        editSessionRef.current = null
         setEditingId(null)
         return takeStash()
     }, [takeStash])
@@ -373,8 +399,7 @@ export const useAgentChatQueue = ({
      * Attachments MERGE rather than replace — the composer only submits newly staged files, so
      * replacing would delete the queued message's originals on every text-only edit.
      *
-     * The queue drains on its own, so the target can leave mid-edit. Nothing is left to rewrite
-     * then, and the content becomes a new queued message instead of vanishing.
+     * A drained local target becomes a new message; durable edits instead preserve server refusal.
      *
      * Returns the stashed draft, exactly as `cancelEdit` does: committing consumes the composer,
      * so the text the session displaced has to come back here too or it is lost for good.
@@ -382,6 +407,45 @@ export const useAgentChatQueue = ({
     const commitEdit = useCallback(
         (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
             const id = editingId
+            const editSession = editSessionRef.current
+            const serverOwnsInput =
+                editSession?.server || server?.queued.some((message) => message.id === id)
+            if (id && serverOwnsInput) {
+                if (editSession) editSession.server = true
+                setQueued((queue) => queue.filter((message) => message.id !== id))
+                if (migrationRef.current === id) migrationRef.current = null
+                if (migrationPromiseRef.current?.id === id) migrationPromiseRef.current = null
+            }
+            const migration =
+                migrationPromiseRef.current?.id === id ? migrationPromiseRef.current : null
+            if (id && (serverOwnsInput || migration)) {
+                const save = server?.edit
+                if (!save) return Promise.reject(new Error("This queued message cannot be edited."))
+                if (migration?.failed) {
+                    migration.failed = false
+                    migration.promise = migration.retry().catch((error: unknown) => {
+                        migration.failed = true
+                        throw error
+                    })
+                }
+                const saved = migration
+                    ? migration.promise.then(() =>
+                          editSessionRef.current === editSession ? save(id, item) : undefined,
+                      )
+                    : save(id, item)
+                return saved.then(
+                    () => {
+                        if (editSessionRef.current !== editSession) return ""
+                        editSessionRef.current = null
+                        setEditingId(null)
+                        return takeStash()
+                    },
+                    (error: unknown) => {
+                        if (editSessionRef.current !== editSession) return ""
+                        throw error
+                    },
+                )
+            }
             const target = id ? queuedRef.current.find((m) => m.id === id) : undefined
             if (!target) {
                 const submission = submit(item)
@@ -414,7 +478,7 @@ export const useAgentChatQueue = ({
             )
             return draft
         },
-        [editingId, submit, takeStash],
+        [editingId, server, submit, takeStash],
     )
 
     // Release the queue head once the stream settles; the latch caps it at one per settle. Both

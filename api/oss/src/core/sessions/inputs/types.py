@@ -32,3 +32,15 @@ class SessionInputRemoved(SessionInputError):
     def __init__(self, input_id: str):
         self.input_id = input_id
         super().__init__("The queued input was removed and cannot be sent.")
+
+
+class SessionInputNotEditable(SessionInputError):
+    def __init__(self, input_id: str):
+        self.input_id = input_id
+        super().__init__(
+            "The queued input is no longer editable because it was removed, promoted, or selected to run next."
+        )
+
+
+class SessionInputContentInvalid(SessionInputError):
+    pass
