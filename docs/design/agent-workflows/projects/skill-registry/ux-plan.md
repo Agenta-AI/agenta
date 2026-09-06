@@ -162,9 +162,24 @@ reverse "used by" query.
    reverse; same embed primitive underneath.
 7. Local edit to an imported skill detaches it from sync ("modified locally").
 
-## Still open
+## Resolved 2026-09-06 (with Arda)
 
-1. Migration story for existing inline skills (auto-migrate on next commit vs prompt
-   vs dual support).
-2. Name collisions (registry-wide and per-agent) — block vs auto-suffix.
-3. Whether non-skill config sections also move off silent auto-commit.
+1. **Inline-skill migration**: no auto-migration. Runtime keeps accepting inline
+   packages indefinitely (the wire contract). The UI migration path is a per-row
+   **Publish** action on inline skill rows in the agent config: it creates the
+   registry skill and swaps the entry to a follow-latest embed at the same index.
+2. **Name collisions**: mirror agent creation. Display names may collide; the
+   workflow slug is plumbing and always carries a random 4-char suffix
+   (`name-ab12`), so creation never rejects on a name. Import idempotency moved
+   off the name onto the link table: re-importing a path a source already
+   delivered skips ("already imported — use Refresh"); an unrelated name clash
+   creates normally. Per-agent duplicates remain a runtime concern (the runner
+   keeps the first and stamps the rest on `ag.meta.skills.dropped`).
+3. **Non-skill config sections keep silent auto-commit** (#6126's design is
+   unchanged; nothing outside skills moves off it). The blast-radius dialog
+   applies ONLY to commits on a skill workflow itself — editing a shared skill —
+   as approved in the mockup review (artboard 5b / decision 5). Adding or
+   removing a skill on an agent still auto-commits like every other section.
+4. **Org-wide sharing stays postponed** (v1 is project-scoped) — see the
+   assessment in plan.md; the current structure supports it later without
+   migrating anything.

@@ -109,13 +109,10 @@ export function SkillCreateDrawer({
         async (skill: Record<string, unknown>) => {
             const parsed = skillContentSchema.safeParse(skill)
             if (!parsed.success) throw new Error(firstIssue(parsed.error))
-            const created = (await createSkillWorkflow({projectId, skill: parsed.data})) as
-                | Record<string, unknown>
-                | undefined
+            const created = await createSkillWorkflow({projectId, skill: parsed.data})
             onCreated?.({
-                slug: parsed.data.name,
-                workflowId:
-                    typeof created?.workflow_id === "string" ? created.workflow_id : undefined,
+                slug: created.slug,
+                workflowId: created.workflowId,
                 name: parsed.data.name,
                 description: parsed.data.description,
             })
@@ -132,26 +129,20 @@ export function SkillCreateDrawer({
         setBusy(true)
         setError(null)
         try {
-            const created = (await createSkillWorkflow({projectId, skill: parsed.data})) as
-                | Record<string, unknown>
-                | undefined
+            const created = await createSkillWorkflow({projectId, skill: parsed.data})
             invalidateSkillsListCache()
             onCreated?.({
-                slug: parsed.data.name,
-                workflowId:
-                    typeof created?.workflow_id === "string" ? created.workflow_id : undefined,
+                slug: created.slug,
+                workflowId: created.workflowId,
                 name: parsed.data.name,
                 description: parsed.data.description,
             })
             close()
         } catch (err) {
-            const status = (err as {response?: {status?: number}})?.response?.status
             setError(
-                status === 409
-                    ? `A skill named '${String(value.name)}' already exists in this project.`
-                    : err instanceof Error && err.message
-                      ? `Create failed: ${err.message}`
-                      : "Create failed.",
+                err instanceof Error && err.message
+                    ? `Create failed: ${err.message}`
+                    : "Create failed.",
             )
         } finally {
             setBusy(false)

@@ -3,6 +3,7 @@
 No network, no DB — the fetcher copies a fixture tree, the workflows service
 and the sources DAO are in-memory stubs."""
 
+import re
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
@@ -199,7 +200,9 @@ async def test_import_creates_workflows_and_links(fixture_tree):
     assert {s.path_in_repo for s in result.skipped} == {"skills/broken"}
 
     assert len(simple.created) == 2
-    create = next(c for c in simple.created if c.slug == "alpha")
+    create = next(c for c in simple.created if c.slug.startswith("alpha-"))
+    # Display name stays exactly the skill name; the slug carries a unique suffix.
+    assert re.fullmatch(r"alpha-[0-9a-f]{4}", create.slug)
     assert create.flags.is_skill is True
     assert create.flags.is_snippet is True
     assert create.data.parameters["skill"]["name"] == "alpha"
@@ -252,7 +255,35 @@ async def test_import_respects_path_selection(fixture_tree):
 
 
 @pytest.mark.asyncio
-async def test_import_skips_name_collisions(fixture_tree):
+async def test_reimport_skips_already_linked_paths(fixture_tree):
+    service, simple, dao = _service(fixture_tree)
+    first = await service.import_from_source(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        repo_url="github.com/acme/skills",
+    )
+    assert len(first.imported) == 2
+
+    second = await service.import_from_source(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        repo_url="github.com/acme/skills",
+    )
+    # Idempotency rides the link table: the same paths skip, nothing duplicates.
+    assert second.imported == []
+    assert {s.path_in_repo for s in second.skipped} >= {"skills/alpha", "skills/beta"}
+    assert all(
+        s.issues and s.issues[0].code == "already_imported"
+        for s in second.skipped
+        if s.path_in_repo in {"skills/alpha", "skills/beta"}
+    )
+    assert len(dao.links) == 2
+
+
+@pytest.mark.asyncio
+async def test_name_collision_creates_with_suffixed_slug(fixture_tree):
+    # An unrelated skill already using the name is NOT a blocker: display names may
+    # collide (like agents); the new workflow just gets its own suffixed slug.
     service, simple, dao = _service(fixture_tree, existing_slugs={"alpha"})
     result = await service.import_from_source(
         project_id=PROJECT_ID,
@@ -260,10 +291,11 @@ async def test_import_skips_name_collisions(fixture_tree):
         repo_url="github.com/acme/skills",
     )
 
-    assert {i.name for i in result.imported} == {"beta"}
-    collision = next(s for s in result.skipped if s.path_in_repo == "skills/alpha")
-    assert collision.issues[0].code == "name_collision"
-    assert len(dao.links) == 1
+    assert {i.name for i in result.imported} == {"alpha", "beta"}
+    alpha_create = next(c for c in simple.created if c.name == "alpha")
+    assert re.fullmatch(r"alpha-[0-9a-f]{4}", alpha_create.slug)
+    assert alpha_create.data.parameters["skill"]["name"] == "alpha"
+    assert len(dao.links) == 2
 
 
 @pytest.mark.asyncio

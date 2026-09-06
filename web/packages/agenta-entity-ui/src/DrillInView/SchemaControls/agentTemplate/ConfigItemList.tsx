@@ -18,6 +18,7 @@ export function ConfigItemList({
     disabled,
     emptyAdd,
     statusFor,
+    extraFor,
 }: {
     kind: ItemKind
     items: unknown[]
@@ -29,6 +30,8 @@ export function ConfigItemList({
     emptyAdd: ReactNode
     /** Per-row draft/validation status (unsaved edits, missing fields). */
     statusFor?: (item: unknown, index: number) => ItemRowStatus | undefined
+    /** Per-row action slot ahead of the remove button (e.g. publish-to-registry). */
+    extraFor?: (item: unknown, index: number) => ReactNode
 }) {
     const def = ITEM_KINDS[kind]
     if (items.length > 0) {
@@ -46,6 +49,7 @@ export function ConfigItemList({
                         // Read-only items (static `__ag__*` skills) can't be removed and open disabled.
                         disabled={disabled || def.isReadOnly(item)}
                         status={statusFor?.(item, index)}
+                        extra={extraFor?.(item, index)}
                     />
                 ))}
             </div>

@@ -37,6 +37,7 @@ import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {
     Cpu,
     FileText,
@@ -45,6 +46,7 @@ import {
     PuzzlePiece,
     Robot,
     SlidersHorizontal,
+    UploadSimple,
 } from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
@@ -826,6 +828,71 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // so the conditional hook resolution keeps a stable hook order in practice.
     const useHeadVersions = skillsBridge?.useHeadVersions ?? useNoHeadVersions
     const skillHeadVersions = useHeadVersions()
+    // Publish-to-registry for INLINE packages: the migration path off pre-registry
+    // configs. The bridge creates the registry skill and answers with the embed entry
+    // that replaces the inline one at the same index; auto-commit persists the swap.
+    const [publishingSkillIndex, setPublishingSkillIndex] = useState<number | null>(null)
+    const [publishSkillError, setPublishSkillError] = useState<string | null>(null)
+    const publishInlineSkill = useCallback(
+        async (item: unknown, index: number) => {
+            const publish = skillsBridge?.publishInlineSkill
+            if (!publish || publishingSkillIndex !== null) return
+            setPublishingSkillIndex(index)
+            setPublishSkillError(null)
+            try {
+                const outcome = await publish(item as Record<string, unknown>)
+                if ("error" in outcome) {
+                    setPublishSkillError(outcome.error)
+                    return
+                }
+                const current = Array.isArray(configRef.current?.skills)
+                    ? (configRef.current.skills as unknown[])
+                    : skills
+                onChange({
+                    ...(configRef.current ?? config),
+                    skills: current.map((entry, i) => (i === index ? outcome.entry : entry)),
+                })
+                closeEditor()
+            } finally {
+                setPublishingSkillIndex(null)
+            }
+        },
+        [closeEditor, config, configRef, onChange, publishingSkillIndex, skills, skillsBridge],
+    )
+    const skillExtraFor = useCallback(
+        (item: unknown, index: number) => {
+            if (!skillsBridge?.publishInlineSkill || isEmbedRefSkill(item)) return undefined
+            if (ITEM_KINDS.skill.draftInvalid(item as Record<string, unknown>)) return undefined
+            const busyRow = publishingSkillIndex === index
+            return (
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label="Publish to registry"
+                                disabled={publishingSkillIndex !== null}
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    void publishInlineSkill(item, index)
+                                }}
+                                className="flex cursor-pointer items-center gap-1 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-1.5 py-0.5 text-[11px] text-[var(--ag-colorTextSecondary)] hover:border-[var(--ag-colorBorder)] hover:text-[var(--ag-colorText)] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <UploadSimple size={11} />
+                                {busyRow ? "Publishing…" : "Publish"}
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                            Move this inline skill to the registry; the agent will reference it
+                            (following the latest version).
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            )
+        },
+        [publishInlineSkill, publishingSkillIndex, skillsBridge],
+    )
+
     const skillStatusFor = useMemo(() => {
         const base = statusForKind("skill")
         return (item: unknown, index: number) => {
@@ -1100,16 +1167,24 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
             defaultOpen: skills.length > 0,
             content: (
-                <ConfigItemList
-                    kind="skill"
-                    items={skills}
-                    openEdit={openSkillItem}
-                    removeItem={removeItem}
-                    closeEditor={closeEditor}
-                    disabled={disabled}
-                    statusFor={skillStatusFor}
-                    emptyAdd={<AddTextLink label="add a skill" onClick={handleAddSkill} />}
-                />
+                <>
+                    {publishSkillError ? (
+                        <span className="mb-2 block text-xs text-colorError">
+                            {publishSkillError}
+                        </span>
+                    ) : null}
+                    <ConfigItemList
+                        kind="skill"
+                        items={skills}
+                        openEdit={openSkillItem}
+                        extraFor={skillExtraFor}
+                        removeItem={removeItem}
+                        closeEditor={closeEditor}
+                        disabled={disabled}
+                        statusFor={skillStatusFor}
+                        emptyAdd={<AddTextLink label="add a skill" onClick={handleAddSkill} />}
+                    />
+                </>
             ),
         },
         mh.hasAdvanced && {

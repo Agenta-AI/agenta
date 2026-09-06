@@ -16,7 +16,6 @@ from agenta.sdk.engines.running.utils import AGENTA_BUILTIN_SKILL_URI
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.shared.dtos import Reference
 from oss.src.core.skills.exceptions import SkillSourceNotFoundError
 from oss.src.core.workflows.dtos import (
     SimpleWorkflowCreate,
@@ -197,6 +196,15 @@ class SkillImportService:
                     ),
                 )
 
+            # Idempotency rides the LINK table, not the name: re-importing a path this
+            # source already delivered is a skip, while an unrelated name clash just gets
+            # a fresh suffixed slug (display names may collide, like agents).
+            existing_links = await self.sources_dao.list_links(
+                project_id=project_id,
+                source_id=source.id,
+            )
+            linked_paths = {link.path_in_repo for link in existing_links}
+
             result = ImportResult(source=source)
             link_creates: List[SkillSourceLinkCreate] = []
 
@@ -211,28 +219,16 @@ class SkillImportService:
                     continue
 
                 skill = candidate.skill
-                # Collision check rides the underlying workflows service —
-                # SimpleWorkflowsService.fetch is id-only.
-                existing = await self.simple_workflows_service.workflows_service.fetch_workflow(
-                    project_id=project_id,
-                    workflow_ref=Reference(slug=skill.name),
-                )
-                if existing:
-                    # Slugs are unique per project INCLUDING archived workflows
-                    # (workflow_artifacts_project_id_slug_key is not partial), so an
-                    # archived skill still blocks the name — say so honestly.
-                    archived = getattr(existing, "deleted_at", None) is not None
+                if candidate.path_in_repo in linked_paths:
                     result.skipped.append(
                         SkippedSkill(
                             path_in_repo=candidate.path_in_repo,
                             issues=[
                                 SkillIssue(
-                                    code="name_collision",
+                                    code="already_imported",
                                     message=(
-                                        f"An archived skill named {skill.name!r} still holds "
-                                        "this name — unarchive it instead of importing."
-                                        if archived
-                                        else f"A skill named {skill.name!r} already exists in this project."
+                                        f"{skill.name!r} was already imported from this "
+                                        "source — use Refresh to pick up upstream changes."
                                     ),
                                     path=candidate.path_in_repo,
                                 )
@@ -247,7 +243,9 @@ class SkillImportService:
                     project_id=project_id,
                     user_id=user_id,
                     simple_workflow_create=SimpleWorkflowCreate(
-                        slug=skill.name,
+                        # Display names may collide (like agents); the slug is plumbing and
+                        # carries a random suffix so creation never rejects on a name.
+                        slug=f"{skill.name}-{uuid4().hex[:4]}",
                         name=skill.name,
                         # Populates the searchable artifact column (WP-A2.2).
                         description=skill.description,

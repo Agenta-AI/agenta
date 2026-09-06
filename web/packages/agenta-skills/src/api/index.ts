@@ -14,7 +14,7 @@ import {
 } from "@agenta/entities/workflow"
 import {getSkillsClient} from "@agenta/sdk/resources"
 import {getAgentaApiUrl, axios} from "@agenta/shared/api"
-import {generateId} from "@agenta/shared/utils"
+import {generateId, generateSlugWithSuffix} from "@agenta/shared/utils"
 import type {z} from "zod"
 
 import {
@@ -126,19 +126,35 @@ export interface CreateSkillWorkflowParams {
  * Creates a registry skill: a workflow with `is_skill`+`is_snippet` stamped on BOTH the
  * artifact and the v1 revision — the registry query filters on the REVISION flag, so a
  * commit without it is invisible to /skills/query. Mirrors the server import path
- * (import_service.py SimpleWorkflowCreate). Throws on HTTP errors (409 = slug taken).
+ * (import_service.py SimpleWorkflowCreate). Display names may collide (like agents);
+ * the slug is plumbing and carries a random suffix so creation never rejects on a name.
  */
-export async function createSkillWorkflow({projectId, skill}: CreateSkillWorkflowParams) {
+export interface CreatedSkillWorkflow {
+    /** The generated (suffixed) workflow slug — what embeds must reference. */
+    slug: string
+    workflowId?: string
+}
+
+export async function createSkillWorkflow({
+    projectId,
+    skill,
+}: CreateSkillWorkflowParams): Promise<CreatedSkillWorkflow> {
     const flags = {is_skill: true, is_snippet: true}
-    return createWorkflow(projectId, {
-        slug: skill.name,
+    const slug = generateSlugWithSuffix(skill.name)
+    const created = (await createWorkflow(projectId, {
+        slug,
         name: skill.name,
+        // Populates the searchable artifact column (WP-A2.2).
         description: skill.description,
         flags,
         data: {uri: AGENTA_BUILTIN_SKILL_URI, parameters: {skill}},
         revisionFlags: flags,
         message: "Create skill",
-    })
+    })) as Record<string, unknown> | undefined
+    return {
+        slug,
+        workflowId: typeof created?.workflow_id === "string" ? created.workflow_id : undefined,
+    }
 }
 
 export interface ScanSkillSourceParams {

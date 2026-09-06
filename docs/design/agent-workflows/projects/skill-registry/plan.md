@@ -92,3 +92,25 @@ repos.
 
 Inline-skill migration; name-collision policy; whether non-skill config sections also
 leave silent auto-commit.
+
+## Org-wide sharing: postponement assessment (2026-09-06)
+
+Postponed safely. A skill is an ordinary project-scoped workflow, and nothing in
+this build hard-codes that scope in a way a later org registry would have to
+migrate:
+
+- **Publication records are additive.** Sharing later means one new table
+  (org/workspace id, workflow id, pinned revision, visibility) plus a read path
+  that unions published skills into `/skills/query`. No change to
+  `workflow_*`, `skill_sources`, or `skill_source_links`.
+- **Install-by-copy already exists.** Installing a shared skill into a project
+  is exactly the GitHub import pipeline: snapshot the content into a local
+  workflow and record provenance in a source link (a new source kind, e.g.
+  `registry`, beside `github`). Sync/refresh, detach-on-local-edit, and the
+  provenance UI all carry over unchanged.
+- **Embeds stay project-local.** Because install copies, the embed resolver
+  never needs cross-project resolution — the riskiest alternative is simply
+  avoided.
+
+The only later decision is presentation (a "Shared with your org" section in
+the registry, reusing the source-section pattern).
