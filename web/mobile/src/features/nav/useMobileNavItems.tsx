@@ -23,23 +23,23 @@ import {
 } from "@agenta/navigation"
 import {SessionFilterMenu} from "@agenta/navigation-ui"
 import {SessionRowActions, useSessionActions, useSessionRowChrome} from "@agenta/sessions-ui"
+import {
+    ChartLineUpIcon,
+    ChatsCircleIcon,
+    CircleIcon,
+    CircleNotchIcon,
+    GearIcon,
+    GithubLogoIcon,
+    HouseIcon,
+    LightningIcon,
+    PhoneIcon,
+    QuestionIcon,
+    RobotIcon,
+    ScrollIcon,
+    SlackLogoIcon,
+} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import {unwrap} from "jotai/utils"
-import {
-    Activity,
-    Bot,
-    CalendarClock,
-    Circle,
-    HelpCircle,
-    LoaderCircle,
-    Zap,
-    Github,
-    House,
-    MessagesSquare,
-    ScrollText,
-    Settings,
-    Slack,
-} from "lucide-react"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
@@ -57,7 +57,7 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     SESSIONS_SIDEBAR_KEY,
     {
         kind: "app",
-        icon: createElement(MessagesSquare, {size: 14}),
+        icon: createElement(ChatsCircleIcon, {size: 14}),
         // Its OWN scope: the source reads that scope's filters, so the desktop rail's filters
         // cannot narrow this drawer. Mobile has no filter UI, so this scope keeps the defaults.
         listAtom: sidebarSessionsListAtomFamily(MOBILE_NAV_SCOPE_ID),
@@ -74,18 +74,19 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
             // State wins the glyph while a turn is live; otherwise the SHAPE says the type — a
             // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
             const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
+            const live = session.waiting || session.alive
             if (session.running)
-                return createElement(LoaderCircle, {size: 12, className: "animate-spin"})
+                return createElement(CircleNotchIcon, {size: 12, className: "animate-spin"})
             if (session.isAutomation)
-                return createElement(Zap, {
+                return createElement(LightningIcon, {
                     size: 12,
                     // Fill means LIVE on both glyphs; the bolt shape alone says automation.
-                    fill: session.waiting || session.alive ? "currentColor" : "none",
+                    weight: live ? "fill" : "regular",
                     className: amber,
                 })
-            return createElement(Circle, {
+            return createElement(CircleIcon, {
                 size: 8,
-                fill: session.waiting || session.alive ? "currentColor" : "none",
+                weight: live ? "fill" : "regular",
                 className: amber,
             })
         },
@@ -108,13 +109,13 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
  */
 const mobileAgentsEntity = defineSidebarEntity(MOBILE_NAV_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
     kind: "app",
-    icon: createElement(Bot, {size: 14}),
+    icon: createElement(RobotIcon, {size: 14}),
     // Per row: this agent's own glyph, falling back to the shared one.
     getIcon: (workflow) =>
         createElement(AgentGlyph, {
             workflowId: workflow.id,
             size: 14,
-            fallback: createElement(Bot, {size: 14}),
+            fallback: createElement(RobotIcon, {size: 14}),
         }),
     listAtom: agentWorkflowsListQueryStateAtom,
     getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
@@ -162,13 +163,13 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             {
                 key: "mobile-home",
                 title: "Home",
-                icon: createElement(House, {size: 16}),
+                icon: createElement(HouseIcon, {size: 16}),
                 link: `${projectURL}/apps`,
             },
             {
                 key: AGENTS_SIDEBAR_KEY,
                 title: "Agents",
-                icon: createElement(Bot, {size: 16}),
+                icon: createElement(RobotIcon, {size: 16}),
                 link: `${projectURL}/agents`,
                 // Collapsed rail: navigate to the section instead of flyout-ing the list, the
                 // same call the desktop rail makes. The icon's obvious meaning is "take me
@@ -179,7 +180,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             {
                 key: SESSIONS_SIDEBAR_KEY,
                 title: "Sessions",
-                icon: createElement(MessagesSquare, {size: 16}),
+                icon: createElement(ChatsCircleIcon, {size: 16}),
                 link: `${projectURL}/sessions`,
                 hideChildrenWhenCollapsed: true,
                 // No collapse caret here: the filter control is this group's affordance, and the
@@ -206,7 +207,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                       {
                           key: "mobile-observability",
                           title: "Observability",
-                          icon: createElement(Activity, {size: 16}),
+                          icon: createElement(ChartLineUpIcon, {size: 16}),
                           link: `${projectURL}/observability`,
                       },
                   ]
@@ -240,18 +241,18 @@ export const useMobileBottomNavItems = (
                       {
                           key: "mobile-settings",
                           title: "Settings",
-                          icon: createElement(Settings, {size: 16}),
+                          icon: createElement(GearIcon, {size: 16}),
                           link: `${projectURL}/settings`,
                       },
                   ]
                 : []),
             buildHelpDocsNavItem({
                 icons: {
-                    help: createElement(HelpCircle, {size: 16}),
-                    docs: createElement(ScrollText, {size: 14}),
-                    github: createElement(Github, {size: 14}),
-                    slack: createElement(Slack, {size: 14}),
-                    bookCall: createElement(CalendarClock, {size: 14}),
+                    help: createElement(QuestionIcon, {size: 16}),
+                    docs: createElement(ScrollIcon, {size: 14}),
+                    github: createElement(GithubLogoIcon, {size: 14}),
+                    slack: createElement(SlackLogoIcon, {size: 14}),
+                    bookCall: createElement(PhoneIcon, {size: 14}),
                 },
                 suffix: version
                     ? createElement(
