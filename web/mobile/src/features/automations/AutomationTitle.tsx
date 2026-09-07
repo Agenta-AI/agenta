@@ -48,24 +48,28 @@ export const AutomationTitle = ({
                         if (event.key === "Enter") void rename.commit()
                         if (event.key === "Escape") rename.cancel()
                     }}
+                    // The stock input, except for type: matching the heading's size and weight is
+                    // what stops the swap into editing from resetting the text under the cursor.
+                    className="text-[18px] font-semibold focus-visible:border-input focus-visible:ring-0 md:text-[18px]"
                 />
             ) : (
                 <button
                     type="button"
                     onClick={rename.start}
                     title="Rename"
-                    // The shared FOCUS_RING is a hard 2px outline in the near-black ring colour,
-                    // which reads as a border on a heading. The soft shadcn ring the inputs use is
-                    // still keyboard-visible without looking like chrome.
-                    className="-ml-2 flex min-w-0 items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    // No focus ring: the shared FOCUS_RING draws a hard near-black outline and
+                    // the softer ring still glowed around the title. Hover carries the affordance.
+                    className="group -ml-2 flex min-w-0 items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground outline-none hover:bg-accent"
                 >
                     <h1 className="m-0 min-w-0 truncate text-[18px] font-semibold leading-[1.25] tracking-[-0.02em]">
                         {name}
                     </h1>
+                    {/* Only on hover or keyboard focus: the name is the control, and a pencil
+                        parked beside it permanently reads as part of the title. */}
                     <PencilSimple
                         aria-hidden
                         size={14}
-                        className="ml-2 shrink-0 text-muted-foreground"
+                        className="ml-2 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
                     />
                 </button>
             )}
