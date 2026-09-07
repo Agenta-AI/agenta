@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Where agent work, memory, and configuration live</title>
+  <desc id="desc">Managed cloud products, personal environments, and professional team workspaces compared by who operates the system and who shares its context.</desc>
+  <rect width="1600" height="900" fill="#f5f9ff"/>
+  <g font-family="Inter, Arial, sans-serif">
+    <text x="100" y="110" font-size="54" font-weight="700" fill="#17213a">Where the agent's working context lives</text>
+    <text x="100" y="164" font-size="25" fill="#59657a">The environment determines who controls it and who can share it.</text>
+    <g transform="translate(100 245)">
+      <rect width="420" height="470" rx="28" fill="#ffffff" stroke="#c7d7f4" stroke-width="3"/>
+      <rect x="36" y="36" width="348" height="86" rx="18" fill="#e8f0ff"/>
+      <text x="62" y="75" font-size="18" font-weight="700" fill="#285dd7">MANAGED CLOUD</text>
+      <text x="62" y="105" font-size="22" fill="#17213a">The vendor operates it</text>
+      <text x="36" y="180" font-size="25" font-weight="700" fill="#17213a">Work</text>
+      <text x="160" y="180" font-size="22" fill="#59657a">Vendor computer</text>
+      <text x="36" y="244" font-size="25" font-weight="700" fill="#17213a">Memory</text>
+      <text x="160" y="244" font-size="22" fill="#59657a">Product-managed</text>
+      <text x="36" y="308" font-size="25" font-weight="700" fill="#17213a">Setup</text>
+      <text x="160" y="308" font-size="22" fill="#59657a">Low effort</text>
+      <line x1="36" y1="354" x2="384" y2="354" stroke="#e2e8f4" stroke-width="2"/>
+      <text x="36" y="406" font-size="20" fill="#59657a">Useful when convenience</text>
+      <text x="36" y="438" font-size="20" fill="#59657a">matters most.</text>
+    </g>
+    <path d="M545 480h60" stroke="#8aa9e8" stroke-width="4" stroke-linecap="round"/>
+    <path d="M590 466l16 14-16 14" fill="none" stroke="#8aa9e8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(590 245)">
+      <rect width="420" height="470" rx="28" fill="#ffffff" stroke="#c7d7f4" stroke-width="3"/>
+      <rect x="36" y="36" width="348" height="86" rx="18" fill="#e8f0ff"/>
+      <text x="62" y="75" font-size="18" font-weight="700" fill="#285dd7">PERSONAL ENVIRONMENT</text>
+      <text x="62" y="105" font-size="22" fill="#17213a">One user operates it</text>
+      <text x="36" y="180" font-size="25" font-weight="700" fill="#17213a">Work</text>
+      <text x="160" y="180" font-size="22" fill="#59657a">Your devices</text>
+      <text x="36" y="244" font-size="25" font-weight="700" fill="#17213a">Memory</text>
+      <text x="160" y="244" font-size="22" fill="#59657a">Personal context</text>
+      <text x="36" y="308" font-size="25" font-weight="700" fill="#17213a">Setup</text>
+      <text x="160" y="308" font-size="22" fill="#59657a">Technical</text>
+      <line x1="36" y1="354" x2="384" y2="354" stroke="#e2e8f4" stroke-width="2"/>
+      <text x="36" y="406" font-size="20" fill="#59657a">Useful when individual</text>
+      <text x="36" y="438" font-size="20" fill="#59657a">control matters most.</text>
+    </g>
+    <path d="M1035 480h60" stroke="#8aa9e8" stroke-width="4" stroke-linecap="round"/>
+    <path d="M1080 466l16 14-16 14" fill="none" stroke="#8aa9e8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(1080 245)">
+      <rect width="420" height="470" rx="28" fill="#17213a"/>
+      <rect x="36" y="36" width="348" height="86" rx="18" fill="#283654"/>
+      <text x="62" y="75" font-size="18" font-weight="700" fill="#88aeff">TEAM WORKSPACE</text>
+      <text x="62" y="105" font-size="22" fill="#ffffff">The organization operates it</text>
+      <text x="36" y="180" font-size="25" font-weight="700" fill="#ffffff">Work</text>
+      <text x="160" y="180" font-size="22" fill="#c5ccda">Shared systems</text>
+      <text x="36" y="244" font-size="25" font-weight="700" fill="#ffffff">Memory</text>
+      <text x="160" y="244" font-size="22" fill="#c5ccda">Team context</text>
+      <text x="36" y="308" font-size="25" font-weight="700" fill="#ffffff">Setup</text>
+      <text x="160" y="308" font-size="22" fill="#c5ccda">Governed</text>
+      <line x1="36" y1="354" x2="384" y2="354" stroke="#465169" stroke-width="2"/>
+      <text x="36" y="406" font-size="20" fill="#c5ccda">Useful when shared control</text>
+      <text x="36" y="438" font-size="20" fill="#c5ccda">and continuity matter.</text>
+    </g>
+    <text x="100" y="790" font-size="21" fill="#59657a">More control usually requires more setup, but it can make the agent easier to govern and move.</text>
+  </g>
+</svg>
