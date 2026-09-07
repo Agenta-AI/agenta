@@ -7,13 +7,15 @@ import {Button} from "@/components/ui/button"
 
 import {AutomationField} from "./AutomationField"
 import {runsWhenLabel, type Automation} from "./automationModel"
+import {EventPicker} from "./pickers/EventPicker"
 
 /**
  * When the automation runs.
  *
  * A schedule gets the shared `ScheduleBuilderField` — its collapsed row and cadence popover ARE
  * this control, so there are no cadence chips of our own to drift from the drawer's. An event
- * subscription reads its phrase and nothing more; changing the event is W4.
+ * subscription gets the same treatment one level up: the button opens `EventPicker`, which is the
+ * subscription drawer's own app/event chooser and filter form in a popover or sheet.
  */
 export const AutomationRunsWhenField = ({
     automation,
@@ -35,16 +37,23 @@ export const AutomationRunsWhenField = ({
             {automation.kind === "schedule" ? (
                 <ScheduleBuilderField value={automation.cron ?? ""} onChange={onChangeCron} />
             ) : (
-                <Button
-                    type="button"
-                    variant="outline"
-                    disabled
-                    // The event is a bound fact until W4 ships its picker — readable, not dimmed.
-                    className="h-10 w-full justify-between font-normal disabled:opacity-100"
-                >
-                    <span className="min-w-0 truncate">{runsWhenLabel(automation)}</span>
-                    <CaretDown aria-hidden size={14} className="text-muted-foreground shrink-0" />
-                </Button>
+                <EventPicker
+                    automation={automation}
+                    trigger={
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="h-10 w-full justify-between font-normal"
+                        >
+                            <span className="min-w-0 truncate">{runsWhenLabel(automation)}</span>
+                            <CaretDown
+                                aria-hidden
+                                size={14}
+                                className="text-muted-foreground shrink-0"
+                            />
+                        </Button>
+                    }
+                />
             )}
         </AutomationField>
     )

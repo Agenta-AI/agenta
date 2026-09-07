@@ -121,6 +121,18 @@ export function deliveryOutcome(delivery: TriggerDelivery): "ok" | "bad" | "pend
     }
 }
 
+/**
+ * What to call the agent this automation runs.
+ *
+ * A binding whose id is not in the agent roster is still a binding — the agent may be archived, or
+ * live outside this roster. Calling that "no agent" would both misreport the automation and invite
+ * a rebind that quietly replaces something real, so unresolved and unbound stay distinct.
+ */
+export function agentLabel(agentId: string | null, resolvedName: string | null): string | null {
+    if (resolvedName) return resolvedName
+    return agentId ? "Unknown agent" : null
+}
+
 /** "GITHUB_STAR_ADDED_EVENT" → "When star added in Github". The first segment is the app. */
 function eventPhrase(eventKey: string): string {
     const parts = eventKey

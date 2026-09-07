@@ -16,6 +16,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {
+    agentLabel,
     AUTOMATION_STATUS_LABEL,
     automationStatus,
     runsWhenLabel,
@@ -128,7 +129,10 @@ export const AutomationListScreen = ({
                                 const status = automationStatus(automation, false)
                                 const color = STATUS_COLOR[status]
                                 const runsWhen = runsWhenLabel(automation)
-                                const agentName = agentNames.get(automation.agentId ?? "")?.trim()
+                                const agentName = agentLabel(
+                                    automation.agentId,
+                                    agentNames.get(automation.agentId ?? "")?.trim() || null,
+                                )
 
                                 return (
                                     <button
@@ -219,11 +223,8 @@ export const AutomationListScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[26px] font-semibold leading-[1.2] tracking-[-0.02em] text-foreground">
                                     Automations
                                 </h1>
-                                <Button
-                                    onClick={() => void router.push(`${base}/automations/new`)}
-                                    className="h-auto gap-1.5 rounded-lg border-0 px-3.5 py-[9px] text-[14px] font-normal has-[>svg]:px-3.5"
-                                >
-                                    <Plus size={14} />
+                                <Button onClick={() => void router.push(`${base}/automations/new`)}>
+                                    <Plus />
                                     New automation
                                 </Button>
                             </div>

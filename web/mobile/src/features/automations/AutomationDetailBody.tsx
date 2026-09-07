@@ -55,7 +55,11 @@ export const AutomationDetailBody = ({
         />
         <AutomationFailureBanner reason={failureReason} />
         <div className="mt-[26px] flex flex-col gap-[22px]">
-            <AutomationAgentField agentName={agentName} onOpenAgentPicker={onOpenAgentPicker} />
+            <AutomationAgentField
+                automation={automation}
+                agentName={agentName}
+                onOpenAgentPicker={onOpenAgentPicker}
+            />
             <AutomationRunsWhenField automation={automation} onChangeCron={onChangeCron} />
             <AutomationInstructionField
                 automationId={automation.id}
