@@ -12,7 +12,14 @@
  * `.zip`, or `.skill` (parsed into the fields) or editing inline. `@ag.embed` reference entries are
  * NOT edited here — the host renders the drawer JSON-only for those so their markers round-trip.
  */
-import {useEffect, useRef, useState, type ReactNode} from "react"
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type PointerEvent as ReactPointerEvent,
+    type ReactNode,
+} from "react"
 
 import {message} from "@agenta/ui/app-message"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
@@ -35,6 +42,7 @@ import {
     SlidersHorizontal,
     Trash,
 } from "@phosphor-icons/react"
+import {motion, useMotionValue} from "motion/react"
 
 import {CodeEditor, codeLanguageFromPath} from "./CodeEditor"
 import {MarkdownEditor} from "./MarkdownEditor"
@@ -159,6 +167,21 @@ function FileRow({
             ) : null}
         </div>
     )
+}
+
+const RAIL_MIN = 140
+const RAIL_MAX = 420
+const RAIL_DEFAULT = 176 // the old fixed w-44
+const RAIL_WIDTH_KEY = "agenta:skill-form:rail-width"
+
+function readRailWidth(): number {
+    try {
+        const stored = Number(window.localStorage.getItem(RAIL_WIDTH_KEY))
+        if (Number.isFinite(stored) && stored >= RAIL_MIN && stored <= RAIL_MAX) return stored
+    } catch {
+        // SSR or blocked storage — fall through to the default.
+    }
+    return RAIL_DEFAULT
 }
 
 export function SkillFormView({value, onChange, disabled, railBottomSlot}: SkillFormViewProps) {
@@ -297,16 +320,55 @@ export function SkillFormView({value, onChange, disabled, railBottomSlot}: Skill
     const activeFile = typeof selected === "number" ? files[selected] : undefined
     const showSkill = selected === "skill" || !activeFile
 
+    // Draggable rail width, mirroring the drive tree pane: the live width is a MotionValue driven
+    // straight from the pointer (a drag re-renders nothing per move); the rest width persists to
+    // localStorage once at drag end.
+    const railW = useMotionValue(readRailWidth())
+    const railDrag = useRef<{startX: number; startW: number} | null>(null)
+    const [railDragging, setRailDragging] = useState(false)
+    const onRailHandleDown = useCallback(
+        (e: ReactPointerEvent<HTMLDivElement>) => {
+            e.preventDefault()
+            e.currentTarget.setPointerCapture(e.pointerId)
+            railDrag.current = {startX: e.clientX, startW: railW.get()}
+            setRailDragging(true)
+        },
+        [railW],
+    )
+    const onRailHandleMove = useCallback(
+        (e: ReactPointerEvent<HTMLDivElement>) => {
+            const st = railDrag.current
+            if (!st) return
+            railW.set(Math.min(RAIL_MAX, Math.max(RAIL_MIN, st.startW + e.clientX - st.startX)))
+        },
+        [railW],
+    )
+    const onRailHandleUp = useCallback(
+        (e: ReactPointerEvent<HTMLDivElement>) => {
+            if (!railDrag.current) return
+            railDrag.current = null
+            setRailDragging(false)
+            e.currentTarget.releasePointerCapture?.(e.pointerId)
+            try {
+                window.localStorage.setItem(RAIL_WIDTH_KEY, String(Math.round(railW.get())))
+            } catch {
+                // Blocked storage — the width still holds for this mount.
+            }
+        },
+        [railW],
+    )
+
     return (
-        <div className="flex h-full gap-3">
+        <div className="flex h-full">
             {/* Left: full-height file list (SKILL.md pinned) with the drop zone pinned to the bottom. */}
-            <div
+            <motion.div
+                style={{width: railW}}
                 className={cn(
                     // -my/py pair: bleeds the divider through the drawer body's vertical padding so
                     // it meets the header and footer rules, without moving the rail's content.
                     // No `ag-drawer-rail`: that class paints a recessed band in dark, which shows
                     // through around the Files panel. The panel is this rail's surface, as in light.
-                    "-my-4 flex w-44 shrink-0 flex-col gap-2 py-4 pr-3",
+                    "-my-4 box-border flex shrink-0 flex-col gap-2 py-4 pr-3",
                     "border-0 border-r border-solid border-colorBorderSecondary",
                 )}
             >
@@ -359,10 +421,26 @@ export function SkillFormView({value, onChange, disabled, railBottomSlot}: Skill
                         <SkillUploadZone onParsed={applyParsed} disabled={disabled} />
                     </div>
                 ) : null}
+            </motion.div>
+
+            {/* Resize handle — a wide invisible hit target straddling the rail's right edge (the
+                rail's own border is the resting divider); the 1px line lights up on hover/drag. */}
+            <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize file rail"
+                onPointerDown={onRailHandleDown}
+                onPointerMove={onRailHandleMove}
+                onPointerUp={onRailHandleUp}
+                className="group relative z-10 -mx-1 -my-4 w-2 shrink-0 cursor-col-resize touch-none"
+            >
+                <div
+                    className={`absolute inset-y-0 left-1/2 w-px -translate-x-1/2 transition-colors ${railDragging ? "bg-colorPrimary" : "bg-transparent group-hover:bg-colorPrimary"}`}
+                />
             </div>
 
             {/* Right: skill-level fields + the selected file's editor + behaviour toggles. */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden pl-3">
                 <Field
                     className="shrink-0"
                     invalid={nameMissing}
