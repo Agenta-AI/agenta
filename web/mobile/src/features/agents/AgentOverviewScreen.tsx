@@ -21,12 +21,7 @@ import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {AgentComposer} from "./AgentComposer"
 
-/**
- * One agent's overview — the mobile face of the desktop agent overview page: this agent's
- * sessions and automation runs from the same shared card hooks, and the shared configuration
- * card in place of the desktop's rail. "Edit configuration" opens the session workspace's config
- * pane — this app's answer to the desktop's playground.
- */
+/** One agent's overview: the desktop page's shared cards, with a config card for its rail. */
 export const AgentOverviewScreen = ({
     workspaceId,
     projectId,

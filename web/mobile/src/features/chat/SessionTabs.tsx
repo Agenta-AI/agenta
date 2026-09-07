@@ -55,10 +55,8 @@ export const SessionTabs = ({
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
     const [configCollapsed, setConfigCollapsed] = useAtom(configPanelCollapsedAtom)
     const {open: filesOpen, openPane} = useSessionFilesPane(agentId ?? sessionId, sessionId)
-    // The singular GET /sessions/streams redirects with a root-path-less Location
-    // behind the /api prefix and lands on the web app — use the proven query POST.
-    // The key leads with `session-stream`, not `mobile`: a rename patches by key PREFIX, so a
-    // nested key would never be reached and the browser title would lag until the next refetch.
+    // Key leads with `session-stream`: a rename patches by key PREFIX, so a nested key never
+    // matches and the title lags. The singular GET redirects onto the web app, so POST it.
     const query = useQuery({
         queryKey: ["session-stream", projectId, sessionId],
         queryFn: async () => (await querySessionStreams({sessionId, projectId}))?.[0] ?? null,

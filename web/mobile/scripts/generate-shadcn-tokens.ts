@@ -15,8 +15,8 @@ import {readFileSync, writeFileSync} from "fs"
 import {dirname, resolve} from "path"
 import {fileURLToPath} from "url"
 
-import {controlScale} from "../../oss/src/styles/theme/controlScale"
-import {palette, type ColorValue} from "../../oss/src/styles/theme/palette"
+import {controlScale} from "@agenta/oss/src/styles/theme/controlScale"
+import {palette, type ColorValue} from "@agenta/oss/src/styles/theme/palette"
 
 const HERE = dirname(fileURLToPath(import.meta.url)) // web/mobile/scripts
 const OUT = resolve(HERE, "../src/styles/theme.generated.css")

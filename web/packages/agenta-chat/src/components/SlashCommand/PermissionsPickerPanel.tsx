@@ -9,12 +9,7 @@ import {Check, ShieldCheck} from "@phosphor-icons/react"
 
 import {useRovingList} from "./useRovingList"
 
-/**
- * The `/permissions` picker: the four default policies with their descriptions, nothing else.
- *
- * One click applies — no detail pane and no commit step. Rule editing stays in
- * the config drawer; this only sets `runner.permissions.default`, so the rules beside it survive.
- */
+/** The `/permissions` picker: one click sets `runner.permissions.default`, leaving rules intact. */
 const PermissionsPickerPanel = ({
     current,
     options,
