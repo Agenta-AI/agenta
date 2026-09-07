@@ -225,6 +225,7 @@ export const AutomationListScreen = ({
                                     Automations
                                 </h1>
                                 <Button
+                                    size="sm"
                                     className="font-normal"
                                     onClick={() => void router.push(`${base}/automations/new`)}
                                 >

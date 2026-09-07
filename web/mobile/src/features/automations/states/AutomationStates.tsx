@@ -86,7 +86,7 @@ export const AutomationListError = ({
         <TriangleAlert className="size-6 text-destructive" />
         <p className="m-0 text-[14px] font-medium text-foreground">{message}</p>
         {onRetry ? (
-            <Button variant="outline" className="font-normal" onClick={onRetry}>
+            <Button variant="outline" size="sm" className="font-normal" onClick={onRetry}>
                 <RefreshCw className="size-3.5" />
                 Try again
             </Button>

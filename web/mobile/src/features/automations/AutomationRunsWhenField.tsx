@@ -94,6 +94,7 @@ export const AutomationRunsWhenField = ({
                                 <Button
                                     key={value}
                                     type="button"
+                                    size="sm"
                                     variant={active ? "default" : "outline"}
                                     aria-pressed={active}
                                     // A saved automation's kind is its entity type — two
