@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
+import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {ClockClockwise, Lightning, MagnifyingGlass, Plus, Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -185,10 +186,14 @@ export const AutomationListScreen = ({
 
                                         {agentName ? (
                                             <span className="flex min-w-0 items-center gap-1.5">
-                                                <Robot
+                                                {/* The agent's own glyph, not a generic robot —
+                                                    a column of identical icons identifies
+                                                    nothing. */}
+                                                <AgentGlyph
+                                                    workflowId={automation.agentId}
                                                     size={13}
-                                                    className="shrink-0 text-muted-foreground"
-                                                    aria-hidden
+                                                    fallback={<Robot size={13} aria-hidden />}
+                                                    className="shrink-0"
                                                 />
                                                 <span
                                                     className="truncate text-[13px] text-foreground"

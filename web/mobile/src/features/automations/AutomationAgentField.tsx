@@ -2,6 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
+import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -66,7 +67,12 @@ export const AutomationAgentField = ({
                     className="h-auto py-input-y disabled:cursor-default disabled:border-border disabled:bg-background disabled:text-foreground"
                 >
                     <span className="flex min-w-0 flex-1 items-center gap-2">
-                        <Robot aria-hidden size={16} className="text-muted-foreground shrink-0" />
+                        <AgentGlyph
+                            workflowId={automation?.agentId ?? null}
+                            size={16}
+                            fallback={<Robot aria-hidden size={16} />}
+                            className="text-muted-foreground shrink-0"
+                        />
                         <SelectValue className="min-w-0 truncate" placeholder="Pick an agent">
                             {agentName}
                         </SelectValue>
