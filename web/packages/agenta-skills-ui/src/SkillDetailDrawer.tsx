@@ -408,11 +408,6 @@ export function SkillDetailDrawer({
                     <span className="rounded bg-[var(--ag-colorWarningBg)] px-1.5 py-px text-[10px] text-[var(--ag-colorWarningText)]">
                         modified locally — no longer synced
                     </span>
-                ) : skill.source.syncedAgo ? (
-                    <span className="text-[var(--ag-colorTextTertiary)]">
-                        synced {skill.source.syncedAgo}
-                        {skill.source.syncEnabled === false ? " · sync off" : ""}
-                    </span>
                 ) : null}
             </div>
         </div>

@@ -56,6 +56,20 @@ export const skillsWindowingSchema = z
     .passthrough()
 export type SkillsWindowing = z.infer<typeof skillsWindowingSchema>
 
+export const skillOriginInfoSchema = z
+    .object({
+        provider: z.string().optional().nullable(),
+        repository: z.string().optional().nullable(),
+        ref: z.string().optional().nullable(),
+        path: z.string().optional().nullable(),
+        resolved_version: z.string().optional().nullable(),
+        imported_at_url: z.string().optional().nullable(),
+        /** Derived on read: the head no longer matches the imported checkpoint. */
+        detached: z.boolean().optional().nullable(),
+    })
+    .passthrough()
+export type SkillOriginInfo = z.infer<typeof skillOriginInfoSchema>
+
 export const skillRegistryItemSchema = z
     .object({
         /** Head revision id doubling as the pagination cursor id. */
@@ -76,34 +90,16 @@ export const skillRegistryItemSchema = z
         skill_description: z.string().optional().nullable(),
         files_count: z.number().optional().nullable(),
         used_by_count: z.number().optional().nullable(),
-        /** The import source this skill came from (see the response's `sources` block). */
-        source_id: z.string().optional().nullable(),
-        /** A local edit detached this skill from its source (kept, no longer synced). */
-        source_detached: z.boolean().optional().nullable(),
+        /** Import provenance from artifact meta._ag.origin; null = project-authored. */
+        origin: skillOriginInfoSchema.optional().nullable(),
     })
     .passthrough()
 export type SkillRegistryItem = z.infer<typeof skillRegistryItemSchema>
-
-export const registrySourceSchema = z
-    .object({
-        id: z.string().optional().nullable(),
-        slug: z.string().optional().nullable(),
-        repo_url: z.string().optional().nullable(),
-        ref: z.string().optional().nullable(),
-        last_seen_commit_sha: z.string().optional().nullable(),
-        sync_enabled: z.boolean().optional().nullable(),
-        created_at: z.string().optional().nullable(),
-        updated_at: z.string().optional().nullable(),
-    })
-    .passthrough()
-export type RegistrySource = z.infer<typeof registrySourceSchema>
 
 export const skillsQueryResponseSchema = z
     .object({
         count: z.number().optional(),
         skills: z.array(skillRegistryItemSchema).optional(),
-        /** Import sources referenced by skills[].source_id (per-repo grouping). */
-        sources: z.array(registrySourceSchema).optional(),
         /** Code-defined Agenta built-ins: a separate, unpaginated block. */
         builtin: z.array(skillRegistryItemSchema).optional(),
         windowing: skillsWindowingSchema.optional().nullable(),
@@ -187,21 +183,10 @@ export const skillSourceScanResponseSchema = z
     .passthrough()
 export type SkillSourceScanResponse = z.infer<typeof skillSourceScanResponseSchema>
 
-export const skillSourceSchema = z
-    .object({
-        id: z.string().optional().nullable(),
-        slug: z.string().optional().nullable(),
-        repo_url: z.string().optional().nullable(),
-        ref: z.string().optional().nullable(),
-        last_seen_commit_sha: z.string().optional().nullable(),
-        sync_enabled: z.boolean().optional(),
-    })
-    .passthrough()
-export type SkillSource = z.infer<typeof skillSourceSchema>
-
 export const skillSourceImportResponseSchema = z
     .object({
-        source: skillSourceSchema,
+        repo_url: z.string().optional().nullable(),
+        commit_sha: z.string().optional().nullable(),
         imported: z
             .array(
                 z
@@ -227,21 +212,25 @@ export const skillSourceImportResponseSchema = z
     .passthrough()
 export type SkillSourceImportResponse = z.infer<typeof skillSourceImportResponseSchema>
 
-export const refreshedLinkSchema = z
+export const updateCheckResponseSchema = z
     .object({
-        path_in_repo: z.string().optional().nullable(),
         workflow_id: z.string().optional().nullable(),
-        /** updated | update_available | unchanged | detached | conflict | missing_in_source | invalid_in_source */
+        /** up_to_date | update_available | detached | missing_in_source | invalid_in_source */
+        status: z.string(),
+        resolved_version: z.string().optional().nullable(),
+        issues: z.array(skillIssueSchema).optional(),
+    })
+    .passthrough()
+export type UpdateCheckResponse = z.infer<typeof updateCheckResponseSchema>
+
+export const updateApplyResponseSchema = z
+    .object({
+        workflow_id: z.string().optional().nullable(),
+        /** updated | up_to_date | detached | conflict | missing_in_source | invalid_in_source */
         status: z.string(),
         revision_id: z.string().optional().nullable(),
+        resolved_version: z.string().optional().nullable(),
+        issues: z.array(skillIssueSchema).optional(),
     })
     .passthrough()
-
-export const refreshSourceResponseSchema = z
-    .object({
-        source: skillSourceSchema.optional(),
-        commit_sha: z.string().optional().nullable(),
-        links: z.array(refreshedLinkSchema).optional(),
-    })
-    .passthrough()
-export type RefreshSourceResponse = z.infer<typeof refreshSourceResponseSchema>
+export type UpdateApplyResponse = z.infer<typeof updateApplyResponseSchema>

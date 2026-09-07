@@ -16,8 +16,10 @@ export interface SkillGallerySection {
     label: string
     /** e.g. "synced 3d ago" on an imported repo section. */
     tag?: string
-    /** Set on imported-repo sections; enables the Refresh action. */
-    sourceId?: string
+    /** Set on imported-repo sections; enables the check-updates action. */
+    repository?: string
+    /** The section's skill workflow ids — what the updates check iterates. */
+    skillIds?: string[]
     skills: SkillListItem[]
 }
 
@@ -84,9 +86,9 @@ export function SkillGallerySections({
                                 {section.tag}
                             </span>
                         ) : null}
-                        {section.sourceId ? (
+                        {section.skillIds?.length ? (
                             <span className="ml-auto">
-                                <SourceRefreshButton sourceId={section.sourceId} />
+                                <SourceRefreshButton skillIds={section.skillIds} />
                             </span>
                         ) : null}
                     </div>

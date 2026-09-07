@@ -1,66 +1,96 @@
 /**
- * The per-repo section's Refresh action (WP-A6's manual trigger): re-scans the source and
- * commits new versions of unedited skills. Connected on purpose (like the drawers): the
- * call, the busy state, and the one-line result summary live here once; sections just
- * pass the source id.
+ * The per-repo section's "Check updates" action, meta-first: iterates the section's
+ * skills through the per-skill check endpoint (read-only), summarizes, and offers
+ * Apply for the ones with updates. Connected on purpose (like the drawers): the
+ * calls, the busy state, and the one-line summary live here once; sections just
+ * pass the skill ids.
  */
 import {useCallback, useState} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {refreshSkillSource} from "@agenta/skills"
+import {applySkillUpdate, checkSkillUpdate} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowsClockwise} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-export function SourceRefreshButton({sourceId}: {sourceId: string}) {
+export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const [busy, setBusy] = useState(false)
     const [summary, setSummary] = useState<string | null>(null)
-    const [pendingUpdates, setPendingUpdates] = useState(0)
+    const [pending, setPending] = useState<string[]>([])
 
-    const refresh = useCallback(
-        async (apply?: boolean) => {
-            setBusy(true)
-            setSummary(null)
-            setPendingUpdates(0)
-            try {
-                const result = await refreshSkillSource({projectId, sourceId, apply})
-                const links = result?.links ?? []
-                const count = (status: string) => links.filter((l) => l.status === status).length
-                const updated = count("updated")
-                const available = count("update_available")
-                const parts = [
-                    updated && `${updated} updated`,
-                    available && `${available} update${available === 1 ? "" : "s"} available`,
-                    count("detached") && `${count("detached")} modified locally`,
-                    count("conflict") && `${count("conflict")} conflicted`,
-                    count("missing_in_source") && `${count("missing_in_source")} gone upstream`,
-                ].filter(Boolean) as string[]
-                setSummary(parts.length ? parts.join(" · ") : "up to date")
-                setPendingUpdates(available)
-                // Detach/conflict/missing outcomes change gallery state too — any
-                // reported link means the cached list may be stale.
-                if (links.length) invalidateSkillsListCache()
-            } catch {
-                setSummary("refresh failed")
-            } finally {
-                setBusy(false)
-            }
-        },
-        [projectId, sourceId],
-    )
+    const check = useCallback(async () => {
+        setBusy(true)
+        setSummary(null)
+        setPending([])
+        try {
+            const statuses = await Promise.all(
+                skillIds.map(async (workflowId) => ({
+                    workflowId,
+                    status:
+                        (await checkSkillUpdate({projectId, workflowId}))?.status ?? "check_failed",
+                })),
+            )
+            const count = (status: string) => statuses.filter((s) => s.status === status).length
+            const available = statuses
+                .filter((s) => s.status === "update_available")
+                .map((s) => s.workflowId)
+            const parts = [
+                available.length &&
+                    `${available.length} update${available.length === 1 ? "" : "s"} available`,
+                count("detached") && `${count("detached")} modified locally`,
+                count("missing_in_source") && `${count("missing_in_source")} gone upstream`,
+                count("check_failed") && `${count("check_failed")} failed`,
+            ].filter(Boolean) as string[]
+            setSummary(parts.length ? parts.join(" · ") : "up to date")
+            setPending(available)
+            // Detachment is derived server-side; a check can still change what the
+            // gallery shows (e.g. a fresh detach), so refresh the list either way.
+            invalidateSkillsListCache()
+        } catch {
+            setSummary("check failed")
+        } finally {
+            setBusy(false)
+        }
+    }, [projectId, skillIds])
+
+    const apply = useCallback(async () => {
+        setBusy(true)
+        try {
+            const outcomes = await Promise.all(
+                pending.map(async (workflowId) => ({
+                    workflowId,
+                    status:
+                        (await applySkillUpdate({projectId, workflowId}))?.status ?? "apply_failed",
+                })),
+            )
+            const updated = outcomes.filter((o) => o.status === "updated").length
+            const failed = outcomes.length - updated
+            setSummary(
+                [updated && `${updated} updated`, failed && `${failed} failed`]
+                    .filter(Boolean)
+                    .join(" · ") || "nothing applied",
+            )
+            setPending([])
+            if (updated) invalidateSkillsListCache()
+        } catch {
+            setSummary("apply failed")
+        } finally {
+            setBusy(false)
+        }
+    }, [pending, projectId])
 
     return (
         <span className="flex items-center gap-1.5">
             {summary ? (
                 <span className="text-[10px] text-[var(--ag-colorTextTertiary)]">{summary}</span>
             ) : null}
-            {pendingUpdates > 0 && !busy ? (
+            {pending.length > 0 && !busy ? (
                 <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => void refresh(true)}
+                    onClick={() => void apply()}
                     aria-label="Apply available updates"
                     className="h-6 px-1.5 text-[11px] font-medium text-[var(--ag-colorPrimary)]"
                 >
@@ -70,13 +100,13 @@ export function SourceRefreshButton({sourceId}: {sourceId: string}) {
             <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => void refresh()}
+                onClick={() => void check()}
                 disabled={busy}
-                aria-label="Refresh from source"
+                aria-label="Check for upstream updates"
                 className="h-6 gap-1 px-1.5 text-[11px] text-[var(--ag-colorTextSecondary)]"
             >
                 {busy ? <Spinner size="small" /> : <ArrowsClockwise size={12} />}
-                Refresh
+                Check updates
             </Button>
         </span>
     )

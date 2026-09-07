@@ -10,5 +10,4 @@ export interface SkillSourceImportRequest {
     repo_url: string;
     ref?: string | null;
     paths?: string[] | null;
-    sync_enabled?: boolean;
 }

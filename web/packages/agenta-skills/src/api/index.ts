@@ -17,17 +17,19 @@ import {generateId, generateSlugWithSuffix} from "@agenta/shared/utils"
 import type {z} from "zod"
 
 import {
-    refreshSourceResponseSchema,
     skillsQueryResponseSchema,
     skillSourceImportResponseSchema,
     skillSourceScanResponseSchema,
     skillUsageResponseSchema,
-    type RefreshSourceResponse,
+    updateApplyResponseSchema,
+    updateCheckResponseSchema,
     type SkillsQueryResponse,
     type SkillSourceImportResponse,
     type SkillSourceScanResponse,
     type SkillUsageResponse,
     type SkillsWindowing,
+    type UpdateApplyResponse,
+    type UpdateCheckResponse,
 } from "../core/schema"
 
 function parseOrWarn<T extends z.ZodType>(
@@ -184,7 +186,6 @@ export interface ImportSkillSourceParams {
     ref?: string
     /** `path_in_repo` values from a prior scan; omitted = every valid candidate. */
     paths?: string[]
-    syncEnabled?: boolean
 }
 
 /** `POST /skills/sources` — import the selected candidates as skill workflows. Throws on HTTP errors. */
@@ -193,7 +194,6 @@ export async function importSkillSource({
     repoUrl,
     ref,
     paths,
-    syncEnabled,
 }: ImportSkillSourceParams): Promise<SkillSourceImportResponse | null> {
     if (!projectId || !repoUrl) return null
 
@@ -201,8 +201,7 @@ export async function importSkillSource({
         {
             repo_url: repoUrl,
             ...(ref ? {ref} : {}),
-            ...(paths?.length ? {paths} : {}),
-            sync_enabled: Boolean(syncEnabled),
+            ...(paths ? {paths} : {}),
         },
         {queryParams: {project_id: projectId}},
     )
@@ -429,20 +428,34 @@ export async function unarchiveSkill({
     return unarchiveWorkflow(projectId, workflowId)
 }
 
-/** Refresh a source: commits follow sync_enabled; `apply: true` overrides for one refresh. */
-export async function refreshSkillSource({
+/** Read-only: compare one imported skill against its upstream origin. */
+export async function checkSkillUpdate({
     projectId,
-    sourceId,
-    apply,
+    workflowId,
 }: {
     projectId: string
-    sourceId: string
-    apply?: boolean
-}): Promise<RefreshSourceResponse | null> {
-    if (!projectId || !sourceId) return null
-    const data = await getSkillsClient().refreshSkillSource(
-        {source_id: sourceId, body: apply === undefined ? null : {apply}},
+    workflowId: string
+}): Promise<UpdateCheckResponse | null> {
+    if (!projectId || !workflowId) return null
+    const data = await getSkillsClient().checkSkillUpdate(
+        {skill_id: workflowId},
         {queryParams: {project_id: projectId}},
     )
-    return refreshSourceResponseSchema.safeParse(data).data ?? null
+    return updateCheckResponseSchema.safeParse(data).data ?? null
+}
+
+/** Commit the upstream version of one imported skill as a new revision. */
+export async function applySkillUpdate({
+    projectId,
+    workflowId,
+}: {
+    projectId: string
+    workflowId: string
+}): Promise<UpdateApplyResponse | null> {
+    if (!projectId || !workflowId) return null
+    const data = await getSkillsClient().applySkillUpdate(
+        {skill_id: workflowId},
+        {queryParams: {project_id: projectId}},
+    )
+    return updateApplyResponseSchema.safeParse(data).data ?? null
 }
