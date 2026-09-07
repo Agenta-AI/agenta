@@ -11,7 +11,7 @@ Plane: durable Redis — the SSE endpoint subscribes there via
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from oss.src.dbs.redis.sessions.contract import (
     make_watch_entity_changed_payload,
@@ -96,12 +96,15 @@ class SessionsWatchPublisher:
         project_id: str,
         session_id: str,
         status: str,
+        interactions: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         await self._publish(
             channel=watch_channel(project_id, session_id),
             project_id=project_id,
             payload=make_watch_interaction_payload(
-                session_id=session_id, status=status
+                session_id=session_id,
+                status=status,
+                interactions=interactions,
             ),
         )
 

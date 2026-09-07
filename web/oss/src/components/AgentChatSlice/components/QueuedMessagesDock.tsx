@@ -18,6 +18,7 @@ interface AgentQueuedMessagesDockProps {
     /** The run is parked on the user, so the queue is held rather than merely waiting. */
     held: boolean
     onRemove: (id: string) => void
+    onSendNow?: (id: string) => Promise<void>
     onEdit: (message: QueuedMessage) => void
     onCancelEdit: () => void
     editingId: string | null
@@ -28,12 +29,13 @@ const AgentQueuedMessagesDock = ({
     queued,
     held,
     onRemove,
+    onSendNow,
     onEdit,
     onCancelEdit,
     editingId,
     className,
 }: AgentQueuedMessagesDockProps) => {
-    const open = queued.length > 0
+    const open = queued.length > 0 || !!editingId
     // Latch the last non-empty queue: emptying it starts the collapse, and without this the rows
     // would vanish first and leave an empty box folding shut.
     const shownRef = useRef(queued)
@@ -46,6 +48,7 @@ const AgentQueuedMessagesDock = ({
                 queued={shownRef.current}
                 held={held}
                 onRemove={onRemove}
+                onSendNow={onSendNow}
                 onEdit={onEdit}
                 onCancelEdit={onCancelEdit}
                 editingId={editingId}

@@ -42,6 +42,7 @@ import {
 import {Button} from "@/components/ui/button"
 
 import {AssistantMarkdown} from "./AssistantMarkdown"
+import {continuationRetryAction} from "./continuationRetry"
 import {isLiveTextItem} from "./markdownStream"
 
 type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
@@ -358,9 +359,10 @@ export const TurnRow = ({
             {turn.status.showError ? (
                 <RunErrorCallout
                     text={turn.status.errorText ?? "Something went wrong."}
-                    // Re-runs the failed turn through the same rewind path the toolbar uses, so a
-                    // tool that already ran still gets its warning first.
-                    onRetry={onRewind && !turn.isUser ? () => onRewind(turn) : undefined}
+                    onRetry={continuationRetryAction(
+                        turn,
+                        onRewind ? () => onRewind(turn) : undefined,
+                    )}
                 />
             ) : null}
         </div>

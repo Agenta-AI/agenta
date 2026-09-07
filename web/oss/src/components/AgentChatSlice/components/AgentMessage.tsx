@@ -154,6 +154,7 @@ const STARTER_CREDIT_CODES = new Set([
 
 /** Transient failure classes where the honest advice is simply to run the turn again. */
 const RETRYABLE_CODES = new Set([
+    "continuation_resumed",
     "credential_delivery_failed",
     "starter_credits_unavailable",
     "rate_limited",

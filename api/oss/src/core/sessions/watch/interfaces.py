@@ -1,4 +1,4 @@
-from typing import Protocol, runtime_checkable
+from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -22,9 +22,14 @@ class SessionsWatchPublisherInterface(Protocol):
         ...
 
     async def interaction(
-        self, *, project_id: str, session_id: str, status: str
+        self,
+        *,
+        project_id: str,
+        session_id: str,
+        status: str,
+        interactions: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
-        """A gate became actionable or was answered (`pending` | `resolved`)."""
+        """A gate changed, optionally carrying the committed row state."""
         ...
 
     async def changed(self, *, project_id: str, entity: str, id: str) -> None:

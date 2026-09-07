@@ -436,6 +436,10 @@ describe("buildPersistingEmitter turn/span tagging", () => {
 
     const bodies = postedBodies as Array<Record<string, unknown>>;
     assert.equal(bodies.length, 3);
+    assert.equal(
+      (bodies[0]["attributes"] as Record<string, unknown>)["message_id"],
+      "m1",
+    );
     for (const body of bodies) {
       assert.equal(body["turn_id"], "turn-tc");
       assert.equal("span_id" in body, false);

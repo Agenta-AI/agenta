@@ -25,7 +25,7 @@ export interface SessionListItem {
     project_id: string;
     session_id: string;
     flags?: AgentaApi.SessionStreamFlags | undefined;
-    capabilities?: AgentaApi.SessionCapabilities | undefined;
+    capabilities?: AgentaApi.OssSrcCoreSessionsStreamsDtosSessionCapabilities | undefined;
     tags?: (Record<string, unknown> | null) | undefined;
     meta?: (Record<string, unknown> | null) | undefined;
     turn_id?: (string | null) | undefined;

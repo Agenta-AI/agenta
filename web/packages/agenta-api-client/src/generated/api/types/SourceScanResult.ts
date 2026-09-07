@@ -7,4 +7,5 @@ export interface SourceScanResult {
     ref?: (string | null) | undefined;
     commit_sha?: (string | null) | undefined;
     scan: AgentaApi.ScanResult;
+    already_imported_paths?: string[] | undefined;
 }

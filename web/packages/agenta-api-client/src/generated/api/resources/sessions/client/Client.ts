@@ -1168,14 +1168,14 @@ export class SessionsClient {
     public respondInteraction(
         request: AgentaApi.SessionInteractionRespondRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SessionInteractionResponse> {
+    ): core.HttpResponsePromise<unknown> {
         return core.HttpResponsePromise.fromPromise(this.__respondInteraction(request, requestOptions));
     }
 
     private async __respondInteraction(
         request: AgentaApi.SessionInteractionRespondRequest,
         requestOptions?: SessionsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SessionInteractionResponse>> {
+    ): Promise<core.WithRawResponse<unknown>> {
         const { interaction_id: interactionId, ..._body } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -1204,7 +1204,7 @@ export class SessionsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.SessionInteractionResponse, rawResponse: _response.rawResponse };
+            return { data: _response.body, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -2466,6 +2466,160 @@ export class SessionsClient {
     }
 
     /**
+     * @param {AgentaApi.RemovePendingSessionInputRequest} request
+     * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.sessions.removePendingSessionInput({
+     *         session_id: "session_id",
+     *         input_id: "input_id"
+     *     })
+     */
+    public removePendingSessionInput(
+        request: AgentaApi.RemovePendingSessionInputRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.PendingInputResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__removePendingSessionInput(request, requestOptions));
+    }
+
+    private async __removePendingSessionInput(
+        request: AgentaApi.RemovePendingSessionInputRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.PendingInputResponse>> {
+        const { session_id: sessionId, input_id: inputId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `sessions/${core.url.encodePathParam(sessionId)}/inputs/${core.url.encodePathParam(inputId)}`,
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.PendingInputResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "DELETE",
+            "/sessions/{session_id}/inputs/{input_id}",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.PendingInputUpdateRequest} request
+     * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.sessions.updatePendingSessionInput({
+     *         session_id: "session_id",
+     *         input_id: "input_id",
+     *         text: "text"
+     *     })
+     */
+    public updatePendingSessionInput(
+        request: AgentaApi.PendingInputUpdateRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.PendingInputResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__updatePendingSessionInput(request, requestOptions));
+    }
+
+    private async __updatePendingSessionInput(
+        request: AgentaApi.PendingInputUpdateRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.PendingInputResponse>> {
+        const { session_id: sessionId, input_id: inputId, ..._body } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `sessions/${core.url.encodePathParam(sessionId)}/inputs/${core.url.encodePathParam(inputId)}`,
+            ),
+            method: "PATCH",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.PendingInputResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "PATCH",
+            "/sessions/{session_id}/inputs/{input_id}",
+        );
+    }
+
+    /**
      * @param {AgentaApi.ArchiveSessionRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -2753,6 +2907,161 @@ export class SessionsClient {
             _response.rawResponse,
             "POST",
             "/sessions/{session_id}/cancel",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.ResumeSessionContinuationRequest} request
+     * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.sessions.resumeSessionContinuation({
+     *         session_id: "session_id"
+     *     })
+     */
+    public resumeSessionContinuation(
+        request: AgentaApi.ResumeSessionContinuationRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SessionContinuationResumeResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__resumeSessionContinuation(request, requestOptions));
+    }
+
+    private async __resumeSessionContinuation(
+        request: AgentaApi.ResumeSessionContinuationRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SessionContinuationResumeResponse>> {
+        const { session_id: sessionId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `sessions/${core.url.encodePathParam(sessionId)}/continuations/resume`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.SessionContinuationResumeResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/sessions/{session_id}/continuations/resume",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.SendPendingSessionInputNowRequest} request
+     * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.sessions.sendPendingSessionInputNow({
+     *         session_id: "session_id",
+     *         input_id: "input_id"
+     *     })
+     */
+    public sendPendingSessionInputNow(
+        request: AgentaApi.SendPendingSessionInputNowRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.PendingInputAdmissionResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__sendPendingSessionInputNow(request, requestOptions));
+    }
+
+    private async __sendPendingSessionInputNow(
+        request: AgentaApi.SendPendingSessionInputNowRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.PendingInputAdmissionResponse>> {
+        const { session_id: sessionId, input_id: inputId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `sessions/${core.url.encodePathParam(sessionId)}/inputs/${core.url.encodePathParam(inputId)}/send-now`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.PendingInputAdmissionResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/sessions/{session_id}/inputs/{input_id}/send-now",
         );
     }
 }

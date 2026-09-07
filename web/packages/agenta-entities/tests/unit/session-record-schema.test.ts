@@ -21,6 +21,7 @@ const wireRecord = {
     record_source: "runner",
     record_type: "message",
     attributes: {type: "message", text: "hello"},
+    turn_id: "turn-1",
     timestamp: "2026-07-07T00:00:00Z",
     created_at: "2026-07-07T00:00:01Z",
 }
@@ -34,6 +35,7 @@ describe("sessionRecordSchema", () => {
         expect(out.payload).toEqual({type: "message", text: "hello"})
         expect(out.event_index).toBe(3)
         expect(out.session_update).toBe("message")
+        expect(out.turn_id).toBe("turn-1")
         expect(out.created_at).toBe("2026-07-07T00:00:01Z")
     })
 
@@ -63,6 +65,7 @@ describe("sessionRecordSchema", () => {
         expect(out.id).toBe("rec-2")
         expect(out.payload).toEqual({type: "thought", text: "…"})
         expect(out.sender).toBeNull()
+        expect(out.turn_id).toBeNull()
     })
 
     it("validates the query response envelope and remaps each record", () => {

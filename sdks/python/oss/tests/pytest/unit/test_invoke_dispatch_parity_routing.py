@@ -24,6 +24,7 @@ from fastapi.testclient import TestClient
 from agenta.sdk.decorators.routing import (
     route,
     apply_invoke_prelude,
+    admit_session_input,
     handle_invoke_success,
     handle_invoke_failure,
 )
@@ -74,6 +75,9 @@ def _dispatch_app() -> FastAPI:
         credentials = req.state.auth.get("credentials")
         apply_invoke_prelude(req, request)
         try:
+            admission_response = await admit_session_input(req, request, credentials)
+            if admission_response is not None:
+                return admission_response
             response = await invoke_workflow(request=request, credentials=credentials)
             return await handle_invoke_success(req, response)
         except Exception as exception:

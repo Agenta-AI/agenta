@@ -15,7 +15,6 @@ import {
     ConnectionWarningStrip,
     ElicitationDock,
     QueuedMessagesDock,
-    RunningElsewhereStrip,
 } from "@agenta/chat/components"
 import type {QueuedMessage} from "@agenta/chat/hooks"
 import {
@@ -41,28 +40,31 @@ import {
     turnRowClass,
 } from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 import {User} from "lucide-react"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {Button} from "@/components/ui/button"
 
-import {pendingTasksAtom, takePendingTaskAtom} from "../home/pendingTask"
+import {pendingTasksAtom, failPendingTaskAtom, sendPendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
+import {livenessQueryKey} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
-import {
-    MODEL_KEY_WAIT_LIMIT_MS,
-    PENDING_TASK_NOT_SENT_MESSAGE,
-    pendingTaskDecision,
-} from "./pendingTaskPolicy"
+import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {cancelledStopAction} from "./stopHereState"
 import {TurnRow} from "./TurnRow"
-import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
+import {
+    deriveMobileRemoteTurnPresentation,
+    showRunningElsewhere,
+    showTrailingWorkingPulse,
+} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
@@ -168,61 +170,57 @@ export const LiveConversation = ({
         input?.focus()
     }, [cancelEdit])
 
-    // A task started from Home lands here as a stashed message: the session did not exist when
-    // it was typed, and the first send is what creates it. Ref-guarded and the slot is consumed
-    // on read, so a re-render (or React 18's double-invoke in dev) cannot send it twice. Held
-    // until hydration settles, or the engine would send into a transcript it is still filling,
-    // and held while the vault is unresolved or the model gate is up, so the first message is not
-    // spent on a run that cannot succeed — it goes out on its own the moment a key lands (or the
-    // vault says one already exists). The guard holds the SESSION it
-    // fired for, not a bare flag: this component survives a session switch, and a flag would
-    // swallow the next session's stashed task.
-
-    // Peek at the parked task WITHOUT consuming it — used only for display while the gate holds.
-    // `takePendingTaskAtom` removes the entry; this read leaves it in place for the send effect.
+    // Keep Home tasks session-scoped until admission; failures require an explicit retry.
     const pendingTasks = useAtomValue(pendingTasksAtom)
-    const heldTaskText = pendingTasks[sessionId]?.text ?? null
-
-    const takePendingTask = useSetAtom(takePendingTaskAtom)
-    const sentPendingTaskFor = useRef<string | null>(null)
-    const [pendingTaskError, setPendingTaskError] = useState<string | null>(null)
+    const pendingTask = pendingTasks[sessionId]
+    const heldTaskText = pendingTask?.delivery === "sending" ? null : pendingTask?.text
+    const sendPendingTask = useSetAtom(sendPendingTaskAtom)
+    const failPendingTask = useSetAtom(failPendingTaskAtom)
+    const pendingTaskError = pendingTask?.delivery === "failed"
     const {isHydrating, revalidate, send, stop, voidPendingResume} = conversation
     useEffect(() => {
+        if (!pendingTask || pendingTask.delivery) return
         const decision = pendingTaskDecision({
             sessionId,
-            sentFor: sentPendingTaskFor.current,
+            sentFor: null,
             hydrating: isHydrating,
             modelKeyLoading,
             modelKeyWaitedMs,
             modelBlocked,
         })
         if (decision === "hold") return
-        const task = takePendingTask(sessionId)
-        if (!task) return
-        // Consumed either way — a released task must not replay on the next render.
-        sentPendingTaskFor.current = sessionId
         if (decision === "abandon") {
-            setPendingTaskError(PENDING_TASK_NOT_SENT_MESSAGE)
-            // Hand the text back so "try again" is one tap. The composer is usable here: the gate
-            // is not up, because an unresolved vault never raises it.
-            if (task.text) composerRef.current?.setMarkdown(task.text)
+            failPendingTask(sessionId)
             return
         }
-        void send({text: task.text, parts: task.parts})
+        void sendPendingTask({
+            sessionId,
+            send: (task) => send({text: task.text, parts: task.parts}),
+        })
     }, [
+        pendingTask,
         isHydrating,
         modelKeyLoading,
         modelKeyWaitedMs,
         modelBlocked,
         send,
         sessionId,
-        takePendingTask,
+        sendPendingTask,
+        failPendingTask,
     ])
 
+    const queryClient = useQueryClient()
+    useEffect(() => {
+        if (conversation.sharedSettledAt) {
+            void queryClient.invalidateQueries({queryKey: livenessQueryKey(projectId)})
+        }
+    }, [conversation.sharedSettledAt, projectId, queryClient])
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"
     const remoteTurn = deriveMobileRemoteTurnPresentation({
         livenessRunning: running,
-        snapshotRunning: conversation.runningFromSnapshot || conversation.acceptedRunPending,
+        livenessUpdatedAt,
+        sharedSettledAt: conversation.sharedSettledAt,
+        snapshotRunning: conversation.runningFromSnapshot,
         sharedReaderAdvertised: sharedReader,
         readerReady: conversation.readerReady,
         ownedContinuation: conversation.acceptedRunPending,
@@ -264,10 +262,12 @@ export const LiveConversation = ({
     }, [sessionId])
 
     // Push invalidation folds cross-device changes into the guarded transcript.
+    const {interactionChanged} = conversation
     const watch = useSessionWatch({
         sessionId,
         projectId,
         onRecordsChanged: revalidate,
+        onInteractionChanged: interactionChanged,
         sharedReaderAdvertised: sharedReader,
     })
     // Poll slowly while a cross-device run cannot be watched live.
@@ -443,8 +443,16 @@ export const LiveConversation = ({
     })
     const approvalActions: ApprovalActions = useMemo(
         () => ({
-            phase: conversation.approvals.responding ? "resuming" : steerActions.phase,
-            errorText: steerActions.errorText,
+            phase: conversation.approvals.recoverable
+                ? "recoverable"
+                : conversation.approvals.answered
+                  ? "answered"
+                  : conversation.approvals.responding
+                    ? "resuming"
+                    : conversation.approvals.errorText
+                      ? "error"
+                      : steerActions.phase,
+            errorText: conversation.approvals.errorText ?? steerActions.errorText,
             respond: ({approved, message, approvalId}) => {
                 if (message) {
                     steerActions.respond({approvalId, approved, message})
@@ -482,9 +490,6 @@ export const LiveConversation = ({
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
-    // Any blocking dock on screen. The queue card yields to all of them rather than stacking,
-    // mid-edit included — the composer keeps the edit, so Enter still rewrites the held row.
-    const gateDockOpen = pendingApprovals.length > 0 || elicits.open || connects.open
     // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
     // surface has no question-form dock yet, so only approvals and connect cards can gate it.
     const gateOpen = jumpGateOpen({
@@ -530,11 +535,7 @@ export const LiveConversation = ({
     } else {
         body = (
             <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-                {/* A task typed before any provider key exists is held in `pendingTasksAtom`
-                    (not yet sent — the gate is up). Render it as a user bubble so the person
-                    can see what they wrote, matching desktop parity: the desktop shows the
-                    held seed above the connect-model banner. Cleared the moment the gate
-                    drops and the send effect fires (`takePendingTaskAtom` removes the entry). */}
+                {/* A held or failed Home task stays visible until accepted. */}
                 {heldTaskText ? (
                     <div className={`${turnRowClass} justify-end`}>
                         <ChatBubble
@@ -618,16 +619,16 @@ export const LiveConversation = ({
                             className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
                             style={BOTTOM_FADE_OVERLAY_STYLE}
                         />
-                        {/* What you have lined up. Yields to the gate docks entirely: those are
-                        blocked runs wanting an answer, and stacking a second card above one
-                        buries the composer. It comes back when the gate clears. */}
-                        {conversation.queued.length > 0 && !gateDockOpen ? (
+                        {/* What you have lined up stays visible while a gate is open: the queued
+                        message is the acknowledgement that the user's Send was not lost. */}
+                        {conversation.queued.length > 0 || conversation.editingId ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                                 <ContentRail>
                                     <QueuedMessagesDock
                                         queued={conversation.queued}
                                         held={conversation.hitlPending}
                                         onRemove={conversation.removeQueued}
+                                        onSendNow={conversation.sendQueuedNow}
                                         onEdit={editQueued}
                                         onCancelEdit={cancelQueuedEdit}
                                         editingId={conversation.editingId}
@@ -636,17 +637,18 @@ export const LiveConversation = ({
                                 </ContentRail>
                             </div>
                         ) : null}
-                        {/* A run this device is not driving. Docked with the other strips above the
-                        composer, as on the desktop — it used to be a top bar that also appeared for
-                        THIS device's own turns, duplicating the composer's Stop and shifting the
-                        transcript twice per run. */}
-                        {remoteTurn.showStrip && !streamingHere ? (
+                        {showRunningElsewhere({
+                            running: remoteTurn.showRemoteStop,
+                            localStatus: conversation.runStatus,
+                        }) && !streamingHere ? (
                             <ContentRail>
-                                <RunningElsewhereStrip
-                                    action={
-                                        <StopButton sessionId={sessionId} projectId={projectId} />
-                                    }
-                                />
+                                <div className="flex justify-end pb-2">
+                                    <StopButton
+                                        key={sessionTurnId ?? sessionId}
+                                        sessionId={sessionId}
+                                        projectId={projectId}
+                                    />
+                                </div>
                             </ContentRail>
                         ) : null}
                         {conversation.connectionWarning ? (
@@ -696,31 +698,65 @@ export const LiveConversation = ({
                                 gateActive={modelBlocked}
                             />
                         </ContentRail>
-                        {/* The parked task gave up waiting for the vault. Its text is back in the
-                        composer, so this says what happened and the send is one tap away. */}
+                        {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (
                             <ContentRail>
-                                <p className="text-destructive m-0 mb-2 text-xs">
-                                    {pendingTaskError}
-                                </p>
+                                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                                    <span role="alert" className="text-destructive">
+                                        The message was not sent. Your text and attachments are
+                                        saved.
+                                    </span>
+                                    {pendingTask?.parts?.map((part, index) => (
+                                        <span
+                                            key={`${part.url}-${index}`}
+                                            className="text-muted-foreground"
+                                        >
+                                            {part.filename || "Attachment"}
+                                        </span>
+                                    ))}
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={
+                                            isHydrating ||
+                                            modelBlocked ||
+                                            (modelKeyLoading &&
+                                                modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
+                                        }
+                                        onClick={() =>
+                                            void sendPendingTask({
+                                                sessionId,
+                                                retry: true,
+                                                send: (task) =>
+                                                    send({text: task.text, parts: task.parts}),
+                                            })
+                                        }
+                                    >
+                                        Retry message
+                                    </Button>
+                                </div>
                             </ContentRail>
                         ) : null}
                         <Composer
                             sessionId={sessionId}
-                            onSend={({text, parts}) => {
+                            onSend={async ({text, parts}) => {
                                 setStoppingHere(false)
                                 // An open edit rewrites its held message instead of sending. The
                                 // input clears on submit, so the displaced draft goes back after.
                                 if (!conversation.editingId) {
-                                    conversation.send({text, parts})
+                                    await conversation.send({text, parts})
                                     return
                                 }
-                                const draft = conversation.commitEdit({text, fileParts: parts})
+                                const draft = await conversation.commitEdit({
+                                    text,
+                                    fileParts: parts,
+                                })
                                 if (draft)
                                     requestAnimationFrame(() =>
                                         composerRef.current?.setMarkdown(draft),
                                     )
                             }}
+                            onSteer={({text, parts}) => conversation.steer({text, parts})}
                             disabled={conversation.isHydrating || modelBlocked}
                             placeholder={
                                 modelBlocked ? "Connect a model to start chatting…" : undefined
@@ -732,6 +768,9 @@ export const LiveConversation = ({
                             })}
                             stopping={stopping}
                             onStop={stopHere}
+                            queueEnabled={conversation.queueEnabled}
+                            steerEnabled={conversation.steerEnabled}
+                            inputBusy={conversation.inputBusy}
                             inputRef={composerRef}
                         />
                     </div>

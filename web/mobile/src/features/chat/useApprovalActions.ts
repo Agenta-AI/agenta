@@ -9,7 +9,7 @@ import {
 import {hasSettledResume, selectApprovalTargets, type ApprovalTarget} from "./approvalTargets"
 import {buildApprovalAnswer} from "./steer"
 
-export type ResumePhase = "idle" | "resuming" | "error"
+export type ResumePhase = "idle" | "resuming" | "answered" | "recoverable" | "error"
 
 /** Fern's `AgentaApiError` message is transport jargon — show the status instead. */
 const respondErrorText = (error: unknown): string => {
@@ -67,13 +67,13 @@ export const useApprovalActions = ({
     useEffect(() => {
         const pending = pendingKey ? pendingKey.split(" ") : []
         if (!hasSettledResume(submittedRef.current, pending)) return
-        setPhase((current) => (current === "resuming" ? "idle" : current))
+        setPhase((current) => (current === "resuming" || current === "answered" ? "idle" : current))
     }, [pendingKey])
 
     // Failure-path re-arm: if the respond was accepted but the run dies before the gate
     // resolves, the poll never settles us — drop back to idle so the buttons re-arm.
     useEffect(() => {
-        if (phase !== "resuming") return
+        if (phase !== "resuming" && phase !== "answered" && phase !== "recoverable") return
         const handle = setTimeout(() => setPhase("idle"), 60_000)
         return () => clearTimeout(handle)
     }, [phase])
@@ -105,25 +105,42 @@ export const useApprovalActions = ({
                 submittedRef.current = targets
                     .map((row) => row.token)
                     .filter((token): token is string => typeof token === "string")
-                let answered = 0
-                for (const row of targets) {
-                    try {
-                        await respondInteraction({
-                            interactionId: row.id as string,
-                            projectId,
-                            answer: buildApprovalAnswer(approved, message),
-                        })
-                        answered += 1
-                    } catch (err) {
-                        // Someone (desktop, another tab) already answered this gate — benign.
-                        if (!isInteractionConflict(err)) throw new Error(respondErrorText(err))
+                let answered = targets.length
+                try {
+                    const ids = targets.map((row) => row.id as string).sort()
+                    const result = await respondInteraction({
+                        interactionId: ids[0],
+                        projectId,
+                        ...(targets.length === 1
+                            ? {answer: buildApprovalAnswer(approved, message)}
+                            : {
+                                  answers: targets.map((row) => ({
+                                      interactionId: row.id as string,
+                                      answer: buildApprovalAnswer(approved, message),
+                                  })),
+                              }),
+                        expectedExecutionId: targets[0].turn_id ?? undefined,
+                        idempotencyKey:
+                            targets.length === 1
+                                ? `approval:${targets[0].id}:${approved ? "approve" : "deny"}`
+                                : `approval-batch:${ids[0]}:${ids.length}:${approved ? "approve" : "deny"}`,
+                    })
+                    if (result?.execution?.state === "recoverable") {
+                        setPhase("recoverable")
+                        return
                     }
+                } catch (err) {
+                    // Someone (desktop, another tab) already answered this gate — benign.
+                    if (!isInteractionConflict(err)) throw new Error(respondErrorText(err))
+                    answered = 0
                 }
                 // Every target was already answered: nothing is resuming, so re-arm now
                 // instead of waiting out the 60s timeout.
                 if (answered === 0) {
                     submittedRef.current = []
                     setPhase("idle")
+                } else {
+                    setPhase("answered")
                 }
             } catch (err) {
                 submittedRef.current = []

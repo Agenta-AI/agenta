@@ -5,8 +5,12 @@
  * REPLACES Approve as the single primary, "Deny all" mirrors it, and the detail rows list the
  * pending actions — the informed-click job the popover used to do.
  */
+import {act} from "react"
+
+import {createRoot} from "react-dom/client"
 import {renderToStaticMarkup} from "react-dom/server"
 import {describe, expect, it} from "vitest"
+;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 // No hook mock: the card imports `useAlwaysAllowTool` by its relative path inside the package, so
 // a `@agenta/chat/hooks` mock resolves elsewhere and does nothing. The always-allow row is covered
@@ -65,5 +69,70 @@ describe("several pending gates", () => {
 describe("no pending gate", () => {
     it("renders no card at all", () => {
         expect(render([])).not.toContain("Needs your approval")
+    })
+})
+
+describe("interaction-scoped response state", () => {
+    it("does not carry a settled recoverable card from interaction X to later interaction Y", async () => {
+        const onApprovalResponse = () => Promise.resolve({durable: true, recoverable: true})
+        const host = document.createElement("div")
+        document.body.appendChild(host)
+        const root = createRoot(host)
+        const renderGate = (id: string) => (
+            <ApprovalDock
+                approvals={[gate(id, "bash", {command: "ls"})]}
+                onApprovalResponse={onApprovalResponse}
+                entityId="rev-1"
+            />
+        )
+
+        await act(async () => root.render(renderGate("interaction-x")))
+        const approveButton = [...host.querySelectorAll("button")].find((button) =>
+            button.textContent?.includes("Approve"),
+        ) as HTMLButtonElement
+        await act(async () => approveButton.click())
+        expect(host.textContent).toContain("Answer saved, retry needed")
+
+        await act(async () => root.render(renderGate("interaction-y")))
+
+        expect(host.textContent).toContain("Needs your approval")
+        expect(host.textContent).not.toContain("Answer saved, retry needed")
+
+        await act(async () => root.unmount())
+        host.remove()
+    })
+
+    it("does not leak a late recoverable result onto the next desktop gate", async () => {
+        let resolveFirst: ((value: {durable: boolean; recoverable: boolean}) => void) | undefined
+        const onApprovalResponse = () =>
+            new Promise<{durable: boolean; recoverable: boolean}>((resolve) => {
+                resolveFirst = resolve
+            })
+        const host = document.createElement("div")
+        document.body.appendChild(host)
+        const root = createRoot(host)
+        const renderGate = (id: string) => (
+            <ApprovalDock
+                approvals={[gate(id, "bash", {command: "ls"})]}
+                onApprovalResponse={onApprovalResponse}
+                entityId="rev-1"
+            />
+        )
+
+        await act(async () => root.render(renderGate("g1")))
+        const approveButton = [...host.querySelectorAll("button")].find((button) =>
+            button.textContent?.includes("Approve"),
+        ) as HTMLButtonElement
+        await act(async () => {
+            approveButton.click()
+        })
+        await act(async () => root.render(renderGate("g2")))
+        await act(async () => resolveFirst?.({durable: true, recoverable: true}))
+
+        expect(host.textContent).toContain("Needs your approval")
+        expect(host.textContent).not.toContain("Answer saved, retry needed")
+
+        await act(async () => root.unmount())
+        host.remove()
     })
 })

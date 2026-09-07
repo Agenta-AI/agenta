@@ -3,6 +3,6 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SessionSnapshotPending {
-    inputs?: unknown[] | undefined;
+    inputs?: AgentaApi.PendingInput[] | undefined;
     interactions?: AgentaApi.SessionInteraction[] | undefined;
 }

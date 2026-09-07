@@ -3,17 +3,25 @@ import type {
     SessionInteractionRowStates,
     SessionRecord,
 } from "@agenta/entities/session"
+import {interactionStatesFromWatchEvent} from "@agenta/entities/session"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
+import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
 import {
     APPROVED_EXECUTION_RESULT_UNKNOWN,
+    reconcileInteractionRowStates,
     transcriptToMessages,
 } from "../../../src/assets/transcriptToMessages"
 
 import abandonedFormSession from "./__fixtures__/abandonedFormSession.json"
 
-const record = (id: string, payload: Record<string, unknown>, sender = "agent"): SessionRecord => ({
+const record = (
+    id: string,
+    payload: Record<string, unknown>,
+    sender = "agent",
+    turnId: string | null = null,
+): SessionRecord => ({
     id,
     session_id: "session-1",
     project_id: "project-1",
@@ -21,8 +29,16 @@ const record = (id: string, payload: Record<string, unknown>, sender = "agent"):
     sender,
     session_update: String(payload.type),
     payload,
+    turn_id: turnId,
     created_at: null,
 })
+
+const firstAssistantMetadata = (
+    messages: UIMessage[] | null,
+): Record<string, unknown> | undefined =>
+    messages?.find((message) => message.role === "assistant")?.metadata as
+        | Record<string, unknown>
+        | undefined
 
 describe("transcriptToMessages", () => {
     it("replays the approved-content manifest as the egress's sibling data part", () => {
@@ -242,6 +258,152 @@ const approvalRecords = (): SessionRecord[] => [
  * turn the user already answered.
  */
 describe("transcriptToMessages approval resume", () => {
+    it("retires tab A's pending card on the first continuation frame without a response event", () => {
+        const pendingRecords = [
+            record("r-user", {type: "message", text: "run it"}, "user", "source-turn"),
+            record(
+                "r-call",
+                {type: "tool_call", id: "tool-1", name: "bash", input: {}},
+                "agent",
+                "source-turn",
+            ),
+            record(
+                "r-req",
+                {
+                    type: "interaction_request",
+                    id: "approval-1",
+                    kind: "user_approval",
+                    payload: {toolCallId: "tool-1"},
+                },
+                "agent",
+                "source-turn",
+            ),
+            record("r-source-done", {type: "done", stopReason: "paused"}, "agent", "source-turn"),
+        ]
+        const pendingParts = transcriptToMessages(pendingRecords)![1].parts as unknown as Record<
+            string,
+            unknown
+        >[]
+        expect(pendingParts).toEqual(
+            expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
+        )
+
+        const continuationRunning = transcriptToMessages([
+            ...pendingRecords,
+            record(
+                "r-continuation-thought",
+                {type: "thought", text: "approved"},
+                "agent",
+                "continuation-turn",
+            ),
+        ])!
+        expect(continuationRunning.flatMap((message) => message.parts)).not.toEqual(
+            expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
+        )
+        expect(firstAssistantMetadata(continuationRunning)).toMatchObject({
+            approvalContinuation: {
+                executionId: "continuation-turn",
+                state: "running",
+                approvalIds: ["approval-1"],
+            },
+        })
+
+        const continuationDone = transcriptToMessages([
+            ...pendingRecords,
+            record(
+                "r-continuation-thought",
+                {type: "thought", text: "approved"},
+                "agent",
+                "continuation-turn",
+            ),
+            record("r-continuation-done", {type: "done"}, "agent", "continuation-turn"),
+        ])!
+        expect(continuationDone.flatMap((message) => message.parts)).not.toEqual(
+            expect.arrayContaining([expect.objectContaining({state: "approval-requested"})]),
+        )
+        expect(firstAssistantMetadata(continuationDone)).toMatchObject({
+            approvalContinuation: {
+                executionId: "continuation-turn",
+                state: "done",
+                approvalIds: ["approval-1"],
+            },
+        })
+    })
+
+    it("tracks a durable continuation by its own execution through running and terminal records", () => {
+        const source = [
+            record("r-user", {type: "message", text: "run it"}, "user", "source-turn"),
+            record(
+                "r-call",
+                {type: "tool_call", id: "tool-1", name: "bash", input: {}},
+                "agent",
+                "source-turn",
+            ),
+            record(
+                "r-req",
+                {
+                    type: "interaction_request",
+                    id: "approval-1",
+                    kind: "user_approval",
+                    payload: {toolCallId: "tool-1"},
+                },
+                "agent",
+                "source-turn",
+            ),
+            record("r-source-done", {type: "done", stopReason: "paused"}, "agent", "source-turn"),
+        ]
+        const running = [
+            ...source,
+            record(
+                "r-continuation-thought",
+                {type: "thought", text: "approved"},
+                "agent",
+                "continuation-turn",
+            ),
+            record(
+                "r-response",
+                {
+                    type: "interaction_response",
+                    id: "approval-1",
+                    kind: "user_approval",
+                    payload: {toolCallId: "tool-2", approved: true},
+                },
+                "agent",
+                "continuation-turn",
+            ),
+        ]
+
+        expect(firstAssistantMetadata(transcriptToMessages(running))).toMatchObject({
+            paused: true,
+            approvalContinuation: {
+                sourceExecutionId: "source-turn",
+                executionId: "continuation-turn",
+                state: "running",
+                approvalIds: ["approval-1"],
+            },
+        })
+
+        const finished = transcriptToMessages([
+            ...running,
+            record(
+                "r-result",
+                {type: "tool_result", id: "tool-2", output: "ok"},
+                "agent",
+                "continuation-turn",
+            ),
+            record("r-continuation-done", {type: "done"}, "agent", "continuation-turn"),
+        ])
+        expect(firstAssistantMetadata(finished)).toMatchObject({
+            recordTerminal: true,
+            approvalContinuation: {
+                sourceExecutionId: "source-turn",
+                executionId: "continuation-turn",
+                state: "done",
+                approvalIds: ["approval-1"],
+            },
+        })
+    })
+
     it("merges a paused turn with its resume into one message and settles the re-emitted call once", () => {
         // Real cold-replay shape (verified against records): a Write call pauses for approval, the
         // turn ends stopReason:"paused", then the resume turn RE-EMITS the same call id, settles it,
@@ -880,12 +1042,16 @@ describe("transcriptToMessages interaction-row precedence", () => {
 
     it("still settles a resumed turn's gate when no row carries a verdict", () => {
         // The sweep's own job, unchanged: a resumed gate must not replay as still awaiting the user.
-        const parts = allParts(resumedApprovalRecords())
+        const messages = transcriptToMessages(resumedApprovalRecords()) ?? []
+        const parts = messages.flatMap(
+            (message) => message.parts as unknown as Record<string, unknown>[],
+        )
 
         expect(parts.some((part) => part.state === "approval-requested")).toBe(false)
         expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
             state: "approval-responded",
         })
+        expect(messages.at(-1)?.metadata).toMatchObject({recordTerminal: true})
     })
 
     it("keeps an answered approval row's approved verdict", () => {
@@ -904,6 +1070,44 @@ describe("transcriptToMessages interaction-row precedence", () => {
             state: "approval-responded",
             approval: {id: "approval-1", approved: true},
         })
+    })
+
+    it("replays the observer tab sequence from pending record to pushed resolution", () => {
+        const live = transcriptToMessages(abandonedApprovalRecords()) ?? []
+        const pushed = interactionStatesFromWatchEvent(
+            JSON.stringify({
+                type: "interaction",
+                session_id: "session-1",
+                status: "resolved",
+                interactions: [
+                    {
+                        id: "interaction-row-1",
+                        session_id: "session-1",
+                        turn_id: "turn-1",
+                        token: "approval-1",
+                        kind: "user_approval",
+                        status: "responded",
+                        data: {
+                            request: {tool_call_id: "tool-1"},
+                            resolution: {verdict: "approved", tool_call_id: "tool-1"},
+                        },
+                    },
+                ],
+            }),
+            "session-1",
+        )
+        const reconciled = reconcileInteractionRowStates(live, pushed)
+
+        expect(
+            reconciled
+                .flatMap((message) => message.parts)
+                .find((part) => ("toolCallId" in part ? part.toolCallId === "tool-1" : false)),
+        ).toMatchObject({state: "approval-responded", approval: {approved: true}})
+        expect(
+            live
+                .flatMap((message) => message.parts)
+                .find((part) => ("toolCallId" in part ? part.toolCallId === "tool-1" : false)),
+        ).toMatchObject({state: "approval-requested"})
     })
 
     it("preserves record-only replay when row states are omitted", () => {

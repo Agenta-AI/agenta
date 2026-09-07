@@ -1,12 +1,13 @@
 import {
     appMatchesType,
+    getApp,
     selectLatestAppRevisions,
 } from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import type {
     APP_TYPE,
     ListAppsItem,
 } from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers/types"
-import {expect, test} from "@playwright/test"
+import {expect, test, type Page} from "@playwright/test"
 
 const app = (flags: ListAppsItem["flags"]): ListAppsItem =>
     ({
@@ -84,4 +85,51 @@ test("latest revision selection keeps records with a missing version", () => {
     const latest = latestByAppId.get("app-id")
     expect(latest?.version).toBeUndefined()
     expect(latest?.flags?.is_agent).toBe(true)
+})
+
+test("app lookup ignores an old document response during navigation", async () => {
+    const artifact = app({is_application: true})
+    let navigationFinished = false
+    const requestedUrls: string[] = []
+    const fakePage = {
+        url: () => "https://example.test/w/workspace/p/project/settings?tab=llms",
+        goto: async () => {
+            navigationFinished = true
+        },
+        waitForURL: async () => {},
+        // A settings-page query can finish while goto replaces its document. Its
+        // status is valid, but Chromium no longer owns the response body.
+        waitForResponse: async () => ({
+            ok: () => true,
+            text: async () => {
+                throw new Error("Network.getResponseBody: No resource with given identifier found")
+            },
+        }),
+        request: {
+            post: async (url: string) => {
+                expect(navigationFinished).toBe(true)
+                requestedUrls.push(url)
+                return {
+                    ok: () => true,
+                    json: async () =>
+                        url.includes("/revisions/query")
+                            ? {
+                                  workflow_revisions: [
+                                      {
+                                          workflow_id: artifact.id,
+                                          version: "1",
+                                          flags: {is_chat: true},
+                                      },
+                                  ],
+                              }
+                            : {workflows: [artifact], count: 1},
+                }
+            },
+        },
+    } as unknown as Page
+
+    expect(await getApp(fakePage, "chat")).toEqual(artifact)
+    expect(requestedUrls).toHaveLength(2)
+    expect(new URL(requestedUrls[0]).pathname).toMatch(/\/workflows\/query$/)
+    expect(new URL(requestedUrls[0]).searchParams.get("project_id")).toBe("project")
 })

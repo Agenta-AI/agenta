@@ -24,6 +24,8 @@ from oss.src.core.shared.dtos import Identifier, Lifecycle
 
 class SessionCommandKind(str, Enum):
     cancel = "cancel"
+    continue_interaction = "continue_interaction"
+    continue_input = "continue_input"
 
 
 class SessionCommandState(str, Enum):
@@ -45,6 +47,7 @@ class SessionCommandOutcome(str, Enum):
     )
     failed = "failed"  # the cancel itself failed
     lost = "lost"  # nobody ever reported; the sweep settled it
+    started = "started"  # a continuation was admitted by the runner
 
 
 class SessionCommand(Identifier, Lifecycle):

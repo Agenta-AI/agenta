@@ -5,9 +5,14 @@ The runner (TypeScript) has its own parallel implementation that must agree on
 every key name, TTL, and wire shape.
 """
 
+import asyncio
 import json
-from typing import List, Optional, Tuple
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from typing import AsyncIterator, List, Optional, Tuple
+from uuid import uuid4
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
     ALIVE_TTL_SECONDS,
@@ -35,10 +40,101 @@ from oss.src.dbs.redis.sessions.contract import (
     validate_session_id,  # noqa: F401 — re-exported for callers that import from locks
 )
 
+log = get_module_logger(__name__)
+
+_RENEW_IF_OWNER_LUA = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+  return redis.call('expire', KEYS[1], ARGV[2])
+end
+return 0
+"""
+
+
+class SessionHeartbeatGuardLost(RuntimeError):
+    pass
+
+
+@dataclass
+class SessionHeartbeatGuardLease:
+    session_id: str
+    lost: bool = False
+
+    def ensure_held(self) -> None:
+        if self.lost:
+            raise SessionHeartbeatGuardLost(
+                f"heartbeat guard lease was lost for session {self.session_id}"
+            )
+
 
 # ---------------------------------------------------------------------------
 # Alive lock — global run lock (at most one in-flight run per session)
 # ---------------------------------------------------------------------------
+
+
+@asynccontextmanager
+async def session_heartbeat_guard(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    lease_seconds: int = 30,
+    renewal_seconds: float = 10.0,
+    wait_seconds: float = 5.0,
+) -> AsyncIterator[SessionHeartbeatGuardLease]:
+    """Serialize heartbeat ownership changes with watchdog fencing for one session."""
+    key = f"heartbeat-guard:{project_id}:session:{session_id}"
+    token = str(uuid4()).encode()
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + wait_seconds
+    while await engine.set(key, token, nx=True, ex=lease_seconds) is None:
+        if asyncio.get_running_loop().time() >= deadline:
+            raise TimeoutError(f"heartbeat guard timed out for session {session_id}")
+        await asyncio.sleep(0.01)
+
+    lease = SessionHeartbeatGuardLease(session_id=session_id)
+    renewed_at = loop.time()
+
+    async def renew() -> None:
+        nonlocal renewed_at
+        while True:
+            await asyncio.sleep(renewal_seconds)
+            try:
+                renewed = await engine.eval(
+                    _RENEW_IF_OWNER_LUA,
+                    1,
+                    key.encode(),
+                    token,
+                    str(lease_seconds).encode(),
+                )
+            except Exception:
+                log.warning(
+                    "heartbeat guard renewal failed; retrying before lease expiry",
+                    session_id=session_id,
+                    exc_info=True,
+                )
+                if loop.time() - renewed_at >= lease_seconds:
+                    lease.lost = True
+                    return
+                continue
+            if renewed != 1:
+                lease.lost = True
+                return
+            renewed_at = loop.time()
+
+    renewal = asyncio.create_task(renew())
+    try:
+        yield lease
+    finally:
+        renewal.cancel()
+        await asyncio.gather(renewal, return_exceptions=True)
+        try:
+            await engine.eval(RELEASE_IF_OWNER_LUA, 1, key.encode(), token)
+        except Exception:
+            log.warning(
+                "heartbeat guard release failed; lease will expire",
+                session_id=session_id,
+                exc_info=True,
+            )
 
 
 async def acquire_alive(

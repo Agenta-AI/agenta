@@ -460,16 +460,17 @@ export const appMatchesType = (
 }
 
 export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
-    const appsResponse = waitForApiResponse<{workflows: ListAppsItem[]; count: number}>(page, {
-        route: "/workflows/query",
-        method: "POST",
-    })
-
     const projectBasePath = getProjectScopedBasePath(page)
     await page.goto(`${projectBasePath}/prompts`, {waitUntil: "domcontentloaded"})
     await page.waitForURL("**/prompts", {waitUntil: "domcontentloaded"})
 
-    const data = await appsResponse
+    // A background query from the previous document can finish during navigation.
+    // Read fixture data through the request context, whose response survives that navigation.
+    const queryUrl = new URL(`${getApiURL(page)}/workflows/query`)
+    queryUrl.searchParams.set("project_id", getProjectId(page))
+    const response = await page.request.post(queryUrl.toString(), {data: {}})
+    expect(response.ok()).toBe(true)
+    const data = (await response.json()) as {workflows: ListAppsItem[]; count: number}
     const apps = data.workflows ?? []
 
     expect(Array.isArray(apps)).toBe(true)
