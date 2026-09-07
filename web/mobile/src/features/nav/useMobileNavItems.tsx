@@ -167,6 +167,12 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 link: `${projectURL}/apps`,
             },
             {
+                key: "automations",
+                title: "Automations",
+                icon: createElement(LightningIcon, {size: 16}),
+                link: `${projectURL}/automations`,
+            },
+            {
                 key: AGENTS_SIDEBAR_KEY,
                 title: "Agents",
                 icon: createElement(RobotIcon, {size: 16}),
