@@ -32,7 +32,10 @@ from oss.src.core.workflows.service import (
     WorkflowsService,
 )
 from oss.src.core.skills.dtos import (
+    SkillCommitted,
+    SkillCreated,
     SkillOriginInfo,
+    SkillRevisionRow,
     SkillRegistryItem,
     SkillRegistryQuery,
     SkillRegistryList,
@@ -62,6 +65,18 @@ def _skill_payload(revision: Optional[WorkflowRevision]) -> Dict[str, Any]:
 
     skill = parameters.get("skill")
     return skill if isinstance(skill, dict) else {}
+
+
+def _is_skill_workflow(workflow) -> bool:
+    """A skill IS a workflow, identified by its flag or the builtin skill URI."""
+    flags = getattr(workflow, "flags", None)
+    if flags is not None and bool(getattr(flags, "is_skill", False)):
+        return True
+    data = getattr(workflow, "data", None)
+    uri = getattr(data, "uri", None)
+    if uri is None and isinstance(data, dict):
+        uri = data.get("uri")
+    return uri == AGENTA_BUILTIN_SKILL_URI
 
 
 def _head_hash(payload: Dict[str, Any]) -> str:
@@ -377,7 +392,7 @@ class SkillsService:
         user_id: UUID,
         #
         skill: Dict[str, Any],
-    ) -> Dict[str, Any]:
+    ) -> SkillCreated:
         """Create a registry skill: the server generates the suffixed slug and
         stamps the invariants (flags on both records, the builtin skill URI)."""
         payload = self._validated_skill(skill)
@@ -406,11 +421,11 @@ class SkillsService:
             break
         if not created or not created.id:
             raise SkillNotFoundError("The skill workflow could not be created.")
-        return {
-            "workflow_id": str(created.id),
-            "slug": created.slug,
-            "revision_id": str(created.revision_id) if created.revision_id else None,
-        }
+        return SkillCreated(
+            workflow_id=str(created.id),
+            slug=created.slug,
+            revision_id=str(created.revision_id) if created.revision_id else None,
+        )
 
     async def commit_skill_revision(
         self,
@@ -422,7 +437,7 @@ class SkillsService:
         skill: Dict[str, Any],
         message: Optional[str] = None,
         base_revision_id: Optional[UUID] = None,
-    ) -> Dict[str, Any]:
+    ) -> SkillCommitted:
         """Commit a new revision of one skill, with the server stamping flags and
         URI; `base_revision_id` makes a concurrent edit a 409, never a clobber."""
         payload = self._validated_skill(skill)
@@ -434,6 +449,14 @@ class SkillsService:
         if current is None:
             raise SkillNotFoundError(
                 f"Skill workflow {workflow_id} was not found in this project.",
+            )
+        # The facade stamps skill flags and the skill URI, so committing through it
+        # to a non-skill workflow would silently rewrite an agent (or evaluator) as
+        # a skill. The target must already BE one.
+        if not _is_skill_workflow(current):
+            raise SkillNotFoundError(
+                f"Workflow {workflow_id} is not a skill.",
+                next_step="Commit non-skill workflows through the workflows API.",
             )
 
         try:
@@ -465,11 +488,11 @@ class SkillsService:
             ) from e
 
         revision = outcome.revision
-        return {
-            "workflow_id": str(workflow_id),
-            "revision_id": str(revision.id) if revision and revision.id else None,
-            "version": revision.version if revision else None,
-        }
+        return SkillCommitted(
+            workflow_id=str(workflow_id),
+            revision_id=str(revision.id) if revision and revision.id else None,
+            version=revision.version if revision else None,
+        )
 
     async def archive_skill(
         self, *, project_id: UUID, user_id: UUID, workflow_id: UUID
@@ -497,32 +520,32 @@ class SkillsService:
 
     async def log_skill_revisions(
         self, *, project_id: UUID, workflow_id: UUID
-    ) -> List[Dict[str, Any]]:
+    ) -> List[SkillRevisionRow]:
         """The skill's history, newest first, with each revision's stored content.
         v0 (the empty bootstrap revision) is server-filtered — history starts at v1."""
         revisions = await self.workflows_service.query_workflow_revisions(
             project_id=project_id,
             workflow_refs=[Reference(id=workflow_id)],
         )
-        rows: List[Dict[str, Any]] = []
+        rows: List[SkillRevisionRow] = []
         for revision in revisions:
             if str(revision.version or "") == "0":
                 continue
             rows.append(
-                {
-                    "id": str(revision.id) if revision.id else None,
-                    "version": revision.version,
-                    "message": revision.message,
-                    "created_at": (
+                SkillRevisionRow(
+                    id=str(revision.id) if revision.id else None,
+                    version=revision.version,
+                    message=revision.message,
+                    created_at=(
                         revision.created_at.isoformat() if revision.created_at else None
                     ),
-                    "workflow_variant_id": (
+                    workflow_variant_id=(
                         str(revision.variant_id) if revision.variant_id else None
                     ),
-                    "skill": _skill_payload(revision) or None,
-                }
+                    skill=_skill_payload(revision) or None,
+                )
             )
-        rows.sort(key=lambda r: int(r["version"] or 0), reverse=True)
+        rows.sort(key=lambda row: int(row.version or 0), reverse=True)
         return rows
 
     def _list_builtin_skills(self) -> List[SkillRegistryItem]:

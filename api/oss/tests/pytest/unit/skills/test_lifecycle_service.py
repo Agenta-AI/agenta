@@ -7,8 +7,10 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.skills.dtos import SkillCommitted, SkillCreated
 from oss.src.core.skills.exceptions import (
     SkillContentInvalidError,
+    SkillNotFoundError,
     SkillRevisionConflictError,
 )
 from oss.src.core.skills.service import SkillsService
@@ -55,7 +57,12 @@ class _StubSimpleWorkflowsService:
         self.workflows_service = _StubWorkflowsService()
         self.created = []
         self._reject = reject_creates
-        self.head = SimpleNamespace(variant_id=uuid4(), revision_id=uuid4())
+        self.head = SimpleNamespace(
+            variant_id=uuid4(),
+            revision_id=uuid4(),
+            flags=SimpleNamespace(is_skill=True),
+            data=SimpleNamespace(uri="agenta:builtin:skill:v0"),
+        )
 
     async def create(
         self, *, project_id, user_id, simple_workflow_create, platform_meta=False
@@ -100,8 +107,8 @@ async def test_create_stamps_invariants_and_generates_the_slug():
     assert call.flags.is_skill and call.flags.is_snippet
     assert call.data.uri == "agenta:builtin:skill:v0"
     assert call.data.parameters["skill"]["name"] == "weather-report"
-    assert created["slug"] == call.slug
-    assert created["workflow_id"]
+    assert created.slug == call.slug
+    assert created.workflow_id
 
 
 @pytest.mark.asyncio
@@ -122,7 +129,7 @@ async def test_create_retries_a_slug_collision():
     created = await service.create_skill(
         project_id=PROJECT_ID, user_id=USER_ID, skill=SKILL
     )
-    assert created["workflow_id"]
+    assert created.workflow_id
     assert len(simple.created) == 1
 
 
@@ -147,7 +154,7 @@ async def test_commit_stamps_invariants_and_threads_the_base():
     assert commit.data.uri == "agenta:builtin:skill:v0"
     assert commit.base_revision_id == base
     assert commit.workflow_variant_id == simple.head.variant_id
-    assert outcome["version"] == "2"
+    assert outcome.version == "2"
 
 
 @pytest.mark.asyncio
@@ -200,5 +207,39 @@ async def test_log_filters_v0_sorts_desc_and_extracts_content():
         _rev("2", "b"),
     ]
     rows = await service.log_skill_revisions(project_id=PROJECT_ID, workflow_id=uuid4())
-    assert [r["version"] for r in rows] == ["2", "1"]
-    assert rows[0]["skill"] == {"name": "b"}
+    assert [row.version for row in rows] == ["2", "1"]
+    assert rows[0].skill == {"name": "b"}
+
+
+@pytest.mark.asyncio
+async def test_commit_refuses_a_non_skill_workflow():
+    """The facade stamps skill flags and the skill URI — committing through it to
+    an agent would silently rewrite that agent as a skill."""
+    service, simple = _service()
+    simple.head = SimpleNamespace(
+        variant_id=uuid4(),
+        revision_id=uuid4(),
+        flags=SimpleNamespace(is_skill=False, is_agent=True),
+        data=SimpleNamespace(uri="agenta:builtin:agent:v0"),
+    )
+    with pytest.raises(SkillNotFoundError):
+        await service.commit_skill_revision(
+            project_id=PROJECT_ID,
+            user_id=USER_ID,
+            workflow_id=uuid4(),
+            skill=SKILL,
+        )
+    assert not simple.workflows_service.commits
+
+
+@pytest.mark.asyncio
+async def test_lifecycle_returns_typed_dtos():
+    service, simple = _service()
+    created = await service.create_skill(
+        project_id=PROJECT_ID, user_id=USER_ID, skill=SKILL
+    )
+    assert isinstance(created, SkillCreated)
+    committed = await service.commit_skill_revision(
+        project_id=PROJECT_ID, user_id=USER_ID, workflow_id=uuid4(), skill=SKILL
+    )
+    assert isinstance(committed, SkillCommitted)

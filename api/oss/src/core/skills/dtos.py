@@ -66,6 +66,31 @@ class SkillRegistryQuery(BaseModel):
     windowing: Optional[Windowing] = None
 
 
+class SkillCreated(BaseModel):
+    """What creating a registry skill answers with (the server owns the slug)."""
+
+    workflow_id: Optional[str] = None
+    slug: Optional[str] = None
+    revision_id: Optional[str] = None
+
+
+class SkillCommitted(BaseModel):
+    workflow_id: Optional[str] = None
+    revision_id: Optional[str] = None
+    version: Optional[str] = None
+
+
+class SkillRevisionRow(BaseModel):
+    """One row of a skill's history, with the content stored at that revision."""
+
+    id: Optional[str] = None
+    version: Optional[str] = None
+    message: Optional[str] = None
+    created_at: Optional[str] = None
+    workflow_variant_id: Optional[str] = None
+    skill: Optional[dict] = None
+
+
 class SkillRegistryList(BaseModel):
     skills: List[SkillRegistryItem] = []
     # Code-defined Agenta built-ins: a separate, unpaginated block — merging

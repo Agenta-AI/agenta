@@ -233,7 +233,7 @@ class SkillsRouter:
             user_id=UUID(request.state.user_id),
             skill=create_request.skill,
         )
-        return SkillCreateResponse(**created)
+        return SkillCreateResponse(**created.model_dump())
 
     @intercept_exceptions()
     @handle_skills_exceptions()
@@ -265,7 +265,7 @@ class SkillsRouter:
             message=commit_request.message,
             base_revision_id=commit_request.base_revision_id,
         )
-        return SkillCommitResponse(**outcome)
+        return SkillCommitResponse(**outcome.model_dump())
 
     @intercept_exceptions()
     @handle_skills_exceptions()
@@ -289,7 +289,7 @@ class SkillsRouter:
         )
         return SkillRevisionsResponse(
             count=len(rows),
-            revisions=[SkillRevisionRow(**row) for row in rows],
+            revisions=[SkillRevisionRow(**row.model_dump()) for row in rows],
         )
 
     @intercept_exceptions()
