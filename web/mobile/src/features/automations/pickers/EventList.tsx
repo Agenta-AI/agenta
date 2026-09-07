@@ -59,6 +59,7 @@ export const EventList = ({
                         <Button
                             type="button"
                             variant="ghost"
+                            size="sm"
                             className="font-normal"
                             disabled={isFetchingNextPage}
                             onClick={requestMore}

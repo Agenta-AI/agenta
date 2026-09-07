@@ -265,6 +265,7 @@ export const AutomationDraftScreen = ({
                         <div className="mt-[30px] flex items-center justify-end gap-2.5 border-0 border-t border-solid border-border pt-5">
                             <Button
                                 type="button"
+                                size="sm"
                                 variant="outline"
                                 className="font-normal"
                                 onClick={() => void router.push(`${base}/automations`)}
@@ -276,6 +277,7 @@ export const AutomationDraftScreen = ({
                             <span title={blockedReason || undefined}>
                                 <Button
                                     type="button"
+                                    size="sm"
                                     className="font-normal"
                                     disabled={!!blockedReason || saving}
                                     title={blockedReason || undefined}
