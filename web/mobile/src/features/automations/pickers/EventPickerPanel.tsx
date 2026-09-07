@@ -3,6 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {
     triggerCatalogDrawerOpenAtom,
     triggerEventsSearchAtom,
+    useTriggerCatalogIntegrations,
     useTriggerConnectionsQuery,
     useTriggerEvent,
     type TriggerSubscription,
@@ -192,7 +193,16 @@ export const EventPickerPanel = ({
         }
     }, [automation, connectionId, edit, eventKey, onClose, onSelectEvent])
 
-    const boundAppLabel = connection ? appLabel(connection) : (activeApp?.label ?? "connected")
+    // The catalog's display name, not the integration key made readable: "Google Calendar",
+    // not "Googlecalendar".
+    const {integrations} = useTriggerCatalogIntegrations()
+    const boundAppLabel = connection
+        ? appLabel(
+              connection,
+              integrations.find((integration) => integration.key === connection.integration_key)
+                  ?.name,
+          )
+        : (activeApp?.label ?? "connected")
 
     return (
         <div className="flex min-h-0 flex-col">
