@@ -35,8 +35,6 @@ export function FormItem({
     className,
     children,
 }: FormItemProps) {
-    const required = rules?.some((rule) => typeof rule === "object" && rule.required)
-
     return (
         <Field name={name} rules={rules} initialValue={initialValue} valuePropName={valuePropName}>
             {(control, meta) => {
@@ -48,8 +46,8 @@ export function FormItem({
 
                 return (
                     <FieldChrome
+                        // No `required` asterisk — SchemaForm's FieldLabel carries the word marker.
                         label={hideLabel ? undefined : label}
-                        required={required}
                         error={error}
                         className={className}
                     >
