@@ -318,11 +318,11 @@ proves nothing about the durable working directory (LESSONS #16).
 - `resources/matrix_t9_agent_tools.py` — **[coached]** T9: the runner restores the agent's own
   tools from `agent-files/.tools/` before a session (`agent-tools-setup.ts`). Plants a
   `setup.sh` and a `bin/qa-tool` through the mounts API, opens a fresh session, and asserts the
-  `cat .tools/marker` and `.tools/bin/qa-tool` tool-output payloads carry the planted tokens,
-  plus a line `setup.sh` appended to `agent-files/.tools/runs.log`, read back through the mounts
-  API with no model in the loop. `--sandbox local|daytona`, `--harness pi_core|claude`;
-  `--runner-container` also asserts the `agent_tools_setup` timing stage. Mandatory (via
-  `path_triggers.py`) when the restore step or the sandbox image recipes change.
+  first tool call is the exact probe and its output payload carries both planted tokens, plus a
+  line `setup.sh` appended to `agent-files/.tools/runs.log`, read back through the mounts API
+  with no model in the loop, plus the `agent_tools_setup` stage for THIS session in the runner
+  log when `--runner-container` is given. `--sandbox local|daytona`, `--harness pi_core|claude`.
+  Mandatory (via `path_triggers.py`) when the restore step or the sandbox image recipes change.
 - `resources/matrix_w7_per_harness.py` — **[coached]** matrix_w7.py's exact scenario run
   identically on all three harnesses (claude, codex, pi_core), each classified PASS/FAIL/SKIP
   independently. Exists because W7 originally ran on Claude only, and that scenario-coverage gap
@@ -395,10 +395,10 @@ proves nothing about the durable working directory (LESSONS #16).
   mechanics misses, not noise or infra flake — treat this cell's discovery rate as a genuine open
   quality question, not a settled pass:
   - **pi_core: 2/3** (2026-08-06). Trial 2's model ran `cp -r agent-files/gstack-autoplan
-.agenta-imports/` (copying the whole directory) then referenced a marker path that didn't
+    .agenta-imports/` (copying the whole directory) then referenced a marker path that didn't
     match where the file landed; the engine correctly denied it fail-closed
     (`approved-content resolution failed ...: gstack-autoplan/SKILL.md does not exist under
-.agenta-imports/.; deny`). Not a product bug — the deny is doing its job — but evidence the
+    .agenta-imports/.; deny`). Not a product bug — the deny is doing its job — but evidence the
     model fumbles the exact copy-then-reference mechanics some of the time.
   - **codex: 2/3** (2026-08-06, re-verified after stocking a clean OpenAI vault key — the earlier
     SKIP was purely the missing/ambiguous credential, now resolved). Trial 1 didn't attempt the
@@ -524,13 +524,13 @@ itself worth a second look, separate from the original regate question). Do not 
 wire cell for this without a different approach (e.g. a runner-side hook) than a pure HTTP
 client.
 
-_A candidate approach, found while building the `matrix_l_`cells and not yet tried:* a turn that
-raises an approval gate AND a client-tool pause together takes the`mixed-gate-no-park`branch in`session-coordinator.ts` (`approvalToPark`refuses when`nonParkablePauseCount > 0`), so the
+*A candidate approach, found while building the `matrix_l*` cells and not yet tried:* a turn that
+raises an approval gate AND a client-tool pause together takes the `mixed-gate-no-park` branch in
+`session-coordinator.ts` (`approvalToPark` refuses when `nonParkablePauseCount > 0`), so the
 environment is destroyed with the approval still pending — "gate pending → environment evicted"
 without any intervening user turn and without touching the message history. Answering afterwards
 lands on a pool miss and takes the cold decision-map path, which is exactly the state
 `shouldRegateStaleApproval` guards. Worth a spike before concluding this needs a runner-side hook.
-
 - `resources/qa_longctx.py` — optional long-context / Gmail / concurrent-session probes. Needs
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.

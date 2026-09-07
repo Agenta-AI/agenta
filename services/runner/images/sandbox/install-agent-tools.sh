@@ -54,7 +54,10 @@ ln -sf /usr/bin/vim.tiny /usr/local/bin/vim
 for t in git git-lfs curl wget rsync unzip zip jq rg tmux sqlite3 gcc pkg-config python3 ffmpeg ffprobe pdftotext pdftoppm tesseract; do
   command -v "$t" >/dev/null || { echo "missing after apt: $t" >&2; exit 1; }
 done
-python3 -m venv /tmp/venv-check && rm -rf /tmp/venv-check
+# Separate statements on purpose: under dash, `set -e` does not stop on a failing command that
+# sits inside an `&&` list, so each check must be its own line to fail the build.
+python3 -m venv /tmp/venv-check
+rm -rf /tmp/venv-check
 tesseract --list-langs 2>&1 | grep -q '^eng$'
 
 # ---- gh: from GitHub's own apt repo. Debian and Ubuntu ship 2.45/2.46, which the gh
@@ -93,7 +96,9 @@ npm install -g --no-fund --no-audit \
 tsc --version | grep -q "${TYPESCRIPT_VERSION}"
 prettier --version | grep -q "${PRETTIER_VERSION}"
 bun --version | grep -q "${BUN_VERSION}"
-echo 'const v: number = 1; console.log(v)' > /tmp/v.ts && ts-node /tmp/v.ts | grep -q '^1$' && rm /tmp/v.ts
+echo 'const v: number = 1; console.log(v)' > /tmp/v.ts
+ts-node /tmp/v.ts | grep -q '^1$'
+rm /tmp/v.ts
 npm cache clean --force >/dev/null 2>&1 || true
 
 # ---- one browser: Chromium, installed by Playwright, off PATH, shared by every user. ----------

@@ -129,14 +129,21 @@ def read_file(mount_id: str, path: str) -> str | None:
     return r.text
 
 
-def runner_log_has_stage(container: str, since: str = "10m") -> bool:
+def runner_log_has_stage(container: str, session_id: str, since: str = "10m") -> bool:
+    """The `agent_tools_setup` timing stage for THIS session, and the restore's own ok line
+    before it. Another session's stage in the same window must not count."""
     out = subprocess.run(
         ["docker", "logs", container, "--since", since],
         capture_output=True,
         text=True,
         timeout=30,
     )
-    return "stage=agent_tools_setup" in (out.stdout + out.stderr)
+    lines = (out.stdout + out.stderr).splitlines()
+    stage = any(
+        "stage=agent_tools_setup" in ln and f"session={session_id}" in ln
+        for ln in lines
+    )
+    return stage
 
 
 def t9_agent_tools(sandbox: str, harness: str, runner_container: str | None) -> dict:
@@ -172,18 +179,30 @@ def t9_agent_tools(sandbox: str, harness: str, runner_container: str | None) -> 
         )
         session_id = str(uuid.uuid4())
         t1 = invoke(session_id, [user_msg(prompt)], {"agent": cfg}, references)
-        tool_output_text = " ".join(
-            str(t1.tool_payloads.get(c["toolCallId"], {}).get("output") or "")
-            for c in t1.tool_calls
+        # Only the FIRST tool call counts, and it must be the exact probe. A model that finds the
+        # planted files, runs setup.sh itself, and then runs the probe would otherwise pass a
+        # test about the runner's restore step. Any tool error disqualifies the run.
+        tool_inputs = [c.get("input") for c in t1.tool_calls]
+        first = t1.tool_calls[0] if t1.tool_calls else None
+        first_cmd = (
+            str((first or {}).get("input", {}).get("command", "")) if first else ""
         )
-        setup_ran = token_setup in tool_output_text
-        bin_copied = token_bin in tool_output_text
+        first_is_probe = first is not None and first_cmd.strip() == (
+            "cat .tools/marker && .tools/bin/qa-tool"
+        )
+        first_output = (
+            str(t1.tool_payloads.get(first["toolCallId"], {}).get("output") or "")
+            if first
+            else ""
+        )
+        tool_output_text = first_output
+        setup_ran = first_is_probe and token_setup in first_output
+        bin_copied = first_is_probe and token_bin in first_output
         tool_errors = [
             t1.tool_payloads.get(c["toolCallId"], {}).get("errorText")
             for c in t1.tool_calls
             if t1.tool_outcomes.get(c["toolCallId"]) == "error"
         ]
-        tool_inputs = [c.get("input") for c in t1.tool_calls]
 
         # The restore is visible WITHOUT the model: setup.sh appended to a file on the durable
         # mount. geesefs flushes on a delay, so poll the store for up to 45 s.
@@ -198,13 +217,15 @@ def t9_agent_tools(sandbox: str, harness: str, runner_container: str | None) -> 
 
         stage_seen = None
         if runner_container:
-            stage_seen = runner_log_has_stage(runner_container)
+            stage_seen = runner_log_has_stage(runner_container, session_id)
 
         silent = check_no_silent_turn([t1])
         ok = (
-            setup_ran
+            first_is_probe
+            and setup_ran
             and bin_copied
             and log_seen
+            and not tool_errors
             and not t1.errors
             and not silent["violations"]
             and (stage_seen is None or stage_seen)
@@ -212,10 +233,11 @@ def t9_agent_tools(sandbox: str, harness: str, runner_container: str | None) -> 
         return {
             "status": "PASS" if ok else "FAIL",
             "why": (
-                f"setup_ran (cat .tools/marker payload carried the setup token)={setup_ran}, "
+                f"first_call_is_probe={first_is_probe}, "
+                f"setup_ran (first call's payload carried the setup token)={setup_ran}, "
                 f"bin_copied (.tools/bin/qa-tool payload carried the binary token)={bin_copied}, "
                 f"runs_log_on_mount (read back via the mounts API)={log_seen}, "
-                f"wire_errors={t1.errors}, silent_turns={silent['violations']}, "
+                f"tool_errors={len(tool_errors)}, wire_errors={t1.errors}, silent_turns={silent['violations']}, "
                 f"runner_stage_seen={stage_seen}"
             ),
             "sandbox": sandbox,

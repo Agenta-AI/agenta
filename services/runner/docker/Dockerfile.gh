@@ -111,6 +111,13 @@ ENV HOME=/home/node
 
 USER node
 
+# The recipe's checks ran as root. Assert the tools an agent calls as the RUNTIME user too, so a
+# permission slip on /opt/pw-browsers or the global node dir fails the build, not a session.
+RUN gh --version >/dev/null && uv --version >/dev/null && fd --version >/dev/null \
+    && tsc --version >/dev/null && bun --version >/dev/null \
+    && python3 -c "import pandas, playwright" \
+    && chromium --headless=new --no-sandbox --disable-gpu --dump-dom about:blank 2>/dev/null | grep -q '<html'
+
 # Pin the Codex ACP adapter (decision D-005). The sandbox-agent daemon otherwise installs
 # @agentclientprotocol/codex-acp from the npm registry with a FLOATING `^1.1.7` range at first Codex
 # use, so a later registry release would drift protocol behavior (gate shapes, config channels)

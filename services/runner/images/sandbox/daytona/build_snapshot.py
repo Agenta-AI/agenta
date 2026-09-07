@@ -215,6 +215,12 @@ def main() -> None:
             f"RUN curl -fsSL -o /usr/local/bin/geesefs {GEESEFS_URL} "
             "&& chmod +x /usr/local/bin/geesefs",
             "USER sandbox",
+            # The recipe's checks ran as root. Assert the tools as the sandbox user too.
+            "RUN gh --version >/dev/null && uv --version >/dev/null && fd --version >/dev/null "
+            "&& tsc --version >/dev/null && bun --version >/dev/null "
+            '&& python3 -c "import pandas, playwright" '
+            "&& chromium --headless=new --no-sandbox --disable-gpu --dump-dom about:blank 2>/dev/null "
+            "| grep -q '<html'",
             # Replace the base image's private Pi adapter. sandbox-agent resolves this launcher
             # before PATH, so a global pi-acp install would leave the stale adapter active.
             f"RUN sandbox-agent install-agent pi --reinstall "

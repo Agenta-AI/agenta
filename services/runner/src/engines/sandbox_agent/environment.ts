@@ -120,6 +120,7 @@ import {
   agentToolsLocalDir,
   localAgentToolsExec,
   remoteAgentToolsExec,
+  removeAgentToolsLocalDir,
   runAgentToolsSetup,
 } from "./agent-tools-setup.ts";
 import {
@@ -568,6 +569,13 @@ async function acquireEnvironmentOnce(
           environment.mountedCwd,
           { log },
         ).catch(() => false),
+      );
+    }
+    if (!parked && !plan.isDaytona) {
+      // The per-session tools dir on local disk dies with the environment (`agent-tools-setup.ts`).
+      await removeAgentToolsLocalDir(
+        agentToolsLocalDir(plan.workspace.cwd, false),
+        { log },
       );
     }
     if (!parked && !plan.isDaytona && environment.agentMountedPath) {
@@ -1043,7 +1051,8 @@ async function acquireEnvironmentOnce(
     // Restore the agent's own tools (`agent-files/.tools/`) now that both agent-mount paths
     // have settled and before the session opens, so a venv or a binary the model saved in an
     // earlier session is ready on local disk when this one starts. Never fails the turn; see
-    // `agent-tools-setup.ts` for the convention and why the mount itself cannot hold a venv.
+    // `agent-tools-setup.ts` for the convention, the permission guard, and why the mount itself
+    // cannot hold a venv.
     if (environment.agentMountedPath) {
       const agentToolsStartedAt = Date.now();
       const mountPath = environment.agentMountedPath;
@@ -1052,12 +1061,17 @@ async function acquireEnvironmentOnce(
           mountPath,
           cwd: plan.workspace.cwd,
           localDir: agentToolsLocalDir(plan.workspace.cwd, plan.isDaytona),
+          // Owner-authored startup code runs unattended only under the posture that also lets
+          // a model shell call run unattended.
+          runSetup: plan.tools.permissionDefault === "allow",
         },
         plan.isDaytona
           ? remoteAgentToolsExec(environment.sandbox)
           : localAgentToolsExec,
         {
           log: logger,
+          signal,
+          hostEnv: process.env,
           // Local: a stat is cheaper than a shell. Remote: the script's own `[ -d ]` is the check.
           ...(plan.isDaytona
             ? {}
