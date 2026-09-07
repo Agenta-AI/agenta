@@ -7,7 +7,7 @@ provenance to act on cold. See the `defer-todo` skill for the format.
 
 ### Tell the agent its own name, the session name, and whether this is the first turn
 
-**Status:** resolved (2026-09-07, session context wire field)
+**Status:** resolved (2026-09-07, per-turn context delivery)
 **Added:** 2026-09-07
 **Commit:** f676a77e01 (branch `feat/release-1153-platform-prompt`)
 **Project:** [Agent platform instructions](./README.md)
@@ -27,16 +27,13 @@ around this with prose, and live QA on 2026-08-10 showed the model still forgett
 wire field from the API through the SDK to the runner, plus a place in the prompt to render
 them, and that is its own change with its own tests.
 
-**What to decide or do.** Add the agent display name, the session name, and a first-turn flag
-to the run request, and render them in a short session-context block at the end of the
-platform instructions. Then rewrite the two naming rules to read the facts instead of guessing:
-"Your name is X. If X is a placeholder, rename yourself." and "This session has no name yet.
-Name it in this turn." Keep the block out of the session fingerprint, the way the gateway
-guidance is, so a session rename does not evict a warm session.
+**How it was resolved.** The API supplies typed facts on `request.meta.session_context` in
+its shared invoke prelude. The SDK renders a `turnContext` string containing the current facts
+and naming instructions for the tools this run offers. The runner adds the string to each new
+harness prompt, including warm continuations, rather than installing it as environment-level
+instructions. The first-turn flag remains; context does not change the environment fingerprint
+or the persisted user message. Branch `feat/release-1153-session-context`.
 
-**How it was resolved.** `sessionContext` on the `/run` request carries the agent's display
-name, the session name, and a first-turn flag. The API stamps them on `request.meta` in the
-shared invoke prelude; the SDK renders them as a final "## This session" block and emits them on
-the wire. The two naming rules now read the facts. The field is outside the session fingerprint,
-so `rename_session` does not evict a warm sandbox. Branch
-`feat/release-1153-session-context`.
+User name, timezone, and time calculated at execution are tracked in
+[#6636](https://github.com/Agenta-AI/agenta/issues/6636). They can extend the API/SDK facts and
+renderer while using the same text-only runner field.

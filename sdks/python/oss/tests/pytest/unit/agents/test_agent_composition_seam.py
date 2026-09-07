@@ -88,7 +88,9 @@ class _FakeSession(Session):
 
 
 class _FakeBackend(Backend):
-    supported_harnesses = frozenset({HarnessKind.PI, HarnessKind.CLAUDE})
+    supported_harnesses = frozenset(
+        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.CODEX}
+    )
 
     def __init__(self, *, output: str = "hi") -> None:
         self._output = output
@@ -101,7 +103,7 @@ class _FakeBackend(Backend):
         # arguments checks both sides of the composition boundary rather than one hop.
         self.created_configs: List[Any] = []
         # The service-supplied naming facts, as they reach the backend.
-        self.created_session_contexts: List[Any] = []
+        self.created_turn_contexts: List[Any] = []
 
     async def create_sandbox(self) -> _FakeSandbox:
         return _FakeSandbox()
@@ -115,7 +117,7 @@ class _FakeBackend(Backend):
         secrets=None,
         trace=None,
         run_context=None,
-        session_context=None,
+        turn_context=None,
         session_id=None,
         detached=False,
         turn_id=None,
@@ -132,7 +134,7 @@ class _FakeBackend(Backend):
             (session_id, turn_id, project_id, control_command_id)
         )
         self.created_configs.append(config)
-        self.created_session_contexts.append(session_context)
+        self.created_turn_contexts.append(turn_context)
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))
 
 
@@ -819,12 +821,9 @@ if __name__ == "__main__":
     pytest.main([__file__, "-q"])
 
 
-async def test_session_context_meta_reaches_the_backend_and_the_prompt():
-    """The service's naming facts survive `meta` and land in the rendered platform text.
-
-    This is the whole point of the field: the prompt tells the agent to rename itself only
-    while its name is a placeholder, and it can only obey once the fact arrives.
-    """
+@pytest.mark.parametrize("harness", ["pi_core", "claude", "codex"])
+async def test_session_context_meta_reaches_the_backend_as_turn_text(harness):
+    """Facts render once as turn text, even when this run has no rename tools."""
     backend = _FakeBackend()
     handler = make_agent_handler(
         AgentComposition(
@@ -845,13 +844,17 @@ async def test_session_context_meta_reaches_the_backend_and_the_prompt():
             },
         ),
         messages=[{"role": "user", "content": "hi"}],
-        parameters=_params(),
+        parameters=_params(harness),
     )
 
-    context = backend.created_session_contexts[0]
-    assert context.agent_name == "New agent"
-    assert context.session_name is None
-    assert context.first_turn is True
+    context = backend.created_turn_contexts[0]
+    assert isinstance(context, str)
+    assert 'Your name is "New agent"' in context
+    assert "This session has no name yet" in context
+    assert "This is the first turn" in context
+    assert "rename_agent" not in context
+    assert "rename_session" not in context
+    assert "## This session" not in backend.created_configs[0].platform_instructions
 
 
 async def test_a_malformed_session_context_degrades_to_no_context():
@@ -877,7 +880,7 @@ async def test_a_malformed_session_context_degrades_to_no_context():
             parameters=_params(),
         )
 
-    assert backend.created_session_contexts == [None, None]
+    assert backend.created_turn_contexts == [None, None]
 
 
 async def test_an_unknown_session_context_key_is_dropped_not_fatal():
@@ -903,4 +906,4 @@ async def test_an_unknown_session_context_key_is_dropped_not_fatal():
         parameters=_params(),
     )
 
-    assert backend.created_session_contexts[0].agent_name == "Changelog writer"
+    assert 'Your name is "Changelog writer"' in backend.created_turn_contexts[0]

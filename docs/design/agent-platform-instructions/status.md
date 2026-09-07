@@ -77,18 +77,16 @@ Branch `feat/release-1153-platform-prompt`, target `release/v0.115.3`.
 
 Branch `feat/release-1153-session-context`, stacked on `feat/release-1153-platform-prompt`.
 
-- A `sessionContext` field carries three facts from the API to the prompt: the agent's display
-  name, the session's name, and whether this is the first turn. The API stamps them on
-  `request.meta` in `_prepare_invoke`, the one prelude both `invoke_workflow` and
-  `invoke_workflow_detached` share, so a UI turn, a HITL resume, and a trigger fire are covered
-  by one stamp. It is gated to agent runs by the revision URI.
-- The SDK carries them as `SessionContext` on `SessionConfig`, renders them as a final
-  "## This session" block, and emits `sessionContext` on the `/run` wire. The block renders only
-  when the run offers a rename tool.
-- The "## Names" rule now reads those facts instead of asking the model to guess whether its own
-  name looks like a placeholder. The placeholder test itself moved into
-  `is_placeholder_agent_name`.
-- The field is outside the runner's `configFingerprint` and every desired-state facet, so an
-  agent obeying the rule and calling `rename_session` does not evict its own warm sandbox.
-- `userName`, `timezone` and `localTime` are declared and reserved. They are not populated and
-  not rendered. Filling them is a later change with no wire migration.
+- The API stamps the agent's display name, session name, and first-turn flag on
+  `request.meta.session_context` in the shared invoke prelude. Only agent runs perform the reads.
+- The SDK parses these facts into `SessionContext` and renders one `turnContext` string. The
+  runner includes this text with each new harness prompt after selecting history and attachments.
+  Warm continuations receive fresh context without rebuilding the environment.
+- Facts render even without rename tools. Each naming instruction requires its own tool;
+  naming policy is no longer duplicated in the stable platform instructions.
+- `turnContext` is outside the session fingerprint and desired-state facets. It does not alter
+  persisted user messages. Live approval replies continue the existing prompt; cold resumes and
+  new user turns receive the latest context.
+- The first-turn flag remains. User name, timezone, and current local time are follow-up
+  [#6636](https://github.com/Agenta-AI/agenta/issues/6636). That follow-up can extend the API/SDK
+  facts and renderer without adding fields to the runner protocol.

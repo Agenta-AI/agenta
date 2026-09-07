@@ -23,11 +23,6 @@ from .dtos import SessionContext
 # lacks it (a trigger fire, an embedded run) has no use for the config sections.
 CONFIG_COMMIT_TOOL = "commit_revision"
 
-# The tools the session block exists to drive. Same reasoning as `CONFIG_COMMIT_TOOL`: a run
-# that cannot rename anything gains nothing from being told its name.
-RENAME_TOOLS = ("rename_session", "rename_agent")
-
-
 AGENTA_PLATFORM_BASE = """\
 ## Agenta platform
 
@@ -288,14 +283,7 @@ trigger); anything only true inside this turn and already on screen.
 When the person asks for something with several moving parts, such as a news digest or a
 dashboard, do not build everything first. Give a two-sentence plan, then offer a quick sample
 with real or sample data so they can see the shape. Once they like it, set up the trigger and
-the connections for real.
-
-## Names
-
-The session block at the end of these instructions tells you your name and whether the session
-is named. Rename the agent with `rename_agent` only when that block says the name is a
-placeholder. Name the session with `rename_session` once, when the block says it has no name
-yet. Never rename either again later."""
+the connections for real."""
 
 
 def credential_guidance(environment_names: Sequence[str]) -> Optional[str]:
@@ -357,27 +345,19 @@ def is_placeholder_agent_name(name: Optional[str]) -> bool:
     return normalized.startswith("new agent")
 
 
-def session_context_guidance(context: Optional[SessionContext]) -> Optional[str]:
-    """Render the per-turn facts behind the two naming rules.
-
-    Composed LAST, after the gateway section, so it reads as the concrete situation that follows
-    the general instructions. Returns ``None`` when there is no context to render, which keeps a
-    run without it byte-identical to before.
-
-    Each line is a fact plus the action it implies, because the model acts on the instruction it
-    reads next to the fact. The turn line is dropped when the service did not say, rather than
-    guessed: claiming "this is not the first turn" on a first turn would suppress the session
-    name for the whole conversation."""
+def session_context_guidance(
+    context: Optional[SessionContext], tool_names: Sequence[str] = ()
+) -> Optional[str]:
+    """Render current facts, adding naming actions only for tools this run offers."""
     if context is None:
         return None
 
     name = context.agent_name
     if is_placeholder_agent_name(name):
         shown = name.strip() if name and name.strip() else "New agent"
-        agent_line = (
-            f'Your name is "{shown}". That is a placeholder, so rename yourself with '
-            "`rename_agent` in this turn."
-        )
+        agent_line = f'Your name is "{shown}". That is a placeholder.'
+        if "rename_agent" in tool_names:
+            agent_line += " Rename yourself with `rename_agent` in this turn."
     else:
         agent_line = f'Your name is "{name.strip()}". Keep it.'
 
@@ -386,47 +366,31 @@ def session_context_guidance(context: Optional[SessionContext]) -> Optional[str]
             f'This session is named "{context.session_name.strip()}". Do not rename it.'
         )
     else:
-        session_line = (
-            "This session has no name yet. Name it with `rename_session` once the first "
-            "exchange makes clear what it is about."
-        )
+        session_line = "This session has no name yet."
+        if "rename_session" in tool_names:
+            session_line += (
+                " Name it with `rename_session` once the first exchange makes clear "
+                "what it is about."
+            )
 
     lines = [agent_line, session_line]
     if context.first_turn is True:
         lines.append("This is the first turn of the session.")
     elif context.first_turn is False:
-        lines.append(
-            "This is not the first turn; earlier turns are in your conversation."
-        )
-
-    body = "\n".join(lines)
-    return f"""\
-## This session
-
-{body}"""
+        lines.append("This is not the first turn of the session.")
+    return "## This session\n\nCurrent facts for this turn:\n" + "\n".join(lines)
 
 
 def compose_platform_instructions(
     integration_names: Sequence[str],
     credential_environment_names: Sequence[str] = (),
     tool_names: Sequence[str] = (),
-    session_context: Optional[SessionContext] = None,
 ) -> str:
-    """Compose the SDK-owned text: the base, the config sections when the run can commit, then
-    the per-run guidance (credential names, connected integrations), and last the session block.
-
-    The session block is rendered only when the run offers a rename tool. Its whole purpose is to
-    drive `rename_agent` and `rename_session`, so a run that cannot call either (a trigger fire,
-    an embedded run) would carry facts it can do nothing with."""
+    """Compose stable platform guidance; current session facts travel with each turn."""
     sections = [
         AGENTA_PLATFORM_BASE,
         AGENTA_CONFIG_SECTIONS if CONFIG_COMMIT_TOOL in tool_names else None,
         credential_guidance(credential_environment_names),
         gateway_guidance(integration_names),
-        (
-            session_context_guidance(session_context)
-            if any(tool in tool_names for tool in RENAME_TOOLS)
-            else None
-        ),
     ]
     return "\n\n".join(section for section in sections if section)

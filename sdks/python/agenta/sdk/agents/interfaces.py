@@ -21,6 +21,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar, Dict, FrozenSet, Mapping, Optional, Sequence
 
+from .platform_instructions import session_context_guidance
 from .dtos import (
     AgentResult,
     EventSink,
@@ -28,7 +29,6 @@ from .dtos import (
     HarnessKind,
     Message,
     RunContext,
-    SessionContext,
     SessionConfig,
     TraceContext,
 )
@@ -130,7 +130,7 @@ class Backend(ABC):
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
-        session_context: Optional[SessionContext] = None,
+        turn_context: Optional[str] = None,
         session_id: Optional[str] = None,
         detached: bool = False,
         turn_id: Optional[str] = None,
@@ -206,7 +206,10 @@ class Environment:
             ),
             trace=session_config.trace,
             run_context=session_config.run_context,
-            session_context=session_config.session_context,
+            turn_context=session_context_guidance(
+                session_config.session_context,
+                [spec.name for spec in session_config.tool_specs],
+            ),
             session_id=session_config.session_id,
             detached=session_config.detached,
             turn_id=session_config.turn_id,

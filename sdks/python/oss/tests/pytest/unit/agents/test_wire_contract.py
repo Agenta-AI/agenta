@@ -39,7 +39,6 @@ from agenta.sdk.agents import (
     RunContextTrace,
     RunContextWorkflow,
     SandboxPermission,
-    SessionContext,
     SessionConfig,
     SkillTemplate,
     ToolCallback,
@@ -98,7 +97,7 @@ KNOWN_REQUEST_KEYS = {
     "permissions",
     "gatewayPolicy",
     "platformInstructions",
-    "sessionContext",
+    "turnContext",
     "systemPrompt",
     "appendSystemPrompt",
     "skills",
@@ -198,6 +197,7 @@ def _pi_payload():
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
+        turn_context='## This session\n\nThis session is named "Q3 notes".',
         trace=TraceContext(
             traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
             endpoint="https://otlp.example/v1/traces",
@@ -1598,42 +1598,28 @@ def test_result_from_wire_redacts_seeded_credential_from_output_events_and_error
         assert marker not in str(exc.value)
 
 
-def test_request_to_wire_omits_session_context_when_unset():
-    # A standalone run has no service to supply the facts, so the payload stays byte-identical
-    # to before the field existed.
+def test_request_to_wire_omits_turn_context_when_unset():
     payload = request_to_wire(
         harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
     )
+    assert "turnContext" not in payload
     assert "sessionContext" not in payload
 
 
-def test_request_to_wire_carries_session_context():
-    # The three populated keys ride even when null: `sessionName: None` is how "no name yet"
-    # is stated. The reserved three are declared on the model but not emitted while unset.
+def test_request_to_wire_carries_only_rendered_turn_context():
+    context = '## This session\n\nThis session is named "Q3 notes".'
     payload = request_to_wire(
         harness=HarnessKind.PI,
         sandbox="local",
         config=PiAgentTemplate(),
         messages=[Message(role="user", content="hi")],
         session_id="sess_abc",
-        session_context=SessionContext(
-            agent_name="New agent", session_name=None, first_turn=True
-        ),
+        turn_context=context,
     )
     assert set(payload) <= KNOWN_REQUEST_KEYS
-    assert payload["sessionContext"] == {
-        "agentName": "New agent",
-        "sessionName": None,
-        "firstTurn": True,
-    }
-
-
-def test_session_context_emits_a_reserved_key_only_once_populated():
-    # The reserved keys exist so a later change fills them without a second wire migration.
-    context = SessionContext(agent_name="A", session_name="B", first_turn=False)
-    assert "timezone" not in context.to_wire()
-    context.timezone = "Europe/Berlin"
-    assert context.to_wire()["timezone"] == "Europe/Berlin"
+    assert payload["turnContext"] == context
+    assert "sessionContext" not in payload
+    assert payload["messages"] == [{"role": "user", "content": "hi"}]

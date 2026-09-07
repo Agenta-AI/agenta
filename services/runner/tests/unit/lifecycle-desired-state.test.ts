@@ -173,15 +173,9 @@ describe("facet normalization: stability and coverage", () => {
       // Generated platform text is fixed when an environment is built. It intentionally stays
       // outside both identity views so an integration change does not evict a warm session.
       { platformInstructions: "new generated platform text" },
-      // The naming facts the SDK renders into that text. Sharper than the text itself:
-      // `sessionName` changes the moment the agent calls `rename_session`, so hashing it would
-      // make an agent naming its own session evict its own warm sandbox on the next turn.
+      // Current context is delivered with each prompt, without changing the environment.
       {
-        sessionContext: {
-          agentName: "Changelog writer",
-          sessionName: "Q3 notes",
-          firstTurn: false,
-        },
+        turnContext: 'This session is named "Q3 notes".',
       },
       // Rolling-deployment compatibility has the same identity behavior as its replacement.
       {

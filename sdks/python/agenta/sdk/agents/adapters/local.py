@@ -26,7 +26,6 @@ from ..dtos import (
     HarnessAgentTemplate,
     HarnessKind,
     RunContext,
-    SessionContext,
     TraceContext,
 )
 from ..interfaces import Backend, Sandbox, Session
@@ -53,7 +52,7 @@ class LocalBackend(Backend):
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
-        session_context: Optional[SessionContext] = None,
+        turn_context: Optional[str] = None,
         session_id: Optional[str] = None,
         detached: bool = False,
         turn_id: Optional[str] = None,

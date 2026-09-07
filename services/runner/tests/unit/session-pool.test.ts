@@ -337,26 +337,15 @@ describe("configFingerprint", () => {
     assert.equal(b, c);
   });
 
-  it("excludes session context, so naming a session never evicts", () => {
-    // These are the facts the SDK renders into `platformInstructions`, and one of them moves
-    // under the agent's own hand: `rename_session` changes `sessionName` mid-conversation. If
-    // the fingerprint hashed it, an agent obeying the naming rule would cold its own sandbox.
+  it("excludes turn context, so naming a session never evicts", () => {
     const a = configFingerprint(base);
     const unnamed = configFingerprint({
       ...base,
-      sessionContext: {
-        agentName: "New agent",
-        sessionName: null,
-        firstTurn: true,
-      },
+      turnContext: "This session has no name yet.",
     });
     const named = configFingerprint({
       ...base,
-      sessionContext: {
-        agentName: "Changelog writer",
-        sessionName: "Q3 notes",
-        firstTurn: false,
-      },
+      turnContext: 'This session is named "Q3 notes".',
     });
     assert.equal(a, unnamed);
     assert.equal(unnamed, named);

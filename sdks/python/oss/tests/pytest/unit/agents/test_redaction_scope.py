@@ -96,7 +96,7 @@ class _CapturingBackend(Backend):
         secrets=None,
         trace=None,
         run_context=None,
-        session_context=None,
+        turn_context=None,
         session_id=None,
         detached=False,
         turn_id=None,
