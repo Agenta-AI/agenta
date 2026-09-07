@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     ProjectOrgSwitcherView,
@@ -101,7 +101,15 @@ export const DrawerProjectSwitcher = ({
         },
     })
 
+    // Inside the nav drawer the panel must portal into the sheet or it renders behind it. In the
+    // docked rail there is no sheet, and portalling into this wrapper put the 220px panel inside a
+    // 48px `overflow-y-auto` column, which cropped it to a sliver — so there, use the body.
     const [panelContainer, setPanelContainer] = useState<HTMLElement | null>(null)
+    const anchorRef = useCallback(
+        (node: HTMLDivElement | null) =>
+            setPanelContainer(node?.closest<HTMLElement>('[data-slot="sheet-content"]') ?? null),
+        [],
+    )
 
     // The same fly-out the desktop rail carries, over the same three choices — Preferences offers
     // them too, but the switcher is where you already are when you want to flip the lights.
@@ -121,7 +129,7 @@ export const DrawerProjectSwitcher = ({
     )
 
     return (
-        <div ref={setPanelContainer}>
+        <div ref={anchorRef}>
             <ProjectOrgSwitcherView
                 panelContainer={panelContainer}
                 collapsed={collapsed}
