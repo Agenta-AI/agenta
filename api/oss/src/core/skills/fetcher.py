@@ -111,19 +111,39 @@ class GitHubTarballFetcher:
         )
 
 
+# Decompression-bomb bounds: the download cap limits COMPRESSED bytes only, so
+# expansion gets its own ceilings before anything touches the disk.
+MAX_ARCHIVE_MEMBERS = 20_000
+MAX_UNCOMPRESSED_BYTES = 512 * 1024 * 1024
+
+
 def extract_tarball(payload: bytes, *, dest: Path) -> Path:
-    """Extract safely (no absolute paths / traversal) and return the tree root.
+    """Extract safely (no absolute paths / traversal / decompression bombs) and
+    return the tree root.
 
     GitHub tarballs wrap everything in one `<owner>-<repo>-<sha>/` directory;
     when exactly one top-level directory exists, it IS the root.
     """
     try:
         with tarfile.open(fileobj=io.BytesIO(payload), mode="r:*") as tar:
-            for member in tar.getmembers():
+            members = tar.getmembers()
+            if len(members) > MAX_ARCHIVE_MEMBERS:
+                raise SkillSourceTooLargeError(
+                    f"The archive holds more than {MAX_ARCHIVE_MEMBERS} entries "
+                    "and was rejected.",
+                )
+            total = 0
+            for member in members:
                 member_path = Path(member.name)
                 if member_path.is_absolute() or ".." in member_path.parts:
                     raise SkillSourceFetchError(
                         "The archive contains unsafe paths and was rejected.",
+                    )
+                total += max(member.size, 0)
+                if total > MAX_UNCOMPRESSED_BYTES:
+                    raise SkillSourceTooLargeError(
+                        "The archive expands beyond the "
+                        f"{MAX_UNCOMPRESSED_BYTES // (1024 * 1024)} MB extraction cap.",
                     )
             tar.extractall(dest, filter="data")
     except tarfile.TarError as e:

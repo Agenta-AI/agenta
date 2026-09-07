@@ -135,6 +135,7 @@ class SkillSourcesDAO:
         project_id: UUID,
         source_id: UUID,
         #
+        ref: Optional[str] = None,
         last_seen_commit_sha: Optional[str] = None,
         sync_enabled: Optional[bool] = None,
     ) -> Optional[SkillSource]:
@@ -149,6 +150,8 @@ class SkillSourcesDAO:
             dbe = result.scalar_one_or_none()
             if dbe is None:
                 return None
+            if ref is not None:
+                dbe.ref = ref
             if last_seen_commit_sha is not None:
                 dbe.last_seen_commit_sha = last_seen_commit_sha
             if sync_enabled is not None:

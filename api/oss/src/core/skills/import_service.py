@@ -188,7 +188,8 @@ class SkillImportService:
             )
             scan = scan_tree(fetched.root)
 
-            selected = {p.rstrip("/") for p in paths} if paths else None
+            # None = every valid candidate; an explicit empty list imports NOTHING.
+            selected = {p.rstrip("/") for p in paths} if paths is not None else None
             candidates = [
                 c
                 for c in scan.candidates
@@ -208,6 +209,7 @@ class SkillImportService:
                     await self.sources_dao.update_source(
                         project_id=project_id,
                         source_id=source.id,
+                        ref=ref,
                         last_seen_commit_sha=fetched.commit_sha,
                         sync_enabled=sync_enabled,
                     )

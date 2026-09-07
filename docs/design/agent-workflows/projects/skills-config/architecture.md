@@ -15,7 +15,7 @@ body and files only when the model decides the skill applies (progressive disclo
 
 The runtime shape is one `SkillTemplate`:
 
-```
+```text
 SkillTemplate {
   name: str                      # ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$, <= 64 chars
   description: str
@@ -55,8 +55,9 @@ entry is one of two shapes:
 
 ## Data model: a skill is a non-runnable workflow
 
-A stored skill is a workflow artifact with `flags.is_skill = true` and no URI, so it is not
-runnable. Its `SkillTemplate` package lives at `data.parameters.skill`. `is_skill` sits in the
+A stored skill is a workflow artifact with `flags.is_skill = true` and
+`data.uri = "agenta:builtin:skill:v0"` (the marker the flag is derived from); the URI names a
+built-in content type, not a runnable engine, so the workflow is not runnable. Its `SkillTemplate` package lives at `data.parameters.skill`. `is_skill` sits in the
 existing JSONB `flags` column alongside `is_application` / `is_evaluator` / `is_snippet`, so
 it needs no migration. `is_snippet` is the precedent: a non-runnable, embeddable workflow.
 `is_skill` is its own artifact family rather than a specialization of `is_snippet` so skills

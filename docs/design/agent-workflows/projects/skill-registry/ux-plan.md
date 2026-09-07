@@ -78,6 +78,11 @@ Drawer (app is drawer-first, not modal-first): URL field + Scan → found-skills
 with checkboxes and `SKILL.md +N` size tags → "Keep in sync" checkbox → trust note
 (snapshot, executables disabled) → footer `Import N skills`.
 
+> Superseded 2026-09-07: the "Keep in sync" toggle is removed for v1 (decision with
+> Arda, following Mahmoud's review). Every refresh is check-then-Apply — the toggle
+> only skipped the Apply click, and per-source state has no home in the meta-first
+> storage design. See plan-meta-provenance.md.
+
 ### Pick agents (3)
 
 From the registry detail, `Add to agent` advances to a second step in the SAME drawer
@@ -173,9 +178,11 @@ reverse "used by" query.
 2. **Name collisions**: mirror agent creation. Display names may collide; the
    workflow slug is plumbing and always carries a random 4-char suffix
    (`name-ab12`), so creation never rejects on a name. Import idempotency moved
-   off the name onto the link table: re-importing a path a source already
-   delivered skips ("already imported — use Refresh"); an unrelated name clash
-   creates normally. Per-agent duplicates remain a runtime concern (the runner
+   off the name onto import provenance: re-importing an already-delivered path
+   skips ("already imported — use Refresh"); an unrelated name clash creates
+   normally. (Storage decision 2026-09-07: provenance moves from the link table
+   to `meta._ag` — see plan-meta-provenance.md; the idempotency behavior is
+   unchanged, its enforcement becomes an application-level check.) Per-agent duplicates remain a runtime concern (the runner
    keeps the first and stamps the rest on `ag.meta.skills.dropped`).
 3. **Non-skill config sections keep silent auto-commit** (#6126's design is
    unchanged; nothing outside skills moves off it). The blast-radius dialog

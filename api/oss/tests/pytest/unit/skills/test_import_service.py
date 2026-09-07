@@ -491,3 +491,31 @@ async def test_refresh_apply_overrides_sync_off(fixture_tree):
     assert len(simple.workflows_service.commits) == 1
     link = next(x for x in dao.links if x.path_in_repo == "skills/alpha")
     assert link.imported_commit_sha == "def5678"
+
+
+@pytest.mark.asyncio
+async def test_import_with_empty_paths_imports_nothing(fixture_tree):
+    service, simple, _ = _service(fixture_tree)
+    result = await service.import_from_source(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        repo_url="github.com/acme/skills",
+        paths=[],
+    )
+    assert result.imported == []
+    assert not simple.workflows_service.created
+
+
+@pytest.mark.asyncio
+async def test_reimport_persists_the_requested_ref(fixture_tree):
+    service, _, dao = _service(fixture_tree)
+    source = await _import_then(fixture_tree, service)
+    await service.import_from_source(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        repo_url="github.com/acme/skills",
+        ref="release-2",
+        paths=[],
+    )
+    updated = next(x for x in dao.sources if x.id == source.id)
+    assert updated.ref == "release-2"

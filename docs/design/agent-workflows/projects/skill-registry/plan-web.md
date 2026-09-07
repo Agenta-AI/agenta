@@ -32,9 +32,9 @@ host or a `DrillInUIContext` bridge. `@agenta/skills` mirrors `@agenta/sessions`
    is why `queryWorkflows` in entities still uses raw axios). `querySkills`
    therefore targets `POST /skills/query` (A2) through the Fern client from its
    first implementation (shipped as `getSkillsClient().queryRegistrySkills`);
-   no raw-axios fallback exists. `getSkillsClient()` accessor lands with W5 (the
-   `/skills/sources/*` resources don't exist earlier); regen = generate.sh
-   against a running local API + `pnpm --filter @agentaai/api-client build`.
+   no raw-axios fallback exists. The `getSkillsClient()` accessor exists from the
+   first skills API call; regen = generate.sh against a running local API +
+   `pnpm --filter @agentaai/api-client build`.
 3. State: mirror `evaluatorUtils.ts:80-116`'s ATOM SHAPE (atomWithQuery, focused
    list, 30s staleTime, derived non-archived) but NOT its invalidation —
    `invalidateEvaluatorsListCache` uses `getDefaultStore()+queryClientAtom`;
@@ -145,5 +145,7 @@ validation to the server scan so TS/Python rules can't drift (plan-api A4).
   `border-0 border-b` in `skills-ui`.
 - `text-xs` (12px), never `text-sm`; no antd `size="small"`.
 - App layer may not re-export `@agenta/*` (route stubs import-then-export).
-- Existing inline skills keep working through the current form path; migration
-  is an open decision — the itemKinds rework (W3.3) must not break them.
+- Existing inline skills keep working through the current form path. Migration
+  is RESOLVED (ux-plan "Resolved 2026-09-06" #1): no auto-migration; a per-row
+  **Publish** action creates the registry skill and swaps the inline entry to a
+  follow-latest embed. The itemKinds rework (W3.3) must not break inline rows.
