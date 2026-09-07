@@ -3,8 +3,6 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from oss.src.core.skills.sources_dtos import SkillSource
-
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.skills.dtos import SkillRegistryItem, SkillUsageItem
 
@@ -18,8 +16,6 @@ class SkillsQueryRequest(BaseModel):
 class SkillsResponse(BaseModel):
     count: int = 0
     skills: List[SkillRegistryItem] = []
-    # Import sources referenced by `skills[].source_id` (per-repo grouping + "synced" tag).
-    sources: List[SkillSource] = []
     builtin: List[SkillRegistryItem] = []
     windowing: Optional[Windowing] = None
 
@@ -44,14 +40,3 @@ class SkillSourceImportRequest(BaseModel):
     ref: Optional[str] = None
     # Paths (from a prior scan) to import; omitted = every valid candidate.
     paths: Optional[List[str]] = None
-    sync_enabled: bool = False
-
-
-class SkillSourcesResponse(BaseModel):
-    count: int = 0
-    sources: List[SkillSource] = []
-
-
-class SkillSourceRefreshRequest(BaseModel):
-    # Override the source's sync_enabled for this one refresh (the explicit Apply click).
-    apply: Optional[bool] = None

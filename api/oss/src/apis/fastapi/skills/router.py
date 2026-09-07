@@ -1,4 +1,3 @@
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status
@@ -12,7 +11,8 @@ from oss.src.core.skills.import_service import (
     SkillImportService,
     SourceScanResult,
     ImportResult,
-    RefreshResult,
+    UpdateApplyResult,
+    UpdateCheckResult,
 )
 from oss.src.apis.fastapi.skills.exceptions import handle_skills_exceptions
 from oss.src.apis.fastapi.skills.models import (
@@ -22,8 +22,6 @@ from oss.src.apis.fastapi.skills.models import (
     SkillUsageResponse,
     SkillSourceScanRequest,
     SkillSourceImportRequest,
-    SkillSourceRefreshRequest,
-    SkillSourcesResponse,
 )
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 
@@ -57,22 +55,22 @@ class SkillsRouter:
         )
 
         self.router.add_api_route(
-            "/sources",
-            self.list_skill_sources,
-            methods=["GET"],
-            operation_id="list_skill_sources",
+            "/{skill_id}/updates/check",
+            self.check_skill_update,
+            methods=["POST"],
+            operation_id="check_skill_update",
             status_code=status.HTTP_200_OK,
-            response_model=SkillSourcesResponse,
+            response_model=UpdateCheckResult,
             response_model_exclude_none=True,
         )
 
         self.router.add_api_route(
-            "/sources/{source_id}/refresh",
-            self.refresh_skill_source,
+            "/{skill_id}/updates/apply",
+            self.apply_skill_update,
             methods=["POST"],
-            operation_id="refresh_skill_source",
+            operation_id="apply_skill_update",
             status_code=status.HTTP_200_OK,
-            response_model=RefreshResult,
+            response_model=UpdateApplyResult,
             response_model_exclude_none=True,
         )
 
@@ -246,14 +244,23 @@ class SkillsRouter:
             repo_url=import_request.repo_url,
             ref=import_request.ref,
             paths=import_request.paths,
-            sync_enabled=import_request.sync_enabled,
         )
 
     @intercept_exceptions()
-    async def list_skill_sources(
+    @handle_skills_exceptions()
+    async def check_skill_update(
         self,
         request: Request,
-    ) -> SkillSourcesResponse:
+        *,
+        skill_id: UUID,
+    ) -> UpdateCheckResult:
+        """
+        Read-only: compare one imported skill against its upstream origin.
+
+        Reports `update_available`, `up_to_date`, `detached` (edited locally —
+        never overwritten), `missing_in_source`, or `invalid_in_source`.
+        Nothing is written.
+        """
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -261,25 +268,25 @@ class SkillsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        sources = await self.import_service.list_sources(
+        return await self.import_service.check_update(
             project_id=UUID(request.state.project_id),
+            workflow_id=skill_id,
         )
-        return SkillSourcesResponse(count=len(sources), sources=sources)
 
     @intercept_exceptions()
     @handle_skills_exceptions()
-    async def refresh_skill_source(
+    async def apply_skill_update(
         self,
         request: Request,
         *,
-        source_id: UUID,
-        refresh_request: Optional[SkillSourceRefreshRequest] = None,
-    ) -> RefreshResult:
+        skill_id: UUID,
+    ) -> UpdateApplyResult:
         """
-        Re-scan a source and commit new versions of its linked skills.
+        Commit the upstream version of one imported skill as a new revision.
 
-        Locally edited skills are detached (kept, not overwritten); paths
-        deleted upstream are marked missing; nothing is ever deleted here.
+        The commit uses the current head as its base, so a concurrent edit
+        conflicts instead of being overwritten; locally edited skills report
+        `detached` and are never touched.
         """
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
@@ -288,10 +295,8 @@ class SkillsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        return await self.import_service.refresh_source(
+        return await self.import_service.apply_update(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
-            #
-            source_id=source_id,
-            apply=refresh_request.apply if refresh_request else None,
+            workflow_id=skill_id,
         )

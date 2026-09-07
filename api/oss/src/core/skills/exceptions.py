@@ -47,6 +47,18 @@ class SkillSourceNotFoundError(SkillsError):
     retryable = False
 
 
+class SkillNotFoundError(SkillsError):
+    code = "skill_not_found"
+    retryable = False
+
+
+class SkillOriginMissingError(SkillsError):
+    """Update check/apply on a skill that was never imported from a source."""
+
+    code = "skill_origin_missing"
+    retryable = False
+
+
 class SkillNameCollisionError(SkillsError):
     code = "name_collision"
     retryable = False

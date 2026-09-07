@@ -11,11 +11,17 @@ from oss.src.core.workflows.dtos import (
 )
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.skills.dtos import (
+    SkillOriginInfo,
     SkillRegistryItem,
     SkillRegistryQuery,
     SkillRegistryList,
     SkillUsageItem,
     SkillUsageQuery,
+)
+from oss.src.core.skills.provenance import (
+    last_imported_hash,
+    origin_locator,
+    read_origin,
 )
 from oss.src.core.embeds.utils import find_object_embeds
 
@@ -37,6 +43,13 @@ def _skill_payload(revision: Optional[WorkflowRevision]) -> Dict[str, Any]:
     return skill if isinstance(skill, dict) else {}
 
 
+def _head_hash(payload: Dict[str, Any]) -> str:
+    # Local import avoids a service←import_service cycle for one pure function.
+    from oss.src.core.skills.import_service import skill_content_hash
+
+    return skill_content_hash(payload or None)
+
+
 class SkillsService:
     """Registry-facing read model over skill workflows.
 
@@ -49,11 +62,8 @@ class SkillsService:
         self,
         *,
         workflows_service: WorkflowsService,
-        sources_dao=None,
     ):
         self.workflows_service = workflows_service
-        # Optional: source attribution for imported skills (per-repo registry sections).
-        self.sources_dao = sources_dao
 
     async def _usage_counts(
         self, *, project_id: UUID
@@ -126,31 +136,50 @@ class SkillsService:
 
         counts_by_id, counts_by_slug = await self._usage_counts(project_id=project_id)
 
-        source_by_workflow: Dict[str, Any] = {}
-        sources: List[Any] = []
-        if self.sources_dao is not None:
-            links = await self.sources_dao.list_all_links(project_id=project_id)
-            # Detached links keep their provenance (the drawer says "modified locally");
-            # only the FE grouping treats them as project-owned again.
-            source_by_workflow = {
-                str(link.workflow_id): (link.source_id, link.detached) for link in links
-            }
-            if source_by_workflow:
-                sources = await self.sources_dao.list_sources(project_id=project_id)
+        # One batched artifact fetch replaces the per-row lookups: names,
+        # archive state, and import provenance all live on the artifact.
+        artifact_ids = [r.artifact_id for r in head_revisions if r.artifact_id]
+        workflows_by_id = {}
+        if artifact_ids:
+            artifacts = await self.workflows_service.query_workflows(
+                project_id=project_id,
+                workflow_refs=[
+                    Reference(id=artifact_id) for artifact_id in artifact_ids
+                ],
+                include_archived=query.include_archived,
+            )
+            workflows_by_id = {str(a.id): a for a in artifacts}
 
         skills: List[SkillRegistryItem] = []
 
         for revision in head_revisions:
-            workflow = None
-            if revision.artifact_id:
-                workflow = await self.workflows_service.fetch_workflow(
-                    project_id=project_id,
-                    workflow_ref=Reference(id=revision.artifact_id),
-                    include_archived=query.include_archived,
-                )
+            workflow = workflows_by_id.get(str(revision.artifact_id))
 
             payload = _skill_payload(revision)
             files = payload.get("files")
+
+            origin_info: Optional[SkillOriginInfo] = None
+            origin = read_origin(getattr(workflow, "meta", None)) if workflow else None
+            if origin is not None:
+                locator = origin_locator(origin)
+                checkpoint = origin.get("last_imported") or {}
+                origin_info = SkillOriginInfo(
+                    provider=origin.get("provider"),
+                    repository=locator.get("repository"),
+                    ref=locator.get("ref"),
+                    path=locator.get("path"),
+                    resolved_version=(
+                        checkpoint.get("resolved_version")
+                        if isinstance(checkpoint, dict)
+                        else None
+                    ),
+                    imported_at_url=(
+                        checkpoint.get("url") if isinstance(checkpoint, dict) else None
+                    ),
+                    # Derived, never stored: a head that hashes away from the
+                    # checkpoint was edited locally (fails safe for any writer).
+                    detached=_head_hash(payload) != last_imported_hash(origin),
+                )
 
             skills.append(
                 SkillRegistryItem(
@@ -178,16 +207,7 @@ class SkillsService:
                         or counts_by_slug.get(revision.artifact_slug or "")
                         or 0
                     ),
-                    source_id=(
-                        source_by_workflow.get(str(revision.artifact_id), (None, None))[
-                            0
-                        ]
-                    ),
-                    source_detached=(
-                        source_by_workflow.get(str(revision.artifact_id), (None, None))[
-                            1
-                        ]
-                    ),
+                    origin=origin_info,
                 )
             )
 
@@ -195,7 +215,6 @@ class SkillsService:
 
         return SkillRegistryList(
             skills=skills,
-            sources=sources,
             builtin=builtin,
             windowing=query.windowing,
         )

@@ -1,4 +1,4 @@
-from typing import Optional, List, Any
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 
@@ -43,10 +43,21 @@ class SkillRegistryItem(BaseModel):
 
     # How many agents embed this skill (by workflow id or slug).
     used_by_count: Optional[int] = None
-    # The import source this skill came from, when it was imported (repo grouping).
-    source_id: Optional[UUID] = None
-    # A local edit detached this skill from its source (kept, no longer synced).
-    source_detached: Optional[bool] = None
+    # Import provenance derived from artifact `meta._ag.origin` (repo grouping,
+    # "synced" display, and per-row detachment). None = authored in this project.
+    origin: Optional["SkillOriginInfo"] = None
+
+
+class SkillOriginInfo(BaseModel):
+    provider: Optional[str] = None
+    repository: Optional[str] = None
+    ref: Optional[str] = None
+    path: Optional[str] = None
+    resolved_version: Optional[str] = None
+    imported_at_url: Optional[str] = None
+    # Derived on read: the head's content hash no longer matches the last
+    # imported checkpoint — edited locally, never overwritten by updates.
+    detached: bool = False
 
 
 class SkillRegistryQuery(BaseModel):
@@ -57,8 +68,6 @@ class SkillRegistryQuery(BaseModel):
 
 class SkillRegistryList(BaseModel):
     skills: List[SkillRegistryItem] = []
-    # The import sources referenced by `skills[].source_id`, for per-repo grouping.
-    sources: List[Any] = []
     # Code-defined Agenta built-ins: a separate, unpaginated block — merging
     # synthetic catalog entries into keyset pagination has no correct cursor
     # semantics.
