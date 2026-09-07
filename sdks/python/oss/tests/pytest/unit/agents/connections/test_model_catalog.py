@@ -350,6 +350,7 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
         "anthropic/claude-haiku-4-5",
     ]
     assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]
+    assert len(pi_defaults["openrouter"]) == 10
 
     # Claude selects by alias: `claude-fable-5` is its own alias, and the versioned opus, sonnet
     # and haiku ids arrive under the tier alias Claude actually accepts. Opus arrives as the

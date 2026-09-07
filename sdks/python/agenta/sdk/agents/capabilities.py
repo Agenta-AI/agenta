@@ -189,6 +189,10 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "openrouter/deepseek/deepseek-v4-flash-0731",
         "openrouter/deepseek/deepseek-v4-flash",
         "openrouter/tencent/hy3",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/z-ai/glm-5.3",
+        "openrouter/xiaomi/mimo-v2.5",
+        "openrouter/z-ai/glm-5.2",
     ],
 }
 

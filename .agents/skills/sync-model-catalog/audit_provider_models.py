@@ -46,8 +46,8 @@ def fetch_openrouter() -> tuple[str, list[dict]]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--catalog-size", type=int, default=25)
-    parser.add_argument("--default-size", type=int, default=6)
+    parser.add_argument("--catalog-size", type=int, default=10)
+    parser.add_argument("--default-size", type=int, default=10)
     args = parser.parse_args()
 
     source_url, live = fetch_openrouter()

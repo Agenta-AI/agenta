@@ -118,13 +118,13 @@ python .agents/skills/sync-model-catalog/audit_provider_models.py
 ```
 
 The script calls OpenRouter's public `GET /api/v1/models` with `sort=most-popular`,
-`supported_parameters=tools`, and `output_modalities=text`. Use the first 25 results for
-`supported_llm_models["openrouter"]` and the first six for
-`PROVIDER_DEFAULT_MODELS["openrouter"]`, preserving response order. The endpoint's `name` field is
+`supported_parameters=tools`, and `output_modalities=text`. Use the first 10 results for both
+`supported_llm_models["openrouter"]` and `PROVIDER_DEFAULT_MODELS["openrouter"]`, preserving
+response order. The endpoint's `name` field is
 the human-readable label.
 
 The ranking changes with usage. Review removals before applying them because a saved connection
-may still use a model that fell out of the top 25.
+may still use a model that fell out of the top 10.
 
 ### 7. Preserve provider display names
 
