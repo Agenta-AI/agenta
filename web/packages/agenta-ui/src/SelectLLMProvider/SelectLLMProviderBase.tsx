@@ -898,13 +898,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     </div>
                                 )}
                             </div>
-                            {footerContent ? (
-                                // One render, not one per breakpoint: width-matched to the
-                                // provider column it used to sit in, full width on a phone.
-                                <div className="max-sm:!w-full" style={{width: providerPanelWidth}}>
-                                    {footerContent}
-                                </div>
-                            ) : null}
+                            {/* Spans the panel, not the 200px provider column it used to sit in:
+                                constrained to that width the label wrapped onto two lines. */}
+                            {footerContent ? <div className="w-full">{footerContent}</div> : null}
                         </>
                     )}
 
