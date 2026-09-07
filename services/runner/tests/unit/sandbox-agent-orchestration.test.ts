@@ -1126,8 +1126,12 @@ describe("runSandboxAgent orchestration", () => {
       calls.workspacePlan.prompt.agentsMd,
       /^<!-- agenta:platform-guidance:start -->\n/,
     );
+    // The config sentences moved to the SDK platform text on 2026-09-07; the file-citation
+    // sentence is the contributor that always lands here.
     assert.ok(
-      calls.workspacePlan.prompt.agentsMd.includes("parameters.agent.skills"),
+      calls.workspacePlan.prompt.agentsMd.includes(
+        "relative to your working directory",
+      ),
     );
   });
 
@@ -1185,11 +1189,13 @@ describe("runSandboxAgent orchestration", () => {
       /agent-files\//,
     );
     assert.ok(
-      file.includes("parameters.agent.skills"),
-      "the skill sentence still lands",
+      file.includes("relative to your working directory"),
+      "the file-citation sentence still lands",
     );
+    // The file-citation sentence names `agent-files/` in its link example, so the mount
+    // paragraph is detected by its own opening phrase rather than by the folder name.
     assert.ok(
-      !file.includes("agent-files/"),
+      !file.includes("durable agent folder"),
       "the mount paragraph must not appear in the file as well",
     );
     rmSync(cwd, { recursive: true, force: true });
