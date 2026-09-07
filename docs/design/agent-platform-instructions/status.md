@@ -59,3 +59,8 @@ Branch `feat/release-1153-platform-prompt`, target `release/v0.115.3`.
   `request_input`, and its usage guidance moved into the tool description.
 - Open: the agent still cannot see its own name, the session name, or a first-turn flag. See
   [open-issues.md](./open-issues.md).
+- The prompt gained an "Installing tools" section that matches the `agent-files/.tools`
+  restore hook from #6639: no `apt` or `sudo`, the shipped tool list, static binaries in
+  `agent-files/.tools/bin/`, environments rebuilt on local disk by `setup.sh`, and tools
+  called as `.tools/bin/<tool>` from the working directory. It assumes #5796 lands in the
+  same release.
