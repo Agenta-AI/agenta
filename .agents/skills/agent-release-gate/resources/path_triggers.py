@@ -32,6 +32,7 @@ import subprocess
 # matrix cell (`matrix_gw1_gateway_tools.py`). The driver runs the first kind itself and records
 # the second kind as required, because a standalone cell is a separate process it cannot observe.
 GATEWAY_TOOLS = ("matrix_gw1_gateway_tools.py",)
+AGENT_TOOLS = ("matrix_t9_agent_tools.py",)
 CUSTOM_SECRETS = ("matrix_s1_custom_secrets.py",)
 
 # The standing session-control regression cells: Stop, durable commands, and the runner's
@@ -73,6 +74,13 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "sdks/python/agenta/sdk/agents/tools/gateway_policy.py": GATEWAY_TOOLS,
     "services/runner/src/tools/**": GATEWAY_TOOLS,
     "services/runner/src/engines/sandbox_agent/gateway-gate.ts": GATEWAY_TOOLS,
+    # The agent's own tools: the runner restores `agent-files/.tools/` (binaries copied to local
+    # disk, `setup.sh` run) before every session, and the sandbox images ship the tool set the
+    # prompt promises. A change to the restore step or to the image recipes needs the cell that
+    # plants a setup script through the mounts API and proves it ran before the first tool call.
+    "services/runner/src/engines/sandbox_agent/agent-tools-setup.ts": AGENT_TOOLS,
+    "services/runner/images/**": AGENT_TOOLS,
+    "services/runner/docker/**": AGENT_TOOLS,
     # Custom-secret authoring, resolution, transport, sandbox injection, and lifecycle identity.
     "web/packages/agenta-entities/src/secret/**": CUSTOM_SECRETS,
     "web/packages/agenta-entities/src/workflow/state/agentCredentials.ts": CUSTOM_SECRETS,

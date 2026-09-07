@@ -117,6 +117,7 @@ import {
 } from "./agent-mount-guidance.ts";
 import {
   AGENT_TOOLS_DIR_NAME,
+  agentToolsLocalDir,
   localAgentToolsExec,
   remoteAgentToolsExec,
   runAgentToolsSetup,
@@ -1047,7 +1048,11 @@ async function acquireEnvironmentOnce(
       const agentToolsStartedAt = Date.now();
       const mountPath = environment.agentMountedPath;
       await runAgentToolsSetup(
-        { mountPath, cwd: plan.workspace.cwd },
+        {
+          mountPath,
+          cwd: plan.workspace.cwd,
+          localDir: agentToolsLocalDir(plan.workspace.cwd, plan.isDaytona),
+        },
         plan.isDaytona
           ? remoteAgentToolsExec(environment.sandbox)
           : localAgentToolsExec,
