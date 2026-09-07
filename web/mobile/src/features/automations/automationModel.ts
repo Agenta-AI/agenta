@@ -128,8 +128,15 @@ export function deliveryOutcome(delivery: TriggerDelivery): "ok" | "bad" | "pend
  * live outside this roster. Calling that "no agent" would both misreport the automation and invite
  * a rebind that quietly replaces something real, so unresolved and unbound stay distinct.
  */
-export function agentLabel(agentId: string | null, resolvedName: string | null): string | null {
+export function agentLabel(
+    agentId: string | null,
+    resolvedName: string | null,
+    rosterReady = true,
+): string | null {
     if (resolvedName) return resolvedName
+    // A roster that has not answered yet cannot say a binding is unresolvable — calling it
+    // unknown mid-load makes a perfectly good agent flash as broken before its name arrives.
+    if (!rosterReady) return null
     return agentId ? "Unknown agent" : null
 }
 

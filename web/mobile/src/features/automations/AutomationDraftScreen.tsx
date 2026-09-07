@@ -2,8 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {
     type TriggerSchedule,
-    type TriggerScheduleCreate,
-    type TriggerSubscriptionCreate,
+    type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
 import {
     agentWorkflowsListQueryStateAtom,
@@ -12,14 +11,12 @@ import {
 } from "@agenta/entities/workflow"
 import {buildTriggerReferences} from "@agenta/entity-ui/gatewayTrigger"
 import {message} from "@agenta/ui/app-message"
-import {Check, Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {Button} from "@/components/ui/button"
-import {Skeleton} from "@/components/ui/skeleton"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -27,16 +24,12 @@ import {NavDrawer} from "../nav/NavDrawer"
 
 import {AutomationAgentField} from "./AutomationAgentField"
 import {AutomationBackLink} from "./AutomationBackLink"
-import {
-    buildAutomationCreate,
-    buildAutomationEdit,
-    SCHEDULE_EVENT_KEY,
-} from "./automationEdit"
+import {buildAutomationCreate, SCHEDULE_EVENT_KEY} from "./automationEdit"
 import {AutomationInstructionField} from "./AutomationInstructionField"
 import type {Automation, AutomationKind} from "./automationModel"
 import {AutomationRunsWhenField} from "./AutomationRunsWhenField"
 import {AutomationTitle} from "./AutomationTitle"
-import {PickerOverlay} from "./pickers/PickerOverlay"
+import {type EventSelection} from "./pickers/EventPickerPanel"
 import {AUTOMATION_TEMPLATES} from "./templates"
 import {useAutomation} from "./useAutomation"
 
@@ -61,9 +54,10 @@ interface AutomationDraft {
     cron: string
     agentId: string | null
     inputsFields: Record<string, unknown>
-    /** Event drafts only; nothing sets these until an event draft has its own picker. */
+    /** Event drafts only — what the "Runs when" event panel handed back. */
     connectionId: string | null
     eventKey: string | null
+    triggerConfig?: Record<string, unknown>
 }
 
 /**
@@ -108,7 +102,6 @@ export const AutomationDraftScreen = ({
         connectionId: null,
         eventKey: null,
     }))
-    const [agentPickerOpen, setAgentPickerOpen] = useState(false)
     const [saving, setSaving] = useState(false)
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
@@ -119,7 +112,7 @@ export const AutomationDraftScreen = ({
     }, [agents, draft.agentId])
 
     // "Latest" binds the agent's VARIANT so the newest revision resolves at run time — the same
-    // rule `AgentPicker` obeys on an existing row. An agent with more than one variant (or one
+    // rule `useAgentBinding` obeys on an existing row. An agent with more than one variant (or one
     // whose variants have not landed yet) binds the artifact alone, which is what the desktop
     // drawer writes too.
     const variants = useAtomValue(workflowVariantsListQueryStateAtomFamily(draft.agentId ?? ""))
@@ -149,13 +142,25 @@ export const AutomationDraftScreen = ({
     // The field components read an `Automation`, which is the shape a saved row has. A draft is
     // that shape with nothing behind it — same fields, same labels, no fetch.
     const preview = useMemo<Automation>(() => {
-        const raw: TriggerSchedule = {
-            data: {
-                event_key: SCHEDULE_EVENT_KEY,
-                schedule: draft.cron,
-                inputs_fields: draft.inputsFields,
-            },
-        }
+        // Kind-aware, because the event panel prefills its filters off `raw.data.trigger_config`:
+        // a schedule-shaped stand-in would drop them every time the overlay reopens.
+        const raw: TriggerSchedule | TriggerSubscription =
+            draft.kind === "schedule"
+                ? {
+                      data: {
+                          event_key: SCHEDULE_EVENT_KEY,
+                          schedule: draft.cron,
+                          inputs_fields: draft.inputsFields,
+                      },
+                  }
+                : {
+                      connection_id: draft.connectionId ?? "",
+                      data: {
+                          event_key: draft.eventKey ?? "",
+                          trigger_config: draft.triggerConfig,
+                          inputs_fields: draft.inputsFields,
+                      },
+                  }
         return {
             id: DRAFT_ID,
             kind: draft.kind,
@@ -187,9 +192,18 @@ export const AutomationDraftScreen = ({
         setDraft((current) => ({...current, inputsFields}))
     }, [])
 
-    const pickAgent = useCallback((agentId: string) => {
-        setAgentPickerOpen(false)
+    const onSelectAgent = useCallback((agentId: string) => {
         setDraft((current) => ({...current, agentId}))
+    }, [])
+
+    // A draft's kind is still free: nothing has been created, so switching is a local change of
+    // which half of the "Runs when" control is showing.
+    const onChangeKind = useCallback((kind: AutomationKind) => {
+        setDraft((current) => ({...current, kind}))
+    }, [])
+
+    const onSelectEvent = useCallback(({connectionId, eventKey, triggerConfig}: EventSelection) => {
+        setDraft((current) => ({...current, connectionId, eventKey, triggerConfig}))
     }, [])
 
     const onCreate = useCallback(async () => {
@@ -228,76 +242,16 @@ export const AutomationDraftScreen = ({
                         <AutomationTitle name={draft.name} description="" onRename={onRename} />
 
                         <div className="mt-[26px] flex flex-col gap-[22px]">
-                            <PickerOverlay
-                                open={agentPickerOpen}
-                                onOpenChange={setAgentPickerOpen}
-                                title="Run which agent?"
-                                contentClassName="w-[320px]"
-                                // The field IS the anchor, wrapped because the overlay clones a
-                                // DOM node and `AutomationAgentField` is a component. The
-                                // wrapper carries the open/close handler, so the field only has
-                                // to be enabled — a disabled button swallows the click before
-                                // it ever reaches the trigger.
-                                trigger={
-                                    <div>
-                                        <AutomationAgentField
-                                            agentName={agentName}
-                                            onOpenAgentPicker={() => undefined}
-                                        />
-                                    </div>
-                                }
-                            >
-                                <div className="bg-popover max-h-[320px] min-h-0 overflow-y-auto p-1 pb-3 lg:pb-1">
-                                    {agentsQuery.isPending ? (
-                                        <div className="flex flex-col gap-1 p-1">
-                                            <Skeleton className="h-8 w-full" />
-                                            <Skeleton className="h-8 w-4/5" />
-                                            <Skeleton className="h-8 w-3/5" />
-                                        </div>
-                                    ) : agents.length === 0 ? (
-                                        <p className="text-muted-foreground m-0 px-3 py-6 text-center text-xs">
-                                            No agents in this project yet.
-                                        </p>
-                                    ) : (
-                                        agents.map((agent) => {
-                                            const id = agent.id
-                                            if (!id) return null
-                                            const bound = id === draft.agentId
-                                            return (
-                                                <button
-                                                    key={id}
-                                                    type="button"
-                                                    onClick={() => pickAgent(id)}
-                                                    aria-current={bound || undefined}
-                                                    className="hover:bg-accent flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-2 text-left"
-                                                >
-                                                    <Robot
-                                                        aria-hidden
-                                                        size={16}
-                                                        className="text-muted-foreground shrink-0"
-                                                    />
-                                                    <span className="text-foreground min-w-0 flex-1 truncate text-sm">
-                                                        {agent.name?.trim() ||
-                                                            agent.slug?.trim() ||
-                                                            "Untitled agent"}
-                                                    </span>
-                                                    {bound ? (
-                                                        <Check
-                                                            aria-label="Currently picked"
-                                                            size={14}
-                                                            className="text-primary shrink-0"
-                                                        />
-                                                    ) : null}
-                                                </button>
-                                            )
-                                        })
-                                    )}
-                                </div>
-                            </PickerOverlay>
-
+                            <AutomationAgentField
+                                agentId={draft.agentId}
+                                agentName={agentName}
+                                onSelectAgent={onSelectAgent}
+                            />
                             <AutomationRunsWhenField
                                 automation={preview}
                                 onChangeCron={onChangeCron}
+                                onChangeKind={onChangeKind}
+                                onSelectEvent={onSelectEvent}
                             />
                             <AutomationInstructionField
                                 automationId={DRAFT_ID}

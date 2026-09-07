@@ -24,7 +24,6 @@ export const AutomationDetailBody = ({
     runsHref,
     failureReason = null,
     runHistoryCaption = "",
-    onOpenAgentPicker,
     onRename,
     onChangeCron,
     onChangeInputs,
@@ -35,7 +34,6 @@ export const AutomationDetailBody = ({
     runsHref: string
     failureReason?: string | null
     runHistoryCaption?: string
-    onOpenAgentPicker?: () => void
     onRename: (name: string) => Promise<boolean>
     onChangeCron: (cron: string) => void
     onChangeInputs: (inputs: Record<string, unknown>) => void
@@ -55,11 +53,7 @@ export const AutomationDetailBody = ({
         />
         <AutomationFailureBanner reason={failureReason} />
         <div className="mt-[26px] flex flex-col gap-[22px]">
-            <AutomationAgentField
-                automation={automation}
-                agentName={agentName}
-                onOpenAgentPicker={onOpenAgentPicker}
-            />
+            <AutomationAgentField automation={automation} agentName={agentName} />
             <AutomationRunsWhenField automation={automation} onChangeCron={onChangeCron} />
             <AutomationInstructionField
                 automationId={automation.id}

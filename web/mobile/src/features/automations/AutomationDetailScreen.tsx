@@ -30,8 +30,6 @@ export const AutomationDetailScreen = ({
     workspaceId,
     projectId,
     automationId,
-    /** W4 wires this to its agent picker; unwired the field reads as a bound fact. */
-    onOpenAgentPicker,
     /** W6 supplies these from delivery data; without them neither surface claims anything. */
     failureReason = null,
     runHistoryCaption = "",
@@ -39,7 +37,6 @@ export const AutomationDetailScreen = ({
     workspaceId: string
     projectId: string
     automationId: string
-    onOpenAgentPicker?: () => void
     failureReason?: string | null
     runHistoryCaption?: string
 }) => {
@@ -63,8 +60,12 @@ export const AutomationDetailScreen = ({
     const agentName = useMemo(() => {
         const agents: Workflow[] = agentsQuery.data ?? []
         const agent = agents.find((candidate) => candidate.id === automation?.agentId)
-        return agentLabel(automation?.agentId ?? null, agent?.name || agent?.slug || null)
-    }, [agentsQuery.data, automation?.agentId])
+        return agentLabel(
+            automation?.agentId ?? null,
+            agent?.name || agent?.slug || null,
+            !agentsQuery.isPending,
+        )
+    }, [agentsQuery.data, agentsQuery.isPending, automation?.agentId])
 
     const onRename = useCallback(
         async (name: string) => {
@@ -120,7 +121,6 @@ export const AutomationDetailScreen = ({
                             runsHref={`${base}/automations/${automation.id}/runs`}
                             failureReason={failureReason}
                             runHistoryCaption={runHistoryCaption}
-                            onOpenAgentPicker={onOpenAgentPicker}
                             onRename={onRename}
                             onChangeCron={onChangeCron}
                             onChangeInputs={onChangeInputs}

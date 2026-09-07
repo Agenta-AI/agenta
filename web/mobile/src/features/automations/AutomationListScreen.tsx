@@ -132,6 +132,7 @@ export const AutomationListScreen = ({
                                 const agentName = agentLabel(
                                     automation.agentId,
                                     agentNames.get(automation.agentId ?? "")?.trim() || null,
+                                    !agentsQuery.isPending,
                                 )
 
                                 return (

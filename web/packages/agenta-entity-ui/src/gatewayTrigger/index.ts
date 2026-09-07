@@ -18,7 +18,12 @@ export type {ActiveToggleProps} from "./components/ActiveToggle"
 
 // Inner pieces exported for the Storybook parity harness (and any future host):
 // presentational leaves of the schedule/subscription drawers.
-export {ScheduleBuilderField} from "./drawers/ScheduleBuilderField"
+export {
+    ScheduleBuilderField,
+    ScheduleBuilderPanel,
+    useScheduleBuilder,
+    type ScheduleBuilderControls,
+} from "./drawers/ScheduleBuilderField"
 export {MessageComposer} from "./drawers/schedule/MessageComposer"
 export {WindowField} from "./drawers/schedule/WindowField"
 export {RunInPlaygroundButton} from "./drawers/schedule/RunInPlaygroundButton"

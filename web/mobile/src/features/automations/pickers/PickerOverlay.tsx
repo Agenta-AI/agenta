@@ -30,7 +30,10 @@ export const PickerOverlay = ({
 }: {
     open: boolean
     onOpenChange: (next: boolean) => void
-    /** Names the surface. The sheet needs it for its accessible title; the popover shows it too. */
+    /**
+     * Names the surface. The sheet shows it as its header; the popover only exposes it to
+     * assistive tech — anchored under the field's own label, a repeat of that label is noise.
+     */
     title: string
     /** The field control itself — it IS the trigger, so it takes the open/close handlers. */
     trigger: ReactNode
@@ -47,11 +50,14 @@ export const PickerOverlay = ({
                 <PopoverTrigger asChild>{trigger}</PopoverTrigger>
                 <PopoverContent
                     align="start"
-                    className={cn("flex flex-col gap-0 p-0", contentClassName)}
+                    aria-label={title}
+                    // As wide as the control that opened it: a menu narrower than its own field
+                    // reads as a different surface rather than that field, opened.
+                    className={cn(
+                        "flex w-[var(--radix-popover-trigger-width)] flex-col gap-0 p-0",
+                        contentClassName,
+                    )}
                 >
-                    <span className="text-foreground shrink-0 px-3 pb-1 pt-3 text-xs font-medium">
-                        {title}
-                    </span>
                     {children}
                 </PopoverContent>
             </Popover>
