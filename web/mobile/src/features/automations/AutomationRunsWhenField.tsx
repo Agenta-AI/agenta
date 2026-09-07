@@ -94,7 +94,6 @@ export const AutomationRunsWhenField = ({
                                 <Button
                                     key={value}
                                     type="button"
-                                    size="sm"
                                     variant={active ? "default" : "outline"}
                                     aria-pressed={active}
                                     // A saved automation's kind is its entity type — two
@@ -106,7 +105,7 @@ export const AutomationRunsWhenField = ({
                                             : "An automation's trigger type is fixed once it's created."
                                     }
                                     onClick={() => onChangeKind?.(value)}
-                                    className="min-w-0 flex-1"
+                                    className="min-w-0 flex-1 font-normal"
                                 >
                                     <KindIcon aria-hidden size={14} />
                                     <span className="min-w-0 truncate">{kindLabel}</span>
