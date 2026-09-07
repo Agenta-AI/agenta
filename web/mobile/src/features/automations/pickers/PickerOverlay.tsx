@@ -55,10 +55,11 @@ export const PickerOverlay = ({
                     // reads as a different surface rather than that field, opened.
                     // Radix does not bound a popover's height, so a long event list ran off the
                     // bottom of the window. `available-height` is the room left below the
-                    // trigger; the panes inside flex within it rather than each capping
-                    // themselves at a guess.
+                    // trigger, less a margin so the panel never sits flush against the window
+                    // edge; the panes inside flex within it rather than each capping themselves
+                    // at a guess.
                     className={cn(
-                        "flex max-h-[var(--radix-popover-content-available-height)] w-[var(--radix-popover-trigger-width)] flex-col gap-0 overflow-hidden p-0",
+                        "flex max-h-[calc(var(--radix-popover-content-available-height)-16px)] w-[var(--radix-popover-trigger-width)] flex-col gap-0 overflow-hidden p-0",
                         contentClassName,
                     )}
                 >
