@@ -9,6 +9,7 @@ loser gets a 409, not a duplicate enqueue.
 
 import asyncio
 from uuid import uuid4
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -214,3 +215,49 @@ async def test_no_worker_fallback_routes_through_the_dispatcher():
         answer={"approved": True},
     )
     workflows_service.invoke_workflow.assert_not_awaited()
+
+
+async def test_inline_last_resort_uses_the_shared_session_reference_resolver():
+    from oss.src.core.sessions.types import SessionReference
+
+    project_id = uuid4()
+    user_id = uuid4()
+    interaction_id = uuid4()
+    interaction = SessionInteraction(
+        id=interaction_id,
+        project_id=project_id,
+        session_id="sess-1",
+        token="tok-1",
+        kind=SessionInteractionKind.user_approval,
+        status=SessionInteractionStatus.pending,
+    )
+    service = _RacyInteractionsService(interaction=interaction)
+    workflows_service = AsyncMock()
+    turns_service = AsyncMock()
+    turns_service.query_turns.return_value = [
+        SimpleNamespace(
+            references=[SessionReference(key="workflow", slug="agent-from-turn")]
+        )
+    ]
+    router = InteractionsRouter(
+        interactions_service=service,
+        workflows_service=workflows_service,
+        turns_service=turns_service,
+    )
+
+    app = FastAPI()
+    request = _make_authed_request(app, project_id, user_id)
+    with patch(
+        "oss.src.apis.fastapi.sessions.router.check_action_access",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        await router.respond_interaction(
+            request=request,
+            interaction_id=interaction_id,
+            body=SessionInteractionRespondRequest(answer={"approved": True}),
+        )
+
+    invoke_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
+    assert invoke_request.references["workflow"].slug == "agent-from-turn"
+    assert turns_service.query_turns.await_args.kwargs["windowing"].limit == 1

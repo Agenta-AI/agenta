@@ -6,6 +6,7 @@ import {
     SessionTab,
     SessionTabDragItem,
     SessionTabStrip,
+    withShortcutKey,
 } from "@agenta/sessions-ui"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -41,15 +42,6 @@ const STATUS_META: Record<
     alive: {dot: "bg-colorInfoBorder", pulse: false, attention: false, title: "Session is live"},
     idle: {dot: "bg-colorTextQuaternary", pulse: false, attention: false, title: "Idle"},
 }
-
-/** A menu row that names its key on the right, the way a desktop menu does. The wrapper has to
- * grow inside the menu item's own flex row, or the keycap sits against the label instead. */
-const withKey = (label: React.ReactNode, shortcutId: string) => (
-    <span className="flex min-w-0 flex-1 items-center gap-6">
-        <span className="min-w-0 flex-1">{label}</span>
-        <ShortcutKeys id={shortcutId} />
-    </span>
-)
 
 /** A session's run-state dot. Subscribes to just that session's effective-status atom (local run
  * state, or backend liveness when idle here) so a streaming conversation repaints only its own dot,
@@ -331,17 +323,20 @@ const SessionTagBar = ({
                 items: [
                     ...menuItems(target).map((entry) => {
                         if ("key" in entry && entry.key === "rename") {
-                            return {...entry, label: withKey(entry.label, "session.rename")}
+                            return {...entry, label: withShortcutKey(entry.label, "session.rename")}
                         }
                         if ("key" in entry && entry.key === "archive") {
-                            return {...entry, label: withKey(entry.label, "session.archive")}
+                            return {
+                                ...entry,
+                                label: withShortcutKey(entry.label, "session.archive"),
+                            }
                         }
                         return entry
                     }),
                     {type: "divider" as const},
                     {
                         key: "close",
-                        label: withKey("Close", "session.close"),
+                        label: withShortcutKey("Close", "session.close"),
                         icon: <X size={14} />,
                         disabled: sessions.length <= 1,
                     },

@@ -90,7 +90,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
     }
 
     return (
-        <div className={"h-full overflow-hidden flex flex-col"}>
+        <div data-testid="trace-tree" className={"h-full overflow-hidden flex flex-col"}>
             <div
                 className={clsx(
                     "flex items-center justify-between h-[43px] pl-2 pr-2",

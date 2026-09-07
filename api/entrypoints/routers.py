@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 import asyncio
 import time
+from uuid import UUID
 
 import agenta as ag
 from fastapi import FastAPI
@@ -95,6 +96,7 @@ from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.service import SimpleWorkflowsService
+from oss.src.core.workflows.dtos import WorkflowServiceRequest
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
@@ -182,6 +184,14 @@ from oss.src.apis.fastapi.mounts.router import MountsRouter
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.dbs.postgres.sessions.commands.dbes import SessionCommandDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
+from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
+from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
+from oss.src.core.sessions.inputs.service import SessionInputsService
+from oss.src.core.sessions.commands.service import SessionCommandsService
+from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
 from oss.src.dbs.redis.shared.engine import get_lock_engine
 
@@ -279,8 +289,16 @@ async def lifespan(*args, **kwargs):
         except Exception as e:  # noqa: BLE001
             log.warning("Store bucket ensure failed at startup: %s", e)
 
+    # The execution watchdog. It needs the records plane to write the terminal outcome a
+    # dead runner owed, and the watch publisher so an open browser sees the turn close.
     _orphan_sweep_task = asyncio.create_task(
-        orphan_sweep_loop(_transactions_engine, _lock_engine)
+        orphan_sweep_loop(
+            _transactions_engine,
+            _lock_engine,
+            records_service=records_service,
+            watch_publisher=_sessions_watch_publisher,
+            commands_service=session_commands_service,
+        )
     )
 
     _attachment_sweep_task = asyncio.create_task(
@@ -587,6 +605,9 @@ evaluations_dao = EvaluationsDAO(engine=_transactions_engine)
 folders_dao = FoldersDAO(engine=_transactions_engine)
 session_streams_dao = SessionStreamsDAO(engine=_transactions_engine)
 session_turns_dao = SessionTurnsDAO(engine=_transactions_engine)
+session_commands_dao = SessionCommandsDAO(engine=_transactions_engine)
+session_executions_dao = SessionExecutionsDAO(engine=_transactions_engine)
+session_inputs_dao = SessionInputsDAO(engine=_transactions_engine)
 
 connections_dao = ConnectionsDAO(engine=_transactions_engine)
 mounts_dao = MountsDAO(engine=_transactions_engine)
@@ -621,6 +642,7 @@ events_service = EventsService(
 
 records_service = RecordsService(
     records_dao=records_dao,
+    executions_dao=session_executions_dao,
 )
 
 
@@ -838,6 +860,7 @@ interactions_dao = SessionInteractionsDAO(engine=_transactions_engine)
 interactions_service = SessionInteractionsService(
     interactions_dao=interactions_dao,
     watch_publisher=_sessions_watch_publisher,
+    records_service=records_service,
 )
 
 triggers_service = TriggersService(
@@ -851,11 +874,12 @@ triggers_service = TriggersService(
 
 # Detached workflow start: hand the run to the runner and return on the started handshake
 # (no awaiting the run). Shared by both detached consumers (triggers + interactions respond).
-async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
+async def _dispatch_detached_run(*, project_id, user_id, request, run_id=None) -> str:
     result = await workflows_service.invoke_workflow_detached(
         project_id=project_id,
         user_id=user_id,
         request=request,
+        run_id=run_id,
     )
     return result.run_id
 
@@ -874,6 +898,10 @@ _interactions_dispatcher = InteractionsDispatcher(
     workflows_service=workflows_service,
     interactions_service=interactions_service,
     records_service=records_service,
+    # Read-only: the resume's reference fallback, for a gate row whose own `data.references` is
+    # empty. Without it the invoke has nothing to resolve a service URL from.
+    turns_service=session_turns_service,
+    streams_service=session_streams_service,
     dispatch_fn=_dispatch_detached_run,
 )
 
@@ -1115,6 +1143,55 @@ sessions_service = SessionsService(
     records_service=records_service,
 )
 
+# Durable session commands (Stop). The control-delivery adapter is chosen by one setting.
+# `direct` posts the command to the runner's own /cancel over the hop that already carries hard
+# kill; `long_poll` is not built yet, and naming it fails at boot rather than silently falling
+# back to a transport the operator did not choose.
+_control_adapter = (env.agenta.sessions.commands.adapter or "direct").strip().lower()
+if _control_adapter != "direct":
+    raise RuntimeError(
+        f"AGENTA_SESSIONS_CONTROL_ADAPTER={_control_adapter!r} is not available in this build. "
+        "Only 'direct' is implemented; the long-poll adapter is a later change."
+    )
+
+session_commands_service = SessionCommandsService(
+    commands_dao=session_commands_dao,
+    streams_service=session_streams_service,
+    interactions_service=interactions_service,
+    lock_engine=_lock_engine,
+    delivery=DirectControlDelivery(
+        continue_interaction=lambda command: _interactions_dispatcher.respond_many(
+            project_id=command.project_id,
+            user_id=command.created_by_id,
+            interaction_answers=[
+                (UUID(item["interaction_id"]), item["answer"])
+                for item in command.data["answers"]
+            ],
+            control_command_id=command.id,
+            continuation_execution_id=command.target_turn_id,
+        ),
+        continue_input=lambda command: workflows_service.invoke_workflow_detached(
+            project_id=command.project_id,
+            user_id=command.created_by_id,
+            request=WorkflowServiceRequest.model_validate(command.data["request"]),
+            run_id=command.target_turn_id,
+            control_command_id=command.id,
+        ),
+    ),
+    executions_dao=session_executions_dao,
+    inputs_dao=session_inputs_dao,
+)
+session_inputs_service = SessionInputsService(
+    inputs_dao=session_inputs_dao,
+    interactions_dao=interactions_dao,
+    streams_service=session_streams_service,
+    executions_dao=session_executions_dao,
+    continuation_resumer=session_commands_service.resume_recoverable_continuation,
+)
+workflows_service.set_session_continuation_resumer(
+    session_commands_service.resume_recoverable_continuation
+)
+
 sessions = SessionsRouter(
     streams_service=session_streams_service,
     records_service=records_service,
@@ -1125,6 +1202,8 @@ sessions = SessionsRouter(
     mounts_service=mounts_service,
     turns_service=session_turns_service,
     sessions_service=sessions_service,
+    commands_service=session_commands_service,
+    inputs_service=session_inputs_service,
     respond_task=_interactions_worker.respond_interaction,
     interactions_dispatcher=_interactions_dispatcher,
 )
@@ -1596,6 +1675,12 @@ app.include_router(
 
 app.include_router(
     router=sessions.root.router,
+    tags=["Sessions"],
+)
+
+# After `root`, so the literal /sessions/<verb> routes always win a path match.
+app.include_router(
+    router=sessions.control.router,
     tags=["Sessions"],
 )
 

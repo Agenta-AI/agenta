@@ -78,11 +78,7 @@ import {
     ConnectedSubagentList,
     SubagentDrawerContainer,
 } from "./agentTemplate/SubagentDrawerContainer"
-import {
-    SubagentHeaderIcon,
-    SubagentHeaderTitle,
-    SubagentOpenAgentButton,
-} from "./agentTemplate/SubagentHeader"
+import {SubagentHeaderTitle, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
 import {
     selectSubagentTools,
     SubagentList,
@@ -113,10 +109,6 @@ const INVALID_ITEM_TIP: Record<ItemKind, string> = {
     mcp: "This server is missing its name or URL.",
     skill: "This skill is missing its name.",
 }
-/** The schema field a section's change marks come from. Integrations and Subagents share `tools`. */
-const changeFieldFor = (sectionKey: string): string =>
-    sectionKey === "subagents" ? "tools" : sectionKey
-
 const DRAFT_TIP: Record<string, string> = {
     "model-harness": "Unsaved model or harness changes.",
     instructions: "Unsaved instruction changes.",
@@ -191,8 +183,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         editing,
         draft,
         setDraft,
-        drawerView,
-        setDrawerView,
         jsonInvalid,
         setJsonInvalid,
         openCreate,
@@ -367,8 +357,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const agentChangedKeys = sectionChanges.agent?.panelKeys ?? null
     const agentChangeIndicator = useCallback(
         (sectionKey: string) => {
-            if (!agentChangedKeys?.has(changeFieldFor(sectionKey) as PanelSectionKey))
-                return undefined
+            if (!agentChangedKeys?.has(sectionKey as PanelSectionKey)) return undefined
             const version = sectionChanges.agentVersion
             return {
                 tone: "agent" as const,
@@ -485,7 +474,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [config.mcps],
     )
     const handleAddMcpServer = useCallback(
-        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed(), "form"),
+        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed()),
         [openCreate],
     )
 
@@ -495,7 +484,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [config.skills],
     )
     const handleAddSkill = useCallback(
-        () => openCreate("skill", ITEM_KINDS.skill.createSeed(), "form"),
+        () => openCreate("skill", ITEM_KINDS.skill.createSeed()),
         [openCreate],
     )
 
@@ -821,7 +810,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (invalid) return {tone: "invalid", tooltip: invalid}
         const incomplete = sectionIncompleteTip(key)
         if (incomplete) return {tone: "incomplete", tooltip: incomplete}
-        if (draftSectionKeys.has(changeFieldFor(key) as PanelSectionKey))
+        if (draftSectionKeys.has(key as PanelSectionKey))
             return {
                 tone: "draft",
                 tooltip: DRAFT_TIP[key] ?? "Unsaved changes.",
@@ -1062,9 +1051,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // through an optional member cannot be called from here without breaking hook order.
     const editingSubagentSlug =
         shownEditing?.kind === "tool" ? (toolReferenceSlug(draft) ?? "") : ""
-    const subagentHeaderIcon = workflowReference ? (
-        <SubagentHeaderIcon bridge={workflowReference} slug={editingSubagentSlug} />
-    ) : undefined
     const subagentHeaderAction = workflowReference ? (
         <SubagentOpenAgentButton bridge={workflowReference} slug={editingSubagentSlug} />
     ) : undefined
@@ -1097,13 +1083,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                           <ConfigItemDrawer
                               open={!!editing}
                               mode={shownEditing.mode}
-                              icon={
-                                  bareChrome
-                                      ? undefined
-                                      : isSubagent
-                                        ? subagentHeaderIcon
-                                        : def.icon
-                              }
                               title={
                                   isSubagent && workflowReference ? (
                                       <SubagentHeaderTitle
@@ -1131,17 +1110,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               }
                               width={def.drawerWidth?.(draft)}
                               contentFlush={Boolean(def.formFlush?.(draft))}
-                              view={drawerView}
-                              onViewChange={setDrawerView}
                               onCancel={closeEditor}
                               onSave={commitDraft}
                               saveDisabled={
                                   draftInvalid ||
                                   draftUnchanged ||
-                                  (drawerView === "json" && jsonInvalid)
+                                  (def.jsonOnly(draft) && jsonInvalid)
                               }
                               jsonOnly={def.jsonOnly(draft)}
-                              formOnly={Boolean(def.formOnly?.(draft))}
                               headerExtra={isSubagent ? subagentHeaderAction : undefined}
                               disabled={readOnly}
                               form={
@@ -1217,12 +1193,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             <SectionDrawer
                 open={openSection === "advanced"}
                 title="Advanced"
-                icon={<SlidersHorizontal size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
                 disabled={disabled || !sectionDirty}
                 dirty={sectionDirty}
-                width={880}
+                width={mh.advancedDrawerWidth}
             >
                 <ChangedPathsProvider changes={drawerChangedPaths}>
                     <ModelHarnessSectionBody
@@ -1234,6 +1209,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         withTooltip={withTooltip}
                         revisionId={sectionRevision ?? revisionId}
                         buildKitOverride={draftBuildKitOverride}
+                        credentialOperationsBlocked={sectionDirty}
+                        onCredentialRevisionCommitted={closeSectionDraft}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>

@@ -60,6 +60,9 @@ export {
     ConfigBlock,
     SectionSkeleton,
     ConfigAccordionSection,
+    CONFIG_REGION_BAR,
+    ConfigRowCaret,
+    ConfigRowTrailing,
     sectionIndicatorColor,
     useAccordionSectionOpen,
     useRecentFlag,
@@ -69,6 +72,7 @@ export {
     type ConfigBlockProps,
     type SectionSkeletonProps,
     type ConfigAccordionSectionProps,
+    type ConfigRowTrailingProps,
     type SectionIndicatorTone,
 } from "./section"
 

@@ -8,6 +8,7 @@ export * from "./visibility"
 export * from "./constants"
 export * from "./supportLinks"
 export * from "./state"
+export * from "./reorder"
 export * from "./dynamic"
 export * from "./banners"
 

@@ -1,5 +1,9 @@
 // Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
-import {createNegotiatingFetch, type NegotiatingFetch} from "@agenta/playground/agent-chat"
+import {
+    createNegotiatingFetch,
+    SHARED_SESSION_RESPONSE_HEADER,
+    type NegotiatingFetch,
+} from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
 import {DefaultChatTransport, type UIMessage, type UIMessageChunk} from "ai"
 
@@ -21,6 +25,90 @@ import {installStreamTraceHelper, traceStreamChunks} from "./streamTrace"
  * request and the response handling can never disagree.
  */
 type AnyChunk = UIMessageChunk
+
+export const SHARED_SENDER_ACCEPTANCE_TIMEOUT_MS = 15_000
+
+type AgentChatTransportOptions = NonNullable<
+    ConstructorParameters<typeof DefaultChatTransport<UIMessage>>[0]
+> & {
+    /** Test seam; production uses `SHARED_SENDER_ACCEPTANCE_TIMEOUT_MS`. */
+    sharedAcceptanceTimeoutMs?: number
+}
+
+interface SharedAcceptanceDeadline {
+    signal: AbortSignal
+    failure: Promise<never>
+    accept: () => void
+    fail: (error: Error) => void
+    dispose: () => void
+    onFailure: (listener: (error: Error) => void) => () => void
+}
+
+const sharedAcceptanceFailure = (): TypeError => new TypeError("Failed to fetch")
+
+const createSharedAcceptanceDeadline = (
+    parentSignal: AbortSignal | null | undefined,
+    timeoutMs: number,
+): SharedAcceptanceDeadline => {
+    const controller = new AbortController()
+    const listeners = new Set<(error: Error) => void>()
+    let state: "pending" | "accepted" | "disposed" = "pending"
+    let rejectFailure: (error: Error) => void = () => undefined
+    const failure = new Promise<never>((_resolve, reject) => {
+        rejectFailure = reject
+    })
+    const timer = setTimeout(() => fail(sharedAcceptanceFailure()), timeoutMs)
+
+    const abortFromParent = () => {
+        const reason =
+            parentSignal?.reason instanceof Error
+                ? parentSignal.reason
+                : new DOMException("This operation was aborted", "AbortError")
+        if (!controller.signal.aborted) controller.abort(reason)
+        rejectFailure(reason)
+        for (const listener of listeners) listener(reason)
+        dispose()
+    }
+
+    function accept() {
+        if (state !== "pending") return
+        state = "accepted"
+        clearTimeout(timer)
+    }
+
+    function fail(error: Error) {
+        if (state !== "pending") return
+        state = "disposed"
+        clearTimeout(timer)
+        if (!controller.signal.aborted) controller.abort(error)
+        rejectFailure(error)
+        for (const listener of listeners) listener(error)
+        parentSignal?.removeEventListener("abort", abortFromParent)
+    }
+
+    function dispose() {
+        if (state === "disposed") return
+        state = "disposed"
+        clearTimeout(timer)
+        listeners.clear()
+        parentSignal?.removeEventListener("abort", abortFromParent)
+    }
+
+    if (parentSignal?.aborted) abortFromParent()
+    else parentSignal?.addEventListener("abort", abortFromParent, {once: true})
+
+    return {
+        signal: controller.signal,
+        failure,
+        accept,
+        fail,
+        dispose,
+        onFailure: (listener) => {
+            listeners.add(listener)
+            return () => listeners.delete(listener)
+        },
+    }
+}
 
 interface BatchPart {
     type?: string
@@ -206,26 +294,154 @@ function batchJsonToUiMessageStream(
     })
 }
 
+const sharedAcceptanceChunk = (chunk: AnyChunk): AnyChunk | undefined => {
+    if (chunk.type === "start" || chunk.type === "finish") {
+        return {
+            ...chunk,
+            messageMetadata: {
+                ...((chunk as {messageMetadata?: Record<string, unknown>}).messageMetadata ?? {}),
+                sharedSender: true,
+            },
+        } as AnyChunk
+    }
+    if (
+        chunk.type === "start-step" ||
+        chunk.type === "finish-step" ||
+        chunk.type === "error" ||
+        chunk.type === "data-agent-error" ||
+        chunk.type === "data-session-accepted"
+    )
+        return chunk
+    return undefined
+}
+
+/** Consume the invoke stream without letting its content become a second rendering source. */
+export const sharedAcceptanceStream = (
+    stream: ReadableStream<AnyChunk>,
+    deadline?: SharedAcceptanceDeadline,
+): ReadableStream<AnyChunk> => {
+    if (!deadline) {
+        return stream.pipeThrough(
+            new TransformStream<AnyChunk, AnyChunk>({
+                transform(chunk, controller) {
+                    const accepted = sharedAcceptanceChunk(chunk)
+                    if (accepted) controller.enqueue(accepted)
+                },
+            }),
+        )
+    }
+
+    const reader = stream.getReader()
+    let closed = false
+    let accepted = false
+    let unsubscribe: () => void = () => undefined
+
+    return new ReadableStream<AnyChunk>({
+        start(controller) {
+            unsubscribe = deadline.onFailure((error) => {
+                if (closed) return
+                closed = true
+                controller.error(error)
+                void reader.cancel(error).catch(() => undefined)
+            })
+        },
+        async pull(controller) {
+            try {
+                while (!closed) {
+                    const next = await reader.read()
+                    if (closed) return
+                    if (next.done) {
+                        if (!accepted) {
+                            deadline.fail(sharedAcceptanceFailure())
+                            return
+                        }
+                        closed = true
+                        unsubscribe()
+                        deadline.dispose()
+                        controller.close()
+                        return
+                    }
+                    if (next.value.type === "data-session-accepted") {
+                        accepted = true
+                        deadline.accept()
+                    }
+                    const chunk = sharedAcceptanceChunk(next.value)
+                    if (chunk) {
+                        controller.enqueue(chunk)
+                        return
+                    }
+                }
+            } catch (error) {
+                if (closed) return
+                closed = true
+                unsubscribe()
+                deadline.dispose()
+                controller.error(error)
+            }
+        },
+        cancel(reason) {
+            closed = true
+            unsubscribe()
+            deadline.dispose()
+            return reader.cancel(reason)
+        },
+    })
+}
+
 export class AgentChatTransport extends DefaultChatTransport<UIMessage> {
     private readonly negotiator: NegotiatingFetch
+    private readonly sharedResponses = new WeakMap<
+        ReadableStream<Uint8Array>,
+        SharedAcceptanceDeadline
+    >()
 
-    constructor(options: ConstructorParameters<typeof DefaultChatTransport<UIMessage>>[0] = {}) {
+    constructor(options: AgentChatTransportOptions = {}) {
+        const {
+            sharedAcceptanceTimeoutMs = SHARED_SENDER_ACCEPTANCE_TIMEOUT_MS,
+            ...transportOptions
+        } = options
         // Own the transport's `fetch` so every request goes through stream→batch negotiation;
         // any caller-supplied fetch becomes the negotiator's base (tests inject one here).
-        super({...options, fetch: undefined})
-        this.negotiator = createNegotiatingFetch(options.fetch)
-        this.fetch = this.negotiator.fetch
+        super({...transportOptions, fetch: undefined})
+        this.negotiator = createNegotiatingFetch(transportOptions.fetch)
+        this.fetch = async (input, init) => {
+            const shared =
+                new Headers(init?.headers).get(SHARED_SESSION_RESPONSE_HEADER) === "shared"
+            if (!shared) return this.negotiator.fetch(input, init)
+
+            const deadline = createSharedAcceptanceDeadline(init?.signal, sharedAcceptanceTimeoutMs)
+            try {
+                const response = await Promise.race([
+                    this.negotiator.fetch(input, {...init, signal: deadline.signal}),
+                    deadline.failure,
+                ])
+                if (!response.ok || !response.body) {
+                    deadline.dispose()
+                    return response
+                }
+                this.sharedResponses.set(response.body, deadline)
+                return response
+            } catch (error) {
+                deadline.dispose()
+                throw error
+            }
+        }
     }
 
     protected processResponseStream(stream: ReadableStream<Uint8Array>): ReadableStream<AnyChunk> {
         // Parse by the channel the request actually resolved to, not the requested one — a stream
         // request can come back as a batch via the 406 fallback. The mode is keyed off this exact
         // body stream (`resolvedMode(stream)`), so request and parse stay in lockstep.
-        if (this.negotiator.resolvedMode(stream) === "batch")
-            return batchJsonToUiMessageStream(stream)
+        const parsed =
+            this.negotiator.resolvedMode(stream) === "batch"
+                ? batchJsonToUiMessageStream(stream)
+                : super.processResponseStream(stream)
+        const sharedDeadline = this.sharedResponses.get(stream)
+        if (sharedDeadline) return sharedAcceptanceStream(parsed, sharedDeadline)
+        if (this.negotiator.resolvedMode(stream) === "batch") return parsed
         // Deltas pass through untouched: typing cadence is paced at paint by `useTypewriter`.
         // The trace only timestamps them — see `streamTrace.ts` for why the cadence is measured.
         installStreamTraceHelper()
-        return traceStreamChunks(super.processResponseStream(stream))
+        return traceStreamChunks(parsed)
     }
 }

@@ -15,6 +15,8 @@
         "@agenta/entities": "workspace:*",
         "@agenta/entity-ui": "workspace:*",
         "@agenta/oss": "workspace:*",
+        "@agenta/playground": "workspace:*",
+        "@agenta/playground-ui": "workspace:*",
         "@agenta/shared": "workspace:*",
         "@agenta/ui": "workspace:*",
         "@phosphor-icons/react": "^2.1.10",

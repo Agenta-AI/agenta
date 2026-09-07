@@ -38,10 +38,35 @@ describe("SECTION_ID_TO_PANEL_KEY", () => {
             model: "model-harness",
             instructions: "instructions",
             tools: "tools",
+            subagents: "subagents",
             mcps: "mcp",
             skills: "skills",
             params: "advanced",
         })
+    })
+})
+
+describe("panel keys", () => {
+    // The panel's Subagents accordion used to borrow the `tools` key, so adding a subagent lit
+    // the Integrations header too (and an integration lit Subagents).
+    it("routes a subagent change to Subagents, leaving Integrations alone", () => {
+        const changes = changesFor(
+            template({tools: [{type: "reference", slug: "hourly-news", name: "News"}]}),
+            template(),
+        )
+
+        expect(changes.panelKeys.has("subagents")).toBe(true)
+        expect(changes.panelKeys.has("tools")).toBe(false)
+    })
+
+    it("routes an integration change to Integrations, leaving Subagents alone", () => {
+        const changes = changesFor(
+            template({tools: [{function: {name: "send_email", parameters: {}}}]}),
+            template(),
+        )
+
+        expect(changes.panelKeys.has("tools")).toBe(true)
+        expect(changes.panelKeys.has("subagents")).toBe(false)
     })
 })
 

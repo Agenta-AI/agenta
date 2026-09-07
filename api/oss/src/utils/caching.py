@@ -55,9 +55,9 @@ def _pack(
 
     if user_id:
         user_id = user_id[-12:] if len(user_id) > 12 else user_id
+        user_id = user_id + "-" * (12 - len(user_id))
     else:
-        user_id = ""
-    user_id = user_id + "-" * (12 - len(user_id))
+        user_id = "*" if pattern else "-" * 12
 
     namespace = namespace or ("" if not pattern else "*")
 

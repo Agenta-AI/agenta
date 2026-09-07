@@ -5,7 +5,7 @@
  * come from `useSessionCardList` (waiting → pinned → recent) and `useSessionPins`; the host
  * supplies only its verbs: how a row opens, and its context-menu entries.
  */
-import {useMemo, type ReactNode} from "react"
+import {useCallback, useMemo, type ReactNode} from "react"
 
 import {pendingGateLabel, type SessionRowVm} from "@agenta/sessions/row"
 import {
@@ -19,11 +19,13 @@ import {ArrowRightIcon, ChatCircleIcon, ClockIcon} from "@phosphor-icons/react"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {ROW_VARIANTS, SESSION_SPRING} from "./assets/motion"
+import InlineRenameInput from "./InlineRenameInput"
 import {type SessionMenuEntry} from "./menu"
 import {SessionAgentName} from "./SessionAgentName"
 import {SessionAutomationKind} from "./SessionAutomationKind"
 import {SessionPinButton} from "./SessionPinButton"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
+import {useInlineRename} from "./useInlineRename"
 
 export interface SessionCardListProps extends UseSessionCardListArgs {
     emptyText: string
@@ -32,13 +34,19 @@ export interface SessionCardListProps extends UseSessionCardListArgs {
     /** The host's context-menu verbs for a row; omit for no menu (e.g. touch surfaces). */
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
+    /**
+     * Persists a rename. Given this, a row renames IN PLACE from its menu; without it the
+     * "rename" key falls through to `onMenuSelect` like any other verb — same contract as
+     * `SessionsListView`, so a card list and the sessions page rename identically.
+     */
+    onRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
     /** Hide the per-row agent name (an agent-scoped list restates its heading otherwise). */
     showAgent?: boolean
     /** Touch surfaces have no hover — keep the pin always visible there. */
     alwaysShowPin?: boolean
 }
 
-/** One row. The pin toggles in place; everything else is the host's verb. */
+/** One row, and the owner of its rename state. The pin toggles in place; the rest is the host's. */
 const Row = ({
     vm,
     origin,
@@ -48,6 +56,7 @@ const Row = ({
     onTogglePin,
     menuFor,
     onMenuSelect,
+    onRenameRow,
 }: {
     vm: SessionRowVm
     origin?: string
@@ -57,8 +66,29 @@ const Row = ({
     onTogglePin: (id: string) => void
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
+    onRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
 }) => {
     const entries = menuFor?.(vm)
+    // The phone hides the pin because the menu carries Pin/Unpin. A host that passes no menu, or
+    // one without that entry, would otherwise leave the row with no way to pin at all.
+    const menuHasPin = Boolean(entries?.some((entry) => "key" in entry && entry.key === "pin"))
+    const onRename = useMemo(
+        () => (onRenameRow ? (name: string) => onRenameRow(vm, name) : undefined),
+        [onRenameRow, vm],
+    )
+    const rename = useInlineRename({current: vm.title, onCommit: onRename ?? (async () => false)})
+
+    const onSelect = useCallback(
+        (key: string) => {
+            if (key === "rename" && onRename) {
+                rename.start()
+                return
+            }
+            onMenuSelect?.(vm, key)
+        },
+        [onMenuSelect, onRename, rename, vm],
+    )
+
     const row = (
         // A plain container, not a button: descendants of a button role are presentational, and
         // the pin nested inside one was keyboard-unreachable. The TITLE button is the open action.
@@ -88,9 +118,25 @@ const Row = ({
                 className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 border-0 bg-transparent p-0 text-left"
             >
                 <span className="flex w-full min-w-0 items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm text-colorText">
-                        {vm.title}
-                    </span>
+                    {rename.renaming ? (
+                        // The title sits inside the row's open button; a press on the input edits.
+                        <span
+                            className="min-w-0 flex-1"
+                            onClick={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                            }}
+                        >
+                            <InlineRenameInput
+                                rename={rename}
+                                className="h-5 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-sm leading-5 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+                            />
+                        </span>
+                    ) : (
+                        <span className="min-w-0 flex-1 truncate text-sm text-colorText">
+                            {vm.title}
+                        </span>
+                    )}
                     {/* An automation row IS its schedule/subscription — the kind is what tells it
                         apart from a conversation you started (#5927). Matches SessionRow. */}
                     {vm.automation ? <SessionAutomationKind kind={vm.automation.kind} /> : null}
@@ -106,25 +152,30 @@ const Row = ({
 
             {/* h-5 = the title's line box, so the trailing controls centre on the TITLE rather
                 than on a row whose height the subtitle decides. */}
-            <div className="flex h-5 shrink-0 items-center gap-2">
+            <div className="flex h-5 shrink-0 items-center gap-1 sm:gap-2">
                 {/* Quiet chip: the amber urgency lives on the dot; this states WHAT is asked. */}
                 {vm.status.chipLabel ? (
                     <span className="shrink-0 rounded bg-colorFillQuaternary px-1.5 py-0.5 text-xs leading-none text-colorTextSecondary">
                         {pendingGateLabel(vm.pending?.kinds)}
                     </span>
                 ) : null}
+                {/* Hidden on a phone: with the chip, time and pin all shrink-0, this 96px column
+                    starved the title to 0px. The agent overview already proves the row reads fine
+                    without it — it passes showAgent={false}. */}
                 {showAgent ? (
-                    <span className="w-24 shrink-0 truncate text-right">
+                    <span className="hidden w-24 shrink-0 truncate text-right sm:block">
                         <SessionAgentName agentId={vm.agentId} />
                     </span>
                 ) : null}
                 <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
                     {vm.activityAt ? timeAgo(Date.parse(vm.activityAt)) : "—"}
                 </span>
+                {/* Phone-hidden, like SessionRow, but only where the menu can stand in for it. */}
                 <SessionPinButton
                     pinned={vm.isPinned}
                     onToggle={() => onTogglePin(vm.id)}
                     revealOnHover={!alwaysShowPin}
+                    className={menuHasPin ? "hidden sm:block" : undefined}
                 />
             </div>
         </div>
@@ -144,7 +195,7 @@ const Row = ({
             exit="exit"
             className="overflow-hidden"
         >
-            <SessionRowContextMenu entries={entries} onSelect={(key) => onMenuSelect?.(vm, key)}>
+            <SessionRowContextMenu entries={entries} onSelect={onSelect}>
                 {row}
             </SessionRowContextMenu>
         </motion.div>
@@ -156,6 +207,7 @@ export const SessionCardList = ({
     onOpenRow,
     menuFor,
     onMenuSelect,
+    onRenameRow,
     showAgent,
     alwaysShowPin = false,
     ...listArgs
@@ -205,6 +257,7 @@ export const SessionCardList = ({
                         onTogglePin={togglePin}
                         menuFor={menuFor}
                         onMenuSelect={onMenuSelect}
+                        onRenameRow={onRenameRow}
                     />
                 )),
             ]),
@@ -217,6 +270,7 @@ export const SessionCardList = ({
             togglePin,
             menuFor,
             onMenuSelect,
+            onRenameRow,
         ],
     )
 

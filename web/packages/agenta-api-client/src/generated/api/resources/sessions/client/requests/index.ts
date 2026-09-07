@@ -1,5 +1,6 @@
 export type { ArchiveSessionRequest } from "./ArchiveSessionRequest.js";
 export type { BodyUploadSessionMountFile } from "./BodyUploadSessionMountFile.js";
+export type { CancelSessionExecutionRequest } from "./CancelSessionExecutionRequest.js";
 export type { CreateSessionAttachmentRequest } from "./CreateSessionAttachmentRequest.js";
 export type { DeleteSessionRequest } from "./DeleteSessionRequest.js";
 export type { DeleteSessionStreamRequest } from "./DeleteSessionStreamRequest.js";
@@ -9,6 +10,9 @@ export type { FetchInteractionRequest } from "./FetchInteractionRequest.js";
 export type { FetchSessionMountsRequest } from "./FetchSessionMountsRequest.js";
 export type { FetchSessionStreamRequest } from "./FetchSessionStreamRequest.js";
 export type { FetchTurnRequest } from "./FetchTurnRequest.js";
+export type { GetSessionSnapshotRequest } from "./GetSessionSnapshotRequest.js";
+export type { ResumeSessionContinuationRequest } from "./ResumeSessionContinuationRequest.js";
+export type { RemovePendingSessionInputRequest } from "./RemovePendingSessionInputRequest.js";
 export type { GetRecordEventRequest } from "./GetRecordEventRequest.js";
 export type { SessionAttachmentReferenceRequest } from "./SessionAttachmentReferenceRequest.js";
 export type { SessionDetachRequest } from "./SessionDetachRequest.js";
@@ -32,3 +36,5 @@ export type { SignSessionMountCredentialsRequest } from "./SignSessionMountCrede
 export type { UnarchiveSessionRequest } from "./UnarchiveSessionRequest.js";
 export type { WatchProjectRequest } from "./WatchProjectRequest.js";
 export type { WatchSessionStreamRequest } from "./WatchSessionStreamRequest.js";
+export type { SendPendingSessionInputNowRequest } from "./SendPendingSessionInputNowRequest.js";
+export { type PendingInputUpdateRequest } from "./PendingInputUpdateRequest.js";

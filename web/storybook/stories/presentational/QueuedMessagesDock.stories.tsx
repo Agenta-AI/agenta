@@ -76,6 +76,27 @@ export const Held: Story = {
     render: () => <Live initial={THREE} held />,
 }
 
+/** Durable rows are shared across browsers, with a selected-row Send Now action. */
+export const ServerBacked: Story = {
+    render: () => (
+        <Live
+            onSendNow={async () => {}}
+            touch
+            editable
+            initial={[
+                {...THREE[0], source: "server", editable: true, policy: "steer"},
+                {
+                    ...THREE[1],
+                    source: "server",
+                    editable: true,
+                    policy: "queue",
+                    attachmentCount: 1,
+                },
+            ]}
+        />
+    ),
+}
+
 /** Past five rows the body scrolls and the card stops growing; the header stays put. */
 export const Overflowing: Story = {
     render: () => (
@@ -134,4 +155,30 @@ export const WithAttachments: Story = {
 /** Touch: identical chrome, invisibly extended tap areas. */
 export const Touch: Story = {
     render: () => <Live initial={THREE} touch />,
+}
+
+export const SendNowFailure: Story = {
+    render: () => (
+        <Live
+            initial={[{...THREE[0], source: "server"}]}
+            touch
+            onSendNow={async () => {
+                throw new Error("Unavailable")
+            }}
+        />
+    ),
+}
+
+export const EditedRowNoLongerQueued: Story = {
+    render: () => (
+        <Frame>
+            <QueuedMessagesDock
+                queued={[]}
+                editingId="already-promoted"
+                onRemove={noop}
+                onCancelEdit={noop}
+                touch
+            />
+        </Frame>
+    ),
 }

@@ -19,8 +19,8 @@ Two guards run before a config becomes durable:
   replayed run re-resolves the same credentials from the project vault. The cost is
   deliberate: an author who inlines a static header into an MCP connection loses that header
   on a replayed resume rather than having it persisted in a second place.
-- **Size cap.** Measured over the dev corpus (n=326 revisions with parameters): avg 761 B,
-  p90 1.4 KB, max 20 KB — the large ones are entirely tool JSON-Schema. Anything over
+- **Size cap.** The playground builder config includes its tool catalog and measured
+  147 KB in live QA, larger than saved agent revisions. Anything over
   :data:`MAX_STAMPED_BYTES` is dropped WHOLE with a warning (a truncated blob would be
   invalid JSON, and a silently truncated config is worse than none); the resume then degrades
   to today's references-only hydration.
@@ -35,8 +35,8 @@ from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
-# 3x the largest config measured in the dev corpus. Over this the blob is not stamped at all.
-MAX_STAMPED_BYTES = 64 * 1024
+# Keep normal builder turns (147 KB observed) resumable while bounding durable config size.
+MAX_STAMPED_BYTES = 256 * 1024
 
 # Keys that can hold a raw credential VALUE on a tool/MCP entry or its connection descriptor.
 # `credentials` is deliberately NOT here: it holds vault key names, which the replay needs.

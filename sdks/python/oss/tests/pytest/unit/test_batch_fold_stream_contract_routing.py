@@ -140,6 +140,10 @@ class _FakeBackend(Backend):
         trace=None,
         run_context=None,
         session_id=None,
+        detached=False,
+        turn_id=None,
+        project_id=None,
+        control_command_id=None,
         effective_parameters=None,
         gateway_policy=None,
     ) -> _FakeSession:

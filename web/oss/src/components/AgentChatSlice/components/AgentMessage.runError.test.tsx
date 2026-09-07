@@ -45,6 +45,21 @@ describe("RunErrorBody", () => {
         expect(rendered).not.toContain("Add your key")
     })
 
+    it("offers Try again for an offline send that failed before acceptance", () => {
+        const rendered = text(
+            <RunErrorBody
+                text="Could not reach Agenta. Check your connection and retry."
+                stateKey="turn-offline"
+                transport
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("The agent run failed")
+        expect(rendered).toContain("Could not reach Agenta")
+        expect(rendered).toContain("Try again")
+    })
+
     it("hides Try again when no retry handler is wired (not the last turn, or busy)", () => {
         const rendered = text(
             <RunErrorBody

@@ -100,6 +100,13 @@ class WireCredentialBinding(_WireModel):
     name: str
 
 
+class WireSandboxCredential(_WireModel):
+    """One resolved credential delivered to the sandbox environment."""
+
+    binding: WireCredentialBinding
+    value: str
+
+
 class WireCredential(_WireModel):
     """One model credential, its binding, and its consumer usage contract."""
 
@@ -344,13 +351,6 @@ class WireGatewayIntegration(_WireModel):
     tools: Dict[str, WireGatewayTool] = Field(default_factory=dict)
 
 
-class WireGatewayGuidance(_WireModel):
-    """The derived gateway-tools instruction section (``gatewayGuidance`` on the request)."""
-
-    text: str
-    carrier: Literal["appendSystemPrompt", "agentsMd"]
-
-
 class WireGatewayPolicy(_WireModel):
     """The private compiled gateway policy (``gatewayPolicy`` on the request).
 
@@ -517,10 +517,14 @@ class WireRunRequest(_WireModel):
     harness: Optional[str] = None
     sandbox: Optional[str] = None
     session_id: Optional[str] = Field(default=None, alias="sessionId")
+    detached: Optional[bool] = None
     # Session-owned (detached) turn identity: the runner uses these to own the alive lock and
     # persist the transcript independently of any client connection. Omitted on ad-hoc runs.
     turn_id: Optional[str] = Field(default=None, alias="turnId")
     project_id: Optional[str] = Field(default=None, alias="projectId")
+    # Stable id of the durable continuation command that caused this run. The runner admits one
+    # execution per id even when delivery is retried.
+    control_command_id: Optional[str] = Field(default=None, alias="controlCommandId")
     agents_md: Optional[str] = Field(default=None, alias="agentsMd")
     # Model id stays scalar. The author's connection CHOICE and what that choice RESOLVED to are
     # two separate fields: `connection` is non-secret routing config the runner reads directly,
@@ -529,6 +533,9 @@ class WireRunRequest(_WireModel):
     connection: Optional[WireConnection] = None
     model_connection: Optional[WireModelConnection] = Field(
         default=None, alias="modelConnection"
+    )
+    sandbox_credentials: Optional[List[WireSandboxCredential]] = Field(
+        default=None, alias="sandboxCredentials"
     )
     harness_mode: Optional[str] = Field(default=None, alias="harnessMode")
     # Resolved model input modalities. Omitted when the resolver cannot determine them.
@@ -562,11 +569,10 @@ class WireRunRequest(_WireModel):
     gateway_policy: Optional[WireGatewayPolicy] = Field(
         default=None, alias="gatewayPolicy"
     )
-    # The derived gateway-tools guidance and its prompt carrier. Its own field so the runner
-    # splices it at environment build and the session fingerprint can exclude it (an integration
-    # add must not evict a warm session). Omitted when the agent configures no connection.
-    gateway_guidance: Optional[WireGatewayGuidance] = Field(
-        default=None, alias="gatewayGuidance"
+    # Agenta-owned static and configuration-derived guidance. The runner selects the existing
+    # harness delivery channel. Excluded from lifecycle identity, like legacy gateway guidance.
+    platform_instructions: Optional[str] = Field(
+        default=None, alias="platformInstructions"
     )
     system_prompt: Optional[str] = Field(default=None, alias="systemPrompt")
     append_system_prompt: Optional[str] = Field(

@@ -54,7 +54,8 @@
         "./type-chip": "./src/type-chip/index.ts",
         "./ui": "./src/components/ui/index.ts",
         "./utils": "./src/utils/index.ts",
-        "./agent-icon": "./src/agent-icon/index.ts"
+        "./agent-icon": "./src/agent-icon/index.ts",
+        "./page-title": "./src/page-title/index.tsx"
     },
     "peerDependencies": {
         "@lexical/code": ">=0.38.0",

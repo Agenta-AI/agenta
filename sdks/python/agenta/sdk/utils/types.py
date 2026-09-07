@@ -1413,6 +1413,26 @@ class _RunnerSchema(BaseModel):
     )
 
 
+class _SandboxSecretReferenceSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid", title="Secret reference")
+    slug: str = Field(title="Secret", description="Project secret slug.")
+
+
+class _SandboxEnvironmentBindingSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid", title="Environment binding")
+    type: Literal["env"] = "env"
+    name: str = Field(
+        title="Variable name",
+        pattern=r"^[A-Za-z_][A-Za-z0-9_]*$",
+    )
+
+
+class _SandboxCredentialSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid", title="Sandbox credential")
+    secret: _SandboxSecretReferenceSchema
+    binding: _SandboxEnvironmentBindingSchema
+
+
 class _SandboxSchema(BaseModel):
     """Where the agent runs plus its security boundary (was the flat ``sandbox`` scalar and the
     sibling ``sandbox_permission``).
@@ -1426,6 +1446,11 @@ class _SandboxSchema(BaseModel):
         default=_DEFAULT_SANDBOX,
         title="Sandbox",
         description="Where the agent runs: local daemon or a Daytona sandbox.",
+    )
+    credentials: List[_SandboxCredentialSchema] = Field(
+        default_factory=list,
+        title="Credentials",
+        description="Project secret references bound to sandbox environment variables.",
     )
     permissions: Optional[SandboxPermission] = Field(
         default=None,

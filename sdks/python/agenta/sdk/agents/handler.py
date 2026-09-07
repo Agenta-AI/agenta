@@ -34,6 +34,9 @@ from agenta.sdk.agents.adapters import SandboxAgentBackend, make_harness
 from agenta.sdk.agents.errors import SandboxNotAllowedError
 from agenta.sdk.agents.sandbox_providers import sandbox_provider_enabled
 from agenta.sdk.agents.mcp import ResolvedMCPServer
+from agenta.sdk.agents.sandbox_credentials import (
+    resolve_sandbox_credentials as _resolve_sandbox_credentials,
+)
 from agenta.sdk.agents.platform import (
     resolve_connection as _platform_resolve_connection,
 )
@@ -66,6 +69,7 @@ log = get_module_logger(__name__)
 ResolveToolsFn = Callable[..., Awaitable[ResolvedToolSet]]
 ResolveMCPFn = Callable[..., Awaitable[List[ResolvedMCPServer]]]
 ResolveConnectionFn = Callable[..., Awaitable[ResolvedConnection]]
+ResolveSandboxCredentialsFn = Callable[..., Awaitable[List[Any]]]
 ResolveSessionConnectionFn = Callable[
     [ModelRef, RuntimeAuthContext], Awaitable[ResolvedConnection]
 ]
@@ -194,6 +198,9 @@ class AgentComposition:
     resolve_tools: ResolveToolsFn = field(default=_default_resolve_tools)
     resolve_mcp_servers: ResolveMCPFn = field(default=_default_resolve_mcp_servers)
     resolve_connection: ResolveConnectionFn = field(default=_default_resolve_connection)
+    resolve_sandbox_credentials: ResolveSandboxCredentialsFn = field(
+        default=_resolve_sandbox_credentials
+    )
     # capability gating + fail-closed resolution policy; override to replace, not just add to.
     resolve_session_connection: Optional[ResolveSessionConnectionFn] = field(
         default=None
@@ -266,6 +273,12 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             )
             resolved_connection = await resolve_session_connection(model_ref, ctx)
 
+        resolved_sandbox_credentials = await comp.resolve_sandbox_credentials(
+            agent_template.sandbox_credentials,
+            resolved_connection=resolved_connection,
+            mcp_servers=resolved_mcp,
+        )
+
         # Seed a FRESH per-run redactor immediately after trusted resolution and before
         # transport, trace, event, error, or result sinks can observe an echoed credential.
         # The redactor is installed into the ambient context for exactly this run's scope —
@@ -292,6 +305,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                     for server in resolved_mcp
                     for credential in server.credentials
                 ),
+                *(credential.value for credential in resolved_sandbox_credentials),
             ]
         )
 
@@ -304,6 +318,16 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             base = rc or RunContext()
             rc = base.model_copy(update={"run": RunContextRun(kind=run_kind)})
 
+        # Detached session coordination rides the generic workflow request metadata. Keep these
+        # values out of harness configuration: they identify this delivery/execution only. In
+        # particular, a durable approval retry repeats control_command_id while run_id names the
+        # one fresh continuation execution the runner must admit at most once.
+        request_meta = request.meta or {}
+
+        def _meta_string(name: str) -> Optional[str]:
+            value = request_meta.get(name)
+            return value.strip() if isinstance(value, str) and value.strip() else None
+
         session_config = SessionConfig(
             agent=agent_template,
             resolved_connection=resolved_connection,
@@ -311,6 +335,10 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             trace=comp.trace_context(),
             run_context=rc,
             session_id=session_id,
+            detached=bool(flags.detached),
+            turn_id=_meta_string("run_id"),
+            project_id=_meta_string("project_id"),
+            control_command_id=_meta_string("control_command_id"),
             # POST-hydration: the normalizer hands the handler `request.data.parameters` AFTER
             # the resolver has hydrated references (or kept the caller's inline config), so this
             # is the config the turn actually runs — the thing a HITL gate must be resumable
@@ -323,6 +351,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             # drops it fails as a silently tool-less agent rather than as an error.
             gateway_policy=resolved_tools.gateway_policy,
             mcp_servers=resolved_mcp,
+            sandbox_credentials=resolved_sandbox_credentials,
         )
 
         if stream:

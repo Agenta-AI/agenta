@@ -1,8 +1,13 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    ACCEPTED_SENDER_DISCONNECT_MESSAGE,
+    classifyAgentRunError,
     isTransportFailure,
+    isSessionBusyRefusal,
     parseAgentRunError,
+    SESSION_TURN_IN_USE_CODE,
+    SESSION_TURN_IN_USE_MESSAGE,
     TRANSPORT_ERROR_MESSAGE,
 } from "../../../src/model/error"
 
@@ -15,6 +20,20 @@ describe("parseAgentRunError", () => {
     it("pulls message + code out of a status envelope passed as a raw string", () => {
         const raw = JSON.stringify({status: {code: 500, message: "Boom"}})
         expect(parseAgentRunError(raw)).toEqual({message: "Boom", code: 500})
+    })
+
+    it("preserves the continuation race class when the workflow envelope also uses HTTP 409", () => {
+        const raw = JSON.stringify({
+            status: {
+                type: "https://agenta.ai/docs/errors#continuation-resumed",
+                code: 409,
+                message: "The durable continuation owns this session.",
+            },
+        })
+        expect(parseAgentRunError(raw)).toEqual({
+            message: "The durable continuation owns this session.",
+            code: "continuation_resumed",
+        })
     })
 
     it("falls back to a top-level message when there's no status wrapper", () => {
@@ -77,5 +96,58 @@ describe("parseAgentRunError", () => {
         })
         expect(isTransportFailure("")).toBe(false)
         expect(isTransportFailure("The agent run failed.")).toBe(false)
+    })
+})
+
+describe("single-turn admission refusal", () => {
+    // The runner refusal message is the browser recovery contract.
+
+    it("recognises the refusal and carries its stable class", () => {
+        expect(parseAgentRunError(new Error(SESSION_TURN_IN_USE_MESSAGE))).toEqual({
+            message: SESSION_TURN_IN_USE_MESSAGE,
+            code: SESSION_TURN_IN_USE_CODE,
+        })
+        expect(isSessionBusyRefusal(new Error(SESSION_TURN_IN_USE_MESSAGE))).toBe(true)
+    })
+
+    it("recognises it through surrounding whitespace, as the wire may add", () => {
+        expect(isSessionBusyRefusal(`  ${SESSION_TURN_IN_USE_MESSAGE}\n`)).toBe(true)
+    })
+
+    it("does NOT claim an ordinary run failure, which must keep the failure bubble", () => {
+        expect(isSessionBusyRefusal(new Error("The model provider timed out."))).toBe(false)
+        expect(isSessionBusyRefusal(undefined)).toBe(false)
+        expect(parseAgentRunError("The model provider timed out.").code).toBeUndefined()
+    })
+
+    it("keeps the message one line, or the SDK truncates it at the first newline", () => {
+        expect(SESSION_TURN_IN_USE_MESSAGE).not.toContain("\n")
+    })
+})
+
+describe("classifyAgentRunError", () => {
+    it("turns an accepted transport loss into connection state", () => {
+        expect(classifyAgentRunError(new TypeError("Failed to fetch"), true)).toEqual({
+            connectionWarning: ACCEPTED_SENDER_DISCONNECT_MESSAGE,
+        })
+    })
+
+    it("keeps an unaccepted transport loss as a run failure", () => {
+        expect(classifyAgentRunError(new TypeError("Failed to fetch"), false)).toEqual({
+            runError: {message: TRANSPORT_ERROR_MESSAGE, transport: true},
+        })
+    })
+
+    it("keeps an accepted server verdict as a run failure", () => {
+        const verdict = JSON.stringify({status: {code: 422, message: "no usable credential"}})
+        expect(classifyAgentRunError(verdict, true)).toEqual({
+            runError: {message: "no usable credential", code: 422},
+        })
+    })
+
+    it("lets server-error provenance override a browser transport phrase", () => {
+        expect(classifyAgentRunError(new TypeError("Failed to fetch"), true, true)).toEqual({
+            runError: {message: "Failed to fetch"},
+        })
     })
 })

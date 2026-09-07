@@ -1,10 +1,19 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
-import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
+import {
+    isSessionTranscript,
+    loadSessionMessages,
+    reconcileInteractionRowStates,
+    type SessionTranscript,
+} from "@agenta/chat/assets"
+import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
 import {
+    fetchSessionInteractionStatesAtom,
     fetchSessionRecordsAtom,
     hasWaitingInteraction,
+    interactionStatesFromWatchEvent,
+    revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
     type SessionInteractionRowStates,
     shouldAdoptServerTranscript,
@@ -34,6 +43,11 @@ const REMOTE_RUN_POLL_MS = 15_000
  * resets to the fast cadence, so a long turn that is simply quiet (a slow tool call emits no
  * records until it returns) is still followed. */
 const REMOTE_RUN_POLL_MAX_MS = 60_000
+const INTERACTION_GATE_POLL_MS = 1_000
+const INTERACTION_GATE_POLL_MAX_MS = 60_000
+
+export const nextInteractionGatePollDelay = (delay: number): number =>
+    Math.min(delay * 2, INTERACTION_GATE_POLL_MAX_MS)
 
 /** Retry budget for the stranded-first-send record check when the fetch itself fails
  * (`records: null`). Bounded so a down endpoint gets a short burst, not a hammer; when the budget
@@ -69,12 +83,18 @@ export const hasStrandedTail = (messages: UIMessage[]): boolean =>
  * Protect local interaction state only when the pending server row already has an actionable card
  * on screen. A pending row by itself is not enough: the browser may have cached the transcript
  * before the interaction_request record arrived. Treating that stale copy as user-owned state
- * prevents hydration from ever delivering the missing approval or form.
+ * prevents hydration from ever delivering the missing approval or form. The server transcript
+ * participates too: once its terminal records have retired the gate, that durable completion must
+ * replace an answered desktop card even if the separately cached row query still says pending.
  */
 export const shouldProtectRenderedInteraction = (
     messages: UIMessage[],
     interactionRows: SessionInteractionRowStates | undefined,
-): boolean => hasWaitingInteraction(interactionRows) && isHitlPending(messages)
+    serverMessages: UIMessage[] = messages,
+): boolean =>
+    hasWaitingInteraction(interactionRows) &&
+    isHitlPending(messages) &&
+    isHitlPending(serverMessages)
 
 /** Same carrier shape `useAgentChatSession`'s error effect uses, so the stamp renders through the
  * existing red error bubble. */
@@ -106,9 +126,11 @@ export const useSessionHydration = ({
     seenIdsRef,
     restoredIdsRef,
     recordWatermarkRef,
+    sequenceWatermarkRef,
     busy,
     setMessages,
     persistMessages,
+    clearRunError,
     intent,
     pendingResumeRef,
 }: {
@@ -120,10 +142,14 @@ export const useSessionHydration = ({
     restoredIdsRef: MutableRefObject<Set<string>>
     /** Records the rendered transcript was built from; `undefined` once a live turn supersedes it. */
     recordWatermarkRef: MutableRefObject<number | undefined>
+    /** Durable sequence coverage for sequenced reconnect snapshots; never a row count. */
+    sequenceWatermarkRef: MutableRefObject<number | undefined>
     /** THIS browser is streaming the turn — reactive, so the catch-up poll can start/stop on it. */
     busy: boolean
     setMessages: (messages: UIMessage[]) => void
     persistMessages: (args: {id: string; messages: UIMessage[]; recordCount?: number}) => void
+    /** Drop the stream error `useChat` is holding. Adopting the log supersedes it. */
+    clearRunError: () => void
     intent: ScrollIntent
     /**
      * Non-null while a client-tool settle (connect Not-now/Connect, an elicitation answer) has
@@ -161,20 +187,25 @@ export const useSessionHydration = ({
      * record log has grown past what we're rendering. Returns whether it adopted.
      */
     const adoptServerTranscript = useCallback(
-        (transcript: SessionTranscript | null, {armJump = true} = {}): boolean => {
-            if (!transcript) return false
-            const {messages: serverMsgs, recordCount, interactionRows} = transcript
+        (transcript: unknown, {armJump = true} = {}): boolean => {
+            if (!isSessionTranscript(transcript)) return false
+            const {messages: serverMsgs, recordCount, sequenceCursor, interactionRows} = transcript
             const adopt = shouldAdoptServerTranscript({
-                serverRecordCount: recordCount,
+                serverRecordCount: sequenceCursor ?? recordCount,
                 serverMessageCount: serverMsgs.length,
-                localMessageCount: messagesRef.current.length,
-                watermark: recordWatermarkRef.current,
+                localMessageCount: withoutSharedSenderAcceptanceMessages(messagesRef.current)
+                    .length,
+                watermark:
+                    sequenceCursor === undefined
+                        ? recordWatermarkRef.current
+                        : sequenceWatermarkRef.current,
                 busy: busyRef.current,
                 // #5942: a card still parked on the user outranks the log — adopting over it
                 // discards whatever they typed into its form.
                 awaitingUser: shouldProtectRenderedInteraction(
                     messagesRef.current,
                     interactionRows,
+                    serverMsgs,
                 ),
             })
             if (!adopt) return false
@@ -193,6 +224,11 @@ export const useSessionHydration = ({
             // length, that keeps the guard order-independent and stops an older snapshot from
             // clobbering a newer one.
             recordWatermarkRef.current = recordCount
+            if (sequenceCursor !== undefined) sequenceWatermarkRef.current = sequenceCursor
+            // The log just superseded what this tab was rendering, a failed request of our own
+            // included. `useChat` holds that error until the next send and the session dot reads
+            // it, so without this the dot stays red beside a finished turn.
+            clearRunError()
             setMessages(serverMsgs)
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
             return true
@@ -208,8 +244,10 @@ export const useSessionHydration = ({
             seenIdsRef,
             restoredIdsRef,
             recordWatermarkRef,
+            sequenceWatermarkRef,
             setMessages,
             persistMessages,
+            clearRunError,
             intent.armJump,
             intent.stickRef,
         ],
@@ -319,11 +357,7 @@ export const useSessionHydration = ({
     }, [sessionId, readLog])
 
     // ── Follow a run happening somewhere else (#5530) ──────────────────────────
-    // There is no push channel to browsers: the runner publishes every event to Redis, but the only
-    // consumer is the ingest worker that writes them to the DB. So a session driven from another tab
-    // or device is followed by re-reading the durable log on a timer, and the adoption guard above
-    // decides whether anything actually changed. `isRunning` also covers OUR stream, so the atom
-    // excludes every case where this browser is the one driving (#5844).
+    // Live frames display immediately; durable polling converges events outside the frame subset.
     //
     // The settle stamp the derivation needs is written here rather than inside the package's
     // `setSessionStatusAtom`: this hook is mounted for the whole life of a session tab, which is
@@ -332,6 +366,7 @@ export const useSessionHydration = ({
     // `busy` stays as a second guard: it flips on the SEND commit, one commit before the status
     // atom the derivation reads, so it hides the strip a frame earlier when a local send takes over
     // a session that genuinely was running elsewhere.
+    const liveness = useAtomValue(sessionLivenessAtomFamily(sessionId))
     const runningElsewhere = useAtomValue(sessionRunningElsewhereAtomFamily(sessionId)) && !busy
 
     useEffect(() => {
@@ -398,7 +433,6 @@ export const useSessionHydration = ({
     // CONCLUSIVE: `records: []` is a confirmed-empty log and stamps; `records: null` is a failed
     // fetch and never stamps — it retries a bounded burst, then re-arms so a later dependency
     // change can try again instead of latching the recovery out for the rest of the mount.
-    const liveness = useAtomValue(sessionLivenessAtomFamily(sessionId))
     const strandedCheckRef = useRef<"idle" | "pending" | "done">("idle")
     useEffect(() => {
         if (strandedCheckRef.current !== "idle" || isHydrating || busy) return
@@ -452,26 +486,70 @@ export const useSessionHydration = ({
     const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
     const projectId = useAtomValue(projectIdAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
-    const refreshFromRecords = useCallback(() => {
-        // Entry check: skip while THIS tab streams (already the live truth, `onFinish`
-        // revalidates) OR a client-tool settle is already waiting on its resume dispatch — see
-        // `shouldSkipRecordsRefresh`.
-        if (
-            shouldSkipRecordsRefresh({
-                busy: busyRef.current,
-                pendingResume: !!pendingResumeRef.current,
-            })
-        )
-            return
-        // A tick usually lands inside the records query's stale window, so the shared cache would
-        // resolve unchanged; invalidate first, then adopt through the SAME guard as every other path.
-        revalidateSessionRecords(sessionId)
-        void readLog().then((transcript) => {
+    const revalidateSessionInteractions = useSetAtom(revalidateSessionInteractionsAtom)
+    const fetchSessionInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
+    const refreshFromRecords = useCallback(
+        async (transcript?: SessionTranscript): Promise<boolean> => {
+            const adoptOrConfirm = (candidate: unknown): boolean => {
+                if (!isSessionTranscript(candidate)) return false
+                const candidateWatermark = candidate.sequenceCursor ?? candidate.recordCount
+                const currentWatermark =
+                    candidate.sequenceCursor === undefined
+                        ? recordWatermarkRef.current
+                        : sequenceWatermarkRef.current
+                return (
+                    adoptServerTranscriptRef.current(candidate, {armJump: false}) ||
+                    (currentWatermark ?? 0) >= candidateWatermark
+                )
+            }
+            // Entry check: skip while THIS tab streams (already the live truth, `onFinish`
+            // revalidates) OR a client-tool settle is already waiting on its resume dispatch — see
+            // `shouldSkipRecordsRefresh`.
+            if (
+                shouldSkipRecordsRefresh({
+                    busy: busyRef.current,
+                    pendingResume: !!pendingResumeRef.current,
+                })
+            )
+                return false
+            if (isSessionTranscript(transcript)) {
+                return adoptOrConfirm(transcript)
+            }
+            // A tick usually lands inside the records query's stale window, so the shared cache would
+            // resolve unchanged; invalidate first, then adopt through the SAME guard as every other path.
+            revalidateSessionRecords(sessionId)
+            let refreshed: SessionTranscript | null
+            try {
+                refreshed = await readLog()
+            } catch {
+                return false
+            }
             // Adoption-point recheck: the entry check above only covers the window BEFORE this
             // fetch started. `loadSessionMessages` is a real network round trip, and a client-tool
             // settle can land while it's in flight — without re-checking here, that settle arrives
-            // busy=false/pendingResume=true, passes nothing, and this `.then` still clobbers it
-            // with the (now stale) transcript it fetched before the settle happened.
+            // busy=false/pendingResume=true, passes nothing, and this still clobbers it with stale data.
+            if (
+                shouldSkipRecordsRefresh({
+                    busy: busyRef.current,
+                    pendingResume: !!pendingResumeRef.current,
+                })
+            )
+                return false
+            // A background catch-up must not yank a reader who scrolled up — as with the poll.
+            return adoptOrConfirm(refreshed)
+        },
+        [
+            sessionId,
+            busyRef,
+            pendingResumeRef,
+            recordWatermarkRef,
+            sequenceWatermarkRef,
+            revalidateSessionRecords,
+            readLog,
+        ],
+    )
+    const applyInteractionStates = useCallback(
+        (rows: SessionInteractionRowStates) => {
             if (
                 shouldSkipRecordsRefresh({
                     busy: busyRef.current,
@@ -479,33 +557,121 @@ export const useSessionHydration = ({
                 })
             )
                 return
-            // A background catch-up must not yank a reader who scrolled up — as with the poll.
-            adoptServerTranscriptRef.current(transcript, {armJump: false})
-        })
-    }, [sessionId, busyRef, pendingResumeRef, revalidateSessionRecords, readLog])
-    // `ready` fires on every connect — each tab activation, each return to the foreground — so it
-    // must not repeat a read the mount is already doing. A change that lands after the subscribe
-    // arrives as `records-changed`, which is never skipped (#6296).
+            const current = messagesRef.current
+            const reconciled = reconcileInteractionRowStates(current, rows)
+            if (reconciled === current) return
+            messagesRef.current = reconciled
+            setMessages(reconciled)
+            persistMessages({
+                id: sessionId,
+                messages: reconciled,
+                recordCount: recordWatermarkRef.current,
+            })
+        },
+        [
+            sessionId,
+            busyRef,
+            pendingResumeRef,
+            messagesRef,
+            recordWatermarkRef,
+            setMessages,
+            persistMessages,
+        ],
+    )
+    const refreshFromInteractions = useCallback(async () => {
+        if (
+            shouldSkipRecordsRefresh({
+                busy: busyRef.current,
+                pendingResume: !!pendingResumeRef.current,
+            })
+        )
+            return
+        try {
+            await revalidateSessionInteractions(sessionId)
+            const rows = await fetchSessionInteractionStates(sessionId)
+            applyInteractionStates(rows)
+        } catch {
+            // Best-effort fallback; the live relay or next interval can still converge.
+        }
+    }, [
+        sessionId,
+        busyRef,
+        pendingResumeRef,
+        revalidateSessionInteractions,
+        fetchSessionInteractionStates,
+        applyInteractionStates,
+    ])
+    const refreshFromInteractionEvent = useCallback(
+        (event: MessageEvent<string>) => {
+            const pushed = interactionStatesFromWatchEvent(event.data, sessionId)
+            if (!pushed) {
+                void refreshFromInteractions()
+                return
+            }
+            applyInteractionStates(pushed)
+            void revalidateSessionInteractions(sessionId)
+        },
+        [sessionId, applyInteractionStates, refreshFromInteractions, revalidateSessionInteractions],
+    )
+    // `ready` fires on every connect — each tab activation, each return to the foreground. Records
+    // can skip a duplicate mount read, but rows must always catch up because a response changes the
+    // interaction row without necessarily appending a record (#6296).
     const refreshOnReady = useCallback(() => {
         if (
-            !shouldRefreshOnReady({
+            shouldRefreshOnReady({
                 inFlight: logReadsInFlightRef.current > 0,
                 lastLoadedAt: logReadCompletedAtRef.current,
                 now: Date.now(),
             })
         )
-            return
-        refreshFromRecords()
-    }, [refreshFromRecords])
+            refreshFromRecords()
+        void refreshFromInteractions()
+    }, [refreshFromRecords, refreshFromInteractions])
+    const interactionGateOpen = isHitlPending(messagesRef.current)
+    useEffect(() => {
+        if (activeSessionId !== sessionId || !interactionGateOpen) return
+        let cancelled = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+        let delay = INTERACTION_GATE_POLL_MS
+        const poll = async () => {
+            await refreshFromInteractions()
+            if (!cancelled) {
+                delay = nextInteractionGatePollDelay(delay)
+                timer = setTimeout(poll, delay)
+            }
+        }
+        timer = setTimeout(poll, delay)
+        return () => {
+            cancelled = true
+            if (timer) clearTimeout(timer)
+        }
+    }, [activeSessionId, sessionId, interactionGateOpen, refreshFromInteractions])
     useSessionRecordsWatch({
         sessionId,
         projectId,
-        // #5919 relay; this surface re-reads records on any interaction change.
-        onInteractionChanged: () => revalidateSessionRecords(sessionId),
+        // #5919 relay; this surface re-reads records on any interaction change, and applies the
+        // pushed interaction row, because a response changes a row without appending a record.
+        onInteractionChanged: (event) => {
+            revalidateSessionRecords(sessionId)
+            refreshFromInteractionEvent(event)
+        },
         enabled: activeSessionId === sessionId,
         onReady: refreshOnReady,
-        onRecordsChanged: refreshFromRecords,
+        onRecordsChanged: () => {
+            void refreshFromRecords()
+        },
+        sharedReaderAdvertised: liveness.sharedReader,
     })
 
-    return {isHydrating, hydratedEmpty, runningElsewhere}
+    return {
+        isHydrating,
+        hydratedEmpty,
+        runningElsewhere,
+        stopStateLoading: liveness.isLoading,
+        sessionTurnId: liveness.turnId,
+        stoppingTurnId: liveness.stoppingTurnId,
+        sharedReaderAdvertised: liveness.sharedReader,
+        refreshFromRecords,
+        revalidate: refreshFromRecords,
+    }
 }

@@ -7,8 +7,9 @@
  * attachment ENGINE (staging + uploads) arrives as the `useComposerAttachments` result so
  * hosts control the rollout flag and the viewer wiring.
  */
-import {Suspense, lazy, useRef, type ReactNode, type RefObject} from "react"
+import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from "react"
 
+import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -52,7 +53,13 @@ export interface ChatComposerProps {
     onChange?: (markdown: string) => void
     /** A run is streaming — the send button becomes Stop. */
     streaming?: boolean
+    /** The Stop request is pending or accepted, awaiting the stream's terminal event. */
+    stopping?: boolean
     onStop?: () => void
+    /** Only the active session owns the global Escape shortcut. */
+    stopShortcutEnabled?: boolean
+    /** Capability-gated controls shown beside Stop while the session is busy. */
+    busyActions?: {label: string; onSubmit: (text: string) => void}[]
     /** Read at event time — attachments are refused right now (a voice take in flight…). */
     attachmentsBlocked?: () => boolean
     /** The composer itself is unusable (gates the paperclip alongside `uploadsEnabled`). */
@@ -84,7 +91,10 @@ export const ChatComposer = ({
     initialMarkdown,
     onChange,
     streaming,
+    stopping,
     onStop,
+    stopShortcutEnabled = true,
+    busyActions,
     attachmentsBlocked,
     composerDisabled,
     onViewAttachment,
@@ -113,6 +123,18 @@ export const ChatComposer = ({
     // take room from a placeholder that is already tight. `isMacPlatform` reads the UA, so a real
     // iPhone was being shown the `⌘` variant specifically.
     const hasKeyboard = useHardwareKeyboard()
+
+    useEffect(() => {
+        if (!streaming || !onStop || !stopShortcutEnabled) return
+        const stopOnEscape = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || isOverlayOpen()) return
+            if (event.key !== "Escape" || event.isComposing) return
+            event.preventDefault()
+            onStop()
+        }
+        document.addEventListener("keydown", stopOnEscape)
+        return () => document.removeEventListener("keydown", stopOnEscape)
+    }, [onStop, stopShortcutEnabled, streaming])
 
     return (
         <Suspense fallback={fallback ?? null}>
@@ -161,11 +183,13 @@ export const ChatComposer = ({
                 onPasteFile={(pasted) => {
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))
                 }}
-                sendForceEnabled={files.length > 0 && attachmentsSettled}
+                sendForceEnabled={files.length > 0}
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}
                 streaming={streaming}
+                stopping={stopping}
                 onStop={onStop}
+                busyActions={busyActions}
                 prefix={
                     <div className="flex items-center gap-2">
                         {extraPrefix}

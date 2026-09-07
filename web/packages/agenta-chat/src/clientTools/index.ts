@@ -14,3 +14,5 @@ export {
     getPendingElicitationInteractions,
     hasEarlierElicitationDegradation,
 } from "./elicitationInteractions"
+
+export {getPendingSecretInteractions} from "./secretInteractions"

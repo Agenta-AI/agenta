@@ -1,21 +1,28 @@
 ---
-// Ported 1:1 from the design system: components/buttons/Badge.jsx
-interface Props {
+// Badge — the section eyebrow ("HOW IT WORKS", "PRICING", "404").
+//
+// One recipe for the whole site, measured on the Framer build: a 24px round
+// outline with a transparent inside, 12px/400 uppercase text, 2px 12px padding.
+// The colours are the theme's --th-badge-* tokens, so the same markup is right
+// in light and dark. Pass `href` to render it as a link (the hero announcement).
+//
+// variant:
+//   "default" the themed eyebrow (light: paper outline + ink-600 text).
+//   "dark"    for bands that are dark in both themes; fixed white-alpha recipe.
+//   "yellow"  the brand-yellow chip (pricing "Most popular" style call-outs).
+interface Props extends astroHTML.JSX.HTMLAttributes {
   variant?: "default" | "dark" | "yellow";
+  href?: string;
 }
-const { variant = "default" } = Astro.props;
 
-const variants: Record<string, string> = {
-  default:
-    "background:#FFFFFF;color:var(--ink-600);box-shadow:var(--shadow-badge);",
-  dark: "background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);box-shadow:0 0 0 1px rgba(229,229,227,0.18);",
-  yellow:
-    "background:var(--yellow-400);color:var(--ink-900);box-shadow:0 0 0 1px rgba(36,36,36,0.12), inset 0 2px 0.4px rgba(255,255,255,0.6);",
-};
+const { variant = "default", href, class: className, ...rest } = Astro.props;
+const Tag = href ? "a" : "span";
 ---
 
-<span
-  style={`display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 12px;border-radius:var(--radius-pill);font:var(--text-caption);letter-spacing:var(--tracking-caption);white-space:nowrap;box-sizing:border-box;${variants[variant]}`}
+<Tag
+  class:list={["ag-badge", `ag-badge--${variant}`, className]}
+  href={href}
+  {...rest}
 >
   <slot />
-</span>
+</Tag>

@@ -7,7 +7,9 @@
  *
  * Pure and dependency-free so it can be unit-tested against fixtures for each shape.
  */
-import {parseGatewayToolName} from "./gatewayName"
+import {parseGatewayToolSlug} from "@agenta/shared/utils"
+
+import {humanizeGatewayAction, parseGatewayToolName, titleCase} from "./gatewayName"
 import {agentItemIdentity} from "./identity"
 import type {AgentConfigView, NormalizedTool} from "./types"
 
@@ -25,6 +27,23 @@ export const PARAM_KEYS = [
     "fallback_policy",
     "retry_policy",
 ] as const
+
+/** Template keys another section already reports, so `extra` holds only the unclaimed rest. */
+const CLAIMED_KEYS = new Set<string>([
+    "instructions",
+    "llm",
+    "llms",
+    "tools",
+    "mcps",
+    "skills",
+    "harness",
+    "runner",
+    "sandbox",
+    "messages",
+    "prompt",
+    "agent",
+    ...PARAM_KEYS,
+])
 
 function isObj(v: unknown): v is Record<string, unknown> {
     return typeof v === "object" && v !== null && !Array.isArray(v)
@@ -65,6 +84,25 @@ function coerceContent(content: unknown): string {
 }
 
 /**
+ * An integration's authored policy — `policy.permissions.{default, tools}`. Read here rather than
+ * through `parseGatewayConnection` (entity-ui) so the classifier stays dependency-light.
+ */
+function readConnectionPolicy(raw: Record<string, unknown>): NormalizedTool["policy"] {
+    const permissions =
+        isObj(raw.policy) && isObj(raw.policy.permissions) ? raw.policy.permissions : undefined
+    const tools: Record<string, string> = {}
+    if (isObj(permissions?.tools)) {
+        for (const [name, value] of Object.entries(permissions.tools)) {
+            if (typeof value === "string") tools[name] = value
+        }
+    }
+    return {
+        default: typeof permissions?.default === "string" ? permissions.default : "inherit",
+        tools,
+    }
+}
+
+/**
  * Normalize one tool entry. Every tool subtype is surfaced (nothing dropped): function/gateway
  * tools keyed by name, workflow-reference tools by slug, builtin/platform tools by type — so a
  * builtin or reference tool added/removed/edited still shows in the Tools diff. Field-level detail
@@ -74,6 +112,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
     if (!isObj(raw)) return null
     const key = agentItemIdentity("tool", raw, index)
     const fingerprint = stableStringify(raw)
+    const entry = raw
     // Function tool: either the wrapped `{function:{name,...}}` shape or the flat legacy
     // `{name, description, parameters}` shape (guarded so reference/builtin tools, which carry a
     // non-function `type`, don't get misread as flat function tools).
@@ -84,9 +123,58 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
           : undefined
     const fnName = fn && typeof fn.name === "string" ? fn.name : undefined
 
+    // An integration entry: named by the app it connects, not by its discriminator.
+    if (raw.type === "gateway_connection") {
+        const conn = isObj(raw.connection) ? raw.connection : {}
+        const integration = typeof conn.integration === "string" ? conn.integration : ""
+        const slug = typeof conn.slug === "string" ? conn.slug : undefined
+        if (integration) {
+            return {
+                key,
+                label: titleCase(integration),
+                rawKey: slug ?? integration,
+                source: "Integration",
+                description: "",
+                params: {},
+                paramsJson: "{}",
+                fingerprint,
+                isFunction: false,
+                policy: readConnectionPolicy(raw),
+                raw: entry,
+            }
+        }
+    }
+
+    // Canonical gateway action: no `function.name`, so it must be read before the fallback below.
+    if (raw.type === "gateway") {
+        const integration = typeof raw.integration === "string" ? raw.integration : ""
+        const action = typeof raw.action === "string" ? raw.action : ""
+        if (integration && action) {
+            return {
+                key,
+                label: humanizeGatewayAction(action, integration),
+                rawKey: action,
+                source: titleCase(integration),
+                description: typeof raw.description === "string" ? raw.description : "",
+                params: {},
+                paramsJson: "{}",
+                fingerprint,
+                isFunction: false,
+                raw: entry,
+            }
+        }
+    }
+
     // Function / gateway tool.
     if (fnName) {
-        const parsed = parseGatewayToolName(fnName)
+        // A legacy gateway slug resolves to the same name as the canonical encoding.
+        const slug = parseGatewayToolSlug(fnName)
+        const parsed = slug
+            ? {
+                  label: humanizeGatewayAction(slug.action, slug.integration),
+                  source: titleCase(slug.integration),
+              }
+            : parseGatewayToolName(fnName)
         const params = isObj(fn?.parameters) ? (fn?.parameters as Record<string, unknown>) : {}
         return {
             key,
@@ -98,21 +186,26 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
             paramsJson: stableStringify(params),
             fingerprint,
             isFunction: true,
+            raw: entry,
         }
     }
 
-    // Workflow-reference tool (#4860) — keyed by the slug it targets.
+    // Subagent (#4860): keyed by slug, but named and described the way the config panel does.
     if (raw.type === "reference") {
         const slug = typeof raw.slug === "string" ? raw.slug : undefined
+        const name = typeof raw.name === "string" && raw.name ? raw.name : undefined
         return {
             key,
-            label: slug || "Workflow tool",
+            label: name || slug || "Subagent",
             rawKey: slug,
-            description: "",
+            source: "Subagent",
+            description: typeof raw.description === "string" ? raw.description : "",
             params: {},
             paramsJson: "{}",
             fingerprint,
             isFunction: false,
+            isSubagent: true,
+            raw: entry,
         }
     }
 
@@ -128,6 +221,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
             paramsJson: "{}",
             fingerprint,
             isFunction: false,
+            raw: entry,
         }
     }
 
@@ -140,6 +234,7 @@ function normalizeTool(raw: unknown, index: number): NormalizedTool | null {
         paramsJson: "{}",
         fingerprint,
         isFunction: false,
+        raw: entry,
     }
 }
 
@@ -211,7 +306,22 @@ export function readAgentConfig(parameters: unknown): AgentConfigView {
     const mcps = firstArray(agent?.mcps, p.mcps)
     const skills = firstArray(agent?.skills, p.skills)
 
+    // Whatever the template carries that no section above claims. Without this a key the
+    // classifier has not been taught is dropped SILENTLY — the diff reports nothing changed.
+    const template = agent ?? p
+    const extra: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(template)) {
+        if (CLAIMED_KEYS.has(key)) continue
+        if (key.startsWith("@") || key.startsWith("$")) continue
+        extra[key] = value
+    }
+
     return {
+        // The prompt playground shares this classifier but not the agent panel's vocabulary.
+        isAgentTemplate:
+            !!agent ||
+            agentsMd !== undefined ||
+            ["harness", "runner", "sandbox", "mcps", "skills"].some((k) => p[k] !== undefined),
         instructions,
         tools,
         model,
@@ -223,5 +333,6 @@ export function readAgentConfig(parameters: unknown): AgentConfigView {
         harness: section("harness"),
         runner: section("runner"),
         sandbox: section("sandbox"),
+        extra,
     }
 }

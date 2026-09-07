@@ -13,4 +13,5 @@ export interface SessionStreamCommandRequest {
     data?: AgentaApi.WorkflowRequestData | null;
     force?: boolean;
     detached?: boolean;
+    expected_execution_id?: string | null;
 }

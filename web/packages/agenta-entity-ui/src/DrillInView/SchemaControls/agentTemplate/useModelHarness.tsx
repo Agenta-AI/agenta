@@ -2,10 +2,11 @@
  * useModelHarness — the Model + Advanced sections (the panel's most stateful part). One
  * hook because the model/connection state feeds both; returns each section's summary + bodies.
  */
-import {useCallback, useEffect, useMemo, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
     customSecretsAtom,
+    type AgentSecretBinding,
     standardSecretsAtom,
     vaultSecretsQueryAtom,
 } from "@agenta/entities/secret"
@@ -21,12 +22,13 @@ import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Cube, ShieldCheck} from "@phosphor-icons/react"
+import {Cube, Key, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
 import {useFocusPaths, useHasFocusUnder} from "../../../drawers/shared/FocusPathsContext"
-import {RailField} from "../../../drawers/shared/RailField"
+import {FieldLayoutProvider, RailField} from "../../../drawers/shared/RailField"
+import {SectionRail, type SectionRailItem} from "../../../drawers/shared/SectionRail"
 import {ClaudePermissionsControl} from "../ClaudePermissionsControl"
 import type {PickerSelection} from "../connectionPicker"
 import {
@@ -55,6 +57,7 @@ import {
 import {PiPermissionsControl} from "../PiPermissionsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
+import {AgentSecretsSection} from "./AgentSecretsSection"
 import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
 import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
 import ModelPickerControl from "./ModelPickerControl"
@@ -69,6 +72,13 @@ const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).d
 
 // Shared with the chat composer's model palette so a hidden harness stays hidden everywhere.
 
+/** One Advanced rail panel: its nav item, an optional header, and the controls it shows. */
+interface AdvancedPanel {
+    item: SectionRailItem
+    header?: {title: string; caption: string; extra?: ReactNode}
+    body: ReactNode
+}
+
 export function useModelHarness({
     schema,
     config,
@@ -77,6 +87,8 @@ export function useModelHarness({
     withTooltip,
     revisionId,
     buildKitOverride,
+    credentialOperationsBlocked = false,
+    onCredentialRevisionCommitted,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
@@ -86,6 +98,10 @@ export function useModelHarness({
     revisionId?: string | null
     /** Draft buffer for the build-kit toggle (used by the section drawer's scoped-edit mode). */
     buildKitOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
+    /** The owning section drawer has unsaved local state outside the workflow draft atom. */
+    credentialOperationsBlocked?: boolean
+    /** Clear the owning section draft before the host adopts an immediate credential revision. */
+    onCredentialRevisionCommitted?: () => void
 }) {
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
     const subProps = useCallback(
@@ -111,6 +127,18 @@ export function useModelHarness({
     const harness = asObject("harness")
     const runner = asObject("runner")
     const sandbox = asObject("sandbox")
+
+    const secretBindings = Array.isArray(sandbox.credentials)
+        ? sandbox.credentials.filter((value): value is AgentSecretBinding => {
+              if (!value || typeof value !== "object") return false
+              const candidate = value as AgentSecretBinding
+              return (
+                  typeof candidate.secret?.slug === "string" &&
+                  candidate.binding?.type === "env" &&
+                  typeof candidate.binding.name === "string"
+              )
+          })
+        : []
 
     const runnerPermissions =
         runner.permissions && typeof runner.permissions === "object"
@@ -218,7 +246,14 @@ export function useModelHarness({
         !providerVaultEntry.key
 
     // The "Add custom provider" footer + drawer come from context, same source as the completion picker.
-    const {llmProviderConfig} = useDrillInUI()
+    const {llmProviderConfig, permissions, onWorkflowRevisionCommitted} = useDrillInUI()
+    const handleCredentialRevisionCommitted = useCallback(
+        (nextRevisionId: string) => {
+            onCredentialRevisionCommitted?.()
+            onWorkflowRevisionCommitted?.(nextRevisionId)
+        },
+        [onCredentialRevisionCommitted, onWorkflowRevisionCommitted],
+    )
 
     // Harness-filtered model options: the inspect catalog PLUS the vault custom_provider models,
     // so a configured Bedrock model is selectable. Empty when the harness publishes none AND the
@@ -438,7 +473,8 @@ export function useModelHarness({
         runnerProps.permissions ||
         hasClaudePermissions ||
         hasPiPermissions ||
-        hasBuildKitOverlay,
+        hasBuildKitOverlay ||
+        Boolean(revisionId),
     )
 
     // Harness list, from the inspect capabilities map. Model compatibility is shown per-card
@@ -733,6 +769,30 @@ export function useModelHarness({
                   )
                 : null}
 
+            {focus.active ? null : (
+                <ConfigAccordionSection
+                    size="compact"
+                    defaultOpen={secretBindings.length > 0}
+                    icon={<Key size={15} />}
+                    title="Custom secrets"
+                    summary={
+                        secretBindings.length
+                            ? `${secretBindings.length} attached`
+                            : "None attached"
+                    }
+                    summaryCollapsedOnly
+                >
+                    <AgentSecretsSection
+                        revisionId={revisionId}
+                        bindings={secretBindings}
+                        disabled={disabled}
+                        localDraftDirty={credentialOperationsBlocked}
+                        canEditSecrets={permissions?.canEditSecrets ?? false}
+                        onRevisionCommitted={handleCredentialRevisionCommitted}
+                    />
+                </ConfigAccordionSection>
+            )}
+
             {hasPermissionsGroup
                 ? advancedGroup(
                       {
@@ -755,12 +815,109 @@ export function useModelHarness({
         </>
     )
 
-    // The stacked sections carry their own dividers; drop the trailing one on whichever section
-    // renders last (they're conditional, so target the last child rather than a fixed section).
-    const advancedDrawerBody = (
+    // One rail panel per Advanced group, schema-gated: no group, no rail item and no panel.
+    const advancedPanels: AdvancedPanel[] = (
+        [
+            hasPermissionsGroup && {
+                item: {
+                    value: "permissions",
+                    label: "Permissions",
+                    icon: <ShieldCheck size={14} />,
+                    status: permissionsChanged ? ("warning" as const) : undefined,
+                },
+                header: {
+                    title: "Permissions",
+                    caption: "What the agent may do on its own before it must ask.",
+                    extra: revertAction(permissionsChanged ? revertPermissions : null),
+                },
+                body: permissionsBody,
+            },
+            hasExecutionGroup && {
+                item: {
+                    value: "execution",
+                    label: "Execution",
+                    icon: <Cube size={14} />,
+                    status: sandboxChanged ? ("warning" as const) : undefined,
+                },
+                header: {
+                    title: "Execution environment",
+                    caption:
+                        "Where the agent's tools and code run, and what that sandbox may touch.",
+                    extra: revertAction(revertSandbox),
+                },
+                body: executionBody,
+            },
+            hasBuildKitOverlay && {
+                item: {
+                    value: "build-kit",
+                    label: "Build kit",
+                    icon: <Wrench size={14} />,
+                },
+                // The block carries its own title + enable switch, so it needs no panel header.
+                body: buildKitSection,
+            },
+        ] as (AdvancedPanel | false)[]
+    ).filter((panel): panel is AdvancedPanel => Boolean(panel))
+
+    // Land on the first panel that owns an uncommitted change, else the first one.
+    const initialAdvancedPanel =
+        advancedPanels.find((panel) => panel.item.status === "warning" && panel.header)?.item
+            .value ??
+        advancedPanels[0]?.item.value ??
+        ""
+    const [advancedPanelValue, setAdvancedPanelValue] = useState(initialAdvancedPanel)
+    const activeAdvancedPanel =
+        advancedPanels.find((panel) => panel.item.value === advancedPanelValue) ?? advancedPanels[0]
+
+    const activeAdvancedPanelBody = (
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-3 pr-1">
+            {activeAdvancedPanel?.header ? (
+                <div className="flex items-start gap-2">
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="text-xs font-medium">
+                            {activeAdvancedPanel.header.title}
+                        </span>
+                        <span className="text-xs leading-snug text-colorTextDescription">
+                            {activeAdvancedPanel.header.caption}
+                        </span>
+                    </div>
+                    {activeAdvancedPanel.header.extra}
+                </div>
+            ) : null}
+            {activeAdvancedPanel?.body}
+        </div>
+    )
+
+    // One panel needs no nav — a single-item rail is chrome around nothing.
+    const advancedRailBody =
+        advancedPanels.length > 1 ? (
+            <SectionRail
+                fill
+                // The drawer body is the rail's only host, so the divider runs its full height.
+                bleed
+                // Wider than the default rail: these labels carry an icon as well.
+                railWidth="w-[112px] sm:w-[148px]"
+                drillIn
+                listLabel="Advanced"
+                items={advancedPanels.map((panel) => panel.item)}
+                value={activeAdvancedPanel?.item.value ?? ""}
+                onChange={setAdvancedPanelValue}
+            >
+                {activeAdvancedPanelBody}
+            </SectionRail>
+        ) : (
+            activeAdvancedPanelBody
+        )
+
+    // Under a focus filter the body is already narrowed, so it keeps the stack over the rail.
+    const advancedDrawerBody = focus.active ? (
         <div className="flex h-full flex-col overflow-y-auto [&>*:last-child]:!border-b-0">
             {advancedControls}
         </div>
+    ) : (
+        <FieldLayoutProvider layout="stacked">
+            <div className="flex h-full min-h-0 flex-col">{advancedRailBody}</div>
+        </FieldLayoutProvider>
     )
 
     return {
@@ -779,5 +936,7 @@ export function useModelHarness({
         hasAdvanced,
         advancedSummary,
         advancedDrawerBody,
+        // Rail + one panel at a time: no wider than the Model drawer.
+        advancedDrawerWidth: 560,
     }
 }

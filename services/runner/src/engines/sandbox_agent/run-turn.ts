@@ -67,6 +67,14 @@ import {
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
   withinCredentialPropagationWindow,
 } from "./errors.ts";
+import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
+import { isUserStopAbort } from "../../sessions/stop-signal.ts";
+import { cancelHarnessTurn } from "./cancel-turn.ts";
+import {
+  reapLeakedExecChildren,
+  reapResultHasCleanupMiss,
+} from "./reap-exec.ts";
+import { sandboxAgentServerPort } from "./provider.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import {
   capturePiTranscriptCursor,
@@ -80,6 +88,12 @@ import {
   createCommitAuthorizationState,
 } from "./approved-content.ts";
 import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
+import {
+  httpLivenessProbe,
+  resolveSandboxLivenessLimits,
+  sandboxHealthUrl,
+  startSandboxLivenessProbe,
+} from "./sandbox-liveness.ts";
 import {
   RUN_LIMIT_TRIPPED,
   sendLastMessageOnly,
@@ -147,6 +161,12 @@ export async function runTurn(
   // heartbeat aborts `signal`). Distinct from PAUSED/RUN_LIMIT_TRIPPED so the turn ends CLEANLY
   // (honest interrupted transcript, keep-warm) instead of falling through to the error catch.
   const CANCELLED = Symbol("cancelled");
+  /**
+   * Did the harness confirm it stopped? Set only on the cancelled path, and only when the ACP
+   * cancel was sent AND the harness answered its open prompt inside the settle budget. It rides
+   * out on the result because it is the one fact that decides park versus delete for a Stop.
+   */
+  let cancelSettled = false;
   const continuityStore = deps.sessionContinuityStore ?? sessionContinuityStore;
   /**
    * Should a credential refusal this turn be reported as a delivery race rather than a bad key?
@@ -212,7 +232,8 @@ export async function runTurn(
   // A fresh turn never inherits an approval. Only a resume may consume records minted before
   // the park; anything else starts empty, so no call can execute on the strength of an approval
   // raised for an earlier turn.
-  if (!opts.resume) env.commitAuthorization = undefined;
+  if (!opts.resume && !opts.settleApprovalsThenPrompt)
+    env.commitAuthorization = undefined;
   env.nonParkablePauseCount = 0;
   // Hoisted so the catch can flush a partial trace (mirroring the pre-split `otel?` handling —
   // a createOtel throw must still return `{ ok: false }`, not propagate raw) and the finally can
@@ -250,6 +271,33 @@ export async function runTurn(
     runLimitReason = reason;
     runLimitTrip?.();
   });
+
+  // The run limits above cannot see a sandbox that DIED under the turn: the ACP prompt they
+  // race against never settles once the peer is gone, and `notePaused()` retires them entirely
+  // while a turn waits for a human. So probe the sandbox's own HTTP surface, independently of
+  // the wedged ACP channel, and end the turn through the same trip path any other limit uses.
+  // See `sandbox-liveness.ts` and issue #6418.
+  // A remote sandbox does not refuse the socket when it dies: its provider's proxy answers for it
+  // with "sandbox <id> not found" indefinitely, which the poll reads as alive. So the turn's own
+  // ACP transport reports that answer on `env.sandboxGone`, and the probe ends the turn on it at
+  // once. That path needs no health URL, so it is wired even when the poll is disabled.
+  const sandboxHealth = sandboxHealthUrl(env.sandbox);
+  const sandboxLiveness = startSandboxLivenessProbe({
+    ...(sandboxHealth ? { probe: httpLivenessProbe(sandboxHealth) } : {}),
+    goneSignal: env.sandboxGone,
+    limits: resolveSandboxLivenessLimits(logger),
+    onGone: (reason: string) => {
+      runLimitReason = reason;
+      runLimitTrip?.();
+    },
+    log: logger,
+  });
+  if (!sandboxHealth) {
+    logger(
+      "[sandbox-liveness] no health URL on this sandbox; polling disabled " +
+        "(the transport's own sandbox-gone report still ends the turn)",
+    );
+  }
 
   try {
     // AGENTA_SESSIONS_RECONSTRUCT defaults on so minimal-history clients keep their conversation;
@@ -1076,10 +1124,15 @@ export async function runTurn(
     // byte-exact args). Either way, on a HITL pause the prompt resolves cancelled or never
     // resolves, and the pause signal ends the turn.
     let promptPromise: Promise<unknown>;
-    if (opts.resume) {
+    // When the prompt was issued, so a reap after a Stop can tell a process this turn started
+    // from one the SESSION started earlier (an stdio MCP server). A resumed turn keeps the
+    // resume's own start, which only ever makes the reap more conservative. See `reap-exec.ts`.
+    let promptStartedAtMs = Date.now();
+    const approvalTransition = opts.resume ?? opts.settleApprovalsThenPrompt;
+    if (approvalTransition) {
       // The resume turn owns continued events; each decision answers one parked gate by id.
       // Carried gates keep the shared original prompt pending until a later answer.
-      const decisions = opts.resume.decisions;
+      const decisions = approvalTransition.decisions;
       promptPromise = Promise.resolve(decisions[0]?.promptPromise);
       promptPromise.catch(() => {});
       for (const seed of carriedApprovedExecutions) {
@@ -1145,7 +1198,7 @@ export async function runTurn(
       // refresh the carried gates' approval TTL. Pi is exempt on purpose: it prepares the whole
       // batch before executing any call, so while a carried sibling gate is pending closure is
       // impossible and the paused-settle's park-and-carry branch owns those spans.
-      if (opts.resume.carriedForward.length > 0) {
+      if (opts.resume && opts.resume.carriedForward.length > 0) {
         if (!plan.isPi) {
           const answeredAllowedIds = decisions
             .filter((decision) => decision.reply === "once")
@@ -1159,13 +1212,20 @@ export async function runTurn(
         pause.pause();
       }
     } else {
+      promptStartedAtMs = Date.now();
       promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
       promptPromise.catch(() => {});
     }
-    // A user Stop aborts `signal`, which severs the harness fetch (rejecting the prompt). We want a
-    // clean cancel, not an error: resolve the race to CANCELLED both when the abort event lands first
-    // AND when the prompt rejection lands first while already aborted, so the outcome is deterministic
-    // regardless of ordering. A real (non-abort) prompt rejection is re-thrown into the shared catch.
+    // A user Stop aborts `signal`. That abort does NOT reach the harness: the signal is handed to
+    // `SandboxAgent.start` for its health wait only, never to the ACP transport or the prompt
+    // request, so the prompt promise below stays pending and the harness keeps working. (An earlier
+    // comment here claimed the abort severed the harness fetch. It does not, which is why the
+    // cancelled branch has to send a real `session/cancel` — see `cancel-turn.ts`.)
+    //
+    // So the race is won by the abort event itself. Resolve to CANCELLED both when the abort lands
+    // first AND when the prompt rejection lands first while already aborted, so the outcome is
+    // deterministic regardless of ordering. A real (non-abort) prompt rejection is re-thrown into
+    // the shared catch.
     const cancelled = new Promise<typeof CANCELLED>((resolve) => {
       if (signal?.aborted) resolve(CANCELLED);
       else
@@ -1173,26 +1233,55 @@ export async function runTurn(
           once: true,
         });
     });
-    const raced = await Promise.race([
-      promptPromise.then(
-        (value) => value,
-        (err) => (signal?.aborted ? CANCELLED : Promise.reject(err)),
-      ),
-      pause.signal.then(() => PAUSED),
-      runLimitTripped.then(() => RUN_LIMIT_TRIPPED),
-      cancelled,
-    ]);
+    const racePrompt = (pending: Promise<unknown>) =>
+      Promise.race([
+        pending.then(
+          (value) => value,
+          (err) => (signal?.aborted ? CANCELLED : Promise.reject(err)),
+        ),
+        pause.signal.then(() => PAUSED),
+        runLimitTripped.then(() => RUN_LIMIT_TRIPPED),
+        cancelled,
+      ]);
+    let raced = await racePrompt(promptPromise);
+    if (
+      opts.settleApprovalsThenPrompt &&
+      raced !== PAUSED &&
+      raced !== RUN_LIMIT_TRIPPED &&
+      raced !== CANCELLED &&
+      !pause.active
+    ) {
+      // The request ends in a NEW user turn. Finish applying the interaction decision to the old
+      // prompt first, then make the request's actual work a regular prompt. Without this second
+      // prompt the runner silently answers the old denied tool call and drops the new text. The
+      // old prompt was raced above, so a harness that opened another gate after the denial pauses
+      // this turn instead of hanging unwatched. `continuation` makes promptBlocks the fresh tail.
+      promptStartedAtMs = Date.now();
+      promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
+      promptPromise.catch(() => {});
+      raced = await racePrompt(promptPromise);
+    }
     // A tripped run-limit ends the turn as an error: throw into the shared catch below so the
     // trace is flushed and the caller's teardown reclaims the (wedged) sandbox.
     if (raced === RUN_LIMIT_TRIPPED) {
       throw new Error(runLimitReason ?? "run limit tripped");
     }
-    const stopReason =
+    let stopReason =
       raced === CANCELLED
         ? "cancelled"
         : raced === PAUSED || pause.active
           ? "paused"
           : (raced as any)?.stopReason;
+    // THE TURN'S OWN WORK IS OVER HERE. Everything below is teardown: draining gates, writing
+    // the transcript, exporting the trace, deciding whether to park. That takes hundreds of
+    // milliseconds, and the execution stays registered for all of it, so a Stop arriving now
+    // would abort a run that has already finished. The abort would change no outcome and would
+    // still make the teardown treat the run as aborted, which DESTROYS the warm environment
+    // instead of parking it. Marked here rather than where the caller awaits this function,
+    // because that window is precisely what lies between the two.
+    if (stopReason !== "paused" && request.sessionId && request.turnId) {
+      noteExecutionSettled(request.sessionId, request.turnId);
+    }
     // Terminalization drains queued gates, classifies pause-time completions, and gives allowed
     // executions their original per-call bound before the orphan sweep closes the turn.
     if (stopReason === "paused") {
@@ -1210,11 +1299,19 @@ export async function runTurn(
       const openAllowedExecutions = openToolCallIds().filter(
         (id) => pause.isAllowedExecution(id) && !pause.isPausedToolCall(id),
       );
+      // NOT scoped to a resume. Pi batches on the FIRST turn too, and the first turn is where a
+      // user meets it: the model asks for a Read and a Bash together, the Read answers `allow`
+      // and the Bash parks, and the allowed Read then never closes because Pi will not execute
+      // any call in the batch while a sibling gate is open. With `opts.resume` in this predicate
+      // that turn took the wait below and sat on the 30-minute per-tool-call bound. It never
+      // parked, never emitted `done`, and its alive watchdog kept beating `running=true`, so
+      // every durable continuation aimed at the next turn was refused for want of ownership.
+      // (Browser pass 2026-09-04, sessions d66e2920 at 17:32Z and 6d06f624 at 17:57Z. A healthy
+      // gated turn shows the Read's `tool_result` BEFORE the Bash gate — sequential, so nothing
+      // is open at pause time. The two failures show the two gates back to back with no result
+      // between them, which is the parallel batch.)
       const piBatchBlockedByApproval = Boolean(
-        opts.resume &&
-        plan.isPi &&
-        opts.approvalParkMode &&
-        env.parkedApprovals.size > 0,
+        plan.isPi && opts.approvalParkMode && env.parkedApprovals.size > 0,
       );
       if (piBatchBlockedByApproval) {
         // Pi prepares every call in a parallel batch before it executes any of them. While a
@@ -1260,8 +1357,57 @@ export async function runTurn(
             unexpectedOpenToolCallIds.join(","),
         );
       }
+
+      if (isUserStopAbort(signal)) {
+        stopReason = "cancelled";
+      }
+      if (request.sessionId && request.turnId) {
+        noteExecutionSettled(request.sessionId, request.turnId);
+      }
     }
     if (stopReason === "cancelled") {
+      env.parkedApprovals.clear();
+      env.parkedApproval = undefined;
+      env.approvalGateCount = 0;
+      parkedApprovedExecutions.clear();
+      // Tell the HARNESS to stop before anything else. The abort only made the runner stop
+      // waiting; without this the harness still holds an open prompt and a running tool, and the
+      // sandbox could never be parked. A settled cancel is what earns the warm park below; see
+      // `cancel-turn.ts`.
+      const cancel = await cancelHarnessTurn({
+        sandbox: env.sandbox,
+        sessionId: env.session?.id,
+        promptPromise,
+        log: logger,
+      });
+      cancelSettled = cancel.settled;
+      // Codex leaves its shell child running inside the sandbox we are about to park; Pi and
+      // Claude kill theirs. Reap it here, never in the bridge: the Codex shell is a child of a
+      // vendored Rust binary the JS bridge holds no pid for, and a bridge patch would ship only
+      // through a Daytona snapshot rebuild. This cleanup is best effort; the stopped TTL bounds
+      // leftovers without changing the harness-confirmed park and continuity decision.
+      if (cancel.settled && plan.acpAgent === "codex") {
+        let reapError: unknown;
+        const reap = await reapLeakedExecChildren({
+          sandbox: env.sandbox,
+          sandboxAgentPort: sandboxAgentServerPort(env.sandbox?.sandboxId),
+          turnElapsedMs: Date.now() - promptStartedAtMs,
+          log: logger,
+        }).catch((error) => {
+          reapError = error;
+          return undefined;
+        });
+        if (reapResultHasCleanupMiss(reap)) {
+          logger(
+            `stage=harness_reap cleanup_miss=true skipped=${reap?.skipped ?? "unknown"}` +
+              (reapError ? ` error=${String(reapError).slice(0, 120)}` : ""),
+          );
+        }
+      }
+      // The harness has been asked to stop, so the Pi trace port and the environment teardown must
+      // not ask again. Their `destroySession` also aborts `env.mcpAbort`, which belongs to the
+      // ENVIRONMENT and must survive a park (the approval-park path skips it for the same reason).
+      if (cancel.requested) env.sessionDestroyRequested = true;
       // The user Stopped the turn: let any in-flight frames settle, honor real completions that
       // already arrived, then settle every STILL-open tool call with the interrupt sentinel so the
       // transcript closes HONESTLY — no orphaned "running" parts, no synthetic success. A deliberate
@@ -1374,11 +1520,27 @@ export async function runTurn(
       return { ok: false, error: swallowedError };
     }
 
-    // A pause has not finished authoring the turn, so only a completed execution can advance the
-    // in-memory resume pointer or complete the durable ledger row.
+    // Which endings are a faithful resume point, and may therefore advance the in-memory resume
+    // pointer and complete the durable ledger row.
+    //
+    //  - A completed execution, as it always has been.
+    //  - A user Stop the HARNESS confirmed. `cancelSettled` is the same proof that earns the warm
+    //    park in `shouldPark`: the harness answered the cancelled prompt, so it is idle and its
+    //    native transcript holds a short but FINISHED turn. Nothing more will be written into it.
+    //
+    // A stopped turn has to take this path, not just the park, because the park alone is
+    // process-local. `hydrateHarnessSessionFromDurable` refuses to re-seed the store from a row
+    // without `end_time`, so a Stop used to leave its row forever incomplete and the session lost
+    // its native harness session on the next runner restart or pool eviction: the rebuild went
+    // cold and the conversation survived only as replayed text.
+    //
+    // Still dropped, unchanged: a pause has not finished authoring the turn, and an UNSETTLED
+    // cancel leaves the harness in an unknown state, possibly still writing. Both fall back to
+    // cold replay, which is the always-correct floor.
+    const turnIsResumePoint =
+      stopReason !== "paused" && (stopReason !== "cancelled" || cancelSettled);
     if (
-      stopReason !== "paused" &&
-      stopReason !== "cancelled" &&
+      turnIsResumePoint &&
       env.continuityTurnIndex !== undefined &&
       sessionId
     ) {
@@ -1405,7 +1567,8 @@ export async function runTurn(
         ).catch(() => {});
       }
     } else if (stopReason === "paused" || stopReason === "cancelled") {
-      // A pause/cancel stopped mid-turn, after the harness may have written a partial turn natively.
+      // A pause, or a cancel the harness never confirmed: the turn stopped mid-write, so the
+      // native transcript may hold a partial turn nobody can describe.
       invalidateContinuity(sessionId, plan.harness, deps);
     }
 
@@ -1416,6 +1579,7 @@ export async function runTurn(
       events: emit ? [] : run.events(),
       usage,
       stopReason,
+      ...(stopReason === "cancelled" ? { cancelSettled } : {}),
       capabilities: {
         ...env.capabilities,
         streamingDeltas: !!emit && env.capabilities.streamingDeltas,
@@ -1472,6 +1636,8 @@ export async function runTurn(
     void settleInBandInteractions?.();
     // Release every run-limits timer (idempotent, never re-arms on a late event) on EVERY path.
     runLimits.dispose();
+    // Same contract for the sandbox liveness probe: one timer, released on EVERY path.
+    sandboxLiveness?.dispose();
     // This turn owns its relay: stop it on EVERY exit path (the happy path already stopped it
     // after the prompt; stop is safe to repeat, matching the old finally). Null it afterwards so
     // a later `destroy()` — possibly after the dispatch cleared the sink — cannot double-stop or
