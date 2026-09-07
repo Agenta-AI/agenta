@@ -162,6 +162,28 @@ describe("LiveFramePublisher", () => {
     );
   });
 
+  it.each([undefined, "", "true"])(
+    "publishes live frames with default or enabled configuration %s",
+    async (configured) => {
+      if (configured === undefined)
+        delete process.env.AGENTA_RUNNER_LIVE_FRAMES;
+      else process.env.AGENTA_RUNNER_LIVE_FRAMES = configured;
+      const frames: LiveFrameEnvelope[] = [];
+      const publisher = new LiveFramePublisher({
+        sessionId: "session-default",
+        executionId: "execution-default",
+        auth: () => "Secret test",
+        send: async (batch) => {
+          frames.push(...batch);
+        },
+      });
+      publisher.emit({ type: "message_start", id: "message-1" });
+      await publisher.whenIdle();
+      assert.equal(frames.length, 1);
+      assert.equal(frames[0].type, "text-start");
+    },
+  );
+
   it("sends no live frames when the feature flag is off", async () => {
     process.env.AGENTA_RUNNER_LIVE_FRAMES = "false";
     let calls = 0;

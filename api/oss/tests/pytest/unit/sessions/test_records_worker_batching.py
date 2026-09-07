@@ -153,7 +153,13 @@ async def test_failed_append_leaves_project_messages_unacknowledged():
 
 
 @pytest.mark.asyncio
-async def test_durable_event_is_published_only_after_record_commit_returns():
+@pytest.mark.parametrize(
+    "record_type,event_type",
+    [("message", "message.completed"), ("done", "execution.stopped")],
+)
+async def test_durable_event_is_published_only_after_record_commit_returns(
+    record_type, event_type
+):
     project_id = uuid4()
     committed = False
 
@@ -168,15 +174,16 @@ async def test_durable_event_is_published_only_after_record_commit_returns():
                     project_id=project_id,
                     sequence=1,
                     turn_id="turn-1",
-                    record_type="message",
+                    record_type=record_type,
                     record_source="agent",
-                    attributes={"type": "message", "text": "done"},
+                    attributes={"type": record_type, "text": "done"},
                     created_at=datetime.now(timezone.utc),
                 )
             ]
 
     async def publish(**kwargs):
         assert committed is True
+        assert kwargs["event"].type == event_type
         assert kwargs["event"].sequence == 1
         assert kwargs["event"].watermark == 1
         return True

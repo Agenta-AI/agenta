@@ -154,7 +154,7 @@ async function postEvent(
 export function persistEvent(
   sessionId: string,
   auth: () => string,
-  event: AgentEvent,
+  event: AgentEvent & { message_id?: string },
   eventIndex: number,
   sender: string = "agent",
   recordId?: string,
@@ -348,7 +348,7 @@ export function buildPersistingEmitter(
         persistEvent(
           sessionId,
           auth,
-          { type: "message", text: acc.text },
+          { type: "message", text: acc.text, message_id: acc.id },
           eventIndex++,
           "agent",
           undefined,
@@ -378,7 +378,7 @@ export function buildPersistingEmitter(
         persistEvent(
           sessionId,
           auth,
-          { type: "thought", text: acc.text },
+          { type: "thought", text: acc.text, message_id: acc.id },
           eventIndex++,
           "agent",
           undefined,

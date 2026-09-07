@@ -62,7 +62,7 @@ def test_a_claimable_stop_survives_an_unknown_kind_in_the_batch(monkeypatch):
     monkeypatch.setattr(commands_dao, "log", recorder)
 
     stop = _row(SessionCommandKind.cancel.value)
-    unknown = _row("continue_interaction")
+    unknown = _row("future_command")
 
     mapped = commands_dao._map_commands_skipping_unmappable(
         [stop, unknown], context="claimed"
@@ -78,7 +78,7 @@ def test_the_claim_warning_names_the_claimed_context_and_the_kind(monkeypatch):
     monkeypatch.setattr(commands_dao, "log", recorder)
 
     commands_dao._map_commands_skipping_unmappable(
-        [_row(SessionCommandKind.cancel.value), _row("continue_interaction")],
+        [_row(SessionCommandKind.cancel.value), _row("future_command")],
         context="claimed",
     )
 
@@ -86,4 +86,4 @@ def test_the_claim_warning_names_the_claimed_context_and_the_kind(monkeypatch):
     args = recorder.warnings[0][0]
     assert args[1] == 1  # one unmappable row
     assert args[2] == "claimed"  # the batch context
-    assert "continue_interaction=1" in args[3]
+    assert "future_command=1" in args[3]

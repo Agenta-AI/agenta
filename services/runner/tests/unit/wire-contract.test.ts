@@ -60,6 +60,7 @@ const KNOWN_REQUEST_KEYS = [
   "turnId",
   "detached",
   "projectId",
+  "controlCommandId",
   "effectiveParameters",
 ] as const;
 

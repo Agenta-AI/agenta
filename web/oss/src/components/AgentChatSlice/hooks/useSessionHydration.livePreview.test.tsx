@@ -215,6 +215,7 @@ describe("desktop durable reconnect", () => {
                     busy: false,
                     setMessages,
                     persistMessages: vi.fn(),
+                    clearRunError: vi.fn(),
                     intent: {
                         armJump: vi.fn(),
                         stickRef: {current: false},

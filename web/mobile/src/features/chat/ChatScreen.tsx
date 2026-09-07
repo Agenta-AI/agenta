@@ -152,10 +152,15 @@ const ReplayScreen = ({
     // Tightened records cadence only while this foregrounded screen shows a running or pending
     // turn; derived from the previous render's messages, so it settles one render behind.
     const [pollMs, setPollMs] = useState(0)
-    const {messages, state, refresh} = useSessionTranscript(sessionId, pollMs)
+    const {messages, state, refresh, interactionChanged} = useSessionTranscript(sessionId, pollMs)
     // Live relay (M3): push-invalidate through the same tick body; while it is open the
     // poll below is only a safety net.
-    const watch = useSessionWatch({sessionId, projectId, onRecordsChanged: refresh})
+    const watch = useSessionWatch({
+        sessionId,
+        projectId,
+        onRecordsChanged: refresh,
+        onInteractionChanged: interactionChanged,
+    })
     const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
     const pendingCount = pendingApprovals.length
     const pendingApprovalIds = useMemo(

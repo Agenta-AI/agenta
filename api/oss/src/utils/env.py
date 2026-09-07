@@ -703,6 +703,11 @@ class SessionsConfig(BaseModel):
     """Agenta sessions sub-namespace."""
 
     durable_stop: bool = _sessions_durable_stop_enabled()
+    durable_approvals: bool = (
+        os.getenv("AGENTA_SESSIONS_DURABLE_APPROVALS") or "true"
+    ).lower() in _TRUTHY
+    queue: bool = (os.getenv("AGENTA_SESSIONS_QUEUE") or "true").lower() in _TRUTHY
+    steer: bool = (os.getenv("AGENTA_SESSIONS_STEER") or "true").lower() in _TRUTHY
     late_output: Literal["quarantine", "reject"] = _parse_sessions_late_output()
     attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
@@ -1558,7 +1563,7 @@ class SessionsRedisConfig(BaseModel):
     """
 
     sequence_writes: bool = (
-        os.getenv("AGENTA_SESSIONS_SEQUENCE_WRITES") or "false"
+        os.getenv("AGENTA_SESSIONS_SEQUENCE_WRITES") or "true"
     ).lower() in _TRUTHY
     alive_ttl_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ALIVE_TTL_SECONDS")
@@ -1601,7 +1606,7 @@ class SessionsRedisConfig(BaseModel):
         or 900
     )
     shared_reader: bool = (
-        os.getenv("AGENTA_SESSIONS_SHARED_READER") or "false"
+        os.getenv("AGENTA_SESSIONS_SHARED_READER") or "true"
     ).lower() in _TRUTHY
     live_auth_recheck_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_AUTH_RECHECK_SECONDS")

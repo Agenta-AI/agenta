@@ -2085,14 +2085,13 @@ export function createSandboxAgentOtel(
     // Mark a non-completing turn's terminal record so a cold reload can tell it from a real turn
     // boundary (the FE adoption heuristic and hydration read this). A completed turn omits it.
     //
-    // `cancelled` rides here for the same reason `paused` does, and closes a real gap: without
-    // it a stopped turn is indistinguishable from a finished one in Postgres, so neither the
-    // frontend nor the release gate can tell a Stop from a completion. Kept as an explicit
-    // allowlist rather than passing `stopReason` through, so a harness-reported value such as
-    // `end_turn` or `max_tokens` cannot start appearing on the terminal record by accident.
+    // These non-completing outcomes must remain distinguishable from a normal finish in Postgres.
+    // Keep an explicit allowlist so arbitrary harness reasons cannot leak into the record contract.
     record({
       type: "done",
-      ...(stopReason === "paused" || stopReason === "cancelled"
+      ...(stopReason === "paused" ||
+      stopReason === "cancelled" ||
+      stopReason === "error"
         ? { stopReason }
         : {}),
       ...(runTraceId ? { traceId: runTraceId } : {}),

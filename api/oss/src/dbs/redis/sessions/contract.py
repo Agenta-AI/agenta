@@ -29,6 +29,8 @@ that omits it.
 The nest: alive ⊇ running ⊇ attached. attached ⟹ running ⟹ alive.
 """
 
+from typing import Any, Dict, List, Optional
+
 from oss.src.utils.env import env
 
 # ---------------------------------------------------------------------------
@@ -130,7 +132,8 @@ def make_displacement_payload(*, by: str) -> dict:
 # Payload shapes:
 #   {"type": "records-changed", "session_id": s}
 #   {"type": "lifecycle",       "session_id": s, "state": "running"|"ended"}
-#   {"type": "interaction",     "session_id": s, "status": "pending"|"resolved"}
+#   {"type": "interaction",     "session_id": s, "status": "pending"|"resolved",
+#                                    "interactions": [...]?}
 #   {"type": "<entity>-changed", "entity": entity, "id": id}
 # ---------------------------------------------------------------------------
 
@@ -169,8 +172,17 @@ def make_watch_lifecycle_payload(*, session_id: str, state: str) -> dict:
     return {"type": WATCH_EVENT_LIFECYCLE, "session_id": session_id, "state": state}
 
 
-def make_watch_interaction_payload(*, session_id: str, status: str) -> dict:
-    return {"type": WATCH_EVENT_INTERACTION, "session_id": session_id, "status": status}
+def make_watch_interaction_payload(
+    *, session_id: str, status: str, interactions: Optional[List[Dict[str, Any]]] = None
+) -> dict:
+    payload = {
+        "type": WATCH_EVENT_INTERACTION,
+        "session_id": session_id,
+        "status": status,
+    }
+    if interactions is not None:
+        payload["interactions"] = interactions
+    return payload
 
 
 def make_watch_entity_changed_payload(*, entity: str, id: str) -> dict:

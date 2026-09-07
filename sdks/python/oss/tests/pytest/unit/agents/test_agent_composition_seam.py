@@ -96,6 +96,7 @@ class _FakeBackend(Backend):
         self.created_effective_parameters: List[Any] = []
         self.created_gateway_policies: List[Any] = []
         self.created_detached: List[bool] = []
+        self.created_coordination: List[Any] = []
         # The per-harness config the adapter built. Capturing it alongside neutral backend
         # arguments checks both sides of the composition boundary rather than one hop.
         self.created_configs: List[Any] = []
@@ -114,6 +115,9 @@ class _FakeBackend(Backend):
         run_context=None,
         session_id=None,
         detached=False,
+        turn_id=None,
+        project_id=None,
+        control_command_id=None,
         effective_parameters=None,
         gateway_policy=None,
     ) -> _FakeSession:
@@ -121,6 +125,9 @@ class _FakeBackend(Backend):
         self.created_effective_parameters.append(effective_parameters)
         self.created_gateway_policies.append(gateway_policy)
         self.created_detached.append(detached)
+        self.created_coordination.append(
+            (session_id, turn_id, project_id, control_command_id)
+        )
         self.created_configs.append(config)
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))
 
@@ -213,6 +220,33 @@ async def test_absent_run_kind_leaves_composition_run_context_untouched():
     ctx = backend.created_run_contexts[0]
     assert ctx is base
     assert ctx.to_wire() == {"trace": {"trace_id": "trace-1"}}
+
+
+async def test_detached_coordination_meta_reaches_the_backend_session():
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            meta={
+                "run_id": "turn-continuation-1",
+                "project_id": "project-1",
+                "control_command_id": "command-1",
+            },
+        ),
+        messages=[{"role": "user", "content": "approved"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_coordination == [
+        ("session-1", "turn-continuation-1", "project-1", "command-1")
+    ]
 
 
 async def test_handler_carries_the_effective_config_onto_the_session():

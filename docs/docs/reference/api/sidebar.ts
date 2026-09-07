@@ -2682,6 +2682,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/watch-session-events",
+          label: "Session Events",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
           id: "reference/api/watch-project",
           label: "Watch Project",
           className: "api-method get",
@@ -2834,6 +2840,18 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/unarchive-session",
           label: "Unarchive Session",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/get-session-snapshot",
+          label: "Get Session Snapshot",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/cancel-session-execution",
+          label: "Cancel Session Execution",
           className: "api-method post",
         },
       ],
