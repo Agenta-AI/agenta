@@ -50,6 +50,7 @@ export const Composer = ({
     inputBusy = streaming,
     inputRef,
     placeholder,
+    onNewSession,
 }: {
     /** The agent revision the `/` palette reads and writes (model, permissions, skills). */
     entityId: string
@@ -72,6 +73,8 @@ export const Composer = ({
     inputRef?: MutableRefObject<RichChatInputHandle | null>
     /** Full placeholder override — used when the composer is gated (no model key). */
     placeholder?: string
+    /** Starts a fresh session — the palette offers no /new row without it. */
+    onNewSession?: () => void
 }) => {
     const attachments = useComposerAttachments({sessionId})
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
@@ -80,13 +83,14 @@ export const Composer = ({
     // draft is what carries unsent text across it.
     const draft = useComposerDraft({sessionId, richInputRef})
 
-    // The `/` palette and its two pickers, anchored to the composer box so they open where the
-    // palette was. No `/new` row: the session rail's `+` is the only way to start one here.
+    // The `/` palette and its pickers, anchored to the composer box so they open where the
+    // palette was. /new mirrors the session rail's `+`, exactly as it does on the desktop.
     const composerBoxRef = useRef<HTMLDivElement>(null)
     // A tap outside is a deliberate move elsewhere — the one close that must not pull focus back.
     const skipFocusRestoreRef = useRef(false)
     const slash = useChatSlashCommands({
         entityId,
+        onNewSession,
         // The picker autofocuses itself; a still-focused Lexical editor takes focus back on the
         // next reconcile, which Radix reads as an outside interaction and dismisses on.
         onPickerOpen: useCallback(() => {

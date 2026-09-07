@@ -68,6 +68,7 @@ import {
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
+import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
 
 /**
@@ -115,6 +116,7 @@ export const LiveConversation = ({
     // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
     // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
     const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
+    const startBlankSession = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
     const conversation = useAgentConversation({
         entityId,
         sessionId,
@@ -797,6 +799,8 @@ export const LiveConversation = ({
                             steerEnabled={conversation.steerEnabled}
                             inputBusy={conversation.inputBusy}
                             inputRef={composerRef}
+                            // Same gate the rail's `+` uses: starting one needs an agent.
+                            onNewSession={agentId ? () => startBlankSession(agentId) : undefined}
                         />
                     </div>
                 }
