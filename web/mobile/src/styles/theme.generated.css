@@ -258,16 +258,8 @@
     --ag-surface-chat-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
     --ag-surface-chip: #2a2a2e;
     --ag-surface-chip-border: #303035;
-    --drawer-right-shadow:
-        -1px 0 0 0 rgba(255, 255, 255, 0.16), -6px 0 16px 0 rgba(0, 0, 0, 0.44),
-        -3px 0 6px -4px rgba(0, 0, 0, 0.52), -9px 0 28px 8px rgba(0, 0, 0, 0.28);
-    --drawer-left-shadow:
-        1px 0 0 0 rgba(255, 255, 255, 0.16), 6px 0 16px 0 rgba(0, 0, 0, 0.44),
-        3px 0 6px -4px rgba(0, 0, 0, 0.52), 9px 0 28px 8px rgba(0, 0, 0, 0.28);
-    --drawer-top-shadow:
-        0 1px 0 0 rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44),
-        0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28);
-    --drawer-bottom-shadow:
-        0 -1px 0 0 rgba(255, 255, 255, 0.16), 0 -6px 16px 0 rgba(0, 0, 0, 0.44),
-        0 -3px 6px -4px rgba(0, 0, 0, 0.52), 0 -9px 28px 8px rgba(0, 0, 0, 0.28);
+    --drawer-right-shadow: -1px 0 0 0 rgba(255, 255, 255, 0.16), -6px 0 16px 0 rgba(0, 0, 0, 0.44), -3px 0 6px -4px rgba(0, 0, 0, 0.52), -9px 0 28px 8px rgba(0, 0, 0, 0.28);
+    --drawer-left-shadow: 1px 0 0 0 rgba(255, 255, 255, 0.16), 6px 0 16px 0 rgba(0, 0, 0, 0.44), 3px 0 6px -4px rgba(0, 0, 0, 0.52), 9px 0 28px 8px rgba(0, 0, 0, 0.28);
+    --drawer-top-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.16), 0 6px 16px 0 rgba(0, 0, 0, 0.44), 0 3px 6px -4px rgba(0, 0, 0, 0.52), 0 9px 28px 8px rgba(0, 0, 0, 0.28);
+    --drawer-bottom-shadow: 0 -1px 0 0 rgba(255, 255, 255, 0.16), 0 -6px 16px 0 rgba(0, 0, 0, 0.44), 0 -3px 6px -4px rgba(0, 0, 0, 0.52), 0 -9px 28px 8px rgba(0, 0, 0, 0.28);
 }
