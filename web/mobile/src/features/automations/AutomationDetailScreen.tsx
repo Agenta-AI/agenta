@@ -13,6 +13,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {AutomationBackLink} from "./AutomationBackLink"
 import {AutomationDetailBody} from "./AutomationDetailBody"
 import {buildAutomationEdit} from "./automationEdit"
+import {agentLabel} from "./automationModel"
 import {AutomationDetailSkeleton} from "./states/AutomationStates"
 import {useAutomation} from "./useAutomation"
 import {useAutomations} from "./useAutomations"
@@ -62,7 +63,7 @@ export const AutomationDetailScreen = ({
     const agentName = useMemo(() => {
         const agents: Workflow[] = agentsQuery.data ?? []
         const agent = agents.find((candidate) => candidate.id === automation?.agentId)
-        return agent?.name || agent?.slug || null
+        return agentLabel(automation?.agentId ?? null, agent?.name || agent?.slug || null)
     }, [agentsQuery.data, automation?.agentId])
 
     const onRename = useCallback(
