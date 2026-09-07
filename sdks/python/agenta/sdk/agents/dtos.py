@@ -626,7 +626,7 @@ class SandboxSecretReference(BaseModel):
 
 class SandboxEnvironmentBinding(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    type: Literal["env"]
+    type: Literal["env"] = "env"
     name: str
 
 

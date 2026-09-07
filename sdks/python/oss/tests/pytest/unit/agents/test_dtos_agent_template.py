@@ -14,6 +14,7 @@ import pytest
 
 from agenta.sdk.agents import (
     AgentTemplate,
+    AgentTemplateShapeError,
     BuiltinToolConfig,
     InvalidPermissionDefaultError,
 )
@@ -302,8 +303,27 @@ def test_from_params_parses_sandbox_credentials():
     assert config.sandbox_credentials[0].binding.name == "GITHUB_TOKEN"
 
 
+def test_from_params_accepts_binding_without_type():
+    config = AgentTemplate.from_params(
+        {
+            "agent": {
+                "sandbox": {
+                    "credentials": [
+                        {
+                            "secret": {"slug": "github-token"},
+                            "binding": {"name": "GITHUB_TOKEN"},
+                        }
+                    ]
+                }
+            }
+        }
+    )
+    assert config.sandbox_credentials[0].binding.type == "env"
+    assert config.sandbox_credentials[0].binding.name == "GITHUB_TOKEN"
+
+
 def test_from_params_rejects_unknown_sandbox_credential_fields():
-    with pytest.raises(Exception, match="sandbox.credentials is invalid"):
+    with pytest.raises(AgentTemplateShapeError, match="sandbox.credentials is invalid"):
         AgentTemplate.from_params(
             {
                 "agent": {

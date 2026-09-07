@@ -84,12 +84,14 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "api/oss/src/apis/fastapi/workflows/router.py": CUSTOM_SECRETS,
     "api/oss/src/core/workflows/static_catalog.py": CUSTOM_SECRETS,
     "sdks/python/agenta/sdk/agents/sandbox_credentials.py": CUSTOM_SECRETS,
+    "sdks/python/agenta/sdk/agents/handler.py": CUSTOM_SECRETS,
     "sdks/python/agenta/sdk/agents/wire_models.py": CUSTOM_SECRETS,
     "sdks/python/agenta/sdk/agents/utils/wire.py": CUSTOM_SECRETS,
     "services/runner/src/engines/sandbox_agent/sandbox-credentials.ts": CUSTOM_SECRETS,
     "services/runner/src/engines/sandbox_agent/run-plan.ts": CUSTOM_SECRETS,
     "services/runner/src/engines/sandbox_agent/session-identity.ts": CUSTOM_SECRETS,
     "services/runner/src/environment/runtime-lifecycle.ts": CUSTOM_SECRETS,
+    "services/runner/src/lifecycle/desired-state.ts": CUSTOM_SECRETS,
     "services/runner/src/redaction.ts": CUSTOM_SECRETS,
     # The sandbox engine and the Daytona provider: sandbox creation, the secret plan, the
     # credential preflight, and the one retry the runner does when a first model call is refused.

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useReducer, useRef, useState} from "react"
+import {useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState} from "react"
 
 import {
     buildRequestWithinDeadline,
@@ -172,11 +172,11 @@ export const useAgentChatSession = ({
         () => turnDeliverySourceBySession.get(sessionId) ?? null,
     )
     const entityIdRef = useRef(entityId)
-    const entityPropRef = useRef(entityId)
-    if (entityPropRef.current !== entityId) {
+    // Synced after commit, never during render: an interrupted render must not leak an
+    // uncommitted revision into the request builder.
+    useLayoutEffect(() => {
         entityIdRef.current = entityId
-        entityPropRef.current = entityId
-    }
+    }, [entityId])
     const adoptRevision = useCallback((next: string) => {
         entityIdRef.current = next
     }, [])

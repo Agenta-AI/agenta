@@ -227,6 +227,9 @@ def cell(sandbox: str, harness: str) -> dict:
     expected_one = hashlib.sha256(value_one.encode()).hexdigest()
     expected_two = hashlib.sha256(value_two.encode()).hexdigest()
     digest_path = f"qa-custom-secret-{token}.sha256"
+    # A new path per digest: the store read returns on its first 200, so a reused path
+    # can hand back the previous content before the overwrite becomes visible.
+    rotated_path = f"qa-custom-secret-{token}.rotated.sha256"
     absent_path = f"qa-custom-secret-{token}.absent"
     try:
         secret_id, secret_slug = create_secret(
@@ -259,7 +262,7 @@ def cell(sandbox: str, harness: str) -> dict:
                 turn_one.assistant_message(),
                 user_msg(
                     f"The credential was rotated. Recompute SHA-256 of {ENV_NAME} into "
-                    f"{digest_path} without printing the variable or value. Reply only DONE."
+                    f"{rotated_path} without printing the variable or value. Reply only DONE."
                 ),
             ]
         )
@@ -268,7 +271,7 @@ def cell(sandbox: str, harness: str) -> dict:
             messages=messages,
             config=attached,
             references=references,
-            result_path=digest_path,
+            result_path=rotated_path,
         )
 
         detached = agent_config(sandbox, None, harness)

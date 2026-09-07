@@ -231,7 +231,7 @@ not a harness, sandbox, or provider model axis.
 `matrix_s1_custom_secrets.py` does not claim the browser-owned `request_secret` setup interaction. The wire driver can
 observe and settle a client-tool row, but it cannot prove the host created the secret and committed
 the binding through the real form. Run that pause, configure, resume, cancel, and retry flow in the
-host UI using [the custom-secret browser checklist](../../../../../docs/design/agent-custom-secrets/qa-browser-checklist.md) during exploratory QA until a browser automation cell owns it.
+host UI using [the custom-secret browser checklist](../../../../docs/design/agent-custom-secrets/qa-browser-checklist.md) during exploratory QA until a browser automation cell owns it.
 
 I2 reports an unset `TELEGRAM_BOT_TOKEN` as a loud journey `SKIP` and makes the aggregate cell
 `SKIP`. Five passing wire-level journeys must never make the untested real-provider claim look

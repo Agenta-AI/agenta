@@ -29,6 +29,12 @@ export const SecretRequestDock = ({
     onOutput,
 }: SecretRequestDockProps) => {
     const [targetId, setTargetId] = useState(revisionId)
+    // The dock outlives a revision switch on both hosts, so it follows the prop when it moves.
+    const [seenRevisionId, setSeenRevisionId] = useState(revisionId)
+    if (seenRevisionId !== revisionId) {
+        setSeenRevisionId(revisionId)
+        setTargetId(revisionId)
+    }
     const [open, setOpen] = useState(false)
     const [settling, setSettling] = useState(false)
     const commit = useSetAtom(commitAgentCredentialsAtom)

@@ -501,14 +501,17 @@ export const LiveConversation = ({
     })
     // Any blocking dock on screen. The queue card yields to all of them rather than stacking,
     // mid-edit included — the composer keeps the edit, so Enter still rewrites the held row.
-    const gateDockOpen = pendingApprovals.length > 0 || elicits.open || connects.open
+    const secretDockOpen = !streamingHere && !conversation.stopped && Boolean(pendingSecret)
+    const gateDockOpen =
+        pendingApprovals.length > 0 || elicits.open || connects.open || secretDockOpen
     // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
-    // surface has no question-form dock yet, so only approvals and connect cards can gate it.
-    const gateOpen = jumpGateOpen({
-        approvals: pendingApprovals.length,
-        elicitationOpen: false,
-        connectionOpen: connects.open,
-    })
+    // surface has no question-form dock yet, so approvals, connect, and secret cards gate it.
+    const gateOpen =
+        jumpGateOpen({
+            approvals: pendingApprovals.length,
+            elicitationOpen: false,
+            connectionOpen: connects.open,
+        }) || secretDockOpen
 
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
     // so the warning about tools that already ran, and putting a rewound user message back into
@@ -681,7 +684,7 @@ export const LiveConversation = ({
                         ) : null}
                         {/* Parked question forms, between approval and connect — the same order as
                         desktop, and the same order as the keyboard precedence. */}
-                        {!streamingHere && !conversation.stopped && pendingSecret ? (
+                        {secretDockOpen && pendingSecret ? (
                             <ContentRail>
                                 <SecretRequestDock
                                     key={pendingSecret.toolCallId}

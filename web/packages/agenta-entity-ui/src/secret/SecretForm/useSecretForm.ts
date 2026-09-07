@@ -140,8 +140,7 @@ export function useSecretForm({
             setTextValue("")
             setKvRows([{key: "", value: ""}])
         }
-        // Keyed on the secret's identity, not its object identity: a re-created prop must
-        // not wipe what the user has typed while the form is open.
+        // Key on the secret id so a re-created prop does not wipe what the user typed.
     }, [open, initialSecret?.id, initialName, initialDefaultEnvVar])
 
     // On create, the slug auto-follows the name until the user edits it directly.

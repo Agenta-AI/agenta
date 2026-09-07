@@ -128,5 +128,6 @@ closed at the next run boundary.
 4. Run [QA](qa.md) against the complete feature on an internal deployment.
 5. Design the exact vault policy changes for milestone two after the readable flow works.
 
-The current PR contains the plan only. It does not implement the prompt text or the tool,
-and it must not close #5703 as completed work.
+Milestone one is implemented and validated in this PR. See [README](README.md) for the
+shipped behavior and [qa.md](qa.md) for the validation record. Milestone two, the vault
+policy for readable secrets, is not implemented, so this PR must not close #5703.

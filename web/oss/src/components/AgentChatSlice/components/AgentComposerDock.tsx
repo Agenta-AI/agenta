@@ -251,7 +251,8 @@ const AgentComposerDock = ({
 
     // Any blocking dock on screen. The queue card yields to all of them rather than stacking,
     // mid-edit included — the composer keeps the edit, so Enter still rewrites the held row.
-    const gateDockOpen = pendingApprovals.length > 0 || elicits.open || connects.open
+    const gateDockOpen =
+        pendingApprovals.length > 0 || elicits.open || connects.open || Boolean(secretDock)
 
     // Editing borrows the composer: the row's text goes in, the draft it displaces is stashed.
     const {beginEdit, cancelEdit} = queue

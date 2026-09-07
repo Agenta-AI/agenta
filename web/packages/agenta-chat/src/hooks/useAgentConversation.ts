@@ -14,7 +14,7 @@
 // Deliberately omitted (desktop-only): first-seen timestamp stamping (display metadata for the desktop rows) — the desktop host keeps its own implementation until the re-plumb.
 // Deliberately omitted (desktop-only): session auto-titling and the first-run seed auto-send — the desktop host keeps its own implementation until the re-plumb.
 // Deliberately omitted (desktop-only): the model-key composer gate — compose `useAgentModelKeyStatus` in the skin instead.
-import {useCallback, useEffect, useMemo, useReducer, useRef, useState} from "react"
+import {useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState} from "react"
 
 import {
     invalidateSessionListQueries,
@@ -268,11 +268,11 @@ export const useAgentConversation = ({
     // builder must read the CURRENT entity — capturing `entityId` by value would send every turn
     // with the revision displayed when the session first mounted.
     const entityIdRef = useRef(entityId)
-    const entityPropRef = useRef(entityId)
-    if (entityPropRef.current !== entityId) {
+    // Synced after commit, never during render: an interrupted render must not leak an
+    // uncommitted revision into the request builder.
+    useLayoutEffect(() => {
         entityIdRef.current = entityId
-        entityPropRef.current = entityId
-    }
+    }, [entityId])
     const adoptRevision = useCallback((next: string) => {
         entityIdRef.current = next
     }, [])

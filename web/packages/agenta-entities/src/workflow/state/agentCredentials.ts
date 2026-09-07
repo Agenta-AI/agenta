@@ -5,6 +5,7 @@ import isEqual from "fast-deep-equal"
 import {atom} from "jotai"
 
 import type {AgentSecretBinding} from "../../secret/core/types"
+import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {retrieveWorkflowRevision} from "../api"
 import {workflowRevisionResponseSchema} from "../core/schema"
 
@@ -69,7 +70,11 @@ export const commitAgentCredentialsAtom = atom(
                 },
                 {queryParams: {project_id: projectId}},
             )
-            revision = workflowRevisionResponseSchema.parse(response).workflow_revision
+            revision = safeParseWithLogging(
+                workflowRevisionResponseSchema,
+                response,
+                "[commitAgentCredentials]",
+            )?.workflow_revision
             if (!revision) throw new Error("The server did not return the saved agent revision.")
         } catch (error) {
             // A lost response may hide a successful commit. Recover only the exact intended
