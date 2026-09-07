@@ -14,13 +14,13 @@ import {
     skillsQueryResponseSchema,
     skillSourceImportResponseSchema,
     skillSourceScanResponseSchema,
-    skillUsageResponseSchema,
+    skillReferencedByResponseSchema,
     updateApplyResponseSchema,
     updateCheckResponseSchema,
     type SkillsQueryResponse,
     type SkillSourceImportResponse,
     type SkillSourceScanResponse,
-    type SkillUsageResponse,
+    type SkillReferencedByResponse,
     type SkillsWindowing,
     type UpdateApplyResponse,
     type UpdateCheckResponse,
@@ -76,19 +76,19 @@ export async function querySkills({
     )
 }
 
-export interface QuerySkillUsageParams {
+export interface QuerySkillReferencedByParams {
     projectId: string
     workflowId?: string
     workflowSlug?: string
 }
 
 /** `GET /skills/{id}/referenced-by` — the agents referencing this skill, latest vs pinned. */
-export async function querySkillUsage({
+export async function querySkillReferencedBy({
     projectId,
     workflowId,
-}: QuerySkillUsageParams): Promise<SkillUsageResponse> {
+}: QuerySkillReferencedByParams): Promise<SkillReferencedByResponse> {
     if (!projectId || !workflowId) {
-        return {count: 0, usage: []}
+        return {count: 0, referenced_by: []}
     }
 
     const data = await getSkillsClient().listSkillReferencedBy(
@@ -96,8 +96,8 @@ export async function querySkillUsage({
         {queryParams: {project_id: projectId}},
     )
 
-    const parsed = parseOrWarn(skillUsageResponseSchema, data, "[querySkillUsage]")
-    return parsed ?? {count: 0, usage: []}
+    const parsed = parseOrWarn(skillReferencedByResponseSchema, data, "[querySkillReferencedBy]")
+    return parsed ?? {count: 0, referenced_by: []}
 }
 
 /** Mirrors AGENTA_BUILTIN_SKILL_URI (sdk engines/running/utils.py) — the skill workflow URI. */

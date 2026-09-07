@@ -22,7 +22,7 @@ import {
     buildSkillEmbedEntry,
     commitSkillRevision,
     fetchSkillRevisions,
-    querySkillUsage,
+    querySkillReferencedBy,
     skillContentSchema,
     unarchiveSkill,
     type SkillRevision,
@@ -122,7 +122,7 @@ export function SkillDetailDrawer({
     })
     const usageQuery = useQuery({
         queryKey: ["skills", "usage", projectId, workflowId],
-        queryFn: () => querySkillUsage({projectId, workflowId}),
+        queryFn: () => querySkillReferencedBy({projectId, workflowId}),
         enabled: open && Boolean(projectId && workflowId) && !isBuiltin,
         staleTime: 15_000,
     })
@@ -132,7 +132,7 @@ export function SkillDetailDrawer({
 
     const usedBy = useMemo<SkillUsageRef[]>(
         () =>
-            (usageQuery.data?.usage ?? []).map((entry) => ({
+            (usageQuery.data?.referenced_by ?? []).map((entry) => ({
                 id: entry.agent_workflow_id ?? entry.agent_slug ?? "",
                 name: entry.agent_name ?? entry.agent_slug ?? "unknown agent",
                 mode: entry.mode ?? "latest",
