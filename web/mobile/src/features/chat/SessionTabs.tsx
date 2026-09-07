@@ -10,13 +10,13 @@ import {useAtom, useAtomValue} from "jotai"
 import {ChevronsLeft, ChevronsRight} from "lucide-react"
 import {useRouter} from "next/router"
 
+import {PageTitle} from "@/components/PageTitle"
+
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
-
-import {PageTitle} from "@/components/PageTitle"
 
 /**
  * The conversation pane's header: this agent's sessions as tabs, the open one active — the same
