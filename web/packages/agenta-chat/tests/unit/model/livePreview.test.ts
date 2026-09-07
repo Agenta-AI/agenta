@@ -477,13 +477,36 @@ describe("durable preview handoff", () => {
             durable,
         )
         expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
-            {type: "reasoning", text: "Still thinking"},
+            {type: "reasoning", state: "streaming", text: "Still thinking"},
         ])
         expect(
             [...durable, ...sessionLivePreviewMessages(state)]
                 .flatMap((message) => message.parts)
                 .filter((part) => part.type === "reasoning" && part.text === "Earlier thought"),
         ).toHaveLength(1)
+    })
+
+    it("marks a reasoning block streaming until its end frame lands", () => {
+        let state = reduceSessionLivePreview(
+            createSessionLivePreviewState(),
+            frame(0, "reasoning-start", {}, "reason-1"),
+        )
+        state = reduceSessionLivePreview(
+            state,
+            frame(1, "reasoning-delta", {delta: "Wei"}, "reason-1"),
+        )
+        expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
+            {type: "reasoning", state: "streaming", text: "Wei"},
+        ])
+
+        state = reduceSessionLivePreview(
+            state,
+            frame(2, "reasoning-delta", {delta: "ghing"}, "reason-1"),
+        )
+        state = reduceSessionLivePreview(state, frame(3, "reasoning-end", {}, "reason-1"))
+        expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
+            {type: "reasoning", state: "done", text: "Weighing"},
+        ])
     })
 
     it("continues new complete entities after a gap without joining incomplete text", () => {

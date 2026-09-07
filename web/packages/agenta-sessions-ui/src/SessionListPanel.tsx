@@ -29,6 +29,8 @@ export interface SessionListPanelProps {
     /** Host verb: the row context menu. Omit on touch surfaces that have no menu. */
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
+    /** Persists a rename; given it, a row renames in place instead of falling through. */
+    onRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
     /** Keep the pin affordance visible without hover — touch has none. */
     alwaysShowPin?: boolean
 }
@@ -50,6 +52,7 @@ export const SessionListPanel = ({
     onOpenRow,
     menuFor,
     onMenuSelect,
+    onRenameRow,
     alwaysShowPin,
 }: SessionListPanelProps) => {
     // Only the header badge reads the list here; the shared card list runs the same hook (one
@@ -110,6 +113,7 @@ export const SessionListPanel = ({
                 onOpenRow={onOpenRow}
                 menuFor={menuFor}
                 onMenuSelect={onMenuSelect}
+                onRenameRow={onRenameRow}
                 alwaysShowPin={alwaysShowPin}
             />
         </PanelSection>

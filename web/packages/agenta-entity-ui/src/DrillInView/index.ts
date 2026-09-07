@@ -126,6 +126,9 @@ export type {
 // The workflow-as-tool reference bridge every host feeds into its own DrillInUIProvider.
 export {useWorkflowReferenceBridge} from "./bridges/useWorkflowReferenceBridge"
 
+// The gateway-tools bridge, mounted inside a DrillInUIProvider by every host that has tools.
+export {GatewayToolsBridgeProvider} from "./bridges/GatewayToolsBridgeProvider"
+
 // Core Types
 export type {
     // Data types
@@ -370,6 +373,7 @@ export type {
 export {
     AgentOperationsSections,
     AgentOperationsSkeleton,
+    AgentRegionHeaderBar,
 } from "./SchemaControls/AgentOperationsSections"
 
 // Triggers section internals — surfaced so the Storybook component inventory can render
@@ -467,4 +471,4 @@ export type {
 
 // The panel's instructions file row, reused read-only by surfaces that show an agent's brief
 // without editing it (the agent overview).
-export {InstructionsFileRow} from "./SchemaControls/agentTemplate/ItemRow"
+export {InstructionsFileRow, ItemRow} from "./SchemaControls/agentTemplate/ItemRow"

@@ -18,6 +18,7 @@ export const NewAgentAction = ({
     label,
     base,
     align = "stretch",
+    className,
 }: {
     create: () => void
     createFromTemplate: (templateKey: string) => void
@@ -32,9 +33,12 @@ export const NewAgentAction = ({
      * on the other surface.
      */
     align?: "end" | "stretch"
+    /** On the trigger — the roster toolbar sizes it down on a phone. */
+    className?: string
 }) => (
     <span className={`flex flex-col gap-1 ${align === "end" ? "items-end" : "items-stretch"}`}>
         <NewAgentButton
+            className={className}
             label={label}
             loading={creating}
             onCreateBlank={create}

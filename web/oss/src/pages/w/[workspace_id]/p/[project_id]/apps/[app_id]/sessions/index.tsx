@@ -1,9 +1,9 @@
 import {useEffect, useState, type ReactNode} from "react"
 
 import {applySessionScopeAtom, type SessionScope} from "@agenta/sessions/state"
+import {sessionScopeFromRouteQuery} from "@agenta/sessions/state"
 import {useSetAtom} from "jotai"
 
-import {sessionScopeFromRouteQuery} from "@/oss/components/pages/sessions/assets/sessionRouteScope"
 import SessionsPage from "@/oss/components/pages/sessions/SessionsPage"
 import RequireWorkflowKind from "@/oss/components/RequireWorkflowKind"
 import {useAppId} from "@/oss/hooks/useAppId"

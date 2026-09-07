@@ -56,6 +56,7 @@ const SessionRowImpl = ({
     onTogglePin,
 }: SessionRowProps) => {
     const openable = Boolean(row.agentId && onOpen)
+    const menuHasPin = Boolean(menuItems?.some((entry) => "key" in entry && entry.key === "pin"))
     const handleOpen = () => {
         if (openable) onOpen?.()
     }
@@ -155,11 +156,14 @@ const SessionRowImpl = ({
                     {row.activityAt ? timeAgo(Date.parse(row.activityAt)) : "—"}
                 </span>
 
+                {/* Phone-hidden because the "..." menu carries Pin/Unpin, but only where it
+                    actually does: `menuItems` is optional and need not include that entry. */}
                 {onTogglePin ? (
                     <SessionPinButton
                         pinned={row.isPinned}
                         onToggle={() => onTogglePin(row.id)}
                         revealOnHover={revealActionsOnHover}
+                        className={menuHasPin ? "hidden sm:block" : undefined}
                     />
                 ) : null}
 
@@ -170,7 +174,8 @@ const SessionRowImpl = ({
                                 variant="ghost"
                                 size="icon-sm"
                                 aria-label="Session actions"
-                                className="shrink-0"
+                                // The pin's hit extender: 24px is under the touch guideline.
+                                className="relative shrink-0 after:absolute after:inset-[-10px] after:content-[''] [@media(hover:hover)]:after:inset-[-4px]"
                                 onClick={(event) => event.stopPropagation()}
                             >
                                 <DotsThreeIcon size={14} />
