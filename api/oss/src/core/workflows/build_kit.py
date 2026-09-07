@@ -36,13 +36,12 @@ _READ_CONFIG_OPS: tuple[str, ...] = (
 
 _AUTO_ALLOWED_BUILD_KIT_OPS = frozenset({"rename_session", "rename_agent"})
 
-# Cut ops stay catalog opt-ins.
+# Cut ops stay catalog opt-ins. `annotate_trace` and `query_spans` left the kit on 2026-09-07:
+# no skill text told the model when to use them, and both are due for their own rework.
 DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "discover_tools",
     *_READ_CONFIG_OPS,
     "commit_revision",
-    "annotate_trace",
-    "query_spans",
     "test_run",
     "rename_session",
     "rename_agent",

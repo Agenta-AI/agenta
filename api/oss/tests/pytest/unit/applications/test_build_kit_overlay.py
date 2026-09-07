@@ -43,8 +43,6 @@ from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
     "discover_tools",
     "commit_revision",
-    "annotate_trace",
-    "query_spans",
     "test_run",
     "rename_session",
     "rename_agent",
@@ -62,8 +60,6 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "discover_tools",
     "read_config",
     "commit_revision",
-    "annotate_trace",
-    "query_spans",
     "test_run",
     "rename_session",
     "rename_agent",
@@ -104,6 +100,8 @@ EXPECTED_DEFAULT_BUILD_KIT_OPS = (
 )
 
 CUT_BUILD_KIT_OPS = (
+    "annotate_trace",
+    "query_spans",
     "pause_schedule",
     "resume_schedule",
     "pause_subscription",
