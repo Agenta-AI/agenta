@@ -224,7 +224,10 @@ export const AutomationListScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[26px] font-semibold leading-[1.2] tracking-[-0.02em] text-foreground">
                                     Automations
                                 </h1>
-                                <Button onClick={() => void router.push(`${base}/automations/new`)}>
+                                <Button
+                                    className="font-normal"
+                                    onClick={() => void router.push(`${base}/automations/new`)}
+                                >
                                     <Plus />
                                     New automation
                                 </Button>
