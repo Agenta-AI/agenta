@@ -64,3 +64,11 @@ Branch `feat/release-1153-platform-prompt`, target `release/v0.115.3`.
   `agent-files/.tools/bin/`, environments rebuilt on local disk by `setup.sh`, and tools
   called as `.tools/bin/<tool>` from the working directory. It assumes #5796 lands in the
   same release.
+- Codex review (2026-09-07) on the combined change: the ask gates were narrowed to changes
+  outside the working directory, the refusal rule now distinguishes a policy refusal from a
+  refusal that names a fix, the link rule no longer claims an absolute path never opens, the
+  rendered-copy rule names the instruction and skill files only, and the storage section
+  hedges on an unavailable durable folder. The runner's mount paragraph no longer forbids
+  storing a preference in the instructions, which the prompt's Memory section requires. The
+  SDK resolver collapses two identical copies of a reserved client tool, so a revision that
+  embedded `request_secret` by hand before it joined the kit still runs.

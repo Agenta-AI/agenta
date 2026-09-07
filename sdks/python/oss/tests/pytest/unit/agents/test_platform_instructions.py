@@ -48,7 +48,7 @@ def test_file_links_are_relative_and_never_absolute():
     # The chat's link gate resolves a path relative to the working directory and renders an
     # absolute sandbox path as inert text. The prompt must teach the shape that opens.
     assert "[report.md](agent-files/report.md)" in AGENTA_PLATFORM_BASE
-    assert "An absolute path does not open" in AGENTA_PLATFORM_BASE
+    assert "A bare basename for a nested file does not open" in AGENTA_PLATFORM_BASE
     assert "/home/sandbox/" not in AGENTA_PLATFORM_BASE
 
 
