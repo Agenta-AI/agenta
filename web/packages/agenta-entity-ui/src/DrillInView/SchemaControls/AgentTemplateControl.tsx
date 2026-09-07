@@ -1229,6 +1229,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         withTooltip={withTooltip}
                         revisionId={sectionRevision ?? revisionId}
                         buildKitOverride={draftBuildKitOverride}
+                        credentialOperationsBlocked={sectionDirty}
+                        onCredentialRevisionCommitted={closeSectionDraft}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>

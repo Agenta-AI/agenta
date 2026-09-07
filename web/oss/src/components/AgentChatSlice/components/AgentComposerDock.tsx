@@ -75,6 +75,7 @@ const AgentComposerDock = ({
     onApprovalResponses,
     connects,
     elicits,
+    secretDock,
     onClientToolOutput,
     onSubmit,
     onStop,
@@ -123,6 +124,7 @@ const AgentComposerDock = ({
     ) => void | ApprovalSubmissionOutcome | Promise<void | ApprovalSubmissionOutcome>
     connects: ConnectionDockState
     /** Parked question forms the run is blocked on (from `useElicitationDock`). */
+    secretDock?: React.ReactNode
     elicits: ElicitationDockState
     onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
@@ -350,6 +352,7 @@ const AgentComposerDock = ({
                 {/* Parked question forms: one question at a time, in a fixed-height card. Slotted
                     between approval and connect because that is also the keyboard precedence, so
                     visual order and shortcut order can never disagree. */}
+                {secretDock ? <div className={CHAT_COLUMN}>{secretDock}</div> : null}
                 <ElicitationDock
                     className={CHAT_COLUMN}
                     elicits={elicits}
