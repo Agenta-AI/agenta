@@ -36,6 +36,7 @@ Licensing (see services/runner/docker/README.md):
 """
 
 import base64
+import gzip
 import json
 import os
 import sys
@@ -152,16 +153,41 @@ GEESEFS_URL = (
 # pinned Python set, node tools, ffmpeg, poppler, tesseract, ONE Chromium) in the runner images
 # AND this snapshot, so the local and the remote sandbox cannot drift. The Daytona build has no
 # context from this repo, so the script is embedded base64, the same way the codex patch is.
-INSTALL_SCRIPT = (Path(__file__).resolve().parents[1] / "install-agent-tools.sh").read_bytes()
+SANDBOX_IMAGES_DIR = Path(__file__).resolve().parents[1]
+INSTALL_SCRIPT = (SANDBOX_IMAGES_DIR / "install-agent-tools.sh").read_bytes()
+AGENT_REQUIREMENTS = (SANDBOX_IMAGES_DIR / "agent-requirements.txt").read_bytes()
 PLAYWRIGHT_BROWSERS_PATH = "/opt/pw-browsers"
 
 
-def install_agent_tools_command() -> str:
-    blob = base64.b64encode(INSTALL_SCRIPT).decode()
-    return (
-        f"RUN echo {blob} | base64 -d > /tmp/install-agent-tools.sh "
-        "&& sh /tmp/install-agent-tools.sh && rm /tmp/install-agent-tools.sh"
-    )
+def _embed_file(content: bytes, dest: str) -> list[str]:
+    """RUN lines that write `content` to `dest` inside the build: gzip, base64, split.
+
+    Two limits shape this. Daytona rejects a Dockerfile line over 65535 bytes, and Docker runs a
+    RUN line as `sh -c "<line>"`, one argv string capped at 128 KiB by Linux. The hashed
+    requirements lock alone is 150 KB, so it is gzipped (about 4x smaller) and the base64 is
+    appended to a staging file across as many RUN lines as it takes, each well under both caps,
+    then decoded once.
+    """
+    blob = base64.b64encode(gzip.compress(content, 9)).decode()
+    staging = f"{dest}.b64"
+    lines = [
+        f"RUN printf '%s' '{blob[i : i + 48_000]}' >> {staging}"
+        for i in range(0, len(blob), 48_000)
+    ]
+    lines.append(f"RUN base64 -d {staging} | gzip -dc > {dest} && rm {staging}")
+    for line in lines:
+        if len(line) > 60_000:
+            raise ValueError(f"embedded line for {dest} too long: {len(line)}")
+    return lines
+
+
+def install_agent_tools_commands() -> list[str]:
+    return [
+        *_embed_file(INSTALL_SCRIPT, "/tmp/install-agent-tools.sh"),
+        *_embed_file(AGENT_REQUIREMENTS, "/tmp/agent-requirements.txt"),
+        "RUN sh /tmp/install-agent-tools.sh "
+        "&& rm /tmp/install-agent-tools.sh /tmp/agent-requirements.txt",
+    ]
 
 
 def main() -> None:
@@ -211,7 +237,7 @@ def main() -> None:
             # ts-node 10 + typescript 5.9 picks `module: NodeNext` without a tsconfig and fails
             # (TS5109) on newer node; same setting as the runner images, see the recipe.
             'ENV TS_NODE_COMPILER_OPTIONS="{\\"module\\":\\"commonjs\\",\\"moduleResolution\\":\\"node\\"}"',
-            install_agent_tools_command(),
+            *install_agent_tools_commands(),
             # Durable cwd: fuse + geesefs so the remote sandbox can mount its store prefix.
             "RUN apt-get update && apt-get install -y --no-install-recommends fuse "
             "&& rm -rf /var/lib/apt/lists/* && echo user_allow_other >> /etc/fuse.conf",

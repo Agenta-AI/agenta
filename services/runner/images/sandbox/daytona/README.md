@@ -31,8 +31,12 @@ standalone `pi` CLI that the adapter launches.
 
 The snapshot recipe therefore:
 
-- runs the shared tool recipe `services/runner/images/sandbox/install-agent-tools.sh`, embedded
-  base64 because the Daytona build has no repo context. The same file runs in both runner
+- runs the shared tool recipe `services/runner/images/sandbox/install-agent-tools.sh` and its
+  hash-pinned Python lock `agent-requirements.txt`, both embedded (gzip, base64, one `RUN`
+  line each) because the Daytona build has no repo context. To change the Python set, edit the
+  package list, then regenerate the lock with
+  `uv pip compile --python-version 3.11 --generate-hashes --no-header --no-annotate requirements.in -o agent-requirements.txt`;
+  the install runs with `--require-hashes`, so a hand-edited pin without a hash fails the build. The same file runs in both runner
   Dockerfiles, so the local sandbox and the Daytona sandbox ship one tool list: the everyday shell
   tools, `gh` from GitHub's apt repo, `uv`, `fd` 10.4.2 (Pi's `find` builtin needs a flag Debian's
   8.6 lacks), `ffmpeg`, poppler, tesseract, the node toolchain (`typescript` 5, `ts-node`,

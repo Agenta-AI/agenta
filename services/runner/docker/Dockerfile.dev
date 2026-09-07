@@ -13,7 +13,7 @@ WORKDIR /app
 # the shared recipe images/sandbox/install-agent-tools.sh, which the Daytona snapshot runs
 # too, so the local sandbox (this container) and the remote one cannot drift. Each section of
 # that script asserts its own pin and fails the build otherwise.
-COPY images/sandbox/install-agent-tools.sh /tmp/install-agent-tools.sh
+COPY images/sandbox/install-agent-tools.sh images/sandbox/agent-requirements.txt /tmp/
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 # ts-node 10 + typescript 5.9 on node 24 picks `module: NodeNext` without a tsconfig and fails
 # (TS5109); agents run it from a working directory with no tsconfig. See the recipe.

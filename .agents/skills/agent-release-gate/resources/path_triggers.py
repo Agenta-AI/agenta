@@ -79,6 +79,8 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     # prompt promises. A change to the restore step or to the image recipes needs the cell that
     # plants a setup script through the mounts API and proves it ran before the first tool call.
     "services/runner/src/engines/sandbox_agent/agent-tools-setup.ts": AGENT_TOOLS,
+    "services/runner/src/engines/sandbox_agent/run-plan.ts": AGENT_TOOLS,
+    "services/runner/src/environment/timing.ts": AGENT_TOOLS,
     "services/runner/src/engines/sandbox_agent/agent-mount.ts": AGENT_TOOLS,
     "services/runner/src/engines/sandbox_agent/environment.ts": AGENT_TOOLS,
     "services/runner/src/environment/mount-lifecycle.ts": AGENT_TOOLS,

@@ -156,100 +156,16 @@ ln -sf "$chrome" /usr/local/bin/chromium
 chmod -R a+rX "$PLAYWRIGHT_BROWSERS_PATH"
 chromium --headless=new --no-sandbox --disable-gpu --dump-dom about:blank 2>/dev/null | grep -q '<html'
 
-# ---- python set: documents, data, the web. Resolved with `uv pip compile` for python 3.11;
-# the same lock resolves on arm64. Installed into the system interpreter so `python3` imports
-# them with no venv. Everything else goes through uv at session time. ---------------------------
-cat > /tmp/agent-requirements.txt <<'REQ'
-annotated-doc==0.0.5
-annotated-types==0.8.0
-anthropic==1.4.0
-anyio==4.15.1
-beautifulsoup4==4.15.0
-blinker==1.9.0
-certifi==2026.7.22
-charset-normalizer==3.5.1
-click==8.5.0
-cloudpickle==3.1.2
-contourpy==1.3.3
-cycler==0.12.1
-decorator==5.3.1
-docstring-parser==0.18.0
-et-xmlfile==2.0.0
-fastapi==0.141.1
-flask==3.1.3
-fonttools==4.64.0
-formulaic==1.2.2
-greenlet==3.5.5
-h11==0.16.0
-httpcore==1.0.9
-httpcore2==2.12.0
-httpx==0.28.1
-httpx2==2.12.0
-idna==3.19
-imageio==2.37.4
-imageio-ffmpeg==0.6.0
-iniconfig==2.3.0
-interface-meta==2.0.1
-itsdangerous==2.2.0
-jinja2==3.1.6
-jiter==0.16.0
-joblib==1.6.0
-kiwisolver==1.5.1
-lxml==6.1.3
-markupsafe==3.0.3
-matplotlib==3.11.1
-moviepy==2.2.1
-mpmath==1.3.0
-narwhals==2.25.0
-numpy==2.4.6
-openai==3.8.0
-openpyxl==3.1.5
-orjson==3.12.0
-packaging==26.3
-pandas==3.0.5
-patsy==1.0.3
-pillow==11.3.0
-playwright==1.62.0
-plotly==7.0.0
-pluggy==1.6.0
-proglog==0.1.12
-pyarrow==25.0.1
-pydantic==2.13.5
-pydantic-core==2.46.5
-pyee==13.0.1
-pygments==2.21.0
-pyparsing==3.3.2
-pypdf==6.18.0
-pytest==9.1.1
-python-dateutil==2.9.0.post0
-python-docx==1.2.0
-python-dotenv==1.2.3
-python-pptx==1.0.2
-requests==2.34.2
-scikit-learn==1.9.0
-scipy==1.17.1
-seaborn==0.13.2
-six==1.17.0
-sniffio==1.3.1
-soupsieve==2.9.2
-starlette==1.6.0
-statsmodels==0.15.0
-sympy==1.14.0
-tabulate==0.10.0
-threadpoolctl==3.6.0
-tqdm==4.70.0
-truststore==0.10.4
-typing-extensions==4.16.0
-typing-inspection==0.4.4
-urllib3==2.7.0
-uvicorn==0.52.4
-werkzeug==3.1.8
-wrapt==2.4.0
-xlsxwriter==3.2.9
-yt-dlp==2026.8.19
-REQ
-uv pip install --system --break-system-packages --no-cache -r /tmp/agent-requirements.txt
-rm /tmp/agent-requirements.txt
+# ---- python set: documents, data, the web. Resolved with `uv pip compile --generate-hashes`
+# for python 3.11 (regenerate: images/sandbox/README or the PR that pinned it); the same lock
+# resolves on arm64. Installed into the system interpreter so `python3` imports them with no
+# venv. Everything else goes through uv at session time. -------------------------------------
+# The lock lives next to this script as agent-requirements.txt (COPY'd into the runner images,
+# embedded into the snapshot build alongside this file). It carries sha256 hashes for every
+# wheel, so a package that does not match its hash fails the build.
+req="$(dirname "$0")/agent-requirements.txt"
+[ -f "$req" ] || { echo "missing $req next to $0" >&2; exit 1; }
+uv pip install --system --break-system-packages --no-cache --require-hashes -r "$req"
 python3 - <<'PY'
 import importlib
 for m in ["requests","httpx","bs4","lxml","pandas","numpy","matplotlib","PIL","scipy","sklearn",
