@@ -2,7 +2,7 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface SkillUsageResponse {
+export interface SkillReferencedByResponse {
     count?: number | undefined;
-    usage?: AgentaApi.SkillUsageItem[] | undefined;
+    referenced_by?: AgentaApi.SkillUsageItem[] | undefined;
 }

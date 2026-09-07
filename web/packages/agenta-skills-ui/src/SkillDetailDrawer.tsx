@@ -260,9 +260,11 @@ export function SkillDetailDrawer({
             await commitSkillRevision({
                 projectId,
                 workflowId,
-                variantId: head.variantId,
                 skill: pending,
                 message: saveMessage.trim() || undefined,
+                // The head we rendered is the base — a concurrent edit conflicts,
+                // it is never clobbered.
+                baseRevisionId: head.id,
             })
             invalidateSkillsListCache()
             await revisionsQuery.refetch()

@@ -5,15 +5,9 @@
  * independent drift check. Workflow-level writes (create/commit/roster) still ride the
  * entities layer, whose own Fern migration is tracked separately.
  */
-import {
-    archiveWorkflow,
-    createWorkflow,
-    queryWorkflowRevisionsByWorkflow,
-    retrieveWorkflowRevision,
-    unarchiveWorkflow,
-} from "@agenta/entities/workflow"
+import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
 import {getSkillsClient, getWorkflowsClient} from "@agenta/sdk/resources"
-import {generateId, generateSlugWithSuffix} from "@agenta/shared/utils"
+import {generateId} from "@agenta/shared/utils"
 import type {z} from "zod"
 
 import {
@@ -88,30 +82,22 @@ export interface QuerySkillUsageParams {
     workflowSlug?: string
 }
 
-/** `POST /skills/usage` — which agents embed this skill, and latest vs pinned. */
+/** `GET /skills/{id}/referenced-by` — the agents referencing this skill, latest vs pinned. */
 export async function querySkillUsage({
     projectId,
     workflowId,
-    workflowSlug,
 }: QuerySkillUsageParams): Promise<SkillUsageResponse> {
-    if (!projectId || (!workflowId && !workflowSlug)) {
+    if (!projectId || !workflowId) {
         return {count: 0, usage: []}
     }
 
-    const data = await getSkillsClient().querySkillUsage(
-        {
-            ...(workflowId ? {workflow_id: workflowId} : {}),
-            ...(workflowSlug ? {workflow_slug: workflowSlug} : {}),
-        },
+    const data = await getSkillsClient().listSkillReferencedBy(
+        {skill_id: workflowId},
         {queryParams: {project_id: projectId}},
     )
 
-    return (
-        parseOrWarn(skillUsageResponseSchema, data, "[querySkillUsage]") ?? {
-            count: 0,
-            usage: [],
-        }
-    )
+    const parsed = parseOrWarn(skillUsageResponseSchema, data, "[querySkillUsage]")
+    return parsed ?? {count: 0, usage: []}
 }
 
 /** Mirrors AGENTA_BUILTIN_SKILL_URI (sdk engines/running/utils.py) — the skill workflow URI. */
@@ -123,13 +109,8 @@ export interface CreateSkillWorkflowParams {
     skill: Record<string, unknown> & {name: string; description: string}
 }
 
-/**
- * Creates a registry skill: a workflow with `is_skill`+`is_snippet` stamped on BOTH the
- * artifact and the v1 revision — the registry query filters on the REVISION flag, so a
- * commit without it is invisible to /skills/query. Mirrors the server import path
- * (import_service.py SimpleWorkflowCreate). Display names may collide (like agents);
- * the slug is plumbing and carries a random suffix so creation never rejects on a name.
- */
+/** Creates a registry skill through the /skills facade — the server owns validation,
+ * the suffixed slug, and the flag/URI stamping. */
 export interface CreatedSkillWorkflow {
     /** The generated (suffixed) workflow slug — what embeds must reference. */
     slug: string
@@ -140,21 +121,13 @@ export async function createSkillWorkflow({
     projectId,
     skill,
 }: CreateSkillWorkflowParams): Promise<CreatedSkillWorkflow> {
-    const flags = {is_skill: true, is_snippet: true}
-    const slug = generateSlugWithSuffix(skill.name)
-    const created = (await createWorkflow(projectId, {
-        slug,
-        name: skill.name,
-        // Populates the searchable artifact column (WP-A2.2).
-        description: skill.description,
-        flags,
-        data: {uri: AGENTA_BUILTIN_SKILL_URI, parameters: {skill}},
-        revisionFlags: flags,
-        message: "Create skill",
-    })) as Record<string, unknown> | undefined
+    const data = (await getSkillsClient().createSkill(
+        {skill},
+        {queryParams: {project_id: projectId}},
+    )) as Record<string, unknown>
     return {
-        slug,
-        workflowId: typeof created?.workflow_id === "string" ? created.workflow_id : undefined,
+        slug: typeof data?.slug === "string" ? data.slug : skill.name,
+        workflowId: typeof data?.workflow_id === "string" ? data.workflow_id : undefined,
     }
 }
 
@@ -232,72 +205,58 @@ export async function fetchSkillRevisions({
     workflowId,
 }: FetchSkillRevisionsParams): Promise<SkillRevision[]> {
     if (!projectId || !workflowId) return []
-    const response = await queryWorkflowRevisionsByWorkflow(workflowId, projectId)
-    const revisions = (response.workflow_revisions ?? []) as Record<string, unknown>[]
-    return (
-        revisions
-            .map((rev): SkillRevision => {
-                const data = rev.data as Record<string, unknown> | undefined
-                const parameters = data?.parameters as Record<string, unknown> | undefined
-                const skill = parameters?.skill
-                return {
-                    id: String(rev.id ?? ""),
-                    version:
-                        rev.version != null ? String(rev.version).replace(/^v/, "") : undefined,
-                    message: typeof rev.message === "string" ? rev.message : undefined,
-                    createdAt: typeof rev.created_at === "string" ? rev.created_at : undefined,
-                    variantId:
-                        typeof rev.workflow_variant_id === "string"
-                            ? rev.workflow_variant_id
-                            : undefined,
-                    skill:
-                        skill && typeof skill === "object" && !Array.isArray(skill)
-                            ? (skill as Record<string, unknown>)
-                            : undefined,
-                }
-            })
-            .filter((rev) => rev.id)
-            // v0 is the empty bootstrap revision — history starts at v1.
-            .filter((rev) => rev.version !== "0")
-            .sort((a, b) => Number(b.version ?? 0) - Number(a.version ?? 0))
-    )
+    const data = (await getSkillsClient().logSkillRevisions(
+        {skill_id: workflowId},
+        {queryParams: {project_id: projectId}},
+    )) as {revisions?: Record<string, unknown>[]}
+    // Filtering (no v0) and ordering are server-side; this only maps field names.
+    return (data.revisions ?? [])
+        .map(
+            (rev): SkillRevision => ({
+                id: String(rev.id ?? ""),
+                version: rev.version != null ? String(rev.version).replace(/^v/, "") : undefined,
+                message: typeof rev.message === "string" ? rev.message : undefined,
+                createdAt: typeof rev.created_at === "string" ? rev.created_at : undefined,
+                variantId:
+                    typeof rev.workflow_variant_id === "string"
+                        ? rev.workflow_variant_id
+                        : undefined,
+                skill:
+                    rev.skill && typeof rev.skill === "object" && !Array.isArray(rev.skill)
+                        ? (rev.skill as Record<string, unknown>)
+                        : undefined,
+            }),
+        )
+        .filter((rev) => rev.id)
 }
 
 export interface CommitSkillRevisionParams {
     projectId: string
     workflowId: string
-    variantId?: string
-    /** Validated skill content (skillContentSchema) — becomes `data.parameters.skill`. */
+    /** The skill content — server-validated against the SkillTemplate contract. */
     skill: Record<string, unknown>
     message?: string
+    /** Optimistic concurrency: a moved head answers revision_conflict, never a clobber. */
+    baseRevisionId?: string
 }
 
-/**
- * Commits a new revision on an existing skill workflow, with the skill flags stamped
- * explicitly (the registry query filters on the REVISION flag — same contract as
- * `createSkillWorkflow`). The server infers them from the URI too; explicit is the belt.
- */
+/** Commits a new revision through the /skills facade; the server stamps flags + URI. */
 export async function commitSkillRevision({
     projectId,
     workflowId,
-    variantId,
     skill,
     message,
+    baseRevisionId,
 }: CommitSkillRevisionParams) {
-    const data = await getWorkflowsClient().commitWorkflowRevision(
+    return getSkillsClient().commitSkillRevision(
         {
-            workflow_revision: {
-                workflow_id: workflowId,
-                workflow_variant_id: variantId ?? undefined,
-                slug: generateId().replace(/-/g, "").slice(0, 12),
-                data: {uri: AGENTA_BUILTIN_SKILL_URI, parameters: {skill}},
-                flags: {is_skill: true, is_snippet: true},
-                message: message || undefined,
-            } as never,
+            skill_id: workflowId,
+            skill,
+            message: message || undefined,
+            base_revision_id: baseRevisionId || undefined,
         },
         {queryParams: {project_id: projectId}},
     )
-    return data
 }
 
 /** The workflow slug an embed entry references (either ref level), for dedup checks. */
@@ -415,7 +374,10 @@ export async function archiveSkill({
     projectId: string
     workflowId: string
 }) {
-    return archiveWorkflow(projectId, workflowId)
+    return getSkillsClient().archiveSkill(
+        {skill_id: workflowId},
+        {queryParams: {project_id: projectId}},
+    )
 }
 
 export async function unarchiveSkill({
@@ -425,7 +387,10 @@ export async function unarchiveSkill({
     projectId: string
     workflowId: string
 }) {
-    return unarchiveWorkflow(projectId, workflowId)
+    return getSkillsClient().unarchiveSkill(
+        {skill_id: workflowId},
+        {queryParams: {project_id: projectId}},
+    )
 }
 
 /** Read-only: compare one imported skill against its upstream origin. */
