@@ -40,3 +40,22 @@ mechanisms are out of scope.
 Implementation uses an isolated source copy of release commit
 `76f7b0b6f0795c2e792ab4a4403e3e01303f228c`. The shared checkout contains unrelated
 website conflicts. Publication must preserve those files and the shared index.
+
+## 2026-09-07: the base text became the platform prompt
+
+Branch `feat/release-1153-platform-prompt`, target `release/v0.115.3`.
+
+- `AGENTA_PLATFORM_BASE` grew from a four-sentence stub into the full platform prompt: what
+  Agenta is, the coworker persona, how the agent works and talks, the three ask gates, files
+  and storage, credentials, GitHub rules, and the harness features that do not work here. A
+  second constant, `AGENTA_CONFIG_SECTIONS`, holds the parts that name configuration tools
+  (task against configuration intent, the configuration itself, memory, automations, naming).
+  `compose_platform_instructions` includes it only when the run offers `commit_revision`.
+- The runner's fenced block dropped the two config sentences the prompt now owns (the rendered
+  file is a copy; skills live in the configuration). Its file-citation sentence now asks for a
+  path relative to the working directory, because the chat's link gate cannot open an absolute
+  sandbox path. The mount paragraph and the codex rebuttal stay.
+- `request_secret` ships through the build-kit overlay beside `request_connection` and
+  `request_input`, and its usage guidance moved into the tool description.
+- Open: the agent still cannot see its own name, the session name, or a first-turn flag. See
+  [open-issues.md](./open-issues.md).

@@ -9,6 +9,7 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 from agenta.sdk.agents.platform.workflow import (
     REQUEST_CONNECTION_WORKFLOW_SLUG,
+    REQUEST_SECRET_WORKFLOW_SLUG,
 )
 
 BUILD_KIT_WORKFLOW_SLUG = "__ag__build_kit"
@@ -22,6 +23,7 @@ AGENTA_BUILTIN_AGENT_URI = "agenta:builtin:agent:v0"
 REQUEST_CONNECTION_WORKFLOW_NAME = "Request connection"
 REQUEST_INPUT_WORKFLOW_SLUG = "__ag__request_input"
 REQUEST_INPUT_WORKFLOW_NAME = "Request input"
+REQUEST_SECRET_WORKFLOW_NAME = "Request secret"
 
 # `read_config` is the read half of the read-then-edit loop, and without it a playground agent
 # can commit but never read what it is editing. It exists in the catalog only when ordered
@@ -55,9 +57,13 @@ DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
 )
 
 # (slug, name) pairs — reserved static client tools embedded in every build kit, in order.
+# `request_secret` sits beside `request_connection` on purpose: both are the platform's way to
+# collect a credential without the user pasting one into chat, and a playground agent that can ask
+# for an integration connection must be able to ask for a custom secret the same way.
 _STATIC_TOOL_EMBEDS: tuple[tuple[str, str], ...] = (
     (REQUEST_CONNECTION_WORKFLOW_SLUG, REQUEST_CONNECTION_WORKFLOW_NAME),
     (REQUEST_INPUT_WORKFLOW_SLUG, REQUEST_INPUT_WORKFLOW_NAME),
+    (REQUEST_SECRET_WORKFLOW_SLUG, REQUEST_SECRET_WORKFLOW_NAME),
 )
 
 
