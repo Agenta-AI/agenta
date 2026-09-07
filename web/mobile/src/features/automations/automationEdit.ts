@@ -8,7 +8,10 @@ import {
     type TriggerSubscriptionEdit,
 } from "@agenta/entities/gatewayTrigger"
 
-import type {Automation} from "./automationModel"
+import type {Automation, AutomationKind} from "./automationModel"
+
+/** Every schedule fires on the same synthetic tick; the event key is not user-facing. */
+export const SCHEDULE_EVENT_KEY = "schedule.tick"
 
 /**
  * One edit payload builder for both trigger kinds.
@@ -75,6 +78,61 @@ function subscriptionEdit(
             is_active: isEntityActive(subscription),
             // Required by the PUT body and never edited here — carried through as stored.
             is_valid: subscription.flags?.is_valid ?? true,
+        },
+    }
+}
+
+/** What a draft has to supply before it can be created. */
+export interface AutomationCreateDraft {
+    kind: AutomationKind
+    name: string
+    description: string
+    cron: string
+    eventKey: string | null
+    connectionId: string | null
+    inputsFields: Record<string, unknown>
+}
+
+/**
+ * The create payload, per kind.
+ *
+ * Deliberately shaped like `buildAutomationEdit`: the same `data` keys, the same per-kind
+ * narrowing, the same rule that `flags` is stated rather than left to the backend's default. A
+ * create carries no `id` and copies nothing off an existing row, so there is no stored entity to
+ * spread — this is the edit builder's shape with the entity half removed.
+ */
+export function buildAutomationCreate(
+    draft: AutomationCreateDraft,
+    references: ReturnType<typeof buildTriggerReferences>,
+): TriggerScheduleCreate | TriggerSubscriptionCreate {
+    const header = {
+        name: draft.name,
+        description: draft.description || null,
+    }
+
+    if (draft.kind === "schedule") {
+        return {
+            ...header,
+            // New automations arrive on, which is what the success message promises.
+            flags: {is_active: true},
+            data: {
+                event_key: SCHEDULE_EVENT_KEY,
+                schedule: draft.cron.trim(),
+                inputs_fields: draft.inputsFields,
+                references,
+            },
+        }
+    }
+
+    return {
+        ...header,
+        flags: {is_active: true, is_valid: true},
+        // Guarded by `blockedReason`, which never lets an event draft create without both.
+        connection_id: draft.connectionId ?? "",
+        data: {
+            event_key: draft.eventKey ?? "",
+            inputs_fields: draft.inputsFields,
+            references,
         },
     }
 }
