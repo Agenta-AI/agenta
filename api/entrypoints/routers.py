@@ -130,6 +130,10 @@ from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
 from oss.src.apis.fastapi.skills.router import SkillsRouter
 from oss.src.core.skills.service import SkillsService
 from oss.src.core.skills.import_service import SkillImportService
+from oss.src.core.skills.providers import (
+    GitHubProvider as GitHubSkillProvider,
+    ProviderRegistry as SkillProviderRegistry,
+)
 from oss.src.apis.fastapi.workflows.router import SimpleWorkflowsRouter
 from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
 from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
@@ -1061,6 +1065,7 @@ skills_service = SkillsService(
 
 skill_import_service = SkillImportService(
     simple_workflows_service=simple_workflows_service,
+    providers=SkillProviderRegistry([GitHubSkillProvider()]),
 )
 
 skills = SkillsRouter(

@@ -137,7 +137,7 @@ export async function scanSkillSource({
     if (!projectId || !repoUrl) return null
 
     const data = await getSkillsClient().scanSkillSource(
-        {repo_url: repoUrl, ...(ref ? {ref} : {})},
+        {source_url: repoUrl, ...(ref ? {ref} : {})},
         {queryParams: {project_id: projectId}},
     )
 
@@ -163,7 +163,7 @@ export async function importSkillSource({
 
     const data = await getSkillsClient().importSkillSource(
         {
-            repo_url: repoUrl,
+            source_url: repoUrl,
             ...(ref ? {ref} : {}),
             ...(paths ? {paths} : {}),
         },

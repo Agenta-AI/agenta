@@ -371,7 +371,7 @@ class SkillsRouter:
         scan_request: SkillSourceScanRequest,
     ) -> SourceScanResult:
         """
-        Preview a repo/marketplace as skill candidates — no writes.
+        Preview a catalog source as skill candidates — no writes.
 
         Detects the layout (Claude marketplace manifest, single skill, or a
         multi-skill tree), parses every candidate, and reports per-candidate
@@ -387,8 +387,9 @@ class SkillsRouter:
 
         return await self.import_service.scan_source(
             project_id=UUID(request.state.project_id),
-            repo_url=scan_request.repo_url,
+            source_url=scan_request.source_url,
             ref=scan_request.ref,
+            provider=scan_request.provider,
         )
 
     @intercept_exceptions()
@@ -417,8 +418,9 @@ class SkillsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            repo_url=import_request.repo_url,
+            source_url=import_request.source_url,
             ref=import_request.ref,
+            provider=import_request.provider,
             paths=import_request.paths,
         )
 

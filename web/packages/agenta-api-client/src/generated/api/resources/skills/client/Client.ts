@@ -23,7 +23,7 @@ export class SkillsClient {
     }
 
     /**
-     * Preview a repo/marketplace as skill candidates — no writes.
+     * Preview a catalog source as skill candidates — no writes.
      *
      * Detects the layout (Claude marketplace manifest, single skill, or a
      * multi-skill tree), parses every candidate, and reports per-candidate
@@ -37,7 +37,7 @@ export class SkillsClient {
      *
      * @example
      *     await client.skills.scanSkillSource({
-     *         repo_url: "repo_url"
+     *         source_url: "source_url"
      *     })
      */
     public scanSkillSource(
@@ -274,7 +274,7 @@ export class SkillsClient {
      *
      * @example
      *     await client.skills.importSkillSource({
-     *         repo_url: "repo_url"
+     *         source_url: "source_url"
      *     })
      */
     public importSkillSource(

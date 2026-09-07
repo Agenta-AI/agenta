@@ -21,13 +21,16 @@ class SkillsResponse(BaseModel):
 
 
 class SkillSourceScanRequest(BaseModel):
-    repo_url: str
+    source_url: str
     ref: Optional[str] = None
+    # Narrow resolution to one registered catalog provider; default = ask each.
+    provider: Optional[str] = None
 
 
 class SkillSourceImportRequest(BaseModel):
-    repo_url: str
+    source_url: str
     ref: Optional[str] = None
+    provider: Optional[str] = None
     # Paths (from a prior scan) to import; omitted = every valid candidate.
     paths: Optional[List[str]] = None
 

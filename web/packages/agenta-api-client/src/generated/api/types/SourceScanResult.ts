@@ -3,7 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SourceScanResult {
-    repo_url: string;
+    source_url: string;
+    provider?: (string | null) | undefined;
     ref?: (string | null) | undefined;
     commit_sha?: (string | null) | undefined;
     scan: AgentaApi.ScanResult;

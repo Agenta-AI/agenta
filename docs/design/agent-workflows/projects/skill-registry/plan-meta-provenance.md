@@ -121,6 +121,18 @@ review (tables vs meta, feature-by-feature, reversibility asymmetry).
 - Shared per-repo facts are N copies that can disagree after a partial
   refresh; the UI derives group state and shows per-skill truth.
 
+## Provider adapters (added 2026-09-07)
+
+Direction #4 is implemented (`core/skills/providers/`): a `CatalogProvider`
+contract (claims / fetch_snapshot / item_url), neutral `SourceLocator` /
+`SourceSnapshot` DTOs, and a `ProviderRegistry` wired in `entrypoints/` with
+GitHub as the only registered adapter. The import service, routes
+(`source_url` + optional `provider`), and frontend are provider-neutral;
+provenance URLs are adapter-supplied. The tests register a filesystem
+provider, so the registry always runs with n≥1 real lookups. The shared
+archive rails (size caps, bomb ceilings, traversal rejection) stay in
+`fetcher.py` for any provider that ships archives.
+
 ## Later triggers for reintroducing a table
 
 Credentials for private repos, scheduled sync, webhooks, org-level catalog

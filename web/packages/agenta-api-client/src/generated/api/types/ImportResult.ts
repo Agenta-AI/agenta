@@ -3,7 +3,8 @@
 import type * as AgentaApi from "../index.js";
 
 export interface ImportResult {
-    repo_url: string;
+    source_url: string;
+    provider?: (string | null) | undefined;
     commit_sha?: (string | null) | undefined;
     imported?: AgentaApi.ImportedSkill[] | undefined;
     skipped?: AgentaApi.SkippedSkill[] | undefined;
