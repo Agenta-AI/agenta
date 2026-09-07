@@ -383,8 +383,9 @@ def test_platform_instructions_reach_every_harness(make_env, harness_cls, kind):
     assert "Do not inspect or enumerate the environment" in instructions
     # The credential rules ride the always-on base; the `request_secret` flow is named with an
     # availability hedge because the tool ships through the build kit.
-    assert "paste a" in instructions and "credential into chat" in instructions
-    assert "unless they say to retry" in instructions
+    flat = " ".join(instructions.split())
+    assert "Never ask the person to paste a credential into chat" in flat
+    assert "do not ask again unless they say to retry" in flat
     assert result.agents_md == _AUTHOR_INSTRUCTIONS
     if isinstance(result, PiAgentTemplate):
         assert result.append_system == _AUTHOR_APPEND
