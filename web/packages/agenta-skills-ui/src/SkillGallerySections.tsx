@@ -5,7 +5,7 @@
  */
 import {useMemo} from "react"
 
-import {EmptyState} from "@agenta/ui/ui"
+import {EmptyState, SkeletonBlock} from "@agenta/ui/ui"
 
 import {SkillCard} from "./SkillCard"
 import {SourceRefreshButton} from "./SourceRefreshButton"
@@ -36,6 +36,16 @@ export function SkillGallerySections({
     loading,
 }: SkillGallerySectionsProps) {
     const visibleSections = useMemo(() => sections.filter((s) => s.skills.length > 0), [sections])
+
+    if (loading && visibleSections.length === 0) {
+        return (
+            <div className="flex flex-col gap-2 pt-1">
+                {[0, 1, 2].map((row) => (
+                    <SkeletonBlock key={row} className="h-24 w-full rounded-lg" />
+                ))}
+            </div>
+        )
+    }
 
     if (!loading && visibleSections.length === 0) {
         // The @agenta/ui/ui EmptyState has no title prop; both lines go in description.

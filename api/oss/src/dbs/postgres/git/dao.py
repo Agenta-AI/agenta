@@ -1613,7 +1613,22 @@ class GitDAO(GitDAOInterface):
         column. Flag/tag filters apply inside the head selection, so the head
         is "newest revision that matches", and windowing runs on the outer
         query — cursors stay correct.
+
+        Only `flags` and `tags` are implemented; any other populated
+        `RevisionQuery` field raises instead of being silently ignored.
         """
+        unsupported = [
+            field
+            for field in revision_query.model_fields_set
+            if field not in ("flags", "tags")
+            and getattr(revision_query, field) is not None
+        ]
+        if unsupported:
+            raise ValueError(
+                "query_head_revisions supports only flags/tags filters; "
+                f"got: {', '.join(sorted(unsupported))}"
+            )
+
         async with self.engine.session() as session:
             head_ids_stmt = (
                 select(self.RevisionDBE.id)  # type: ignore

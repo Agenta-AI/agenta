@@ -104,10 +104,13 @@ migrate:
   that unions published skills into `/skills/query`. No change to
   `workflow_*`, `skill_sources`, or `skill_source_links`.
 - **Install-by-copy already exists.** Installing a shared skill into a project
-  is exactly the GitHub import pipeline: snapshot the content into a local
-  workflow and record provenance in a source link (a new source kind, e.g.
-  `registry`, beside `github`). Sync/refresh, detach-on-local-edit, and the
-  provenance UI all carry over unchanged.
+  follows the GitHub import pipeline's shape: snapshot the content into a local
+  workflow and record provenance. Note the current tables and refresh flow are
+  GitHub-specific (no `source_kind` column; `refresh_source` is hardwired to the
+  GitHub fetcher) — adding a `registry` kind is a deferred design item that
+  needs its own source-kind field, fetcher seam, and migration (see the
+  backend-interface-review's provider-adapter direction). The detach-on-local-edit
+  semantics and the provenance UI carry over conceptually.
 - **Embeds stay project-local.** Because install copies, the embed resolver
   never needs cross-project resolution — the riskiest alternative is simply
   avoided.

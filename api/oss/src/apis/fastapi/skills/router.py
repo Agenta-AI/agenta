@@ -261,7 +261,7 @@ class SkillsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        sources = await self.import_service.sources_dao.list_sources(
+        sources = await self.import_service.list_sources(
             project_id=UUID(request.state.project_id),
         )
         return SkillSourcesResponse(count=len(sources), sources=sources)

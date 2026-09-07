@@ -66,36 +66,42 @@ class GitHubTarballFetcher:
                 follow_redirects=True,
                 timeout=env.agenta.api.skills_import.fetch_timeout_seconds,
             ) as client:
-                response = await client.get(target)
+                async with client.stream("GET", target) as response:
+                    if response.status_code == 404:
+                        raise SkillSourceFetchError(
+                            f"GitHub returned 404 for {owner}/{repo}"
+                            + (f"@{ref}" if ref else "")
+                            + " — the repository (or ref) does not exist or is private.",
+                            next_step="Check the URL; private repositories are not supported yet.",
+                        )
+                    if response.status_code == 403:
+                        raise SkillSourceFetchError(
+                            "GitHub rate limit hit while fetching the repository.",
+                            next_step="Wait a few minutes and try again.",
+                        )
+                    if response.status_code >= 400:
+                        raise SkillSourceFetchError(
+                            f"GitHub returned HTTP {response.status_code} for {owner}/{repo}.",
+                        )
+
+                    # Enforce the cap WHILE streaming, so an oversized repository is
+                    # cut off at the limit instead of buffered whole and then rejected.
+                    chunks: list[bytes] = []
+                    received = 0
+                    async for chunk in response.aiter_bytes():
+                        received += len(chunk)
+                        if received > max_bytes:
+                            raise SkillSourceTooLargeError(
+                                f"The repository tarball exceeds the "
+                                f"{env.agenta.api.skills_import.max_tarball_mb} MB import cap.",
+                            )
+                        chunks.append(chunk)
+                    payload = b"".join(chunks)
         except httpx.HTTPError as e:
             raise SkillSourceFetchError(
                 f"Could not reach GitHub for {owner}/{repo}: {e.__class__.__name__}.",
                 next_step="Check the URL and try again.",
             ) from e
-
-        if response.status_code == 404:
-            raise SkillSourceFetchError(
-                f"GitHub returned 404 for {owner}/{repo}"
-                + (f"@{ref}" if ref else "")
-                + " — the repository (or ref) does not exist or is private.",
-                next_step="Check the URL; private repositories are not supported yet.",
-            )
-        if response.status_code == 403:
-            raise SkillSourceFetchError(
-                "GitHub rate limit hit while fetching the repository.",
-                next_step="Wait a few minutes and try again.",
-            )
-        if response.status_code >= 400:
-            raise SkillSourceFetchError(
-                f"GitHub returned HTTP {response.status_code} for {owner}/{repo}.",
-            )
-
-        payload = response.content
-        if len(payload) > max_bytes:
-            raise SkillSourceTooLargeError(
-                f"The repository tarball exceeds the "
-                f"{env.agenta.api.skills_import.max_tarball_mb} MB import cap.",
-            )
 
         return FetchedSource(
             root=extract_tarball(payload, dest=dest),

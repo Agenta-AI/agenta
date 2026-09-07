@@ -19,11 +19,7 @@ import {
 } from "@agenta/skills-ui"
 import {useAtom, useAtomValue} from "jotai"
 
-/**
- * The skill registry page: `@agenta/skills` atoms feeding the presentational
- * `SkillsGalleryPage`. Card/drawer navigation and the create flows wire up in the
- * follow-up checkpoints (W3.3 drawer rework, W5 upload/import).
- */
+// The skill registry page: @agenta/skills atoms feeding the presentational SkillsGalleryPage.
 export default function SkillsPage() {
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)

@@ -153,15 +153,19 @@ export function SkillCreateDrawer({
     const importMany = useCallback(
         async (candidates: SkillScanCandidate[]) => {
             setError(null)
+            let createdAny = false
             try {
                 for (const candidate of candidates) {
                     await createOne(toFormValue(candidate))
+                    createdAny = true
                 }
-                invalidateSkillsListCache()
                 close()
             } catch (err) {
                 // The panel owns the view; the footer carries the failure line.
                 setError(err instanceof Error && err.message ? err.message : "Import failed.")
+            } finally {
+                // A partial batch still created skills — the list must show them.
+                if (createdAny) invalidateSkillsListCache()
             }
         },
         [close, createOne],

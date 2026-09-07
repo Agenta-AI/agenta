@@ -46,6 +46,26 @@ export const skillsListDataAtom = atom<SkillRegistryItem[]>((get) => {
     return query.data?.skills ?? []
 })
 
+/** Archived-inclusive registry list, unfiltered by search — resolvers (e.g. the config
+ * row's detail host) must find a skill regardless of the gallery's current view. */
+export const skillsResolveQueryAtom = atomWithQuery((get) => {
+    const projectId = get(projectIdAtom)
+    return {
+        queryKey: ["skills", "registry", "list", projectId, "", true],
+        queryFn: async (): Promise<SkillsQueryResponse> => {
+            if (!projectId) return {count: 0, skills: [], builtin: []}
+            return querySkills({projectId, includeArchived: true})
+        },
+        enabled: Boolean(get(sessionAtom)) && !!projectId,
+        staleTime: 30_000,
+    }
+})
+
+export const skillsResolveDataAtom = atom<SkillRegistryItem[]>((get) => {
+    const query = get(skillsResolveQueryAtom)
+    return query.data?.skills ?? []
+})
+
 /**
  * Code-defined Agenta built-ins (separate, unpaginated block). The API returns
  * them unfiltered, so the registry search is applied client-side here.

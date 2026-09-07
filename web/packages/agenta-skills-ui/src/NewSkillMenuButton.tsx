@@ -1,8 +1,4 @@
-/**
- * The single `+ New skill ▾` action — identical everywhere a skill can be created
- * (registry header, picker footer, agent config). One dropdown, three entries; there is
- * deliberately no default-click primary action: every path is one explicit menu choice.
- */
+// The `+ New skill ▾` menu, shared by every creation entry point; no default-click action.
 import {
     Button,
     DropdownMenu,

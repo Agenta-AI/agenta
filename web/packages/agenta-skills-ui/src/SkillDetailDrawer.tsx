@@ -160,14 +160,18 @@ export function SkillDetailDrawer({
     // Archive keeps the slug reserved; the registry hides the skill until unarchived.
     const [archiveOpen, setArchiveOpen] = useState(false)
     const [archiveBusy, setArchiveBusy] = useState(false)
+    const [archiveError, setArchiveError] = useState<string | null>(null)
     const runArchive = useCallback(async () => {
         if (!workflowId) return
         setArchiveBusy(true)
+        setArchiveError(null)
         try {
             await archiveSkill({projectId, workflowId})
             invalidateSkillsListCache()
             setArchiveOpen(false)
             onClose()
+        } catch (err) {
+            setArchiveError(err instanceof Error && err.message ? err.message : "Archiving failed.")
         } finally {
             setArchiveBusy(false)
         }
@@ -175,10 +179,15 @@ export function SkillDetailDrawer({
     const runUnarchive = useCallback(async () => {
         if (!workflowId) return
         setArchiveBusy(true)
+        setArchiveError(null)
         try {
             await unarchiveSkill({projectId, workflowId})
             invalidateSkillsListCache()
             onClose()
+        } catch (err) {
+            setArchiveError(
+                err instanceof Error && err.message ? err.message : "Unarchiving failed.",
+            )
         } finally {
             setArchiveBusy(false)
         }
@@ -521,14 +530,21 @@ export function SkillDetailDrawer({
                                         Restore as v{nextVersion}
                                     </Button>
                                 ) : skill?.archived ? (
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => void runUnarchive()}
-                                        disabled={archiveBusy}
-                                    >
-                                        {archiveBusy ? <Spinner size="small" /> : null}
-                                        Unarchive
-                                    </Button>
+                                    <>
+                                        {archiveError ? (
+                                            <span className="text-xs text-[var(--ag-colorError)]">
+                                                {archiveError}
+                                            </span>
+                                        ) : null}
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => void runUnarchive()}
+                                            disabled={archiveBusy}
+                                        >
+                                            {archiveBusy ? <Spinner size="small" /> : null}
+                                            Unarchive
+                                        </Button>
+                                    </>
                                 ) : !isBuiltin ? (
                                     <>
                                         <Button
@@ -734,6 +750,9 @@ export function SkillDetailDrawer({
                             archived). Its name stays reserved, and unarchiving restores it with its
                             full history.
                         </p>
+                        {archiveError ? (
+                            <span className="text-[var(--ag-colorError)]">{archiveError}</span>
+                        ) : null}
                         <div className="flex items-center justify-end gap-2">
                             <Button
                                 variant="outline"

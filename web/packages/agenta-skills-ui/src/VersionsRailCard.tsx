@@ -23,13 +23,18 @@ export function VersionsRailCard({
     onSelect,
     maxRows = 6,
 }: VersionsRailCardProps) {
-    const rows = versions.slice(0, maxRows)
+    // Every revision stays reachable — this is the ONLY revision selector. `maxRows`
+    // caps the visible height; the rest scrolls.
+    const rows = versions
     return (
         <div className="flex flex-col gap-1 rounded-lg bg-[var(--ag-c-EAEFF5)] p-1">
             <span className="px-2 pt-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                 Versions
             </span>
-            <div className="flex flex-col gap-0.5">
+            <div
+                className="flex flex-col gap-0.5 overflow-y-auto"
+                style={{maxHeight: `${maxRows * 30}px`}}
+            >
                 {rows.map((row) => {
                     const active = row.id === activeId
                     return (

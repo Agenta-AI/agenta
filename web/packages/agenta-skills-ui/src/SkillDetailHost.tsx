@@ -7,7 +7,7 @@
 import {useMemo} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {registrySourcesAtom, skillsListDataAtom} from "@agenta/skills/state"
+import {registrySourcesAtom, skillsResolveDataAtom} from "@agenta/skills/state"
 import {useAtomValue} from "jotai"
 
 import {toSkillListItem, toSourceInfo} from "./registrySections"
@@ -24,7 +24,8 @@ export function SkillDetailHost({
     slug: string | null
 }) {
     const projectId = useAtomValue(projectIdAtom) ?? ""
-    const projectSkills = useAtomValue(skillsListDataAtom)
+    // Archived-inclusive: a config row referencing an archived skill still opens here.
+    const projectSkills = useAtomValue(skillsResolveDataAtom)
     const registrySources = useAtomValue(registrySourcesAtom)
 
     const item = useMemo<SkillListItem | null>(() => {

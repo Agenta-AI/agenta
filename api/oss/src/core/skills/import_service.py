@@ -38,6 +38,9 @@ from oss.src.core.skills.sources_dtos import (
     SkillSourceCreate,
     SkillSourceLinkCreate,
 )
+from sqlalchemy.exc import IntegrityError
+
+from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.skills.dao import SkillSourcesDAO
 
 log = get_module_logger(__name__)
@@ -126,6 +129,9 @@ class SkillImportService:
         self.simple_workflows_service = simple_workflows_service
         self.sources_dao = sources_dao
         self.fetcher = fetcher or GitHubTarballFetcher()
+
+    async def list_sources(self, *, project_id) -> List[SkillSource]:
+        return await self.sources_dao.list_sources(project_id=project_id)
 
     async def scan_source(
         self,
@@ -230,7 +236,6 @@ class SkillImportService:
             linked_paths = {link.path_in_repo for link in existing_links}
 
             result = ImportResult(source=source)
-            link_creates: List[SkillSourceLinkCreate] = []
 
             for candidate in candidates:
                 if not candidate.valid or not candidate.skill:
@@ -263,23 +268,33 @@ class SkillImportService:
 
                 skill_payload = _skill_payload(skill)
 
-                created = await self.simple_workflows_service.create(
-                    project_id=project_id,
-                    user_id=user_id,
-                    simple_workflow_create=SimpleWorkflowCreate(
-                        # Display names may collide (like agents); the slug is plumbing and
-                        # carries a random suffix so creation never rejects on a name.
-                        slug=f"{skill.name}-{uuid4().hex[:4]}",
-                        name=skill.name,
-                        # Populates the searchable artifact column (WP-A2.2).
-                        description=skill.description,
-                        flags=SimpleWorkflowFlags(is_skill=True, is_snippet=True),
-                        data=SimpleWorkflowData(
-                            uri=AGENTA_BUILTIN_SKILL_URI,
-                            parameters={"skill": skill_payload},
-                        ),
-                    ),
-                )
+                created = None
+                # The random suffix makes duplicate slugs unlikely, not impossible —
+                # retry a collision with a fresh suffix instead of failing the row.
+                for _ in range(3):
+                    try:
+                        created = await self.simple_workflows_service.create(
+                            project_id=project_id,
+                            user_id=user_id,
+                            simple_workflow_create=SimpleWorkflowCreate(
+                                # Display names may collide (like agents); the slug is
+                                # plumbing and carries a random suffix.
+                                slug=f"{skill.name}-{uuid4().hex[:4]}",
+                                name=skill.name,
+                                # Populates the searchable artifact column (WP-A2.2).
+                                description=skill.description,
+                                flags=SimpleWorkflowFlags(
+                                    is_skill=True, is_snippet=True
+                                ),
+                                data=SimpleWorkflowData(
+                                    uri=AGENTA_BUILTIN_SKILL_URI,
+                                    parameters={"skill": skill_payload},
+                                ),
+                            ),
+                        )
+                    except (EntityCreationConflict, IntegrityError):
+                        continue
+                    break
                 if not created or not created.id:
                     result.skipped.append(
                         SkippedSkill(
@@ -295,14 +310,21 @@ class SkillImportService:
                     )
                     continue
 
-                link_creates.append(
-                    SkillSourceLinkCreate(
-                        source_id=source.id,
-                        workflow_id=created.id,
-                        path_in_repo=candidate.path_in_repo,
-                        imported_commit_sha=fetched.commit_sha,
-                        content_hash=content_hash(candidate),
-                    )
+                # The link is the workflow's provenance record AND the idempotency
+                # marker — persist it with its workflow, so a failure later in the
+                # loop can never leave an imported skill that a rescan re-offers.
+                await self.sources_dao.create_links(
+                    project_id=project_id,
+                    user_id=user_id,
+                    link_creates=[
+                        SkillSourceLinkCreate(
+                            source_id=source.id,
+                            workflow_id=created.id,
+                            path_in_repo=candidate.path_in_repo,
+                            imported_commit_sha=fetched.commit_sha,
+                            content_hash=content_hash(candidate),
+                        )
+                    ],
                 )
                 result.imported.append(
                     ImportedSkill(
@@ -310,13 +332,6 @@ class SkillImportService:
                         workflow_id=str(created.id),
                         name=skill.name,
                     )
-                )
-
-            if link_creates:
-                await self.sources_dao.create_links(
-                    project_id=project_id,
-                    user_id=user_id,
-                    link_creates=link_creates,
                 )
 
             return result

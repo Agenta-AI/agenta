@@ -848,9 +848,18 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 const current = Array.isArray(configRef.current?.skills)
                     ? (configRef.current.skills as unknown[])
                     : skills
+                // The list may have shifted during the await — swap by IDENTITY of the
+                // published item, never by its captured index.
+                const liveIndex = current.indexOf(item)
+                if (liveIndex === -1) {
+                    setPublishSkillError(
+                        "The skill was published to the registry, but this row changed while publishing — add it from the picker.",
+                    )
+                    return
+                }
                 onChange({
                     ...(configRef.current ?? config),
-                    skills: current.map((entry, i) => (i === index ? outcome.entry : entry)),
+                    skills: current.map((entry, i) => (i === liveIndex ? outcome.entry : entry)),
                 })
                 closeEditor()
             } finally {

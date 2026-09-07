@@ -228,11 +228,14 @@ export function scanSkillFiles(raw: RawFile[]): SkillUploadScan {
     }
 
     const skillFiles = usable.filter((f) => SKILL_MD.test(f.path))
+    // Nested-skill boundaries come from EVERY SKILL.md, including skipped ones — a
+    // binary/oversized nested SKILL.md still fences its directory off from the parent.
+    const allSkillFiles = files.filter((f) => SKILL_MD.test(f.path))
     const candidates: SkillScanCandidate[] = skillFiles.map((skillFile) => {
         const dir = skillFile.path.replace(/SKILL\.md$/i, "").replace(/\/$/, "")
         const prefix = dir ? `${dir}/` : ""
         // The candidate owns its subtree; a nested skill's files never leak into the parent's.
-        const nestedDirs = skillFiles
+        const nestedDirs = allSkillFiles
             .filter((other) => other !== skillFile)
             .map((other) => other.path.replace(/SKILL\.md$/i, ""))
             .filter((otherPrefix) => otherPrefix.startsWith(prefix) && otherPrefix !== prefix)

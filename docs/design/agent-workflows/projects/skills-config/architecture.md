@@ -141,7 +141,8 @@ a typed tool, so the default is deny.
 
 ## Harness support
 
-Skills load on the Pi-based harnesses (`pi` and `agenta`): the harness reads `SKILL.md` and
-surfaces the skill to the model. The Claude SDK harness cannot load `SKILL.md`, so it drops
-any attached skills and logs a visible warning at the non-Pi drop point
-(`services/runner/src/engines/sandbox_agent/run-plan.ts`).
+Skills load on every harness. The Pi-based harnesses (`pi` and `agenta`) read `SKILL.md`
+through Pi's agent-dir user scope; the Claude SDK harness consumes the same materialized
+packages from the project-local `.claude/skills` tree that `prepareWorkspace` writes
+(`services/runner/src/engines/sandbox_agent/run-plan.ts`). Skills that fail to
+materialize on any harness are reported as `ag.meta.skills.dropped` on the run span.

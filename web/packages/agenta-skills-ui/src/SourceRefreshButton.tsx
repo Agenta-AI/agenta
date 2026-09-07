@@ -39,7 +39,9 @@ export function SourceRefreshButton({sourceId}: {sourceId: string}) {
                 ].filter(Boolean) as string[]
                 setSummary(parts.length ? parts.join(" · ") : "up to date")
                 setPendingUpdates(available)
-                if (updated) invalidateSkillsListCache()
+                // Detach/conflict/missing outcomes change gallery state too — any
+                // reported link means the cached list may be stale.
+                if (links.length) invalidateSkillsListCache()
             } catch {
                 setSummary("refresh failed")
             } finally {

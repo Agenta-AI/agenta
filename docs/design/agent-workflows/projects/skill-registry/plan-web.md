@@ -30,9 +30,9 @@ host or a `DrillInUIContext` bridge. `@agenta/skills` mirrors `@agenta/sessions`
    client CANNOT send a flags object to `workflows/query` (its request model
    types `flags` as `string|null` and flattens to query params, no body — which
    is why `queryWorkflows` in entities still uses raw axios). `querySkills`
-   therefore targets `POST /skills/query` (A2) once its Fern body model exists;
-   until then, development uses the entities-style raw call behind the same
-   function signature. `getSkillsClient()` accessor lands with W5 (the
+   therefore targets `POST /skills/query` (A2) through the Fern client from its
+   first implementation (shipped as `getSkillsClient().queryRegistrySkills`);
+   no raw-axios fallback exists. `getSkillsClient()` accessor lands with W5 (the
    `/skills/sources/*` resources don't exist earlier); regen = generate.sh
    against a running local API + `pnpm --filter @agentaai/api-client build`.
 3. State: mirror `evaluatorUtils.ts:80-116`'s ATOM SHAPE (atomWithQuery, focused

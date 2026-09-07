@@ -12,8 +12,7 @@ import {
     retrieveWorkflowRevision,
     unarchiveWorkflow,
 } from "@agenta/entities/workflow"
-import {getSkillsClient} from "@agenta/sdk/resources"
-import {getAgentaApiUrl, axios} from "@agenta/shared/api"
+import {getSkillsClient, getWorkflowsClient} from "@agenta/sdk/resources"
 import {generateId, generateSlugWithSuffix} from "@agenta/shared/utils"
 import type {z} from "zod"
 
@@ -286,8 +285,7 @@ export async function commitSkillRevision({
     skill,
     message,
 }: CommitSkillRevisionParams) {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/workflows/revisions/commit`,
+    const data = await getWorkflowsClient().commitWorkflowRevision(
         {
             workflow_revision: {
                 workflow_id: workflowId,
@@ -296,11 +294,28 @@ export async function commitSkillRevision({
                 data: {uri: AGENTA_BUILTIN_SKILL_URI, parameters: {skill}},
                 flags: {is_skill: true, is_snippet: true},
                 message: message || undefined,
-            },
+            } as never,
         },
-        {params: {project_id: projectId}},
+        {queryParams: {project_id: projectId}},
     )
-    return response.data
+    return data
+}
+
+/** The workflow slug an embed entry references (either ref level), for dedup checks. */
+function embedEntrySlug(item: unknown): string | null {
+    if (!item || typeof item !== "object") return null
+    const embed = (item as Record<string, unknown>)["@ag.embed"]
+    if (!embed || typeof embed !== "object") return null
+    const refs = (embed as Record<string, unknown>)["@ag.references"]
+    if (!refs || typeof refs !== "object") return null
+    for (const key of ["workflow", "workflow_revision"]) {
+        const ref = (refs as Record<string, unknown>)[key]
+        if (ref && typeof ref === "object") {
+            const slug = (ref as Record<string, unknown>).slug
+            if (typeof slug === "string" && slug) return slug
+        }
+    }
+    return null
 }
 
 export interface AddSkillToAgentsParams {
@@ -349,6 +364,14 @@ export async function addSkillToAgents({
                     : {}
             const skills = Array.isArray(agent.skills) ? agent.skills : []
 
+            // Idempotent per agent: an already-embedded slug is a success, not a
+            // duplicate entry the runner would silently drop.
+            const entrySlug = embedEntrySlug(entry)
+            if (entrySlug && skills.some((item) => embedEntrySlug(item) === entrySlug)) {
+                result.added.push(workflowId)
+                continue
+            }
+
             const nextData = {
                 ...data,
                 parameters: {
@@ -357,8 +380,7 @@ export async function addSkillToAgents({
                 },
             }
 
-            await axios.post(
-                `${getAgentaApiUrl()}/workflows/revisions/commit`,
+            await getWorkflowsClient().commitWorkflowRevision(
                 {
                     workflow_revision: {
                         workflow_id: workflowId,
@@ -370,9 +392,9 @@ export async function addSkillToAgents({
                         data: nextData,
                         message: message || undefined,
                         base_revision_id: typeof head.id === "string" ? head.id : undefined,
-                    },
+                    } as never,
                 },
-                {params: {project_id: projectId}},
+                {queryParams: {project_id: projectId}},
             )
             result.added.push(workflowId)
         } catch (err) {
@@ -407,10 +429,7 @@ export async function unarchiveSkill({
     return unarchiveWorkflow(projectId, workflowId)
 }
 
-/** `POST /skills/sources/{id}/refresh` — re-scan the repo. Whether changes are COMMITTED
- * follows the source's sync_enabled flag; `apply: true` is the one-off override (the
- * explicit Apply click on a sync-off source). Hand-edited skills detach instead of being
- * overwritten. Throws on HTTP errors. */
+/** Refresh a source: commits follow sync_enabled; `apply: true` overrides for one refresh. */
 export async function refreshSkillSource({
     projectId,
     sourceId,

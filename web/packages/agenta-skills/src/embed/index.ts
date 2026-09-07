@@ -41,11 +41,14 @@ export interface SkillEmbedEntry {
 
 /** Build the stored entry for one skill reference. */
 export function buildSkillEmbedEntry(target: SkillEmbedTarget): SkillEmbedEntry {
-    const references: Record<string, Record<string, unknown>> = target.mode === "pinned"
+    // A pin without a version cannot identify a revision — such a target degrades to
+    // follow-latest instead of emitting a dangling reference.
+    const pinned = target.mode === "pinned" && target.version != null && target.version !== ""
+    const references: Record<string, Record<string, unknown>> = pinned
         ? {
               workflow_revision: {
                   slug: target.slug,
-                  ...(target.version ? {version: target.version} : {}),
+                  version: target.version,
               },
           }
         : {

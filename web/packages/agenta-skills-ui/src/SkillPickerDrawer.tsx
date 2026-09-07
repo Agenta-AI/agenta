@@ -1,10 +1,4 @@
-/**
- * Add-skills picker — the AddSubagentDrawer anatomy applied to skills: search, a
- * `SKILLS · N` header with Add all, catalog rows, and two additions that anatomy lacks:
- * a split `[Add | ▾]` per row (plain Add = follow latest; the caret offers "Add pinned to
- * vN") and a footer `+ New skill ▾` (write / upload / import — created in the registry).
- * Presentational: options in, callbacks out.
- */
+// Add-skills picker (AddSubagentDrawer anatomy); split Add|▾ = follow-latest vs pinned.
 import {useEffect, useMemo, useState} from "react"
 
 import {CatalogListRow, SubSectionHeader} from "@agenta/entity-ui/drill-in"

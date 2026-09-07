@@ -12,9 +12,11 @@ this document (1, 2b, 4d, 5a, …) refer to that canvas.
 ## Principles
 
 1. **Registry by default.** Creating a skill anywhere — registry page, agent config —
-   creates a standalone registry skill (v1) that agents reference via embed. There is
-   no inline-vs-embedded split and no "export to registry" step (Mahmoud's direction,
-   Slack 2026-09-03).
+   creates a standalone registry skill (v1) that agents reference via embed; NEW skills
+   never have an inline-vs-embedded split or an "export to registry" step (Mahmoud's
+   direction, Slack 2026-09-03). The one exception is pre-registry configs: legacy
+   inline skills stay supported and migrate through the per-row **Publish** action
+   (Resolved decision 1 below).
 2. **One drawer shell.** Detail, edit, and create are the same drawer component in
    different modes; the mode swaps the rail's bottom card and the read-only state.
 3. **One create action.** A single `+ New skill ▾` dropdown (write / upload / import)
