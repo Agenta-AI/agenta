@@ -179,7 +179,8 @@ class TestSameOrgResetAllowed:
             ),
             patch(
                 "oss.src.services.user_service.db_manager.get_user_org_and_workspace_id",
-                AsyncMock(return_value=target_org_data),
+                autospec=True,
+                return_value=target_org_data,
             ),
             patch(
                 "oss.src.services.db_manager.get_user_with_id",
@@ -320,7 +321,13 @@ class TestUserProfileMissingUser:
 
 
 class TestSignatureValidation:
-    """Ensures that calling get_user_org_and_workspace_id uses the correct kwargs."""
+    """Guard the kwarg name on the cross-org (403) path.
+
+    Uses autospec=True so that passing `user_id=` instead of `user_uid=`
+    raises TypeError.  The primary regression guard is on the happy path
+    in TestSameOrgResetAllowed (which also uses autospec); this test
+    covers the rejection branch.
+    """
 
     @pytest.mark.asyncio
     async def test_signature_matches(self, _allow_access):
