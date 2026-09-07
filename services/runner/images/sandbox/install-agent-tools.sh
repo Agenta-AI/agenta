@@ -114,7 +114,9 @@ fd --version | grep -q "fd ${FD_VERSION#v}"
 fd --help | grep -q -- --no-require-git
 
 # ---- node globals: formatters, the TS toolchain, and the playwright CLI -----------------------
-npm install -g --no-fund --no-audit \
+# Exact pins, and --ignore-scripts: none of these need a lifecycle script (the browser download
+# is the explicit `playwright install` below), so no registry package runs code at build time.
+npm install -g --no-fund --no-audit --ignore-scripts \
   "playwright@${PLAYWRIGHT_VERSION}" "typescript@${TYPESCRIPT_VERSION}" "ts-node@${TS_NODE_VERSION}" \
   "prettier@${PRETTIER_VERSION}" "eslint@${ESLINT_VERSION}"
 tsc --version | grep -q "${TYPESCRIPT_VERSION}"

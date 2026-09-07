@@ -114,10 +114,8 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     # A dict literal keeps only the last value for a repeated key, so a glob that already names
     # DAYTONA_CELLS lists SESSION_CONTROL alongside it in the SAME tuple rather than as a second
     # entry that would silently drop the Daytona rule.
-    "services/runner/src/engines/sandbox_agent/**": DAYTONA_CELLS
-    + SESSION_CONTROL
-    + CONCURRENCY_JOURNEYS,
-    "services/runner/src/providers/daytona*": DAYTONA_CELLS + CONCURRENCY_JOURNEYS,
+    "services/runner/src/engines/sandbox_agent/**": DAYTONA_CELLS + SESSION_CONTROL,
+    "services/runner/src/providers/daytona*": DAYTONA_CELLS,
     # Session control: Stop, durable commands, park/resume, and the owner-release and watchdog
     # sweeps. A change here can silently break a warm resume or leave a command stuck, and
     # nothing in the fixed matrix drives Stop at all. See qa-audit-2026-09-03.md section 4.
@@ -130,7 +128,13 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
 # Glob -> journeys that MUST run when the rule fires. Same matching as PATH_TRIGGERS, kept as a
 # separate table so a rule can demand a cell, a journey, or both, without changing the shape of
 # either one.
-PATH_TRIGGER_JOURNEYS: dict[str, tuple[str, ...]] = {}
+PATH_TRIGGER_JOURNEYS: dict[str, tuple[str, ...]] = {
+    # The concurrency journeys (`burst`, `crosstalk`) are journeys, not cells: listed under
+    # PATH_TRIGGERS they would be registered as cell names and never run. A change to the
+    # sandbox engine or the Daytona provider makes them mandatory on every applicable cell.
+    "services/runner/src/engines/sandbox_agent/**": CONCURRENCY_JOURNEYS,
+    "services/runner/src/providers/daytona*": CONCURRENCY_JOURNEYS,
+}
 
 
 def changed_paths(
