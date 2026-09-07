@@ -40,6 +40,8 @@ from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
     "discover_tools",
     "search_skills",
+    "check_skill_updates",
+    "apply_skill_update",
     "commit_revision",
     "annotate_trace",
     "query_spans",
@@ -59,6 +61,8 @@ EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
 EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "discover_tools",
     "search_skills",
+    "check_skill_updates",
+    "apply_skill_update",
     "read_config",
     "commit_revision",
     "annotate_trace",

@@ -182,6 +182,10 @@ class PlatformOp(BaseModel):
     context_bindings: Dict[str, str] = Field(default_factory=dict)
     # Where the model's args land in the request body (a dotted deep-set path; absent = the root).
     args_into: Optional[str] = None
+    # Static server-fixed body fields, emitted as ``call.body``. The runner overlays these on the
+    # model's args, so the model can never override them (e.g. the hardwired ``apply`` flag that
+    # keeps check_skill_updates read-only).
+    static_body: Optional[Dict[str, Any]] = None
     # Catalog hint for the runner's ``allow_reads`` policy; no hint counts as a write.
     read_only: bool = False
     # Per-op execution budget for long-running server-side handlers. Emitted as `timeoutMs`.
@@ -305,6 +309,7 @@ class PlatformOp(BaseModel):
         return ToolCall(
             method=self.method,
             path=self.path,
+            body=dict(self.static_body) if self.static_body else None,
             context=dict(self.context_bindings) or None,
             args_into=self.args_into,
         )
@@ -546,6 +551,48 @@ _SEARCH_SKILLS_INPUT_SCHEMA: Dict[str, Any] = {
             "description": "Case-insensitive match on skill name and description.",
         },
     },
+}
+
+# Skill-source sync (read + gated write): the check is silent and commits nothing; the apply is a
+# write, so under the default policy the approval card IS the user prompt — no extra UI.
+_CHECK_SKILL_UPDATES_DESCRIPTION = (
+    "Check one imported skill source (a connected repo) against its upstream, without "
+    "changing anything. Reports a status per linked skill: `update_available` (newer "
+    "upstream content), `unchanged`, `detached` (edited in Agenta — sync never "
+    "overwrites it), `missing_in_source`, or `invalid_in_source`. Source ids come from "
+    "`search_skills` (its `sources` block, and each skill's `source_id`). Use this "
+    "when the user asks about skill updates, or before proposing `apply_skill_update`; "
+    "summarize which skills changed before applying."
+)
+_CHECK_SKILL_UPDATES_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "source_id": {
+            "type": "string",
+            "description": "The skill source's id (a UUID from `search_skills`).",
+        },
+    },
+    "required": ["source_id"],
+}
+
+_APPLY_SKILL_UPDATE_DESCRIPTION = (
+    "Commit the available upstream updates of one imported skill source into the "
+    "registry (a new version of each changed, unedited skill). Run "
+    "`check_skill_updates` first and tell the user WHICH skills changed — this call "
+    "needs the user's approval, and the approval is their yes to updating. Skills "
+    "edited in Agenta stay detached and are never overwritten. Agents referencing a "
+    "skill by slug (follow-latest) pick the new version up on their next run; pinned "
+    "references keep their version until repinned."
+)
+_APPLY_SKILL_UPDATE_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "source_id": {
+            "type": "string",
+            "description": "The skill source's id (a UUID from `search_skills`).",
+        },
+    },
+    "required": ["source_id"],
 }
 
 _QUERY_WORKFLOWS_DESCRIPTION = (
@@ -1584,6 +1631,25 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             path="/api/skills/query",
             input_schema=_SEARCH_SKILLS_INPUT_SCHEMA,
             read_only=True,
+        ),
+        PlatformOp(
+            op="check_skill_updates",
+            description=_CHECK_SKILL_UPDATES_DESCRIPTION,
+            method="POST",
+            path="/api/skills/sources/{source_id}/refresh",
+            input_schema=_CHECK_SKILL_UPDATES_INPUT_SCHEMA,
+            # The hardwired flag is what makes this a read: the model cannot flip it.
+            static_body={"apply": False},
+            read_only=True,
+        ),
+        PlatformOp(
+            op="apply_skill_update",
+            description=_APPLY_SKILL_UPDATE_DESCRIPTION,
+            method="POST",
+            path="/api/skills/sources/{source_id}/refresh",
+            input_schema=_APPLY_SKILL_UPDATE_INPUT_SCHEMA,
+            static_body={"apply": True},
+            read_only=False,
         ),
         PlatformOp(
             op="query_spans",

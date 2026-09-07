@@ -65,6 +65,8 @@ def test_catalog_ships_platform_builder_ops():
         "discover_tools",
         "query_workflows",
         "search_skills",
+        "check_skill_updates",
+        "apply_skill_update",
         "query_spans",
         "rename_session",
         "rename_agent",
@@ -413,6 +415,34 @@ async def test_platform_handlers_empty_flag_uses_default_on(connection, monkeypa
     )
 
     assert [spec.name for spec in resolution.tool_specs] == ["test_run"]
+
+
+async def test_check_skill_updates_is_a_hardwired_dry_run(connection):
+    # The read half of skill-source sync: same endpoint as the apply, made a read by the
+    # server-fixed `apply: False` the model can neither see nor override.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="check_skill_updates")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.call.method == "POST"
+    assert spec.call.path == "/api/skills/sources/{source_id}/refresh"
+    assert spec.call.body == {"apply": False}
+    assert spec.read_only is True
+    assert set(spec.input_schema["properties"]) == {"source_id"}
+    assert spec.input_schema["required"] == ["source_id"]
+
+
+async def test_apply_skill_update_is_a_gated_write(connection):
+    # The write half: `apply: True` is baked server-side, and read_only=False means the
+    # approval card is the user prompt for the update.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="apply_skill_update")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.call.path == "/api/skills/sources/{source_id}/refresh"
+    assert spec.call.body == {"apply": True}
+    assert spec.read_only is False
+    assert set(spec.input_schema["properties"]) == {"source_id"}
 
 
 async def test_query_spans_emits_project_scoped_read_call(connection):
