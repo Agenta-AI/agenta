@@ -30,7 +30,7 @@
  * so it is uniform across every harness and always nests under the caller's /invoke
  * span. stdout is reserved for the JSON result (see cli.ts); logs go to stderr.
  */
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { apiBase } from "../../apiBase.ts";
@@ -115,6 +115,12 @@ import {
   agentMountAppendix,
   agentMountUnavailableAppendix,
 } from "./agent-mount-guidance.ts";
+import {
+  AGENT_TOOLS_DIR_NAME,
+  localAgentToolsExec,
+  remoteAgentToolsExec,
+  runAgentToolsSetup,
+} from "./agent-tools-setup.ts";
 import {
   appendPlatformGuidance,
   appendToSystemPrompt,
@@ -1031,6 +1037,32 @@ async function acquireEnvironmentOnce(
       } finally {
         timingLog("agent_mount", agentMountStartedAt);
       }
+    }
+
+    // Restore the agent's own tools (`agent-files/.tools/`) now that both agent-mount paths
+    // have settled and before the session opens, so a venv or a binary the model saved in an
+    // earlier session is ready on local disk when this one starts. Never fails the turn; see
+    // `agent-tools-setup.ts` for the convention and why the mount itself cannot hold a venv.
+    if (environment.agentMountedPath) {
+      const agentToolsStartedAt = Date.now();
+      const mountPath = environment.agentMountedPath;
+      await runAgentToolsSetup(
+        { mountPath, cwd: plan.workspace.cwd },
+        plan.isDaytona
+          ? remoteAgentToolsExec(environment.sandbox)
+          : localAgentToolsExec,
+        {
+          log: logger,
+          // Local: a stat is cheaper than a shell. Remote: the script's own `[ -d ]` is the check.
+          ...(plan.isDaytona
+            ? {}
+            : {
+                hasToolsDir: async () =>
+                  existsSync(join(mountPath, AGENT_TOOLS_DIR_NAME)),
+              }),
+        },
+      );
+      timingLog("agent_tools_setup", agentToolsStartedAt);
     }
 
     const prepareWorkspaceStartedAt = Date.now();
