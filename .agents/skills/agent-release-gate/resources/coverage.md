@@ -247,7 +247,7 @@ own assertions are scenario-shaped and can be satisfied for the wrong reason.
 | Invariant | What it pins | Wired into |
 |---|---|---|
 | `check_no_blank_success_on_refusal(turns, log_lines)` | No `tool_result` with empty output and `isError:false` may exist for a call the runner logged as `[commit-auth] refused`. A refusal must reach the wire as an error or a denial, never as a blank that reads as success. | `matrix_invariant_commit_auth_refusal.py` |
-| `check_no_silent_turn(turns)` | No turn may come back completely bare — no text, no tool call, no approval gate, no file or data payload, no error. That is a swallowed provider failure (ASD-EST100) arriving as a clean empty finish: the user sees a blank bubble with no reason anywhere. | `matrix_w7.py`, `matrix_w7_daytona.py`, `matrix_w7_per_harness.py`, `matrix_t8_saved_files.py`, `matrix_b1_builtin_find.py`, `matrix_invariant_commit_auth_refusal.py`, `matrix_l3_abandoned_approval.py`, `matrix_w3.py`, `matrix_w4.py`, `matrix_w5.py` |
+| `check_no_silent_turn(turns)` | No turn may come back completely bare — no text, no tool call, no approval gate, no file or data payload, no error. That is a swallowed provider failure (ASD-EST100) arriving as a clean empty finish: the user sees a blank bubble with no reason anywhere. | `matrix_w7.py`, `matrix_w7_daytona.py`, `matrix_w7_per_harness.py`, `matrix_t8_saved_files.py`, `matrix_t9_agent_tools.py`, `matrix_b1_builtin_find.py`, `matrix_invariant_commit_auth_refusal.py`, `matrix_l3_abandoned_approval.py`, `matrix_w3.py`, `matrix_w4.py`, `matrix_w5.py` |
 
 The silent-turn check matters most in cells whose PASS depends on something NOT appearing (no
 error, no leak, no blank success): a turn that produced nothing satisfies those by doing nothing
