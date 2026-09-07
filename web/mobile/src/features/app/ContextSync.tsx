@@ -1,6 +1,7 @@
 import {useEffect} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
+import {useClassicModeCookieSync} from "@agenta/shared/hooks"
 import {activeUserIdAtom, setProjectIdAtom, setSessionAtom, setUserAtom} from "@agenta/shared/state"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -34,6 +35,9 @@ export const ContextSync = () => {
         if (profilePending) return
         setActiveUserId(user?.id ?? null)
     }, [profilePending, user?.id, setActiveUserId])
+
+    // Publish Classic mode as a cookie here too, or a switch flipped on /m would not stick.
+    useClassicModeCookieSync()
 
     // The auth half of the same context, and the other half of the desktop's `SessionListener`.
     // `sessionAtom` defaults to FALSE and every entity query gates on it, so a host that never
