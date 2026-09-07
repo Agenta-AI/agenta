@@ -31,10 +31,10 @@ incident-responder. Also matches free-text asks about incident response, alert t
   to page. No default; the agent cannot know who is on call or where the team looks for
   alerts without being told.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Paging threshold: which severities actually page vs. just get logged. Enum with default
-  "Use your best judgment (page on fatal/error, log the rest)." Note in the description:
-  handing this over is faster than the agent inferring it from issue history.
+## Researchable context (do not ask; figure it out and state the assumption)
+- Paging threshold: read the issue history for which severities the team already acts on. If
+  that is inconclusive, assume paging on fatal and error, log the rest, and state the
+  assumption.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Sentry read tools (list issues, get an issue, list events).
@@ -95,10 +95,10 @@ file a ticket for this error."
 - Where new tickets go: a Linear team or a Jira project. No default; the agent cannot guess
   the filing destination.
 
-## Researchable context (ask, defaulting to "figure it out")
-- What counts as noise vs. a real error: known third-party or expected exceptions to ignore,
-  and the frequency that promotes an error to "file it." Enum with default "Use your best
-  judgment (ignore known-noisy exceptions, file anything crossing a frequency threshold)."
+## Researchable context (do not ask; figure it out and state the assumption)
+- What counts as noise against a real error: read the recent issues for third-party and
+  expected exceptions the team ignores. Assume you ignore those and file anything that crosses
+  a frequency threshold, and state the threshold you picked.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Sentry read tools (list issues, get an issue) and the ticket-create
@@ -154,10 +154,10 @@ uptime-reporter. Also matches free-text asks about a daily status digest or an S
 - Slack channel to post the daily summary to: no default; the agent cannot guess where the
   team wants it.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Whether to include an uptime percentage from Datadog or New Relic, if connected. Enum with
-  default "Use your best judgment (include it if connected, otherwise report error rate
-  only)." Note in the description: this is a CHECK integration, so treat it as optional.
+## Researchable context (do not ask; figure it out and state the assumption)
+- Uptime percentage: check whether Datadog or New Relic is connected, and include the uptime
+  figure when one is. This is a CHECK integration, so treat it as optional. Without one,
+  report the error rate alone and say so.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Sentry read tools (list issues/events over a time window) and, if
@@ -216,10 +216,10 @@ incident standup.
 - Where to post the briefing: a Slack channel or DM, and, if PagerDuty is connected, which
   escalation policy to read on-call from. No default; the agent cannot guess either.
 
-## Researchable context (ask, defaulting to "figure it out")
-- How far back "open" reaches: all unresolved Sentry issues, or only ones touched in the last
-  24 hours. Enum with default "Use your best judgment (all unresolved issues, plus any open
-  PagerDuty incidents if connected)."
+## Researchable context (do not ask; figure it out and state the assumption)
+- How far back "open" reaches: read the unresolved issue count first. Assume all unresolved
+  Sentry issues, plus any open PagerDuty incidents when PagerDuty is connected, and state the
+  window you used.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Sentry read tools (list unresolved issues) and, if connected, the

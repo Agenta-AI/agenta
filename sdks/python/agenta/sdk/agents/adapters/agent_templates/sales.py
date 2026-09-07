@@ -29,11 +29,11 @@ Card key lead-qualifier. Also matches free-text asks about scoring or triaging n
 - Qualification criteria: what makes a lead qualified (company size, industry, budget signal).
   Multiline. No default; this is the user's business judgment.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Lead source: which inbox, form, or CRM webhook produces new leads. Enum with default
-  "Figure it out from what's connected." Note: handing this over is faster than researching it.
-- Enrichment depth: a quick domain lookup or deeper company research per lead. Enum with
-  default "Use your best judgment (quick lookup, deepen only for borderline leads)."
+## Researchable context (do not ask; figure it out and state the assumption)
+- Lead source: check what is connected, and take the inbox, form, or CRM that already receives
+  leads. If more than one qualifies, assume the CRM, and say which source you wired.
+- Enrichment depth: assume a quick domain lookup per lead, and deepen only for a borderline
+  lead. State the assumption, because deeper research per lead costs run time.
 
 ## Explore first (read before proposing)
 1. discover_tools for the CRM read/write tools (get contact, create contact) and, if the lead
@@ -86,11 +86,12 @@ threads each day." Card key crm-updater. Also matches free-text asks about stale
 - CRM target and scope: which CRM (HubSpot, Salesforce, or Attio) and which list or pipeline of
   contacts to consider. No default; the agent cannot proceed without it.
 
-## Researchable context (ask, defaulting to "figure it out")
-- What counts as update-worthy: a new title, company change, or a mentioned next step, versus a
-  fixed field list. Enum with default "Use your best judgment from what the thread says."
-- Unknown senders: skip them, or flag as a possible new contact for review. Enum with default
-  "Figure it out (flag likely prospects, skip the rest)."
+## Researchable context (do not ask; figure it out and state the assumption)
+- What counts as update-worthy: read the CRM's own contact fields and update the ones a thread
+  can fill, such as a new title, a company change, or a mentioned next step. State which
+  fields you write.
+- Unknown senders: assume you flag a likely prospect for review and skip the rest, and state
+  the assumption. Creating a contact per unknown sender fills the CRM with noise.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Gmail read tool and the CRM get/update-contact tools.
@@ -141,11 +142,11 @@ outreach-drafter. Also matches free-text asks about cold email drafts or sequenc
 - Contact list or segment: which CRM view, list name, or filter to draft outreach for. No
   default; the agent cannot proceed without it.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Angle or value prop: the agent can infer this from each contact's company and role. Enum
-  with default "Figure it out per contact from their company and role."
-- Draft destination: Gmail drafts, or returned as text. Enum with default "Figure it out from
-  what's connected (Gmail drafts if connected, else text)."
+## Researchable context (do not ask; figure it out and state the assumption)
+- Angle or value prop: read each contact's company and role, and pick the angle from those.
+  State the angle you used in the first draft you show.
+- Draft destination: check what is connected. Write Gmail drafts when Gmail is connected, and
+  otherwise return the text in the reply. Say which destination you used.
 
 ## Explore first (read before proposing)
 1. discover_tools for the CRM list-contacts tool and, if connected, the Gmail create-draft tool.
@@ -200,9 +201,10 @@ Card key meeting-followup. Also matches free-text asks about post-call recaps or
   name. The trigger depends on it. Default to "recap email in Gmail" when no calendar is
   connected yet; otherwise leave no default.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Follow-up depth: a short thank-you-plus-next-steps note, or a fuller recap with agenda items.
-  Enum with default "Figure it out from the notes (short if sparse, fuller if detailed)."
+## Researchable context (do not ask; figure it out and state the assumption)
+- Follow-up depth: read the meeting notes and match their depth. Write a short thank-you with
+  next steps when the notes are sparse, and a fuller recap when they are detailed. Say which
+  shape you chose.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Gmail read and create-draft tools, plus Google Calendar and the CRM
@@ -253,9 +255,9 @@ key pipeline-digest. Also matches free-text asks about a deals summary or pipeli
 - Pipeline: which CRM pipeline to summarize, if the CRM has more than one. No default when more
   than one pipeline exists.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Stale threshold: how many days without activity marks a deal stale. Enum with default
-  "Use your best judgment (14 days)"; the built-in Other… option covers a custom number.
+## Researchable context (do not ask; figure it out and state the assumption)
+- Stale threshold: read the CRM's own deal ages to see how long a live deal usually sits. If
+  that is inconclusive, assume 14 days without activity, and state the number you used.
 
 ## Explore first (read before proposing)
 1. discover_tools for the CRM list-deals tool and the Slack post-message tool.

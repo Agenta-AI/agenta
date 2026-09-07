@@ -34,9 +34,11 @@ _ORDERED = ordered_operations_enabled()
 GETTING_STARTED_WITH_AGENTA_SLUG = "__ag__getting_started_with_agenta"
 BUILD_AN_AGENT_SLUG = "__ag__build_an_agent"
 
-# RETIRED on 2026-09-07. The four conventions this skill carried (greet once, state assumptions,
-# resolve relative paths against the skill folder, keep answers short) now live in the platform
-# prompt (`platform_instructions.py`), which every harness reads first. No default template
+# RETIRED on 2026-09-07. Two of the four conventions this skill carried moved into the platform
+# prompt (`platform_instructions.py`), which every harness reads first: state assumptions, and
+# keep answers short. The other two were dropped on purpose. Greeting the user once is covered by
+# the prompt's "lead with the answer" rule, which leaves no room for an opening greeting. The
+# skill-relative path convention is not in the prompt because Pi supplies it itself. No default template
 # embeds the slug any more (`build_agent_v0_default()` is called without a skill slug), but
 # revisions saved before that still reference `__ag__getting_started_with_agenta`, and an
 # embed the catalog cannot resolve fails the run. So the slug stays resolvable and serves this
@@ -834,8 +836,10 @@ _BUILD_HEAD = """\
 
 Read this when the request is a change to you: new instructions, a skill, an integration, a
 trigger, or a first setup. Do not read it for a task. The platform instructions say how to tell
-the two apart. An agent that still has its default name and default instructions has not been
-set up yet, so its first real request is usually a change to you.
+the two apart. A fresh agent, with its default name and default instructions, still decides by
+intent: "Summarize my inbox" is a task on the first turn as much as on the hundredth. The
+request is a change to you only when the person describes a role, a recurring job, or an
+integration to connect.
 
 ## What you can change
 
@@ -955,7 +959,10 @@ and naming `LIST_REPOSITORY_ISSUES` as if it were callable sends the run looking
 does not exist.
 
 - Pin concrete ids, such as channel id and repo, instead of telling the agent to re-resolve them.
-- You no longer choose actions when wiring: the whole integration is enabled. Steer the RUN instead — tell it in `agents_md` to search for the narrowest tool (a `FIND_*` or `GET_A_*` over a `LIST_ALL_*`), and `deny` list-dump actions you never want run in the entry's `policy.permissions.tools`.
+- You no longer choose actions when wiring: an integration is added whole, with every action
+  allowed. Steer the RUN instead. Tell it in `agents_md` to search for the narrowest tool, a
+  `FIND_*` or `GET_A_*` over a `LIST_ALL_*`. Add a `deny` entry under
+  `policy.permissions.tools` only when the person asks you to restrict the integration.
 - Make the final numbered step the terminal side effect, such as the post or write.
 - Say "finish by doing step N" so the run does not stop after the early read steps.
 - Write the persona as an explicit imperative — who the agent is and what it does, stated as a
@@ -979,6 +986,10 @@ File tools, or raw HTTP only when your wired tools cannot do the job, and say so
 
 ## When something fails
 
+- The platform rule "do not repeat a refused action" bans resending the SAME call, so a refusal
+  that names a fix, a `next_step` or a stale `base_revision_id`, is corrected once and sent
+  again. A policy refusal, such as a denied approval, is reported to the person and never
+  retried.
 - A denied or failed `commit_revision` does not undo earlier connections or triggers; they still
   exist. Do not redo them.
 - A refused commit says what to do next in `next_step`. `retryable` only says whether the SAME
@@ -1056,8 +1067,9 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
     description=(
         "How to change this agent's own configuration: instructions, memory, skills, "
         "integrations, and triggers. Read it when the request is a change to you rather "
-        "than a task, and when an agent that still has its default name and instructions "
-        "gets its first real request. Do not read it for a task."
+        "than a task: a role, a recurring job, or an integration to connect. A default "
+        "name and default instructions do not make a request a change. Do not read it "
+        "for a task."
     ),
     body=_BUILD_AN_AGENT_BODY,
     files=[

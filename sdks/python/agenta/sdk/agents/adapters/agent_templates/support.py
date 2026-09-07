@@ -26,10 +26,9 @@ ticket urgency, or routing threads to the right person.
 - Owners and their areas: who routes get sent to, and what each owns. No default; the agent
   cannot invent your team's routing.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Urgency scale: how many tiers (for example urgent/normal/low) and what counts as urgent.
-  Enum with default "Use your best judgment (I'll propose a 3-tier scale)." Note in the
-  description: handing this over is faster than the agent inferring it from past threads.
+## Researchable context (do not ask; figure it out and state the assumption)
+- Urgency scale: read the ticket system's existing priority values and reuse them. If it has
+  none, assume three tiers, urgent, normal, and low, and state what counts as urgent.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Slack read tools (read channel, read thread, list channel members).
@@ -89,13 +88,12 @@ answering tickets from a knowledge base.
 - Ticket source: which Zendesk (or Intercom) instance to watch for new tickets. Set the field
   default to the guess a prior read surfaced; leave no default otherwise.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Knowledge source: where answers come from (Notion, Confluence, Google Drive, or the ticket
-  system's own help center). Enum with default "Figure it out from what's connected." These
-  are optional extensions, not required to run; without one the agent drafts from ticket
-  history alone and says so.
-- Draft posture: draft-only for review, or auto-send for high-confidence matches. Enum with
-  default "Use your best judgment (draft-only until you say otherwise)."
+## Researchable context (do not ask; figure it out and state the assumption)
+- Knowledge source: check what is connected, and use Notion, Confluence, Google Drive, or the
+  ticket system's own help center. These are optional extensions, not required to run. Without
+  one, draft from ticket history alone and say so.
+- Draft posture: assume draft-only for review, because an auto-sent wrong answer reaches the
+  customer. State the assumption so the person can turn auto-send on later.
 
 ## Explore first (read before proposing)
 1. discover_tools for the ticket read tools (get ticket, list tickets) and, if connected, the
@@ -156,10 +154,10 @@ Slack or Intercom messages into filed bugs, or being mentioned to file one.
 - Bug tracker and project: which Linear team, Jira project, or GitHub repo new tickets go to.
   Set the field default to the guess a prior read surfaced; leave no default otherwise.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Repro-steps extraction: whether to ask the reporter follow-up questions when steps are
-  missing, or file with what is given. Enum with default "Use your best judgment (ask once
-  if repro steps are missing, then file anyway)."
+## Researchable context (do not ask; figure it out and state the assumption)
+- Repro-steps extraction: read a sample of past bug reports for how complete they usually are.
+  Assume the agent asks the reporter once for missing steps and then files anyway, and state
+  the assumption.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Slack (or Intercom) read tools (read thread, read message) and the
@@ -221,10 +219,9 @@ trends or grouping complaints by topic.
 - Where clusters are logged: a Notion database or page. No default; the agent cannot invent
   where you track this.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Clustering granularity: broad themes (3-5) or fine-grained topics. Enum with default "Use
-  your best judgment (I'll propose 3-5 themes from a sample day)." Note in the description:
-  handing this over is faster than the agent researching your past feedback volume.
+## Researchable context (do not ask; figure it out and state the assumption)
+- Clustering granularity: read a sample day of feedback to see how much arrives. Assume 3 to 5
+  broad themes, propose them from that sample, and state the assumption.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Slack (or Intercom) read tools (read channel, read thread) and the

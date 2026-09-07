@@ -29,11 +29,9 @@ shipped" summaries from a repo.
 - Where release notes are published: the docs page, a Notion database, or a Linear
   document. Offer these as an enum with default "Figure it out from what's connected."
 
-## Researchable context (ask, defaulting to "figure it out")
-- How the team releases: merge to main, GitHub releases, or release branches. The agent can
-  discover this by reading the repo. Enum with default "Use your best judgment (I'll read
-  the repo)." Note in the description: handing this over is faster than the agent researching
-  it.
+## Researchable context (do not ask; figure it out and state the assumption)
+- How the team releases: read the repo for tags, release workflows, and long-lived release
+  branches. If that is inconclusive, assume merge to main and say so in your report.
 
 ## Explore first (read before proposing)
 1. discover_tools for the GitHub read tools (list merged PRs, get a PR).
@@ -93,13 +91,12 @@ repo.
   without it. Set the field default to the guess a prior read surfaced; leave no
   default otherwise.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Review posture: comment only (advisory) or request changes when tests are missing
-  (blocking). Enum with default "Use your best judgment (advisory comments, no blocking)."
-  Note the trade-off: blocking is stricter but can hold up a PR the agent misjudged.
-- What counts as risky: the agent can discover this from the diff (auth, secrets, migrations,
-  deletions). Enum with default "Figure it out from the diff"; the built-in Other… option
-  covers a short list the user types themselves.
+## Researchable context (do not ask; figure it out and state the assumption)
+- Review posture: read the repo's CONTRIBUTING file and branch protection for whether reviews
+  block a merge. If that is inconclusive, assume advisory comments and no blocking, and say so.
+  Blocking is stricter but can hold up a PR the agent misjudged.
+- What counts as risky: read the diff and treat auth, secrets, migrations, and deletions as
+  risky. If the repo has another sensitive area, add it and state what you added.
 
 ## Explore first (read before proposing)
 1. discover_tools for the PR read tools (get PR diff, list changed files, list existing review
@@ -158,12 +155,11 @@ labeling.
   without it. Set the field default to the guess a prior read surfaced; leave no
   default otherwise.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Label taxonomy: which area and priority labels to use. Enum with default "Figure it out
-  from the repo's existing labels"; Other… covers a typed short list.
-- Owner assignment: how to pick who gets assigned. Enum with default "Use your best judgment
-  (read CODEOWNERS, or leave unassigned if there is none)." Note: handing over a mapping is
-  faster than the agent researching it.
+## Researchable context (do not ask; figure it out and state the assumption)
+- Label taxonomy: list the repo's existing labels and use them. If the repo has no area or
+  priority labels, propose a minimal set of both, and state that you proposed it.
+- Owner assignment: read CODEOWNERS and assign the matched owner. If there is no CODEOWNERS
+  file, leave the issue unassigned and say so in your report.
 
 ## Explore first (read before proposing)
 1. discover_tools for the issue read tools (get issue, list labels) and the write tools (add
@@ -216,11 +212,11 @@ workflow runs or broken builds.
 - Repository: which GitHub repo's workflow runs to watch. The agent cannot proceed without
   it. Set the field default to the guess a prior read surfaced; leave no default otherwise.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Where to notify: a comment on the PR or commit tagging the author, or also a Slack channel if
-  Slack is connected. Enum with default "Use your best judgment (comment on the PR or commit;
-  add Slack only if it's already connected)." Slack and Discord are optional extensions here,
-  not requirements: GitHub alone is enough to run.
+## Researchable context (do not ask; figure it out and state the assumption)
+- Where to notify: check which integrations are connected. Comment on the PR or commit and tag
+  the author, and add a Slack post only when Slack is already connected. Slack and Discord are
+  optional extensions here, not requirements: GitHub alone is enough to run. Say which
+  surfaces you wired.
 
 ## Explore first (read before proposing)
 1. discover_tools for the run read tools (get workflow run, list jobs, get job logs) and the
@@ -274,12 +270,12 @@ code Q&A bot. Card key code-qa. Also matches free-text asks for a repo-grounded 
   without it. Set the field default to the guess a prior read surfaced; leave no
   default otherwise.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Where questions come in: a Slack channel mention or a GitHub issue/PR comment mention. Enum
-  with default "Figure it out from what's connected." Note: handing this over is faster than
-  the agent researching it.
-- Answer depth: cite exact files and lines, or give a higher-level summary. Enum with default
-  "Use your best judgment (cite file paths and line numbers by default)."
+## Researchable context (do not ask; figure it out and state the assumption)
+- Where questions come in: check which integrations are connected, and wire that mention
+  surface. If both Slack and GitHub are connected, assume the GitHub comment mention, and say
+  so.
+- Answer depth: assume citations with exact file paths and line numbers, because a reader can
+  check them. State the assumption so the person can ask for shorter summaries instead.
 
 ## Explore first (read before proposing)
 1. discover_tools for the code search tool and the file read tool.
@@ -335,12 +331,13 @@ key dependency-digest. Also matches free-text asks about tracking Dependabot or 
   without it. Set the field default to the guess a prior read surfaced; leave no
   default otherwise.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Where to post the digest: a Slack channel if connected, or a comment on a pinned tracking
-  issue otherwise. Enum with default "Figure it out from what's connected." Slack is an
-  optional extension here, not a requirement.
-- Which PRs count as dependency updates: detect by author (dependabot[bot], renovate[bot]) or by
-  label. Enum with default "Use your best judgment (detect by author, then by label)."
+## Researchable context (do not ask; figure it out and state the assumption)
+- Where to post the digest: check what is connected. Post to Slack when Slack is connected,
+  and otherwise comment on a pinned tracking issue. Slack is an optional extension here, not a
+  requirement. Say which target you used.
+- Which PRs count as dependency updates: read the repo's open PRs for the dependabot[bot] and
+  renovate[bot] authors and for a "dependencies" label. If neither appears, assume detection
+  by author first and then by label, and state the assumption.
 
 ## Explore first (read before proposing)
 1. discover_tools for the PR list tool (filterable by author or label) and the get-PR tool.
