@@ -103,17 +103,19 @@ const applyFrame = (
             }
         case "text-end":
             return current
+        // Without the AI SDK's `state`, a watched session's thinking reads as already settled.
         case "reasoning-start":
-            return current ?? {type: "reasoning", text: ""}
+            return {...(current ?? {type: "reasoning", text: ""}), state: "streaming"}
         case "reasoning-delta":
             return {
                 type: "reasoning",
+                state: "streaming",
                 text:
                     stringValue(current?.type === "reasoning" ? current.text : "") +
                     stringValue(frame.payload.delta),
             }
         case "reasoning-end":
-            return current
+            return current ? {...current, state: "done"} : current
         case "tool-input-start":
         case "tool-input-available": {
             const toolCallId = stringValue(frame.payload.toolCallId) || frame.entity_id
