@@ -232,10 +232,65 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.workspaceCleanup, 1);
   });
 
+  for (const harness of ["pi_core", "claude", "codex"] as const) {
+    it(`${harness}: refreshes context on the same warm session without storing it as user input`, async () => {
+      const { calls, deps } = fakeHarness();
+      const request: AgentRunRequest = {
+        harness,
+        messages: [{ role: "user", content: "hello" }],
+        turnContext: "This session has no name yet. This is the first turn.",
+      };
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const session = acquired.env.session;
+      try {
+        const first = await runTurn(acquired.env, request);
+        assert.equal(first.ok, true);
+        assert.deepEqual(calls.promptBlocks, [
+          { type: "text", text: request.turnContext },
+          { type: "text", text: "hello" },
+        ]);
+
+        const next: AgentRunRequest = {
+          ...request,
+          turnContext:
+            'This session is named "Q3 notes". This is not the first turn.',
+          messages: [
+            ...request.messages!,
+            { role: "assistant", content: "Named the session." },
+            { role: "user", content: "continue" },
+          ],
+        };
+        const second = await runTurn(acquired.env, next, undefined, undefined, {
+          continuation: true,
+        });
+        assert.equal(second.ok, true);
+        assert.equal(acquired.env.session, session);
+        assert.equal(calls.sandboxDestroyed, 0);
+        assert.deepEqual(calls.promptBlocks, [
+          { type: "text", text: next.turnContext },
+          { type: "text", text: "continue" },
+        ]);
+        assert.deepEqual(calls.runStart.messages.at(-1), {
+          role: "user",
+          content: "continue",
+        });
+        assert.equal(
+          JSON.stringify(next.messages).includes("first turn"),
+          false,
+        );
+      } finally {
+        await acquired.env.destroy();
+      }
+    });
+  }
+
   it("replays rebuilt history after an evicted local Pi load cannot verify native turns", async () => {
     const request: AgentRunRequest = {
       harness: "pi_core",
       sandbox: "local",
+      turnContext: 'This session is named "Q3 notes".',
       messages: [
         { role: "user", content: "Remember the codeword KIWI-9" },
         { role: "assistant", content: "I will remember it." },
@@ -257,7 +312,11 @@ describe("runSandboxAgent orchestration", () => {
       );
 
       assert.equal(result.ok, true);
-      const prompt = calls.promptBlocks?.[0]?.text ?? "";
+      assert.deepEqual(calls.promptBlocks[0], {
+        type: "text",
+        text: request.turnContext,
+      });
+      const prompt = calls.promptBlocks?.[1]?.text ?? "";
       assert.match(prompt, /^Conversation so far:/);
       assert.match(prompt, /KIWI-9/);
       assert.match(prompt, /The user now says:\nWhat was the codeword\?$/);

@@ -48,8 +48,11 @@ from oss.src.core.evaluations.runtime.locks import run_worker_heartbeat
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
 from oss.src.core.queries.service import QueriesService
+from oss.src.core.sessions.context import make_session_context_resolver
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
+from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import SimpleTestsetsService, TestsetsService
 from oss.src.core.tracing.service import TracingService
@@ -70,7 +73,9 @@ from oss.src.dbs.postgres.queries.dbes import (
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
+from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
+from oss.src.dbs.redis.shared.engine import get_lock_engine
 from oss.src.dbs.postgres.shared.engine import (
     get_analytics_engine,
     get_transactions_engine,
@@ -134,6 +139,34 @@ def _selected_queues() -> List[str]:
     return selected
 
 
+def _install_session_context_resolver(
+    workflows_service: WorkflowsService,
+    *,
+    transactions_engine,
+) -> None:
+    """Give a worker's ``WorkflowsService`` the same session reads the API composition has.
+
+    A queued approval resume and a trigger fire both run agent turns through
+    ``invoke_workflow_detached``, so both need the session's name and the first-turn flag.
+    Without this the prelude has no resolver and reports both facts as unknown, and the agent
+    loses the two naming rules for every turn a worker drives.
+
+    The streams service is built read-only here: this composition calls ``fetch_header`` only,
+    and a worker that never edits a stream header needs no watch publisher.
+    """
+    workflows_service.set_session_context_resolver(
+        make_session_context_resolver(
+            streams_service=SessionStreamsService(
+                streams_dao=SessionStreamsDAO(engine=transactions_engine),
+                lock_engine=get_lock_engine(),
+            ),
+            turns_service=SessionTurnsService(
+                turns_dao=SessionTurnsDAO(engine=transactions_engine),
+            ),
+        )
+    )
+
+
 def _build_webhooks_broker() -> tuple[AsyncBroker, int]:
     broker = TrimOnAckRedisStreamBroker(
         url=env.redis.uri_durable,
@@ -182,6 +215,9 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
     workflows_service.environments_service = environments_service
     workflows_service.embeds_service = embeds_service
     environments_service.embeds_service = embeds_service
+    _install_session_context_resolver(
+        workflows_service, transactions_engine=transactions_engine
+    )
 
     triggers_dispatcher = TriggersDispatcher(
         triggers_dao=triggers_dao,
@@ -228,6 +264,9 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
     workflows_service.environments_service = environments_service
     workflows_service.embeds_service = embeds_service
     environments_service.embeds_service = embeds_service
+    _install_session_context_resolver(
+        workflows_service, transactions_engine=transactions_engine
+    )
 
     interactions_service = SessionInteractionsService(
         interactions_dao=interactions_dao,

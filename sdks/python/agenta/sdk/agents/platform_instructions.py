@@ -13,7 +13,10 @@ not read a page about tools it does not have.
 
 from __future__ import annotations
 
+import re
 from typing import Optional, Sequence
+
+from .dtos import SessionContext
 
 
 # The tool whose presence means "this run can edit its own configuration". Checked by name, not
@@ -21,6 +24,9 @@ from typing import Optional, Sequence
 # lacks it (a trigger fire, an embedded run) has no use for the config sections.
 CONFIG_COMMIT_TOOL = "commit_revision"
 
+# The exact names the platform seeds. The UI appends a counter to "New agent" when the name is
+# taken, so a trailing number is part of the seeded shape.
+_PLACEHOLDER_AGENT_NAME = re.compile(r"new agent(?: \d+)?|untitled(?: agent)?")
 
 AGENTA_PLATFORM_BASE = """\
 ## Agenta platform
@@ -282,15 +288,7 @@ trigger); anything only true inside this turn and already on screen.
 When the person asks for something with several moving parts, such as a news digest or a
 dashboard, do not build everything first. Give a two-sentence plan, then offer a quick sample
 with real or sample data so they can see the shape. Once they like it, set up the trigger and
-the connections for real.
-
-## Names
-
-Rename the agent with `rename_agent` only when its name is still a placeholder such as
-"New agent" or "Untitled agent". Never rename an agent that already has a real name.
-
-Name the session once, with `rename_session`, as soon as the first exchange makes clear what it
-is about. Do not rename it again later."""
+the connections for real."""
 
 
 def credential_guidance(environment_names: Sequence[str]) -> Optional[str]:
@@ -334,13 +332,75 @@ list can go stale — `search_tools` is the source of truth for what is connecte
   arguments — report it instead of looping."""
 
 
+def is_placeholder_agent_name(name: Optional[str]) -> bool:
+    """Say whether an agent display name is still the seeded placeholder.
+
+    A placeholder is one of the names the platform seeds itself, and nothing else: "New agent",
+    "New agent" plus a counter such as "New agent 2", "Untitled", and "Untitled agent". The
+    match is on the WHOLE name, case-insensitive, with surrounding and repeated whitespace
+    normalized. A prefix test was wrong: it read a chosen name such as "New Agent Research" as
+    a placeholder and told the author's agent to rename itself.
+
+    An absent or empty name is not a placeholder. It means the caller does not know the name,
+    and the renderer says nothing about a name it does not have."""
+    if not name:
+        return False
+    normalized = " ".join(name.split()).casefold()
+    return bool(_PLACEHOLDER_AGENT_NAME.fullmatch(normalized))
+
+
+def session_context_guidance(
+    context: Optional[SessionContext], tool_names: Sequence[str] = ()
+) -> Optional[str]:
+    """Render current facts, adding naming actions only for tools this run offers.
+
+    Every field is optional and ``None`` means UNKNOWN. A fact the server could not read gets
+    no line at all, because a wrong fact is worse than a missing one: telling a named session
+    it has no name makes the agent rename it. ``first_turn`` is the tell for the session read,
+    since the name and the turn position come from the same read. When nothing is known the
+    whole block is dropped."""
+    if context is None:
+        return None
+
+    lines = []
+
+    name = (context.agent_name or "").strip()
+    if name and is_placeholder_agent_name(name):
+        agent_line = f'Your name is "{name}". That is a placeholder.'
+        if "rename_agent" in tool_names:
+            agent_line += " Rename yourself with `rename_agent` in this turn."
+        lines.append(agent_line)
+    elif name:
+        lines.append(f'Your name is "{name}". Keep it.')
+
+    session_name = (context.session_name or "").strip()
+    if session_name:
+        lines.append(f'This session is named "{session_name}". Do not rename it.')
+    elif context.first_turn is not None:
+        session_line = "This session has no name yet."
+        if "rename_session" in tool_names:
+            session_line += (
+                " Name it with `rename_session` once the first exchange makes clear "
+                "what it is about."
+            )
+        lines.append(session_line)
+
+    if context.first_turn is True:
+        lines.append("This is the first turn of the session.")
+    elif context.first_turn is False:
+        lines.append("This is not the first turn of the session.")
+
+    if not lines:
+        return None
+    return "## This session\n\nCurrent facts for this turn:\n" + "\n".join(lines)
+
+
 def compose_platform_instructions(
     integration_names: Sequence[str],
     credential_environment_names: Sequence[str] = (),
     tool_names: Sequence[str] = (),
 ) -> str:
-    """Compose the SDK-owned text: the base, the config sections when the run can commit, then
-    the per-run guidance (credential names, connected integrations)."""
+    """Compose stable platform guidance; current session facts travel with each turn."""
     sections = [
         AGENTA_PLATFORM_BASE,
         AGENTA_CONFIG_SECTIONS if CONFIG_COMMIT_TOOL in tool_names else None,

@@ -13,6 +13,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
+from pydantic import ValidationError
+
 from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig, to_messages
 from agenta.sdk.agents.interfaces import Backend, Environment
 from agenta.sdk.agents.capabilities import (
@@ -49,7 +51,7 @@ from agenta.sdk.agents.tracing import (
     run_context as ambient_run_context,
     trace_context as ambient_trace_context,
 )
-from agenta.sdk.agents.dtos import RunContext, RunContextRun
+from agenta.sdk.agents.dtos import RunContext, RunContextRun, SessionContext
 
 from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
 from agenta.sdk.redaction.context import get_active_redactor, redaction_context
@@ -328,12 +330,33 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             value = request_meta.get(name)
             return value.strip() if isinstance(value, str) and value.strip() else None
 
+        def _meta_session_context() -> Optional[SessionContext]:
+            """Read the service-supplied session facts off ``meta``, or return ``None``.
+
+            Best-effort by design. These facts only shape prompt text, so a malformed or
+            unexpected blob must degrade to the pre-change prompt rather than fail the turn.
+            Unknown keys are dropped instead of raising: a newer service may send a field this
+            SDK does not know yet."""
+            raw = request_meta.get("session_context")
+            if not isinstance(raw, dict):
+                return None
+            known = {
+                key: value
+                for key, value in raw.items()
+                if key in SessionContext.model_fields
+            }
+            try:
+                return SessionContext(**known)
+            except ValidationError:
+                return None
+
         session_config = SessionConfig(
             agent=agent_template,
             resolved_connection=resolved_connection,
             permission_default=agent_template.permission_default,
             trace=comp.trace_context(),
             run_context=rc,
+            session_context=_meta_session_context(),
             session_id=session_id,
             detached=bool(flags.detached),
             turn_id=_meta_string("run_id"),

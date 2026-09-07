@@ -88,7 +88,9 @@ class _FakeSession(Session):
 
 
 class _FakeBackend(Backend):
-    supported_harnesses = frozenset({HarnessKind.PI, HarnessKind.CLAUDE})
+    supported_harnesses = frozenset(
+        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.CODEX}
+    )
 
     def __init__(self, *, output: str = "hi") -> None:
         self._output = output
@@ -100,6 +102,8 @@ class _FakeBackend(Backend):
         # The per-harness config the adapter built. Capturing it alongside neutral backend
         # arguments checks both sides of the composition boundary rather than one hop.
         self.created_configs: List[Any] = []
+        # The service-supplied naming facts, as they reach the backend.
+        self.created_turn_contexts: List[Any] = []
 
     async def create_sandbox(self) -> _FakeSandbox:
         return _FakeSandbox()
@@ -113,6 +117,7 @@ class _FakeBackend(Backend):
         secrets=None,
         trace=None,
         run_context=None,
+        turn_context=None,
         session_id=None,
         detached=False,
         turn_id=None,
@@ -129,6 +134,7 @@ class _FakeBackend(Backend):
             (session_id, turn_id, project_id, control_command_id)
         )
         self.created_configs.append(config)
+        self.created_turn_contexts.append(turn_context)
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))
 
 
@@ -813,3 +819,91 @@ async def test_no_gateway_policy_leaves_the_run_request_field_absent():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-q"])
+
+
+@pytest.mark.parametrize("harness", ["pi_core", "claude", "codex"])
+async def test_session_context_meta_reaches_the_backend_as_turn_text(harness):
+    """Facts render once as turn text, even when this run has no rename tools."""
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            meta={
+                "session_context": {
+                    "agent_name": "New agent",
+                    "session_name": None,
+                    "first_turn": True,
+                }
+            },
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(harness),
+    )
+
+    context = backend.created_turn_contexts[0]
+    assert isinstance(context, str)
+    assert 'Your name is "New agent"' in context
+    assert "This session has no name yet" in context
+    assert "This is the first turn" in context
+    assert "rename_agent" not in context
+    assert "rename_session" not in context
+    assert "## This session" not in backend.created_configs[0].platform_instructions
+
+
+async def test_a_malformed_session_context_degrades_to_no_context():
+    """A bad blob must cost the prompt a section, never the turn.
+
+    An unknown key is dropped rather than raised on, so a newer service can add a field before
+    this SDK knows it.
+    """
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    for blob in ("not-a-dict", {"first_turn": ["maybe"]}):
+        await handler(
+            request=WorkflowServiceRequest(
+                session_id="session-1", meta={"session_context": blob}
+            ),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(),
+        )
+
+    assert backend.created_turn_contexts == [None, None]
+
+
+async def test_an_unknown_session_context_key_is_dropped_not_fatal():
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            meta={
+                "session_context": {
+                    "agent_name": "Changelog writer",
+                    "invented_by_a_newer_service": 1,
+                }
+            },
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert 'Your name is "Changelog writer"' in backend.created_turn_contexts[0]

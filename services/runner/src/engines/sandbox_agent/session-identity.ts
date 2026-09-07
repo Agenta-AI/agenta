@@ -343,6 +343,7 @@ function configShape(request: AgentRunRequest) {
     // text is spliced at environment build and remains fixed while that environment is warm.
     // Hashing it would restore the integration-change over-eviction that the separate guidance
     // seam removed. The next ordinary environment build picks up changes.
+    // `turnContext` is delivered with each prompt and never configures the environment.
     permissions: request.permissions ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
     harnessFiles: request.harnessFiles ?? null,

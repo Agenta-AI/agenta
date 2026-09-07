@@ -73,6 +73,23 @@ Branch `feat/release-1153-platform-prompt`, target `release/v0.115.3`.
   SDK resolver collapses two identical copies of a reserved client tool, so a revision that
   embedded `request_secret` by hand before it joined the kit still runs.
 
+## 2026-09-07: the agent can see its own name and the session's
+
+Branch `feat/release-1153-session-context`, stacked on `feat/release-1153-platform-prompt`.
+
+- The API stamps the agent's display name, session name, and first-turn flag on
+  `request.meta.session_context` in the shared invoke prelude. Only agent runs perform the reads.
+- The SDK parses these facts into `SessionContext` and renders one `turnContext` string. The
+  runner includes this text with each new harness prompt after selecting history and attachments.
+  Warm continuations receive fresh context without rebuilding the environment.
+- Facts render even without rename tools. Each naming instruction requires its own tool;
+  naming policy is no longer duplicated in the stable platform instructions.
+- `turnContext` is outside the session fingerprint and desired-state facets. It does not alter
+  persisted user messages. Live approval replies continue the existing prompt; cold resumes and
+  new user turns receive the latest context.
+- The first-turn flag remains. User name, timezone, and current local time are follow-up
+  [#6636](https://github.com/Agenta-AI/agenta/issues/6636). That follow-up can extend the API/SDK
+  facts and renderer without adding fields to the runner protocol.
 ## 2026-09-07: the build-an-agent skill follows the platform prompt
 
 Branch `feat/release-1153-build-kit-skill`, stacked on `feat/release-1153-platform-prompt`.

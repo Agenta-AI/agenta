@@ -598,6 +598,18 @@ class RunContext(BaseModel):
         return out
 
 
+class SessionContext(BaseModel):
+    """API-supplied facts rendered by the SDK for the current turn.
+
+    These are prompt inputs, not tool bindings or environment configuration.
+    The runner receives only the rendered text as ``turnContext``.
+    """
+
+    agent_name: Optional[str] = None
+    session_name: Optional[str] = None
+    first_turn: Optional[bool] = None
+
+
 # ---------------------------------------------------------------------------
 # Run result
 # ---------------------------------------------------------------------------
@@ -1183,6 +1195,8 @@ class SessionConfig(BaseModel):
     # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted from the
     # wire when unset, so a run that needs no binding is byte-identical to before.
     run_context: Optional[RunContext] = None
+    # Refreshed per invoke and rendered as turn context before reaching the backend.
+    session_context: Optional[SessionContext] = None
     session_id: Optional[str] = None
     # Explicit per-invoke ownership handoff. False preserves request-owned cancellation.
     detached: bool = False

@@ -127,6 +127,7 @@ Request fields include:
 | `secrets` | Provider env vars resolved by the service. |
 | `tools`, `customTools`, `toolCallback`, `mcpServers` | Resolved tool delivery. |
 | `permissions` | Permission plan: `{default?, rules?}`. `default` is one of `allow`, `ask`, `deny`, or `allow_reads`; missing, it falls back to `allow_reads`, and a malformed block fails toward `ask`. `rules` is an optional list of `{pattern, permission}` entries for harness builtins. The runner enforces it on every harness. |
+| `turnContext` | SDK-rendered text containing current session facts and any applicable naming instructions. The runner prepends it to each new harness prompt after history and attachment selection, including warm continuations and cold resumes. It stays outside session fingerprints and desired-state facets. A live approval reply continues the pending prompt; it does not submit another context block or user message. The API supplies typed facts to the SDK through `request.meta.session_context`; those facts are not repeated as a structured runner field. |
 | `trace` | Trace context for nested spans. |
 
 One-shot calls return one JSON result. Streaming calls use NDJSON internally: one
