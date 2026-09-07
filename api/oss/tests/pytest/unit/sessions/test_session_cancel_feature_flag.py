@@ -134,3 +134,27 @@ def test_runner_token_rejects_non_ascii_credentials_as_unauthorized(monkeypatch)
         router_module._assert_runner_token(request)
 
     assert exc_info.value.status_code == 401
+
+
+async def test_cancel_rejects_an_overlength_idempotency_key(monkeypatch):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    service = SimpleNamespace(request_cancel=AsyncMock())
+    request = _request()
+    request.headers = {"Idempotency-Key": "x" * 256}
+
+    response = await SessionControlRouter(
+        commands_service=service
+    ).cancel_session_execution(request, "session-1")
+
+    assert response.status_code == 422
+    assert json.loads(response.body) == {
+        "code": "validation_error",
+        "message": "Idempotency-Key is too long.",
+        "retryable": False,
+        "details": {"field": "Idempotency-Key", "reason": "too_long"},
+        "next_step": "Use an Idempotency-Key of at most 255 characters.",
+    }
+    service.request_cancel.assert_not_awaited()

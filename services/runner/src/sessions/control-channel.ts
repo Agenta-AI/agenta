@@ -25,6 +25,7 @@
  */
 
 import { apiBase } from "../apiBase.ts";
+import { envTimerMs } from "../env.ts";
 import { REPLICA_ID } from "./alive.ts";
 import {
   recallCommand,
@@ -77,7 +78,10 @@ export interface ParkedLookup {
 
 export interface ApplyCommandDeps {
   /** Overridden in tests. Defaults to the module-level execution registry. */
-  findLive?: (projectId: string, sessionId: string) => LiveExecution | undefined;
+  findLive?: (
+    projectId: string,
+    sessionId: string,
+  ) => LiveExecution | undefined;
   /** Whether the keep-alive pool holds this session parked awaiting an approval. */
   isParked?: ParkedLookup;
   /** Overridden in tests. Defaults to the HTTP report below. */
@@ -112,6 +116,7 @@ export async function applyCommand(
   if (seen) {
     // A no-op that STILL acknowledges. Aborting a second time could kill a newer turn; not
     // acknowledging would leave the command open until the settlement sweep gave up on it.
+    await seen.settled;
     const outcome: ControlOutcome = {
       result: seen.result,
       execution: {
@@ -135,12 +140,17 @@ export async function applyCommand(
 
   // Remember BEFORE aborting. A duplicate that arrives while the first abort is still settling
   // must find the command already taken, not start a second one.
+  let settleCommand!: () => void;
+  const settled = new Promise<void>((resolve) => {
+    settleCommand = resolve;
+  });
   rememberCommand(
     {
       commandId: command.id,
       executionId: outcome.execution.id,
       executionState: outcome.execution.state,
       result: outcome.result,
+      settled,
     },
     now(),
   );
@@ -152,6 +162,11 @@ export async function applyCommand(
         // ACP `session/cancel` to the harness and lets the environment be PARKED rather than
         // deleted (see `cancel-turn.ts` and `shouldPark`). Stop keeps the session warm.
         live.abort();
+        if ((await live.released) === false) {
+          throw new Error(
+            "Stopped execution did not finish releasing its environment.",
+          );
+        }
         log(
           `aborted command=${command.id} session=${command.sessionId} turn=${live.turnId}`,
         );
@@ -167,19 +182,25 @@ export async function applyCommand(
       }
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : String(error ?? "abort failed");
+        error instanceof Error
+          ? error.message
+          : String(error ?? "abort failed");
       outcome.result = "applied";
       outcome.execution.state = "failed";
       outcome.execution.error = message.slice(0, 2000);
-      updateCommandOutcome(command.id, { result: "applied", executionState: "failed" });
-      log(`abort FAILED command=${command.id} session=${command.sessionId}: ${message}`);
+      updateCommandOutcome(command.id, {
+        result: "applied",
+        executionState: "failed",
+      });
+      log(
+        `abort FAILED command=${command.id} session=${command.sessionId}: ${message}`,
+      );
     }
   }
 
-  // Reported as soon as the abort is issued, not after the harness settles. The command's job
-  // is to deliver the Stop; the turn's own teardown then writes its transcript and parks the
-  // sandbox on its own clock, which can take seconds. Waiting for it would make a Stop that
-  // worked look stuck.
+  settleCommand();
+  // The transport already acknowledged Stop. A stopped outcome may promote Steer, so it
+  // must follow teardown rather than merely issuing the abort.
   await report(command, outcome).catch((error) => {
     log(
       `outcome report failed command=${command.id}: ${
@@ -241,7 +262,10 @@ function decideOutcome(
     // execution that can still be stopped.
     return {
       result: "obsolete",
-      execution: { id: command.target.turnId ?? live.turnId, state: "not_running" },
+      execution: {
+        id: command.target.turnId ?? live.turnId,
+        state: "not_running",
+      },
     };
   }
 
@@ -296,4 +320,56 @@ export async function reportOutcome(
   log(
     `outcome reported command=${command.id} session=${command.sessionId} state=${outcome.execution.state}`,
   );
+}
+
+/**
+ * Confirm that a durable continuation command crossed the runner's admission barrier.
+ *
+ * Unlike Stop's best-effort terminal report, this acknowledgement is a prerequisite for starting
+ * the continuation engine: without it the API could redeliver after a transport failure and run the
+ * approved side effect twice. The API returns `admitted: true` only to the report that wins the
+ * pending/claimed-to-applied transition. An already-applied duplicate returns `false`, which is a
+ * successful acknowledgement but never permission to start an engine. A 409 is a real
+ * command/execution mismatch and must not start the engine.
+ */
+export async function reportContinuationAdmission(input: {
+  commandId: string;
+  sessionId: string;
+  executionId: string;
+}): Promise<boolean> {
+  const token = process.env.AGENTA_RUNNER_TOKEN;
+  if (!token) {
+    throw new Error("AGENTA_RUNNER_TOKEN is not set");
+  }
+  const url = `${apiBase()}/sessions/control/commands/${encodeURIComponent(input.commandId)}/outcome`;
+  const res = await fetch(url, {
+    method: "POST",
+    signal: AbortSignal.timeout(
+      envTimerMs("AGENTA_RUNNER_CONTROL_OUTCOME_TIMEOUT_MS", 5_000),
+    ),
+    headers: {
+      "content-type": "application/json",
+      "x-agenta-runner-token": token,
+    },
+    body: JSON.stringify({
+      replica_id: REPLICA_ID,
+      result: "applied",
+      execution: {
+        id: input.executionId,
+        state: "started",
+      },
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`continuation admission outcome HTTP ${res.status}`);
+  }
+  const response = (await res.json()) as { admitted?: unknown };
+  if (typeof response.admitted !== "boolean") {
+    throw new Error("continuation admission outcome omitted boolean admitted");
+  }
+  log(
+    `continuation outcome command=${input.commandId} session=${input.sessionId} ` +
+      `turn=${input.executionId} admitted=${response.admitted}`,
+  );
+  return response.admitted;
 }

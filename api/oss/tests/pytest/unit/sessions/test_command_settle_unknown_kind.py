@@ -1,12 +1,9 @@
 """The watchdog must settle the commands it understands past a row it cannot map.
 
 A newer API replica can write a command `kind` (or state, or outcome) an older replica's
-enums do not know. On the integration stack a `continue_interaction` row (increment 6, not on
-this head) sat in the claimed table next to an abandoned Stop. The abandoned-command sweep
-mapped the whole batch to DTOs before it settled any of it, and `map_command_dbe_to_dto`
-raised `ValueError: 'continue_interaction' is not a valid SessionCommandKind` on that one row.
-The ValueError escaped the batch, so NO command was settled and the Stop stayed pending pass
-after pass.
+enums do not know. The abandoned-command sweep used to map the whole batch to DTOs before it
+settled any of it, so a `ValueError` on one future command kind escaped the batch. No command
+was settled and a known Stop could stay pending pass after pass.
 
 `_map_commands_skipping_unmappable` now skips the rows this API cannot map, warns once with the kinds and
 count, and returns the rest. These tests hold that contract: the known Stop survives as a
@@ -66,7 +63,7 @@ def test_a_known_stop_survives_and_an_unknown_kind_is_left_alone(monkeypatch):
     monkeypatch.setattr(commands_dao, "log", recorder)
 
     stop = _row(SessionCommandKind.cancel.value)
-    unknown = _row("continue_interaction")
+    unknown = _row("future_command")
 
     mapped = commands_dao._map_commands_skipping_unmappable(
         [stop, unknown], context="abandoned"
@@ -85,8 +82,8 @@ def test_the_unknown_kind_is_warned_once_with_its_kind_and_count(monkeypatch):
 
     rows = [
         _row(SessionCommandKind.cancel.value),
-        _row("continue_interaction"),
-        _row("continue_interaction"),
+        _row("future_command"),
+        _row("future_command"),
     ]
 
     commands_dao._map_commands_skipping_unmappable(rows, context="abandoned")
@@ -96,7 +93,7 @@ def test_the_unknown_kind_is_warned_once_with_its_kind_and_count(monkeypatch):
     # The message and its args name the count, the batch context, and the offending kind.
     assert args[1] == 2  # two unmappable rows
     assert args[2] == "abandoned"  # the batch context
-    assert "continue_interaction=2" in args[3]
+    assert "future_command=2" in args[3]
 
 
 def test_an_all_mappable_batch_logs_nothing(monkeypatch):

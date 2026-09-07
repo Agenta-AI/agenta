@@ -102,6 +102,7 @@ KNOWN_REQUEST_KEYS = {
     "turnId",
     "detached",
     "projectId",
+    "controlCommandId",
     "effectiveParameters",
 }
 
@@ -774,6 +775,36 @@ def test_effective_parameters_preserve_tool_input_schema_properties():
     assert payload["effectiveParameters"]["agent"]["tools"][0] == tool
 
 
+def test_effective_parameters_preserve_builder_sized_configuration():
+    # The normal playground builder measured 147,209 bytes with 18 tools. Dropping
+    # that config silently resumes against the saved agent, which has no builder tools.
+    parameters = {
+        "agent": {
+            "instructions": {"agents_md": "Build and update the current agent."},
+            "tools": [
+                {
+                    "name": "commit_revision"
+                    if index == 0
+                    else f"builder_tool_{index}",
+                    "description": "Builder operation schema documentation. " * 210,
+                    "inputSchema": {"type": "object", "properties": {}},
+                }
+                for index in range(18)
+            ],
+        }
+    }
+    assert 147_209 <= len(json.dumps(parameters).encode("utf-8")) <= 160_000
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="Configure this agent")],
+        session_id="sess-builder",
+        effective_parameters=parameters,
+    )
+    assert payload["effectiveParameters"] == parameters
+
+
 def test_effective_parameters_over_the_cap_are_dropped_whole():
     # A truncated config is invalid JSON and a silently-truncated one is worse than none, so an
     # oversize blob is not stamped at all (the resume degrades to reference hydration).
@@ -1045,6 +1076,28 @@ def test_known_request_keys_match_the_wire_schema():
         field.alias or name for name, field in WireRunRequest.model_fields.items()
     }
     assert declared == KNOWN_REQUEST_KEYS
+
+
+def test_request_to_wire_carries_durable_continuation_coordination_ids():
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5.5"),
+        messages=[Message(role="user", content="approved")],
+        session_id="session-1",
+        turn_id="turn-continuation-1",
+        project_id="project-1",
+        control_command_id="command-1",
+    )
+
+    assert payload["sessionId"] == "session-1"
+    assert payload["turnId"] == "turn-continuation-1"
+    assert payload["projectId"] == "project-1"
+    assert payload["controlCommandId"] == "command-1"
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+    parsed = WireRunRequest.model_validate(payload)
+    assert parsed.control_command_id == "command-1"
 
 
 def test_named_connection_choice_is_a_declared_schema_field():

@@ -30,6 +30,7 @@ import {
   liveExecutions,
   resetExecutionsForTest,
 } from "../../src/sessions/execution-registry.ts";
+import { resetContinuationAdmissionsForTest } from "../../src/sessions/continuation-admission.ts";
 
 const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 const previousToken = process.env[TOKEN_ENV];
@@ -39,6 +40,7 @@ const previousLimit = process.env[LIMIT_ENV];
 
 afterEach(() => {
   resetExecutionsForTest();
+  resetContinuationAdmissionsForTest();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   if (previousToken === undefined) delete process.env[TOKEN_ENV];
@@ -927,6 +929,398 @@ describe("createAgentServer", () => {
       }
     });
   }
+
+  it("admits one execution for duplicate durable continuation delivery and re-reports started", async () => {
+    vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+    let runCalls = 0;
+    const signals: AbortSignal[] = [];
+    const s = await listen(async (_request, _emit, signal) => {
+      runCalls += 1;
+      assert.ok(signal);
+      signals.push(signal);
+      return { ok: true, output: "continued", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const admissionReports: Array<Record<string, any>> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.includes("/sessions/control/commands/command-1/outcome")) {
+          const headers = new Headers(init?.headers);
+          assert.equal(
+            headers.get("x-agenta-runner-token"),
+            TEST_TOKEN,
+            "continuation outcome authenticates with the runner token",
+          );
+          admissionReports.push(JSON.parse(String(init?.body)));
+          return Response.json({
+            command: { id: "command-1", state: "applied" },
+            admitted: admissionReports.length === 1,
+          });
+        }
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-1" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({ ok: true });
+      });
+    const request = {
+      harness: "pi_core",
+      sessionId: "session-1",
+      turnId: "continuation-turn-1",
+      projectId: "project-1",
+      controlCommandId: "command-1",
+      messages: [{ role: "user", content: "approved" }],
+    };
+
+    try {
+      const deliver = () =>
+        fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify(request),
+        });
+      const first = await deliver();
+      assert.equal(first.status, 200);
+      const firstRecords = (await first.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      assert.equal(firstRecords.at(-1).result.ok, true);
+
+      const duplicate = await deliver();
+      assert.equal(duplicate.status, 200);
+      const duplicateRecords = (await duplicate.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      assert.equal(duplicateRecords.at(-1).result.ok, true);
+      assert.equal(
+        duplicateRecords.at(-1).result.stopReason,
+        "control_command_duplicate",
+      );
+
+      assert.equal(runCalls, 1);
+      assert.equal(signals.length, 1);
+      assert.equal(signals[0].aborted, false);
+      assert.equal(admissionReports.length, 2);
+      for (const report of admissionReports) {
+        assert.equal(report.result, "applied");
+        assert.equal(report.execution.id, "continuation-turn-1");
+        assert.equal(report.execution.state, "started");
+        assert.equal(typeof report.replica_id, "string");
+      }
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("keeps a continuation retryable when its admission outcome cannot be reported", async () => {
+    vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+    let runCalls = 0;
+    let reportCalls = 0;
+    const s = await listen(async (_request, _emit, signal) => {
+      runCalls += 1;
+      assert.equal(signal?.aborted, false);
+      return { ok: true, output: "continued", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.includes("/sessions/control/commands/command-retry/outcome")) {
+          reportCalls += 1;
+          return reportCalls === 1
+            ? new Response("unavailable", { status: 503 })
+            : Response.json({
+                command: { id: "command-retry", state: "applied" },
+                admitted: true,
+              });
+        }
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-retry" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({ ok: true });
+      });
+    const request = {
+      harness: "pi_core",
+      sessionId: "session-retry",
+      turnId: "continuation-turn-retry",
+      projectId: "project-1",
+      controlCommandId: "command-retry",
+      messages: [{ role: "user", content: "approved" }],
+    };
+
+    try {
+      const deliver = async () => {
+        const response = await fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify(request),
+        });
+        return (await response.text())
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+      };
+
+      const failed = await deliver();
+      assert.equal(failed.at(-1).result.ok, false);
+      assert.equal(
+        runCalls,
+        0,
+        "engine does not start before durable admission",
+      );
+
+      const retried = await deliver();
+      assert.equal(retried.at(-1).result.ok, true);
+      assert.equal(runCalls, 1);
+      assert.equal(reportCalls, 2);
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("recovers after the API committed admission but its response was lost", async () => {
+    vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+    let runCalls = 0;
+    let reportCalls = 0;
+    const s = await listen(async () => {
+      runCalls += 1;
+      return { ok: true, output: "continued", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (
+          url.includes(
+            "/sessions/control/commands/command-response-loss/outcome",
+          )
+        ) {
+          reportCalls += 1;
+          if (reportCalls === 1) {
+            // The API committed applied/running, but the runner never observed the response.
+            throw new Error("connection reset after response commit");
+          }
+          return Response.json({
+            command: { id: "command-response-loss", state: "applied" },
+            // The immediate retry sees running. The later retry represents API watchdog/preflight
+            // recovery, whose recoverable->running CAS grants exactly one fresh admission.
+            admitted: reportCalls >= 3,
+          });
+        }
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-response-loss" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({ ok: true });
+      });
+    const request = {
+      harness: "pi_core",
+      sessionId: "session-response-loss",
+      turnId: "continuation-turn-response-loss",
+      projectId: "project-1",
+      controlCommandId: "command-response-loss",
+      messages: [{ role: "user", content: "approved" }],
+    };
+
+    try {
+      const deliver = async () => {
+        const response = await fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify(request),
+        });
+        return (await response.text())
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+      };
+
+      assert.equal((await deliver()).at(-1).result.ok, false);
+      assert.equal(
+        (await deliver()).at(-1).result.stopReason,
+        "control_command_duplicate",
+      );
+      assert.equal(runCalls, 0);
+      assert.equal((await deliver()).at(-1).result.ok, true);
+      assert.equal(runCalls, 1);
+      assert.equal(reportCalls, 3);
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("does not report or run a continuation until a fresh controller owns the alive lock", async () => {
+    vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+    let runCalls = 0;
+    let activeHeartbeatCalls = 0;
+    let reportCalls = 0;
+    const engineSignals: AbortSignal[] = [];
+    const s = await listen(async (_request, _emit, signal) => {
+      runCalls += 1;
+      assert.ok(signal);
+      engineSignals.push(signal);
+      return { ok: true, output: "continued", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          const body = JSON.parse(String(init?.body));
+          if (body.is_running) activeHeartbeatCalls += 1;
+          return Response.json({
+            stream: { id: "stream-ownership" },
+            is_current_turn:
+              body.is_running === false || activeHeartbeatCalls > 1,
+          });
+        }
+        if (
+          url.includes("/sessions/control/commands/command-ownership/outcome")
+        ) {
+          reportCalls += 1;
+          return Response.json({
+            command: { id: "command-ownership", state: "applied" },
+            admitted: true,
+          });
+        }
+        return Response.json({ ok: true });
+      });
+    const request = {
+      harness: "pi_core",
+      sessionId: "session-ownership",
+      turnId: "continuation-turn-ownership",
+      projectId: "project-1",
+      controlCommandId: "command-ownership",
+      messages: [{ role: "user", content: "approved" }],
+    };
+
+    try {
+      const deliver = async () => {
+        const response = await fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify(request),
+        });
+        return (await response.text())
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+      };
+
+      const rejected = await deliver();
+      assert.equal(rejected.at(-1).result.ok, false);
+      assert.equal(reportCalls, 0, "ownership rejection precedes outcome");
+      assert.equal(
+        runCalls,
+        0,
+        "ownership rejection precedes engine invocation",
+      );
+
+      const retried = await deliver();
+      assert.equal(retried.at(-1).result.ok, true);
+      assert.equal(reportCalls, 1);
+      assert.equal(runCalls, 1);
+      assert.equal(engineSignals.length, 1);
+      assert.equal(
+        engineSignals[0].aborted,
+        false,
+        "the retry receives a fresh, un-aborted controller",
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("does not run when the API says another replica already admitted the command", async () => {
+    vi.stubEnv("AGENTA_API_URL", "https://api.example.test/api");
+    let runCalls = 0;
+    let reportCalls = 0;
+    const s = await listen(async () => {
+      runCalls += 1;
+      return { ok: true, output: "must not run", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-cross-replica" },
+            is_current_turn: true,
+          });
+        }
+        if (
+          url.includes("/sessions/control/commands/command-applied/outcome")
+        ) {
+          reportCalls += 1;
+          return Response.json({
+            command: { id: "command-applied", state: "applied" },
+            admitted: false,
+          });
+        }
+        return Response.json({ ok: true });
+      });
+    const request = {
+      harness: "pi_core",
+      sessionId: "session-cross-replica",
+      turnId: "continuation-turn-cross-replica",
+      projectId: "project-1",
+      controlCommandId: "command-applied",
+      messages: [{ role: "user", content: "approved" }],
+    };
+
+    try {
+      const deliver = async () => {
+        const response = await fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify(request),
+        });
+        return (await response.text())
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+      };
+
+      const first = await deliver();
+      assert.equal(first.at(-1).result.ok, true);
+      assert.equal(first.at(-1).result.stopReason, "control_command_duplicate");
+      const duplicate = await deliver();
+      assert.equal(
+        duplicate.at(-1).result.stopReason,
+        "control_command_duplicate",
+      );
+      assert.equal(runCalls, 0);
+      assert.equal(reportCalls, 2, "same-process duplicate re-acknowledges");
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
 
   it("redacts this run's credentials from the stderr stack log when a run throws", async () => {
     // A per-run provider key rides ONLY the typed request (never process env). When the run

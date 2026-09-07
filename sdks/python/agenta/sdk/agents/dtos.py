@@ -1170,6 +1170,12 @@ class SessionConfig(BaseModel):
     session_id: Optional[str] = None
     # Explicit per-invoke ownership handoff. False preserves request-owned cancellation.
     detached: bool = False
+    # Coordination identities supplied by the workflow service in request.meta. They remain
+    # per-turn transport metadata: the harness never consumes them, but the runner uses turn_id as
+    # the fresh execution guard and control_command_id to deduplicate durable continuation delivery.
+    turn_id: Optional[str] = None
+    project_id: Optional[str] = None
+    control_command_id: Optional[str] = None
     # The post-hydration config this turn runs, carried verbatim so the runner can stamp it on
     # the interaction row of any HITL gate the turn parks (see
     # ``agents/utils/effective_config.py``). Wire-emitted only for a session run; never consumed

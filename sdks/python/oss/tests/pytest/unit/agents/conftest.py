@@ -146,6 +146,9 @@ class FakeBackend(Backend):
         run_context=None,
         session_id=None,
         detached=False,
+        turn_id=None,
+        project_id=None,
+        control_command_id=None,
         effective_parameters=None,
         gateway_policy=None,
     ) -> FakeSession:
@@ -159,6 +162,9 @@ class FakeBackend(Backend):
                 "run_context": run_context,
                 "session_id": session_id,
                 "detached": detached,
+                "turn_id": turn_id,
+                "project_id": project_id,
+                "control_command_id": control_command_id,
                 "effective_parameters": effective_parameters,
                 "gateway_policy": gateway_policy,
             }

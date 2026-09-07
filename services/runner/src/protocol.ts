@@ -777,6 +777,11 @@ export interface AgentRunRequest {
    */
   projectId?: string;
   /**
+   * Stable id of the durable continuation command that admitted this request. Repeated delivery
+   * carries the same id; the runner starts at most one execution for it. Omitted for ordinary runs.
+   */
+  controlCommandId?: string;
+  /**
    * The post-hydration config this turn runs, produced by the SDK (`agents/utils/wire.py`) and
    * OPAQUE here: the runner never reads inside it and never derives behavior from it. It is
    * echoed verbatim onto the `data.parameters` of every interaction row this turn writes, so a

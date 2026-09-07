@@ -32,10 +32,10 @@ every ordinary runner restart, because a runner mints a fresh id at boot when
 broke Stop for the whole window after every deploy, which is worse than the failure it guarded.
 """
 
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 from uuid import UUID
 
-from oss.src.core.sessions.commands.dtos import SessionCommand
+from oss.src.core.sessions.commands.dtos import SessionCommand, SessionCommandKind
 from oss.src.core.sessions.commands.interfaces import (
     ControlDeliveryPort,
     DeliveryReceipt,
@@ -51,14 +51,48 @@ log = get_module_logger(__name__)
 
 
 class DirectControlDelivery(ControlDeliveryPort):
-    def __init__(self, *, timeout_seconds: Optional[float] = None) -> None:
+    def __init__(
+        self,
+        *,
+        timeout_seconds: Optional[float] = None,
+        continue_interaction: Optional[
+            Callable[[SessionCommand], Awaitable[None]]
+        ] = None,
+        continue_input: Optional[Callable[[SessionCommand], Awaitable[None]]] = None,
+    ) -> None:
         self._timeout = (
             timeout_seconds
             if timeout_seconds is not None
             else env.agenta.sessions.commands.delivery_timeout_seconds
         )
+        self._continue_interaction = continue_interaction
+        self._continue_input = continue_input
 
     async def deliver(self, *, command: SessionCommand) -> DeliveryReceipt:
+        if command.kind == SessionCommandKind.continue_interaction:
+            if self._continue_interaction is None:
+                return DeliveryReceipt(
+                    status="unreachable",
+                    detail="continuation delivery is not configured",
+                )
+            try:
+                await self._continue_interaction(command)
+            except Exception as error:  # noqa: BLE001 - transport maps failures to receipts
+                return DeliveryReceipt(status="unreachable", detail=str(error))
+            return DeliveryReceipt(status="accepted", replica_id="direct")
+
+        if command.kind == SessionCommandKind.continue_input:
+            if self._continue_input is None:
+                return DeliveryReceipt(
+                    status="unreachable",
+                    detail="pending input delivery is not configured",
+                )
+            try:
+                await self._continue_input(command)
+            except Exception as error:  # noqa: BLE001 - transport maps failures to receipts
+                return DeliveryReceipt(status="unreachable", detail=str(error))
+            return DeliveryReceipt(status="accepted", replica_id="direct")
+
         answer = await cancel_runner_execution(
             command_id=str(command.id),
             project_id=str(command.project_id),

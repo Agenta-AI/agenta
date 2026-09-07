@@ -586,3 +586,78 @@ async def test_c_heartbeat_blocked_on_sweep_cannot_revive_collapsed_row(
         "is_running": False,
         "is_attached": False,
     }
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "settled,is_running,collapsed,replaced,accepted",
+    [
+        (False, True, False, False, True),
+        (True, False, False, False, True),
+        (True, True, False, False, False),
+        (True, False, True, False, False),
+        (True, False, False, True, False),
+    ],
+)
+async def test_heartbeat_mirror_distinguishes_active_and_settled_execution(
+    anyio_backend, wd_engine, settled, is_running, collapsed, replaced, accepted
+):
+    session_id = "wd-" + uuid.uuid4().hex[:12]
+    turn_id = str(uuid.uuid4())
+    project_id = await _seed_scenario(wd_engine, session_id=session_id, turn_id=turn_id)
+    async with wd_engine.session() as transaction:
+        # Use the actual M3 admission writer: active execution rows exist before completion.
+        await SessionExecutionsDAO(wd_engine).create_continuation(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=turn_id,
+            parent_execution_id="previous-turn",
+            source_interaction_id=None,
+            transaction=transaction,
+        )
+        if settled:
+            await transaction.execute(
+                text(
+                    "UPDATE session_executions SET state='terminal', "
+                    "terminal_outcome='stopped', settled_by='runner', settled_at=NOW() "
+                    "WHERE project_id=:p AND session_id=:s"
+                ),
+                {"p": project_id, "s": session_id},
+            )
+        if collapsed:
+            await transaction.execute(
+                text(
+                    "UPDATE session_streams SET flags="
+                    '\'{"is_alive": false,"is_running": false,"is_attached": false}\'::jsonb '
+                    "WHERE project_id=:p AND session_id=:s"
+                ),
+                {"p": project_id, "s": session_id},
+            )
+        if replaced:
+            await transaction.execute(
+                text(
+                    "UPDATE session_streams SET turn_id='new-turn' WHERE project_id=:p AND session_id=:s"
+                ),
+                {"p": project_id, "s": session_id},
+            )
+        await transaction.commit()
+
+    mirrored = await SessionStreamsDAO(wd_engine).update(
+        project_id=project_id,
+        user_id=None,
+        session_id=session_id,
+        stream=SessionStreamEdit(
+            flags=SessionStreamFlags(
+                is_alive=True, is_running=is_running, is_attached=False
+            ),
+            turn_id=turn_id,
+            expected_turn_id=turn_id,
+        ),
+    )
+    assert (mirrored is not None) is accepted
+    persisted = await SessionStreamsDAO(wd_engine).get_by_session_id(
+        project_id=project_id, session_id=session_id
+    )
+    assert persisted.flags.is_running is (is_running if accepted else not collapsed)
+    assert persisted.flags.is_alive is (not collapsed)
+    assert persisted.turn_id == ("new-turn" if replaced else turn_id)
