@@ -267,7 +267,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         if (parsed.files.length) next.files = parsed.files
         else delete next.files
         onChange(next)
-        setSelected("skill")
+        openEntry("skill")
     }
 
     // Drawer-wide SKILL.md paste: refs keep the once-registered listener reading the latest draft.
@@ -292,7 +292,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
             if (!/^\uFEFF?---\r?\n/.test(text)) return
             e.preventDefault()
             onChangeRef.current(mergePastedSkill(skillRef.current, text))
-            setSelected("skill")
+            openEntry("skill")
             message.success("Filled from the pasted skill")
         }
         document.addEventListener("paste", onPaste)

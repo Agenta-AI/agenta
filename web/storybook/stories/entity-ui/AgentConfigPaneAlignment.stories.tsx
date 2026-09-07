@@ -3,8 +3,10 @@ import {useState, type ReactNode} from "react"
 import {
     AgentRegionHeaderBar,
     AgentTemplateSectionList,
+    ItemRow,
     SectionAddButton,
     type AgentTemplateSectionDescriptor,
+    type ItemDescriptor,
 } from "@agenta/entity-ui/drill-in"
 import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
 import {
@@ -17,9 +19,6 @@ import {
     SlidersHorizontal,
 } from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
-
-import type {ItemDescriptor} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/itemDescriptors"
-import {ItemRow} from "../../../packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/ItemRow"
 
 // The agent playground config pane, stacked: region header bars, accordion section headers and
 // nested item cards. All three kinds end on ONE right-hand axis via the shared

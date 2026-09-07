@@ -181,8 +181,12 @@ const ReplayScreen = ({
     // One identity cache per session — the dep does that, and must, since the screen is no longer
     // remounted per session.
 
+    // Both factories take no argument, so the linter reads `sessionId` as unused. It is the point:
+    // the dep is what discards the previous session's cache on a screen that never remounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     const executedFor = useMemo(() => createExecutedToolIdentityCache(), [sessionId])
     // Without this every view model is a fresh object per poll, so TurnRow's memo never hits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     const turnCache = useMemo(() => createTurnViewModelCache(), [sessionId])
     const turns = useMemo(
         () => buildTurnViewModels(messages, {busy: false, executedFor, cache: turnCache}),

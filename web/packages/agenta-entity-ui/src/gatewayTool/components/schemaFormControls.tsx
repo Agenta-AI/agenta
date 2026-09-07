@@ -261,6 +261,10 @@ export function ChipsInput({
     const [draft, setDraft] = useState("")
     const [open, setOpen] = useState(false)
     const [activeIndex, setActiveIndex] = useState(0)
+    // Did the user move onto a row (arrow keys or hover)? Nothing is highlighted until they do,
+    // and Enter commits a suggestion only then.
+    const [navigated, setNavigated] = useState(false)
+    const highlighted = navigated ? activeIndex : -1
     const boxRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLInputElement>(null)
     const listRef = useRef<HTMLDivElement>(null)
@@ -289,12 +293,18 @@ export function ChipsInput({
         return target instanceof Node && Boolean(boxRef.current?.contains(target))
     }
 
-    // A fresh query re-aims at the first row; the old index could point past the new list.
-    useEffect(() => setActiveIndex(0), [draft, open])
+    // A fresh query re-aims at the first row; the old index could point past the new list. The
+    // highlight is a PREVIEW until the user arrows onto it: auto-highlighting row 0 and committing
+    // it on Enter meant typing "Bash" chipped "Bash(*)", so no typed value that prefixes an option
+    // could be entered at all.
+    useEffect(() => {
+        setActiveIndex(0)
+        setNavigated(false)
+    }, [draft, open])
     useEffect(() => {
         if (showList)
             listRef.current?.querySelector("[data-active=true]")?.scrollIntoView({block: "nearest"})
-    }, [activeIndex, showList])
+    }, [highlighted, showList])
 
     const add = (raw: string) => {
         const trimmed = raw.trim()
@@ -349,7 +359,9 @@ export function ChipsInput({
                 aria-expanded={hasSuggestions ? showList : undefined}
                 aria-controls={hasSuggestions ? listId : undefined}
                 aria-autocomplete={hasSuggestions ? "list" : undefined}
-                aria-activedescendant={showList ? optionId(activeIndex) : undefined}
+                aria-activedescendant={
+                    showList && highlighted >= 0 ? optionId(highlighted) : undefined
+                }
                 placeholder={selected.length === 0 ? placeholder : undefined}
                 value={draft}
                 onChange={(e) => {
@@ -362,10 +374,11 @@ export function ChipsInput({
                         e.preventDefault()
                         if (!showList) return setOpen(true)
                         const dir = e.key === "ArrowDown" ? 1 : -1
+                        setNavigated(true)
                         setActiveIndex((i) => (i + dir + matches.length) % matches.length)
                     } else if (e.key === "Enter") {
                         e.preventDefault()
-                        add(showList ? (matches[activeIndex] ?? draft) : draft)
+                        add(highlighted >= 0 ? (matches[highlighted] ?? draft) : draft)
                         setOpen(false)
                     } else if (e.key === "Escape" && showList) {
                         // Swallowed, or the drawer hosting the field would close along with the list.
@@ -420,9 +433,12 @@ export function ChipsInput({
                             key={o}
                             id={optionId(index)}
                             role="option"
-                            aria-selected={index === activeIndex}
-                            data-active={index === activeIndex}
-                            onMouseEnter={() => setActiveIndex(index)}
+                            aria-selected={index === highlighted}
+                            data-active={index === highlighted}
+                            onMouseEnter={() => {
+                                setNavigated(true)
+                                setActiveIndex(index)
+                            }}
                             // Keeps the input focused, so `onBlur` doesn't chip the draft first.
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {

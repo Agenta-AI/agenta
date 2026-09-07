@@ -56,6 +56,7 @@ const SessionRowImpl = ({
     onTogglePin,
 }: SessionRowProps) => {
     const openable = Boolean(row.agentId && onOpen)
+    const menuHasPin = Boolean(menuItems?.some((entry) => "key" in entry && entry.key === "pin"))
     const handleOpen = () => {
         if (openable) onOpen?.()
     }
@@ -155,14 +156,14 @@ const SessionRowImpl = ({
                     {row.activityAt ? timeAgo(Date.parse(row.activityAt)) : "—"}
                 </span>
 
-                {/* Phone-hidden: the trailing controls crowd the title at this width, and the
-                    "..." menu already carries Pin/Unpin. */}
+                {/* Phone-hidden because the "..." menu carries Pin/Unpin, but only where it
+                    actually does: `menuItems` is optional and need not include that entry. */}
                 {onTogglePin ? (
                     <SessionPinButton
                         pinned={row.isPinned}
                         onToggle={() => onTogglePin(row.id)}
                         revealOnHover={revealActionsOnHover}
-                        className="hidden sm:block"
+                        className={menuHasPin ? "hidden sm:block" : undefined}
                     />
                 ) : null}
 

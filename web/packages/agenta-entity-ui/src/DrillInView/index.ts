@@ -470,5 +470,6 @@ export type {
 } from "./SchemaControls/agentTemplate/SectionTitleBadge"
 
 // The panel's instructions file row, reused read-only by surfaces that show an agent's brief
-// without editing it (the agent overview).
-export {InstructionsFileRow} from "./SchemaControls/agentTemplate/ItemRow"
+// without editing it (the agent overview). `ItemRow` itself is public for the alignment story,
+// which has to render the real row to measure the trailing axis against it.
+export {InstructionsFileRow, ItemRow} from "./SchemaControls/agentTemplate/ItemRow"
