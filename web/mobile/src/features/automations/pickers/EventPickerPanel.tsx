@@ -214,7 +214,7 @@ export const EventPickerPanel = ({
 
     return (
         <div className="flex min-h-0 flex-col">
-            <div className="flex min-h-0 flex-col gap-2.5 p-2.5">
+            <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-2.5">
                 <div className="relative">
                     <Search
                         aria-hidden
@@ -229,7 +229,7 @@ export const EventPickerPanel = ({
                     />
                 </div>
 
-                <div className="flex max-h-[420px] min-h-0 gap-[10px]">
+                <div className="flex min-h-0 flex-1 gap-[10px]">
                     {/* A query searches every app at once, so the rail has nothing to filter. */}
                     {query ? null : (
                         <EventAppRail
@@ -241,7 +241,7 @@ export const EventPickerPanel = ({
                     )}
                     {/* Only the right pane changes once an event is chosen — the rail stays put. */}
                     {showFilters ? (
-                        <div className="flex max-h-[420px] min-w-0 flex-1 flex-col gap-2 overflow-y-auto">
+                        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto">
                             <div className="flex flex-col gap-1">
                                 <button
                                     type="button"

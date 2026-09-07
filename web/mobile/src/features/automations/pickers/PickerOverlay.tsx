@@ -53,8 +53,12 @@ export const PickerOverlay = ({
                     aria-label={title}
                     // As wide as the control that opened it: a menu narrower than its own field
                     // reads as a different surface rather than that field, opened.
+                    // Radix does not bound a popover's height, so a long event list ran off the
+                    // bottom of the window. `available-height` is the room left below the
+                    // trigger; the panes inside flex within it rather than each capping
+                    // themselves at a guess.
                     className={cn(
-                        "flex w-[var(--radix-popover-trigger-width)] flex-col gap-0 p-0",
+                        "flex max-h-[var(--radix-popover-content-available-height)] w-[var(--radix-popover-trigger-width)] flex-col gap-0 overflow-hidden p-0",
                         contentClassName,
                     )}
                 >

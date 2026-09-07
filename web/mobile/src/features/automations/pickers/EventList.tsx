@@ -32,7 +32,7 @@ export const EventList = ({
     )
 
     return (
-        <div className="flex max-h-[420px] min-w-0 flex-1 flex-col gap-px overflow-y-auto">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-px overflow-y-auto">
             {isLoading ? (
                 <>
                     <Skeleton className="h-7 w-full" />

@@ -46,7 +46,7 @@ export const EventSearchResults = ({
     }, [apps, reports])
 
     return (
-        <div className="flex max-h-[420px] min-w-0 flex-1 flex-col gap-px overflow-y-auto">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-px overflow-y-auto">
             {apps.map((app) => (
                 <EventSearchGroup
                     key={app.integrationKey}
