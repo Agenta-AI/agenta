@@ -1,41 +1,31 @@
-"""The Agenta harness's forced defaults: the things ``AgentaHarness`` always applies.
-(``ClaudeHarness`` shares the AGENTS.md preamble and forced platform skills; the persona
-remains Pi-only — see :mod:`.harnesses`.)
+"""Agenta-shipped agent content: the platform skills and the cross-harness gateway guidance.
 
-``AgentaHarness`` is Pi with an opinion. It is the same engine as :class:`PiHarness`, but
-every run carries a fixed set of Agenta-shipped extras the author cannot turn off:
+Two things live here:
 
-- a base **persona** appended to Pi's system prompt (``AGENTA_FORCED_APPEND_SYSTEM``),
-- a base **AGENTS.md preamble** the author's instructions are appended to (``AGENTA_PREAMBLE``),
-- a set of **forced platform skills** (``AGENTA_FORCED_SKILLS``).
+- The **platform skills** (getting started, build-an-agent) as concrete inline packages. The
+  canonical skill content is defined here (the SDK, the lowest layer); the server-side
+  ``StaticWorkflowCatalog`` imports the same constants so the embed path and the catalog stay
+  one source of truth.
+- The **gateway guidance** (:func:`gateway_guidance` / :func:`compose_gateway_guidance`),
+  which is cross-harness: every harness gets the same two derived gateway tools, so every
+  harness gets their instructions, and all adapters import it from here.
 
-The forced platform skills are the actually-forced part of "forced skills". The default agent
-config template embeds the platform default skill by reserved ``__ag__*`` slug, but that embed
-only rides the *default* template: a custom ``pi_agenta`` config that drops the embed would
-otherwise lose the platform skill entirely. To make "forced" mean forced, ``AgentaHarness``
-unions ``AGENTA_FORCED_SKILLS`` into every run's skills via :func:`force_skills`, regardless of
-what the author's config carries. The canonical skill content lives here (in the SDK, the lowest
-layer); the server-side ``StaticWorkflowCatalog`` imports the same constant so the embed path
-and the forced path stay one source of truth.
-
-Two layers, kept distinct on purpose (matching Pi's own split, see :class:`PiAgentTemplate`):
-the *persona* is an ``append_system`` (changes Pi's base prompt), while *project conventions*
-belong in ``AGENTS.md``. ``AGENTA_PREAMBLE`` is the AGENTS.md layer; ``AGENTA_FORCED_APPEND_SYSTEM``
-is the persona layer.
-
-One exception to "the Agenta harness's defaults": :func:`gateway_guidance` and
-:func:`compose_gateway_guidance` are cross-harness. Every harness gets the same two derived
-gateway tools, so every harness gets their instructions, and all four adapters import from
-here. They live beside :func:`compose_instructions` because that function has to interleave
-them with ``AGENTA_PREAMBLE``, which no other module owns.
+The ``pi_agenta`` harness (Pi plus a forced Agenta overlay: a preamble, a persona, forced
+skills) was an experiment and was removed on 2026-08-29; the overlay constants and helpers
+went with it.
 """
 
 from __future__ import annotations
 
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
 from ..flags import ordered_operations_enabled
+from typing import TYPE_CHECKING
+
 from ..skills import SkillFile, SkillTemplate
+
+if TYPE_CHECKING:  # circular at runtime: dtos imports skills, adapters import dtos
+    from ..dtos import GatewayGuidance
 from .agent_templates import build_agent_template_skill_files
 
 # Read once, at import, exactly like the op catalog builds its tool descriptions. The skill
@@ -45,29 +35,6 @@ from .agent_templates import build_agent_template_skill_files
 # `delta.set` example from this skill against an ordered-operations deployment and replaced a
 # skills list it meant to append to.
 _ORDERED = ordered_operations_enabled()
-
-# The base AGENTS.md preamble. The author's own ``instructions`` are appended after this, so
-# the final AGENTS.md is ``AGENTA_PREAMBLE`` + the author's project conventions.
-#
-# TODO(product): replace this placeholder with the real Agenta AGENTS.md preamble.
-AGENTA_PREAMBLE = """\
-# Agenta agent
-
-You are an agent running on the Agenta platform. The instructions below are Agenta's
-baseline; the user's own instructions follow and take precedence where they are more
-specific.
-
-- Prefer the tools and skills provided to you over guessing.
-- When a skill matches the task, read its SKILL.md fully before acting.
-- Keep answers grounded in what the tools and skills actually return."""
-
-# The base persona, always appended to Pi's built-in system prompt (never replaces it). This
-# is the "who the agent is" layer, distinct from the AGENTS.md project-context layer above.
-#
-# TODO(product): replace this placeholder with the real Agenta persona framing.
-AGENTA_FORCED_APPEND_SYSTEM = """\
-You are an Agenta agent. Be precise, cite what your tools and skills return, and do not
-fabricate results."""
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
 # skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
@@ -157,14 +124,14 @@ _CONFIG_SCHEMA_FIELDS = """\
   "tools": [],
   "mcps": [],
   "skills": [],
-  "harness": { "kind": "pi_agenta" },
+  "harness": { "kind": "pi_core" },
   "runner": { "kind": "sidecar", "permissions": { "default": "allow_reads" } },
   "sandbox": { "kind": "local" }
 }
 ```
 
-The example above shows one common setup; your own `harness` may be `pi_agenta`, `claude`, or
-`pi_core`. Whatever it is, keep `harness`, `runner`, `sandbox`, and `llm` as they are unless the
+The example above shows one common setup; your own `harness` may be `pi_core`, `claude`, or
+`codex`. Whatever it is, keep `harness`, `runner`, `sandbox`, and `llm` as they are unless the
 user explicitly asks to change one.
 
 ## The fields you decide
@@ -172,8 +139,7 @@ user explicitly asks to change one.
 ### instructions
 
 `instructions.agents_md` — a Markdown string, your AGENTS.md: who you are and what you do. Write
-only your own project conventions here — the platform supplies its own baseline framing (on
-`pi_agenta` and `claude`, a fixed Agenta preamble is prepended automatically). One or two
+only your own project conventions here. One or two
 sentences for a simple agent; an explicit numbered procedure for a multi-tool or scheduled one
 (see the instruction-writing section of SKILL.md).
 
@@ -183,7 +149,7 @@ You almost never touch `llm` in a delta. Keep it exactly as it is unless the use
 to change the model, provider, or connection. The rules below matter only when they do ask:
 
 - `model` — the model. How you NAME it depends on the harness (this is the trap):
-  - `pi_core` / `pi_agenta`: a real model id, e.g. `gpt-5.5` or `anthropic/claude-...`
+  - `pi_core`: a real model id, e.g. `gpt-5.5` or `anthropic/claude-...`
     (provider/id selection).
   - `claude`: an alias — `default`, `sonnet`, `opus`, or `haiku` — never a raw model id.
 - `provider` — the provider family (`openai`, `anthropic`, ...); inferred from the model string
@@ -299,7 +265,7 @@ the run:
 
 ## The execution parts (keep as-is unless asked)
 
-- `harness` — `{ "kind": "pi_core" | "pi_agenta" | "claude", "permissions": {...}, "extras":
+- `harness` — `{ "kind": "pi_core" | "claude" | "codex", "permissions": {...}, "extras":
   {...} }`. `permissions` is `{ "default_mode": "default"|"acceptEdits"|"plan"|
   "bypassPermissions", "allow": [...], "ask": [...], "deny": [...] }`. The three rule lists name
   tools that run without asking, that ask first, and that are never allowed to run; each entry is
@@ -405,7 +371,7 @@ on the next run.
 - `harness.kind: "claude"` paired with a non-Anthropic `provider`. Claude reaches `anthropic`
   only. Bites at RUN time: the run's Model & Harness never resolves and the agent never runs.
 - A raw model id on the `claude` harness (Claude selects by alias) or an alias like `sonnet` on a
-  `pi_core`/`pi_agenta` harness (Pi selects by provider/id). Bites silently: the run falls back to
+  `pi_core` harness (Pi selects by provider/id). Bites silently: the run falls back to
   a default model with no error. Only `test_run`'s `resolved` block shows the fallback.
 - Naming an `@ag.embed` entry with a selector. An embed has no key, so no operation can address
   it. Leave those entries where they are.
@@ -589,7 +555,7 @@ on the next run.
 - `harness.kind: "claude"` paired with a non-Anthropic `provider`. Claude reaches `anthropic`
   only. Bites at RUN time: the run's Model & Harness never resolves and the agent never runs.
 - A raw model id on the `claude` harness (Claude selects by alias) or an alias like `sonnet` on a
-  `pi_core`/`pi_agenta` harness (Pi selects by provider/id). Bites silently: the run falls back
+  `pi_core` harness (Pi selects by provider/id). Bites silently: the run falls back
   to a default model with no error. Only `test_run`'s `resolved` block shows the fallback.
 - Sending a short `tools`/`skills`/`mcps` list. Bites on the NEXT run: lists replace wholesale,
   so every entry you left out is gone.
@@ -1177,10 +1143,6 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
     ],
 )
 
-# Platform skills every pi_agenta run carries, regardless of the author's config. These are the
-# actually-forced skills (see module docstring); unioned in by `force_skills`.
-AGENTA_FORCED_SKILLS: List[SkillTemplate] = [GETTING_STARTED_WITH_AGENTA_SKILL]
-
 
 def _join(*parts: Optional[str]) -> Optional[str]:
     """Join the non-empty parts with a blank line, or ``None`` when nothing remains."""
@@ -1205,8 +1167,9 @@ def gateway_guidance(integration_names: Sequence[str]) -> Optional[str]:
     return f"""\
 ## Connected integrations
 
-You can reach these integrations with two tools: `search_tools` and `run_tool`.
-Configured integrations: {integrations}.
+You can reach your integrations with two tools: `search_tools` and `run_tool`.
+For instance, some of the integrations you have: {integrations}. Others may exist, and this
+list can go stale — `search_tools` is the source of truth for what is connected right now.
 
 - Search once per task, with a concrete description of what you want to do. Never repeat an
   equivalent query — a second search that means the same thing returns the same results.
@@ -1224,48 +1187,24 @@ Configured integrations: {integrations}.
   arguments — report it instead of looping."""
 
 
-def compose_gateway_guidance(
-    user: Optional[str],
-    integration_names: Sequence[str] = (),
-) -> Optional[str]:
-    """One prompt layer with the gateway guidance placed before the author's own text.
+def gateway_guidance_field(
+    integration_names: Sequence[str],
+    carrier: str,
+) -> Optional["GatewayGuidance"]:
+    """The ``gatewayGuidance`` wire field, or ``None`` when the agent has no connection.
 
-    Every harness carries the guidance, not only the Agenta one: each gets the same two
-    derived tools, so a section added to one prompt surface would leave the others holding
-    two tools and no instructions for using them. Which layer carries it is the adapter's
-    choice, so ``user`` is whatever text that adapter puts the guidance in front of: the
-    instructions file for the file-based harnesses, and ``append_system`` for Pi, whose
-    AGENTS.md is purely authored.
+    Every harness carries the guidance, not only one: each gets the same two derived tools,
+    so guidance on one prompt surface alone would leave the others holding two tools and no
+    instructions for using them. ``carrier`` stays the adapter's choice (the instructions
+    file for the file-based harnesses, ``append_system`` for Pi, whose AGENTS.md is purely
+    authored) — but the SPLICING now happens in the runner, at environment build time, so the
+    integration names stay out of the session fingerprint and adding an integration no longer
+    evicts a warm session. The names read as examples, so a list that goes stale mid-session
+    stays honest until the next cold or reopened session refreshes it.
     """
-    return _join(gateway_guidance(integration_names), user)
+    text = gateway_guidance(integration_names)
+    if not text:
+        return None
+    from ..dtos import GatewayGuidance
 
-
-def compose_instructions(
-    user: Optional[str],
-    integration_names: Sequence[str] = (),
-) -> Optional[str]:
-    """The AGENTS.md the Agenta harness ships: the base preamble, then the gateway guidance
-    when the agent has a connection, then the author's instructions."""
-    return _join(AGENTA_PREAMBLE, compose_gateway_guidance(user, integration_names))
-
-
-def compose_append_system(user: Optional[str]) -> Optional[str]:
-    """The ``append_system`` the harness ships: the forced base persona with the author's own
-    ``append_system`` appended after it."""
-    return _join(AGENTA_FORCED_APPEND_SYSTEM, user)
-
-
-def force_skills(skills: List[SkillTemplate]) -> List[SkillTemplate]:
-    """Union the author's skills with the forced platform skills, de-duplicated by name.
-
-    The author's skills come first and win on a name clash (a config that already carries the
-    resolved platform skill — e.g. via the default template's embed — is not doubled), then any
-    forced platform skill not already present is appended. This is what makes the ``_agenta``
-    platform skill actually forced on a custom ``pi_agenta`` config that drops the embed."""
-    seen = {skill.name for skill in skills}
-    out: List[SkillTemplate] = list(skills)
-    for forced in AGENTA_FORCED_SKILLS:
-        if forced.name not in seen:
-            seen.add(forced.name)
-            out.append(forced)
-    return out
+    return GatewayGuidance(text=text, carrier=carrier)

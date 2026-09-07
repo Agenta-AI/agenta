@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import {
   createAcpDispatcher,
   createAcpFetch,
+  withSandboxGoneReport,
 } from "../../src/engines/sandbox_agent/acp-fetch.ts";
 
 const envKeys = [
@@ -77,5 +78,51 @@ describe("createAcpFetch", () => {
   it("returns a fetch bound to the long-timeout ACP dispatcher", () => {
     const acpFetch = createAcpFetch();
     assert.equal(typeof acpFetch, "function");
+  });
+});
+
+/**
+ * The turn's own socket is the first thing to learn that a remote sandbox was deleted: Daytona
+ * answers `404 SANDBOX_NOT_FOUND` from its proxy while the ACP transport swallows the failure and
+ * the pending prompt never settles. This wrapper is how that death reaches the liveness probe.
+ */
+describe("withSandboxGoneReport", () => {
+  const goneResponse = () =>
+    new Response("not found: sandbox a476c238 not found", {
+      status: 404,
+      headers: { "x-daytona-error-code": "SANDBOX_NOT_FOUND" },
+    });
+
+  it("reports a provider answer that names the sandbox as gone", async () => {
+    const reasons: string[] = [];
+    const wrapped = withSandboxGoneReport(
+      (async () => goneResponse()) as unknown as typeof fetch,
+      { onSandboxGone: (reason) => reasons.push(reason) },
+    );
+
+    const response = await wrapped("http://sandbox/v1/acp/session");
+
+    assert.equal(reasons.length, 1);
+    assert.ok(reasons[0].includes("SANDBOX_NOT_FOUND"));
+    // The body must still be readable by the ACP client that asked for it.
+    assert.ok((await response.text()).includes("a476c238"));
+  });
+
+  it("reports nothing for an ordinary answer", async () => {
+    const reasons: string[] = [];
+    const wrapped = withSandboxGoneReport(
+      (async () =>
+        new Response("{}", { status: 200 })) as unknown as typeof fetch,
+      { onSandboxGone: (reason) => reasons.push(reason) },
+    );
+
+    await wrapped("http://sandbox/v1/acp/session");
+
+    assert.equal(reasons.length, 0);
+  });
+
+  it("is the identity when no reporter is wired", () => {
+    const inner = (async () => new Response("{}")) as unknown as typeof fetch;
+    assert.equal(withSandboxGoneReport(inner), inner);
   });
 });

@@ -6,7 +6,8 @@
  * payload, and the two onboarding flags (which key off the onboarding user id).
  */
 import {atom} from "jotai"
-import {atomFamily, atomWithStorage} from "jotai/utils"
+import {atomWithStorage} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"

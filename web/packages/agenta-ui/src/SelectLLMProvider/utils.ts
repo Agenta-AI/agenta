@@ -75,7 +75,6 @@ export const getProviderIcon = (key: string): React.FC<{className?: string}> | n
  */
 const HARNESS_ICON_MAP: Record<string, React.FC<{className?: string}>> = {
     pi_core: Pi,
-    pi_agenta: Pi,
     codex: OpenAi,
     claude: Anthropic,
 }

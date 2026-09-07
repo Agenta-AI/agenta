@@ -85,6 +85,7 @@ export {CopyButton, type CopyButtonProps} from "./CopyButton"
 export {default as EnhancedButton, type EnhancedButtonProps} from "./EnhancedButton"
 export {default as EmptyPlaceholder, type EmptyPlaceholderProps} from "./EmptyPlaceholder"
 export {default as EmptyState, type EmptyStateProps} from "./EmptyState"
+export {LogoMarks, type LogoMark, type LogoMarksProps} from "./logo-marks"
 
 // ============================================================================
 // SELECT COMPONENTS
@@ -280,7 +281,6 @@ export {
 export {HeightCollapse} from "../HeightCollapse"
 export {
     ChatActionIconButton,
-    ChatAttachmentCard,
     ChatBubble,
     ChatBubbleAvatar,
     ChatJumpToLatest,
@@ -289,7 +289,6 @@ export {
     turnToolbarClass,
     turnToolbarRevealClass,
     userBubbleContentClass,
-    type ChatAttachmentCardProps,
     type ChatBubbleProps,
 } from "./chat"
 

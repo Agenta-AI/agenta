@@ -24,7 +24,7 @@
   "customTools": [
     {
       "name": "search_tools",
-      "description": "Find tools across the integrations connected to this agent. Describe the task you want to perform; the result carries the integration, the tool key, and the input schema to call it with. Returns at most 5 results, best matches first \u2014 a cap, not the whole catalog. If the search fails, retry it once and no more. If nothing matched, search again with a more specific description of the task, then stop. Never invent an integration name. Connected integrations: github.",
+      "description": "Find tools across the integrations connected to this agent. Describe the task you want to perform; the result carries the integration, the tool key, and the input schema to call it with. Returns at most 5 results, best matches first \u2014 a cap, not the whole catalog. If the search fails, retry it once and no more. If nothing matched, search again with a more specific description of the task, then stop. Never invent an integration name.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -77,6 +77,10 @@
   },
   "permissions": {
     "default": "allow_reads"
+  },
+  "gatewayGuidance": {
+    "text": "## Connected integrations\n\nYou can reach your integrations with two tools: `search_tools` and `run_tool`.\nFor instance, some of the integrations you have: github. Others may exist, and this\nlist can go stale \u2014 `search_tools` is the source of truth for what is connected right now.\n\n- Search once per task, with a concrete description of what you want to do. Never repeat an\n  equivalent query \u2014 a second search that means the same thing returns the same results.\n- A search returns at most 5 results. That is a cap, not the whole catalog \u2014 if none fit,\n  narrow the description rather than concluding no such tool exists.\n- \"No configured tool matched this request.\" is not a failure. Refine the query ONCE and\n  search again \u2014 that is what the message asks for \u2014 then report if it still finds nothing.\n- \"Tool search is temporarily unavailable.\" is a temporary failure: retry it once and no more.\n- Use only an integration and a tool key that a search result returned. Never invent one.\n  Pass the BARE tool key, not a prefixed provider action id such as `GMAIL_FETCH_EMAILS`.\n- Copy the arguments from the input schema the search result returned.\n- Stop searching once a result is usable, and run it.\n- A run may pause for the user's approval or be refused outright: that is this agent's\n  permission policy, not a bug. A refusal will not succeed on a retry or with reshaped\n  arguments \u2014 report it instead of looping.",
+    "carrier": "appendSystemPrompt"
   },
   "gatewayPolicy": {
     "integrations": {

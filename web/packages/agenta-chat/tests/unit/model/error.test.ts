@@ -1,6 +1,15 @@
 import {describe, expect, it} from "vitest"
 
-import {parseAgentRunError} from "../../../src/model/error"
+import {
+    ACCEPTED_SENDER_DISCONNECT_MESSAGE,
+    classifyAgentRunError,
+    isTransportFailure,
+    isSessionBusyRefusal,
+    parseAgentRunError,
+    SESSION_TURN_IN_USE_CODE,
+    SESSION_TURN_IN_USE_MESSAGE,
+    TRANSPORT_ERROR_MESSAGE,
+} from "../../../src/model/error"
 
 describe("parseAgentRunError", () => {
     it("pulls message + code out of a status envelope carried on an Error", () => {
@@ -28,5 +37,103 @@ describe("parseAgentRunError", () => {
 
     it("uses the real fallback copy for an empty string", () => {
         expect(parseAgentRunError("")).toEqual({message: "The agent run failed."})
+    })
+
+    it("translates the browser's dropped-request text instead of showing it", () => {
+        // What the user actually saw under "The agent run failed": the raw TypeError.
+        expect(parseAgentRunError(new TypeError("Failed to fetch"))).toEqual({
+            message: TRANSPORT_ERROR_MESSAGE,
+            transport: true,
+        })
+    })
+
+    it("recognises the other engines' wording for the same failure", () => {
+        for (const raw of [
+            "NetworkError when attempting to fetch resource.",
+            "Load failed",
+            "The network connection was lost.",
+            "TypeError: Failed to fetch",
+            "fetch failed",
+        ]) {
+            expect(parseAgentRunError(raw)).toMatchObject({transport: true})
+        }
+    })
+
+    it("keeps a server verdict that happens to use those words, with its code", () => {
+        // The envelope wins: a reason the server sent is a reason, and its code is worth more
+        // than the translation.
+        const raw = JSON.stringify({status: {code: 502, message: "Upstream fetch failed"}})
+        expect(parseAgentRunError(raw)).toEqual({message: "Upstream fetch failed", code: 502})
+    })
+
+    it("keeps a bare server verdict that merely contains those words", () => {
+        // No envelope to fall back on, so the substring match was the only thing standing between
+        // a 502 the server reached and "check your connection".
+        expect(parseAgentRunError("Upstream fetch failed")).toEqual({
+            message: "Upstream fetch failed",
+        })
+        expect(isTransportFailure("Agent run failed: fetch failed")).toBe(false)
+        expect(isTransportFailure("Load failed for tool call")).toBe(false)
+    })
+
+    it("does not mark ordinary run failures as transport", () => {
+        expect(parseAgentRunError("Agent run failed: no usable credential")).toEqual({
+            message: "Agent run failed: no usable credential",
+        })
+        expect(isTransportFailure("")).toBe(false)
+        expect(isTransportFailure("The agent run failed.")).toBe(false)
+    })
+})
+
+describe("single-turn admission refusal", () => {
+    // The runner refusal message is the browser recovery contract.
+
+    it("recognises the refusal and carries its stable class", () => {
+        expect(parseAgentRunError(new Error(SESSION_TURN_IN_USE_MESSAGE))).toEqual({
+            message: SESSION_TURN_IN_USE_MESSAGE,
+            code: SESSION_TURN_IN_USE_CODE,
+        })
+        expect(isSessionBusyRefusal(new Error(SESSION_TURN_IN_USE_MESSAGE))).toBe(true)
+    })
+
+    it("recognises it through surrounding whitespace, as the wire may add", () => {
+        expect(isSessionBusyRefusal(`  ${SESSION_TURN_IN_USE_MESSAGE}\n`)).toBe(true)
+    })
+
+    it("does NOT claim an ordinary run failure, which must keep the failure bubble", () => {
+        expect(isSessionBusyRefusal(new Error("The model provider timed out."))).toBe(false)
+        expect(isSessionBusyRefusal(undefined)).toBe(false)
+        expect(parseAgentRunError("The model provider timed out.").code).toBeUndefined()
+    })
+
+    it("keeps the message one line, or the SDK truncates it at the first newline", () => {
+        expect(SESSION_TURN_IN_USE_MESSAGE).not.toContain("\n")
+    })
+})
+
+describe("classifyAgentRunError", () => {
+    it("turns an accepted transport loss into connection state", () => {
+        expect(classifyAgentRunError(new TypeError("Failed to fetch"), true)).toEqual({
+            connectionWarning: ACCEPTED_SENDER_DISCONNECT_MESSAGE,
+        })
+    })
+
+    it("keeps an unaccepted transport loss as a run failure", () => {
+        expect(classifyAgentRunError(new TypeError("Failed to fetch"), false)).toEqual({
+            runError: {message: TRANSPORT_ERROR_MESSAGE, transport: true},
+        })
+    })
+
+    it("keeps an accepted server verdict as a run failure", () => {
+        const verdict = JSON.stringify({status: {code: 422, message: "no usable credential"}})
+        expect(classifyAgentRunError(verdict, true)).toEqual({
+            runError: {message: "no usable credential", code: 422},
+        })
+    })
+
+    it("lets server-error provenance override a browser transport phrase", () => {
+        expect(classifyAgentRunError(new TypeError("Failed to fetch"), true, true)).toEqual({
+            runError: {message: "Failed to fetch"},
+        })
     })
 })

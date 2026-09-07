@@ -64,3 +64,9 @@ export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] =>
     }
     return out
 }
+
+/** Stopped turns expose no actionable approval gates. */
+export const getLivePendingApprovals = (
+    messages: UIMessage[],
+    options?: {stopped?: boolean},
+): PendingApproval[] => (options?.stopped ? [] : getPendingApprovals(messages))

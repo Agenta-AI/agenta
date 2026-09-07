@@ -96,6 +96,7 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
             const target = targetFor(vm)
             if (key === "open") handleOpen(vm)
             if (key === "pin") togglePin(vm.id)
+            if (key === "copy-link") void sessionActions.copyShareLink(target)
             if (key === "archive") void sessionActions.setArchived(target)
             if (key === "delete") sessionActions.remove(target)
             automation.onSelect(vm, key)

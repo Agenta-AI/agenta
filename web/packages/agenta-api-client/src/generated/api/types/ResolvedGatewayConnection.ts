@@ -12,5 +12,6 @@ export interface ResolvedGatewayConnection {
     provider: string;
     integration: string;
     connection: string;
+    toolkit_version: string;
     tools?: AgentaApi.ResolvedGatewayTool[] | undefined;
 }

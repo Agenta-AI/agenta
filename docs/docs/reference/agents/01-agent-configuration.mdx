@@ -59,7 +59,7 @@ Which providers, deployments, and connection modes each harness can reach is ser
 GET /api/workflows/catalog/harnesses/{harness}
 ```
 
-In the shipped table, `pi_core` and `pi_agenta` reach `openai`, `anthropic`, `gemini`, `mistral`, `groq`, `minimax`, `together_ai`, and `openrouter`, with deployments `direct` and `custom`. `claude` reaches `anthropic` only, with deployments `direct`, `custom`, `bedrock`, and `vertex_ai`, and selects its model by alias rather than by a `provider/model` string.
+In the shipped table, `pi_core` reaches `openai`, `anthropic`, `gemini`, `mistral`, `groq`, `minimax`, `together_ai`, and `openrouter`, with deployments `direct` and `custom`. `claude` reaches `anthropic` only, with deployments `direct`, `custom`, `bedrock`, and `vertex_ai`, and selects its model by alias rather than by a `provider/model` string.
 
 ## tools
 
@@ -195,18 +195,17 @@ Each entry is an inline skill package. See [Skills](/concepts/skills).
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `kind` | `"pi_core"` \| `"pi_agenta"` \| `"claude"` \| `"codex"` | No | `"pi_core"` | Which coding agent to drive. |
+| `kind` | `"pi_core"` \| `"claude"` \| `"codex"` | No | `"pi_core"` | Which coding agent to drive. |
 | `permissions` | object | No | see [harness.permissions](#harnesspermissions) | Tool-use gating posture, applied by harnesses that gate. |
 | `extras` | object | No | `{}` | Per-harness knobs passed through unchanged. For Pi, `system` replaces the base system prompt and `append_system` adds to it. Both are independent of `instructions.agents_md`. |
 
 | `kind` | Display name | Versioned slug |
 |---|---|---|
 | `pi_core` | Pi | `agenta:harness:pi_core:v0` |
-| `pi_agenta` | Pi (Agenta) | `agenta:harness:pi_agenta:v0` |
 | `claude` | Claude Code | `agenta:harness:claude:v0` |
 | `codex` | Codex | `agenta:harness:codex:v0` |
 
-`pi_agenta` runs the same engine as `pi_core` with Agenta's own skills, tools, and base instructions forced on.
+`pi_agenta` was an experimental Pi variant, removed in August 2026. A stored config that still carries the value runs as `pi_core`.
 
 ### harness.permissions
 

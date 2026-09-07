@@ -8,13 +8,14 @@ export * from "./visibility"
 export * from "./constants"
 export * from "./supportLinks"
 export * from "./state"
+export * from "./reorder"
 export * from "./dynamic"
 export * from "./banners"
 
 export {useSidebarResize} from "./useSidebarResize"
 
 export {
-    dropArchivedAgentSessions,
+    dropMissingAgentSessions,
     localSessionRefsAtom,
     withLocalSessions,
     type SessionSidebarRef,

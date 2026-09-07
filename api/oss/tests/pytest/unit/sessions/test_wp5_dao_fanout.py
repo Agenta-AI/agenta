@@ -226,6 +226,58 @@ async def test_interaction_transition_preserves_data_and_optionally_adds_resolut
     assert transitioned_without_resolution.data.resolution is None
 
 
+async def test_cancel_pending_returns_exactly_the_rows_it_transitioned(
+    interactions_dao, project
+):
+    project_id = project["project_id"]
+    session_id = f"interaction-cancel-returning-{uuid.uuid4().hex[:8]}"
+
+    for token in ("pending-1", "pending-2", "already-answered"):
+        await interactions_dao.create_interaction(
+            project_id=project_id,
+            user_id=None,
+            interaction=SessionInteractionCreate(
+                project_id=project_id,
+                session_id=session_id,
+                turn_id="turn-1",
+                token=token,
+                kind=SessionInteractionKind.user_approval,
+            ),
+        )
+
+    await interactions_dao.transition_interaction(
+        transition=SessionInteractionTransition(
+            project_id=project_id,
+            session_id=session_id,
+            token="already-answered",
+            status=SessionInteractionStatus.responded,
+        )
+    )
+
+    cancelled = await interactions_dao.cancel_session_pending(
+        project_id=project_id,
+        session_id=session_id,
+        only_turn_id="turn-1",
+    )
+
+    assert {interaction.token for interaction in cancelled} == {
+        "pending-1",
+        "pending-2",
+    }
+    assert all(
+        interaction.status == SessionInteractionStatus.cancelled
+        for interaction in cancelled
+    )
+    assert (
+        await interactions_dao.cancel_session_pending(
+            project_id=project_id,
+            session_id=session_id,
+            only_turn_id="turn-1",
+        )
+        == []
+    )
+
+
 # ---------------------------------------------------------------------------
 # SessionInteractionsDAO.delete_by_session_id — new hard delete
 # ---------------------------------------------------------------------------

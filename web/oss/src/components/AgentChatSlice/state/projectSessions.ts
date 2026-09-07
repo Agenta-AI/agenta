@@ -3,7 +3,7 @@ import {useEffect} from "react"
 import {type SessionStream} from "@agenta/entities/session"
 import {sessionListPolicies} from "@agenta/sessions/state"
 import {atom, useAtomValue, useSetAtom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {isValidUUID} from "@/oss/lib/helpers/validators"

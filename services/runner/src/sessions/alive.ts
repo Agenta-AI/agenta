@@ -15,12 +15,27 @@
  * Key contract constants mirror `sessions/contract.ts`; do not duplicate them.
  */
 
+import { envTimerMs } from "../env.ts";
 import { apiBase } from "../apiBase.ts";
 import { randomUUID } from "node:crypto";
 
-import { HEARTBEAT_INTERVAL_SECONDS } from "./contract.ts";
+import { HEARTBEAT_INTERVAL_SECONDS, OWNER_TTL_SECONDS } from "./contract.ts";
 
 const REFRESH_INTERVAL_MS = HEARTBEAT_INTERVAL_SECONDS * 1000;
+
+export const HEARTBEAT_TIMEOUT_ENV = "AGENTA_RUNNER_HEARTBEAT_TIMEOUT_MS";
+/**
+ * A beat that never answers must not outlive its interval.
+ *
+ * The beat used a bare `fetch` with no signal, so a stalled socket never settled: beats piled
+ * up behind it, and the final `is_running: false` beat in `release()` could hold the request
+ * open after the turn had already ended. Half an interval keeps at most one beat in flight.
+ */
+export const DEFAULT_HEARTBEAT_TIMEOUT_MS = Math.floor(REFRESH_INTERVAL_MS / 2);
+
+function heartbeatTimeoutMs(): number {
+  return envTimerMs(HEARTBEAT_TIMEOUT_ENV, DEFAULT_HEARTBEAT_TIMEOUT_MS);
+}
 
 /**
  * This runner container's stable id, minted once per process. An orchestrator can inject a
@@ -50,6 +65,67 @@ function log(msg: string): void {
   process.stderr.write(`[sessions/alive] ${msg}\n`);
 }
 
+// --- owner-claim registry -------------------------------------------------- //
+//
+// WHY THIS EXISTS. `owner:session:<id>` is claimed by every beat and released by nothing, and
+// the API's `claim_owner` deliberately never steals from a live owner. So a runner that exits
+// while holding claims leaves each of those sessions unusable by the replacement replica until
+// the lease expires — measured at 112 to 123 s against a 120 s TTL, on every restart. The
+// registry is the smallest thing that makes the shutdown handler able to hand them back: which
+// sessions this process claimed, and a credential that can still speak for each one.
+//
+// The credential is the run's own ephemeral platform token, the same one every beat already
+// carries; it never leaves this process and is never logged. An entry that outlives its token
+// simply fails its release call and falls back to the lease, exactly as a killed runner does.
+//
+// BOUNDED BY THE LEASE ITSELF. Every beat records, so without a bound a long-lived runner would
+// accumulate one entry per session it ever served, hold each of their credentials for the
+// process lifetime, and fire a useless release for every one of them at shutdown. An entry
+// whose last beat is older than `OWNER_TTL_SECONDS` cannot still hold the key, so it is pruned:
+// the registry holds only what this replica can plausibly still own.
+
+interface OwnedSession {
+  authorization: string;
+  /** When the API last confirmed this replica owns the session. */
+  claimedAt: number;
+}
+
+const ownedSessions = new Map<string, OwnedSession>();
+
+/** Drop entries whose affinity lease cannot still be held. */
+function pruneExpiredClaims(now: number): void {
+  const cutoff = now - OWNER_TTL_SECONDS * 1000;
+  for (const [sessionId, entry] of ownedSessions) {
+    if (entry.claimedAt < cutoff) ownedSessions.delete(sessionId);
+  }
+}
+
+/**
+ * Note that this replica holds (or has just refreshed) the affinity key for `sessionId`, so
+ * the shutdown handler can release it. Called from every beat that the API confirmed we own.
+ * Overwrites the stored credential, which keeps the freshest token per session.
+ */
+export function recordOwnedSession(
+  sessionId: string,
+  authorization: string,
+  now: number = Date.now(),
+): void {
+  if (!sessionId || !authorization) return;
+  pruneExpiredClaims(now);
+  ownedSessions.set(sessionId, { authorization, claimedAt: now });
+}
+
+/** Forget a session (a test hook, and the successful-release path). */
+export function forgetOwnedSession(sessionId: string): void {
+  ownedSessions.delete(sessionId);
+}
+
+/** How many sessions this replica could still own. Test/inspection hook. */
+export function ownedSessionCount(now: number = Date.now()): number {
+  pruneExpiredClaims(now);
+  return ownedSessions.size;
+}
+
 /**
  * Send one heartbeat to keep the `alive` lock and the `session_streams` row live. Carries the
  * container `replica_id` (refreshes `owner` affinity) and the `turn_id` (proves alive ownership).
@@ -60,8 +136,8 @@ function log(msg: string): void {
  * uuid — the free gift of a call the runner already makes every turn, no new round-trip) and
  * `interrupted: true` when the API reports `is_current_turn: false` (a cancel/steer/kill took
  * this turn's alive/running lock since the last beat — W7.4, the control-signal path). A
- * network/HTTP failure yields `{ streamId: undefined, interrupted: false }` (fail-open: a
- * transient API blip must neither abort a healthy run nor fabricate a stream id).
+ * network/HTTP failure yields `confirmed: false`; callers use that to fail closed for initial
+ * admission while later watchdog beats remain best effort for a turn already admitted.
  */
 async function sendHeartbeat(
   sessionId: string,
@@ -69,11 +145,16 @@ async function sendHeartbeat(
   authorization: string,
   isRunning = true,
   proposal?: SessionProposal,
-): Promise<{ streamId: string | undefined; interrupted: boolean }> {
+): Promise<{
+  streamId: string | undefined;
+  interrupted: boolean;
+  confirmed: boolean;
+}> {
   try {
     const url = `${apiBase()}/sessions/streams/heartbeat`;
     const res = await fetch(url, {
       method: "POST",
+      signal: AbortSignal.timeout(heartbeatTimeoutMs()),
       headers: {
         "content-type": "application/json",
         authorization,
@@ -91,11 +172,12 @@ async function sendHeartbeat(
     });
     if (!res.ok) {
       log(`heartbeat HTTP ${res.status} session=${sessionId} turn=${turnId}`);
-      return { streamId: undefined, interrupted: false };
+      return { streamId: undefined, interrupted: false, confirmed: false };
     }
     const body = (await res.json()) as {
       stream?: { id?: unknown } | null;
       is_current_turn?: unknown;
+      replica_id?: unknown;
     };
     const rawStreamId = body.stream?.id;
     const streamId =
@@ -103,15 +185,21 @@ async function sendHeartbeat(
         ? rawStreamId
         : undefined;
     const interrupted = body.is_current_turn === false;
+    // Record ONLY what the API says we own. The beat claims affinity as a side effect, so this
+    // is the one place that learns the claim happened; a beat this replica lost records nothing
+    // and the shutdown release skips it.
+    if (body.replica_id === REPLICA_ID) {
+      recordOwnedSession(sessionId, authorization);
+    }
     log(
       `heartbeat OK session=${sessionId} turn=${turnId} running=${isRunning}${interrupted ? " INTERRUPTED" : ""}`,
     );
-    return { streamId, interrupted };
+    return { streamId, interrupted, confirmed: true };
   } catch (err) {
     log(
       `heartbeat failed session=${sessionId} turn=${turnId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
     );
-    return { streamId: undefined, interrupted: false };
+    return { streamId: undefined, interrupted: false, confirmed: false };
   }
 }
 
@@ -146,6 +234,7 @@ export async function claimSessionOwnership(
     const body = (await res.json()) as { replica_id?: unknown };
     const owner =
       typeof body.replica_id === "string" ? body.replica_id : undefined;
+    if (owner === REPLICA_ID) recordOwnedSession(sessionId, authorization);
     return { replicaId: REPLICA_ID, ownerReplicaId: owner };
   } catch (err) {
     log(
@@ -173,6 +262,16 @@ export async function claimSessionOwnership(
  * the caller MUST await in the run's `finally` so the heartbeat stops and the row is marked
  * `ended`.
  *
+ * That first beat is also this turn's ADMISSION request, and `admitted` reports its answer. The
+ * beat's `nx` acquire of the `alive` lock is the platform's single atomic arbiter of "who runs
+ * this session" (`api/oss/src/core/sessions/streams/service.py`), and it already refuses a turn
+ * that arrives while a different turn holds `running`. Reading that answer BEFORE the caller
+ * touches the sandbox is what makes at-most-one-execution-per-session true: a refused turn stops
+ * at the edge instead of reaching the keepalive pool and destroying the live turn's environment.
+ *
+ * Initial admission fails closed unless the coordination plane confirms this turn owns the lock.
+ * Later heartbeat failures remain best effort and do not abort an already-admitted healthy turn.
+ *
  * `proposal` rides EVERY beat rather than only the first. The server fills each field once, so
  * repeating them is a no-op, and one payload for all beats beats a "was this the first?" flag.
  */
@@ -186,6 +285,8 @@ export async function startAliveWatchdog(
   release: () => Promise<void>;
   credential: () => string;
   streamId: () => string | undefined;
+  /** False when the FIRST beat reported `is_current_turn: false` — another turn owns the session. */
+  admitted: boolean;
 }> {
   // Session coordination and standalone turns share this lease. The watchdog owns it here so
   // heartbeat, persistence, and trace export all observe the same current credential.
@@ -218,17 +319,29 @@ export async function startAliveWatchdog(
   );
   handleBeat(first);
 
+  // One beat in flight at a time. `setInterval` fires unconditionally, so without this a
+  // slow API stacks a new request every 30s on top of every request already waiting.
+  let beatInFlight = false;
   const interval = setInterval(() => {
+    if (beatInFlight) {
+      log(`heartbeat skipped (previous still in flight) session=${sessionId}`);
+      return;
+    }
+    beatInFlight = true;
     void (async () => {
-      handleBeat(
-        await sendHeartbeat(
-          sessionId,
-          turnId,
-          credentialLease.credential(),
-          true,
-          proposal,
-        ),
-      );
+      try {
+        handleBeat(
+          await sendHeartbeat(
+            sessionId,
+            turnId,
+            credentialLease.credential(),
+            true,
+            proposal,
+          ),
+        );
+      } finally {
+        beatInFlight = false;
+      }
     })();
   }, REFRESH_INTERVAL_MS);
 
@@ -238,6 +351,8 @@ export async function startAliveWatchdog(
   }
 
   return {
+    // Read from the FIRST beat only. Later interruptions travel the abort path instead.
+    admitted: first.confirmed && !first.interrupted,
     async release() {
       clearInterval(interval);
       credentialLease.release();
@@ -253,4 +368,81 @@ export async function startAliveWatchdog(
     credential: credentialLease.credential,
     streamId: () => streamId,
   };
+}
+
+/**
+ * Hand this replica's affinity key for one session back to the coordination plane.
+ *
+ * The inverse beat: `release_owner: true`, no turn id, no liveness claim. The API releases
+ * `owner:session:<id>` only while this replica still holds it, so the call can never take a
+ * session from a live runner and is safe to repeat.
+ *
+ * Never throws. A failure leaves the key to expire on its own lease, which is exactly the
+ * behaviour a killed (SIGKILL) runner already has.
+ */
+export async function releaseSessionOwnership(
+  sessionId: string,
+  authorization: string,
+  timeoutMs?: number,
+): Promise<boolean> {
+  try {
+    const runnerToken = process.env.AGENTA_RUNNER_TOKEN?.trim();
+    const res = await fetch(`${apiBase()}/sessions/streams/heartbeat`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization,
+        ...(runnerToken ? { "x-agenta-runner-token": runnerToken } : {}),
+      },
+      body: JSON.stringify({
+        session_id: sessionId,
+        replica_id: REPLICA_ID,
+        release_owner: true,
+      }),
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
+    });
+    if (!res.ok) {
+      log(`ownership release HTTP ${res.status} session=${sessionId}`);
+      return false;
+    }
+    forgetOwnedSession(sessionId);
+    log(`ownership released session=${sessionId}`);
+    return true;
+  } catch (err) {
+    log(
+      `ownership release failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 120)}`,
+    );
+    return false;
+  }
+}
+
+/** How long the whole shutdown release may take before the process stops waiting for it. */
+export const DEFAULT_OWNERSHIP_RELEASE_TIMEOUT_MS = 5_000;
+
+/**
+ * Release every affinity key this replica holds. Called from the shutdown handler, so it is
+ * bounded and never rejects: a runner that cannot reach the API must still exit promptly, and
+ * the 120-second owner lease is the fallback for that case and for a SIGKILL, which reaches no
+ * handler at all.
+ *
+ * The releases run concurrently because they are independent single-key deletes, and the whole
+ * set races one deadline rather than each call carrying its own budget.
+ */
+export async function releaseOwnedSessions(
+  timeoutMs: number = DEFAULT_OWNERSHIP_RELEASE_TIMEOUT_MS,
+): Promise<void> {
+  pruneExpiredClaims(Date.now());
+  const held = [...ownedSessions.entries()];
+  if (held.length === 0) return;
+  log(`releasing ${held.length} session ownership claim(s) on shutdown`);
+  const releases = Promise.all(
+    held.map(([sessionId, entry]) =>
+      releaseSessionOwnership(sessionId, entry.authorization, timeoutMs),
+    ),
+  );
+  const deadline = new Promise<void>((resolve) => {
+    const handle = setTimeout(resolve, timeoutMs);
+    handle.unref?.();
+  });
+  await Promise.race([releases.then(() => undefined), deadline]);
 }

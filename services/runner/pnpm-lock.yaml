@@ -23,7 +23,7 @@ patchedDependencies:
     hash: e30d9db3a9981a7f844a83795d7ceef6d86919eede6e2adf8a9bf0024d5ff49c
     path: patches/pi-acp@0.0.29.patch
   sandbox-agent@0.4.2:
-    hash: ade0985e7ab79fab885a4cd818c0790d5cf319730931bd0a049775c7fbdeb7a4
+    hash: 91ccdae91dc68390329197a105ecd8cf394f680dd3be2a26731ebe1c2bd58c3f
     path: patches/sandbox-agent@0.4.2.patch
 
 importers:
@@ -74,7 +74,7 @@ importers:
         version: 0.0.29(patch_hash=e30d9db3a9981a7f844a83795d7ceef6d86919eede6e2adf8a9bf0024d5ff49c)
       sandbox-agent:
         specifier: 0.4.2
-        version: 0.4.2(patch_hash=ade0985e7ab79fab885a4cd818c0790d5cf319730931bd0a049775c7fbdeb7a4)(@daytona/sdk@0.198.0(ws@8.21.0))(zod@4.4.3)
+        version: 0.4.2(patch_hash=91ccdae91dc68390329197a105ecd8cf394f680dd3be2a26731ebe1c2bd58c3f)(@daytona/sdk@0.198.0(ws@8.21.0))(zod@4.4.3)
       undici:
         specifier: 8.9.0
         version: 8.9.0
@@ -4985,7 +4985,7 @@ snapshots:
 
   safer-buffer@2.1.2: {}
 
-  sandbox-agent@0.4.2(patch_hash=ade0985e7ab79fab885a4cd818c0790d5cf319730931bd0a049775c7fbdeb7a4)(@daytona/sdk@0.198.0(ws@8.21.0))(zod@4.4.3):
+  sandbox-agent@0.4.2(patch_hash=91ccdae91dc68390329197a105ecd8cf394f680dd3be2a26731ebe1c2bd58c3f)(@daytona/sdk@0.198.0(ws@8.21.0))(zod@4.4.3):
     dependencies:
       '@sandbox-agent/cli-shared': 0.4.2
       acp-http-client: 0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.4.3)

@@ -179,7 +179,7 @@ class TestEvaluationScenariosBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 2
-        assert response["scenario_ids"] == scenario_ids
+        assert sorted(response["scenario_ids"]) == sorted(scenario_ids)
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------

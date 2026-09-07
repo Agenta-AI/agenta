@@ -2,7 +2,7 @@ import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {sessionMessagesAtom} from "@agenta/chat/state"
 import {useSessionPins} from "@agenta/sessions/state"
-import {timeAgo} from "@agenta/shared/utils"
+import {shortcutAria, timeAgo} from "@agenta/shared/utils"
 import {Button, EmptyState, SearchInput, SimpleTooltip} from "@agenta/ui/ui"
 import {
     Archive,
@@ -51,10 +51,6 @@ const UNPIN_ICON = <PushPinSlash size={12} />
 const TRASH_ICON = <Trash size={12} />
 const ARCHIVE_ICON = <Archive size={12} />
 const RESTORE_ICON = <ArrowCounterClockwise size={12} />
-
-// Stable no-op for an archived row's `onSelect` (archived rows aren't openable) — keeps the
-// id-taking setter identity stable so the memoized row doesn't re-render.
-const NOOP = () => {}
 
 interface SessionRailRowProps {
     session: AgentChatSession
@@ -402,7 +398,8 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                         ref={searchRef}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        placeholder="Search sessions"
+                        placeholder="Search sessions (Alt+K)"
+                        aria-keyshortcuts={shortcutAria("session.search")}
                         prefix={<MagnifyingGlass size={14} className="text-colorTextTertiary" />}
                         className="border-[var(--ag-surface-inset-border)] bg-[var(--ag-surface-inset)] text-xs"
                     />
@@ -467,9 +464,9 @@ const SessionRail = ({activeId, addDisabled = false, className}: SessionRailProp
                                             key={session.id}
                                             session={session}
                                             label={label}
-                                            active={false}
+                                            active={session.id === currentActiveId}
                                             archived
-                                            onSelect={NOOP}
+                                            onSelect={openSession}
                                             onDelete={deleteSession}
                                             onRename={handleRename}
                                             onArchive={archiveSession}

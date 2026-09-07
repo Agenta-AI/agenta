@@ -56,6 +56,7 @@ def test_turn_id_and_span_id_default_to_none():
     dbe = map_record_event_to_dbe(event=_event())
     assert dbe.turn_id is None
     assert dbe.span_id is None
+    assert dbe.sequence is None
 
 
 class _FakeResult:

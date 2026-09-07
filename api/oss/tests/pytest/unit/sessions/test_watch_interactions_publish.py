@@ -115,7 +115,12 @@ async def test_failed_transition_publishes_nothing():
 @pytest.mark.asyncio
 async def test_cancel_sweep_publishes_resolved_only_when_it_cancelled():
     dao = AsyncMock()
-    dao.cancel_session_pending = AsyncMock(return_value=2)
+    dao.cancel_session_pending = AsyncMock(
+        return_value=[
+            _interaction("sess-1"),
+            _interaction("sess-1").model_copy(update={"token": "tok-2"}),
+        ]
+    )
     svc, publisher = _service(dao)
 
     cancelled = await svc.cancel_session_pending(
@@ -125,7 +130,7 @@ async def test_cancel_sweep_publishes_resolved_only_when_it_cancelled():
     assert publisher.interaction_calls == [(str(_PROJECT), "sess-1", "resolved")]
 
     # No-op sweep: nothing was pending, nothing changed, nothing to notify.
-    dao.cancel_session_pending = AsyncMock(return_value=0)
+    dao.cancel_session_pending = AsyncMock(return_value=[])
     publisher.interaction_calls.clear()
     await svc.cancel_session_pending(project_id=_PROJECT, session_id="sess-1")
     assert publisher.interaction_calls == []

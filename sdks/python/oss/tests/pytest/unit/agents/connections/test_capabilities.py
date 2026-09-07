@@ -29,8 +29,8 @@ def test_claude_is_anthropic_only():
     assert harness_allows_provider("claude", "OpenAI") is False  # case-insensitive
 
 
-def test_pi_and_agenta_reach_the_vault_providers_not_arbitrary_ones():
-    for harness in ("pi_core", "pi_agenta"):
+def test_pi_reaches_the_vault_providers_not_arbitrary_ones():
+    for harness in ("pi_core",):
         # Real list, not "*": the eight vault-mapped providers are reachable...
         for provider in PI_VAULT_PROVIDERS:
             assert harness_allows_provider(harness, provider) is True
@@ -38,14 +38,14 @@ def test_pi_and_agenta_reach_the_vault_providers_not_arbitrary_ones():
         assert harness_allows_provider(harness, "anything-custom") is False
 
 
-def test_pi_and_agenta_reach_the_openai_codex_subscription_provider():
+def test_pi_reaches_the_openai_codex_subscription_provider():
     """The ChatGPT/Codex subscription provider is reachable (OAuth login, no vault key).
 
     Without this, an ``openai-codex`` model fails the agent-layer pre-resolve provider check
     even though the runner drives the subscription fine. ``self_managed`` is the subscription
     path; the provider must be allowed for that mode to ever reach the runner.
     """
-    for harness in ("pi_core", "pi_agenta"):
+    for harness in ("pi_core",):
         for provider in PI_SUBSCRIPTION_PROVIDERS:
             assert harness_allows_provider(harness, provider) is True
         assert harness_allows_provider(harness, "openai-codex") is True
@@ -77,7 +77,7 @@ def test_pi_consumes_direct_and_custom_deployment_in_v1():
     # Pi now publishes `custom` (the OpenAI-compatible surface) alongside `direct` so the UI can
     # surface those connections. The cloud surfaces remain unconsumed in v1. The openai-only
     # pairing on `custom` is enforced by `harness_allows_pair`, not this per-axis list.
-    for harness in ("pi_core", "pi_agenta"):
+    for harness in ("pi_core",):
         assert harness_allows_deployment(harness, "direct") is True
         assert harness_allows_deployment(harness, "custom") is True
         for deployment in ("bedrock", "vertex_ai", "azure"):
@@ -86,7 +86,7 @@ def test_pi_consumes_direct_and_custom_deployment_in_v1():
 
 def test_resolved_pair_validation_matches_decision_3_table():
     # Every row of design Decision 3's allowed-pairs table.
-    for harness in ("pi_core", "pi_agenta"):
+    for harness in ("pi_core",):
         # Pi + openai + direct/custom -> allowed.
         assert harness_allows_pair(harness, "openai", "direct") is True
         assert harness_allows_pair(harness, "openai", "custom") is True
@@ -117,7 +117,7 @@ def test_claude_consumes_custom_gateway_bedrock_and_vertex():
 
 def test_capabilities_document_shape():
     doc = harness_capabilities_document()
-    assert set(doc) == {"pi_core", "pi_agenta", "claude", "codex"}
+    assert set(doc) == {"pi_core", "claude", "codex"}
     assert doc["claude"]["providers"] == ["anthropic"]
     assert doc["claude"]["model_selection"] == "alias"
     assert doc["pi_core"]["providers"] == list(PI_VAULT_PROVIDERS) + list(
@@ -145,12 +145,11 @@ def test_capabilities_document_shape():
         }
     }
     assert "mcp" not in doc["pi_core"]
-    assert "mcp" not in doc["pi_agenta"]
 
 
 def test_every_harness_publishes_a_models_map():
     doc = harness_capabilities_document()
-    for harness in ("pi_core", "pi_agenta", "claude"):
+    for harness in ("pi_core", "claude"):
         assert isinstance(doc[harness]["models"], dict)
         assert doc[harness]["models"], f"{harness} has an empty models map"
 
@@ -158,7 +157,7 @@ def test_every_harness_publishes_a_models_map():
 def test_pi_models_are_a_subset_of_the_shared_catalog():
     # Each Pi harness publishes, per vault provider, exactly that provider's catalog ids, plus the
     # subscription/OAuth providers' explicit ids (which the shared catalog does not list).
-    for harness in ("pi_core", "pi_agenta"):
+    for harness in ("pi_core",):
         models = HARNESS_CONNECTION_CAPABILITIES[harness].models
         # The published providers are the vault-mapped ones plus the subscription providers.
         assert set(models) == set(PI_VAULT_PROVIDERS) | set(PI_SUBSCRIPTION_PROVIDERS)
@@ -177,7 +176,7 @@ def test_pi_models_are_a_subset_of_the_shared_catalog():
 def test_pi_publishes_concrete_gpt_5_6_models_for_both_openai_providers():
     expected = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
 
-    for harness in ("pi_core", "pi_agenta"):
+    for harness in ("pi_core",):
         models = HARNESS_CONNECTION_CAPABILITIES[harness].models
         for provider in ("openai", "openai-codex"):
             assert models[provider][:3] == expected

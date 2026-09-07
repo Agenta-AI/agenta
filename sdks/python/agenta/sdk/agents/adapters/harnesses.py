@@ -9,11 +9,9 @@ turning the neutral :class:`SessionConfig` into the harness's own config, especi
   shared permission plan.
 - **claude** has no built-in tools (they are a Pi concept), delivers tools over MCP, and
   receives the same runner permission plan.
-- **pi_agenta** is Pi with an opinion: the same engine and config shape, plus a base AGENTS.md
-  preamble and a persona (see :mod:`.agenta_builtins`).
-  Skills ride the neutral config as resolved inline packages. Pi and Agenta install them
-  through Pi skill dirs; Claude carries them so the runner can write project-local
-  `.claude/skills` packages. Seeding platform default skills is a separate workstream.
+- Skills ride the neutral config as resolved inline packages. Pi installs them through Pi
+  skill dirs; Claude carries them so the runner can write project-local `.claude/skills`
+  packages. Seeding platform default skills is a separate workstream.
 
 The backend below stays pure plumbing; this layer owns the harness knowledge.
 """
@@ -23,7 +21,6 @@ from __future__ import annotations
 from typing import Any, Dict, List, Type
 
 from ..dtos import (
-    AgentaAgentTemplate,
     ClaudeAgentTemplate,
     CodexAgentTemplate,
     HarnessKind,
@@ -32,12 +29,7 @@ from ..dtos import (
 )
 from ..interfaces import Environment, Harness
 from ..tools.models import ToolSpec, coerce_tool_spec
-from .agenta_builtins import (
-    compose_append_system,
-    compose_gateway_guidance,
-    compose_instructions,
-    force_skills,
-)
+from .agenta_builtins import gateway_guidance_field
 
 
 def _opt_str(value: Any) -> Any:
@@ -82,9 +74,9 @@ class PiHarness(Harness):
             permission_default=config.permission_default,
             harness_permissions=config.agent.harness_permissions,
             system=_opt_str(extras.get("system")),
-            append_system=compose_gateway_guidance(
-                _opt_str(extras.get("append_system")),
-                config.gateway_integration_names,
+            append_system=_opt_str(extras.get("append_system")),
+            gateway_guidance=gateway_guidance_field(
+                config.gateway_integration_names, "appendSystemPrompt"
             ),
         )
 
@@ -102,8 +94,9 @@ class ClaudeHarness(Harness):
         # adapter) renders `.claude/settings.json` as a generic `harnessFiles` entry. No
         # claude-specific parsing happens here; the runner just writes the files into the cwd.
         return ClaudeAgentTemplate(
-            agents_md=compose_gateway_guidance(
-                config.agent.instructions, config.gateway_integration_names
+            agents_md=config.agent.instructions,
+            gateway_guidance=gateway_guidance_field(
+                config.gateway_integration_names, "agentsMd"
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -130,8 +123,9 @@ class CodexHarness(Harness):
         # adapter) renders `.codex/config.toml` as a generic `harnessFiles` entry. No
         # codex-specific parsing happens here; the runner just writes the files into the cwd.
         return CodexAgentTemplate(
-            agents_md=compose_gateway_guidance(
-                config.agent.instructions, config.gateway_integration_names
+            agents_md=config.agent.instructions,
+            gateway_guidance=gateway_guidance_field(
+                config.gateway_integration_names, "agentsMd"
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -145,49 +139,10 @@ class CodexHarness(Harness):
         )
 
 
-class AgentaHarness(Harness):
-    """Pi with an Agenta opinion. Same engine as :class:`PiHarness`, but every run carries the
-    forced Agenta extras (see :mod:`.agenta_builtins`): a base AGENTS.md preamble the author's
-    instructions are appended to, and a forced persona ``append_system``. The
-    author's own Pi ``harness.extras`` (``system`` / ``append_system``) still apply, layered
-    after the forced bits. The author's resolved inline skills ride the neutral config, and the
-    forced platform skill(s) are unioned in (de-duped by name) so a custom config that drops the
-    default template's ``_agenta`` embed still carries the platform skill."""
-
-    harness_type = HarnessKind.AGENTA
-
-    def _to_harness_config(self, config: SessionConfig) -> AgentaAgentTemplate:
-        # The author's Pi options still apply; the pi_agenta harness reads the same harness
-        # `extras` as PiHarness (it drives Pi) and layers its forced extras on top.
-        extras = config.agent.harness_extras
-        return AgentaAgentTemplate(
-            agents_md=compose_instructions(
-                config.agent.instructions, config.gateway_integration_names
-            ),
-            model=config.agent.model,
-            # See PiHarness: thread the structured ref so a named custom connection's {mode, slug}
-            # reaches the /run wire and the runner can build its models.json plan.
-            model_ref=config.agent.model_ref,
-            resolved_connection=config.resolved_connection,
-            tool_specs=list(config.tool_specs),
-            tool_callback=config.tool_callback,
-            mcp_servers=list(config.mcp_servers),
-            # Force the platform skill(s) into every run, de-duped by name. A custom config that
-            # drops the default template's `_agenta` embed still gets the platform skill.
-            skills=force_skills(list(config.agent.skills)),
-            sandbox_permission=config.agent.sandbox_permission,
-            permission_default=config.permission_default,
-            harness_permissions=config.agent.harness_permissions,
-            system=_opt_str(extras.get("system")),
-            append_system=compose_append_system(_opt_str(extras.get("append_system"))),
-        )
-
-
 _HARNESSES: Dict[HarnessKind, Type[Harness]] = {
     HarnessKind.PI: PiHarness,
     HarnessKind.CLAUDE: ClaudeHarness,
     HarnessKind.CODEX: CodexHarness,
-    HarnessKind.AGENTA: AgentaHarness,
 }
 
 

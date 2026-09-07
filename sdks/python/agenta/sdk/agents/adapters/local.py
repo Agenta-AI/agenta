@@ -48,6 +48,7 @@ class LocalBackend(Backend):
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
+        detached: bool = False,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> Session:

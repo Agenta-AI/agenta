@@ -1,6 +1,6 @@
 import {workflowRevisionsByWorkflowListDataAtomFamily} from "@agenta/entities/workflow"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithImmer} from "jotai-immer"
 
 import {appsAtom} from "@/oss/state/app"

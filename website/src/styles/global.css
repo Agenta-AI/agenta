@@ -1,11 +1,12 @@
 @import "./tokens.css";
 @import "./tokens-dark.css";
+@import "./theme.css";
 
 /* ── base reset (from the design's inline <style>) ──────────── */
 html,
 body {
   margin: 0;
-  background: var(--ag-d-bg-0);
+  background: var(--th-page);
 }
 * {
   box-sizing: border-box;
@@ -69,6 +70,81 @@ a {
   }
 }
 
+/* ── page frame ──────────────────────────────────────────────────────
+   The 1440 column every page lives in. Framer's column is flat: the page
+   ground shows only outside it, on windows wider than 1440. Rendered once,
+   by layouts/Site.astro. */
+.ag-wrap {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  background: var(--th-page);
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+}
+
+/* ── section grid ────────────────────────────────────────────────────
+   The hairline round every band, drawn ONLY through components/Section.astro.
+   Stacked bands overlap by 1px so two neighbours share a single line, and the
+   left/right edges line up down the whole page with the nav's rest-state
+   borders above them. */
+.ag-section {
+  border: 1px solid var(--th-section-border);
+  margin-top: -1px;
+  box-sizing: border-box;
+}
+/* Bands that are dark in both themes: a faint white line, never the paper one. */
+.ag-section--dark {
+  border-color: var(--th-darksec-border);
+}
+/* Framer's white bodies (blog, authors, pricing) carry no line at all. No
+   overlap either, so the band above keeps its bottom line visible. */
+.ag-section--flat {
+  border: 0;
+  margin-top: 0;
+}
+
+/* ── badge / eyebrow ─────────────────────────────────────────────────
+   Framer's section eyebrow, measured on the deployed build: 24px tall, 2px 12px
+   padding, fully round, 1px outline, transparent inside, 12px/400 uppercase.
+   Rendered ONLY through components/Badge.astro. */
+.ag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 2px 12px;
+  border: 1px solid var(--th-badge-ring);
+  border-radius: var(--radius-pill);
+  background: var(--th-badge-bg);
+  color: var(--th-badge-text);
+  font: 400 12px/20px var(--font-sans);
+  letter-spacing: normal;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+/* The text-only eyebrow Framer sets above page titles ("OUR BLOG"): the badge's
+   type and colour with no outline. Same tokens, so it follows the theme. */
+.ag-eyebrow {
+  font: 400 12px/20px var(--font-sans);
+  letter-spacing: normal;
+  text-transform: uppercase;
+  color: var(--th-badge-text);
+}
+/* Fixed recipes for bands that keep one look in both themes. */
+.ag-badge--dark {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(229, 229, 227, 0.18);
+  color: rgba(255, 255, 255, 0.8);
+}
+.ag-badge--yellow {
+  background: var(--yellow-400);
+  border-color: rgba(36, 36, 36, 0.12);
+  color: var(--ink-900);
+}
+
 /* ── nav shell ───────────────────────────────────────────────────────
    Base geometry for every nav (landing + inner pages): a 68px-tall bar that is
    a positioning context for the absolutely-centered link layer. `position:
@@ -77,11 +153,26 @@ a {
    landing-only: SiteNav renders `data-pill` and runs the rAF loop ONLY when
    passed `sticky`, so inner pages get the identical bar with no scroll motion. */
 .ag-navshell {
+  /* One source of truth for the scrolled pill's width: the pill uses it, and
+     the side rules measure their gap from it. */
+  --nav-pill-w: min(var(--nav-pill-max), calc(100% - 32px));
   position: relative;
   z-index: 50;
   display: flex;
   align-items: center;
   height: 68px;
+  box-sizing: border-box;
+  /* At rest the bar is the first band of the page grid: Framer draws it with a
+     1px left, right and bottom border in the grid colour, and the section
+     below continues the same two vertical lines. The borders sit on the shell,
+     which never moves, so the pill animation cannot disturb them. */
+  border: 1px solid var(--th-section-border);
+  border-top: 0;
+  transition: border-color 0.25s ease;
+}
+/* Once the bar has become the floating pill there is no band left to outline. */
+.nav-scrolled .ag-navshell {
+  border-color: transparent;
 }
 /* Pill variant (landing): the shell sticks and the rAF loop toggles
    `.nav-scrolled` on <html> past 24px. Only .ag-nav-inner animates — it narrows
@@ -92,6 +183,9 @@ nav[data-pill] {
   position: sticky;
   top: 0;
 }
+/* At rest the bar is flat: full column width, the page-ground fill, no radius
+   and no shadow. On scroll it narrows to the pill, drops by --nav-pill-inset,
+   and puts on the glass fill, the 16px radius and the two-layer border. */
 .ag-nav-inner {
   display: flex;
   align-items: center;
@@ -101,32 +195,28 @@ nav[data-pill] {
   box-sizing: border-box;
   width: 100%;
   margin-inline: auto;
-  background: var(--ag-d-chrome);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  position: relative;
+  border: none;
+  background: var(--th-nav-rest-bg);
   border-radius: 0;
+  box-shadow: none;
   transition:
     background 0.25s ease,
     box-shadow 0.25s ease,
     border-radius 0.25s ease,
-    border-color 0.25s ease,
     width 0.25s ease,
     transform 0.25s ease;
 }
 .nav-scrolled .ag-nav-inner {
-  /* Float into a centered pill: full height is kept (agenta.ai keeps 68px), the
-     bar narrows and rounds, and translateY drops it clear of the top edge by
-     --nav-pill-inset. margin-inline auto keeps it horizontally centered so the
-     brand/CTAs ride its edges inward symmetrically. */
-  width: min(var(--nav-pill-max), calc(100% - 32px));
-  border-radius: var(--nav-pill-radius);
-  border-color: transparent;
+  /* Narrow to the pill and drop clear of the top edge. margin-inline auto keeps
+     it centred, so brand and CTAs ride its edges inward symmetrically. */
+  width: var(--nav-pill-w);
   transform: translateY(var(--nav-pill-inset));
-  background: var(--ag-d-glass, rgba(18, 16, 15, 0.72));
-  -webkit-backdrop-filter: saturate(1.6) blur(14px);
-  backdrop-filter: saturate(1.6) blur(14px);
-  box-shadow:
-    0 0 0 1px rgba(250, 247, 242, 0.09),
-    0 12px 36px rgba(0, 0, 0, 0.55);
+  background: var(--th-glass);
+  border-radius: var(--nav-pill-radius);
+  box-shadow: var(--th-pill-shadow);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
 }
 
 /* Center links: pinned to the shell's exact center in BOTH states. Absolute
@@ -154,15 +244,81 @@ nav[data-pill] {
    overflow-hidden container clips the mark left-to-right down to the leaf,
    leaving only the symbol (matches agenta.ai). Reduced-motion users get the end
    states instantly via the global prefers-reduced-motion rule above. */
+/* Framer keeps the whole wordmark in the pill at 35px tall, so there is no
+   clip-to-leaf step here. */
 .ag-brand {
   display: flex;
   align-items: center;
-  overflow: hidden;
-  max-width: 140px;
-  transition: max-width 0.28s ease;
 }
-.nav-scrolled .ag-brand {
-  max-width: 27px;
+
+/* ── the rules either side of the pill ───────────────────────
+   Framer runs a hairline from each edge of the nav's own column in to the
+   pill, ending in a 4x9 rounded cap that meets the pill's outer ring. The
+   rules are children of the SHELL, not of the pill, so they start exactly at
+   the column border and never spill past it. Their inner end lands 8px off
+   the pill box, which is where the pill's 8px outer ring sits, so cap and
+   ring meet. They fade in with the pill. */
+.ag-nav-rule {
+  position: absolute;
+  top: 50%;
+  height: 9px;
+  margin-top: -4.5px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+.nav-scrolled .ag-nav-rule {
+  opacity: 1;
+  transform: translateY(var(--nav-pill-inset));
+}
+.ag-nav-rule-l {
+  left: 0;
+  right: calc(50% + var(--nav-pill-w) / 2 + 8px);
+}
+.ag-nav-rule-r {
+  right: 0;
+  left: calc(50% + var(--nav-pill-w) / 2 + 8px);
+}
+.ag-nav-rule::before,
+.ag-nav-rule::after {
+  content: "";
+  position: absolute;
+  background: var(--th-nav-rule);
+}
+/* the hairline, filling everything the cap does not */
+.ag-nav-rule::before {
+  top: 4px;
+  height: 1px;
+}
+.ag-nav-rule-l::before {
+  left: 0;
+  right: 4px;
+}
+.ag-nav-rule-r::before {
+  right: 0;
+  left: 4px;
+}
+/* the cap that meets the pill */
+.ag-nav-rule::after {
+  top: 0;
+  width: 4px;
+  height: 9px;
+}
+.ag-nav-rule-l::after {
+  right: 0;
+  border-radius: 999px 0 0 999px;
+}
+.ag-nav-rule-r::after {
+  left: 0;
+  border-radius: 0 999px 999px 0;
+}
+/* Once the pill fills its column there is no slot left to draw them in. */
+@media (max-width: 1400px) {
+  .ag-nav-rule {
+    display: none;
+  }
 }
 
 /* ── scrollbars (ported verbatim) ───────────────────────────── */
@@ -174,13 +330,13 @@ nav[data-pill] {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--th-scrollbar);
   border-radius: 10px;
   border: 3px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.26);
+  background: var(--th-scrollbar-hover);
   background-clip: content-box;
 }
 [data-scroll="dark"]::-webkit-scrollbar {
@@ -189,42 +345,132 @@ nav[data-pill] {
 html,
 [data-scroll="dark"] {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: var(--th-scrollbar) transparent;
+}
+
+/* ── theme switcher (SiteNav) ────────────────────────────────
+   A 30px ghost square that cycles system → light → dark. data-pref (set by
+   the SiteNav script) picks which of the three icons is visible. */
+.ag-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  /* No fill and no ring: the switcher is a utility, not a call to action, and
+     a boxed control here competed with "Book a demo" and "Get started". It
+     picks up a hover fill like the nav links do. */
+  background: transparent;
+  box-shadow: none;
+  color: var(--th-nav-text);
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+.ag-theme-btn:hover {
+  background: var(--th-hover);
+  color: var(--th-text-hi);
+}
+.ag-theme-btn [data-ico] {
+  display: none;
+  line-height: 0;
+}
+.ag-theme-btn[data-pref="system"] [data-ico="system"],
+.ag-theme-btn[data-pref="light"] [data-ico="light"],
+.ag-theme-btn[data-pref="dark"] [data-ico="dark"] {
+  display: inline-flex;
+}
+/* Before the script sets data-pref, show the system icon so the button never
+   renders empty. */
+.ag-theme-btn:not([data-pref]) [data-ico="system"] {
+  display: inline-flex;
 }
 
 /* ── interactive affordances (the .dc.html used DC hover hooks) ─ */
-.ds-btn:hover {
-  filter: brightness(0.97);
+.ag-navlink,
+.ag-navtrigger {
+  height: 36px;
+  padding: 8px 12px;
+  letter-spacing: 0.02em;
 }
 .ag-navlink:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--th-hover);
+}
+/* Light nav links darken to ink-900 on hover (mockup); dark keeps its fixed
+   white alpha so the dark site stays pixel-identical. */
+:root:not([data-theme="dark"]) .ag-navlink:hover {
+  color: var(--ink-900);
 }
 .ag-foot-link:hover {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--th-text-hi);
 }
 .ag-foot-social:hover {
-  background: rgba(255, 255, 255, 0.09);
+  background: var(--th-active);
 }
 .ag-oss-chip:hover {
   color: rgba(255, 255, 255, 0.95);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 
-/* ── button hover (matches agenta.ai) ────────────────────────────────
-   Keycaps: the inset top-light glow widens on hover (blur 6→16px), same
-   color — a subtle brighten, no transform. Per-button alpha via --key-alpha.
-   Ghost/outline buttons brighten their fill instead. */
-.ag-key {
-  transition: box-shadow 0.2s ease;
+/* ── buttons: ONE definition for the whole site ──────────────────────
+   Framer draws every button at the same size — 36px tall, 0/12px padding, an
+   8px radius, Inter 14/500 with 0.02em tracking, a 1px border and an inset
+   white highlight. Only the fill and the border colour change per variant.
+   Nothing moves on hover: hovering the live Framer buttons leaves the
+   gradient, the border, the shadow, the transform and the opacity untouched,
+   so the pointer cursor and the focus ring carry the affordance.
+
+   Use these classes everywhere, in .astro and .tsx alike. Button.astro is a
+   thin wrapper over them. Do not hand-roll a button's inline styles again. */
+.ag-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: var(--text-label);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
 }
-.ag-key:hover {
-  box-shadow: inset 0 3px 16px rgba(255, 255, 255, var(--key-alpha, 0.85));
+.ag-btn:focus-visible {
+  outline: 2px solid var(--th-text-hi);
+  outline-offset: 2px;
 }
-.ag-ghost {
-  transition: background 0.2s ease;
+.ag-btn--primary {
+  background: var(--grad-btn-primary);
+  border-color: var(--yellow-border);
+  box-shadow: var(--shadow-btn-primary);
+  color: var(--ink-900);
 }
-.ag-ghost:hover {
-  background: rgba(255, 255, 255, 0.08);
+.ag-btn--outline {
+  background: var(--th-btn-ghost-bg);
+  border-color: var(--th-btn-ghost-border);
+  box-shadow: var(--th-btn-ghost-shadow);
+  color: var(--th-btn-ghost-text);
+}
+.ag-btn--dark {
+  background: var(--grad-btn-dark);
+  border-color: var(--carbon-border);
+  box-shadow: var(--shadow-btn-dark);
+  color: var(--text-on-dark);
+}
+.ag-btn--ghost {
+  background: transparent;
+  box-shadow: none;
+  color: var(--th-nav-text);
+}
+.ag-btn--block {
+  width: 100%;
 }
 
 /* ── nav dropdowns (Resources / Community) ───────────────────────────
@@ -265,10 +511,8 @@ html,
   min-width: 264px;
   padding: 8px;
   border-radius: 14px;
-  background: var(--ag-d-chrome);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 20px 48px rgba(0, 0, 0, 0.55);
+  background: var(--th-menu-bg);
+  box-shadow: var(--th-menu-shadow);
 }
 .ag-navdd-item {
   display: flex;
@@ -280,7 +524,7 @@ html,
   transition: background 0.16s ease;
 }
 .ag-navdd-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--th-hover);
 }
 .ag-navdd-ico {
   flex: 0 0 auto;
@@ -290,18 +534,18 @@ html,
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.82);
+  background: var(--th-ctl-bg);
+  box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
+  color: var(--th-text-prose);
 }
 .ag-navdd-title {
   font: var(--text-label);
-  color: #f7f6f4;
+  color: var(--th-text-hi);
   line-height: 1.25;
 }
 .ag-navdd-desc {
   font: var(--text-caption);
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--th-text-mut);
   line-height: 1.25;
 }
 /* Chevron flips when its menu is open, like agenta.ai. */
@@ -411,9 +655,6 @@ html,
   }
 }
 @media (max-width: 860px) {
-  .ag-wrap {
-    padding: 0 !important;
-  }
   .ag-navlinks,
   .ag-navcta {
     display: none !important;
@@ -430,7 +671,7 @@ html,
   }
   .ag-tpl-md {
     border-left: none !important;
-    border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+    border-top: 1px solid var(--th-border-subtle) !important;
   }
   .ag-tpl-md-scroll {
     position: static !important;
@@ -567,7 +808,7 @@ html,
    We keep Inter for body and GT Alpina for headings — only size/weight/leading
    and tracking follow Linear. */
 .ag-prose {
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--th-text-prose);
   font-family: var(--font-sans);
   font-size: 16px;
   font-weight: 400;
@@ -584,37 +825,37 @@ html,
   margin: 2em 0 0.55em;
   font: 400 26px/1.25 var(--font-display);
   letter-spacing: -0.015em;
-  color: var(--text-on-dark-heading);
+  color: var(--th-text-hi);
   text-wrap: pretty;
 }
 .ag-prose h3 {
   margin: 1.7em 0 0.5em;
   font: 400 20px/1.3 var(--font-display);
   letter-spacing: -0.012em;
-  color: var(--text-on-dark-heading);
+  color: var(--th-text-hi);
   text-wrap: pretty;
 }
 .ag-prose h4 {
   margin: 1.5em 0 0.4em;
   font: 600 16px/1.4 var(--font-sans);
   letter-spacing: -0.006em;
-  color: var(--text-on-dark-heading);
+  color: var(--th-text-hi);
 }
 .ag-prose a {
-  color: var(--yellow-400);
+  color: var(--th-link);
   font-weight: 400;
   text-decoration: underline;
   text-underline-offset: 2px;
-  text-decoration-color: rgba(242, 242, 92, 0.55);
+  text-decoration-color: var(--th-accent-underline);
   /* Long URLs/identifiers in prose links must break rather than force the page
      wider than the phone viewport (they otherwise expand the layout to ~459px). */
   overflow-wrap: anywhere;
 }
 .ag-prose a:hover {
-  text-decoration-color: var(--yellow-400);
+  text-decoration-color: var(--th-link);
 }
 .ag-prose strong {
-  color: var(--text-on-dark-heading);
+  color: var(--th-text-hi);
   font-weight: 600;
 }
 .ag-prose em {
@@ -629,7 +870,7 @@ html,
   margin: 0.35em 0;
 }
 .ag-prose li::marker {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--th-text-dim);
 }
 .ag-prose li > ul,
 .ag-prose li > ol {
@@ -638,11 +879,11 @@ html,
 .ag-prose code {
   font-family: var(--font-mono);
   font-size: 0.88em;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--th-code-bg);
+  border: 1px solid var(--th-code-border);
   border-radius: 5px;
   padding: 0.12em 0.4em;
-  color: #f7f6f4;
+  color: var(--th-code-text);
   /* Inline code with a long token/URL must break rather than force the page
      wider than the phone viewport. Fenced <pre> code is exempted below. */
   overflow-wrap: anywhere;
@@ -650,8 +891,8 @@ html,
 .ag-prose pre {
   margin: 0 0 1.4em;
   padding: 18px 20px;
-  background: #0b0a0c;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: var(--th-pre-bg);
+  border: 1px solid var(--th-pre-border);
   border-radius: 12px;
   overflow-x: auto;
   font-size: 14px;
@@ -665,14 +906,14 @@ html,
   border: none;
   padding: 0;
   font-size: inherit;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--th-pre-text);
   overflow-wrap: normal;
 }
 .ag-prose blockquote {
   margin: 1.4em 0;
   padding: 4px 0 4px 20px;
-  border-left: 2px solid var(--yellow-400);
-  color: rgba(255, 255, 255, 0.6);
+  border-left: 2px solid var(--th-link);
+  color: var(--th-text-body);
   font-style: italic;
 }
 .ag-prose blockquote p:last-child {
@@ -680,7 +921,7 @@ html,
 }
 .ag-prose hr {
   border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid var(--th-border);
   margin: 2.4em 0;
 }
 .ag-prose img {
@@ -689,7 +930,7 @@ html,
   height: auto;
   border-radius: 12px;
   margin: 1.6em 0;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px var(--th-border-subtle);
 }
 .ag-prose table {
   width: 100%;
@@ -702,13 +943,13 @@ html,
 .ag-prose th,
 .ag-prose td {
   padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--th-border);
   text-align: left;
 }
 .ag-prose th {
-  color: var(--text-on-dark-heading);
+  color: var(--th-text-hi);
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--th-hover);
 }
 
 /* ============================================================================
@@ -743,9 +984,9 @@ html,
     margin-top: 0 !important;
     max-height: calc(100dvh - 70px);
     overflow-y: auto;
-    border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+    border-top: 1px solid var(--th-border-subtle) !important;
     border-radius: 14px;
-    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.55);
+    box-shadow: var(--th-menu-shadow);
   }
   /* When the landing nav has floated into its pill (inset 12px), drop the menu a
      touch lower so it clears the pill's bottom edge. */

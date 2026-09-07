@@ -36,6 +36,8 @@ interface FakeOpts {
    * pauseSandbox() throws while retaining its provider handles for the delete fallback.
    */
   pauseThrows?: boolean;
+  /** Abort after environment acquisition, when the harness prompt starts. */
+  onPrompt?: () => void;
 }
 
 function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
@@ -59,6 +61,7 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
     onEvent() {},
     onPermissionRequest() {},
     async prompt() {
+      opts.onPrompt?.();
       if (opts.promptThrows) throw new Error("harness exploded");
       return {
         stopReason: opts.stopReason ?? "complete",
@@ -366,9 +369,10 @@ describe("remote sandbox teardown", () => {
   });
 
   it("destroys (not parks) when the run is aborted", async () => {
-    const { calls, deps } = fakeSandbox("sbx-99");
     const controller = new AbortController();
-    controller.abort();
+    const { calls, deps } = fakeSandbox("sbx-99", {
+      onPrompt: () => controller.abort(),
+    });
     await runSandboxAgent(daytonaRequest, undefined, controller.signal, deps);
     assert.equal(calls.paused, 0, "an aborted run must not park");
     assert.equal(calls.destroyed, 1);

@@ -212,27 +212,21 @@ class TestSameOrgResetAllowed:
 
 
 # ---------------------------------------------------------------------------
-# Test 3 — Nonexistent target user returns 404
+# Test 3 — Nonexistent target user returns 403 (same as cross-org)
 # ---------------------------------------------------------------------------
 
 
 class TestNonexistentTargetUser:
-    """Requesting a reset for a user_id that does not exist should return 404."""
+    """Requesting a reset for a user_id that does not exist must return 403,
+    indistinguishable from a cross-org attempt, to prevent user enumeration."""
 
     @pytest.mark.asyncio
-    async def test_nonexistent_user_returns_404(self, _allow_access):
+    async def test_nonexistent_user_returns_403(self, _allow_access):
         from sqlalchemy.exc import NoResultFound
 
         from oss.src.routers.user_profile import reset_user_password
 
         project = _make_project(organization_id=ORG_A_ID)
-
-        target_org_data = {
-            "id": TARGET_NONEXISTENT_USER_ID,
-            "uid": "target-nonexistent-uid",
-            "workspace_ids": ["workspace-id"],
-            "organization_ids": [ORG_A_ID],
-        }
 
         with (
             patch(
@@ -244,11 +238,7 @@ class TestNonexistentTargetUser:
                 AsyncMock(return_value=None),
             ),
             patch(
-                "oss.src.services.user_service.db_manager.get_user_org_and_workspace_id",
-                AsyncMock(return_value=target_org_data),
-            ),
-            patch(
-                "oss.src.services.user_service.db_manager.get_user_with_id",
+                "oss.src.routers.user_profile.user_service.generate_user_password_reset_link",
                 AsyncMock(
                     side_effect=NoResultFound(
                         f"User with uid {TARGET_NONEXISTENT_USER_ID} not found"
@@ -261,9 +251,10 @@ class TestNonexistentTargetUser:
                 user_id=TARGET_NONEXISTENT_USER_ID,
             )
 
-        assert response.status_code == 404
-        # Must NOT leak whether the user exists in another org
+        assert response.status_code == 403
         body = response.body.decode()
+        assert "permission" in body.lower()
+        # Must NOT leak whether the user exists
         assert TARGET_NONEXISTENT_USER_ID not in body
 
 
@@ -286,3 +277,38 @@ class TestCallerLacksPermission:
 
         assert response.status_code == 403
         assert "access" in response.body.decode().lower()
+
+
+# ---------------------------------------------------------------------------
+# Test 5 — user_profile() returns 404 for a missing user
+# ---------------------------------------------------------------------------
+
+
+class TestUserProfileMissingUser:
+    """GET /profile/ should return 404 when the authenticated user_id no
+    longer exists in the database (stale token, deleted user)."""
+
+    @pytest.mark.asyncio
+    async def test_missing_user_returns_404(self):
+        from sqlalchemy.exc import NoResultFound
+
+        from fastapi import HTTPException
+        from oss.src.routers.user_profile import user_profile
+
+        request = _make_request(user_id="nonexistent-user-id")
+
+        with (
+            patch(
+                "oss.src.routers.user_profile.get_cache",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "oss.src.routers.user_profile.db_manager.get_user_with_id",
+                AsyncMock(side_effect=NoResultFound("No row found")),
+            ),
+        ):
+            with pytest.raises(HTTPException) as exc_info:
+                await user_profile(request=request)
+
+        assert exc_info.value.status_code == 404
+        assert "user not found" in exc_info.value.detail.lower()

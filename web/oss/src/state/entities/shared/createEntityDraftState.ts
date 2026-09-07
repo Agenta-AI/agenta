@@ -6,7 +6,7 @@ import {
     type Setter,
     type WritableAtom,
 } from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 // ============================================================================
 // TYPES

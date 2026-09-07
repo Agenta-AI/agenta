@@ -410,3 +410,53 @@
     opacity: 0.6;
     cursor: default;
 }
+
+/* ── 404 ─────────────────────────────────────────────────────────────────────
+   The numerals are the page's only oversized type, so they get their own scale
+   rather than a headline token: the mark stands in for the middle zero, and the
+   two 4s have to close around it tightly enough to read as one word. */
+.auth-404-digits {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family:
+        var(--font-inter),
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Roboto,
+        "Helvetica Neue",
+        Arial,
+        sans-serif;
+    /* Scales with the viewport so the glyph block never outgrows a phone screen. */
+    font-size: clamp(96px, 15vw, 196px);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: var(--a-heading);
+}
+/* Sized against the numerals' cap height, not their em box, so the leaf sits on the
+   same optical line as the 4s. The small negative margins take up the slack in the SVG's
+   own letterboxing without letting the leaf collide with either 4. */
+.auth-404-mark {
+    height: 0.7em;
+    width: auto;
+    margin: 0 -0.04em;
+    flex: none;
+}
+
+/* Error code + failed address. The quietest text on the page — it is here to be
+   quoted into a bug report, not read. */
+.auth-404-code {
+    color: var(--a-faint);
+    font-size: 12px;
+    line-height: 18px;
+}
+
+/* The keycap and surface buttons are full-width by default because the sign-in
+   column stacks them. Here they sit side by side and size to their labels. */
+.auth-btn-auto {
+    width: auto;
+    padding: 0 20px;
+    text-decoration: none;
+}

@@ -407,7 +407,7 @@ class EvaluationsRouter:
             operation_id="refresh_metrics",
         )
 
-        # TODO: deprecate once web uses /mretrics/refresh
+        # TODO: deprecate once web uses /metrics/refresh
         # POST /api/evaluations/metrics/
         self.router.add_api_route(
             path="/metrics/",

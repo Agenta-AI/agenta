@@ -1,5 +1,6 @@
 import {atom} from "jotai"
-import {atomFamily, atomWithStorage} from "jotai/utils"
+import {atomWithStorage} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {onboardingStorageUserIdAtom} from "../atoms"
 

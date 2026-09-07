@@ -6,23 +6,15 @@
   // Deployed by .github/workflows/19-docs-production.yml on every merge to main
   // that touches docs/**.
   //
-  // No `routes` block yet. The docs are still served through the older
-  // `new-docs-router` worker, which proxies agenta.ai/docs/* to Vercel. Cutover
-  // is a deliberate one-time swap: remove the agenta.ai/docs* route from
-  // new-docs-router and add these two routes here.
-  //
-  //   "routes": [
-  //     { "pattern": "agenta.ai/docs", "zone_name": "agenta.ai" },
-  //     { "pattern": "agenta.ai/docs/*", "zone_name": "agenta.ai" }
-  //   ]
-  //
-  // new-docs-router keeps the docs.agenta.ai -> agenta.ai/docs redirect and the
-  // combined /sitemap_index.xml; only its Vercel proxy rule goes away.
   "name": "agenta-docs",
   "compatibility_date": "2026-08-01",
   // Production takes no per-version preview aliases; those live on the preview
   // worker.
   "preview_urls": false,
+  "routes": [
+    { "pattern": "agenta.ai/docs", "zone_name": "agenta.ai" },
+    { "pattern": "agenta.ai/docs/*", "zone_name": "agenta.ai" }
+  ],
   "assets": {
     "directory": "./dist",
     "html_handling": "drop-trailing-slash",

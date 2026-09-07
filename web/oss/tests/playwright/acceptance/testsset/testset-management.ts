@@ -209,10 +209,7 @@ const testsetTests = () => {
                     })
 
                     // Click a data row cell to open the TestcaseEditDrawer
-                    const cell = page
-                        .locator(".ant-table-cell")
-                        .filter({hasText: "original value"})
-                        .first()
+                    const cell = page.getByRole("cell", {name: "original value", exact: true})
                     await expect(cell).toBeVisible({timeout: 10000})
                     await cell.click()
 
@@ -308,9 +305,9 @@ const testsetTests = () => {
                     await expect(page.locator("th").filter({hasText: "input"}).first()).toBeVisible(
                         {timeout: 10000},
                     )
-                    await expect(page.locator(".ant-table-tbody")).toContainText("existing row", {
-                        timeout: 10000,
-                    })
+                    await expect(
+                        page.getByRole("row").filter({hasText: "existing row"}).first(),
+                    ).toBeVisible({timeout: 10000})
 
                     // Add a new row (auto-opens the edit drawer for the new row)
                     await page.getByRole("button", {name: "Add row"}).click()
@@ -339,11 +336,10 @@ const testsetTests = () => {
                         page.locator("[data-row-key]").filter({hasText: "new-row-value"}).first(),
                     ).toBeVisible({timeout: 5000})
 
-                    // Add a new column — the button has a PlusOutlined (anticon-plus) icon and
-                    // sits in the table header before the column-visibility gear button.
-                    // ant-table-cell-fix-right may not be applied without horizontal scroll,
-                    // so locate by the AntD icon class which is unique in the thead.
-                    await page.locator(".ant-table-thead .anticon-plus").click()
+                    await page
+                        .getByRole("columnheader")
+                        .getByRole("button", {name: "plus", exact: true})
+                        .click()
 
                     const addColumnModal = page
                         .locator(".ant-modal")

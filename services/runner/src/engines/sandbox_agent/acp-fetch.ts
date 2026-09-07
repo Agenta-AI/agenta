@@ -1,5 +1,7 @@
 import { Agent, fetch as undiciFetch } from "undici";
 
+import { sandboxGoneReason } from "./sandbox-gone.ts";
+
 /**
  * HITL pauses keep the ACP HTTP connection open for human-timescale delays: when a tool call needs
  * approval, the runner holds the in-flight `prompt` request while it waits for the human to
@@ -52,12 +54,50 @@ export function createAcpDispatcher(): Agent {
   });
 }
 
+export interface AcpFetchOptions {
+  /**
+   * Called when a response proves the sandbox is gone (see `sandbox-gone.ts`).
+   *
+   * This fetch is the socket the turn runs on, so it sees a deleted remote sandbox seconds before
+   * any poll can. It cannot end the turn itself: the ACP transport swallows the failure (it errors
+   * its readable, and the protocol SDK's read loop never rejects the pending `session/prompt`), so
+   * the promise the turn awaits stays pending forever. Reporting it here is what lets the liveness
+   * probe end the turn at once instead of one probe interval later, or never.
+   */
+  onSandboxGone?: (reason: string) => void;
+}
+
+/**
+ * Wrap a `fetch` so a response that names the sandbox as gone is reported once.
+ *
+ * The response is passed through untouched, body included: this wrapper reads only the status and
+ * the headers, because draining the body here would break every caller. With no
+ * `onSandboxGone` it is the identity, so nothing is inspected on a path that cannot act on it.
+ */
+export function withSandboxGoneReport(
+  inner: typeof fetch,
+  options: AcpFetchOptions = {},
+): typeof fetch {
+  const report = options.onSandboxGone;
+  if (!report) return inner;
+  return (async (input: any, init?: any) => {
+    const response = await inner(input, init);
+    const reason = sandboxGoneReason(response);
+    if (reason) report(reason);
+    return response;
+  }) as unknown as typeof fetch;
+}
+
 /**
  * A `fetch` for the ACP HTTP client backed by {@link createAcpDispatcher}. We use undici's own
  * `fetch` so the `dispatcher` option is honored regardless of how the global dispatcher is set.
  * The `sandbox-agent` SDK accepts a custom `fetch`; we hand it this one on every path.
  */
-export function createAcpFetch(dispatcher: Agent = createAcpDispatcher()): typeof fetch {
-  return ((input: any, init?: any) =>
+export function createAcpFetch(
+  dispatcher: Agent = createAcpDispatcher(),
+  options: AcpFetchOptions = {},
+): typeof fetch {
+  const bound = ((input: any, init?: any) =>
     undiciFetch(input, { ...init, dispatcher })) as unknown as typeof fetch;
+  return withSandboxGoneReport(bound, options);
 }

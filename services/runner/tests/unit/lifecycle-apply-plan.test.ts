@@ -217,4 +217,33 @@ describe("applyReconcilePlan: refresh-workspace installs the INCOMING configurat
     assert.equal(applied, false);
     assert.equal(committed.length, 0);
   });
+
+  it("refuses an apply-live action for a facet it cannot install (audit finding 7)", async () => {
+    // The arm used to treat EVERY `apply-live` as a model change. The day another facet routes
+    // here (the credential plan is the expected first), that would install the wrong thing and
+    // commit the new configuration. It must fail into a rebuild instead, without calling the
+    // model applier at all.
+    const env = makeEnv();
+    const request: AgentRunRequest = {
+      harness: "claude",
+      model: "m1",
+      messages: [],
+    } as never;
+    const plan = buildPlan(
+      [{ facet: "runtime", kind: "apply-live", reason: "r" }],
+      ["runtime"],
+    );
+
+    let modelApplierCalled = false;
+    const applied = await applyReconcilePlan(env, request, plan, () => {}, {
+      applyModel: async () => {
+        modelApplierCalled = true;
+        return "m1";
+      },
+    });
+
+    assert.equal(applied, false, "the caller must rebuild");
+    assert.equal(committed.length, 0, "and applied state must not advance");
+    assert.equal(modelApplierCalled, false, "the model applier must not run");
+  });
 });

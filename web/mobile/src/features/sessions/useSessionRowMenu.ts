@@ -1,8 +1,9 @@
 import {useCallback} from "react"
 
 import type {SessionStream} from "@agenta/entities/session"
+import {sessionRoutePath} from "@agenta/sessions/link"
 import {sessionOpenTarget, type SessionRowVm} from "@agenta/sessions/row"
-import {useSessionActions} from "@agenta/sessions-ui"
+import {useSessionActions, type SessionActionTarget} from "@agenta/sessions-ui"
 import {useRouter} from "next/router"
 
 const targetFor = (vm: SessionRowVm) => ({
@@ -29,10 +30,15 @@ const targetForStream = (session: SessionStream) => ({
  */
 export const useSessionRowMenu = (base: string) => {
     const router = useRouter()
-    const actions = useSessionActions()
+    // Every session has its own page here, so no agent is needed for a link.
+    const sharePathFor = useCallback(
+        ({sessionId}: SessionActionTarget) => sessionRoutePath(base, sessionId),
+        [base],
+    )
+    const actions = useSessionActions({sharePathFor})
 
     const open = useCallback(
-        (vm: SessionRowVm) => void router.push(`${base}/sessions/${vm.id}`),
+        (vm: SessionRowVm) => void router.push(sessionRoutePath(base, vm.id)),
         [base, router],
     )
 

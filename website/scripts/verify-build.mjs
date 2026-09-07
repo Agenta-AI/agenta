@@ -124,13 +124,35 @@ if (existsSync(specPath)) {
   }
 }
 
-// 6. The twins must not be indexed as pages of their own.
+// 6. Sitemap entries must be final, self-canonical page URLs. The site root is
+//    the only URL whose path legitimately ends in a slash.
 const sitemap = resolve(dist, "sitemap-0.xml");
 if (existsSync(sitemap)) {
-  check(
-    !readFileSync(sitemap, "utf8").includes(".md<"),
-    "sitemap-0.xml lists a .md twin.",
+  const sitemapXml = readFileSync(sitemap, "utf8");
+  check(!sitemapXml.includes(".md<"), "sitemap-0.xml lists a .md twin.");
+
+  const urls = [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(
+    ([, url]) => url,
   );
+  for (const url of urls) {
+    const { pathname } = new URL(url);
+    check(
+      pathname === "/" || !pathname.endsWith("/"),
+      `sitemap URL has a trailing slash: ${url}`,
+    );
+
+    const html = resolve(
+      dist,
+      pathname === "/" ? "index.html" : `${pathname.slice(1)}/index.html`,
+    );
+    check(existsSync(html), `sitemap URL has no built page: ${url}`);
+    if (existsSync(html)) {
+      const canonical = readFileSync(html, "utf8").match(
+        /<link rel="canonical" href="([^"]+)"/,
+      )?.[1];
+      check(canonical === url, `sitemap URL is not self-canonical: ${url}`);
+    }
+  }
 }
 
 if (failures.length > 0) {

@@ -1,7 +1,7 @@
 import type {ReactNode} from "react"
 
 import {SessionListCard, type SessionListCardProps} from "@agenta/sessions-ui"
-import {PanelScroll, PanelSurface} from "@agenta/ui/components/presentational"
+import {PanelSurface} from "@agenta/ui/components/presentational"
 
 import {AgentConfigSummaryCard} from "./AgentConfigSummaryCard"
 import {AgentFilesCard} from "./AgentFilesCard"
@@ -55,7 +55,6 @@ export const AgentOverviewBody = ({
     agentNames,
 }: AgentOverviewBodyProps) => (
     <AgentOverviewLayout
-        scroll
         main={
             <>
                 {composer}
@@ -94,15 +93,13 @@ export const AgentOverviewBody = ({
             </>
         }
         rail={
-            <PanelSurface className="flex max-h-full min-h-0 flex-col">
-                <PanelScroll>
-                    <AgentConfigSummaryCard appId={agentId} onEdit={onEditConfig} />
-                    <AgentFilesCard appId={agentId} />
-                    {/* Scoped to this agent. Automation RUNS say what already happened; an agent
-                        whose schedule quietly stopped looks identical there. */}
-                    <NextTriggersSection agentId={agentId} agentNames={agentNames} />
-                    {usage}
-                </PanelScroll>
+            <PanelSurface className="flex flex-col gap-3">
+                <AgentConfigSummaryCard appId={agentId} onEdit={onEditConfig} />
+                <AgentFilesCard appId={agentId} />
+                {/* Scoped to this agent. Automation RUNS say what already happened; an agent
+                    whose schedule quietly stopped looks identical there. */}
+                <NextTriggersSection agentId={agentId} agentNames={agentNames} />
+                {usage}
             </PanelSurface>
         }
     />

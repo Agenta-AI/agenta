@@ -6,24 +6,32 @@ every key name, TTL, and wire shape.
 """
 
 import json
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
     ALIVE_TTL_SECONDS,
+    ACQUIRE_ALIVE_WITH_START_LUA,
     ATTACHED_TTL_SECONDS,
     CLAIM_OWNER_LUA,
+    DISPLACE_TURNS_LUA,
     OWNER_TTL_SECONDS,
+    RECONCILE_STOPPED_TURN_LUA,
     RELEASE_IF_OWNER_LUA,
     RUNNING_TTL_SECONDS,
     SUPERSEDED_TTL_SECONDS,
+    TURN_STARTED_TTL_SECONDS,
+    WATCHDOG_RELEASE_TURN_LUA,
     alive_key,
     attached_key,
     displaced_channel,
     make_displacement_payload,
+    make_owner_value,
+    owner_replica_id,
     owner_key,
     running_key,
     superseded_key,
+    turn_started_key,
     validate_session_id,  # noqa: F401 — re-exported for callers that import from locks
 )
 
@@ -52,6 +60,26 @@ async def acquire_alive(
         ex=ALIVE_TTL_SECONDS,
     )
     return result is not None
+
+
+async def acquire_alive_with_start(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> bool:
+    """Atomically acquire `alive` and record its first start on the Redis clock."""
+    result = await engine.eval(
+        ACQUIRE_ALIVE_WITH_START_LUA,
+        2,
+        alive_key(project_id, session_id).encode(),
+        turn_started_key(project_id, session_id, turn_id).encode(),
+        turn_id.encode(),
+        ALIVE_TTL_SECONDS,
+        TURN_STARTED_TTL_SECONDS,
+    )
+    return result == 1
 
 
 async def refresh_alive(
@@ -152,6 +180,155 @@ async def is_turn_superseded(
         return False
     await engine.expire(key, SUPERSEDED_TTL_SECONDS)
     return True
+
+
+async def release_watchdog_turn(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: Optional[str],
+    owner_value: Optional[str],
+) -> Tuple[bool, bool, bool]:
+    """Atomically release only the swept turn and its observed replica owner."""
+    result = await engine.eval(
+        WATCHDOG_RELEASE_TURN_LUA,
+        4,
+        alive_key(project_id, session_id).encode(),
+        running_key(project_id, session_id).encode(),
+        owner_key(project_id, session_id).encode(),
+        superseded_key(project_id, session_id, turn_id or "").encode(),
+        (turn_id or "").encode(),
+        (owner_value or "").encode(),
+        SUPERSEDED_TTL_SECONDS,
+    )
+    return bool(int(result[0])), bool(int(result[1])), bool(int(result[2]))
+
+
+# ---------------------------------------------------------------------------
+# Turn start times — "when did this turn first take the session?"
+#
+# A cancel that is applied after the turn it meant has ended tombstones whichever turn holds
+# the nest, which can be the NEXT turn (the stop-then-send race behind #6417). Refusing that
+# needs one thing the coordination plane never recorded: when the holding turn started. It
+# cannot be derived. `session_turns.start_time` is written by the runner after the fact, and a
+# browser turn's id is a runner-minted uuid4, so it carries no time.
+# ---------------------------------------------------------------------------
+
+
+async def record_turn_start(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+    started_at_ms: Optional[int] = None,
+) -> int:
+    """Record this turn's start once, then keep the record alive for as long as `alive` is.
+
+    Write-once (nx): a turn that re-takes its own lock after a raced beat keeps its FIRST
+    start time, which is the one the guard must compare against. Returns the recorded start,
+    which is the stored one when a record already exists.
+    """
+    key = turn_started_key(project_id, session_id, turn_id)
+    now_ms = await redis_time_ms(engine) if started_at_ms is None else started_at_ms
+    written = await engine.set(
+        key,
+        str(now_ms).encode(),
+        nx=True,
+        ex=TURN_STARTED_TTL_SECONDS,
+    )
+    if written is not None:
+        return now_ms
+    current = await engine.get(key)
+    await engine.expire(key, TURN_STARTED_TTL_SECONDS)
+    try:
+        return int(current.decode()) if current else now_ms
+    except ValueError:
+        return now_ms
+
+
+async def redis_time_ms(engine: LockEngine) -> int:
+    """Read the shared Redis clock in epoch milliseconds."""
+    seconds, microseconds = await engine.time()
+    return int(seconds) * 1000 + int(microseconds) // 1000
+
+
+async def displace_turns(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    expected_turn_id: Optional[str] = None,
+    arrived_at_ms: Optional[int] = None,
+    running_only: bool = False,
+) -> Tuple[bool, Optional[str], List[str]]:
+    """Atomically validate, tombstone, and clear the alive/running owners."""
+    result = await engine.eval(
+        DISPLACE_TURNS_LUA,
+        2,
+        alive_key(project_id, session_id).encode(),
+        running_key(project_id, session_id).encode(),
+        (expected_turn_id or "").encode(),
+        "" if arrived_at_ms is None else str(arrived_at_ms),
+        superseded_key(project_id, session_id, "").encode(),
+        turn_started_key(project_id, session_id, "").encode(),
+        SUPERSEDED_TTL_SECONDS,
+        "1" if running_only else "0",
+    )
+
+    def _decode(value) -> str:
+        return value.decode() if isinstance(value, (bytes, bytearray)) else str(value)
+
+    accepted = bool(result) and int(result[0]) == 1
+    if not accepted:
+        return False, _decode(result[1]) if len(result) > 1 else None, []
+    turn_ids = list(
+        dict.fromkeys(_decode(value) for value in result[1:] if _decode(value))
+    )
+    return True, None, turn_ids
+
+
+async def reconcile_stopped_turn(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> bool:
+    """Atomically tombstone a stopped turn and release only its `running` generation."""
+    result = await engine.eval(
+        RECONCILE_STOPPED_TURN_LUA,
+        2,
+        running_key(project_id, session_id).encode(),
+        superseded_key(project_id, session_id, turn_id).encode(),
+        turn_id.encode(),
+        SUPERSEDED_TTL_SECONDS,
+    )
+    return result == 1
+
+
+async def get_turn_start(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> Optional[int]:
+    """This turn's start in epoch milliseconds, or None when nothing recorded one.
+
+    None means "unknown", never "old". Every caller must treat it as unknown and fall back to
+    the behavior it had before this key existed: a turn from before this code shipped, or one
+    whose record outlived its TTL, must not become uncancellable.
+    """
+    key = turn_started_key(project_id, session_id, turn_id)
+    current = await engine.get(key)
+    if current is None:
+        return None
+    try:
+        return int(current.decode())
+    except ValueError:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -321,9 +498,48 @@ async def get_owner(
     session_id: str,
 ) -> Optional[str]:
     """Return the replica id currently owning this session, or None."""
+    current = await get_owner_value(
+        engine, project_id=project_id, session_id=session_id
+    )
+    return owner_replica_id(current) if current else None
+
+
+async def get_owner_value(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+) -> Optional[str]:
+    """Return the full replica + turn-generation owner value, or None."""
     key = owner_key(project_id, session_id)
     current = await engine.get(key)
     return current.decode() if current else None
+
+
+async def claim_owner_value(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    replica_id: str,
+    turn_id: Optional[str] = None,
+) -> str:
+    """Atomically claim ownership and return the full observed owner generation.
+
+    Never steals from a live different owner: if another replica holds it, its id is
+    returned with its turn generation so a later compare-and-delete cannot clear a refresh.
+    """
+    key = owner_key(project_id, session_id)
+    owner_value = make_owner_value(replica_id=replica_id, turn_id=turn_id)
+    result = await engine.eval(
+        CLAIM_OWNER_LUA,
+        1,
+        key.encode(),
+        owner_value.encode(),
+        str(OWNER_TTL_SECONDS).encode(),
+    )
+    actual = result.decode() if isinstance(result, (bytes, bytearray)) else str(result)
+    return actual
 
 
 async def claim_owner(
@@ -332,21 +548,35 @@ async def claim_owner(
     project_id: str,
     session_id: str,
     replica_id: str,
+    turn_id: Optional[str] = None,
 ) -> str:
-    """Atomically claim ownership iff unowned or already ours, and return the actual owner.
+    """Claim ownership and return the actual owner's replica id."""
+    actual = await claim_owner_value(
+        engine,
+        project_id=project_id,
+        session_id=session_id,
+        replica_id=replica_id,
+        turn_id=turn_id,
+    )
+    return owner_replica_id(actual)
 
-    Never steals from a live different owner: if another replica holds it, its id is
-    returned so the caller can refuse to serve a local session on the wrong host.
-    """
+
+async def release_owner_value(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    owner_value: str,
+) -> bool:
+    """Remove the owner key only if its full replica + turn generation still matches."""
     key = owner_key(project_id, session_id)
     result = await engine.eval(
-        CLAIM_OWNER_LUA,
+        RELEASE_IF_OWNER_LUA,
         1,
         key.encode(),
-        replica_id.encode(),
-        str(OWNER_TTL_SECONDS).encode(),
+        owner_value.encode(),
     )
-    return result.decode() if isinstance(result, (bytes, bytearray)) else str(result)
+    return result == 1
 
 
 async def clear_owner(
@@ -357,14 +587,17 @@ async def clear_owner(
     replica_id: str,
 ) -> bool:
     """Remove the owner key if replica_id is still the owner."""
-    key = owner_key(project_id, session_id)
-    result = await engine.eval(
-        RELEASE_IF_OWNER_LUA,
-        1,
-        key.encode(),
-        replica_id.encode(),
+    owner_value = await get_owner_value(
+        engine, project_id=project_id, session_id=session_id
     )
-    return result == 1
+    if owner_value is None or owner_replica_id(owner_value) != replica_id:
+        return False
+    return await release_owner_value(
+        engine,
+        project_id=project_id,
+        session_id=session_id,
+        owner_value=owner_value,
+    )
 
 
 async def force_clear_owner(
@@ -382,7 +615,7 @@ async def force_clear_owner(
     key = owner_key(project_id, session_id)
     current = await engine.get(key)
     await engine.delete(key)
-    return current.decode() if current else None
+    return owner_replica_id(current.decode()) if current else None
 
 
 # ---------------------------------------------------------------------------

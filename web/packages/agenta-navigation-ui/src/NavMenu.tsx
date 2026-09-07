@@ -1,6 +1,6 @@
-import {Fragment, memo, type MouseEvent, type ReactNode} from "react"
+import {Fragment, memo, useRef, type KeyboardEvent, type MouseEvent, type ReactNode} from "react"
 
-import type {SidebarConfig, SidebarMenuMode} from "@agenta/navigation"
+import type {SidebarConfig, SidebarDragItem, SidebarMenuMode} from "@agenta/navigation"
 import {HeightCollapse} from "@agenta/ui/components/presentational"
 import {
     DropdownMenu,
@@ -18,6 +18,8 @@ import {
 import {CaretRight} from "@phosphor-icons/react"
 import clsx from "clsx"
 import Link from "next/link"
+
+import {SidebarReorderLayer} from "./reorder"
 
 /**
  * The antd-free nav renderer: one `@agenta/navigation` model, any shell. Inline mode expands
@@ -61,6 +63,39 @@ const GROUP_CHILDREN =
 // Stretches the anchor over the whole row so middle-click / ctrl+click work anywhere on it.
 const LINK_CLASS =
     "!text-inherit no-underline before:absolute before:inset-0 before:content-[''] min-w-0 flex-1 truncate"
+
+/** Three static attributes; the engine reads them off the DOM. No per-row handlers. */
+const dragAttrs = (item?: SidebarDragItem) =>
+    item
+        ? {
+              "data-drag-zone": item.zone,
+              "data-drag-id": item.id,
+              "data-drag-kind": item.kind,
+              "aria-roledescription": "sortable",
+          }
+        : undefined
+
+/** Faded in place while dragged — no gap opens, and a heading's rows fade with it. */
+const DRAG_GHOST = "[&_[data-drag-ghost=true]]:opacity-35"
+
+/**
+ * Alt+Arrow moves an arrangeable row without a pointer. Returns true when it handled the key.
+ * Alt, not a bare arrow, so the browser's own scrolling is untouched. The engine is already
+ * loaded by the time anyone reaches for this on a row they can also drag.
+ */
+const onMoveKey = (event: KeyboardEvent<HTMLElement>): boolean => {
+    if (!event.altKey) return false
+    const delta = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0
+    if (!delta) return false
+    const el = event.currentTarget
+    if (!el.dataset.dragZone) return false
+    event.preventDefault()
+    void import("./reorder/engine").then(({moveByKeyboard}) => {
+        const message = moveByKeyboard(el, delta as -1 | 1)
+        if (message) void import("./reorder/overlay").then((m) => m.announceReorder(message))
+    })
+    return true
+}
 
 const TagChip = ({tag}: {tag?: string}) =>
     tag ? (
@@ -142,6 +177,8 @@ const RowLabel = ({
         <Link
             className={LINK_CLASS}
             data-tour={item.dataTour}
+            // Browsers drag anchors natively; without this the link ghost rides along with ours.
+            draggable={false}
             href={item.link}
             target={isExternal(item.link) ? "_blank" : undefined}
             rel={isExternal(item.link) ? "noopener noreferrer" : undefined}
@@ -160,7 +197,10 @@ const GroupLabelRow = ({item}: {item: NavItem}) => {
     const toggle = item.onClick
     if (!toggle)
         return (
-            <p className="m-0 mx-auto w-[calc(100%-16px)] px-3 pb-0.5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none">
+            <p
+                {...dragAttrs(item.dragItem)}
+                className="m-0 mx-auto w-[calc(100%-16px)] px-3 pb-0.5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none"
+            >
                 {item.title}
             </p>
         )
@@ -169,11 +209,13 @@ const GroupLabelRow = ({item}: {item: NavItem}) => {
             role="button"
             tabIndex={0}
             aria-expanded={!item.isCollapsed}
+            {...dragAttrs(item.dragItem)}
             // Not uppercase, unlike the static heading above: a collapsible heading labels an
             // ENTITY (an agent), and shouting a proper noun misspells it.
             className="mx-auto flex w-[calc(100%-16px)] cursor-pointer select-none items-center gap-1 rounded-md pb-0.5 pl-3 pr-0 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText"
             onClick={toggle}
             onKeyDown={(event) => {
+                if (onMoveKey(event)) return
                 if (event.key !== "Enter" && event.key !== " ") return
                 event.preventDefault()
                 toggle(event as unknown as MouseEvent)
@@ -214,6 +256,7 @@ const LeafRow = ({
     const isControl = Boolean(onClick) && !item.link
     return (
         <div
+            {...dragAttrs(item.dragItem)}
             className={clsx(
                 ROW_BASE,
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
@@ -226,15 +269,13 @@ const LeafRow = ({
             role={isControl ? "menuitem" : undefined}
             tabIndex={isControl ? 0 : undefined}
             aria-current={isControl && selected ? "page" : undefined}
-            onKeyDown={
-                isControl
-                    ? (event) => {
-                          if (event.key !== "Enter" && event.key !== " ") return
-                          event.preventDefault()
-                          onClick?.(event as unknown as MouseEvent)
-                      }
-                    : undefined
-            }
+            onKeyDown={(event) => {
+                if (onMoveKey(event)) return
+                if (!isControl) return
+                if (event.key !== "Enter" && event.key !== " ") return
+                event.preventDefault()
+                onClick?.(event as unknown as MouseEvent)
+            }}
         >
             {item.icon ? <span className="flex shrink-0 items-center">{item.icon}</span> : null}
             <RowLabel item={item} onItemSelect={onItemSelect} />
@@ -327,6 +368,7 @@ const NavMenuImpl = ({
     className,
 }: NavMenuProps) => {
     const inline = mode === "inline" && !collapsed
+    const navRef = useRef<HTMLElement>(null)
 
     const renderItem = (item: NavItem): ReactNode => {
         const selected = selectedKeys.includes(item.key)
@@ -470,7 +512,10 @@ const NavMenuImpl = ({
                         // and a scroll area needs its height to come from the flex line instead.
                         // `min-h-0` is what lets it shrink below its content; the rows around it
                         // hold their size on their own (auto min-height == their fixed row height).
-                        <div className={clsx(GROUP_CHILDREN, "min-h-0 overflow-y-auto")}>
+                        <div
+                            data-nav-scroll="true"
+                            className={clsx(GROUP_CHILDREN, "min-h-0 overflow-y-auto", DRAG_GHOST)}
+                        >
                             {(item.submenu ?? []).map(renderItem)}
                         </div>
                     ) : (
@@ -479,7 +524,7 @@ const NavMenuImpl = ({
                         // shrank and clipped its own rows instead of holding its height.
                         <HeightCollapse open={open} className="shrink-0">
                             {/* Guide line marks the group's extent, as the old inline menu did. */}
-                            <div className={GROUP_CHILDREN}>
+                            <div className={clsx(GROUP_CHILDREN, DRAG_GHOST)}>
                                 {(item.submenu ?? []).map(renderItem)}
                             </div>
                         </HeightCollapse>
@@ -506,6 +551,7 @@ const NavMenuImpl = ({
     // and pushed every section after the first 4px further down the rail.
     return (
         <nav
+            ref={navRef}
             role="menu"
             className={clsx(
                 "flex w-full flex-col pt-1",
@@ -516,6 +562,7 @@ const NavMenuImpl = ({
             )}
         >
             {items.map(renderItem)}
+            {inline ? <SidebarReorderLayer containerRef={navRef} /> : null}
         </nav>
     )
 }

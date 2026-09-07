@@ -57,8 +57,6 @@ describe("useComposerAttachments", () => {
         })
         expect(result.current.files.map((f) => f.name)).toEqual(["ok.txt"])
         expect(result.current.rejections.map((r) => r.name)).toEqual(["huge.txt"])
-        // A rejection opens the tray so the message is visible.
-        expect(result.current.attachmentsOpen).toBe(true)
     })
 
     it("caps the staged set at the count limit and flags atMax", () => {
@@ -76,7 +74,12 @@ describe("useComposerAttachments", () => {
             result.current.addFiles([makeFile("extra.txt")])
         })
         expect(result.current.files).toHaveLength(DEFAULT_ATTACHMENT_LIMITS.maxCount)
-        expect(result.current.rejections.map((r) => r.name)).toEqual(["extra.txt"])
+        // Rejections accumulate: a later add must not erase a failure the user has not read yet.
+        expect(result.current.rejections.map((r) => r.name)).toEqual([
+            "f100.txt",
+            "f101.txt",
+            "extra.txt",
+        ])
     })
 
     // A paste and a drop can both fire before React re-renders. Reading the count from the
@@ -170,6 +173,6 @@ describe("useComposerAttachments", () => {
             result.current.clearAttachments(result.current.files.map((f) => f.uid))
         })
         expect(result.current.files).toHaveLength(0)
-        expect(result.current.attachmentsOpen).toBe(false)
+        expect(result.current.rejections).toHaveLength(0)
     })
 })

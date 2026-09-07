@@ -38,6 +38,7 @@ export const ACQUIRE_STAGES = [
   "prepare_workspace",
   "probe_capabilities",
   "create_session",
+  "credential_preflight",
   "acquire_total",
 ] as const;
 

@@ -104,7 +104,7 @@ because it is the seam between the two lives of a tool:
 
 The resolved specs are also defined in `tools/models.py` (`CallbackToolSpec`, `CodeToolSpec`,
 `ClientToolSpec`), and the matching TypeScript shape is `ResolvedToolSpec` in
-`services/agent/src/protocol.ts`. A run bundles them as a `ResolvedToolSet`: the list of specs
+`services/runner/src/protocol.ts`. A run bundles them as a `ResolvedToolSet`: the list of specs
 and one `ToolCallback` (the endpoint callback tools post back to).
 
 ## How tools get resolved (the service side)
@@ -189,13 +189,13 @@ is runner authorization policy, not a harness tool specification.
 
 The runner has to hand resolved tools to a harness, and harnesses do not accept tools the same
 way. The runner branches on a capability, `mcpTools`, not on the harness name (the branch is
-`buildSessionMcpServers` in `services/agent/src/engines/sandbox_agent/mcp.ts`). A harness that
+`buildSessionMcpServers` in `services/runner/src/engines/sandbox_agent/mcp.ts`). A harness that
 reports it can take tools over MCP gets them that way; a harness that cannot gets them
 natively. Today that splits cleanly into two paths.
 
 - **Pi takes native tools.** Pi has an extension API, so the runner registers each resolved
   spec as a Pi tool directly. The bundled Pi extension
-  (`services/agent/src/extensions/agenta.ts`) reads the public specs from
+  (`services/runner/src/extensions/agenta.ts`) reads the public specs from
   `AGENTA_TOOL_PUBLIC_SPECS` and registers them from inside Pi, then Pi runs the tool body the
   runner gives it. Pi gets no MCP server at all here: `buildSessionMcpServers` returns an empty
   list for Pi, so neither the synthetic `agenta-tools` server nor any user MCP server is
@@ -225,7 +225,7 @@ natively. Today that splits cleanly into two paths.
   [runner-to-MCP interface page](../interfaces/cross-service/runner-to-mcp-server.md).
 
 Both paths funnel execution through one function, `runResolvedTool` in
-`services/agent/src/tools/dispatch.ts`. It is the single place that branches on `kind`, so how
+`services/runner/src/tools/dispatch.ts`. It is the single place that branches on `kind`, so how
 a tool type executes is defined once, not three times.
 
 ## Execution, type by type
@@ -237,7 +237,7 @@ picks the tool and supplies the arguments, who actually runs it, and where?
 
 Execution is a callback. The harness selects the tool and supplies arguments, but the runner
 does not run the integration. The tool body POSTs the call to Agenta's `POST /tools/call`
-(`services/agent/src/tools/callback.ts`, `callAgentaTool`), sending the `call_ref` slug and
+(`services/runner/src/tools/callback.ts`, `callAgentaTool`), sending the `call_ref` slug and
 the model's arguments in an OpenAI-style envelope. The API re-resolves the connection, runs the
 Composio action through the provider adapter (`execute_tool` in `core/tools/service.py`), and
 returns the result, which the runner hands back to the model verbatim.
@@ -317,7 +317,7 @@ new endpoint and no hidden logic. It resolves to a `CallbackToolSpec` carrying a
 descriptor (`{method, path, body?, context?, args_into?}`) instead of a `call_ref`, so the runner
 calls the endpoint directly with the run's caller credential. There is no `/tools/call` hop. The
 SSRF guard binds the call to the run's own Agenta origin and confines it to the API mount
-(`directCallUrl` in `services/agent/src/tools/direct.ts`); the same dispatch handles the Daytona
+(`directCallUrl` in `services/runner/src/tools/direct.ts`); the same dispatch handles the Daytona
 relay path. The runner needs no platform-specific code — it dispatches any `call` opaquely (the
 branch already exists for reference tools).
 
@@ -333,7 +333,7 @@ direct call.
 ### Code tools: the runner runs them locally
 
 Execution is a local subprocess inside the runner. `runCodeTool`
-(`services/agent/src/tools/code.ts`) writes the snippet to a temp file, spawns `python3` or
+(`services/runner/src/tools/code.ts`) writes the snippet to a temp file, spawns `python3` or
 `node`, passes the model's arguments as JSON on stdin, and reads the JSON result from stdout.
 There is no callback. The code runs where the harness runs.
 
@@ -347,7 +347,7 @@ Node as `main(inputs)`. A non-zero exit or a timeout becomes a tool error so the
 continues rather than crashing the run.
 
 The production image ships the interpreters: the runner Dockerfile installs `python3`
-(`services/agent/docker/Dockerfile`), and `node` is already present. An earlier missing
+(`services/runner/docker/Dockerfile.gh`), and `node` is already present. An earlier missing
 `python3` made Python code tools fail with `spawn python3 ENOENT`; that is fixed. One real
 constraint remains: the child only has the interpreter and the tool's own secrets, with no
 package-install step and no `NODE_PATH` to the runner's modules. So a code tool is limited to
@@ -395,7 +395,7 @@ member of `RenderHint` that asks the frontend to draw the connect widget.
 ### Built-in tools: the harness runs them natively, gated through the same relay
 
 Execution is the harness's own. A built-in tool is just a name. The runner adds it to the
-session's allowlist and Pi runs its own implementation of `read`, `write`, `web_search`, and so
+session's allowlist and Pi runs its own implementation of `read`, `write`, `bash`, and so
 on. Nothing is resolved and nothing is delivered. Note that built-ins are a Pi concept here;
 they are not delivered to non-Pi harnesses over ACP, which bring their own native tool set.
 
@@ -425,8 +425,10 @@ parity test pins that copy against the same fixture.
 
 Because activation is unconditional, the seven names are reserved. Pi registers custom tools in
 the same registry as its builtins, so a custom tool named `read` would replace the builtin `read`
-silently. `ToolResolver` refuses such a config with `ReservedToolNameError`, and the extension
-skips a colliding spec rather than registering it.
+silently. The SDK's `ToolResolver` refuses such a declared custom tool with
+`ReservedToolNameError`, and the extension skips a colliding spec rather than registering it. The
+runner also folds colliding names into the built-in identity when matching permissions on an
+unvalidated `/run` payload, so the same defense applies at the execution boundary.
 
 The wire's `tools` field is deprecated. A current runner ignores it. The SDK still fills it with
 all seven names so a runner from before this change — which read it as a grant list — activates
@@ -679,18 +681,18 @@ never drift from the files that exist. The canonical playbook format lives in th
 | Discovery endpoint + reserved-handler dispatch | `api/oss/src/apis/fastapi/tools/router.py` (`/tools/discover`, `_call_reserved_agenta_tool`) |
 | Server-side platform-op handlers (reserved-ref registry, `test_run`) | `api/oss/src/core/tools/platform_handlers.py` |
 | Build-kit overlay defaults (`DEFAULT_BUILD_KIT_OPS` + skill/tool embeds) | `api/oss/src/apis/fastapi/applications/overlay.py` |
-| Wire contract | `services/agent/src/protocol.ts`, `sdks/python/agenta/sdk/agents/utils/wire.py` |
-| Tool-delivery fork (branch on `mcpTools`) | `services/agent/src/engines/sandbox_agent/mcp.ts` |
-| Runtime dispatch (branch on `kind`) | `services/agent/src/tools/dispatch.ts` |
-| Callback transport | `services/agent/src/tools/callback.ts` |
-| Code execution | `services/agent/src/tools/code.ts` |
+| Wire contract | `services/runner/src/protocol.ts`, `sdks/python/agenta/sdk/agents/utils/wire.py` |
+| Tool-delivery fork (branch on `mcpTools`) | `services/runner/src/engines/sandbox_agent/mcp.ts` |
+| Runtime dispatch (branch on `kind`) | `services/runner/src/tools/dispatch.ts` |
+| Callback transport | `services/runner/src/tools/callback.ts` |
+| Code execution | `services/runner/src/tools/code.ts` |
 | Daytona/non-Pi relay (runner-side loop) | `services/runner/src/tools/relay.ts` |
 | In-sandbox relay writer + wire protocol | `services/runner/src/tools/relay-client.ts`, `relay-protocol.ts` |
 | Relay wake sources (local `fs.watch`, Daytona watch exec) | `services/runner/src/tools/relay-watch.ts` |
-| Pi native delivery | `services/agent/src/extensions/agenta.ts` |
+| Pi native delivery | `services/runner/src/extensions/agenta.ts` |
 | `agenta-tools` channel for non-Pi harnesses (local loopback HTTP) | `services/runner/src/tools/mcp-bridge.ts`, `services/runner/src/tools/tool-mcp-http.ts` |
 | `agenta-tools` channel on Daytona (in-sandbox stdio shim: entrypoint, env contract, upload) | `services/runner/src/tools/tool-mcp-stdio.ts`, `services/runner/src/tools/tool-mcp-env.ts`, `services/runner/src/engines/sandbox_agent/tool-mcp-assets.ts` |
-| Capability probe | `services/agent/src/engines/sandbox_agent/capabilities.ts` |
+| Capability probe | `services/runner/src/engines/sandbox_agent/capabilities.ts` |
 | Permission decision (shared by both gates) | `services/runner/src/permission-plan.ts` |
 | ACP responder (`ApprovalResponder`) | `services/runner/src/responder.ts` |
 | Tool relay enforcement | `services/runner/src/tools/relay.ts` |

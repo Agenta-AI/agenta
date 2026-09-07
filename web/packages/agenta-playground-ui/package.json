@@ -34,7 +34,8 @@
         "./commit": "./src/components/CommitVariantChanges/index.ts",
         "./mode-switch": "./src/components/PlaygroundModeSwitch.tsx",
         "./agent-config-header": "./src/components/AgentConfigHeader.tsx",
-        "./agent-page-header": "./src/components/AgentPageHeader/index.ts"
+        "./agent-page-header": "./src/components/AgentPageHeader/index.ts",
+        "./agent-version-history": "./src/components/AgentVersionHistory/index.ts"
     },
     "dependencies": {
         "@agenta/chat": "workspace:../agenta-chat",

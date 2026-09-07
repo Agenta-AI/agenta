@@ -1,5 +1,6 @@
 import {atom, useAtomValue} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 /**
  * Current startup label for sessions whose startup is being narrated (#6047).

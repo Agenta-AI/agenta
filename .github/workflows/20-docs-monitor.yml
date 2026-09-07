@@ -1,0 +1,26 @@
+name: "20 - docs production monitor"
+
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-production-monitor
+  cancel-in-progress: true
+
+jobs:
+  status:
+    name: Check sitemap and representative pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check browser and crawler responses
+        run: node docs/scripts/monitor-production.mjs

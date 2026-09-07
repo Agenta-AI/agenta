@@ -104,7 +104,7 @@ Its fields and defaults:
 | `model` | `str` | `"gpt-5.5"` | `x-parameter: grouped_choice`, plain string |
 | `tools` | `List[ToolConfig]` | empty list | typed discriminated union |
 | `mcp_servers` | `List[MCPServerConfig]` | empty list | typed |
-| `harness` | `Literal["pi_core","claude","pi_agenta"]` | `"pi_core"` | enum |
+| `harness` | `Literal["pi_core","claude","codex"]` | `"pi_core"` | enum |
 | `sandbox` | `Literal["local","daytona"]` | `"local"` | enum |
 | `runner.permissions.default` | `Literal["allow","ask","deny","allow_reads"]` | `"allow_reads"` | enum, four modes |
 
@@ -218,8 +218,8 @@ Legend: (a) catalog/schema, (b) SDK neutral config, (c) runtime.
 | model / provider | yes, `model: str` | yes, `Optional[str]` | wired to the runner | Loose string. No `ModelRef`, no provider enum. There is no separate provider field. |
 | tools | yes, strict list | yes, lenient coercion | wired, resolved to builtin names + tool specs | Entries strict, list lenient. The shipped default template fills it with Pi's four default built-ins (`read`, `bash`, `edit`, `write`); see [Tools](tools.md). |
 | mcp_servers | yes, strict list | yes | wired, resolved to runner MCP servers | Strict per entry. Claude supports external HTTP servers; Pi refuses them until its bridge exists. |
-| skills | yes, embed/inline list | yes | wired | Author-settable (`SkillConfig` inline or `@ag.embed` references). The playground build-kit overlay embeds one skill, the `build-an-agent` playbook; the `pi_agenta` harness additionally force-unions `getting-started`. See below. |
-| persona | no | no | wired but forced only | Not a config field. The Agenta harness hardcodes an append-system preamble. See below. |
+| skills | yes, embed/inline list | yes | wired | Author-settable (`SkillConfig` inline or `@ag.embed` references). The playground build-kit overlay embeds one skill, the `build-an-agent` playbook. See below. |
+| persona | no | no | removed | Not a config field. It was the removed `pi_agenta` harness's hardcoded append-system preamble. See below. |
 | agents_md | yes, `agents_md: str` | yes, as `instructions` | wired to `agentsMd` | The schema names it `agents_md`. The neutral config names it `instructions`. |
 | harness | yes, enum | yes, on `AgentConfig` | wired, picks the harness class | Enum-enforced. The runtime validates via `make_harness`. |
 | sandbox | yes, enum | yes, on `AgentConfig` | wired to the backend, absent from `SessionConfig` | Backend concern, not agent identity. |
@@ -227,14 +227,11 @@ Legend: (a) catalog/schema, (b) SDK neutral config, (c) runtime.
 
 ## Notable gaps and quirks
 
-`persona` is not author config; it is a runtime injection of the Agenta harness only (a forced
-append-system string). `skills` used to work the same way, but is author config now: inline
-`SkillConfig` packages or `@ag.embed` references the backend inlines before the runner sees
-them. Two platform skills still arrive without the author writing anything: the playground
-build-kit overlay embeds the `build-an-agent` playbook, and the `pi_agenta` harness
-force-unions the `getting-started` skill (`AGENTA_FORCED_SKILLS` in
-`sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py`). Each is delivered exactly once.
-Pi (`pi_core`) and Claude harnesses get no forced skills or persona.
+`persona` is gone with the removed `pi_agenta` harness (it was that harness's forced
+append-system string). `skills` is author config: inline `SkillConfig` packages or
+`@ag.embed` references the backend inlines before the runner sees them. One platform skill
+still arrives without the author writing anything: the playground build-kit overlay embeds
+the `build-an-agent` playbook. No harness forces skills or a persona.
 
 Per-harness divergence is real in other ways, but not in permission enforcement anymore: the
 permission policy is now enforced on both Claude and Pi. Builtin tool names are dropped for

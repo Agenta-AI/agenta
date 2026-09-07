@@ -5,9 +5,11 @@
  * point and must survive any edit:
  *
  *  - **The card never moves the composer.** Every state renders into the same `CARD_MIN_H` box, and
- *    every slot holds its space whether or not it has content: the nav renders disabled at one
- *    question, the counter is tabular, and the error line is permanently mounted and merely empty.
- *    A `return null` on any branch, or a slot that only appears when filled, reintroduces the shift.
+ *    every slot holds its space whether or not it has content: the nav renders disabled on the first
+ *    and last question, the counter is tabular, and the error line is permanently mounted and merely
+ *    empty. A `return null` on any branch, or a slot that only appears when filled, reintroduces the
+ *    shift. The stepper cluster is decided by the FORM, not by the state, so a one-question form
+ *    drops it outright without ever moving mid-answer.
  *  - **It docks like its siblings.** It sits between `ApprovalDock` and `ConnectionDock`, in that
  *    order, because that is also the keyboard precedence (approval > elicitation > connect).
  *
@@ -387,7 +389,11 @@ const LiveCard = ({
             tabIndex={-1}
             role="group"
             aria-label={
-                step ? `Question ${stepper.position} of ${stepper.total}` : "Review answers"
+                !step
+                    ? "Review answers"
+                    : stepper.isMultiStep
+                      ? `Question ${stepper.position} of ${stepper.total}`
+                      : "Question"
             }
             onKeyDownCapture={onKeyDown}
             onPointerDownCapture={stepper.cancelHold}
@@ -396,26 +402,31 @@ const LiveCard = ({
         >
             <Eyebrow label={askerLabel}>
                 <div className="ml-auto flex items-center gap-0.5">
-                    <NavButton
-                        label="Previous question"
-                        disabled={!stepper.canGoBack}
-                        onClick={stepper.back}
-                    >
-                        <CaretLeft size={11} />
-                    </NavButton>
-                    <span
-                        aria-live="polite"
-                        className="min-w-[26px] text-center text-[11px] tabular-nums text-colorTextTertiary"
-                    >
-                        {stepper.position}/{stepper.total}
-                    </span>
-                    <NavButton
-                        label="Next question"
-                        disabled={!stepper.canGoForward}
-                        onClick={stepper.forward}
-                    >
-                        <CaretRight size={11} />
-                    </NavButton>
+                    {/* Fixed for the card's life, so hiding it shifts nothing mid-answer. */}
+                    {stepper.isMultiStep ? (
+                        <>
+                            <NavButton
+                                label="Previous question"
+                                disabled={!stepper.canGoBack}
+                                onClick={stepper.back}
+                            >
+                                <CaretLeft size={11} />
+                            </NavButton>
+                            <span
+                                aria-live="polite"
+                                className="min-w-[26px] text-center text-[11px] tabular-nums text-colorTextTertiary"
+                            >
+                                {stepper.position}/{stepper.total}
+                            </span>
+                            <NavButton
+                                label="Next question"
+                                disabled={!stepper.canGoForward}
+                                onClick={stepper.forward}
+                            >
+                                <CaretRight size={11} />
+                            </NavButton>
+                        </>
+                    ) : null}
                     <Button
                         variant="ghost"
                         size="icon-sm"
@@ -431,16 +442,18 @@ const LiveCard = ({
                 </div>
             </Eyebrow>
 
-            <div className="flex gap-1" aria-hidden>
-                {steps.map((candidate, index) => (
-                    <span
-                        key={candidate.name}
-                        className={`h-0.5 flex-1 rounded-full ${
-                            index < stepper.position ? "bg-colorText" : "bg-colorFillTertiary"
-                        }`}
-                    />
-                ))}
-            </div>
+            {stepper.isMultiStep ? (
+                <div className="flex gap-1" aria-hidden>
+                    {steps.map((candidate, index) => (
+                        <span
+                            key={candidate.name}
+                            className={`h-0.5 flex-1 rounded-full ${
+                                index < stepper.position ? "bg-colorText" : "bg-colorFillTertiary"
+                            }`}
+                        />
+                    ))}
+                </div>
+            ) : null}
 
             {/* pb-1 so the control does not sit flush against the actions; the card's own gap
                 alone read as cramped under a field. */}
@@ -450,7 +463,10 @@ const LiveCard = ({
                 ) : step ? (
                     <>
                         <span className="text-[13px] font-medium leading-tight line-clamp-2">
-                            <span className="text-colorText">{stepper.position}.</span> {step.label}
+                            {stepper.isMultiStep ? (
+                                <span className="text-colorText">{stepper.position}. </span>
+                            ) : null}
+                            {step.label}
                             {step.hint ? (
                                 <span className="font-normal text-colorTextQuaternary">
                                     {" "}

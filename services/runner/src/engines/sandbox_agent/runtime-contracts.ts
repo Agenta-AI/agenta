@@ -19,6 +19,7 @@ import { createAcpFetch } from "./acp-fetch.ts";
 import { type ParkedApprovalGateType } from "./acp-interactions.ts";
 import { signAgentMountCredentials } from "./agent-mount.ts";
 import { probeCapabilities } from "./capabilities.ts";
+import { awaitCredentialSubstitution } from "./credential-preflight.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { createCookieFetch, prepareDaytonaPiAssets } from "./daytona.ts";
@@ -65,6 +66,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   prepareDaytonaPiAssets?: typeof prepareDaytonaPiAssets;
   uploadToolMcpAssets?: typeof uploadToolMcpAssets;
   probeCapabilities?: typeof probeCapabilities;
+  awaitCredentialSubstitution?: typeof awaitCredentialSubstitution;
   applyModel?: typeof applyModel;
   applyCodexMode?: typeof applyCodexMode;
   startToolRelay?: typeof startToolRelay;
@@ -188,12 +190,18 @@ export interface RunTurnOptions {
   continuation?: boolean;
   /**
    * The session was rehydrated via `session/load` (the patched `resumeSession`), so the harness
-   * already holds the prior turns natively. Like `continuation`, the prompt is only the new user
-   * text; `buildTurnText` must not run. Distinct field from `continuation` because the two arrive
-   * through different acquire paths (live pool checkout vs a fresh cold acquire that loaded an
-   * old session) — `runTurn` treats them identically for the text-selection decision.
+   * accepted the prior native session id. This is deliberately weaker than proof that prior turns
+   * were replayed; `nativeHistoryVerified` supplies that proof. Distinct from `continuation`
+   * because the two arrive through different acquire paths (live pool checkout vs a fresh cold
+   * acquire that attempted to load an old session).
    */
   loaded?: boolean;
+  /**
+   * The native load produced observable prior-message events. `loaded` alone only proves the
+   * adapter accepted the requested id; without this proof the reconstructed transcript remains
+   * authoritative and must be replayed.
+   */
+  nativeHistoryVerified?: boolean;
   /**
    * Keep-alive approval park mode: on a parkable ACP permission gate the pause keeps the session
    * alive (no settle/abort/destroy) so a later resume can answer it. A non-parkable pause (Pi
@@ -209,15 +217,25 @@ export interface RunTurnOptions {
     decisions: ResumeApprovalInput[];
     carriedForward: ParkedApproval[];
   };
+  /**
+   * Settle the parked gate first, then send this request's fresh user tail as a normal prompt on
+   * the same warm session. Unlike `resume`, this does not make the old prompt the request's turn:
+   * its decision is context for the new prompt rather than the turn's terminal interaction.
+   */
+  settleApprovalsThenPrompt?: {
+    decisions: ResumeApprovalInput[];
+  };
 }
 
 /**
  * Send only the new user text (not the full cold transcript) when the harness already holds the
- * prior turns: a live continuation, or a session rehydrated via `session/load`. `runTurn` calls
- * this, so a test that pins it pins the shipped decision.
+ * prior turns: a live continuation, or a `session/load` that emitted observable prior-message
+ * events. `runTurn` calls this, so a test that pins it pins the shipped decision.
  */
 export function sendLastMessageOnly(opts: RunTurnOptions): boolean {
-  return Boolean(opts.continuation || opts.loaded);
+  return Boolean(
+    opts.continuation || (opts.loaded && opts.nativeHistoryVerified),
+  );
 }
 
 /**
@@ -273,10 +291,18 @@ export interface SessionEnvironment {
   commitApplied: (result: {
     configFingerprint: string;
     facets: FacetDigests;
+    fieldDigests: Record<string, string>;
   }) => void;
   plan: RunPlan;
   logger: Log;
   deps: SandboxAgentDeps;
+  /**
+   * Set once this environment's sandbox is known to be gone, by the ACP transport that talks to
+   * it. A remote provider answers for a deleted sandbox instead of refusing the socket, so this
+   * report is often the only evidence of the death that arrives at all. `run-turn.ts` hands the
+   * latch to the liveness probe, which is what ends the turn. See `sandbox-gone.ts`.
+   */
+  sandboxGone?: import("./sandbox-gone.ts").SandboxGoneLatch;
   sandbox: any;
   session: any;
   sessionId: string;
@@ -308,8 +334,22 @@ export interface SessionEnvironment {
   projectScopeId?: string;
   /** This acquire resumed the harness's native session via `session/load` (not cold). */
   loadedFromContinuity: boolean;
+  /** The load emitted at least one prior conversation event, proving native history is present. */
+  nativeHistoryVerified: boolean;
+  /** The native transcript path survives this environment's teardown and a later cold rebuild. */
+  nativeHistoryDurable: boolean;
   /** A remote, session-owned run whose sandbox can be parked (warm) rather than deleted at end. */
   resumable: boolean;
+  /**
+   * When this sandbox's MODEL credential was delivered as a Daytona Secret (epoch millis), set
+   * only on a fresh create. Undefined for a plaintext-env run, a reconnect, and every local run.
+   *
+   * Read by the 401 classifier: Daytona applies a new Secret's substitution rule asynchronously,
+   * so a refusal shortly after delivery is the propagation race rather than a bad key. The
+   * timestamp is what keeps that reading honest — a warm sandbox's turn an hour later gets the
+   * ordinary auth advice, because by then the placeholder explanation is no longer available.
+   */
+  modelSecretDeliveredAt?: number;
   /** The conversation turn index this acquire's continuity record was read/written at. */
   continuityTurnIndex: number | undefined;
   // Mutable teardown/turn state shared across acquire, runTurn, and destroy.
@@ -387,4 +427,16 @@ export interface SessionEnvironment {
 
 export type AcquireEnvironmentResult =
   | { ok: true; env: SessionEnvironment }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /**
+       * The preflight proved this sandbox never got its Secret substitution wiring (the fault
+       * is binary per sandbox and permanent — see credential-preflight.ts). The environment is
+       * already destroyed; the acquire wrapper rebuilds a fresh sandbox on the SAME Secret,
+       * which is the case Daytona support confirmed works. The Secret lease that makes the
+       * rebuild possible never reaches this type: it is internal to the acquire loop, which
+       * owns it for the whole run and releases it before returning. See `AcquireAttemptResult`.
+       */
+      stuckSubstitution?: boolean;
+    };

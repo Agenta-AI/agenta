@@ -95,7 +95,6 @@ export const SessionListCard = ({
 
     return (
         <PanelSection
-            sticky
             variant="page"
             title={title}
             minHeightClassName={minHeightClassName}

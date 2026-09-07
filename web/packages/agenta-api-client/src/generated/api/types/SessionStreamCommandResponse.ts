@@ -8,4 +8,5 @@ export interface SessionStreamCommandResponse {
     turn_id?: (string | null) | undefined;
     watcher_id?: (string | null) | undefined;
     detached?: boolean | undefined;
+    cancelled_turn_ids?: string[] | undefined;
 }

@@ -33,8 +33,7 @@ import type { AgentRunRequest } from "../protocol.ts";
 import { applyModel } from "../engines/sandbox_agent/model.ts";
 import { resolveSkillDirs } from "../engines/skills.ts";
 import type { SessionEnvironment } from "../engines/sandbox_agent/runtime-contracts.ts";
-import { normalizeDesiredState } from "../lifecycle/desired-state.ts";
-import { configFingerprint } from "../engines/sandbox_agent/session-identity.ts";
+import { appliedResultForRequest } from "../engines/sandbox_agent/applied-state.ts";
 import type { ReconcilePlan } from "../lifecycle/reconcile-plan.ts";
 import { refresh, type WorkspaceInventory } from "./workspace-manager.ts";
 import { carriesMinimalHistory } from "../engines/sandbox_agent/session-identity.ts";
@@ -89,7 +88,9 @@ export async function applyReconcilePlan(
           // No inventory means this environment never recorded what it wrote, so a refresh
           // cannot know what to delete. Refuse rather than write-without-deleting: a stale skill
           // left readable is the failure this route exists to prevent.
-          log("live-route: no workspace inventory recorded; cannot refresh safely");
+          log(
+            "live-route: no workspace inventory recorded; cannot refresh safely",
+          );
           return false;
         }
         // The desired content comes from the INCOMING request. Reading it from `env.plan` would
@@ -162,7 +163,9 @@ export async function applyReconcilePlan(
         // the conversation could not survive, so a refusal leaves the live session running and
         // the caller rebuilds from a clean state.
         if (!env.reopenSession) {
-          log("live-route: this environment cannot reopen its session; rebuilding");
+          log(
+            "live-route: this environment cannot reopen its session; rebuilding",
+          );
           return false;
         }
         const result = await env.reopenSession({
@@ -178,6 +181,17 @@ export async function applyReconcilePlan(
       }
 
       case "apply-live": {
+        if (action.facet !== "model") {
+          // `apply-live` names an OPERATION, not a target: the plan says which facet asked for
+          // it, and the model is the only one this applier knows how to install live. A future
+          // plan that routes another facet here (the credential plan is the expected first) must
+          // fail into a rebuild, not have its change silently installed as a model (audit
+          // finding 7).
+          log(
+            `live-route: no live applier for facet '${action.facet}'; rebuilding`,
+          );
+          return false;
+        }
         // The only live session-level operation: `setModel` on the running session. Strict, so a
         // model the harness will not accept throws here and the whole plan fails rather than
         // silently leaving the session on its previous model while we report the new one.
@@ -207,11 +221,7 @@ export async function applyReconcilePlan(
 
   // EVERY action succeeded. Only now may the environment claim the new configuration, and this
   // is the single call that lets it. See "THE ONE RULE" above.
-  const fingerprint = configFingerprint(request);
-  env.commitApplied({
-    configFingerprint: fingerprint,
-    facets: normalizeDesiredState(request, fingerprint).digests,
-  });
+  env.commitApplied(appliedResultForRequest(request));
   return true;
 }
 

@@ -23,6 +23,7 @@ import {PlaygroundModeSwitch} from "@agenta/playground-ui/mode-switch"
 import {textColors} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {VersionBadge} from "@agenta/ui/components/presentational"
+import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {
     Button,
     DropdownMenu,
@@ -850,6 +851,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 )}
+                                <ShortcutsHelpButton className="h-8 w-8 shrink-0 p-0" />
                             </>
                         )}
                     </>

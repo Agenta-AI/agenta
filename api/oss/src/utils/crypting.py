@@ -7,12 +7,14 @@ derived to a Fernet key via SHA-256 + base64url encoding.
 
 import base64
 import hashlib
+from functools import lru_cache
 
 from cryptography.fernet import Fernet, InvalidToken
 
 from oss.src.utils.env import env
 
 
+@lru_cache(maxsize=1)
 def _get_fernet() -> Fernet:
     crypt_key = env.agenta.crypt_key
     if not crypt_key:

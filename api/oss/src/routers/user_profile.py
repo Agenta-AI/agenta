@@ -43,12 +43,12 @@ async def user_profile(request: Request):
     if user is not None:
         return user
 
-    user = await db_manager.get_user_with_id(user_id=request.state.user_id)
-
-    if user is None:
+    try:
+        user = await db_manager.get_user_with_id(user_id=request.state.user_id)
+    except NoResultFound:
         raise HTTPException(
             status_code=404,
-            detail="User not found. Please ensure that the user_id is specified correctly."
+            detail="User not found. Please ensure that the user_id is specified correctly.",
         )
 
     # Fall back to created_at if no update has occurred
@@ -179,14 +179,9 @@ async def reset_user_password(request: Request, user_id: str):
             admin_user_id=request.state.user_id,
             caller_org_id=str(request.state.organization_id),
         )
-    except PermissionError:
+    except (PermissionError, NoResultFound):
         return JSONResponse(
             {"detail": "You do not have permission to reset this user's password."},
             status_code=403,
-        )
-    except NoResultFound:
-        return JSONResponse(
-            {"detail": "The specified user was not found."},
-            status_code=404,
         )
     return user_password

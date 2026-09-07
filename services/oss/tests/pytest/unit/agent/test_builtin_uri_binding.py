@@ -73,7 +73,7 @@ def test_harness_capabilities_live_in_the_catalog_not_inspect_meta():
     # for agent vs non-agent). They live in the `harnesses` catalog, keyed by harness, with
     # `capabilities` as a field. The frontend resolves them via `x-ag-harness-ref`.
     doc = harness_catalog_document()
-    assert set(doc) == {"pi_core", "pi_agenta", "claude", "codex"}
+    assert set(doc) == {"pi_core", "claude", "codex"}
     # Each record is {harness, capabilities: {...}}; claude reaches anthropic, Pi per-provider.
     assert doc["claude"]["harness"] == "claude"
     assert doc["claude"]["capabilities"]["models"]["anthropic"]

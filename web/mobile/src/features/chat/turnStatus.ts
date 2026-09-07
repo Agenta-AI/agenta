@@ -1,3 +1,8 @@
+import {deriveRemoteTurnPresentation} from "@agenta/chat/model"
+
+/** Mobile presentation for a remote/shared-path run. */
+export const deriveMobileRemoteTurnPresentation = deriveRemoteTurnPresentation
+
 /**
  * Should the trailing status line show the working pulse?
  *

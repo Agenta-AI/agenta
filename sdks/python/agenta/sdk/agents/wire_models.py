@@ -344,6 +344,13 @@ class WireGatewayIntegration(_WireModel):
     tools: Dict[str, WireGatewayTool] = Field(default_factory=dict)
 
 
+class WireGatewayGuidance(_WireModel):
+    """The derived gateway-tools instruction section (``gatewayGuidance`` on the request)."""
+
+    text: str
+    carrier: Literal["appendSystemPrompt", "agentsMd"]
+
+
 class WireGatewayPolicy(_WireModel):
     """The private compiled gateway policy (``gatewayPolicy`` on the request).
 
@@ -501,7 +508,7 @@ class WireRunRequest(_WireModel):
 
     Every field is optional on the wire (the contract is implicitly all-optional), so the schema
     expresses "optional" while the producer's omit-when-empty behavior stays in ``wire.py`` and
-    is pinned by the golden fixtures. The harness selects the agent (``pi_core`` / ``pi_agenta``
+    is pinned by the golden fixtures. The harness selects the agent (``pi_core``
     / ``claude``); there is no engine selector on the wire (A3 removed the legacy backend).
     """
 
@@ -510,6 +517,7 @@ class WireRunRequest(_WireModel):
     harness: Optional[str] = None
     sandbox: Optional[str] = None
     session_id: Optional[str] = Field(default=None, alias="sessionId")
+    detached: Optional[bool] = None
     # Session-owned (detached) turn identity: the runner uses these to own the alive lock and
     # persist the transcript independently of any client connection. Omitted on ad-hoc runs.
     turn_id: Optional[str] = Field(default=None, alias="turnId")
@@ -554,6 +562,12 @@ class WireRunRequest(_WireModel):
     # derived tools read the same table. Omitted when the agent configures no connection.
     gateway_policy: Optional[WireGatewayPolicy] = Field(
         default=None, alias="gatewayPolicy"
+    )
+    # The derived gateway-tools guidance and its prompt carrier. Its own field so the runner
+    # splices it at environment build and the session fingerprint can exclude it (an integration
+    # add must not evict a warm session). Omitted when the agent configures no connection.
+    gateway_guidance: Optional[WireGatewayGuidance] = Field(
+        default=None, alias="gatewayGuidance"
     )
     system_prompt: Optional[str] = Field(default=None, alias="systemPrompt")
     append_system_prompt: Optional[str] = Field(

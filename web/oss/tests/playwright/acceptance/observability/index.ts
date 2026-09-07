@@ -254,7 +254,7 @@ const observabilityTests = () => {
             )
 
             // Use the search input to filter by content
-            const searchInput = page.getByRole("searchbox").first()
+            const searchInput = page.getByLabel("Search observability data")
             await expect(searchInput).toBeVisible({timeout: 10000})
 
             // Typing a search term narrows the table; press Enter to apply
@@ -302,6 +302,11 @@ const observabilityTests = () => {
                 // Click the first data row to open the trace drawer. The virtual table body
                 // does not expose stable cell tags, but the row click handler is the behavior
                 // users rely on.
+                const selectedSpanName = await getFirstTraceRow(page)
+                    .locator("span[title]")
+                    .first()
+                    .getAttribute("title")
+                expect(selectedSpanName).toBeTruthy()
                 await clickFirstTraceRow(page)
 
                 // TraceDrawer renders through EnhancedDrawer, a facade over the @agenta/ui
@@ -315,10 +320,12 @@ const observabilityTests = () => {
                 const treeSearchInput = drawer.getByPlaceholder("Search in tree")
                 await expect(treeSearchInput).toBeVisible({timeout: 10000})
 
-                // Each span in the tree renders a square avatar (AvatarTreeContent → antd Avatar
-                // shape="square"). At least one confirms the tree has nodes.
-                const spanAvatar = drawer.locator(".ant-avatar-square").first()
-                await expect(spanAvatar).toBeVisible({timeout: 10000})
+                await expect(
+                    drawer
+                        .getByTestId("trace-tree")
+                        .getByText(selectedSpanName!, {exact: true})
+                        .first(),
+                ).toBeVisible({timeout: 10000})
             },
         )
     })
@@ -336,33 +343,24 @@ const observabilityTests = () => {
                 testProviderHelpers,
             )
 
-            // The three trace-type tabs are AntD Radio.Buttons: Root | LLM | All
-            const rootTab = page
-                .locator(".ant-radio-button-wrapper")
-                .filter({hasText: "Root"})
-                .first()
-            const llmTab = page
-                .locator(".ant-radio-button-wrapper")
-                .filter({hasText: "LLM"})
-                .first()
-            const allTab = page
-                .locator(".ant-radio-button-wrapper")
-                .filter({hasText: "All"})
-                .first()
+            const traceProjection = page.getByRole("radiogroup", {name: "Trace projection"})
+            const rootTab = traceProjection.getByRole("radio", {name: "Root", exact: true})
+            const llmTab = traceProjection.getByRole("radio", {name: "LLM", exact: true})
+            const allTab = traceProjection.getByRole("radio", {name: "All", exact: true})
 
             await expect(rootTab).toBeVisible({timeout: 10000})
 
             // Switch to LLM
             await llmTab.click()
-            await expect(llmTab).toHaveClass(/ant-radio-button-wrapper-checked/, {timeout: 5000})
+            await expect(llmTab).toBeChecked({timeout: 5000})
 
             // Switch to All
             await allTab.click()
-            await expect(allTab).toHaveClass(/ant-radio-button-wrapper-checked/, {timeout: 5000})
+            await expect(allTab).toBeChecked({timeout: 5000})
 
             // Switch back to Root
             await rootTab.click()
-            await expect(rootTab).toHaveClass(/ant-radio-button-wrapper-checked/, {timeout: 5000})
+            await expect(rootTab).toBeChecked({timeout: 5000})
         },
     )
 

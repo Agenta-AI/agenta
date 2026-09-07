@@ -33,11 +33,16 @@ import {transcriptToMessages} from "./transcriptToMessages"
 export interface SessionTranscript {
     messages: UIMessage[]
     /**
-     * How many durable records this transcript was built from. The log is append-only and ordered,
-     * so this is an EXACT "has the server moved on?" watermark — unlike a message count, which
-     * `transcriptToMessages` deliberately holds flat while a turn grows (issue #5530).
+     * How many durable records this transcript was built from. This remains distinct from the
+     * sequence cursor because retention can hold the row count flat while the log moves forward.
      */
     recordCount: number
+    /**
+     * Highest durable sequence covered by this transcript. Undefined for legacy, unsequenced logs.
+     * Snapshot hydration supplies its authoritative upper bound even when retention or filtered
+     * records make the visible sequence values sparse.
+     */
+    sequenceCursor?: number
     /**
      * The interaction lifecycle rows this transcript was replayed against (#5942). Records never
      * carry a row's later lifecycle, so this is the only place the adoption guard can see whether
@@ -45,6 +50,25 @@ export interface SessionTranscript {
      * the session has no rows; the two cases are indistinguishable here.
      */
     interactionRows?: SessionInteractionRowStates
+}
+
+/** Runtime boundary for watch callbacks and best-effort transcript reads. */
+export const isSessionTranscript = (value: unknown): value is SessionTranscript => {
+    if (!value || typeof value !== "object") return false
+    const candidate = value as Partial<SessionTranscript>
+    return (
+        Array.isArray(candidate.messages) &&
+        typeof candidate.recordCount === "number" &&
+        Number.isFinite(candidate.recordCount) &&
+        (candidate.sequenceCursor === undefined ||
+            (typeof candidate.sequenceCursor === "number" &&
+                Number.isFinite(candidate.sequenceCursor)))
+    )
+}
+
+const sequenceCursorForRecords = (records: {sequence?: number | null}[]): number | undefined => {
+    const cursor = records.reduce((latest, record) => Math.max(latest, record.sequence ?? 0), 0)
+    return cursor || undefined
 }
 
 export const loadSessionMessages = async (
@@ -72,6 +96,7 @@ export const loadSessionMessages = async (
                         onRefreshed({
                             messages: freshMsgs,
                             recordCount: fresh.length,
+                            sequenceCursor: sequenceCursorForRecords(fresh),
                             interactionRows: interactionRowStates,
                         })
                     }
@@ -86,7 +111,12 @@ export const loadSessionMessages = async (
         if (!records || records.length === 0) return null
         const messages = transcriptToMessages(records, {interactionRowStates})
         return messages
-            ? {messages, recordCount: records.length, interactionRows: interactionRowStates}
+            ? {
+                  messages,
+                  recordCount: records.length,
+                  sequenceCursor: sequenceCursorForRecords(records),
+                  interactionRows: interactionRowStates,
+              }
             : null
     } catch (err) {
         console.warn("[loadSessionMessages] hydration fetch failed:", err)

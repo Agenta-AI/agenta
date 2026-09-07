@@ -16,6 +16,7 @@ import {
   type SandboxExec,
   type SignMountDeps,
 } from "./mount.ts";
+import { throwIfAcquireAborted } from "../../environment/acquire-abort.ts";
 
 export const AGENT_MOUNT_ENV_VAR = "AGENTA_AGENT_MOUNT_DIR";
 export const AGENT_README_NAME = "README.md";
@@ -47,6 +48,10 @@ export async function signAgentMountCredentials(
 ): Promise<MountCredentials | null> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
+  const timeoutSignal = AbortSignal.timeout(10_000);
+  const signal = deps.signal
+    ? AbortSignal.any([deps.signal, timeoutSignal])
+    : timeoutSignal;
   const url = `${deps.apiBase}/mounts/agents/sign?artifact_id=${encodeURIComponent(artifactId)}&name=${encodeURIComponent(name)}`;
   try {
     const res = await doFetch(url, {
@@ -57,7 +62,7 @@ export async function signAgentMountCredentials(
       },
       // Bound the sign so a hung endpoint fails open (null mount) instead of
       // stalling environment acquisition on the agent mount forever.
-      signal: AbortSignal.timeout(10_000),
+      signal,
     });
     if (!res.ok) {
       log(
@@ -98,6 +103,7 @@ export async function signAgentMountCredentials(
           : undefined,
     };
   } catch (err) {
+    throwIfAcquireAborted(deps.signal);
     log(
       `sign failed artifact=${artifactId}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
     );

@@ -140,7 +140,7 @@ OPTIONAL_SERVICES=(web-mobile)
 # Filled in by patch_commit_images / deploy_all for the run summary.
 MISSING_SERVICES=""
 
-Q_ENV_SERVICES='query($id: String!) { environment(id: $id) { serviceInstances { edges { node { serviceId serviceName source { image } latestDeployment { status } domains { serviceDomains { domain } } } } } } }'
+Q_ENV_SERVICES='query($id: String!) { environment(id: $id) { serviceInstances { edges { node { serviceId serviceName source { image } latestDeployment { id status } domains { serviceDomains { domain } } } } } } }'
 Q_ENVS='query($p: String!) { environments(projectId: $p, first: 100) { edges { node { id name } } } }'
 M_ENV_CREATE='mutation($in: EnvironmentCreateInput!) { environmentCreate(input: $in) { id name } }'
 M_DEPLOY='mutation($e: String!, $s: String!) { serviceInstanceDeployV2(environmentId: $e, serviceId: $s) }'
@@ -287,6 +287,12 @@ clone_service_status() {
         <<<"$CLONE_SERVICES_JSON" | head -n1
 }
 
+clone_service_deployment_id() {
+    jq -r --arg n "$1" \
+        '.data.environment.serviceInstances.edges[].node | select(.serviceName == $n) | .latestDeployment.id // ""' \
+        <<<"$CLONE_SERVICES_JSON" | head -n1
+}
+
 clone_service_image() {
     jq -r --arg n "$1" \
         '.data.environment.serviceInstances.edges[].node | select(.serviceName == $n) | .source.image // ""' \
@@ -381,12 +387,23 @@ dump_failed_service_logs() {
 
 # wait_services_success <timeout-seconds> <service...>
 # Returns 0 when every service is SUCCESS, 2 when a service ends FAILED or
-# CRASHED (terminal — retrying the wait is pointless), 1 on timeout. alembic
-# is a one-shot: an exited container may report SLEEPING/REMOVED, accepted for
-# alembic only.
+# CRASHED for good, 1 on timeout. alembic is a one-shot: an exited container
+# may report SLEEPING/REMOVED, accepted for alembic only.
+#
+# A terminal state is retried once per service (RW_DEPLOY_RETRIES) before it
+# fails the run. Railway drops a deployment now and then and marks it FAILED
+# within ~15s with no build logs and no deploy logs, i.e. it never scheduled
+# the container; redeploying the same image then goes green. A dropped infra
+# deployment also takes its dependants down: when redis was dropped in a fresh
+# clone, both workers ended CRASHED behind it. Losing one deployment out of the
+# six to nine a clone starts at once killed the whole run, so retry once. A
+# service that is genuinely broken fails its retry too and still stops the run.
 wait_services_success() {
     local timeout="$1"; shift
     local waited=0 interval="${RW_POLL_INTERVAL:-15}" svc st all_ok
+    local max_retries="${RW_DEPLOY_RETRIES:-1}" dep_id
+    declare -A retried=()   # service -> redeploys issued
+    declare -A acted_on=()  # service -> deployment id already redeployed
     while :; do
         refresh_clone_services || return 1
         all_ok=1
@@ -396,7 +413,23 @@ wait_services_success() {
                 SUCCESS) : ;;
                 SLEEPING | REMOVED) [ "$svc" = "alembic" ] || all_ok=0 ;;
                 FAILED | CRASHED)
-                    printf "Service '%s' deployment ended %s.\n" "$svc" "$st" >&2
+                    dep_id="$(clone_service_deployment_id "$svc")"
+                    # The redeploy is already in flight; Railway has not yet
+                    # replaced latestDeployment. Keep waiting.
+                    if [ -n "$dep_id" ] && [ "${acted_on[$svc]:-}" = "$dep_id" ]; then
+                        all_ok=0
+                        continue
+                    fi
+                    if [ "${retried[$svc]:-0}" -lt "$max_retries" ]; then
+                        retried[$svc]=$(( ${retried[$svc]:-0} + 1 ))
+                        acted_on[$svc]="$dep_id"
+                        printf "Service '%s' deployment ended %s; redeploying (attempt %s of %s).\n" \
+                            "$svc" "$st" "${retried[$svc]}" "$max_retries" >&2
+                        deploy_service "$svc" || return 1
+                        all_ok=0
+                        continue
+                    fi
+                    printf "Service '%s' deployment ended %s after %s retry(ies).\n" "$svc" "$st" "$max_retries" >&2
                     dump_failed_service_logs "$svc"
                     return 2 ;;
                 *) all_ok=0 ;;
@@ -502,8 +535,8 @@ deploy_all() {
         fi
     done
     # A single Postgres first-deploy timeout in a fresh clone is transient
-    # (volume provisioning); retry the deploy once. Terminal FAILED/CRASHED
-    # (rc=2) is not retried.
+    # (volume provisioning); retry the deploy once. A FAILED/CRASHED Postgres
+    # already got its redeploy inside the wait, so rc=2 here is terminal.
     wait_services_success "${RW_INFRA_WAIT_SECONDS:-420}" Postgres && rc=0 || rc=$?
     if [ "$rc" -eq 1 ]; then
         printf 'Postgres first deploy timed out once; retrying the deploy (single retry).\n' >&2

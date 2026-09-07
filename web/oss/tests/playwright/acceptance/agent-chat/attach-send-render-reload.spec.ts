@@ -38,11 +38,12 @@ const IMAGE = Buffer.from(
 test(
     "an uploaded attachment renders after send and after reload",
     {tag: tags},
-    async ({page, seedAgentChatApp, navigateToAgentPlayground}) => {
+    async ({page, seedAgentChatApp, navigateToAgentPlayground, testProviderHelpers}) => {
         // API seeding + 2 navigations + file upload + SSE-mocked run + reload is heavier
         // than the 60s default (siblings that do less than this already bump to 120s+, #5695).
         test.setTimeout(120000)
         await expectAuthenticatedSession(page)
+        await testProviderHelpers.ensureTestProvider()
         const appId = await seedAgentChatApp()
         await navigateToAgentPlayground(appId)
 
@@ -62,7 +63,9 @@ test(
         })
 
         const composer = page.getByRole("textbox").last()
-        await page.getByRole("button", {name: "Attach files"}).click()
+        const attachButton = page.getByRole("button", {name: "Attach files"})
+        await expect(attachButton).toBeEnabled()
+        await attachButton.click()
 
         const uploadResponsePromise = page.waitForResponse((response) => {
             const url = new URL(response.url())

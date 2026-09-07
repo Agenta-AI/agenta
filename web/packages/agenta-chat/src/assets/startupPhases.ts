@@ -1,5 +1,8 @@
+// In the order the runner emits them; create_session alone is ~78% of a cold start.
 const STARTUP_LABELS = {
     environment_starting: "Starting the agent",
+    preparing_workspace: "Preparing the workspace",
+    opening_session: "Opening the agent session",
     environment_ready: "Agent ready",
 } as const
 

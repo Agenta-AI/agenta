@@ -6,7 +6,7 @@ import {
     type InfiniteDatasetStore,
 } from "@agenta/ui/table"
 import {atom, useAtom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {effectiveProjectIdAtom} from "./atoms/run"
 import type {WindowingState, EvaluationScenarioRow} from "./atoms/table"

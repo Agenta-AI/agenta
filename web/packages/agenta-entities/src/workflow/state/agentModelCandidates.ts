@@ -40,6 +40,8 @@ interface CandidateSourceState {
     capabilitiesError?: unknown
     subscriptionStatus?: SubscriptionStatusResponse | null
     subscriptionSettled: boolean
+    /** The subscription check could not be MADE (rejected request), as opposed to answering "none". */
+    subscriptionError?: unknown
     pairModelSelection?: Record<string, string[] | undefined> | null
     showSubscriptions: boolean
 }
@@ -51,6 +53,7 @@ export const resolveAgentModelCandidateSources = ({
     capabilitiesError,
     subscriptionStatus,
     subscriptionSettled,
+    subscriptionError,
     pairModelSelection,
     showSubscriptions,
 }: CandidateSourceState): AgentModelCandidatesState => {
@@ -65,7 +68,8 @@ export const resolveAgentModelCandidateSources = ({
             error,
         }
     }
-    if (showSubscriptions && !subscriptionSettled) {
+    // A failed check never blocks on itself: fall through and answer from the vault alone.
+    if (showSubscriptions && !subscriptionSettled && !subscriptionError) {
         return {status: "loading", candidates: [], connections, capabilities, error: null}
     }
 
@@ -80,6 +84,29 @@ export const resolveAgentModelCandidateSources = ({
         subscriptionPairs,
         pairModelSelection,
     })
+
+    // A check we could not MAKE is not a deployment with no subscription. Reading a rejected
+    // request as "no pairs" turns an unreachable runner into "you have no runnable model", and the
+    // gate that follows tells the user to add a provider key the agent may not even use.
+    //
+    // It only matters when nothing else is runnable: with vault candidates in hand the gate's
+    // question is already answered yes, and the pairs we could not read would have added more, not
+    // fewer. So report the failure only in the case where it changes the answer, and let the gate
+    // stand down there rather than blocking the composer on a claim we never established.
+    if (
+        showSubscriptions &&
+        subscriptionStatus === undefined &&
+        subscriptionError &&
+        candidates.length === 0
+    ) {
+        return {
+            status: "error",
+            candidates: [],
+            connections,
+            capabilities,
+            error: subscriptionError,
+        }
+    }
     return {status: "ready", candidates, connections, capabilities, error: null}
 }
 
@@ -100,8 +127,11 @@ export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boo
                     ? harnessCatalog.error
                     : undefined,
             subscriptionStatus: subscription?.data,
-            subscriptionSettled:
-                !showSubscriptions || subscription?.data !== undefined || !!subscription?.isError,
+            subscriptionSettled: !showSubscriptions || subscription?.data !== undefined,
+            subscriptionError:
+                subscription?.data === undefined && subscription?.isError
+                    ? subscription.error
+                    : undefined,
             pairModelSelection: showSubscriptions ? get(subscriptionPairModelsAtom) : null,
             showSubscriptions,
         })
@@ -163,8 +193,9 @@ export async function loadAgentModelCandidates({
                       staleTime: 10_000,
                       retry: false,
                   })
-                  .catch(() => null)
-            : Promise.resolve(null),
+                  .then((data) => ({data, error: undefined}))
+                  .catch((error: unknown) => ({data: undefined, error}))
+            : Promise.resolve({data: null, error: undefined}),
     ])
 
     return resolveAgentModelCandidateSources({
@@ -172,8 +203,9 @@ export async function loadAgentModelCandidates({
         vaultError: vault.error,
         capabilities: capabilities.data,
         capabilitiesError: capabilities.error,
-        subscriptionStatus: subscription,
-        subscriptionSettled: true,
+        subscriptionStatus: subscription.data,
+        subscriptionSettled: subscription.data !== undefined,
+        subscriptionError: subscription.error,
         pairModelSelection,
         showSubscriptions,
     })

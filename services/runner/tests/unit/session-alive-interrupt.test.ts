@@ -12,7 +12,9 @@ import assert from "node:assert/strict";
 const fetchCalls: Array<{ url: string; body: unknown }> = [];
 let nextIsCurrentTurn: boolean | undefined = true;
 
-vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+/** The default heartbeat fake. Re-stubbed per test, because the fail-open cases replace it and
+ * `vi.restoreAllMocks` does not undo a `vi.stubGlobal`. */
+const recordingFetch = async (url: string, init?: RequestInit) => {
   const body = init?.body ? JSON.parse(init.body as string) : undefined;
   fetchCalls.push({ url, body });
   const payload: Record<string, unknown> = { ok: true };
@@ -20,7 +22,9 @@ vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
     payload.is_current_turn = nextIsCurrentTurn;
   }
   return new Response(JSON.stringify(payload), { status: 200 });
-});
+};
+
+vi.stubGlobal("fetch", recordingFetch);
 
 const { startAliveWatchdog } = await import("../../src/sessions/alive.ts");
 
@@ -31,6 +35,7 @@ function flushMicrotasks(): Promise<void> {
 beforeEach(() => {
   fetchCalls.length = 0;
   nextIsCurrentTurn = true;
+  vi.stubGlobal("fetch", recordingFetch);
 });
 
 afterEach(() => {
@@ -136,5 +141,47 @@ describe("startAliveWatchdog onInterrupted", () => {
 
     assert.equal(onInterrupted.mock.calls.length, 0);
     await assert.doesNotReject(() => watchdog.release());
+  });
+});
+
+describe("startAliveWatchdog admitted (single-turn admission)", () => {
+  // The first beat is this turn's ADMISSION request: its `nx` acquire of the `alive` lock is the
+  // platform's single atomic arbiter of who runs a session. `admitted` reports that one answer so
+  // `server.ts` can stop a losing turn at the edge, before it resolves a session environment.
+  // Before this, the same answer only armed `onInterrupted`, and the losing turn still walked into
+  // the keepalive pool and destroyed the winning turn's warm sandbox (#6417, #5539, #5538).
+
+  it("is true when the first beat admits the turn", async () => {
+    const watchdog = await startAliveWatchdog("sess-a", "turn-a", "proj-1");
+    assert.equal(watchdog.admitted, true);
+    await watchdog.release();
+  });
+
+  it("is false when the first beat reports is_current_turn: false", async () => {
+    nextIsCurrentTurn = false;
+    const watchdog = await startAliveWatchdog("sess-b", "turn-b", "proj-1");
+    assert.equal(watchdog.admitted, false);
+    await watchdog.release();
+  });
+
+  it("fails closed when the admission API is unreachable", async () => {
+    // Without an affirmative first heartbeat, the runner cannot prove it owns this turn.
+    vi.stubGlobal("fetch", async () => {
+      throw new Error("network down");
+    });
+    const watchdog = await startAliveWatchdog("sess-c", "turn-c", "proj-1");
+    assert.equal(watchdog.admitted, false);
+    await watchdog.release();
+  });
+
+  it("reads the FIRST beat only: a later interruption is a cancel, not a failed admission", async () => {
+    // A mid-turn `is_current_turn: false` is a Stop/steer/kill. That travels the
+    // `onInterrupted` -> abort path and must never retroactively un-admit a turn that already ran.
+    const watchdog = await startAliveWatchdog("sess-d", "turn-d", "proj-1");
+    assert.equal(watchdog.admitted, true);
+    nextIsCurrentTurn = false;
+    await flushMicrotasks();
+    assert.equal(watchdog.admitted, true, "admitted is a fact about the start of the turn");
+    await watchdog.release();
   });
 });

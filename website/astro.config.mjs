@@ -28,6 +28,16 @@ export default defineConfig({
     sitemap({
       // The 404 page must never appear in the sitemap.
       filter: (page) => !page.endsWith("/404") && !page.endsWith("/404/"),
+      // Astro emits directory routes with a trailing slash even though the
+      // Cloudflare asset handler redirects them to their no-slash canonical.
+      // Publish the final URL so crawlers never have to follow that redirect.
+      serialize: (item) => ({
+        ...item,
+        url:
+          item.url === "https://agenta.ai/"
+            ? item.url
+            : item.url.replace(/\/$/, ""),
+      }),
     }),
   ],
   vite: {

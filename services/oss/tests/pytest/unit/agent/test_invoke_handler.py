@@ -44,15 +44,19 @@ def _first_allowed_provider(harness):
     return HARNESS_CONNECTION_CAPABILITIES[harness].providers[0]
 
 
-def _request(*, stream=None, session_id=None):
+def _request(*, stream=None, session_id=None, detached=None):
     """Build the request `_agent` reads stream/session_id off of.
 
     `_agent` now sources the stream decision from `request.flags.stream` and the
     session id from `request.session_id` (both set at the route/normalizer edge),
     instead of receiving them as handler params.
     """
-    flags = {"stream": stream} if stream is not None else None
-    return WorkflowServiceRequest(flags=flags, session_id=session_id)
+    flags = {}
+    if stream is not None:
+        flags["stream"] = stream
+    if detached is not None:
+        flags["detached"] = detached
+    return WorkflowServiceRequest(flags=flags or None, session_id=session_id)
 
 
 def _patch_handler(monkeypatch, backend, *, tool_specs=(), tool_callback=None):
@@ -247,6 +251,24 @@ async def test_messages_session_id_reaches_session_config(patched):
     )
 
     assert backend.created_session_ids == ["sess_request"]
+    assert backend.created_detached == [False]
+
+
+async def test_detached_flag_reaches_the_backend_session(patched):
+    """The shared-delivery flag rides the same edge as the session id.
+
+    Nothing else in the service asserts it at this boundary, so a handler that stopped
+    forwarding `flags.detached` would still pass every other invoke test.
+    """
+    backend, _ = patched
+
+    await app._agent(
+        request=_request(session_id="sess_detached", detached=True),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters={"agent": {"harness": {"kind": "pi_core"}}},
+    )
+
+    assert backend.created_detached == [True]
 
 
 async def test_invoke_cross_harness_same_body_divergent_configs(
@@ -286,14 +308,13 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
     }
     bodies = [
         await _invoke(harness, permission_default="deny", skills=[skill])
-        for harness in ("pi_core", "pi_agenta", "claude")
+        for harness in ("pi_core", "claude")
     ]
-    pi_body, agenta_body, claude_body = bodies
+    pi_body, claude_body = bodies
 
     # (1) identical body regardless of harness
     assert (
         pi_body
-        == agenta_body
         == claude_body
         == {
             "messages": [
@@ -305,11 +326,10 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
         }
     )
 
-    # (2) the three harness-shaped configs that reached the backend boundary, in call order
-    assert len(backend.created_configs) == 3
-    pi_cfg, agenta_cfg, claude_cfg = backend.created_configs
+    # (2) the two harness-shaped configs that reached the backend boundary, in call order
+    assert len(backend.created_configs) == 2
+    pi_cfg, claude_cfg = backend.created_configs
     pi_wire = pi_cfg.wire_tools()
-    agenta_wire = agenta_cfg.wire_tools()
     claude_wire = claude_cfg.wire_tools()
 
     # Pi carries its custom tool natively and always names every built-in on the deprecated
@@ -324,19 +344,12 @@ async def test_invoke_cross_harness_same_body_divergent_configs(
     assert claude_wire["permissions"] == {"default": "deny"}
     assert "skills" not in claude_wire
 
-    # Agenta is Pi-with-an-opinion, and the opinion is prompt-shaped, not tool-shaped: the two
-    # share a tool wire. Skills are not tools, so they never appear in it either.
-    assert agenta_wire == pi_wire
-    assert "skills" not in agenta_wire
-
     # skills ride the dedicated wire_skills seam, not the tool wire
     assert pi_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
-    assert agenta_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
     assert claude_cfg.wire_skills()["skills"][0]["name"] == "release-notes"
 
     # configs genuinely differ; the body's sameness is not a tautology
     assert pi_wire != claude_wire
-    assert agenta_cfg.wire_prompt() != pi_cfg.wire_prompt()
 
 
 async def test_stream_tool_resolution_failure_is_raised_before_backend_setup(

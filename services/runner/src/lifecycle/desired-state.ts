@@ -26,6 +26,7 @@
 import { createHash } from "node:crypto";
 
 import type { AgentRunRequest } from "../protocol.ts";
+import { normalizedHarnessMode } from "../harness-kind.ts";
 
 /**
  * The facets, in the order the reconciliation plan must apply them.
@@ -81,9 +82,14 @@ function canonical(value: unknown): string {
 
 /** Strip credential VALUES, keeping only the shape. Mirrors `configFingerprint`. */
 function credentialShapes(
-  credentials: ReadonlyArray<{ binding?: unknown; usage?: unknown }> | undefined,
+  credentials:
+    | ReadonlyArray<{ binding?: unknown; usage?: unknown }>
+    | undefined,
 ): unknown {
-  return (credentials ?? []).map((c) => ({ binding: c.binding, usage: c.usage }));
+  return (credentials ?? []).map((c) => ({
+    binding: c.binding,
+    usage: c.usage,
+  }));
 }
 
 /**
@@ -105,6 +111,11 @@ export function normalizeDesiredState(
     provider: request.sandbox ?? null,
     harness: request.harness ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
+    // The agent artifact id lives here because the mount it selects is created with the
+    // sandbox and has no live remount route: a changed (or newly present) id can only be
+    // served by a rebuild (audit finding 4). The rest of `runContext` stays out of every
+    // facet — it is per-turn metadata.
+    agentArtifactId: request.runContext?.workflow?.artifact?.id?.trim() || null,
   });
 
   // RUNTIME: what is baked into the agent daemon at start. Model connection, process
@@ -133,7 +144,9 @@ export function normalizeDesiredState(
     skills: request.skills ?? null,
   });
 
-  // PROMPTS: the system and append prompts.
+  // PROMPTS: the system and append prompts. `gatewayGuidance` is deliberately absent here and
+  // from every other facet (mirroring `configFingerprint`): it is derived config the runner
+  // splices at build time, refreshed by whatever rebuild happens anyway, never a reason for one.
   //
   // SEPARATE FROM `workspaceFiles`, and not live. For Pi these land as files under the agent
   // directory, and the adapter matrix records active-session observation as NOT GUARANTEED: a
@@ -169,9 +182,14 @@ export function normalizeDesiredState(
   // own facet: section 1.4 exempts permission TIGHTENING from apply-live entirely, and it must
   // take effect or fail closed before execution continues. `mcpServers` is here because the
   // server LIST is only read at session initialization and no live API exists on any harness.
+  // No `modelCapabilities`: it is per-turn data (the attachment chain reads the incoming
+  // request every turn) and it changes WITH the model, so hashing it here made a cross-modality
+  // model switch move `harnessSession` beside `model` and refuse the live route (audit finding 2).
   const harnessSession = canonical({
-    harnessMode: request.harnessMode ?? null,
-    modelCapabilities: request.modelCapabilities ?? null,
+    // The SHARED normalizer, not the raw field (audit finding 3): the fingerprint normalizes
+    // the Codex mode, and a facet that took it raw could move while the fingerprint stayed
+    // still — poisoning every later plan for that session into a rebuild.
+    harnessMode: normalizedHarnessMode(request.harness, request.harnessMode),
     permissions: request.permissions ?? null,
     mcpServers:
       request.mcpServers?.map((server) => ({
@@ -185,9 +203,10 @@ export function normalizeDesiredState(
 
   // TOOL CATALOG: what the model can see and call. It is its own facet because it is the one
   // the adapters could eventually apply live. v1 routes it to a session reopen on every harness.
+  // No `toolCallback.endpoint` (audit finding 5): it is read from the incoming request every
+  // turn, so it is per-turn routing, not environment identity.
   const toolCatalog = canonical({
     customTools: request.customTools ?? null,
-    toolCallbackEndpoint: request.toolCallback?.endpoint ?? null,
   });
 
   return {

@@ -45,6 +45,7 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {getDefaultStore, useSetAtom} from "jotai"
 
 import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
+import useURL from "@/oss/hooks/useURL"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
 interface OSSdrillInUIProviderProps {
@@ -94,7 +95,17 @@ function useGatewayToolsCatalogActions(integrationKey: string) {
 export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
     const {llmProviderConfig, overlay: llmProviderOverlay} = useLLMProviderConfig()
     const toolsEnabled = isToolsEnabled()
-    const workflowReference = useWorkflowReferenceBridge()
+    const baseWorkflowReference = useWorkflowReferenceBridge()
+    const {baseAppURL} = useURL()
+    // Only the app knows its routes, so the "Open agent" link is supplied here.
+    const workflowReference = useMemo(
+        () => ({
+            ...baseWorkflowReference,
+            agentHref: (workflowId: string) =>
+                baseAppURL ? `${baseAppURL}/${workflowId}/playground` : null,
+        }),
+        [baseWorkflowReference, baseAppURL],
+    )
     // Deployment policy never changes at runtime; a stable identity keeps the context value stable.
     const deployment = useMemo(() => ({isCloud: isDemo()}), [])
 

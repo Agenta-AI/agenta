@@ -31,7 +31,7 @@ from agenta.sdk.agents.model_catalog import (
     pi_model_catalog,
 )
 
-_ALL_HARNESSES = ("pi_core", "pi_agenta", "claude", "codex")
+_ALL_HARNESSES = ("pi_core", "claude", "codex")
 
 
 def test_data_files_load_and_validate():
@@ -255,7 +255,7 @@ def test_model_catalog_entries_helper_matches_the_published_field():
     assert model_catalog_entries("some-future-harness") == []
 
 
-@pytest.mark.parametrize("harness", ["pi_core", "pi_agenta"])
+@pytest.mark.parametrize("harness", ["pi_core"])
 def test_pi_input_modalities_lookup_joins_resolved_provider_and_model(harness):
     assert model_input_modalities(harness, "gpt-5.5", provider="openai") == [
         "text",

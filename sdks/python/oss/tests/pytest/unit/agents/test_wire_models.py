@@ -36,7 +36,6 @@ from agenta.sdk.utils.types import CATALOG_TYPES
 
 from .test_wire_contract import (
     KNOWN_REQUEST_KEYS,
-    _agenta_payload,
     _claude_payload,
     _pi_payload,
 )
@@ -113,7 +112,7 @@ def test_goldens_validate_against_the_exported_schema(golden, golden_name, ag_ty
 def test_request_to_wire_output_validates_against_the_schema():
     # The producer and the schema agree: the dict `request_to_wire` builds for each harness
     # validates against the exported request schema and round-trips through the wire model.
-    for payload in (_pi_payload(), _claude_payload(), _agenta_payload()):
+    for payload in (_pi_payload(), _claude_payload()):
         jsonschema.validate(payload, CATALOG_TYPES["run_request"])
         WireRunRequest.model_validate(payload)
 

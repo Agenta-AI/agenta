@@ -30,4 +30,58 @@ describe("RunErrorBody", () => {
         expect(rendered).toContain("Something broke.")
         expect(rendered).not.toContain("Add your key")
     })
+
+    it("offers Try again for a transient credential-delivery failure", () => {
+        const rendered = text(
+            <RunErrorBody
+                text="A temporary issue kept this run's credentials from reaching the model."
+                stateKey="turn-3"
+                code="credential_delivery_failed"
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("Try again")
+        expect(rendered).not.toContain("Add your key")
+    })
+
+    it("offers Try again for an offline send that failed before acceptance", () => {
+        const rendered = text(
+            <RunErrorBody
+                text="Could not reach Agenta. Check your connection and retry."
+                stateKey="turn-offline"
+                transport
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("The agent run failed")
+        expect(rendered).toContain("Could not reach Agenta")
+        expect(rendered).toContain("Try again")
+    })
+
+    it("hides Try again when no retry handler is wired (not the last turn, or busy)", () => {
+        const rendered = text(
+            <RunErrorBody
+                text="A temporary issue."
+                stateKey="turn-4"
+                code="credential_delivery_failed"
+            />,
+        )
+
+        expect(rendered).not.toContain("Try again")
+    })
+
+    it("does not offer Try again for a non-transient failure", () => {
+        const rendered = text(
+            <RunErrorBody
+                text="model authentication failed"
+                stateKey="turn-5"
+                code="runner_error"
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).not.toContain("Try again")
+    })
 })

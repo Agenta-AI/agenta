@@ -5,7 +5,7 @@ import {revalidateSessionRecordsAtom} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
 
-import {shouldAdoptTranscript} from "./transcriptAdoption"
+import {adoptTranscriptRead, shouldAdoptTranscript} from "./transcriptAdoption"
 
 /**
  * Read-only transcript for one session: server record replay via `loadSessionMessages`
@@ -35,7 +35,8 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
     const messagesRef = useRef<UIMessage[]>([])
     // Records the rendered transcript was built from; `undefined` until the first adoption. This
     // is in-memory only — mobile persists no transcript, so there is nothing to file it against.
-    const watermarkRef = useRef<number | undefined>(undefined)
+    const recordCountRef = useRef<number | undefined>(undefined)
+    const sequenceCursorRef = useRef<number | undefined>(undefined)
 
     /**
      * Apply one delivery behind the shared adoption rule (`shouldAdoptTranscript`). Returns
@@ -47,10 +48,13 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
             if (sessionRef.current !== sessionId) return false
             const shouldAdopt = shouldAdoptTranscript(transcript, {
                 messageCount: messagesRef.current.length,
-                watermark: watermarkRef.current,
+                recordCount: recordCountRef.current,
+                sequenceCursor: sequenceCursorRef.current,
             })
             if (!shouldAdopt || !transcript) return false
-            watermarkRef.current = transcript.recordCount
+            recordCountRef.current = transcript.recordCount
+            if (transcript.sequenceCursor !== undefined)
+                sequenceCursorRef.current = transcript.sequenceCursor
             messagesRef.current = transcript.messages
             setMessages(transcript.messages)
             setState("ready")
@@ -72,20 +76,25 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         setState("loading")
         setMessages([])
         messagesRef.current = []
-        watermarkRef.current = undefined
+        recordCountRef.current = undefined
+        sequenceCursorRef.current = undefined
         void loadSessionMessages(sessionId, (fresh) => {
             // Disk-restore revalidation re-delivery — fresh is non-empty by contract.
             if (cancelled) return
             if (adoptRef.current(fresh)) adopted = true
-        }).then((transcript) => {
-            if (cancelled) return
-            if (adoptRef.current(transcript)) {
-                adopted = true
-                return
-            }
-            // Nothing adopted from either delivery → no durable history for this session.
-            if (!adopted) setState("empty")
         })
+            .then((transcript) => {
+                if (cancelled) return
+                if (adoptRef.current(transcript)) {
+                    adopted = true
+                    return
+                }
+                // Nothing adopted from either delivery → no durable history for this session.
+                if (!adopted) setState("empty")
+            })
+            .catch(() => {
+                if (!cancelled && !adopted) setState("empty")
+            })
         return () => {
             cancelled = true
         }
@@ -100,20 +109,16 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         inFlightRef.current = true
         // Invalidate first so the shared-cache read refetches instead of serving staleTime.
         getDefaultStore().set(revalidateSessionRecordsAtom, sessionId)
-        void loadSessionMessages(sessionId)
-            .then((transcript) => {
-                adoptRef.current(transcript)
-            })
-            // A failed poll keeps what is on screen and waits for the next tick; swallowing it
-            // here keeps a transient 5xx from surfacing as an unhandled rejection every 3s.
-            .catch(() => undefined)
-            .finally(() => {
-                inFlightRef.current = false
-                if (pendingRef.current) {
-                    pendingRef.current = false
-                    if (sessionRef.current === sessionId) refresh()
-                }
-            })
+        void adoptTranscriptRead(
+            () => loadSessionMessages(sessionId),
+            (transcript) => adoptRef.current(transcript),
+        ).finally(() => {
+            inFlightRef.current = false
+            if (pendingRef.current) {
+                pendingRef.current = false
+                if (sessionRef.current === sessionId) refresh()
+            }
+        })
     }, [sessionId])
 
     useEffect(() => {

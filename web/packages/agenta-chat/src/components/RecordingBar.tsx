@@ -1,5 +1,6 @@
 import {useEffect, useState} from "react"
 
+import {isOverlayOpen} from "@agenta/shared/utils"
 import {ComposerSendButton} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Check, X} from "@phosphor-icons/react"
@@ -53,6 +54,10 @@ const RecordingBar = ({
     // Esc discards the take (standard for a modal capture).
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
+            // Something on top owns the keyboard. Both halves are load-bearing: Radix cancels
+            // Escape for a dialog, menu or popover but still lets it reach us, and an antd modal
+            // cancels nothing, so only the overlay check sees that one.
+            if (e.defaultPrevented || isOverlayOpen()) return
             if (e.key === "Escape") {
                 e.preventDefault()
                 cancel()

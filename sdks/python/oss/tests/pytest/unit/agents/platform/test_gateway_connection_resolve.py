@@ -215,27 +215,28 @@ async def test_search_tools_names_the_connected_integrations(fake_http, connecti
     )
 
     search = next(s for s in resolution.tool_specs if s.name == "search_tools")
-    # Sorted, so the same agent always presents the same sentence.
-    assert search.description.endswith("Connected integrations: github, slack.")
-    # Names only. A slug is not the model's to know, and `run_tool` names no integration
-    # because it is told which one in the arguments.
+    # The descriptions are STABLE across integration sets: names live in the gatewayGuidance
+    # prompt section, because `customTools` is fingerprinted and a names sentence here made
+    # adding an integration evict the warm session.
+    assert "Connected integrations" not in search.description
+    # A slug is never the model's to know, on any surface.
     for slug in ["github-work", "slack-main"]:
         assert slug not in search.description
     run = next(s for s in resolution.tool_specs if s.name == "run_tool")
     assert "Connected integrations" not in run.description
 
 
-def test_an_empty_integration_list_leaves_no_dangling_sentence():
-    """The resolver's caller guards this, so it is only reachable by a future one.
-
-    Worth being total about: the failure mode is a malformed sentence in model-facing
-    text, which no type or test elsewhere would catch.
-    """
+def test_derived_specs_are_identical_for_any_integration_set():
+    """The stability guarantee itself: the two derived tools are byte-identical whether the
+    agent has zero, one, or many integrations, so only the FIRST connection (which adds the
+    tools) can change session config."""
     from agenta.sdk.agents.platform.gateway import _derived_tool_specs
 
-    search = next(s for s in _derived_tool_specs([]) if s.name == "search_tools")
+    none = _derived_tool_specs([])
+    many = _derived_tool_specs(["github", "slack", "linear"])
 
-    assert "Connected integrations" not in search.description
+    assert [s.model_dump() for s in none] == [s.model_dump() for s in many]
+    search = next(s for s in none if s.name == "search_tools")
     assert search.description.endswith("Never invent an integration name.")
 
 

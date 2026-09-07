@@ -183,11 +183,20 @@ deployments are irrelevant to clones — clones copy config, not deployments).
   `AGENTA_MOBILE_GATE=true` so a phone is redirected from a desktop route to
   `/m`, and `web-mobile` sets `AGENTA_MOBILE_REVERSE_GATE=false` so a reviewer
   on a laptop can open `/m` directly.
-- **Healthchecks:** unset on all services, matching the live-proven template
-  (10/10 green clone cycles). The standalone deployment path
-  (`../scripts/configure.sh`) sets healthchecks on gateway/api/services/runner;
-  adding them to the template is a deliberate change to `template.json`, not
-  silent drift.
+- **Healthchecks:** set only on `api` and `services`, which both serve
+  `/health`. Two services have none on purpose, and `../scripts/configure.sh`
+  clears the same two.
+  - `gateway`: it proxies `/` to `web`, and the web app answers `/` with a 308
+    redirect to `/w` (`web/oss/next.config.ts`). Railway counts a 308 as a
+    failed probe, so a healthcheck on `/` never goes green and the gateway
+    deployment of every clone ends FAILED. The gateway can carry a healthcheck
+    again once the wrapper image serves its own 200 endpoint (for example
+    `location = /healthz`), which needs a new `gateway_tag`.
+  - `runner`: it serves `/health`, but on `AGENTA_RUNNER_PORT` (8765), not on
+    the port Railway probes, so Railway cannot reach it. Dropped in 9fcbcec9d6.
+
+  Adding a healthcheck to any other service is a deliberate change to
+  `template.json`, not silent drift.
 - **Deploy order** (for anything deploying a fresh clone): infra
   (Postgres/redis/seaweedfs) → alembic → everything else; supertokens must not
   start before alembic has created its database. A single Postgres

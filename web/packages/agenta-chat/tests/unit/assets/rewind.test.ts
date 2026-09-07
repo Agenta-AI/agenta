@@ -62,6 +62,21 @@ describe("sideEffectingToolsInRange", () => {
         expect(sideEffectingToolsInRange(messages)).toEqual([])
     })
 
+    it("flags a completed write inside a FAILED turn (the retry range)", () => {
+        // #6362 review: a retryable model error (rate_limited) can land AFTER a tool already
+        // wrote. The retry affordance regenerates from the failed assistant message, so the
+        // range starting AT that message must surface the completed write for the warning.
+        const failedTurn = {
+            id: "m1",
+            role: "assistant",
+            parts: [
+                {type: "tool-create_issue", state: "output-available"},
+                {type: "data-agent-error", data: {code: "rate_limited", text: "429"}},
+            ],
+        } as unknown as UIMessage
+        expect(sideEffectingToolsInRange([failedTurn])).toEqual(["create_issue"])
+    })
+
     it("dedupes repeated tool names across messages", () => {
         const messages = [
             toolMessage("m1", "send_email", "output-available"),

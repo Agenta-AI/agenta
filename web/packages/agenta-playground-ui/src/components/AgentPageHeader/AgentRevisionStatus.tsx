@@ -1,104 +1,43 @@
-import {
-    workflowMolecule,
-    workflowRevisionsByWorkflowListDataAtomFamily,
-    workflowRevisionsByWorkflowQueryAtomFamily,
-} from "@agenta/entities/workflow"
+import {useEffect, useState} from "react"
+
+import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
     agentAutoCommitErrorAtomFamily,
     agentAutoCommitScheduledAtomFamily,
     agentAutoCommitStatusAtomFamily,
     flushAgentAutoCommitAtom,
 } from "@agenta/playground/state"
-import {timeAgo} from "@agenta/shared/utils"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuTrigger,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
-import {CaretDown, Check, WarningCircle} from "@phosphor-icons/react"
+import {SimpleTooltip} from "@agenta/ui/ui"
+import {ClockCounterClockwise, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
+
+import {openAgentVersionHistoryAtom, versionHistoryOpenAtomFamily} from "../AgentVersionHistory"
+
+// Mounted only once opened: the drawer pulls the whole revision list and diff machinery.
+const AgentVersionHistoryDrawer = dynamic(
+    () => import("../AgentVersionHistory").then((m) => m.AgentVersionHistoryDrawer),
+    {ssr: false},
+)
+
+/** Wraps in a tooltip only when there is something to say beyond the visible label. */
+const StatusWrap = ({tip, children}: {tip: string | null; children: React.ReactElement}) =>
+    tip ? <SimpleTooltip title={tip}>{children}</SimpleTooltip> : <>{children}</>
 
 export interface AgentRevisionStatusProps {
     /** The revision whose version and dirty state this reads. */
     revisionId: string
     /**
-     * Turn the `vN` chip into a picker over this workflow's revisions. Omit where the surface
-     * already has one (the desktop's variant selector sits beside this).
+     * Turn the `vN` chip into the version-history drawer for this workflow. Omit where the
+     * surface has no workflow handle (the chip then just states the version).
      */
-    pickerWorkflowId?: string | null
-    /** Required with `pickerWorkflowId` — the host decides what selecting a revision means. */
-    onSelectRevision?: (revisionId: string) => void
+    historyWorkflowId?: string | null
     className?: string
 }
 
 /**
- * The revision list behind the chip. Its rows carry the commit message, so the picker form drops
- * the chip's message tooltip — the same text, one tap away instead of on hover.
- */
-const RevisionPicker = ({
-    workflowId,
-    revisionId,
-    version,
-    onSelectRevision,
-}: {
-    workflowId: string
-    revisionId: string
-    version: number
-    onSelectRevision: (revisionId: string) => void
-}) => {
-    // Reading the query atom is what fetches; the list atom resolves the refs it primes.
-    useAtomValue(workflowRevisionsByWorkflowQueryAtomFamily(workflowId))
-    const revisions = useAtomValue(workflowRevisionsByWorkflowListDataAtomFamily(workflowId))
-
-    return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <button
-                    type="button"
-                    aria-label="Select revision"
-                    className="flex cursor-pointer items-center rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:text-colorText"
-                >
-                    v{version}
-                    <CaretDown size={9} className="ml-1" />
-                </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[280px]">
-                <DropdownMenuLabel>Revisions</DropdownMenuLabel>
-                {revisions.length === 0 ? (
-                    <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
-                ) : null}
-                {revisions.map((revision) => (
-                    <DropdownMenuItem
-                        key={revision.id}
-                        onSelect={() => onSelectRevision(revision.id)}
-                    >
-                        {revision.id === revisionId ? (
-                            <Check size={12} />
-                        ) : (
-                            <span className="inline-block w-[12px]" />
-                        )}
-                        <span className="shrink-0">v{revision.version ?? 0}</span>
-                        <span className="min-w-0 flex-1 truncate text-colorTextSecondary">
-                            {revision.message?.trim() || "No commit message"}
-                        </span>
-                        {revision.created_at ? (
-                            <span className="shrink-0 text-colorTextTertiary">
-                                {timeAgo(Date.parse(revision.created_at))}
-                            </span>
-                        ) : null}
-                    </DropdownMenuItem>
-                ))}
-            </DropdownMenuContent>
-        </DropdownMenu>
-    )
-}
-
-/**
  * A revision's committed identity: the `vN` chip (its commit message on hover) and a save-status
- * dot. With `pickerWorkflowId` the chip becomes a revision picker instead.
+ * dot. With `historyWorkflowId` the chip opens the version-history drawer instead.
  *
  * The dot reports auto-commit; there is no Save button, so a failed save makes the dot the retry.
  *
@@ -108,10 +47,20 @@ const RevisionPicker = ({
  */
 export const AgentRevisionStatus = ({
     revisionId,
-    pickerWorkflowId,
-    onSelectRevision,
+    historyWorkflowId,
     className,
 }: AgentRevisionStatusProps) => {
+    // A commit can land while this surface is closed — the agent commits itself mid-session, or
+    // the same agent is driven from another surface (the desktop playground and `/m` share one
+    // agent). The invalidation that follows a commit refetches ACTIVE observers only, and a closed
+    // surface has none, so on return the revision queries were still inside their staleTime and
+    // this chip named the superseded version (#6380). Revalidate once on mount, where the
+    // observers ARE active. It lives here, in the shared chip, because every host that shows a
+    // revision has the problem — putting it in one app's wrapper fixed only that app.
+    useEffect(() => {
+        invalidateAgentCommittedRevisionCache()
+    }, [])
+
     const data = useAtomValue(workflowMolecule.selectors.data(revisionId || ""))
     const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId || ""))
     const isAgent = useAtomValue(workflowMolecule.selectors.isAgent(revisionId || ""))
@@ -119,6 +68,14 @@ export const AgentRevisionStatus = ({
     const autoCommitError = useAtomValue(agentAutoCommitErrorAtomFamily(revisionId || ""))
     const autoCommitScheduled = useAtomValue(agentAutoCommitScheduledAtomFamily(revisionId || ""))
     const retrySave = useSetAtom(flushAgentAutoCommitAtom)
+
+    const historyOpen = useAtomValue(versionHistoryOpenAtomFamily(historyWorkflowId || ""))
+    const openHistory = useSetAtom(openAgentVersionHistoryAtom)
+    // Latched, not unmounted on close: tearing the drawer out mid-close skips its slide-out.
+    const [historyMounted, setHistoryMounted] = useState(false)
+    useEffect(() => {
+        if (historyOpen) setHistoryMounted(true)
+    }, [historyOpen])
 
     const version = (data?.version as number | null | undefined) ?? null
     const commitMessage = data?.message?.trim() || null
@@ -140,16 +97,58 @@ export const AgentRevisionStatus = ({
             ? {tone: "bg-colorWarning", label: "Draft", tip: "Unsaved changes"}
             : {tone: "bg-colorSuccess", label: "Saved", tip: "Saved"}
 
+    // One object for one revision: the version and its save state describe the same thing, and as
+    // two chips they competed. A failed save is the exception — there the status IS the retry
+    // control, so it stays separate rather than sharing a button that opens history.
+    const merged = version !== null && !!historyWorkflowId && !failed
+
+    const statusBody = (
+        <>
+            {failed ? (
+                <WarningCircle size={12} className="shrink-0 text-colorError" />
+            ) : (
+                <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot.tone}`} />
+            )}
+            {/* The word is the first thing to go on a narrow bar — the dot and its tooltip
+                already say it, and the identity beside it needs the room. */}
+            <span className="hidden sm:inline">{dot.label}</span>
+        </>
+    )
+
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
-            {version !== null &&
-                (pickerWorkflowId && onSelectRevision ? (
-                    <RevisionPicker
-                        workflowId={pickerWorkflowId}
-                        revisionId={revisionId}
-                        version={version}
-                        onSelectRevision={onSelectRevision}
-                    />
+            {merged ? (
+                <SimpleTooltip title="Version history">
+                    <button
+                        type="button"
+                        aria-label={`Version ${version}, ${dot.label}. Open version history`}
+                        onClick={() => openHistory(historyWorkflowId)}
+                        className="group flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-colorTextTertiary"
+                    >
+                        {/* Only the version wears the chip — the save state is a fact about it,
+                            not a second control, so it reads as a label beside it. */}
+                        <span className="flex items-center gap-1 rounded bg-colorFillSecondary px-1.5 py-0.5 text-colorTextSecondary group-hover:bg-colorFillTertiary group-hover:text-colorText">
+                            {/* A caret would promise a menu; this opens a drawer of history. */}
+                            <ClockCounterClockwise size={11} className="shrink-0" />v{version}
+                        </span>
+                        <span className="text-colorTextQuaternary">·</span>
+                        {statusBody}
+                    </button>
+                </SimpleTooltip>
+            ) : null}
+
+            {!merged && version !== null ? (
+                historyWorkflowId ? (
+                    <SimpleTooltip title="Version history">
+                        <button
+                            type="button"
+                            aria-label="Open version history"
+                            onClick={() => openHistory(historyWorkflowId)}
+                            className="flex cursor-pointer items-center gap-1 rounded border-0 bg-colorFillSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                        >
+                            <ClockCounterClockwise size={11} className="shrink-0" />v{version}
+                        </button>
+                    </SimpleTooltip>
                 ) : (
                     <SimpleTooltip
                         className="max-w-[360px]"
@@ -172,36 +171,38 @@ export const AgentRevisionStatus = ({
                             v{version}
                         </span>
                     </SimpleTooltip>
-                ))}
-            <SimpleTooltip title={dot.tip}>
-                <span
-                    role={failed ? "button" : undefined}
-                    tabIndex={failed ? 0 : undefined}
-                    aria-label={failed ? "Retry saving changes" : undefined}
-                    onClick={failed ? () => void retrySave({revisionId}) : undefined}
-                    onKeyDown={
-                        failed
-                            ? (event) => {
-                                  if (event.key !== "Enter" && event.key !== " ") return
-                                  event.preventDefault()
-                                  void retrySave({revisionId})
-                              }
-                            : undefined
-                    }
-                    className={`flex items-center gap-1.5 text-xs text-colorTextTertiary ${
-                        failed ? "cursor-pointer" : ""
-                    }`}
-                >
-                    {failed ? (
-                        <WarningCircle size={12} className="shrink-0 text-colorError" />
-                    ) : (
-                        <span className={`h-[7px] w-[7px] shrink-0 rounded-full ${dot.tone}`} />
-                    )}
-                    {/* The word is the first thing to go on a narrow bar — the dot and its
-                        tooltip already say it, and the identity beside it needs the room. */}
-                    <span className="hidden sm:inline">{dot.label}</span>
-                </span>
-            </SimpleTooltip>
+                )
+            ) : null}
+
+            {historyWorkflowId && historyMounted ? (
+                <AgentVersionHistoryDrawer workflowId={historyWorkflowId} revisionId={revisionId} />
+            ) : null}
+
+            {/* Tooltip only on failure: there it carries the error and the retry hint. */}
+            {merged ? null : (
+                <StatusWrap tip={failed ? dot.tip : null}>
+                    <span
+                        role={failed ? "button" : undefined}
+                        tabIndex={failed ? 0 : undefined}
+                        aria-label={failed ? "Retry saving changes" : undefined}
+                        onClick={failed ? () => void retrySave({revisionId}) : undefined}
+                        onKeyDown={
+                            failed
+                                ? (event) => {
+                                      if (event.key !== "Enter" && event.key !== " ") return
+                                      event.preventDefault()
+                                      void retrySave({revisionId})
+                                  }
+                                : undefined
+                        }
+                        className={`flex items-center gap-1.5 text-xs text-colorTextTertiary ${
+                            failed ? "cursor-pointer" : ""
+                        }`}
+                    >
+                        {statusBody}
+                    </span>
+                </StatusWrap>
+            )}
         </div>
     )
 }

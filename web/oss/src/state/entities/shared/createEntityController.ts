@@ -58,7 +58,7 @@
  */
 
 import {atom, type Atom, type Getter, type Setter, type WritableAtom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 // ============================================================================
 // PATH ITEM TYPE (shared with DrillInView component)

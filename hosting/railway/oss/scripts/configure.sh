@@ -297,6 +297,54 @@ set_healthcheck() {
     railway_call environment edit --environment "$ENV_NAME" --service-config "$service" healthcheckPath "$path" --message "set healthcheck for ${service}" --json >/dev/null
 }
 
+# clear_healthcheck <service>: remove a healthcheck an earlier run of this
+# script stored. Dropping a set_healthcheck call does not undo what is already
+# on the environment, so the two services that must carry no healthcheck are
+# cleared explicitly on every run.
+#
+# This goes through the API rather than `railway environment edit
+# --service-config`: serviceInstanceUpdate with an empty healthcheckPath is
+# the write template/apply.sh makes, and it was confirmed against the live
+# preview template. The CLI's dot-path form is reported to no-op silently on
+# deploy settings (railwayapp/cli issue 1119), and healthcheckPath is one.
+#
+# The value is read back afterwards, so a write that does not stick fails the
+# run instead of leaving a service that can never turn green while the script
+# prints "Configuration completed".
+clear_healthcheck() {
+    local service="$1" svc_id live
+
+    if [ -z "${RAILWAY_API_TOKEN:-}" ] || [ -z "$RAILWAY_ENVIRONMENT_ID" ]; then
+        printf "Cannot clear the healthcheck for '%s': RAILWAY_API_TOKEN and a resolved environment id are required.\n" \
+            "$service" >&2
+        return 1
+    fi
+
+    svc_id="$(_service_id_with_retry "$service")"
+    if [ -z "$svc_id" ]; then
+        printf "Could not resolve the service id for '%s' to clear its healthcheck.\n" "$service" >&2
+        return 1
+    fi
+
+    _railway_graphql "$(jq -nc --arg s "$svc_id" --arg e "$RAILWAY_ENVIRONMENT_ID" \
+        '{query: "mutation($s: String!, $e: String!, $in: ServiceInstanceUpdateInput!){ serviceInstanceUpdate(serviceId: $s, environmentId: $e, input: $in) }",
+          variables: {s: $s, e: $e, in: {healthcheckPath: ""}}}')" >/dev/null || return 1
+
+    live="$(_railway_graphql "$(jq -nc --arg id "$RAILWAY_ENVIRONMENT_ID" \
+        '{query: "query($id: String!){ environment(id: $id){ serviceInstances { edges { node { serviceName healthcheckPath } } } } }",
+          variables: {id: $id}}')" \
+        | jq -r --arg n "$service" \
+            '.data.environment.serviceInstances.edges[].node | select(.serviceName == $n) | .healthcheckPath // ""' \
+        | head -n1)"
+
+    if [ -n "$live" ]; then
+        printf "Healthcheck for '%s' is still '%s' after the clear; Railway did not apply the write.\n" \
+            "$service" "$live" >&2
+        return 1
+    fi
+    printf "Healthcheck cleared for '%s'.\n" "$service"
+}
+
 main() {
     require_cmd railway
     require_railway_auth
@@ -396,6 +444,8 @@ main() {
         POSTGRES_URI_CORE="$pg_async_core" \
         POSTGRES_URI_TRACING="$pg_async_tracing" \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
+        AGENTA_RUNNER_INTERNAL_URL="$agent_runner_url" \
+        AGENTA_RUNNER_TOKEN="$AGENTA_RUNNER_TOKEN" \
         AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \
         AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
         AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
@@ -463,7 +513,8 @@ main() {
         "AGENTA_RUNNER_DAYTONA_API_URL=${AGENTA_RUNNER_DAYTONA_API_URL:-}" \
         "AGENTA_RUNNER_DAYTONA_TARGET=${AGENTA_RUNNER_DAYTONA_TARGET:-}" \
         "AGENTA_RUNNER_DAYTONA_SNAPSHOT=${AGENTA_RUNNER_DAYTONA_SNAPSHOT:-}" \
-        "AGENTA_RUNNER_DAYTONA_IMAGE=${AGENTA_RUNNER_DAYTONA_IMAGE:-}"
+        "AGENTA_RUNNER_DAYTONA_IMAGE=${AGENTA_RUNNER_DAYTONA_IMAGE:-}" \
+        "AGENTA_RUNNER_LIVE_FRAMES=${AGENTA_RUNNER_LIVE_FRAMES:-}"
 
     # Do NOT list the runner's AGENTA_RUNNER_DAYTONA_* vars here: unset_vars always deletes,
     # which previously wiped a Daytona-configured runner's credentials right after setting them.
@@ -541,10 +592,24 @@ main() {
         SSL_CERT_DAYS=820 \
         RAILWAY_DEPLOYMENT_DRAINING_SECONDS=60
 
-    set_healthcheck gateway "/"
     set_healthcheck api "/health"
     set_healthcheck services "/health"
-    set_healthcheck runner "/health"
+
+    # Two services must have NO healthcheck, and both are cleared rather than
+    # merely left unset, because an earlier run of this script may have stored
+    # one. The template declares the same policy (template/template.json).
+    #
+    # gateway: it proxies / to web, and the web app answers / with a 308
+    # redirect to /w (web/oss/next.config.ts). Railway counts a 308 as a
+    # failed probe, so the deployment never goes green. The gateway can carry
+    # a healthcheck again once the wrapper image serves its own 200 endpoint,
+    # for example location = /healthz.
+    #
+    # runner: it serves /health, but on AGENTA_RUNNER_PORT (8765), not on the
+    # port Railway probes, so Railway cannot reach it. Dropped from the
+    # template in 9fcbcec9d6 for that reason.
+    clear_healthcheck gateway
+    clear_healthcheck runner
 
     printf "Configuration completed for project '%s' environment '%s'\n" "$PROJECT_NAME" "$ENV_NAME"
 }

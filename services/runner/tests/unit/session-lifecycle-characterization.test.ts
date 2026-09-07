@@ -88,7 +88,11 @@ interface FakeEnv {
 }
 
 interface TurnScript {
-  approvalPause?: { permissionId: string; toolCallId: string; toolName?: string };
+  approvalPause?: {
+    permissionId: string;
+    toolCallId: string;
+    toolName?: string;
+  };
   result?: AgentRunResult;
   toolCallIds?: string[];
 }
@@ -188,7 +192,9 @@ function makeEngine(scripts: TurnScript[] = []) {
         env.approvalGateCount = 1;
         return { ok: true, stopReason: "paused" };
       }
-      return script.result ?? { ok: true, output: "ok", stopReason: "complete" };
+      return (
+        script.result ?? { ok: true, output: "ok", stopReason: "complete" }
+      );
     },
     async runCold() {
       return { ok: true, output: "cold", stopReason: "complete" };
@@ -366,13 +372,26 @@ describe("(b) teardown reasons name the failing layer", () => {
       "capacity-eviction",
       "shutdown-idle",
     ] as const) {
-      assert.equal(teardownDisposition(reason), "stop", `${reason} parks the sandbox`);
+      assert.equal(
+        teardownDisposition(reason),
+        "stop",
+        `${reason} parks the sandbox`,
+      );
     }
   });
 
   it("the ordinary delete reasons are unchanged", () => {
-    for (const reason of ["kill", "failed-turn", "aborted", "shutdown-in-flight"] as const) {
-      assert.equal(teardownDisposition(reason), "delete", `${reason} deletes the sandbox`);
+    for (const reason of [
+      "kill",
+      "failed-turn",
+      "aborted",
+      "shutdown-in-flight",
+    ] as const) {
+      assert.equal(
+        teardownDisposition(reason),
+        "delete",
+        `${reason} deletes the sandbox`,
+      );
     }
   });
 
@@ -402,7 +421,11 @@ describe("(b) teardown reasons name the failing layer", () => {
       "shutdown-in-flight",
       "shutdown-idle",
     ];
-    assert.equal(everyReason.length, 13, "the TeardownReason union has 13 members");
+    assert.equal(
+      everyReason.length,
+      13,
+      "the TeardownReason union has 13 members",
+    );
     for (const reason of everyReason) {
       assert.equal(
         teardownDisposition(reason),
@@ -426,7 +449,12 @@ describe("(b) teardown reasons name the failing layer", () => {
     // credentials are all sound, so the only correct answer is to park it.
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
-    await runWithKeepalive(requestWithRevision("rev-1"), undefined, undefined, ctx);
+    await runWithKeepalive(
+      requestWithRevision("rev-1"),
+      undefined,
+      undefined,
+      ctx,
+    );
     const env1 = calls.acquiredEnvs[0];
 
     // Turn 2 rewrites the first user message, so the history fingerprint cannot match.
@@ -443,7 +471,11 @@ describe("(b) teardown reasons name the failing layer", () => {
       ctx,
     );
 
-    assert.equal(calls.acquire, 2, "the conversation is wrong, so the turn still runs cold");
+    assert.equal(
+      calls.acquire,
+      2,
+      "the conversation is wrong, so the turn still runs cold",
+    );
     assert.deepEqual(
       env1.destroyReasons,
       ["continuity-invalid"],
@@ -462,7 +494,10 @@ describe("(b) teardown reasons name the failing layer", () => {
     // the stale material still installed.
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
-    const withCredential = (secret: string, messages: AgentRunRequest["messages"]) => ({
+    const withCredential = (
+      secret: string,
+      messages: AgentRunRequest["messages"],
+    ) => ({
       ...requestWithRevision("rev-1", { messages }),
       modelConnection: {
         provider: "openai",
@@ -550,7 +585,10 @@ describe("(c) applied state is owned by the environment, never stamped by a requ
     };
   }
 
-  async function parkThenResume(resume: AgentRunRequest, parkRevision = "rev-1") {
+  async function parkThenResume(
+    resume: AgentRunRequest,
+    parkRevision = "rev-1",
+  ) {
     const { engine, calls } = makeEngine([
       {
         approvalPause: {
@@ -599,7 +637,11 @@ describe("(c) applied state is owned by the environment, never stamped by a requ
     const { ctx, parked, parkedFp } = await parkThenResume(resume, "rev-1");
 
     const reparked = ctx.pool.get(POOL_KEY)!;
-    assert.equal(reparked.state, "idle", "the resumed turn completed and re-parked");
+    assert.equal(
+      reparked.state,
+      "idle",
+      "the resumed turn completed and re-parked",
+    );
 
     assert.equal(
       reparked.configFingerprint,
@@ -624,7 +666,11 @@ describe("(c) applied state is owned by the environment, never stamped by a requ
     // desired value.
     const resume = approveResume("rev-1", { model: "m2" });
     const { calls, ctx, parked } = await parkThenResume(resume, "rev-1");
-    assert.equal(calls.acquire, 1, "the model change does not evict on the approval branch");
+    assert.equal(
+      calls.acquire,
+      1,
+      "the model change does not evict on the approval branch",
+    );
 
     const env = calls.acquiredEnvs[0];
     assert.equal(
@@ -654,12 +700,18 @@ describe("(c) applied state is owned by the environment, never stamped by a requ
           { role: "user", content: "do X" },
           {
             role: "assistant",
-            content: [{ type: "tool_call", toolCallId: "tc-gate", toolName: "commit" }],
+            content: [
+              { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            ],
           },
           {
             role: "user",
             content: [
-              { type: "tool_result", toolCallId: "tc-gate", output: { approved: true } },
+              {
+                type: "tool_result",
+                toolCallId: "tc-gate",
+                output: { approved: true },
+              },
             ],
           },
           { role: "assistant", content: "resumed" },
@@ -693,7 +745,7 @@ describe("(c) applied state is owned by the environment, never stamped by a requ
     const facets = (tag: string) =>
       Object.fromEntries(FACETS.map((f) => [f, `${tag}-${f}`])) as FacetDigests;
 
-    const applied = new AppliedState("fp-m1", facets("m1"));
+    const applied = new AppliedState("fp-m1", facets("m1"), {});
     assert.equal(applied.appliedState.configFingerprint, "fp-m1");
     assert.equal(applied.appliedState.generation, 1);
     assert.equal(applied.appliedState.facets.runtime, "m1-runtime");
@@ -708,21 +760,34 @@ describe("(c) applied state is owned by the environment, never stamped by a requ
     assert.equal(applied.appliedState.configFingerprint, "fp-m1");
     assert.equal(applied.appliedState.facets.runtime, "m1-runtime");
 
-    applied.commitApplied({ configFingerprint: "fp-m2", facets: facets("m2") });
+    applied.commitApplied({
+      configFingerprint: "fp-m2",
+      facets: facets("m2"),
+      fieldDigests: {},
+    });
     assert.equal(applied.appliedState.configFingerprint, "fp-m2");
     assert.equal(applied.appliedState.facets.runtime, "m2-runtime");
     assert.equal(applied.appliedState.generation, 2);
 
     // Re-applying the same configuration still advances the generation, so "nothing changed" and
     // "we re-applied" stay distinguishable.
-    applied.commitApplied({ configFingerprint: "fp-m2", facets: facets("m2") });
+    applied.commitApplied({
+      configFingerprint: "fp-m2",
+      facets: facets("m2"),
+      fieldDigests: {},
+    });
     assert.equal(applied.appliedState.generation, 3);
   });
 
   it("for contrast: the IDLE branch does compare the fingerprint and evicts", async () => {
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
-    await runWithKeepalive(requestWithRevision("rev-1"), undefined, undefined, ctx);
+    await runWithKeepalive(
+      requestWithRevision("rev-1"),
+      undefined,
+      undefined,
+      ctx,
+    );
     await runWithKeepalive(
       {
         ...requestWithRevision("rev-1", {

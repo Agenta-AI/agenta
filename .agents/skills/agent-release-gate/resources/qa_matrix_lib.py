@@ -513,7 +513,23 @@ def turn_ledger(session_id: str, limit: int = 20) -> list[dict]:
     `POST /sessions/turns/`), which makes this a STORED outcome rather than an echo.
 
     Returns [] when the ledger is unavailable, which callers must treat as MISSING EVIDENCE and
-    fail on -- never as evidence of stability."""
+    fail on -- never as evidence of stability. A caller that needs to TELL those two apart (a
+    check whose PASS depends on nothing having been stored) must use `turn_ledger_or_unavailable`
+    instead; this signature cannot express the difference."""
+    rows, _available = turn_ledger_or_unavailable(session_id, limit)
+    return rows
+
+
+def turn_ledger_or_unavailable(
+    session_id: str, limit: int = 20
+) -> tuple[list[dict], bool]:
+    """`(rows, available)` -- the ledger, and whether the query actually answered.
+
+    `turn_ledger` collapses "the query failed" and "the session stored no turn" into the same
+    empty list. That is safe for a check whose PASS needs rows to EXIST, because both readings
+    fail. It is unsafe for a check whose PASS needs rows to be ABSENT: a query failure would then
+    read as proof that nothing ran, which is the strongest possible claim drawn from the weakest
+    possible evidence. `matrix_h1_bad_harness.py` is exactly that shape."""
     r = api_call(
         "POST",
         "/sessions/turns/query",
@@ -523,8 +539,23 @@ def turn_ledger(session_id: str, limit: int = 20) -> list[dict]:
         },
     )
     if r.status_code != 200:
-        return []
-    return r.json().get("turns") or []
+        return [], False
+    # A 200 is not an answer until the payload is the shape the contract promises. `{}` and
+    # `{"turns": null}` would otherwise read as an answered-EMPTY ledger, which is the one reading
+    # a caller must never get for free: `matrix_h1_bad_harness.py` turns "answered empty" into a
+    # PASS asserting nothing was stored. Malformed is unavailable, so that PASS stays unreachable.
+    try:
+        body = r.json()
+    except ValueError:
+        return [], False
+    if not isinstance(body, dict):
+        return [], False
+    turns = body.get("turns")
+    if not isinstance(turns, list):
+        return [], False
+    if any(not isinstance(row, dict) for row in turns):
+        return [], False
+    return turns, True
 
 
 def ledger_ids(session_id: str) -> tuple[list[str], list[str]]:
@@ -620,6 +651,58 @@ def run_until_settled(
         "rounds": max_rounds,
         "why": "max_rounds exhausted, still gated",
     }
+
+
+# ---------------------------------------------------------------------------
+# An exhausted provider key is an ENVIRONMENT condition, not a defect. A cell that renders it as
+# FAIL spends a reviewer's attention on a topped-up balance, and worse, it teaches the reader that
+# this cell's FAIL is sometimes noise -- which is how a real regression gets waved through later.
+# Cells already SKIP on a missing or ambiguous vault credential; a key with no credit left belongs
+# in the same class, and reads the same way to a human: nothing about the product was tested.
+#
+# Recognition is deliberately narrow. It matches the runner's own classified copy, never a bare
+# 401 or a rate limit. Source of truth for every string below:
+# `services/runner/src/engines/sandbox_agent/errors.ts`.
+
+#: The runner's coded classes for a credits refusal at the proxy's admission check.
+STARTER_CREDIT_CODES = (
+    "starter_credits_exhausted",
+    "starter_credits_program_paused",
+    "starter_credits_unavailable",
+)
+
+#: Billing-stop prose. The first group is the runner's own user-facing credits copy; the second is
+#: the upstream provider's billing refusal, which the runner classifies as `runner_error`, so the
+#: code alone cannot catch it. Throttling ("rate limit", "too many requests") is deliberately
+#: ABSENT: a throttled run was not out of credit and must stay a FAIL.
+_OUT_OF_CREDIT_RE = re.compile(
+    r"free agenta credits are (?:used up|paused)"
+    r"|agenta credits are temporarily unavailable"
+    r"|the model provider account has insufficient credit"
+    r"|insufficient credit"
+    r"|no credits remaining"
+    r"|credit balance is too low"
+    r"|exceeded your current quota"
+    r"|insufficient_quota"
+    r"|budget_exceeded"
+    r"|budget has been exceeded",
+    re.I,
+)
+
+
+def out_of_credit(error_text: str = "", codes: "list | tuple" = ()) -> str | None:
+    """The SKIP reason when a run failed ONLY because the provider key has no credit left.
+
+    Returns the explanation to report, or None when the failure is anything else -- in which case
+    the caller must keep its FAIL. Pass the run's stored/classified error text and any coded
+    `data-agent-error` classes it carried.
+    """
+    for code in codes or ():
+        if code in STARTER_CREDIT_CODES:
+            return f"environment: provider key out of credit ({code})"
+    if error_text and _OUT_OF_CREDIT_RE.search(error_text):
+        return "environment: provider key out of credit"
+    return None
 
 
 # ---------------------------------------------------------------------------

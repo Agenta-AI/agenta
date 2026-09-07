@@ -30,6 +30,7 @@ from sqlalchemy.sql.elements import (
     UnaryExpression,
 )
 from sqlalchemy.sql.functions import Function
+from sqlalchemy.sql.dml import Update
 
 from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     IDLE_THRESHOLD_SECONDS,
@@ -80,8 +81,16 @@ def _evaluate(node, row) -> Optional[bool]:
         left, right = _value(node.left, row), _value(node.right, row)
         if node.operator is operators.is_:
             return left is right
+        if node.operator is operators.is_not:
+            # `turn_id IS NOT NULL`, from the ending-only selection. Postgres `IS NOT` is a
+            # total predicate: it never returns NULL, so neither does this.
+            return left is not right
         if node.operator is operators.lt:
             return None if left is None or right is None else left < right
+        if node.operator is operators.eq:
+            return None if left is None or right is None else left == right
+        if node.operator is operators.in_op:
+            return None if left is None else left in right
         if getattr(node.operator, "opstring", None) == "@>":
             return _contains(left, right)
     raise AssertionError(
@@ -113,10 +122,18 @@ def _value(node, row):
 
 
 class _FakeRow:
-    def __init__(self, *, session_id: str, flags: Optional[dict], age_seconds: int):
+    def __init__(
+        self,
+        *,
+        session_id: str,
+        flags: Optional[dict],
+        age_seconds: int,
+        turn_id: Optional[str] = None,
+    ):
         self.session_id = session_id
         self.project_id = _PROJECT_ID
         self.id = session_id
+        self.turn_id = turn_id
         self.deleted_at = None
         self.flags = flags
         self.created_at = datetime.now(timezone.utc) - timedelta(days=1)
@@ -132,18 +149,32 @@ class _FakeScalars:
 
 
 class _FakeResult:
-    def __init__(self, rows):
+    def __init__(self, rows, *, rowcount=0):
         self._rows = rows
+        self.rowcount = rowcount
 
     def scalars(self):
         return _FakeScalars(self._rows)
 
 
 class _FakePgSession:
-    def __init__(self, rows):
+    def __init__(self, rows, before_update=None):
         self._rows = rows
+        self._before_update = before_update
 
     async def execute(self, stmt):
+        if isinstance(stmt, Update):
+            if self._before_update is not None:
+                self._before_update()
+                self._before_update = None
+            matched = [
+                row for row in self._rows if _evaluate(stmt.whereclause, row) is True
+            ]
+            for row in matched:
+                for column, value in stmt._values.items():
+                    key = column if isinstance(column, str) else column.key
+                    setattr(row, key, _value(value, row))
+            return _FakeResult([], rowcount=len(matched))
         matched = [
             row for row in self._rows if _evaluate(stmt.whereclause, row) is True
         ]
@@ -154,12 +185,13 @@ class _FakePgSession:
 
 
 class _FakeTransactionsEngine:
-    def __init__(self, rows):
+    def __init__(self, rows, before_update=None):
         self._rows = rows
+        self._before_update = before_update
 
     @asynccontextmanager
     async def session(self):
-        yield _FakePgSession(self._rows)
+        yield _FakePgSession(self._rows, self._before_update)
 
 
 class _FakeRedis:
@@ -182,6 +214,36 @@ class _FakeRedis:
     async def expire(self, key, ttl):
         return True
 
+    async def eval(self, script, numkeys, *keys_and_args):
+        def decode(value):
+            return value.decode() if isinstance(value, bytes) else str(value)
+
+        keys = [decode(value) for value in keys_and_args[:numkeys]]
+        argv = [decode(value) for value in keys_and_args[numkeys:]]
+        assert "AGENTA_WATCHDOG_RELEASE_TURN" in script
+        alive, running, owner, superseded = keys
+        expected_turn, expected_owner, _ttl = argv
+        alive_value = decode(self._store[alive]) if alive in self._store else ""
+        running_value = decode(self._store[running]) if running in self._store else ""
+        owner_value = decode(self._store[owner]) if owner in self._store else ""
+        released_alive = int(bool(expected_turn) and alive_value == expected_turn)
+        released_running = int(bool(expected_turn) and running_value == expected_turn)
+        if released_alive:
+            self._store.pop(alive, None)
+        if released_running:
+            self._store.pop(running, None)
+        foreign_turn = (alive_value and alive_value != expected_turn) or (
+            running_value and running_value != expected_turn
+        )
+        released_owner = int(
+            bool(expected_owner) and owner_value == expected_owner and not foreign_turn
+        )
+        if released_owner:
+            self._store.pop(owner, None)
+        if expected_turn:
+            self._store[superseded] = b"1"
+        return [released_alive, released_running, released_owner]
+
 
 def _swept(row: _FakeRow) -> bool:
     return row.flags == {"is_alive": False, "is_running": False, "is_attached": False}
@@ -190,6 +252,32 @@ def _swept(row: _FakeRow) -> bool:
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+class _OrderedCommandsService:
+    def __init__(self) -> None:
+        self.calls = []
+
+    async def settle_abandoned_commands(self, *, now):
+        self.calls.append("settle")
+        return 0
+
+    async def repair_terminal_redis(self):
+        self.calls.append("repair")
+        return 0
+
+
+@pytest.mark.anyio
+async def test_redis_repair_runs_after_the_sweeps_main_work(anyio_backend):
+    commands = _OrderedCommandsService()
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([]),
+        _FakeRedis(),
+        commands_service=commands,
+    )
+
+    assert commands.calls == ["settle", "repair"]
 
 
 @pytest.mark.anyio
@@ -241,8 +329,13 @@ async def test_idle_row_is_swept_at_the_long_threshold(anyio_backend):
 
 
 @pytest.mark.anyio
-async def test_thresholds_are_five_and_thirty_minutes(anyio_backend):
-    assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (300, 1800)
+async def test_default_running_threshold_uses_durable_stop(anyio_backend):
+    """Three missed 30-second heartbeats settle a running turn by default.
+
+    Idle sessions retain the 30-minute approval TTL. Explicit flag-off behavior
+    is covered by the session cancellation configuration tests.
+    """
+    assert (ORPHAN_THRESHOLD_SECONDS, IDLE_THRESHOLD_SECONDS) == (90, 1800)
 
 
 @pytest.mark.anyio
@@ -295,9 +388,61 @@ async def test_sweep_clears_redis_for_the_long_threshold_branch(anyio_backend):
         session_id=session_id,
         flags={"is_alive": True, "is_running": False, "is_attached": False},
         age_seconds=IDLE_THRESHOLD_SECONDS + 60,
+        turn_id="turn-1",
     )
 
     await run_orphan_sweep(_FakeTransactionsEngine([row]), redis)
 
     assert await redis.get(f"alive:{_PROJECT_ID}:session:{session_id}") is None
     assert await redis.get(f"owner:{_PROJECT_ID}:session:{session_id}") is None
+
+
+@pytest.mark.anyio
+async def test_turn_advance_during_sweep_prevents_collapse_and_redis_cleanup(
+    anyio_backend,
+):
+    session_id = "sess-advanced-during-sweep"
+    row = _FakeRow(
+        session_id=session_id,
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="turn-old",
+    )
+    redis = _FakeRedis()
+    await redis.set(f"alive:{_PROJECT_ID}:session:{session_id}", b"turn-new")
+    await redis.set(f"running:{_PROJECT_ID}:session:{session_id}", b"turn-new")
+    await redis.set(f"owner:{_PROJECT_ID}:session:{session_id}", b"runner-new")
+
+    def advance_row():
+        row.turn_id = "turn-new"
+        row.updated_at = datetime.now(timezone.utc)
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row], before_update=advance_row), redis
+    )
+
+    assert row.flags["is_alive"] is True
+    assert row.flags["is_running"] is True
+    assert await redis.get(f"alive:{_PROJECT_ID}:session:{session_id}") == b"turn-new"
+    assert await redis.get(f"running:{_PROJECT_ID}:session:{session_id}") == b"turn-new"
+    assert await redis.get(f"owner:{_PROJECT_ID}:session:{session_id}") == b"runner-new"
+
+
+@pytest.mark.anyio
+async def test_heartbeat_during_sweep_prevents_collapse(anyio_backend):
+    row = _FakeRow(
+        session_id="sess-heartbeat-during-sweep",
+        flags={"is_alive": True, "is_running": True, "is_attached": False},
+        age_seconds=360,
+        turn_id="turn-current",
+    )
+
+    def heartbeat():
+        row.updated_at = datetime.now(timezone.utc)
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([row], before_update=heartbeat), _FakeRedis()
+    )
+
+    assert row.flags["is_alive"] is True
+    assert row.flags["is_running"] is True

@@ -24,6 +24,7 @@ from oss.src.core.workflows.service import (
     WorkflowsService,
     SimpleWorkflowsService,
 )
+from oss.src.core.workflows.types import InvalidAgentHarnessError
 from oss.src.core.environments.service import (
     EnvironmentsService,
 )
@@ -1645,6 +1646,10 @@ class WorkflowsRouter:
             )
         except RevisionConflictError as e:
             raise HTTPException(status_code=409, detail=e.to_detail()) from e
+        except InvalidAgentHarnessError as e:
+            # 422, the same status every other "your change is not committable" answer on this
+            # route uses: the request is well-formed, the configuration in it is not.
+            raise HTTPException(status_code=422, detail=e.to_detail()) from e
         except ChangeSetError as e:
             raise HTTPException(status_code=422, detail=e.to_detail()) from e
         except NonEmbeddableWorkflowReferenceError as e:

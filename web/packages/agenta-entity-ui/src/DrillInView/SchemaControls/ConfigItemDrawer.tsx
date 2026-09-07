@@ -82,6 +82,12 @@ export interface ConfigItemDrawerProps {
     json: ReactNode
     /** Hide the Form/JSON toggle and show JSON only (e.g. items with no structured form). */
     jsonOnly?: boolean
+    /** Hide the Form/JSON toggle and keep the FORM. For an item whose raw shape is an internal
+     *  detail the reader has no reason to edit. */
+    formOnly?: boolean
+    /** Header action shown where the Form/JSON toggle would be, for an item that has no toggle
+     *  and does have an action of its own (a subagent's "Open agent" link). */
+    headerExtra?: ReactNode
     /** Drawer width in px. @default 600 */
     width?: number
     /** Read-only mode: disables the toggle and the Save action. */
@@ -110,11 +116,13 @@ export function ConfigItemDrawer({
     form,
     json,
     jsonOnly = false,
+    formOnly = false,
+    headerExtra,
     width = 600,
     disabled = false,
     contentFlush = false,
 }: ConfigItemDrawerProps) {
-    const effectiveView = jsonOnly ? "json" : view
+    const effectiveView = jsonOnly ? "json" : formOnly ? "form" : view
     // Flush layout only helps the form; keep the JSON editor padded and independently scrollable.
     const flushForm = contentFlush && effectiveView === "form"
 
@@ -155,7 +163,9 @@ export function ConfigItemDrawer({
                 </div>
             }
             extra={
-                jsonOnly ? null : (
+                jsonOnly || formOnly ? (
+                    (headerExtra ?? null)
+                ) : (
                     <Segmented
                         size="sm"
                         value={effectiveView}

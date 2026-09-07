@@ -465,6 +465,18 @@ export type AgentEvent =
       total?: number;
       cost?: number;
     }
+  /**
+   * This turn's ADMITTED execution id, emitted once at the start of a session-owned run.
+   *
+   * The runner mints the turn id per execution (`resolveTurnId`), so before this the browser had
+   * no way to learn it: the client's `start` frame is built and sent before the runner replies at
+   * all. Without the id no first-party client can name the execution it means to act on, which is
+   * why `expected_execution_id` on the public Cancel has never had a caller that could fill it.
+   *
+   * Emitted LIVE only, never through the persisting emitter: it is transport correlation, not
+   * conversation, and it must not become a record in the session's history.
+   */
+  | { type: "turn"; turnId: string }
   | {
       type: "error";
       message: string;
@@ -615,8 +627,9 @@ export interface GatewayPolicy {
 
 export interface AgentRunRequest {
   /**
-   * Harness id: "pi_core" | "pi_agenta" | "claude". `pi_core` and `pi_agenta` both drive the
-   * ACP agent "pi" (pi_agenta is Pi with Agenta's forced skills/prompt/policy); "claude" drives
+   * Harness id: "pi_core" | "claude" | "codex". `pi_core` drives the ACP agent "pi";
+   * "pi_agenta" (a removed 2026 experiment) is still read as `pi_core` so an old
+   * stored request replays. "claude" drives
    * the ACP agent "claude". Selected by the request; there is no engine selector.
    */
   harness?: string;
@@ -702,6 +715,21 @@ export interface AgentRunRequest {
    */
   gatewayPolicy?: GatewayPolicy;
   /**
+   * The derived gateway-tools instruction section (how to use `search_tools` / `run_tool`,
+   * with the configured integration names as EXAMPLES), plus which prompt surface carries it.
+   *
+   * Its own field, deliberately OUTSIDE `configFingerprint` and the desired-state facets: the
+   * text is derived from the agent's connections at resolve time, and the runner splices it
+   * into `carrier` when it BUILDS an environment (`buildRunPlan`). So adding or removing an
+   * integration never evicts a warm session for a one-word prompt change; the names refresh
+   * on the next session build, and the wording says the list may be stale. When it was
+   * composed into the prompt strings upstream, every integration add went cold.
+   */
+  gatewayGuidance?: {
+    text: string;
+    carrier: "appendSystemPrompt" | "agentsMd";
+  };
+  /**
    * The declared sandbox security boundary (Layer 2). Omitted when unset. The network policy is
    * enforced on Daytona; on the local sidecar a restricted-network run is rejected under
    * `strict` (it cannot be a hard guarantee there). `filesystem` is declared-only.
@@ -741,6 +769,8 @@ export interface AgentRunRequest {
    * non-session runs. A session sees a sequence of turnIds (send/steer each start a new one).
    */
   turnId?: string;
+  /** True only when the shared event route, rather than this HTTP response, owns delivery. */
+  detached?: boolean;
   /**
    * The Agenta project id for this run. Set alongside `turnId` on session-owned runs so
    * the runner can include it in heartbeat and record-ingest calls. Absent otherwise.
@@ -779,6 +809,12 @@ export interface AgentRunResult {
   usage?: AgentUsage;
   /** Why the turn ended (harness-reported when available). */
   stopReason?: string;
+  /**
+   * Only on `stopReason: "cancelled"`. True when the harness was told to stop AND confirmed it
+   * stopped inside the settle budget, which is what lets the sandbox be parked warm instead of
+   * deleted. Absent or false means the harness never confirmed, so the environment is destroyed.
+   */
+  cancelSettled?: boolean;
   /** What the harness was probed to support this run. */
   capabilities?: HarnessCapabilities;
   sessionId?: string;

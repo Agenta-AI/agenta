@@ -78,12 +78,16 @@ class _FakeEvalRedis:
         )
 
         if script == CLAIM_OWNER_LUA:
-            replica_id, ex = argv
+            owner_value, ex = argv
             current = self._values.get(key)
-            replica_id_bytes = self._val(replica_id)
-            if current is None or current == replica_id_bytes:
-                await self.set(key, replica_id_bytes, ex=int(ex))
-                return replica_id_bytes
+            owner_value_bytes = self._val(owner_value)
+            from oss.src.dbs.redis.sessions.contract import owner_replica_id
+
+            if current is None or owner_replica_id(
+                current.decode()
+            ) == owner_replica_id(owner_value_bytes.decode()):
+                await self.set(key, owner_value_bytes, ex=int(ex))
+                return owner_value_bytes
             return current
         if script == RELEASE_IF_OWNER_LUA:
             (owner,) = argv
@@ -163,6 +167,37 @@ async def test_claim_owner_same_replica_refreshes_without_stealing(fake_redis):
         "refresh must reset the TTL back to OWNER_TTL_SECONDS, not leave it decayed"
     )
     assert ttl <= OWNER_TTL_SECONDS
+
+
+@pytest.mark.asyncio
+async def test_claim_owner_same_replica_refreshes_to_the_new_turn_generation(
+    fake_redis,
+):
+    from oss.src.dbs.redis.sessions.contract import make_owner_value, owner_key
+    from oss.src.dbs.redis.sessions.locks import claim_owner
+
+    engine, client = fake_redis
+    session_id = _session_id()
+
+    await claim_owner(
+        engine,
+        project_id=_PROJECT_ID,
+        session_id=session_id,
+        replica_id="replica-a",
+        turn_id="turn-a",
+    )
+    await claim_owner(
+        engine,
+        project_id=_PROJECT_ID,
+        session_id=session_id,
+        replica_id="replica-a",
+        turn_id="turn-b",
+    )
+
+    assert (
+        await client.get(owner_key(_PROJECT_ID, session_id))
+        == make_owner_value(replica_id="replica-a", turn_id="turn-b").encode()
+    )
 
 
 @pytest.mark.asyncio

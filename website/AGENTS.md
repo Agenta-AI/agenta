@@ -141,6 +141,15 @@ Every merge to `main` that touches `website/**` deploys production, via
   --config wrangler.production.jsonc` — a real deploy (not `versions upload`) to the
   separate production worker `agenta-website` (`preview_urls: false`, no routes yet;
   the `agenta.ai` domain is attached in the Cloudflare dashboard).
+- **Canonical URL:** after the worker deploy, `scripts/configure-canonical-redirect.mjs`
+  idempotently creates or updates one zone-level Single Redirect. It sends HTTP and
+  `www.agenta.ai` requests directly to the equivalent `https://agenta.ai` URL with a
+  308, preserving path and query string. This must remain a zone rule: it runs before
+  the site worker, static assets, and the `/docs/*` proxy, avoiding redirect chains.
+  The script also rejects Cloudflare's legacy Always Use HTTPS setting when it is on,
+  because that setting would add a redirect hop before the canonical rule. The
+  deployment token therefore needs Zone Read, Zone Settings Read, and Dynamic URL
+  Redirects Write.
 - **Guard:** runs only on `Agenta-AI/agenta`; same secrets as the preview workflow.
 
 - Static-first (`output: 'static'`); interactivity is browser-side React islands
@@ -155,6 +164,36 @@ Every merge to `main` that touches `website/**` deploys production, via
   sitemap is generated automatically (`@astrojs/sitemap`). Do not hand-write head meta
   per page.
 - Shared chrome is `src/layouts/Site.astro` + `src/components/SiteNav|SiteFooter|CtaBand`.
-  There is exactly one nav and one footer component; `SiteNav` takes `sticky` (set only
-  by the landing page) to enable the scroll-pill behavior, and renders the identical
-  static bar everywhere else. Reuse them; do not re-implement nav/footer per page.
+  Every page, the landing included, renders through `Site`. There is exactly one nav
+  and one footer component; `Site` takes `sticky` (set only by the landing page) to
+  enable the nav's scroll-pill behavior, and renders the identical static bar
+  everywhere else. Reuse them; do not re-implement nav/footer per page.
+
+## UI building blocks (one place each)
+
+Every visual regression on this site so far came from a page re-drawing a shared
+element by hand (a border string copied into a `style=`, a chip with its own height
+and case, a button with its own gradient) and then drifting when the original changed.
+The rule: **a shared element is drawn in exactly one place, and pages only use it.**
+`pnpm lint:ui` (also run by `pnpm build`) fails when a page draws one of these itself.
+
+| Element | Use | Defined in |
+| --- | --- | --- |
+| Page column (1440, flat) | `Site` layout | `.ag-wrap` in `styles/global.css` |
+| Band border (the page grid) | `<Section tone="grid" \| "dark" \| "flat">` | `components/Section.astro`, `.ag-section` |
+| Eyebrow chip ("HOW IT WORKS") | `<Badge variant=...>` | `components/Badge.astro`, `.ag-badge` |
+| Button | `<Button variant=...>` or `class="ag-btn ag-btn--<variant>"` | `components/Button.astro`, `.ag-btn` |
+| Section header (chip + title + subtitle) | `<SectionTitle>` | `components/SectionTitle.astro` |
+
+- `Section` owns `border: 1px solid var(--th-section-border)` and the `-1px` overlap.
+  `tone="dark"` is for bands that are dark in both themes (a paper line between two
+  dark bands reads as a bright seam). `tone="flat"` is for the white bodies Framer
+  draws without side lines (blog, authors, pricing). The nav shell draws the same
+  border at rest; only `.nav-scrolled` removes it.
+- Colours that change with the theme come only from `--th-*` tokens in
+  `styles/theme.css`; raw palette values live in `styles/tokens.css`. Never write a hex
+  in a component. If Framer shows a value the palette lacks, add it to `tokens.css`
+  with a comment that names where it was measured.
+- Sizes and spacing come from Framer's deployed build, measured, not from the eye.
+  When you change a shared element, check the landing, a blog post and the pricing
+  page in both themes at 1600, 1440 and 390 before you call it done.

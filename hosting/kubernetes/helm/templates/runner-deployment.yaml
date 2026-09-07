@@ -86,6 +86,10 @@ spec:
             - name: AGENTA_RUNNER_LOG_LEVEL
               value: {{ $runner.logLevel | quote }}
             {{- end }}
+            {{- if and (hasKey $runner "liveFrames") (not (hasKey (default dict $runner.env) "AGENTA_RUNNER_LIVE_FRAMES")) }}
+            - name: AGENTA_RUNNER_LIVE_FRAMES
+              value: {{ $runner.liveFrames | quote }}
+            {{- end }}
             {{- if $daytona.apiUrl }}
             - name: AGENTA_RUNNER_DAYTONA_API_URL
               value: {{ $daytona.apiUrl | quote }}

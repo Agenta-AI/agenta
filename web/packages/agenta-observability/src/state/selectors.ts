@@ -2,7 +2,7 @@ import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/ut
 import {getStringOrJson} from "@agenta/shared/utils"
 import {dayjs} from "@agenta/shared/utils/dateTime"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {TraceSpanNode} from "../core/traceSpan"
 

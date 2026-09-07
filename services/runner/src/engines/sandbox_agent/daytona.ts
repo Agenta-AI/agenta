@@ -1,6 +1,10 @@
 import { join } from "node:path";
 
-import { createAcpFetch } from "./acp-fetch.ts";
+import {
+  createAcpFetch,
+  withSandboxGoneReport,
+  type AcpFetchOptions,
+} from "./acp-fetch.ts";
 import {
   resolvePiToolSpecsDelivery,
   uploadPiExtensionToSandbox,
@@ -293,11 +297,17 @@ export async function prepareDaytonaPiAssets({
  * required" / 502. The sandbox-agent SDK accepts a custom fetch, so we hand it this one.
  *
  * It layers on {@link createAcpFetch} (the long-timeout ACP dispatcher) so a paused HITL turn
- * over Daytona is not reaped by undici's default `headersTimeout` either.
+ * over Daytona is not reaped by undici's default `headersTimeout` either, and so `options` (the
+ * sandbox-gone report) reaches the one place that inspects every ACP response. Daytona is the
+ * provider whose proxy answers for a deleted sandbox, so this is the path that needs it most.
  */
 export function createCookieFetch(
-  inner: typeof fetch = createAcpFetch(),
+  inner?: typeof fetch,
+  options: AcpFetchOptions = {},
 ): typeof fetch {
+  const base = inner
+    ? withSandboxGoneReport(inner, options)
+    : createAcpFetch(undefined, options);
   const jar = new Map<string, Map<string, string>>(); // host -> (name -> "name=value")
   return async (input: any, init?: any) => {
     const url = new URL(typeof input === "string" ? input : input.url);
@@ -312,7 +322,7 @@ export function createCookieFetch(
       if (existing) merged.unshift(existing);
       headers.set("cookie", merged.join("; "));
     }
-    const response = await inner(input, { ...init, headers });
+    const response = await base(input, { ...init, headers });
     const setCookies =
       typeof (response.headers as any).getSetCookie === "function"
         ? (response.headers as any).getSetCookie()

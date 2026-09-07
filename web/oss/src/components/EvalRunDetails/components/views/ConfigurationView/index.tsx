@@ -2,7 +2,7 @@ import {memo, useMemo, useState} from "react"
 
 import {Segmented, Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {compareRunIdsAtom, getComparisonColor} from "../../../atoms/compare"
 import {

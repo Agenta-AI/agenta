@@ -33,19 +33,19 @@ type Story = StoryObj<typeof meta>
 
 const HARNESS_META: Record<string, {label: string; short: string; color: string}> = {
     pi_core: {label: "Pi", short: "Pi", color: "#6b5bd6"},
-    pi_agenta: {label: "Pi (Agenta)", short: "Ag", color: "#1c2c3d"},
     claude: {label: "Claude Code", short: "CC", color: "#d97757"},
+    codex: {label: "Codex", short: "Cx", color: "#10a37f"},
 }
 
 const SCHEMA = {
     type: "string",
     title: "Harness",
     description: "The runtime that executes the agent.",
-    enum: ["pi_core", "pi_agenta", "claude"],
+    enum: ["pi_core", "claude", "codex"],
     oneOf: [
         {const: "pi_core", title: "Pi"},
-        {const: "pi_agenta", title: "Pi (Agenta)"},
         {const: "claude", title: "Claude Code"},
+        {const: "codex", title: "Codex"},
     ],
 } as never
 
@@ -197,12 +197,12 @@ export const AntdVsAgenta: Story = {
             />
             <Row
                 label="disabled"
-                a={<AntdHarnessSelect value="pi_agenta" disabled />}
+                a={<AntdHarnessSelect value="claude" disabled />}
                 s={
                     <HarnessSelectControl
                         schema={SCHEMA}
                         label="Harness"
-                        value="pi_agenta"
+                        value="claude"
                         onChange={() => undefined}
                         disabled
                     />

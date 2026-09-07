@@ -29,6 +29,9 @@ The fields and the full schema follow.
 | `sandbox_permission` | `SandboxPermission \| null` | `null` (form pre-fills one) | The declared network and filesystem boundary. See [Sandbox permission](../in-service/sandbox-permission.md). |
 | `skills` | `(SkillConfig \| EmbedRef)[]` | `[]` (the playground overlay embeds the `build-an-agent` playbook) | Inline SKILL.md packages, or `@ag.embed` references the backend inlines before the runner sees them. |
 
+For legacy compatibility, a saved `builtin` entry in `tools` is accepted, ignored with a warning,
+and rendered nowhere. Pi's built-ins are always active and are no longer configured in this field.
+
 Note that `harness`, `sandbox`, and `permissions` are the run-selection fields. They
 live on `AgentConfig` itself, under `data.parameters.agent`, and the handler reads them in the
 one `AgentConfig.from_params(...)` parse along with the rest of the config. There is one agent

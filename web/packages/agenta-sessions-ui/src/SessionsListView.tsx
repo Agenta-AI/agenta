@@ -177,33 +177,51 @@ export const SessionsListView = ({
         )
 
     return (
-        <div className={className}>
-            <MotionConfig transition={SESSION_SPRING} reducedMotion="user">
-                {/* Group headers sit OUTSIDE AnimatePresence: framer bumps z-index on
+        <div
+            className={className}
+            // Say that these rows are a previous query's while a new one resolves. Typing in the
+            // search box mints a query per keystroke, so without this the list silently showed
+            // results for what you typed a moment ago and looked settled doing it. Dimmed rather
+            // than replaced with a skeleton: the rows are still real, they are just not the
+            // answer yet, and swapping them out is the flash `keepPreviousData` exists to avoid.
+            aria-busy={list.isPlaceholder || undefined}
+        >
+            <div
+                className={
+                    list.isPlaceholder ? "opacity-50 transition-opacity" : "transition-opacity"
+                }
+            >
+                <MotionConfig transition={SESSION_SPRING} reducedMotion="user">
+                    {/* Group headers sit OUTSIDE AnimatePresence: framer bumps z-index on
                     layout-animating elements, which paints rows over a sticky sibling. */}
-                {list.groups.map((group) => (
-                    <Fragment key={group.key}>
-                        {group.label ? <SessionGroupHeader label={group.label} /> : null}
-                        <AnimatePresence initial={false}>
-                            {group.rows.map(renderRow)}
-                        </AnimatePresence>
-                    </Fragment>
-                ))}
+                    {list.groups.map((group) => (
+                        <Fragment key={group.key}>
+                            {group.label ? <SessionGroupHeader label={group.label} /> : null}
+                            <AnimatePresence initial={false}>
+                                {group.rows.map(renderRow)}
+                            </AnimatePresence>
+                        </Fragment>
+                    ))}
 
-                {list.paging.hasNext ? (
-                    <SessionListLoadMore
-                        loading={list.paging.isLoadingNext}
-                        onClick={list.paging.loadNext}
-                    />
-                ) : null}
+                    {list.paging.hasNext ? (
+                        <SessionListLoadMore
+                            loading={list.paging.isLoadingNext}
+                            onClick={list.paging.loadNext}
+                        />
+                    ) : null}
 
-                {list.isEmpty ? (
-                    <SessionListEmpty
-                        filtered={list.filtersActive}
-                        onClearFilters={list.resetFilters}
-                    />
-                ) : null}
-            </MotionConfig>
+                    {/* Never while the rows are a previous query's (`isPlaceholder`). "No sessions
+                    yet. Start a conversation…" is a claim about the account, and showing it over
+                    an unsettled query told people with 43 sessions they had none. If the current
+                    query really is empty this renders one tick later, once it has answered. */}
+                    {list.isEmpty && !list.isPlaceholder ? (
+                        <SessionListEmpty
+                            filtered={list.filtersActive}
+                            onClearFilters={list.resetFilters}
+                        />
+                    ) : null}
+                </MotionConfig>
+            </div>
         </div>
     )
 }

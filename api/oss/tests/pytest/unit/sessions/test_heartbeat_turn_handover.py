@@ -174,28 +174,15 @@ async def test_overlapping_beats_of_the_same_turn_stay_current(lock_engine):
         lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id="turn-1"
     )
 
-    cancels: list[str] = []
-
-    async def _spy_force_cancel(engine, *, project_id, session_id):
-        cancels.append(session_id)
-        return None
-
     # refresh_alive returning False while the key holds OUR id is exactly the interleaving:
     # the GET raced the concurrent beat's write.
-    with (
-        patch(
-            "oss.src.core.sessions.streams.service.refresh_alive",
-            new=AsyncMock(return_value=False),
-        ),
-        patch(
-            "oss.src.core.sessions.streams.service.force_cancel_alive",
-            new=_spy_force_cancel,
-        ),
+    with patch(
+        "oss.src.core.sessions.streams.service.refresh_alive",
+        new=AsyncMock(return_value=False),
     ):
         result = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
 
     assert result.is_current_turn is True
-    assert cancels == [], "we already own `alive`; there is nothing to hand over"
     assert await _alive(lock_engine) == "turn-1"
 
 

@@ -19,12 +19,14 @@ import {commandSessionStream} from "@agenta/entities/session"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {workflowRevisionDrawerOpenAtom} from "@agenta/playground-ui/workflow-revision-drawer"
+import {currentSessionParamForScope, writeSessionParamForScope} from "@agenta/sessions/link"
 import {
     pendingSessionOpensAtom,
     removePendingSessionOpensAtom,
     type PendingSessionOpen,
 } from "@agenta/sessions/state"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
+import {useSessionShortcuts} from "@agenta/ui/shortcuts"
 import {paneSlideHoldMs, SplitPane} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
@@ -42,7 +44,6 @@ import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import ShowConfigPanelButton from "./components/ShowConfigPanelButton"
 import {useSessionActions} from "./hooks/useSessionActions"
-import {useSessionShortcuts} from "./hooks/useSessionShortcuts"
 import {useReconcileServerSessions} from "./state/projectSessions"
 import {
     FILES_PANE_MAX,
@@ -208,6 +209,21 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
         removePendingOpens(fresh)
     }, [pendingOpensForScope, adoptSession, addSession, removePendingOpens])
 
+    // `?session_id=` names the session on screen, so a pasted link and a reload both land on it.
+    // Read once per scope — every in-app open goes through the queue above, which rewrites the
+    // param itself. Adopting is the same verb: the session hydrates from records either way.
+    const [linked, setLinked] = useState(() => ({
+        scope,
+        id: currentSessionParamForScope(scope),
+    }))
+    if (linked.scope !== scope) setLinked({scope, id: currentSessionParamForScope(scope)})
+    const linkedSessionId = linked.scope === scope ? linked.id : ""
+    useEffect(() => {
+        if (!linkedSessionId) return
+        adoptSession({id: linkedSessionId})
+        setLinked({scope, id: ""})
+    }, [linkedSessionId, scope, adoptSession])
+
     // Always keep at least one tab. Re-arms when the list drains without double-firing
     // under StrictMode. Held while a deep-linked session is pending: adopting it satisfies the
     // at-least-one-tab rule, and seeding first would leave a stray blank tab beside it.
@@ -218,13 +234,13 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const seeded = useRef(false)
     useEffect(() => {
         if (!projectId) return
-        if (pendingOpensForScope.length > 0) return
+        if (pendingOpensForScope.length > 0 || linkedSessionId) return
         if (sessions.length === 0 && !seeded.current) {
             seeded.current = true
             addSession()
         }
         if (sessions.length > 0) seeded.current = false
-    }, [projectId, sessions.length, addSession, pendingOpensForScope])
+    }, [projectId, sessions.length, addSession, pendingOpensForScope, linkedSessionId])
 
     // Sweep husks (never-run, untitled, empty sessions) that accumulated in history — from before
     // the close-time cleanup, or orphaned by a reload. Open tabs are untouched, so this never drops
@@ -236,6 +252,14 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // Tolerate a stale active id (its tab was closed) by falling back to the first tab.
     const activeId = sessions.some((s) => s.id === rawActiveId) ? rawActiveId : sessions[0]?.id
 
+    // Keep the address bar on the session you're looking at, so it stays copyable as you switch
+    // tabs. Held until a pending link is adopted, or this would overwrite the link with whatever
+    // tab the last visit left open.
+    useEffect(() => {
+        if (linkedSessionId || !activeId) return
+        writeSessionParamForScope(scope, activeId)
+    }, [activeId, scope, linkedSessionId])
+
     // Keyboard shortcuts. Switch and rename happen inside per-session components, so they travel as
     // requests on the shared atoms. The drawer mounts a second panel over this one, so exactly one
     // of the two listens; onboarding hides the bar entirely and allows a single session.
@@ -244,6 +268,11 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const requestRename = useSetAtom(renameSessionRequestAtom)
     const requestSessionSearch = useSetAtom(sessionSearchRequestAtom)
     const drawerOpen = useAtomValue(workflowRevisionDrawerOpenAtom)
+    // Docked Files pane — a full-height sibling of the WHOLE chat column (session bar included),
+    // like the config pane on the other side: its divider runs to the top and the session bar
+    // stays confined to the chat. Follows the ACTIVE session (openers set per-session atoms).
+    const filesPane = useSessionFilesPane(activeId ?? "")
+
     useSessionShortcuts({
         sessions,
         activeId,
@@ -284,12 +313,12 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
             () => setConfigPanelCollapsed(!configPanelCollapsed),
             [configPanelCollapsed, setConfigPanelCollapsed],
         ),
+        onToggleFilesPane: useCallback(() => {
+            if (filesPane.open) filesPane.close()
+            else filesPane.openPane()
+        }, [filesPane]),
     })
 
-    // Docked Files pane — a full-height sibling of the WHOLE chat column (session bar included),
-    // like the config pane on the other side: its divider runs to the top and the session bar
-    // stays confined to the chat. Follows the ACTIVE session (openers set per-session atoms).
-    const filesPane = useSessionFilesPane(activeId ?? "")
     // Workflow artifact id — the key for the agent's durable `agent-files` mount; the pane's
     // DriveSessionProvider needs it here because it sits OUTSIDE the per-tab conversations.
     const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))

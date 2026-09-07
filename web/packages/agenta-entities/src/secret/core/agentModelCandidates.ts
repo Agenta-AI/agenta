@@ -34,6 +34,7 @@ export interface BuildAgentModelCandidatesArgs {
     pairModelSelection?: Record<string, string[] | undefined> | null
 }
 
+// "pi_agenta" is a removed experiment; filter it defensively in case an older API still lists it.
 export const selectableAgentHarnesses = (harnessIds: string[]): string[] =>
     harnessIds.filter((id) => id !== "pi_agenta")
 

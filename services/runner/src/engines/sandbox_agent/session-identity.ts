@@ -12,7 +12,7 @@ import {
   userTurnCarriesContent,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
-import { resolveCodexMode } from "./codex-mode.ts";
+import { normalizedHarnessMode } from "../../harness-kind.ts";
 import type { TeardownReason } from "./teardown.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
 
@@ -26,6 +26,19 @@ export interface KeepaliveConfig {
   enabled: boolean;
   ttlMs: number;
   approvalTtlMs: number;
+  /**
+   * The idle window for a session PARKED BY A USER STOP.
+   *
+   * Defaults to 600 s for both providers, matching the local approval window because both waits
+   * begin when a human is about to act. This deliberately differs from the ordinary 60 s local
+   * and 120 s Daytona idle windows. The trade-off is that a stopped Daytona sandbox can remain
+   * billed for up to ten minutes. Override with AGENTA_RUNNER_SESSION_STOPPED_TTL_MS.
+   *
+   * Optional so a hand-built config (every test fixture) keeps meaning what it always meant:
+   * omitted reads as "same as the idle window". `readKeepaliveConfig`, the only production
+   * source, always sets it.
+   */
+  stoppedTtlMs?: number;
   poolMax: number;
 }
 
@@ -34,6 +47,7 @@ export type KeepaliveProviderName = "local" | "daytona";
 const KEEPALIVE_ENV = "AGENTA_RUNNER_SESSION_KEEPALIVE";
 const TTL_ENV = "AGENTA_RUNNER_SESSION_TTL_MS";
 const APPROVAL_TTL_ENV = "AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS";
+const STOPPED_TTL_ENV = "AGENTA_RUNNER_SESSION_STOPPED_TTL_MS";
 const POOL_MAX_ENV = "AGENTA_RUNNER_SESSION_POOL_MAX";
 
 const DEFAULT_TTL_MS = 60_000;
@@ -46,6 +60,7 @@ const DEFAULT_TTL_MS = 60_000;
 // (never fails the turn), and an awaiting_approval entry keeps holding a pool slot — override
 // via AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS if warm slots are contended.
 const DEFAULT_APPROVAL_TTL_MS = 600_000;
+const DEFAULT_STOPPED_TTL_MS = 600_000;
 const DEFAULT_POOL_MAX = 8;
 const DAYTONA_TTL_ENV = "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS";
 const DAYTONA_POOL_MAX_ENV = "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM";
@@ -97,6 +112,9 @@ export function readKeepaliveConfig(
       // pool never sees an awaiting_approval park for Daytona today because parkedApproval is
       // only set by ACP gates.
       approvalTtlMs: ttlMs,
+      // A stopped Daytona session is deliberately held for the same human-response window as a
+      // local one, even though the sandbox remains billed. Zero remains a valid operator override.
+      stoppedTtlMs: nonNegativeIntEnv(STOPPED_TTL_ENV, DEFAULT_STOPPED_TTL_MS),
       // This budgets billed compute (idle warm sandboxes), deliberately separate from the local
       // pool's host-memory budget; Slice 4 adds the strict warm-slot accounting semantics.
       poolMax: positiveIntEnv(DAYTONA_POOL_MAX_ENV, DEFAULT_DAYTONA_POOL_MAX),
@@ -106,6 +124,8 @@ export function readKeepaliveConfig(
     enabled: boolEnv(KEEPALIVE_ENV, true),
     ttlMs: positiveIntEnv(TTL_ENV, DEFAULT_TTL_MS),
     approvalTtlMs: positiveIntEnv(APPROVAL_TTL_ENV, DEFAULT_APPROVAL_TTL_MS),
+    // A settled Stop gets the same ten-minute human-response window as a pending approval.
+    stoppedTtlMs: positiveIntEnv(STOPPED_TTL_ENV, DEFAULT_STOPPED_TTL_MS),
     poolMax: positiveIntEnv(POOL_MAX_ENV, DEFAULT_POOL_MAX),
   };
 }
@@ -211,18 +231,70 @@ function canonicalJson(value: unknown): string {
  * sandbox that was still perfectly usable, which is the exact cost this project exists to remove.
  * They stay in `runContext` for tool binding and observability; they simply no longer decide
  * whether an environment may be reused.
+ *
+ * One `runContext` field is deliberately IN the hash although the object as a whole is
+ * excluded: `workflow.artifact.id`, because the agent mount it selects is baked at acquire
+ * (audit finding 4; see the field comment in `configShape`).
+ *
+ * `modelCapabilities` left the hash the same way (2026-08-30, cold/warm audit finding 2). It is
+ * the resolved model's input modalities, read ONLY by the per-turn attachment-delivery chain —
+ * nothing bakes it into the environment. And because it changes WITH the model, hashing it made
+ * the plan for a vision-to-text model switch move a second facet, so the live `setModel` route
+ * was refused and the switch rebuilt the sandbox. The model id itself stays in the hash; its
+ * per-turn side facts do not.
  */
 export function configFingerprint(request: AgentRunRequest): string {
+  return sha256(canonicalJson(configShape(request)));
+}
+
+/**
+ * Per-field digests of the SAME shape `configFingerprint` hashes, so a config mismatch can name
+ * WHICH fields differ (names only, never values — each digest is a hash). Today a
+ * `mismatch (config)` eviction says a rebuild happened but not why, and answering "what changed"
+ * takes production access; with the applied side storing these, the eviction log names the
+ * fields. Sharing `configShape` keeps the two views incapable of drifting.
+ */
+export function configFieldDigests(
+  request: AgentRunRequest,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(configShape(request)).map(([field, value]) => [
+      field,
+      sha256(canonicalJson(value)),
+    ]),
+  );
+}
+
+/** The fields whose digests differ, in shape order. Empty when `applied` is absent (unknowable). */
+export function changedConfigFields(
+  desired: Record<string, string>,
+  applied: Record<string, string> | undefined,
+): string[] {
+  if (!applied) return [];
+  return Object.keys(desired).filter(
+    (field) => desired[field] !== applied[field],
+  );
+}
+
+function configShape(request: AgentRunRequest) {
   const shape = {
     harness: request.harness ?? null,
     sandbox: request.sandbox ?? null,
+    // The ONE `runContext` field that is environment identity (audit finding 4). The agent
+    // artifact id signs the agent mount, mounts an artifact-keyed store prefix, sets the
+    // mount env var, and selects the durable-storage guidance — all baked at acquire. Without
+    // it a warm sandbox kept serving a session whose storage folder had changed, with the
+    // wrong (or no) agent mount attached. The REST of `runContext` stays out: revision ids,
+    // variant identity, and trace identity are per-turn metadata (the step-1 rule).
+    agentArtifactId: request.runContext?.workflow?.artifact?.id?.trim() || null,
     model: request.model ?? null,
-    // Harness mode is applied once, at session acquire (codex-mode.ts). Normalize Codex defaults
-    // and ignore the field for other harnesses so only effective mode changes evict warm sessions.
-    harnessMode:
-      request.harness === "codex"
-        ? resolveCodexMode(request.harnessMode)
-        : null,
+    // Harness mode is applied once, at session acquire (codex-mode.ts). The SHARED normalizer
+    // (audit findings 3 and 6) resolves Codex defaults and ignores the field elsewhere, and the
+    // facet digest uses the same call, so the two views can never disagree about a mode change.
+    harnessMode: normalizedHarnessMode(request.harness, request.harnessMode),
+    // Hashed on EVERY harness, deliberately (audit finding 8 proposed scoping this to Pi and
+    // was declined): design Decision 7 pins that a custom provider identity change cold-starts
+    // rather than reusing a mismatched live session, and the pinned test covers non-Pi too.
     connection: request.connection ?? null,
     modelConnection: request.modelConnection
       ? {
@@ -239,7 +311,6 @@ export function configFingerprint(request: AgentRunRequest): string {
           ),
         }
       : null,
-    modelCapabilities: request.modelCapabilities ?? null,
     agentsMd: request.agentsMd ?? null,
     systemPrompt: request.systemPrompt ?? null,
     appendSystemPrompt: request.appendSystemPrompt ?? null,
@@ -252,19 +323,30 @@ export function configFingerprint(request: AgentRunRequest): string {
         ...server,
         connection: {
           ...server.connection,
+          // `?? []` matches the facet digest's normalization (`credentialShapes`): an omitted
+          // array and an empty one are the same configuration, and the two identity views
+          // must agree on that or a no-op request cold-evicts with a DISAGREE log.
           credentials: server.connection?.credentials?.map((credential) => ({
             binding: credential.binding,
             usage: credential.usage,
-          })),
+          })) ?? [],
         },
       })) ?? null,
-    toolCallbackEndpoint: request.toolCallback?.endpoint ?? null,
+    // No `toolCallback.endpoint` (audit finding 5): every turn reads the INCOMING request's
+    // callback (`run-turn.ts` builds each dispatch from it), nothing bakes the endpoint into
+    // the environment, and hashing it evicted a warm session when the per-deployment gateway
+    // URL moved. The endpoint's per-turn AUTHORIZATION was already excluded.
+    // No `gatewayGuidance` and no `gatewayPolicy`: both are DERIVED from the agent's gateway
+    // connections at resolve time. The guidance is spliced into the prompt at environment build
+    // (`buildRunPlan`) and its wording treats the integration names as examples, so a warm
+    // session serving a slightly stale list is honest — and hashing it would evict a warm
+    // session every time an integration is added, the exact cost this exclusion removes.
     permissions: request.permissions ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
     harnessFiles: request.harnessFiles ?? null,
     // No `workflowRevision` and no `isDraft`. See the doc comment above.
   };
-  return sha256(canonicalJson(shape));
+  return shape;
 }
 
 function collectToolCallIds(
@@ -442,15 +524,34 @@ export function approvalDecisionForToolCall(
   toolCallId: string,
 ): "allow" | "deny" | undefined {
   if (!toolCallId) return undefined;
-  for (const message of request.messages ?? []) {
-    const content = message?.content;
-    if (!Array.isArray(content)) continue;
-    for (const block of content) {
-      if (block?.type !== "tool_result" || block.toolCallId !== toolCallId) {
-        continue;
+  const messages = request.messages ?? [];
+  if (messages.length === 0) return undefined;
+
+  // A pure interaction reply carries its decision at the request tail. A fresh user turn can
+  // carry a rewritten `output-denied` tool part in its history; only the LAST assistant message
+  // is relevant there. Scanning the whole transcript lets an older denial bind to a newer gate
+  // that reused the id and incorrectly diverts the new user text into approval-resume.
+  let message: ChatMessage | undefined;
+  if (!tailIsFreshUserMessage(request)) {
+    message = messages[messages.length - 1];
+  } else {
+    for (let i = messages.length - 2; i >= 0; i--) {
+      if (messages[i]?.role === "assistant") {
+        message = messages[i];
+        break;
       }
-      const decision = approvalDecisionOf(block);
-      if (decision !== undefined) return decision;
+    }
+  }
+  if (message) {
+    const content = message?.content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (block?.type !== "tool_result" || block.toolCallId !== toolCallId) {
+          continue;
+        }
+        const decision = approvalDecisionOf(block);
+        if (decision !== undefined) return decision;
+      }
     }
   }
   return undefined;
