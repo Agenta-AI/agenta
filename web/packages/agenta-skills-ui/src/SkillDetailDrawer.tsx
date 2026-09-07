@@ -233,12 +233,18 @@ export function SkillDetailDrawer({
         [revisions],
     )
 
+    /** The revision this edit started from — the concurrency base. Captured on
+     * ENTRY, because a background refetch can move `head` while the drawer is
+     * open, and committing against a base the author never saw is exactly what
+     * the check exists to prevent. */
+    const [editBaseId, setEditBaseId] = useState<string | null>(null)
     const startEdit = useCallback(() => {
         setDraft(toFormValue(selected?.skill))
         setSelectedId(null)
+        setEditBaseId((selected ?? head)?.id ?? null)
         setEditing(true)
         setError(null)
-    }, [selected])
+    }, [head, selected])
 
     const askToCommit = useCallback((content: Record<string, unknown>, defaultMessage: string) => {
         const parsed = skillContentSchema.safeParse(content)
@@ -262,15 +268,16 @@ export function SkillDetailDrawer({
                 workflowId,
                 skill: pending,
                 message: saveMessage.trim() || undefined,
-                // The head we rendered is the base — a concurrent edit conflicts,
-                // it is never clobbered.
-                baseRevisionId: head.id,
+                // The revision this edit started from; a commit landed meanwhile
+                // conflicts instead of silently overwriting it.
+                baseRevisionId: editBaseId ?? head.id,
             })
             invalidateSkillsListCache()
             await revisionsQuery.refetch()
             setSaveOpen(false)
             setPending(null)
             setEditing(false)
+            setEditBaseId(null)
             setSelectedId(null)
         } catch (err) {
             setError(
@@ -281,7 +288,7 @@ export function SkillDetailDrawer({
         } finally {
             setBusy(false)
         }
-    }, [head, pending, projectId, revisionsQuery, saveMessage, workflowId])
+    }, [editBaseId, head, pending, projectId, revisionsQuery, saveMessage, workflowId])
 
     const usedByIds = useMemo(() => new Set(usedBy.map((agent) => agent.id)), [usedBy])
     const availableAgents = useMemo(

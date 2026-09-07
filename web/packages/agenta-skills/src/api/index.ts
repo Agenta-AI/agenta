@@ -5,10 +5,10 @@
  * independent drift check. Workflow-level writes (create/commit/roster) still ride the
  * entities layer, whose own Fern migration is tracked separately.
  */
+import {safeParseWithLogging} from "@agenta/entities/shared"
 import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
 import {getSkillsClient, getWorkflowsClient} from "@agenta/sdk/resources"
 import {generateId} from "@agenta/shared/utils"
-import type {z} from "zod"
 
 import {
     skillsQueryResponseSchema,
@@ -25,19 +25,6 @@ import {
     type UpdateApplyResponse,
     type UpdateCheckResponse,
 } from "../core/schema"
-
-function parseOrWarn<T extends z.ZodType>(
-    schema: T,
-    data: unknown,
-    label: string,
-): z.infer<T> | null {
-    const result = schema.safeParse(data)
-    if (!result.success) {
-        console.warn(`${label} response failed validation`, result.error)
-        return null
-    }
-    return result.data
-}
 
 export interface QuerySkillsParams {
     projectId: string
@@ -68,7 +55,7 @@ export async function querySkills({
     )
 
     return (
-        parseOrWarn(skillsQueryResponseSchema, data, "[querySkills]") ?? {
+        safeParseWithLogging(skillsQueryResponseSchema, data, "[querySkills]") ?? {
             count: 0,
             skills: [],
             builtin: [],
@@ -96,7 +83,11 @@ export async function querySkillReferencedBy({
         {queryParams: {project_id: projectId}},
     )
 
-    const parsed = parseOrWarn(skillReferencedByResponseSchema, data, "[querySkillReferencedBy]")
+    const parsed = safeParseWithLogging(
+        skillReferencedByResponseSchema,
+        data,
+        "[querySkillReferencedBy]",
+    )
     return parsed ?? {count: 0, referenced_by: []}
 }
 
@@ -150,7 +141,7 @@ export async function scanSkillSource({
         {queryParams: {project_id: projectId}},
     )
 
-    return parseOrWarn(skillSourceScanResponseSchema, data, "[scanSkillSource]")
+    return safeParseWithLogging(skillSourceScanResponseSchema, data, "[scanSkillSource]")
 }
 
 export interface ImportSkillSourceParams {
@@ -179,7 +170,7 @@ export async function importSkillSource({
         {queryParams: {project_id: projectId}},
     )
 
-    return parseOrWarn(skillSourceImportResponseSchema, data, "[importSkillSource]")
+    return safeParseWithLogging(skillSourceImportResponseSchema, data, "[importSkillSource]")
 }
 
 /** One row of a skill workflow's revision history, as the detail drawer consumes it. */
