@@ -166,8 +166,11 @@ class SkillImportService:
 
     async def _origin_index(
         self, *, project_id: UUID
-    ) -> Dict[Tuple[str, str], Dict[str, Any]]:
-        """(repository, path) → artifact origin, over every live skill workflow.
+    ) -> Dict[Tuple[str, str, str], Dict[str, Any]]:
+        """(provider, repository, path) → artifact origin, over every live skill.
+
+        The provider is part of the identity: two catalogs can name the same
+        repository string, and only the triple identifies one imported item.
 
         Two bounded queries: the head-revision query yields the project's skill
         set (revision-level `is_skill`), a batched artifact fetch yields meta.
@@ -190,14 +193,19 @@ class SkillImportService:
             workflow_refs=[Reference(id=artifact_id) for artifact_id in artifact_ids],
         )
 
-        index: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        index: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
         for artifact in artifacts:
             origin = read_origin(getattr(artifact, "meta", None))
             locator = origin_locator(origin)
+            provider = (origin or {}).get("provider")
             repository = locator.get("repository")
             path = locator.get("path")
-            if isinstance(repository, str) and isinstance(path, str):
-                index[(repository, path)] = {
+            if (
+                isinstance(provider, str)
+                and isinstance(repository, str)
+                and isinstance(path, str)
+            ):
+                index[(provider, repository, path)] = {
                     "workflow_id": artifact.id,
                     "origin": origin,
                 }
@@ -224,7 +232,7 @@ class SkillImportService:
             already = [
                 c.path_in_repo
                 for c in scan.candidates
-                if (locator.repository, c.path_in_repo) in index
+                if (adapter.provider, locator.repository, c.path_in_repo) in index
             ]
 
         return SourceScanResult(
@@ -284,7 +292,7 @@ class SkillImportService:
                 continue
 
             skill = candidate.skill
-            if (repository, candidate.path_in_repo) in index:
+            if (adapter.provider, repository, candidate.path_in_repo) in index:
                 result.skipped.append(
                     SkippedSkill(
                         path_in_repo=candidate.path_in_repo,

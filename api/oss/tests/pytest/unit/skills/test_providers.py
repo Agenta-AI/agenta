@@ -43,6 +43,18 @@ def test_registry_rejects_an_unregistered_provider_name():
         registry.get("gitlab")
 
 
+def test_github_item_url_encodes_the_path():
+    provider = GitHubProvider()
+    locator = provider.claims("github.com/obra/superpowers")
+    url = provider.item_url(
+        locator, path="skills/my skill#1", resolved_version="abc123"
+    )
+    # Separators survive; the unsafe characters do not.
+    assert url == (
+        "https://github.com/obra/superpowers/tree/abc123/skills/my%20skill%231"
+    )
+
+
 def test_github_item_url_shape():
     provider = GitHubProvider()
     locator = provider.claims("github.com/obra/superpowers")

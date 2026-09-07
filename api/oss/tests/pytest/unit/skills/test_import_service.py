@@ -533,3 +533,16 @@ async def test_recovery_never_rescues_a_hand_edited_head(fixture_tree):
 
     check = await service.check_update(project_id=PROJECT_ID, workflow_id=alpha.id)
     assert check.status == "detached"
+
+
+@pytest.mark.asyncio
+async def test_identity_key_includes_the_provider(fixture_tree):
+    """Two catalogs may name the same repository string; only provider +
+    repository + path identifies one imported item."""
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+
+    index = await service._origin_index(project_id=PROJECT_ID)
+    assert ("local", "acme/skills", "skills/alpha") in index
+    # The same repo/path under a different provider is a DIFFERENT item.
+    assert ("github", "acme/skills", "skills/alpha") not in index

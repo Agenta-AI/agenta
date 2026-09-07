@@ -126,6 +126,8 @@ export interface ScanSkillSourceParams {
     projectId: string
     repoUrl: string
     ref?: string
+    /** Narrow resolution to one catalog provider; omitted = the server asks each. */
+    provider?: string
 }
 
 /** `POST /skills/sources/scan` — fetch + parse a GitHub repo without importing. Throws on HTTP errors. */
@@ -133,11 +135,12 @@ export async function scanSkillSource({
     projectId,
     repoUrl,
     ref,
+    provider,
 }: ScanSkillSourceParams): Promise<SkillSourceScanResponse | null> {
     if (!projectId || !repoUrl) return null
 
     const data = await getSkillsClient().scanSkillSource(
-        {source_url: repoUrl, ...(ref ? {ref} : {})},
+        {source_url: repoUrl, ...(ref ? {ref} : {}), ...(provider ? {provider} : {})},
         {queryParams: {project_id: projectId}},
     )
 
@@ -150,6 +153,7 @@ export interface ImportSkillSourceParams {
     ref?: string
     /** `path_in_repo` values from a prior scan; omitted = every valid candidate. */
     paths?: string[]
+    provider?: string
 }
 
 /** `POST /skills/sources` — import the selected candidates as skill workflows. Throws on HTTP errors. */
@@ -158,6 +162,7 @@ export async function importSkillSource({
     repoUrl,
     ref,
     paths,
+    provider,
 }: ImportSkillSourceParams): Promise<SkillSourceImportResponse | null> {
     if (!projectId || !repoUrl) return null
 
@@ -166,6 +171,7 @@ export async function importSkillSource({
             source_url: repoUrl,
             ...(ref ? {ref} : {}),
             ...(paths ? {paths} : {}),
+            ...(provider ? {provider} : {}),
         },
         {queryParams: {project_id: projectId}},
     )

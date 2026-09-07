@@ -10,6 +10,7 @@ that ships archives.
 import re
 from pathlib import Path
 from typing import Optional
+from urllib.parse import quote
 
 import httpx
 
@@ -109,4 +110,7 @@ class GitHubProvider(CatalogProvider):
     ) -> Optional[str]:
         if not resolved_version:
             return None
-        return f"https://github.com/{locator.repository}/tree/{resolved_version}/{path}"
+        # Paths come from the repo tree and may hold spaces or `#`; encode them
+        # (keeping separators) so the link stays valid.
+        safe_path = quote(path, safe="/")
+        return f"https://github.com/{locator.repository}/tree/{resolved_version}/{safe_path}"
