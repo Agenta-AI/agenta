@@ -733,6 +733,29 @@ export interface AgentRunRequest {
    */
   platformInstructions?: string;
   /**
+   * Who the agent is and where the conversation stands: the agent's display name, the session
+   * name, and whether this is the first turn.
+   *
+   * The runner does not consume it. The SDK has already rendered these facts into
+   * `platformInstructions`, which the runner splices; the field rides the wire so the payload
+   * records what produced that text, and so a later consumer needs no second migration.
+   *
+   * `agentName` / `sessionName` / `firstTurn` may be `null`. A `sessionName` of `null` is
+   * how "this session has no name yet" is stated. `userName` / `timezone` / `localTime` are reserved: the
+   * service does not populate them yet and omits each while unset.
+   *
+   * Deliberately outside `configFingerprint` and the desired-state facets, exactly like
+   * `platformInstructions`. Naming a session must never evict a warm environment.
+   */
+  sessionContext?: {
+    agentName?: string | null;
+    sessionName?: string | null;
+    firstTurn?: boolean | null;
+    userName?: string | null;
+    timezone?: string | null;
+    localTime?: string | null;
+  };
+  /**
    * Compatibility input for SDKs deployed before `platformInstructions`. The new scalar field
    * wins when both are present so generated guidance is never delivered twice.
    */

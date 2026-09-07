@@ -28,6 +28,7 @@ from .dtos import (
     HarnessKind,
     Message,
     RunContext,
+    SessionContext,
     SessionConfig,
     TraceContext,
 )
@@ -129,6 +130,7 @@ class Backend(ABC):
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
+        session_context: Optional[SessionContext] = None,
         session_id: Optional[str] = None,
         detached: bool = False,
         turn_id: Optional[str] = None,
@@ -204,6 +206,7 @@ class Environment:
             ),
             trace=session_config.trace,
             run_context=session_config.run_context,
+            session_context=session_config.session_context,
             session_id=session_config.session_id,
             detached=session_config.detached,
             turn_id=session_config.turn_id,

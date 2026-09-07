@@ -274,6 +274,22 @@ class WireRunContext(_WireModel):
     trace: Optional[WireRunContextTrace] = None
 
 
+class WireSessionContext(_WireModel):
+    """Who the agent is and where the conversation stands (mirrors ``SessionContext.to_wire``).
+
+    Rendered by the SDK into ``platformInstructions``; the runner does not consume it. The three
+    populated keys ride even when null, because null is the real answer for an unnamed session.
+    ``userName`` / ``timezone`` / ``localTime`` are declared and reserved: the service does not
+    populate them yet, and the producer omits each one while it is unset."""
+
+    agent_name: Optional[str] = Field(default=None, alias="agentName")
+    session_name: Optional[str] = Field(default=None, alias="sessionName")
+    first_turn: Optional[bool] = Field(default=None, alias="firstTurn")
+    user_name: Optional[str] = Field(default=None, alias="userName")
+    timezone: Optional[str] = None
+    local_time: Optional[str] = Field(default=None, alias="localTime")
+
+
 class WireRenderHint(_WireModel):
     """How a tool's result should be rendered by a client."""
 
@@ -552,6 +568,12 @@ class WireRunRequest(_WireModel):
     # The run's own context (trace + variant identity), refreshed per turn; consumed only by a
     # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted when unset.
     run_context: Optional[WireRunContext] = Field(default=None, alias="runContext")
+    # The agent's display name, the session name, and whether this is the first turn. Rendered
+    # into ``platformInstructions`` by the SDK, so the runner reads it from there and never from
+    # here. Excluded from lifecycle identity, like ``platformInstructions`` itself.
+    session_context: Optional[WireSessionContext] = Field(
+        default=None, alias="sessionContext"
+    )
     # Tools + skills.
     tools: Optional[List[str]] = None
     custom_tools: Optional[List[WireResolvedToolSpec]] = Field(

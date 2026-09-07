@@ -15,11 +15,17 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
+from .dtos import SessionContext
+
 
 # The tool whose presence means "this run can edit its own configuration". Checked by name, not
 # by a flag: `commit_revision` is in the playground build kit unconditionally, and a run that
 # lacks it (a trigger fire, an embedded run) has no use for the config sections.
 CONFIG_COMMIT_TOOL = "commit_revision"
+
+# The tools the session block exists to drive. Same reasoning as `CONFIG_COMMIT_TOOL`: a run
+# that cannot rename anything gains nothing from being told its name.
+RENAME_TOOLS = ("rename_session", "rename_agent")
 
 
 AGENTA_PLATFORM_BASE = """\
@@ -286,11 +292,10 @@ the connections for real.
 
 ## Names
 
-Rename the agent with `rename_agent` only when its name is still a placeholder such as
-"New agent" or "Untitled agent". Never rename an agent that already has a real name.
-
-Name the session once, with `rename_session`, as soon as the first exchange makes clear what it
-is about. Do not rename it again later."""
+The session block at the end of these instructions tells you your name and whether the session
+is named. Rename the agent with `rename_agent` only when that block says the name is a
+placeholder. Name the session with `rename_session` once, when the block says it has no name
+yet. Never rename either again later."""
 
 
 def credential_guidance(environment_names: Sequence[str]) -> Optional[str]:
@@ -334,17 +339,94 @@ list can go stale — `search_tools` is the source of truth for what is connecte
   arguments — report it instead of looping."""
 
 
+def is_placeholder_agent_name(name: Optional[str]) -> bool:
+    """Say whether an agent display name is still the seeded placeholder.
+
+    A placeholder is what the platform names a new agent before anyone has named it: an empty
+    name, "Untitled", "Untitled agent", or anything that starts with "New agent" (the UI appends
+    a counter, as in "New agent 2"). The comparison is case-insensitive and ignores surrounding
+    whitespace. This is the only predicate behind the `rename_agent` rule, so a real name the
+    author chose is never mistaken for a placeholder."""
+    if name is None:
+        return True
+    normalized = " ".join(name.split()).casefold()
+    if not normalized:
+        return True
+    if normalized in {"untitled", "untitled agent"}:
+        return True
+    return normalized.startswith("new agent")
+
+
+def session_context_guidance(context: Optional[SessionContext]) -> Optional[str]:
+    """Render the per-turn facts behind the two naming rules.
+
+    Composed LAST, after the gateway section, so it reads as the concrete situation that follows
+    the general instructions. Returns ``None`` when there is no context to render, which keeps a
+    run without it byte-identical to before.
+
+    Each line is a fact plus the action it implies, because the model acts on the instruction it
+    reads next to the fact. The turn line is dropped when the service did not say, rather than
+    guessed: claiming "this is not the first turn" on a first turn would suppress the session
+    name for the whole conversation."""
+    if context is None:
+        return None
+
+    name = context.agent_name
+    if is_placeholder_agent_name(name):
+        shown = name.strip() if name and name.strip() else "New agent"
+        agent_line = (
+            f'Your name is "{shown}". That is a placeholder, so rename yourself with '
+            "`rename_agent` in this turn."
+        )
+    else:
+        agent_line = f'Your name is "{name.strip()}". Keep it.'
+
+    if context.session_name and context.session_name.strip():
+        session_line = (
+            f'This session is named "{context.session_name.strip()}". Do not rename it.'
+        )
+    else:
+        session_line = (
+            "This session has no name yet. Name it with `rename_session` once the first "
+            "exchange makes clear what it is about."
+        )
+
+    lines = [agent_line, session_line]
+    if context.first_turn is True:
+        lines.append("This is the first turn of the session.")
+    elif context.first_turn is False:
+        lines.append(
+            "This is not the first turn; earlier turns are in your conversation."
+        )
+
+    body = "\n".join(lines)
+    return f"""\
+## This session
+
+{body}"""
+
+
 def compose_platform_instructions(
     integration_names: Sequence[str],
     credential_environment_names: Sequence[str] = (),
     tool_names: Sequence[str] = (),
+    session_context: Optional[SessionContext] = None,
 ) -> str:
     """Compose the SDK-owned text: the base, the config sections when the run can commit, then
-    the per-run guidance (credential names, connected integrations)."""
+    the per-run guidance (credential names, connected integrations), and last the session block.
+
+    The session block is rendered only when the run offers a rename tool. Its whole purpose is to
+    drive `rename_agent` and `rename_session`, so a run that cannot call either (a trigger fire,
+    an embedded run) would carry facts it can do nothing with."""
     sections = [
         AGENTA_PLATFORM_BASE,
         AGENTA_CONFIG_SECTIONS if CONFIG_COMMIT_TOOL in tool_names else None,
         credential_guidance(credential_environment_names),
         gateway_guidance(integration_names),
+        (
+            session_context_guidance(session_context)
+            if any(tool in tool_names for tool in RENAME_TOOLS)
+            else None
+        ),
     ]
     return "\n\n".join(section for section in sections if section)

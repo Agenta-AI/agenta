@@ -51,6 +51,7 @@ const KNOWN_REQUEST_KEYS = [
   "permissions",
   "gatewayPolicy",
   "platformInstructions",
+  "sessionContext",
   "systemPrompt",
   "appendSystemPrompt",
   "skills",

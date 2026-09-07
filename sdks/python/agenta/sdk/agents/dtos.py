@@ -598,6 +598,54 @@ class RunContext(BaseModel):
         return out
 
 
+class SessionContext(BaseModel):
+    """Who the agent is and where the conversation stands, refreshed per turn.
+
+    The platform prompt tells the agent to rename itself only while its name is still a
+    placeholder, and to name the session once at the start. Neither rule was followable before
+    this model: ``read_config`` returns ``parameters.agent`` and carries no display name, and the
+    run request carried no session name and no first-turn flag. So the agent had to guess, and
+    live QA showed it guessing wrong. The service fills these three facts per turn and
+    ``platform_instructions.session_context_guidance`` renders them as the last prompt section.
+
+    ``user_name``, ``timezone`` and ``local_time`` are declared but NOT populated yet. They are
+    reserved here so a later change fills them without a second wire migration. Nothing renders
+    them today, and ``to_wire`` omits each one while it is unset.
+
+    Unlike :class:`RunContext`, this blob is never a binding namespace: no tool reads it. It
+    exists only to be rendered into the prompt, so it stays out of the session fingerprint the
+    same way ``platform_instructions`` does. A renamed session must not evict a warm sandbox."""
+
+    agent_name: Optional[str] = None
+    session_name: Optional[str] = None
+    first_turn: Optional[bool] = None
+    # Reserved: declared so the shape is stable, populated by a later change.
+    user_name: Optional[str] = None
+    timezone: Optional[str] = None
+    local_time: Optional[str] = None
+
+    def to_wire(self) -> Dict[str, Any]:
+        """The camelCase wire object.
+
+        The three populated keys are emitted even when null, because ``null`` is a real answer
+        here: it is how "this session has no name yet" reaches a reader of the payload. The
+        three reserved keys are omitted while unset, so today's payload gains nothing it cannot
+        explain."""
+        out: Dict[str, Any] = {
+            "agentName": self.agent_name,
+            "sessionName": self.session_name,
+            "firstTurn": self.first_turn,
+        }
+        for key, value in (
+            ("userName", self.user_name),
+            ("timezone", self.timezone),
+            ("localTime", self.local_time),
+        ):
+            if value is not None:
+                out[key] = value
+        return out
+
+
 # ---------------------------------------------------------------------------
 # Run result
 # ---------------------------------------------------------------------------
@@ -1183,6 +1231,11 @@ class SessionConfig(BaseModel):
     # tool's ``call.context`` binding at dispatch (direct-call tools, Phase 3a). Omitted from the
     # wire when unset, so a run that needs no binding is byte-identical to before.
     run_context: Optional[RunContext] = None
+    # The agent's display name, the session name, and whether this is the first turn. The
+    # service supplies it on ``request.meta``; the harness adapters render it as the last
+    # platform-instructions section so the naming rules read facts instead of guessing. Omitted
+    # from the wire when unset, and kept out of the session fingerprint.
+    session_context: Optional[SessionContext] = None
     session_id: Optional[str] = None
     # Explicit per-invoke ownership handoff. False preserves request-owned cancellation.
     detached: bool = False

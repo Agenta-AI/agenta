@@ -22,7 +22,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, Mapping, Optional
 
-from ..dtos import HarnessAgentTemplate, HarnessKind, RunContext, TraceContext
+from ..dtos import (
+    HarnessAgentTemplate,
+    HarnessKind,
+    RunContext,
+    SessionContext,
+    TraceContext,
+)
 from ..interfaces import Backend, Sandbox, Session
 from ..tools.models import ResolvedGatewayPolicy
 
@@ -47,6 +53,7 @@ class LocalBackend(Backend):
         secrets: Optional[Mapping[str, str]] = None,
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
+        session_context: Optional[SessionContext] = None,
         session_id: Optional[str] = None,
         detached: bool = False,
         turn_id: Optional[str] = None,

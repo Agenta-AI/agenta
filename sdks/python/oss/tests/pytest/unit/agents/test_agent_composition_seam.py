@@ -100,6 +100,8 @@ class _FakeBackend(Backend):
         # The per-harness config the adapter built. Capturing it alongside neutral backend
         # arguments checks both sides of the composition boundary rather than one hop.
         self.created_configs: List[Any] = []
+        # The service-supplied naming facts, as they reach the backend.
+        self.created_session_contexts: List[Any] = []
 
     async def create_sandbox(self) -> _FakeSandbox:
         return _FakeSandbox()
@@ -113,6 +115,7 @@ class _FakeBackend(Backend):
         secrets=None,
         trace=None,
         run_context=None,
+        session_context=None,
         session_id=None,
         detached=False,
         turn_id=None,
@@ -129,6 +132,7 @@ class _FakeBackend(Backend):
             (session_id, turn_id, project_id, control_command_id)
         )
         self.created_configs.append(config)
+        self.created_session_contexts.append(session_context)
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))
 
 
@@ -813,3 +817,90 @@ async def test_no_gateway_policy_leaves_the_run_request_field_absent():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-q"])
+
+
+async def test_session_context_meta_reaches_the_backend_and_the_prompt():
+    """The service's naming facts survive `meta` and land in the rendered platform text.
+
+    This is the whole point of the field: the prompt tells the agent to rename itself only
+    while its name is a placeholder, and it can only obey once the fact arrives.
+    """
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            meta={
+                "session_context": {
+                    "agent_name": "New agent",
+                    "session_name": None,
+                    "first_turn": True,
+                }
+            },
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    context = backend.created_session_contexts[0]
+    assert context.agent_name == "New agent"
+    assert context.session_name is None
+    assert context.first_turn is True
+
+
+async def test_a_malformed_session_context_degrades_to_no_context():
+    """A bad blob must cost the prompt a section, never the turn.
+
+    An unknown key is dropped rather than raised on, so a newer service can add a field before
+    this SDK knows it.
+    """
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    for blob in ("not-a-dict", {"first_turn": ["maybe"]}):
+        await handler(
+            request=WorkflowServiceRequest(
+                session_id="session-1", meta={"session_context": blob}
+            ),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(),
+        )
+
+    assert backend.created_session_contexts == [None, None]
+
+
+async def test_an_unknown_session_context_key_is_dropped_not_fatal():
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            meta={
+                "session_context": {
+                    "agent_name": "Changelog writer",
+                    "invented_by_a_newer_service": 1,
+                }
+            },
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_session_contexts[0].agent_name == "Changelog writer"

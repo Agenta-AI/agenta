@@ -127,6 +127,7 @@ Request fields include:
 | `secrets` | Provider env vars resolved by the service. |
 | `tools`, `customTools`, `toolCallback`, `mcpServers` | Resolved tool delivery. |
 | `permissions` | Permission plan: `{default?, rules?}`. `default` is one of `allow`, `ask`, `deny`, or `allow_reads`; missing, it falls back to `allow_reads`, and a malformed block fails toward `ask`. `rules` is an optional list of `{pattern, permission}` entries for harness builtins. The runner enforces it on every harness. |
+| `sessionContext` | Who the agent is and where the conversation stands: `agentName` (the workflow artifact's display name, which is what `rename_agent` renames), `sessionName` (null while the session is unnamed), and `firstTurn`. `userName`, `timezone` and `localTime` are reserved and not populated yet; the producer omits each while unset. The API stamps the facts once in the shared invoke prelude, the SDK renders them as the last `platformInstructions` section, and the runner does not consume the field. Like `platformInstructions` it stays out of session fingerprints, so an agent naming its own session does not evict its warm environment. Omitted for a non-agent workflow. |
 | `trace` | Trace context for nested spans. |
 
 One-shot calls return one JSON result. Streaming calls use NDJSON internally: one

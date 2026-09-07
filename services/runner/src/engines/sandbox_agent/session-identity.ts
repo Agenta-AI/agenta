@@ -343,6 +343,10 @@ function configShape(request: AgentRunRequest) {
     // text is spliced at environment build and remains fixed while that environment is warm.
     // Hashing it would restore the integration-change over-eviction that the separate guidance
     // seam removed. The next ordinary environment build picks up changes.
+    // No `sessionContext`, for the same reason and one sharper: it is the INPUT the SDK renders
+    // into that text, and `sessionName` changes the moment the agent calls `rename_session`.
+    // Hashing it would make an agent naming its own session evict its own warm sandbox on the
+    // very next turn.
     permissions: request.permissions ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
     harnessFiles: request.harnessFiles ?? null,

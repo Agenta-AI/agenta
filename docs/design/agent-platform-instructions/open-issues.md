@@ -7,7 +7,7 @@ provenance to act on cold. See the `defer-todo` skill for the format.
 
 ### Tell the agent its own name, the session name, and whether this is the first turn
 
-**Status:** open
+**Status:** resolved (2026-09-07, session context wire field)
 **Added:** 2026-09-07
 **Commit:** f676a77e01 (branch `feat/release-1153-platform-prompt`)
 **Project:** [Agent platform instructions](./README.md)
@@ -33,3 +33,10 @@ platform instructions. Then rewrite the two naming rules to read the facts inste
 "Your name is X. If X is a placeholder, rename yourself." and "This session has no name yet.
 Name it in this turn." Keep the block out of the session fingerprint, the way the gateway
 guidance is, so a session rename does not evict a warm session.
+
+**How it was resolved.** `sessionContext` on the `/run` request carries the agent's display
+name, the session name, and a first-turn flag. The API stamps them on `request.meta` in the
+shared invoke prelude; the SDK renders them as a final "## This session" block and emits them on
+the wire. The two naming rules now read the facts. The field is outside the session fingerprint,
+so `rename_session` does not evict a warm sandbox. Branch
+`feat/release-1153-session-context`.

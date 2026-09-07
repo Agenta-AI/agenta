@@ -80,6 +80,7 @@ class PiHarness(Harness):
                 config.gateway_integration_names,
                 [credential.binding.name for credential in config.sandbox_credentials],
                 [spec.name for spec in config.tool_specs],
+                session_context=config.session_context,
             ),
         )
 
@@ -102,6 +103,7 @@ class ClaudeHarness(Harness):
                 config.gateway_integration_names,
                 [credential.binding.name for credential in config.sandbox_credentials],
                 [spec.name for spec in config.tool_specs],
+                session_context=config.session_context,
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -134,6 +136,7 @@ class CodexHarness(Harness):
                 config.gateway_integration_names,
                 [credential.binding.name for credential in config.sandbox_credentials],
                 [spec.name for spec in config.tool_specs],
+                session_context=config.session_context,
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,

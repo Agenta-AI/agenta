@@ -34,6 +34,7 @@ from ..dtos import (
     HarnessKind,
     Message,
     RunContext,
+    SessionContext,
     TraceContext,
 )
 from ..tools.models import ResolvedGatewayPolicy
@@ -92,6 +93,7 @@ def request_to_wire(
     messages: Sequence[Message],
     trace: Optional[TraceContext] = None,
     run_context: Optional[RunContext] = None,
+    session_context: Optional[SessionContext] = None,
     session_id: Optional[str] = None,
     detached: bool = False,
     turn_id: Optional[str] = None,
@@ -130,6 +132,14 @@ def request_to_wire(
     set it rides as ``runContext`` and is consumed by tool context bindings at dispatch
     (``call.context`` on direct-call specs and ``contextBindings`` on callRef specs) (direct-call tools, Phase 3a). Omitted when unset (and when its ``to_wire`` is empty),
     so a run that needs no binding stays byte-identical to before.
+
+    ``session_context`` is who the agent is and where the conversation stands: the agent's
+    display name, the session name, and whether this is the first turn. It rides as
+    ``sessionContext`` and is omitted when unset. The runner does not consume it. The SDK has
+    already rendered it into ``platformInstructions``, which the runner splices; the field is on
+    the wire so the payload records the facts that produced that text, and so a later consumer
+    does not need a second migration. Like ``platformInstructions`` it stays out of the session
+    fingerprint, so naming a session never evicts a warm sandbox.
 
     ``effective_parameters`` is the POST-HYDRATION config this turn actually runs (the handler's
     resolved ``data.parameters``). It rides as the opaque ``effectiveParameters`` ONLY on a
@@ -173,6 +183,8 @@ def request_to_wire(
         run_context_wire = run_context.to_wire()
         if run_context_wire:
             payload["runContext"] = run_context_wire
+    if session_context is not None:
+        payload["sessionContext"] = session_context.to_wire()
     if turn_id is not None:
         payload["turnId"] = turn_id
     if detached and session_id:

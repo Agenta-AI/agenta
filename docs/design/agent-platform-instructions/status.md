@@ -72,3 +72,23 @@ Branch `feat/release-1153-platform-prompt`, target `release/v0.115.3`.
   storing a preference in the instructions, which the prompt's Memory section requires. The
   SDK resolver collapses two identical copies of a reserved client tool, so a revision that
   embedded `request_secret` by hand before it joined the kit still runs.
+
+## 2026-09-07: the agent can see its own name and the session's
+
+Branch `feat/release-1153-session-context`, stacked on `feat/release-1153-platform-prompt`.
+
+- A `sessionContext` field carries three facts from the API to the prompt: the agent's display
+  name, the session's name, and whether this is the first turn. The API stamps them on
+  `request.meta` in `_prepare_invoke`, the one prelude both `invoke_workflow` and
+  `invoke_workflow_detached` share, so a UI turn, a HITL resume, and a trigger fire are covered
+  by one stamp. It is gated to agent runs by the revision URI.
+- The SDK carries them as `SessionContext` on `SessionConfig`, renders them as a final
+  "## This session" block, and emits `sessionContext` on the `/run` wire. The block renders only
+  when the run offers a rename tool.
+- The "## Names" rule now reads those facts instead of asking the model to guess whether its own
+  name looks like a placeholder. The placeholder test itself moved into
+  `is_placeholder_agent_name`.
+- The field is outside the runner's `configFingerprint` and every desired-state facet, so an
+  agent obeying the rule and calling `rename_session` does not evict its own warm sandbox.
+- `userName`, `timezone` and `localTime` are declared and reserved. They are not populated and
+  not rendered. Filling them is a later change with no wire migration.
