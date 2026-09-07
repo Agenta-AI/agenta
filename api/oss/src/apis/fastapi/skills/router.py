@@ -146,7 +146,6 @@ class SkillsRouter:
         return SkillsResponse(
             count=len(registry.skills),
             skills=registry.skills,
-            sources=registry.sources,
             builtin=registry.builtin,
             windowing=next_windowing,
         )
