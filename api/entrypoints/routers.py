@@ -1056,6 +1056,7 @@ simple_workflows = SimpleWorkflowsRouter(
 
 skills_service = SkillsService(
     workflows_service=workflows_service,
+    simple_workflows_service=simple_workflows_service,
 )
 
 skill_import_service = SkillImportService(
