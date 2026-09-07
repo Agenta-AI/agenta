@@ -37,6 +37,8 @@ import {type SecretFormController} from "./useSecretForm"
 
 export interface SecretFormProps {
     controller: SecretFormController
+    /** Attachment flows accept readable text secrets only. */
+    textOnly?: boolean
 }
 
 const formatOptions = [
@@ -58,25 +60,28 @@ const HintText = ({children}: {children: React.ReactNode}) => (
     <span className="text-xs text-colorTextSecondary">{children}</span>
 )
 
-export function SecretForm({controller}: SecretFormProps) {
+export function SecretForm({controller, textOnly = false}: SecretFormProps) {
     const {
         isEditing,
         name,
         slug,
         format,
         textValue,
+        defaultEnvVar,
         kvRows,
         jsonView,
         jsonText,
         jsonError,
         duplicateKeys,
         duplicateKeyError,
+        defaultEnvError,
         valueHidden,
         keyPreview,
         onChangeName,
         onChangeSlug,
         onChangeFormat,
         setTextValue,
+        setDefaultEnvVar,
         updateRow,
         addRow,
         removeRow,
@@ -112,27 +117,35 @@ export function SecretForm({controller}: SecretFormProps) {
                 </HintText>
             </div>
 
-            <div className="flex flex-col gap-1">
-                <FieldLabel>Format</FieldLabel>
-                <div className="flex items-center gap-3">
-                    <Segmented
-                        className="w-fit"
-                        options={formatOptions}
-                        value={format}
-                        onChange={(v) => onChangeFormat(v as typeof format)}
-                    />
-                    <HintText>
-                        {format === CustomSecretFormat.Text
-                            ? "Any opaque string — stored verbatim as text"
-                            : "Key-value pairs — stored formatted as json"}
-                    </HintText>
+            {textOnly ? null : (
+                <div className="flex flex-col gap-1">
+                    <FieldLabel>Format</FieldLabel>
+                    <div className="flex items-center gap-3">
+                        <Segmented
+                            className="w-fit"
+                            options={formatOptions}
+                            value={format}
+                            onChange={(v) => onChangeFormat(v as typeof format)}
+                        />
+                        <HintText>
+                            {format === CustomSecretFormat.Text
+                                ? "Any opaque string — stored verbatim as text"
+                                : "Key-value pairs — stored formatted as json"}
+                        </HintText>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div className="flex flex-col gap-1">
                 <div className="flex items-center justify-between">
                     <div className="flex items-baseline gap-2">
-                        <FieldLabel>{valueHidden ? "Replace content" : "Content"}</FieldLabel>
+                        <FieldLabel>
+                            {valueHidden
+                                ? "Replace content"
+                                : format === CustomSecretFormat.Text
+                                  ? "Value"
+                                  : "Content"}
+                        </FieldLabel>
                         {duplicateKeyError && (
                             <span className="text-xs text-error">
                                 Duplicate keys are not allowed.
@@ -158,12 +171,35 @@ export function SecretForm({controller}: SecretFormProps) {
                 ) : null}
 
                 {format === CustomSecretFormat.Text ? (
-                    <Textarea
-                        rows={4}
-                        className="font-mono"
-                        value={textValue}
-                        onChange={(e) => setTextValue(e.target.value)}
-                    />
+                    <div className="flex flex-col gap-4">
+                        <Textarea
+                            rows={4}
+                            className="font-mono"
+                            value={textValue}
+                            onChange={(e) => setTextValue(e.target.value)}
+                        />
+                        <div className="flex flex-col gap-1">
+                            <FieldLabel>Default environment variable</FieldLabel>
+                            <Input
+                                className="font-mono"
+                                placeholder="For example, GITHUB_TOKEN"
+                                value={defaultEnvVar}
+                                onChange={(e) => setDefaultEnvVar(e.target.value)}
+                                autoComplete="off"
+                                spellCheck={false}
+                                aria-invalid={defaultEnvError || undefined}
+                            />
+                            {defaultEnvError ? (
+                                <span className="text-xs text-error">
+                                    Use letters, digits, and underscores; do not start with a digit.
+                                </span>
+                            ) : (
+                                <HintText>
+                                    Optional. Suggested when you attach this secret to an agent.
+                                </HintText>
+                            )}
+                        </div>
+                    </div>
                 ) : jsonView === "json" ? (
                     <div className="flex flex-col gap-1">
                         <SharedEditor

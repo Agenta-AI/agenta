@@ -498,3 +498,5 @@ export type {
 } from "./agentTemplates"
 
 export {agentRosterSearchAtom, matchesAgentQuery} from "./state/agentRoster"
+
+export {commitAgentCredentialsAtom} from "./state/agentCredentials"

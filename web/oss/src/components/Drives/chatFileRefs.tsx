@@ -28,7 +28,7 @@ import {
 import {DriveFileInlineRef} from "@agenta/entity-ui/drive"
 import {useDriveArtifactId, useDriveSessionId} from "@agenta/entity-ui/drive"
 import {atom, useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 /** A span that could NAME a file; strip a leading `./` and require a path-ish shape: a slash, or a
  * letter-led trailing extension (`.ts`, `.tar.gz`). A bare `/[./]/` matched any dotted token —

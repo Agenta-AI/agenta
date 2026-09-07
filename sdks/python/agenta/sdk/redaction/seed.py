@@ -99,11 +99,33 @@ def _looks_secret(name: str) -> bool:
     return bool(blocklist) and any(b in name for b in blocklist)
 
 
+def _looks_like_file_path(value: str) -> bool:
+    trimmed = value.strip()
+    return trimmed.startswith(("/", "./", "../", "~/", "\\\\")) or (
+        len(trimmed) >= 3
+        and trimmed[0].isalpha()
+        and trimmed[1] == ":"
+        and trimmed[2] in ("/", "\\")
+    )
+
+
+def is_non_secret_credential_locator(name: str, value: str) -> bool:
+    """Whether a provider-SDK environment value locates credentials but is not material."""
+    upper = name.upper()
+    return upper == "AWS_PROFILE" or (
+        upper == "GOOGLE_APPLICATION_CREDENTIALS" and _looks_like_file_path(value)
+    )
+
+
 def curated_env_secret_values() -> List[str]:
     """The VALUES (never the names) of every env var whose name is selected by the matchers."""
     values: List[str] = []
     for name, value in os.environ.items():
-        if value and _looks_secret(name.upper()):
+        if (
+            value
+            and _looks_secret(name.upper())
+            and not is_non_secret_credential_locator(name, value)
+        ):
             values.append(value)
     return values
 

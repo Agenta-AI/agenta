@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.logging import get_module_logger
+from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT, request_has_grant
 from oss.src.utils.throttling import Algorithm, check_throttles
 
 from ee.src.core.access.entitlements.types import (
@@ -38,6 +39,14 @@ def _normalize_path(request: Request) -> str:
     if root_path and path.startswith(root_path):
         path = path[len(root_path) :] or "/"
     return path
+
+
+def _is_runner_record_ingest(request: Request, method: str, path: str) -> bool:
+    return (
+        method == Method.POST.value
+        and path == "/sessions/records/ingest"
+        and request_has_grant(request, SECRET_RESOLVE_GRANT)
+    )
 
 
 def _matches_endpoint(
@@ -168,6 +177,11 @@ async def throttling_middleware(request: Request, call_next):
     if hasattr(request.state, "admin") and request.state.admin:
         return await call_next(request)
 
+    method = request.method.lower()
+    path = _normalize_path(request)
+    if _is_runner_record_ingest(request, method, path):
+        return await call_next(request)
+
     organization_id = (
         request.state.organization_id
         if hasattr(request.state, "organization_id")
@@ -220,10 +234,6 @@ async def throttling_middleware(request: Request, call_next):
 
     if not throttles:
         return await call_next(request)
-
-    method = request.method.lower()
-
-    path = _normalize_path(request)
 
     # log.debug(
     #     "[throttling] START", org=organization_id, plan=plan, method=method, path=path

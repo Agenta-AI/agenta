@@ -21,6 +21,7 @@ export const sessionRecordSchema = z
         record_id: z.string(),
         session_id: z.string(),
         project_id: z.string(),
+        sequence: z.number().int().positive().nullish(),
         record_index: z.number().nullish(),
         record_source: z.string().nullish(),
         record_type: z.string().nullish(),
@@ -32,6 +33,7 @@ export const sessionRecordSchema = z
         id: r.record_id,
         session_id: r.session_id,
         project_id: r.project_id,
+        sequence: r.sequence ?? null,
         event_index: r.record_index ?? null,
         sender: r.record_source ?? null,
         session_update: r.record_type ?? null,
@@ -42,6 +44,13 @@ export const sessionRecordSchema = z
 export const sessionRecordsQueryResponseSchema = z.object({
     count: z.number(),
     records: z.array(sessionRecordSchema),
+    windowing: z
+        .object({
+            offset: z.number().int().nonnegative(),
+            limit: z.number().int().positive(),
+            through_sequence: z.number().int().nonnegative(),
+        })
+        .nullish(),
 })
 
 export type SessionRecord = z.infer<typeof sessionRecordSchema>
@@ -152,6 +161,7 @@ export const sessionStreamSchema = z.object({
     name: z.string().nullish(),
     description: z.string().nullish(),
     turn_id: z.string().nullish(),
+    stopping_turn_id: z.string().nullish(),
     // User-visible tags; attribution has dedicated typed fields below.
     tags: z.record(z.string(), z.unknown()).nullish(),
     status: z.object({code: z.string().nullish(), message: z.string().nullish()}).nullish(),
@@ -160,6 +170,11 @@ export const sessionStreamSchema = z.object({
             is_alive: z.boolean().nullish(),
             is_running: z.boolean().nullish(),
             is_attached: z.boolean().nullish(),
+        })
+        .nullish(),
+    capabilities: z
+        .object({
+            shared_reader: z.boolean().nullish(),
         })
         .nullish(),
     created_at: z.string().nullish(),
@@ -179,6 +194,66 @@ export const sessionStreamSchema = z.object({
     // `/sessions/query` only: the session's newest `message` record, so a row can say what
     // happened rather than only when. Absent for a session with no message yet.
     last_message: sessionMessagePreviewSchema.nullish(),
+})
+
+/** Temporary live-frame envelope. Frames are display-only and never become durable records. */
+export const sessionLiveFrameSchema = z.object({
+    version: z.literal(1),
+    kind: z.literal("frame"),
+    session_id: z.string(),
+    execution_id: z.string(),
+    frame_or_event_id: z.string(),
+    frame_index: z.number().int().nonnegative(),
+    entity_id: z.string(),
+    type: z.string(),
+    payload: z.record(z.string(), z.unknown()),
+    created_at: z.string(),
+})
+
+/** Durable relay envelope. `watermark` is a non-negative integer: on a live event it is the
+ * publishing records-worker batch's highest committed sequence for the session; on an SSE ready
+ * frame the same field name is the authoritative session sequence cursor after replay. When a
+ * ready frame omits it, the client keeps its requested `after` cursor. The open `type` is
+ * intentional: reconnect cursors must advance past future event types even when this client does
+ * not know how to render them yet. */
+export const sessionDurableEventSchema = z.object({
+    version: z.literal(1),
+    kind: z.literal("event"),
+    session_id: z.string(),
+    execution_id: z.string(),
+    frame_or_event_id: z.string(),
+    sequence: z.number().int().positive().nullable(),
+    watermark: z.number().int().nonnegative(),
+    type: z.string(),
+    payload: z.record(z.string(), z.unknown()),
+    created_at: z.string(),
+})
+
+export const sessionDurableEventTypeSchema = z.enum([
+    "execution.started",
+    "execution.stopped",
+    "execution.failed",
+    "execution.lost",
+    "message.completed",
+    "tool.completed",
+    "interaction.requested",
+    "interaction.responded",
+])
+
+export const sessionRecordsReadStateSchema = z.object({
+    latest_sequence: z.number().int().nonnegative(),
+    history_complete: z.boolean(),
+})
+
+/** Atomic reconnect read: durable watermark plus lifecycle and pending-work context. */
+export const sessionSnapshotSchema = z.object({
+    session: sessionStreamSchema,
+    execution: z.record(z.string(), z.unknown()).nullable().optional(),
+    pending: z.object({
+        inputs: z.array(z.unknown()).default([]),
+        interactions: z.array(sessionInteractionSchema).default([]),
+    }),
+    read: sessionRecordsReadStateSchema,
 })
 
 export const sessionStreamsResponseSchema = z.object({
@@ -206,9 +281,26 @@ export const sessionStreamCommandResponseSchema = z.object({
     turn_id: z.string().nullish(),
     watcher_id: z.string().nullish(),
     detached: z.boolean().nullish(),
+    cancelled_turn_ids: z.array(z.string()).nullish(),
 })
 
+export const sessionCancelExecutionResponseSchema = z.union([
+    z.object({
+        command: z.object({id: z.string(), state: z.string()}),
+        execution: z.object({
+            id: z.string().nullish(),
+            state: z.enum(["stopping", "idle"]),
+        }),
+    }),
+    sessionStreamCommandResponseSchema,
+])
+
 export type SessionStream = z.infer<typeof sessionStreamSchema>
+export type SessionLiveFrame = z.infer<typeof sessionLiveFrameSchema>
+export type SessionDurableEvent = z.infer<typeof sessionDurableEventSchema>
+export type SessionDurableEventType = z.infer<typeof sessionDurableEventTypeSchema>
+export type SessionRecordsReadState = z.infer<typeof sessionRecordsReadStateSchema>
+export type SessionSnapshot = z.infer<typeof sessionSnapshotSchema>
 export type SessionReference = z.infer<typeof sessionReferenceSchema>
 export type SessionOrigin = z.infer<typeof sessionOriginSchema>
 export type SessionTriggerKind = z.infer<typeof sessionTriggerKindSchema>

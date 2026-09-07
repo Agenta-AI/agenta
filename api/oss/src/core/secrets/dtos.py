@@ -101,6 +101,7 @@ class WebhookProviderDTO(BaseModel):
 
 class CustomSecretSettingsDTO(BaseModel):
     format: CustomSecretFormat
+    default_env_var: Optional[str] = None
     content: Optional[Union[str, Dict[str, Union[str, int, float, bool, None]]]] = None
     # text -> content is a str (stored verbatim); json -> a flat {str: primitive} map.
 

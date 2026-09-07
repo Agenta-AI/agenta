@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     hasStoredKey,
     transformCustomProviderPayloadData,
+    transformCustomSecretPayloadData,
     transformSecret,
     transformStandardProviderPayloadData,
 } from "../../src/secret/core/transforms"
@@ -218,5 +219,57 @@ describe("update payloads", () => {
         const payload = transformStandardProviderPayloadData({}, StandardProviderKind.Openai)
 
         expect((payload.secret.data as {provider: {key?: string}}).provider).toEqual({})
+    })
+})
+
+describe("custom secret attachment metadata", () => {
+    it("round-trips the optional default environment variable", () => {
+        const payload = transformCustomSecretPayloadData({
+            name: "GitHub token",
+            slug: "github-token",
+            format: "text",
+            content: "secret-value",
+            defaultEnvVar: "GITHUB_TOKEN",
+        })
+
+        expect(payload.secret.data).toMatchObject({
+            secret: {format: "text", content: "secret-value", default_env_var: "GITHUB_TOKEN"},
+        })
+
+        const [row] = transformSecret([
+            {
+                id: "secret-1",
+                slug: "github-token",
+                kind: SecretKind.CustomSecret,
+                header: {name: "GitHub token"},
+                data: payload.secret.data,
+                value_status: {configured: true, preview: null},
+            } as unknown as SecretResponseDto,
+        ])
+        expect(row).toMatchObject({defaultEnvVar: "GITHUB_TOKEN"})
+    })
+
+    it("omits an unset default environment variable", () => {
+        const payload = transformCustomSecretPayloadData({
+            name: "Token",
+            format: "text",
+            content: "secret-value",
+        })
+
+        expect((payload.secret.data as {secret: object}).secret).not.toHaveProperty(
+            "default_env_var",
+        )
+    })
+})
+
+// Explicitly clearing the optional default must differ from an omitted rotation field.
+describe("clearing the environment default", () => {
+    it("sends null so the vault does not carry the previous default forward", () => {
+        const payload = transformCustomSecretPayloadData({
+            name: "Deployment",
+            format: "text",
+            defaultEnvVar: "",
+        })
+        expect(payload.secret.data).toMatchObject({secret: {default_env_var: null}})
     })
 })

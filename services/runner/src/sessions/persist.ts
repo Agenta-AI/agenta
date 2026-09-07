@@ -28,6 +28,7 @@ import { envInt, envTimerMs } from "../env.ts";
 import type { AgentEvent } from "../protocol.ts";
 import type { Redactor } from "../redaction.ts";
 import { stableRecordId } from "./record-id.ts";
+import { LiveFramePublisher } from "./live-frames.ts";
 
 const INGEST_MAX_RETRIES = 3;
 const INGEST_RETRY_BASE_MS = 100;
@@ -262,6 +263,9 @@ export function buildPersistingEmitter(
   flush: () => Promise<void>;
 } {
   let eventIndex = 0;
+  const liveFrames = turnId
+    ? new LiveFramePublisher({ sessionId, executionId: turnId, auth })
+    : null;
   // Coalescing state: accumulate delta families into a single durable event.
   const coalescedMessages = new Map<string, { id: string; text: string }>();
 
@@ -296,6 +300,7 @@ export function buildPersistingEmitter(
   const emit = (event: AgentEvent): void => {
     // Always forward to the live stream (if any).
     liveEmit?.(event);
+    liveFrames?.emit(event);
 
     // Transient data describes the current live turn. It must not become transcript history.
     if (event.type === "data" && event.transient) return;
@@ -451,6 +456,8 @@ export function buildPersistingEmitter(
         `WARN session=${sessionId} durable log incomplete: ${dropped} record(s) dropped this turn; reconstruction may lack context`,
       );
     }
+    await liveFrames?.whenIdle();
+    liveFrames?.reportDrops();
   };
 
   return { emit, persist, flush };

@@ -8,6 +8,7 @@
  * not all 27 resource clients. Resource clients self-normalize auth in their own
  * constructors, so they are equivalent to `getAgentaSdkClient().traces` etc.
  */
+import {AccessClient} from "@agentaai/api-client/resources/access"
 import {ApplicationsClient} from "@agentaai/api-client/resources/applications"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
@@ -25,6 +26,11 @@ import {WebhooksClient} from "@agentaai/api-client/resources/webhooks"
 import {WorkflowsClient} from "@agentaai/api-client/resources/workflows"
 
 import {buildClientOptions, withLowPriorityFetch} from "./config"
+
+let _access: AccessClient | undefined
+export function getAccessClient(): AccessClient {
+    return (_access ??= new AccessClient(buildClientOptions()))
+}
 
 let _applications: ApplicationsClient | undefined
 export function getApplicationsClient(): ApplicationsClient {

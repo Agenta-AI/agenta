@@ -1,23 +1,14 @@
-import {
-    queryInteractions,
-    type SessionInteraction,
-    type SessionStream,
-} from "@agenta/entities/session"
-import {useQuery, useQueryClient} from "@tanstack/react-query"
+import {queryInteractions, type SessionInteraction} from "@agenta/entities/session"
+import {useQuery} from "@tanstack/react-query"
 
-import {livenessQueryKey} from "./useLivenessPoll"
+import {useLivenessPoll} from "./useLivenessPoll"
 
 export const actionableInteractionsQueryKey = (projectId: string) =>
     ["mobile", "actionable-interactions", projectId] as const
 
-/**
- * Every pending HITL request across the project in ONE query (`session_id` omitted,
- * `actionable_only: true`) — the list-badge primitive. Same cadence rules as the liveness poll:
- * 15s while anything is pending OR alive (a running turn is what mints new gates), stops when
- * idle, re-checks on focus.
- */
+/** Poll pending project HITL requests while a gate exists or a turn can create one. */
 export const useActionableInteractions = (projectId: string) => {
-    const queryClient = useQueryClient()
+    const liveness = useLivenessPoll(projectId)
     return useQuery<SessionInteraction[] | null>({
         queryKey: actionableInteractionsQueryKey(projectId),
         queryFn: ({signal}) =>
@@ -26,10 +17,8 @@ export const useActionableInteractions = (projectId: string) => {
         staleTime: 10_000,
         refetchInterval: (query) => {
             if ((query.state.data?.length ?? 0) > 0) return 15_000
-            const alive = queryClient.getQueryData<SessionStream[] | null>(
-                livenessQueryKey(projectId),
-            )
-            return (alive?.length ?? 0) > 0 ? 15_000 : false
+            // Only running turns can mint new gates.
+            return (liveness.data ?? []).some((stream) => stream.flags?.is_running) ? 15_000 : false
         },
         refetchOnWindowFocus: true,
     })

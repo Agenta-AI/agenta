@@ -134,8 +134,15 @@ const SessionRowImpl = ({
                     </span>
                 ) : null}
 
+                {/* Hidden below `sm`. These two reserved 160+96px out of a ~360px phone row, and
+                    the title is the only flexible thing in it, so it absorbed the whole deficit
+                    and rendered at ZERO width: every session with the same agent became an
+                    identical "Test agent · 7m ago" row. The title is the row's identity, so on a
+                    phone it gets the width and the agent column stands down; the timestamp keeps
+                    its slot but sizes to content. Fixed widths return at `sm`, where they buy the
+                    column alignment they exist for. */}
                 {showAgent ? (
-                    <span className="w-40 shrink-0 truncate">
+                    <span className="hidden shrink-0 truncate sm:inline sm:w-40">
                         {renderAgent ? (
                             renderAgent(row.agentId)
                         ) : (
@@ -144,7 +151,7 @@ const SessionRowImpl = ({
                     </span>
                 ) : null}
 
-                <span className="w-24 shrink-0 text-xs text-colorTextTertiary text-right">
+                <span className="shrink-0 text-right text-xs text-colorTextTertiary sm:w-24">
                     {row.activityAt ? timeAgo(Date.parse(row.activityAt)) : "—"}
                 </span>
 

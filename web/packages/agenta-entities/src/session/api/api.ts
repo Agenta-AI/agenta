@@ -17,6 +17,8 @@ import {
     sessionInteractionResponseSchema,
     sessionInteractionsResponseSchema,
     sessionRecordsQueryResponseSchema,
+    sessionCancelExecutionResponseSchema,
+    sessionSnapshotSchema,
     sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
     sessionStreamSchema,
@@ -29,6 +31,7 @@ import {
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionRecord,
+    type SessionSnapshot,
     type SessionExpansion,
     type SessionOrigin,
     type SessionStream,
@@ -43,6 +46,7 @@ import {
     getLowPrioritySessionsClient,
     getMountsClient,
     getSessionsClient,
+    isAbortError,
     projectScopedRequest,
 } from "./client"
 
@@ -87,11 +91,85 @@ export async function querySessionRecords({
     return validated?.records ?? null
 }
 
+export interface QuerySessionTranscriptParams extends QueryRecordsParams {
+    /** Snapshot watermark. Rows committed later are replayed over SSE, never mixed into paging. */
+    throughSequence: number
+    pageSize?: number
+}
+
+/** Load the transcript fixed at a snapshot watermark, following bounded backend pages. */
+export async function querySessionTranscript({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    lowPriority,
+    throughSequence,
+    pageSize = 100,
+}: QuerySessionTranscriptParams): Promise<SessionRecord[] | null> {
+    if (!projectId || !sessionId) return null
+
+    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
+    const records: SessionRecord[] = []
+    const visitedOffsets = new Set<number>()
+    let offset = 0
+
+    while (!visitedOffsets.has(offset)) {
+        visitedOffsets.add(offset)
+        const data = await callFern("[querySessionTranscript]", () =>
+            client.queryRecords(
+                {
+                    session_id: sessionId,
+                    windowing: {
+                        offset,
+                        limit: Math.max(1, Math.min(200, pageSize)),
+                        through_sequence: throughSequence,
+                    },
+                },
+                projectScopedRequest(projectId, appId, abortSignal),
+            ),
+        )
+        if (!data) return null
+
+        const validated = safeParseWithLogging(
+            sessionRecordsQueryResponseSchema,
+            data,
+            "[querySessionTranscript]",
+        )
+        if (!validated) return null
+        records.push(...validated.records)
+        if (!validated.windowing) return records
+        offset = validated.windowing.offset
+    }
+
+    return null
+}
+
 export interface SessionScopedParams {
     sessionId: string
     projectId: string
     appId?: string
     abortSignal?: AbortSignal
+}
+
+/** Fetch the lifecycle/pending state and durable sequence watermark used to reconnect safely. */
+export async function fetchSessionSnapshot({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+}: SessionScopedParams): Promise<SessionSnapshot | null> {
+    if (!projectId || !sessionId) return null
+
+    const data = await callFern("[fetchSessionSnapshot]", () =>
+        getSessionsClient().getSessionSnapshot(
+            {session_id: sessionId},
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]")
 }
 
 export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {
@@ -178,6 +256,10 @@ export interface RespondInteractionParams extends InteractionScopedParams {
  * Fern stashes the HTTP status on the thrown `AgentaApiError` as `statusCode`. */
 export const isInteractionConflict = (error: unknown): boolean =>
     (error as {statusCode?: number} | null)?.statusCode === 409
+
+/** True for the backend's `404 No such file or folder`. */
+const isNotFound = (error: unknown): boolean =>
+    (error as {statusCode?: number} | null)?.statusCode === 404
 
 export interface TransitionInteractionParams extends SessionScopedParams {
     token: string
@@ -616,6 +698,81 @@ export async function killSession({
     return data !== null
 }
 
+/** Stop keeps accepted, idle, stale, and failed outcomes distinct. */
+export interface CancelSessionStreamParams extends SessionScopedParams {
+    /** The server cancels this observed execution or nothing. */
+    expectedExecutionId?: string
+}
+
+export type CancelSessionOutcome =
+    | {status: "cancelled"; response: SessionStreamCommandResponse | null}
+    | {status: "idle"}
+    /** The server refused: another turn holds the session, or the Stop arrived too late. */
+    | {status: "stale"; message: string}
+    | {status: "failed"; message: string}
+
+const STALE_CANCEL_FALLBACK =
+    "That run had already finished. The session is running something else now."
+const FAILED_CANCEL_FALLBACK = "Could not stop the run. It may still be running."
+
+/** The response envelope's error message, when it is there. */
+const cancelErrorMessage = (error: unknown, fallback: string): string => {
+    const detail = (error as {body?: {detail?: unknown}} | null)?.body?.detail
+    if (typeof detail === "string") return detail
+    const message = (detail as {message?: unknown} | null)?.message
+    if (typeof message === "string") return message
+    return error instanceof Error && error.message ? error.message : fallback
+}
+
+/** Stop the current turn and preserve the server outcome for the caller. */
+export async function cancelSessionStream({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    expectedExecutionId,
+}: CancelSessionStreamParams): Promise<CancelSessionOutcome> {
+    if (!projectId || !sessionId) return {status: "failed", message: FAILED_CANCEL_FALLBACK}
+
+    try {
+        const data = await getSessionsClient().setSessionStream(
+            {
+                session_id: sessionId,
+                // Omission selects the server's arrival-time guard.
+                ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
+            },
+            projectScopedRequest(projectId, appId, abortSignal),
+        )
+        const response =
+            safeParseWithLogging(
+                sessionStreamCommandResponseSchema,
+                data,
+                "[cancelSessionStream]",
+            ) ?? null
+        if (!response || !response.cancelled_turn_ids) {
+            return {status: "failed", message: FAILED_CANCEL_FALLBACK}
+        }
+        if (response.cancelled_turn_ids.length === 0) return {status: "idle"}
+        return {
+            status: "cancelled",
+            response,
+        }
+    } catch (error) {
+        if (isAbortError(error)) throw error
+        if (isInteractionConflict(error)) {
+            return {
+                status: "stale",
+                message: cancelErrorMessage(error, STALE_CANCEL_FALLBACK),
+            }
+        }
+        console.error(
+            "[cancelSessionStream] failed:",
+            error instanceof Error ? error.message : String(error),
+        )
+        return {status: "failed", message: cancelErrorMessage(error, FAILED_CANCEL_FALLBACK)}
+    }
+}
+
 /**
  * DELETE — permanently remove a session (root hard-delete fan-out across turns/streams/
  * interactions/mounts). Distinct from `killSession` (a soft end that stays resumable). Propagates
@@ -918,14 +1075,99 @@ export async function readMountFile({
 
     // maxRetries 1: a single small file read; one transient-recovery, no pit. Also keeps the git
     // repo probe (`.git/HEAD` on a non-repo folder → 404) from retrying — 404 isn't retryable anyway.
-    const data = await callFern("[readMountFile]", () =>
-        getMountsClient().getMountFiles(
-            {mount_id: mountId, read: path},
-            projectScopedRequest(projectId, appId, abortSignal, 1),
-        ),
+    // 404 is silent: "not there" is this call's answer, not a failure (#6349).
+    const data = await callFern(
+        "[readMountFile]",
+        () =>
+            getMountsClient().getMountFiles(
+                {mount_id: mountId, read: path},
+                projectScopedRequest(projectId, appId, abortSignal, 1),
+            ),
+        isNotFound,
     )
     if (!data) return null
 
     const validated = safeParseWithLogging(mountFileContentResponseSchema, data, "[readMountFile]")
     return validated?.content ?? null
+}
+
+export interface CancelSessionExecutionParams extends SessionScopedParams {
+    /** Fence Stop to the execution the caller observed. */
+    expectedExecutionId?: string
+    /** Retry identity for this request. Two sends of the same key are one command. */
+    idempotencyKey?: string
+}
+
+export interface CancelSessionExecutionResult {
+    /** The durable command's id and DELIVERY state — never the execution's state. */
+    command: {id: string; state: string}
+    /** What to render: the execution being stopped, or nothing. */
+    execution: {id: string | null; state: "stopping" | "idle"}
+    /** True when the active API path accepted or completed the Stop. */
+    accepted: boolean
+    /** True when the API refused because another execution is running (409). */
+    conflict: boolean
+}
+
+/** Cancel current work through Fern while keeping the session warm. */
+export async function cancelSessionExecution({
+    sessionId,
+    projectId,
+    appId,
+    abortSignal,
+    expectedExecutionId,
+    idempotencyKey,
+}: CancelSessionExecutionParams): Promise<CancelSessionExecutionResult | null> {
+    if (!projectId || !sessionId) return null
+
+    try {
+        const requestOptions = {
+            ...projectScopedRequest(projectId, appId, abortSignal),
+            ...(idempotencyKey ? {headers: {"Idempotency-Key": idempotencyKey}} : {}),
+        }
+        const {data, rawResponse} = await getSessionsClient()
+            .cancelSessionExecution(
+                {
+                    session_id: sessionId,
+                    body: expectedExecutionId ? {expected_execution_id: expectedExecutionId} : null,
+                },
+                requestOptions,
+            )
+            .withRawResponse()
+        const validated = safeParseWithLogging(
+            sessionCancelExecutionResponseSchema,
+            data,
+            "[cancelSessionExecution]",
+        )
+        if (!validated) return null
+        if (!("command" in validated)) {
+            return {
+                command: {id: "", state: "applied"},
+                execution: {id: validated.turn_id ?? null, state: "idle"},
+                accepted: true,
+                conflict: false,
+            }
+        }
+        return {
+            command: validated.command,
+            execution: {...validated.execution, id: validated.execution.id ?? null},
+            accepted: rawResponse.status === 202,
+            conflict: false,
+        }
+    } catch (error) {
+        if (isAbortError(error)) throw error
+        if ((error as {statusCode?: number} | null)?.statusCode === 409) {
+            return {
+                command: {id: "", state: "obsolete"},
+                execution: {id: null, state: "idle"},
+                accepted: false,
+                conflict: true,
+            }
+        }
+        console.error(
+            "[cancelSessionExecution] failed:",
+            error instanceof Error ? error.message : String(error),
+        )
+        return null
+    }
 }

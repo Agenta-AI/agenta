@@ -1,31 +1,21 @@
-import {type SessionRunStatus} from "@agenta/chat/model"
+import {deriveRemoteTurnPresentation, type SessionRunStatus} from "@agenta/chat/model"
 import {sessionLocalSettledAtAtomFamily, sessionStatusAtomFamily} from "@agenta/chat/state"
 import {
     deriveSessionLifecycle,
     deriveStreamNest,
+    livenessPollInterval,
     querySessionStreams,
     type SessionLifecycle,
     type SessionStream,
     type SessionStreamNest,
 } from "@agenta/entities/session"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-/**
- * Backend liveness for the project's sessions (cross-device truth). The tab dot reads this to
- * reflect a session still running on the backend even when THIS browser isn't streaming it (a
- * reopened chat, or a run started on another device).
- *
- * ONE project-scoped query (`is_alive=true`) backs every dot rather than one fetch per session, so
- * N idle tabs cost ONE request, not N — important on cold load (see the request-count budget). Only
- * alive streams come back, which is exactly what the dot needs (running/alive vs idle); a session
- * absent from the result is dormant/cold/dead/new and simply reads as idle. Kept out of the live
- * conversation's way: the fetch is LOW-PRIORITY, polls only WHILE something is alive (empty result
- * → stop), and re-checks on tab refocus.
- */
+/** One low-priority project query supplies cross-device liveness for every tab dot. */
 const aliveStreamsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => {
     const projectId = get(projectIdAtom)
     return {
@@ -39,7 +29,7 @@ const aliveStreamsQueryAtom = atomWithQuery<SessionStream[] | null>((get) => {
             }),
         enabled: Boolean(projectId),
         staleTime: 10_000,
-        refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 15_000 : false),
+        refetchInterval: (query) => livenessPollInterval(query.state.data),
         refetchOnWindowFocus: true,
     }
 })
@@ -57,7 +47,12 @@ export interface SessionLiveness {
     lifecycle: SessionLifecycle
     /** The stream nest + derived resumable/reattachable predicates. */
     nest: SessionStreamNest
+    /** Current execution and durable Stop admission marker from the stream row. */
+    turnId: string | null
+    stoppingTurnId: string | null
     isLoading: boolean
+    /** Server-advertised temporary frame relay for non-owning readers. */
+    sharedReader: boolean
 }
 
 /**
@@ -70,7 +65,10 @@ export const sessionLivenessAtomFamily = atomFamily((sessionId: string) =>
         return {
             lifecycle: deriveSessionLifecycle(stream),
             nest: deriveStreamNest(stream),
+            turnId: stream?.turn_id ?? null,
+            stoppingTurnId: stream?.stopping_turn_id ?? null,
             isLoading: get(aliveStreamsQueryAtom).isLoading,
+            sharedReader: Boolean(stream?.capabilities?.shared_reader),
         }
     }),
 )
@@ -126,6 +124,9 @@ export const isRunningElsewhere = ({
     if (!isRunning) return false
     return localSettledAt === undefined || livenessUpdatedAt > localSettledAt
 }
+
+/** Desktop presentation for a remote/shared-path run. The strip is only the disconnected fallback. */
+export const deriveSessionRemoteTurnPresentation = deriveRemoteTurnPresentation
 
 /** `isRunningElsewhere` bound to this session's local status and the shared liveness query. */
 export const sessionRunningElsewhereAtomFamily = atomFamily((sessionId: string) =>

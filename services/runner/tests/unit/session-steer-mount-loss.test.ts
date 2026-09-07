@@ -307,20 +307,27 @@ function approvalReply(toolCallId: string, toolName: string): AgentRunRequest {
 // --- The scenario the bug report describes ----------------------------------------------- //
 
 describe("steer: a second message while a cold turn is running", () => {
+  // These pinned the OLD outcome: the second turn superseded the first (destroy its environment,
+  // cold-start a rival). Single-turn admission (#6417, #5539, #5538) replaces that with a refusal,
+  // which is a strictly better answer to the SAME hazard the reservation was built for. The
+  // reservation is still what makes the refusal possible: the running cold turn is seated as
+  // `busy` at its key, so the second turn finds it instead of logging `miss` and cold-acquiring a
+  // rival environment onto the shared durable cwd.
+  //
+  // NOTE ON THE HOLD: the second turn no longer acquires anything, so the first turn's hold is
+  // released by the REFUSAL settling, not by `onAcquire(2)`.
+
   it("keeps the session's durable cwd, and the next turn succeeds", async () => {
     const host = makeHost();
     const turn1Running = deferred();
-    const steerAcquired = deferred();
+    const steerSettled = deferred();
 
     const { engine, calls } = makeEngine(host, {
       hold: async (envId, continuation) => {
         if (envId !== 1 || continuation) return;
         turn1Running.resolve();
-        // The long turn runs until the steer's environment exists.
-        await steerAcquired.promise;
-      },
-      onAcquire: (id) => {
-        if (id === 2) steerAcquired.resolve();
+        // The long turn runs until the second message has been answered.
+        await steerSettled.promise;
       },
     });
     const { ctx } = makeCtx(engine);
@@ -332,13 +339,26 @@ describe("steer: a second message while a cold turn is running", () => {
       () => {},
       undefined,
       ctx,
-    );
-    await Promise.all([first, steer]);
+    ).then((r) => {
+      steerSettled.resolve();
+      return r;
+    });
+    const [firstResult, steerResult] = await Promise.all([first, steer]);
 
+    assert.equal(steerResult.ok, false, "the second message is refused");
+    assert.match(
+      String((steerResult as { error?: string }).error),
+      /already running a turn/i,
+    );
+    assert.equal(
+      firstResult.ok,
+      true,
+      `the running turn was killed by the second message: ${(firstResult as { error?: string }).error}`,
+    );
     assert.equal(
       host.dirExists,
       true,
-      `the durable cwd was destroyed by the steer: ${host.trace.join(" | ")}`,
+      `the durable cwd was destroyed by the second message: ${host.trace.join(" | ")}`,
     );
 
     const third = await runWithKeepalive(
@@ -350,30 +370,27 @@ describe("steer: a second message while a cold turn is running", () => {
     assert.equal(
       third.ok,
       true,
-      `the turn after the steer failed: ${(third as { error?: string }).error}`,
+      `the turn after the refusal failed: ${(third as { error?: string }).error}`,
     );
-    // The steer superseded the first environment rather than running beside it, so exactly two
-    // environments existed and the third turn reused one of them warm.
-    assert.equal(calls.acquired.length, 2);
+    // The refused turn acquired nothing, so exactly ONE environment ever existed and the third
+    // turn continued it warm. Before admission this was 2 (supersede plus cold rebuild).
+    assert.equal(calls.acquired.length, 1);
   });
 
-  it("supersedes the running turn instead of acquiring a rival environment", async () => {
+  it("refuses the second turn instead of acquiring a rival environment", async () => {
     const host = makeHost();
     const turn1Running = deferred();
-    const steerAcquired = deferred();
-    // Ordering is the whole fix: the superseded environment's teardown must COMPLETE before the
-    // steer's acquire mounts, or the steer adopts a mount that is about to be pulled.
+    const steerSettled = deferred();
     const order: string[] = [];
 
     const { engine } = makeEngine(host, {
       hold: async (envId, continuation) => {
         if (envId !== 1 || continuation) return;
         turn1Running.resolve();
-        await steerAcquired.promise;
+        await steerSettled.promise;
       },
       onAcquire: (id) => {
         order.push(`acquire:env${id}`);
-        if (id === 2) steerAcquired.resolve();
       },
     });
     const { ctx } = makeCtx(engine);
@@ -385,40 +402,36 @@ describe("steer: a second message while a cold turn is running", () => {
       () => {},
       undefined,
       ctx,
-    );
+    ).then((r) => {
+      steerSettled.resolve();
+      return r;
+    });
     await Promise.all([first, steer]);
 
-    // env1's unmount+rmSync happened, then env2 mounted fresh — never "already mounted (adopted)".
-    assert.deepEqual(order, ["acquire:env1", "acquire:env2"]);
+    // No second acquire at all: nothing to mount, nothing to unmount, nothing to adopt.
+    assert.deepEqual(order, ["acquire:env1"]);
     assert.ok(
       !host.trace.some((line) => line.includes("adopted")),
-      `the steer adopted the running turn's mount: ${host.trace.join(" | ")}`,
+      `the refused turn adopted the running turn's mount: ${host.trace.join(" | ")}`,
     );
     assert.equal(host.mounted, true);
     assert.equal(host.dirExists, true);
   });
 
-  it("survives a displaced turn that aborts (the API-side heartbeat fix)", async () => {
-    // The heartbeat bug means the displaced turn is never told it was superseded, so it runs to
-    // completion beside the steer. Suppose that is fixed and it aborts promptly instead: an
-    // aborted turn still routes to `env.destroy({ reason: "aborted" })`, which unmounts and
-    // deletes the shared cwd. Before the reservation, the abort only narrowed the race window.
+  it("emits no teardown for the refused turn, so the warm session survives", async () => {
+    // The old supersede path called `env.destroy` on the LIVE turn's environment, which unmounted
+    // and `rmSync`ed the shared cwd. That is the destruction half of the double-send bug. A
+    // refusal must touch no environment at all: the running turn keeps its sandbox and its native
+    // harness session, which is the warm-session constraint this whole slice is bound by.
     const host = makeHost();
     const turn1Running = deferred();
-    const steerAcquired = deferred();
+    const steerSettled = deferred();
 
-    const { engine } = makeEngine(host, {
+    const { engine, calls } = makeEngine(host, {
       hold: async (envId, continuation) => {
         if (envId !== 1 || continuation) return;
         turn1Running.resolve();
-        await steerAcquired.promise;
-      },
-      resultFor: (envId, continuation) =>
-        envId === 1 && !continuation
-          ? { ok: false, error: "aborted", stopReason: "aborted" }
-          : undefined,
-      onAcquire: (id) => {
-        if (id === 2) steerAcquired.resolve();
+        await steerSettled.promise;
       },
     });
     const { ctx } = makeCtx(engine);
@@ -430,20 +443,20 @@ describe("steer: a second message while a cold turn is running", () => {
       () => {},
       undefined,
       ctx,
-    );
+    ).then((r) => {
+      steerSettled.resolve();
+      return r;
+    });
     await Promise.all([first, steer]);
 
-    assert.equal(host.dirExists, true, host.trace.join(" | "));
-    const third = await runWithKeepalive(
-      req("still there?"),
-      () => {},
-      undefined,
-      ctx,
-    );
     assert.equal(
-      third.ok,
-      true,
-      `the turn after an aborted steer failed: ${(third as { error?: string }).error}`,
+      calls.acquired[0].destroyed,
+      0,
+      `the running turn's environment was destroyed: ${host.trace.join(" | ")}`,
+    );
+    assert.ok(
+      !host.trace.some((line) => line.includes("teardown")),
+      `a teardown ran during the refusal: ${host.trace.join(" | ")}`,
     );
   });
 });

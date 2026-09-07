@@ -40,6 +40,7 @@ import {
   type SessionEnvironment,
 } from "../engines/sandbox_agent.ts";
 import type { MountCredentials } from "../engines/sandbox_agent/mount.ts";
+import { SESSION_TURN_IN_USE_MESSAGE } from "../sessions/admission.ts";
 import {
   teardownDisposition,
   type TeardownReason,
@@ -193,6 +194,14 @@ export interface KeepaliveContext {
   /** Latest session credential accessor supplied by the alive watchdog. */
   credential?: () => string;
   /**
+   * Called once with this run's project scope, as soon as it is known.
+   *
+   * The scope can only be resolved here: `runContext.project.id` is empty on the live invoke
+   * path, so the project comes from the signed mount, which is signed inside this function. The
+   * transport needs it to route a control command to the right tenant's session.
+   */
+  onScopeResolved?: (projectId: string) => void;
+  /**
    * Test seam for the credential-propagation hold. Production waits for real: the hold is what
    * keeps applied state from advancing over a value the provider's egress layer has probably not
    * picked up yet, so it must never be skipped outside a test.
@@ -292,6 +301,10 @@ export async function runWithKeepalive(
   }
   const key = scope.key;
   klog(`scope=${scope.source} key=${key} session=${sessionId}`);
+  // Tell the transport which project this run belongs to. Until this lands, a control command
+  // cannot tell one tenant's session from another's, because the request itself often carries
+  // no project and the scope was only just derived from the signed mount.
+  ctx.onScopeResolved?.(scope.key.slice(0, scope.key.lastIndexOf(":")));
 
   // The mount may be null here (store unconfigured, 503, ephemeral fallback) or undefined (the
   // sign attempt threw) when the run-context scope produced the key. A mount-less session still
@@ -557,6 +570,14 @@ export async function runWithKeepalive(
     }
   };
 
+  /**
+   * The idle window a clean park gets. A user Stop gets the longer stopped window, because the
+   * user is about to type the next message; every other clean turn gets the ordinary one. See
+   * `KeepaliveConfig.stoppedTtlMs` for how to collapse the two.
+   */
+  const parkTtlMs = (stopped: boolean): number =>
+    stopped ? (config.stoppedTtlMs ?? config.ttlMs) : config.ttlMs;
+
   const resultTeardownReason = (result: AgentRunResult): TeardownReason =>
     shouldPark(result, signal, clientGone)
       ? "clean-resumable"
@@ -768,7 +789,12 @@ export async function runWithKeepalive(
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!(await seat(config.ttlMs, "idle"))) {
+      // A settled user Stop parks like any clean turn, but on the LONGER stopped window: the
+      // user is about to type. Logged so the live evidence shows the sandbox surviving a Stop
+      // rather than a `no-park:cancelled` eviction.
+      const stopped = result.stopReason === "cancelled";
+      if (stopped) klog(`park-cancelled key=${key} ttl=${parkTtlMs(stopped)}ms`);
+      if (!(await seat(parkTtlMs(stopped), "idle"))) {
         await drop("park-refused", "clean-resumable");
       } else {
         await notifyParkedLive(env);
@@ -826,7 +852,9 @@ export async function runWithKeepalive(
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!(await pool.repark(live, update, config.ttlMs))) {
+      const stopped = result.stopReason === "cancelled";
+      if (stopped) klog(`park-cancelled key=${key} ttl=${parkTtlMs(stopped)}ms`);
+      if (!(await pool.repark(live, update, parkTtlMs(stopped)))) {
         await live.teardown("failed-turn");
       } else {
         await notifyParkedLive(env);
@@ -891,6 +919,7 @@ export async function runWithKeepalive(
       result = await engine.runTurn(env, request, trackedEmit, signal, {
         approvalParkMode: true,
         loaded: env.loadedFromContinuity,
+        nativeHistoryVerified: env.nativeHistoryVerified,
         ...turnCredential,
       });
     } catch (err) {
@@ -1156,6 +1185,7 @@ export async function runWithKeepalive(
     const parkedList = [...existing.environment.parkedApprovals.values()];
     const resumeDecisions: ResumeApprovalInput[] = [];
     const carriedForward: ParkedApproval[] = [];
+    const freshUserTail = tailIsFreshUserMessage(request);
     let mismatch: string | undefined;
     if (parkedList.length === 0) {
       mismatch = "no-parked-gate";
@@ -1205,7 +1235,14 @@ export async function runWithKeepalive(
     // session; the history check only guards a client that DID assert a transcript.
     const clientAssertsHistory = !carriesApprovalReplyOnly(request);
     if (!mismatch) {
-      if (clientAssertsHistory && priorFp !== existing.historyFingerprint) {
+      if (freshUserTail && carriedForward.length > 0) {
+        // A new prompt cannot start while any old gate still holds the harness's original prompt.
+        // Only a complete decision set can settle that prompt and keep this environment warm.
+        mismatch = "fresh-prompt-unanswered-gate";
+      } else if (
+        clientAssertsHistory &&
+        priorFp !== existing.historyFingerprint
+      ) {
         mismatch = "history";
       } else if (mountCredentialsExpired(existing.credentialEpoch)) {
         mismatch = "credentials-expired";
@@ -1261,21 +1298,25 @@ export async function runWithKeepalive(
 
     const live = pool.checkoutApproval(key);
     if (live) {
-      shadowRoute(existing, "reuse", "approval-resume");
+      const decisionRoute = freshUserTail
+        ? "approval-decision-then-prompt"
+        : "approval-resume";
+      shadowRoute(existing, "reuse", decisionRoute);
       const approveCount = resumeDecisions.filter(
         (d) => d.reply === "once",
       ).length;
       const rejectCount = resumeDecisions.length - approveCount;
       klog(
-        `resume key=${key} gates=${parkedList.length} answered=${resumeDecisions.length} ` +
+        `${freshUserTail ? "decision-then-prompt" : "resume"} key=${key} ` +
+          `gates=${parkedList.length} answered=${resumeDecisions.length} ` +
           `carried=${carriedForward.length} ` +
           `approve=${approveCount} reject=${rejectCount} tool=${parked?.toolName ?? "?"}`,
       );
       let result: AgentRunResult;
       try {
-        // Answer the parked gate on the SAME live session; the original prompt continues and this
-        // (new) turn owns streaming + tracing. The gated tool runs with its original byte-exact
-        // args — no model re-issues anything, so argument drift/task restart cannot happen.
+        // A pure decision resumes the original prompt. A decision followed by fresh user text
+        // settles that gate first and then sends the text as a normal continuation prompt on the
+        // same warm session; the decision becomes context instead of swallowing the new turn.
         result = await engine.runTurn(
           live.environment,
           request,
@@ -1283,7 +1324,14 @@ export async function runWithKeepalive(
           signal,
           {
             approvalParkMode: true,
-            resume: { decisions: resumeDecisions, carriedForward },
+            ...(freshUserTail
+              ? {
+                  continuation: true,
+                  settleApprovalsThenPrompt: { decisions: resumeDecisions },
+                }
+              : {
+                  resume: { decisions: resumeDecisions, carriedForward },
+                }),
             ...turnCredential,
           },
         );
@@ -1316,12 +1364,29 @@ export async function runWithKeepalive(
       return result;
     }
     // checkout lost a race; fall through to cold.
+  } else if (existing && existing.state === "busy") {
+    // A LIVE turn is streaming on this environment right now, in this process. Refuse; never
+    // destroy it.
+    //
+    // This branch used to `evict` and cold-start ("supersede-busy"), which is the second half of
+    // the double-send bug (#6417, #5539, #5538): a second message on a running session tore the
+    // sandbox out from under the first turn, so both turns died and the session stayed locked
+    // until the 30-minute lease expired. Admission (`sessions/admission.ts`, decided by the API's
+    // atomic `nx` acquire on the turn's first heartbeat) now refuses the second turn at the edge,
+    // so in normal operation nothing reaches here at all.
+    //
+    // What still reaches here is the fail-open window: the heartbeat fails open on a network or
+    // HTTP error, so an API blip can admit two turns. Local state is the more specific truth in
+    // that window — a busy entry means a turn is demonstrably in flight on this box — so this is
+    // the backstop that keeps the invariant true when the arbiter is unreachable. Only a
+    // `checkoutIdle` continuation and a freshly `reserve`d cold turn leave a busy entry;
+    // `checkoutApproval` REMOVES its session, so an in-flight approval resume is never found here.
+    klog(`refuse (busy) key=${key}; another turn owns this session`);
+    return { ok: false, error: SESSION_TURN_IN_USE_MESSAGE };
   } else if (existing) {
-    // Busy / destroyed: two turns racing one session. Only a checkoutIdle continuation leaves a
-    // busy entry in the map (checkoutApproval REMOVES its session, so an in-flight approval
-    // resume can never be found — a duplicate approval misses the pool and runs cold, and its
-    // environment can never be destroyed by this branch). Supersede — destroy the parked one and
-    // cold-start — awaited so its teardown cannot overlap our acquire.
+    // `destroyed`: a dead entry left by a drain (`destroyAll`) or a teardown that has already
+    // run. Nothing is in flight on it, so clearing the key and cold-starting is correct and
+    // costs nothing warm.
     klog(`evict (supersede-${existing.state}) key=${key}; cold`);
     await pool.evict(key, `supersede-${existing.state}`, "failed-turn");
   } else {

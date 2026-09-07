@@ -13,6 +13,7 @@ import {useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {Skeleton} from "@/components/ui/skeleton"
 import {FOCUS_RING} from "@/lib/interactive"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -99,9 +100,15 @@ export const AgentOverviewScreen = ({
                                 {/* The heading-3 rung (24px/1.3333) every other title in this app
                                     gets — Sessions, Agents, Templates. At `text-sm` the agent's
                                     name read as a breadcrumb, so the page had no title at all. */}
-                                <h1 className="text-colorText m-0 min-w-0 truncate text-[24px] font-semibold leading-[1.3333333333333333]">
-                                    {name}
-                                </h1>
+                                {/* The "Agent" fallback is for an agent that never resolves; while
+                                    the roster is still in flight it read as a real name. */}
+                                {agentsQuery.isPending && !agent ? (
+                                    <Skeleton className="h-8 w-40 shrink-0" />
+                                ) : (
+                                    <h1 className="text-colorText m-0 min-w-0 truncate text-[24px] font-semibold leading-[1.3333333333333333]">
+                                        {name}
+                                    </h1>
+                                )}
                                 {/* The same verbs the desktop header offers; rename and delete
                                     fall through to the shared implementations here, since /m has
                                     no app-management modals of its own.
@@ -122,13 +129,12 @@ export const AgentOverviewScreen = ({
                     {/* THE shared overview body — the same cards, order and chrome the desktop
                         page renders. Read-only host: configuration is edited in the desktop
                         playground, so no `onEditConfig`. */}
-                    {/* `flex flex-col` is load-bearing: the body's columns size off `flex-1` +
-                        `h-full`, so a plain block here leaves them with no definite height and
-                        the left column scrolls inside a stunted box. */}
                     {/* The shared page column (`pageContentWidthClass`), same as Sessions and
                         Agents: this page used to opt out of the cap at `lg` and stretched ~300px
                         wider than every other screen, which also inflated the body's right rail
                         past the width its rows are designed for. */}
+                    {/* `min-h-0 flex-1` is load-bearing: the body IS the scroller, so it needs a
+                        definite height to scroll within. */}
                     <div
                         className={`${pageContentWidthClass} flex min-h-0 flex-1 flex-col px-2 pb-4 pt-2 lg:px-16 lg:pb-6 lg:pt-5`}
                     >

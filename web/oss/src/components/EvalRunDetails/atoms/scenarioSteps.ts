@@ -1,6 +1,6 @@
 import {createBatchFetcher, type BatchFetcher} from "@agenta/shared/utils"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"

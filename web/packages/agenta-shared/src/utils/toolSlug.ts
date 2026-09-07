@@ -30,3 +30,53 @@ export const buildGatewayToolSlug = (
     action: string,
     connectionSlug: string,
 ) => `tools__${provider}__${integration}__${action}__${connectionSlug}`
+
+// Whole-word tokens kept uppercase when humanizing an action key (GitHub/Composio actions are
+// littered with these). Everything else is sentence-cased.
+const ACTION_ACRONYMS = new Set([
+    "API",
+    "URL",
+    "URI",
+    "ID",
+    "PR",
+    "CI",
+    "CD",
+    "SSO",
+    "SSH",
+    "IP",
+    "DNS",
+    "SLA",
+    "SMS",
+    "PDF",
+    "CSV",
+    "JSON",
+    "HTTP",
+    "HTTPS",
+    "SDK",
+    "UUID",
+    "GPG",
+    "OAUTH",
+    "2FA",
+    "MFA",
+])
+
+/**
+ * `ADD_ASSIGNEES_TO_AN_ISSUE` → "Add assignees to an issue". Sentence-cased, acronyms kept.
+ * Pass `integration` to drop a key that repeats it (`GITHUB_ADD_ASSIGNEES` → "Add assignees").
+ */
+export function humanizeActionKey(key: string, integration?: string): string {
+    const prefix = integration ? `${integration.toUpperCase()}_` : ""
+    const stripped = prefix && key.toUpperCase().startsWith(prefix) ? key.slice(prefix.length) : key
+    const words = stripped
+        .toLowerCase()
+        .split(/[_\s]+/)
+        .filter(Boolean)
+    if (words.length === 0) return key
+    return words
+        .map((word, index) => {
+            const upper = word.toUpperCase()
+            if (ACTION_ACRONYMS.has(upper)) return upper
+            return index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word
+        })
+        .join(" ")
+}

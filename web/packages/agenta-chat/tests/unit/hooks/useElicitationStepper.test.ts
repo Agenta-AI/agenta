@@ -73,6 +73,7 @@ describe("navigation", () => {
         expect(result.current.step?.name).toBe("name")
         expect(result.current.position).toBe(1)
         expect(result.current.total).toBe(5)
+        expect(result.current.isMultiStep).toBe(true)
         expect(result.current.canGoBack).toBe(false)
         expect(result.current.primaryLabel).toBe("Next")
     })
@@ -107,6 +108,7 @@ describe("navigation", () => {
         const {result} = setup(formOf({name: {type: "string"}}), onComplete)
 
         expect(result.current.hasReview).toBe(false)
+        expect(result.current.isMultiStep).toBe(false)
         expect(result.current.primaryLabel).toBe("Send answers")
 
         act(() => result.current.setValue("name", "Ada"))

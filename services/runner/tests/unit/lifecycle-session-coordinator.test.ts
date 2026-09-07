@@ -148,7 +148,12 @@ interface FakeEnv {
 }
 
 function makeEngine() {
-  const calls = { acquire: 0, cold: 0, turns: [] as FakeEnv[] };
+  const calls = {
+    acquire: 0,
+    cold: 0,
+    turns: [] as FakeEnv[],
+    acquiredRequests: [] as AgentRunRequest[],
+  };
   let nextId = 1;
 
   const engine: coordinator.KeepaliveEngine = {
@@ -164,6 +169,7 @@ function makeEngine() {
     },
     async acquireEnvironment(request) {
       calls.acquire += 1;
+      calls.acquiredRequests.push(request);
       const applied = appliedStateForRequest(request);
       const env: FakeEnv = {
         id: nextId++,
@@ -256,6 +262,43 @@ describe("the coordinator works when imported directly", () => {
       ctx,
     );
     assert.equal(calls.acquire, 2);
+  });
+
+  it("rebuilds on custom credential rotation and removal while carrying session history", async () => {
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    const initial = {
+      ...turn1,
+      sandboxCredentials: [{
+        binding: { kind: "environment" as const, name: "GITHUB_TOKEN" },
+        value: "first-secret-value",
+      }],
+    };
+
+    await coordinator.runWithKeepalive(initial, undefined, undefined, ctx);
+    await coordinator.runWithKeepalive(
+      {
+        ...turn2,
+        sandboxCredentials: [{
+          binding: { kind: "environment", name: "GITHUB_TOKEN" },
+          value: "second-secret-value",
+        }],
+      },
+      undefined,
+      undefined,
+      ctx,
+    );
+    await coordinator.runWithKeepalive(
+      { ...turn2, messages: [...turn2.messages!, { role: "user", content: "again" }] },
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(calls.acquire, 3, "rotation and removal each rebuild the environment");
+    assert.equal(calls.acquiredRequests[1].sessionId, "s1");
+    assert.deepEqual(calls.acquiredRequests[1].messages, turn2.messages);
+    assert.equal(calls.acquiredRequests[2].messages?.at(-1)?.content, "again");
   });
 
   it("routes to cold when the request carries no session id", async () => {

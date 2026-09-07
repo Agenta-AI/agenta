@@ -42,6 +42,7 @@ import {
   daytonaOpaqueSecretsEnabled,
   type DaytonaSecretPlan,
 } from "./daytona-secret-plan.ts";
+import { materializeSandboxCredentials } from "./sandbox-credentials.ts";
 
 type Log = (message: string) => void;
 
@@ -106,6 +107,7 @@ export const LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE =
 export interface RunPlanCredentials {
   /** Final plaintext model environment, after validating modelConnection. */
   modelEnvironment: Record<string, string>;
+  sandboxEnvironment: Record<string, string>;
   /**
    * Process-local opaque credential plan. Present for every Daytona run unless credential
    * hiding was switched off with AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS, and present even with
@@ -532,6 +534,8 @@ export function buildRunPlan(
 
   const materializedModel = materializeModelEnvironment(request);
   if (!materializedModel.ok) return materializedModel;
+  const materializedSandbox = materializeSandboxCredentials(request);
+  if (!materializedSandbox.ok) return materializedSandbox;
   // Daytona opaque-credential delivery is ON by default and switched off only by
   // AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS. Switched OFF: no secret plan is built at all, so
   // behavior is identical to the pre-feature runner — the full materialized environment reaches
@@ -749,6 +753,7 @@ export function buildRunPlan(
       isDaytona,
       credentials: {
         modelEnvironment,
+        sandboxEnvironment: materializedSandbox.environment,
         daytonaSecretPlan,
         harnessApiKeyVar,
         // Consult the FULL materialized environment: on a Daytona Secrets run the opaque key is

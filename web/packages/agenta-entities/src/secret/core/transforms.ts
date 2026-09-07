@@ -157,6 +157,7 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 name: secret.header.name ?? "",
                 slug: secret.slug ?? undefined,
                 format: data.secret.format,
+                defaultEnvVar: data.secret.default_env_var ?? undefined,
                 content: data.secret.content,
                 id: secret.id ?? undefined,
                 type: secret.kind,
@@ -256,6 +257,9 @@ export const transformCustomSecretPayloadData = (values: NamedSecretRow): Create
         data: {
             secret: {
                 format: values.format,
+                ...(values.defaultEnvVar !== undefined
+                    ? {default_env_var: values.defaultEnvVar || null}
+                    : {}),
                 // An omitted content means "keep the stored value"; a write-only record is only
                 // ever replaced, never read back, so an untouched edit must send nothing.
                 ...(values.content === undefined ? {} : {content: values.content}),

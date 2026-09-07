@@ -2273,6 +2273,7 @@ class TestAgentCommitScope:
             ["parameters", "agent", "runner", "permissions", "default"],
             ["parameters", "agent", "sandbox", "kind"],
             ["parameters", "agent", "sandbox", "permissions"],
+            ["parameters", "agent", "sandbox", "credentials"],
         ],
     )
     def test_platform_owned_targets_are_refused(self, target):

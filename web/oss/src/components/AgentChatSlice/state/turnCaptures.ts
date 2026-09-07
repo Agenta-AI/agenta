@@ -1,6 +1,6 @@
 import {appendCapped, type TurnRequestCapture} from "@agenta/playground"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 /** Keep the last N turns' captures per session (ephemeral; debugging surface, not persisted). */
 const MAX_TURNS = 20

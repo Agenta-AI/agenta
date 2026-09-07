@@ -7,6 +7,8 @@
  */
 export {
     querySessionRecords,
+    querySessionTranscript,
+    fetchSessionSnapshot,
     queryInteractions,
     fetchInteraction,
     respondInteraction,
@@ -18,6 +20,10 @@ export {
     setSessionHeader,
     fetchSessionStream,
     commandSessionStream,
+    cancelSessionExecution,
+    cancelSessionStream,
+    type CancelSessionOutcome,
+    type CancelSessionStreamParams,
     killSession,
     deleteSession as deleteSessionRemote,
     archiveSession as archiveSessionRemote,
@@ -30,6 +36,7 @@ export {
     type MountFilesPage,
     type LatestMountFilesParams,
     type QueryRecordsParams,
+    type QuerySessionTranscriptParams,
     type QuerySessionsPageParams,
     type QuerySessionsParams,
     type SessionScopedParams,
@@ -38,6 +45,8 @@ export {
     type RespondInteractionParams,
     type TransitionInteractionParams,
     type CommandSessionStreamParams,
+    type CancelSessionExecutionParams,
+    type CancelSessionExecutionResult,
 } from "./api/api"
 export {
     getSessionsClient,
@@ -51,6 +60,11 @@ export {
     sessionRecordsQueryResponseSchema,
     sessionInteractionSchema,
     sessionStreamSchema,
+    sessionLiveFrameSchema,
+    sessionDurableEventSchema,
+    sessionDurableEventTypeSchema,
+    sessionRecordsReadStateSchema,
+    sessionSnapshotSchema,
     sessionsQueryResponseSchema,
     type SessionRecord,
     type SessionRecordsQueryResponse,
@@ -58,6 +72,11 @@ export {
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionStream,
+    type SessionLiveFrame,
+    type SessionDurableEvent,
+    type SessionDurableEventType,
+    type SessionRecordsReadState,
+    type SessionSnapshot,
     type SessionsQueryResponse,
     type SessionReference,
     type SessionReferenceKey,
@@ -80,6 +99,8 @@ export {
     deriveStreamNest,
     deriveSessionLifecycle,
     refineLifecycleWithSandbox,
+    livenessPollInterval,
+    type LivenessPollInterval,
     type SessionLifecycle,
     type SessionStreamNest,
     type SandboxLiveness,
@@ -106,6 +127,14 @@ export {
     type SessionRecordsFetchResult,
 } from "./state/records"
 export {
+    sessionLivePreviewAtomFamily,
+    clearSessionLivePreviewAtom,
+    createSessionLivePreviewState,
+    type SessionLivePreviewExecution,
+    type SessionLivePreviewEntityState,
+    type SessionLivePreviewState,
+} from "./state/livePreview"
+export {
     fetchSessionInteractionStatesAtom,
     hasWaitingInteraction,
     revalidateSessionInteractionsAtom,
@@ -129,6 +158,7 @@ export {
 export {
     detectFileActivity,
     drivePathFromToolPath,
+    PATH_KEYS,
     fileRecencyFromRecords,
     mountPathMatchesToolPath,
     type DriveToolPath,

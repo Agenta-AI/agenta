@@ -22,9 +22,9 @@ def test_reference_tool_variant_call_ref_grammar():
     )
     # ref_by defaults to "variant".
     assert ReferenceToolConfig(slug="wf").ref_by == "variant"
-    # The model-visible name defaults to the slug when none is authored.
+    # The model-visible name IS the slug; a stored display name never reaches it (#6444).
     assert ReferenceToolConfig(slug="wf").tool_name == "wf"
-    assert ReferenceToolConfig(slug="wf", name="run").tool_name == "run"
+    assert ReferenceToolConfig(slug="wf", name="run").tool_name == "wf"
 
 
 def test_reference_tool_environment_call_ref_grammar():

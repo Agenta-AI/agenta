@@ -68,10 +68,11 @@ export function useAgentTools({
             const latest = configRef.current
             const latestTools = Array.isArray(latest.tools) ? (latest.tools as unknown[]) : []
             if (latestTools.some((t) => toolReferenceSlug(t) === payload.slug)) return
+            // No `name`: that copy went stale on a rename (#6444). The description is authored
+            // here, so it stays, seeded from the target's own description alone.
             const referenceTool = normalizeSubagentReference({
                 slug: payload.slug,
-                name: wf?.name || payload.slug,
-                description: payload.description ?? wf?.description ?? wf?.name ?? "",
+                description: payload.description ?? wf?.description ?? "",
                 input_schema: inputSchema ?? {type: "object", properties: {}},
             })
             onChange({...latest, tools: [...latestTools, referenceTool]})

@@ -1,6 +1,6 @@
 import uuid_utils.compat as uuid
 
-from sqlalchemy import Column, UUID, TIMESTAMP, String, Integer
+from sqlalchemy import BigInteger, Column, UUID, TIMESTAMP, String, Integer
 from sqlalchemy.dialects.postgresql import JSONB
 
 
@@ -37,6 +37,11 @@ class RecordDBA:
         nullable=False,
     )
 
+    sequence = Column(
+        BigInteger,
+        nullable=True,
+    )
+
     # Producer-stamped per-turn ordinal and the in-session ordering key (record_id is
     # no longer time-ordered). Restarts at 0 each cold turn, so reads tiebreak with
     # created_at (ingest time) ahead of it — see get_records.
@@ -63,5 +68,15 @@ class RecordDBA:
 
     attributes = Column(
         JSONB(none_as_null=True),
+        nullable=True,
+    )
+
+    # Non-null when this record reached ingest for a turn the watchdog had ALREADY ended.
+    # The row is kept — the agent really did that work, and the token accounting on a late
+    # `usage` is real money — but every read that rebuilds a transcript excludes it, so one
+    # execution still shows exactly one ending. Written only by the ingest guard in
+    # `RecordsService.append_many`; forward-fill only, like every other column here.
+    quarantined_at = Column(
+        TIMESTAMP(timezone=True),
         nullable=True,
     )

@@ -10,6 +10,7 @@ export interface SessionRecord {
     record_id: string;
     session_id: string;
     project_id: string;
+    sequence?: (number | null) | undefined;
     record_index?: (number | null) | undefined;
     timestamp?: (string | null) | undefined;
     record_type?: (string | null) | undefined;

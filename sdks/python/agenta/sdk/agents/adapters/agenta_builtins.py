@@ -920,7 +920,7 @@ Do not discover tools or triggers for an ask that does not need them.
    `oneOf: [{const, title, description}]` when options need a sentence of explanation.
    For a form with several questions, set `"x-ag-stepper": true` on requestedSchema —
    it presents one question at a time with a final review step.
-   Never request secrets through it; credentials go through `request_connection`.
+   Never request secrets through it; custom secrets go through `request_secret`, while integration credentials go through `request_connection`.
 2. Decide from the table. Most agents need only instructions. If the ask needs outside actions,
    call `discover_tools` with one short fragment per capability, such as "list github issues" or
    "post a slack message".

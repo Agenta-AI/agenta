@@ -5,6 +5,11 @@
 GT-Alpina*
 PPMondwest*
 
+# Generated at build time from docs/docs/reference/openapi.json by
+# scripts/copy-openapi.mjs (prebuild). Never commit: it is a derived copy that
+# would silently drift from the spec the docs site renders.
+public/openapi.json
+
 # Build output and local env
 dist/
 .astro/

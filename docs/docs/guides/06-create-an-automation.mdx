@@ -1,7 +1,7 @@
 ---
 title: "Create an automation"
 sidebar_label: "Create an automation"
-description: "Prepare an agent for unattended runs, commit a version, and add a schedule or app trigger."
+description: "Prepare an agent for unattended runs, then add a schedule or app trigger."
 ---
 
 ```mdx-code-block
@@ -46,22 +46,9 @@ Open `Advanced`, then the `Permissions` section, and set `Policy`:
 Under `Ask`, the run waits at the first tool call. Under `Allow reads`, it waits when the agent needs to write. Set permissions that let the automation finish before you attach a trigger.
 :::
 
-There is no separate auto-approve list. When you select `Always allow` on a tool's approval card during a chat, Agenta writes that tool's own `Permission`, or adds a harness built-in to the harness allow list. Either way the grant reaches a trigger only after you commit it.
+There is no separate auto-approve list. When you select `Always allow` on a tool's approval card during a chat, Agenta writes that tool's own `Permission`, or adds a harness built-in to the harness allow list.
 
 For the wider set of controls, see [Control what an agent can do](/guides/control-what-an-agent-can-do).
-
-## Commit a version
-
-A trigger runs one pinned variant and revision, so it runs what you committed, not your current draft.
-
-Click `Commit` in the `Configuration` header, keep `New version`, write a commit message, and click `Commit`.
-
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/agenta-issue-triage-wide.png")}
-  alt="The commit dialog with What's changing on the left and the New version chooser and commit message on the right"
-  loading="lazy"
-/>
 
 ## Attach the trigger
 
@@ -70,7 +57,7 @@ Triggers live in `Sidebar > Settings > Triggers`, not in the agent's configurati
 - **`Scheduled runs`** runs the agent on a clock. Click `Schedule`. See [Schedule an automation](/guides/schedule-an-automation).
 - **`Event triggers`** runs the agent when an event fires in a connected app. Click `Subscribe`. See [Trigger an automation from an app](/guides/trigger-an-automation-from-an-app).
 
-Both forms carry a `Version` field that pins the variant and revision you choose, and a `Run in playground` button that runs the agent with the message you configured. The schedule form saves with `Create schedule`, the trigger form with `Create`.
+Both forms carry a `Run in playground` button that runs the agent with the message you configured. The schedule form saves with `Create schedule`, the trigger form with `Create`.
 
 ## Where automations are listed
 

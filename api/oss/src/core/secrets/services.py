@@ -230,6 +230,10 @@ def _resolve_update(
             stored_data=stored_secret_dto.data,
             update_data=resolved_update.secret.data,
         )
+        _carry_over_custom_secret_metadata(
+            stored_data=stored_secret_dto.data,
+            update_data=resolved_update.secret.data,
+        )
         # The payload was validated before the carry-over filled it in, so what the
         # validators actually saw was a value-less shape. Re-validate the merged result:
         # nothing reaches the row that a create of the same shape would have refused.
@@ -240,6 +244,15 @@ def _resolve_update(
         _require_explicit_value(secret=resolved_update.secret)
 
     return UpdateSecretDTO.model_validate(resolved_update.model_dump(mode="python"))
+
+
+def _carry_over_custom_secret_metadata(*, stored_data: Any, update_data: Any) -> None:
+    stored = getattr(stored_data, "secret", None)
+    requested = getattr(update_data, "secret", None)
+    if stored is None or requested is None:
+        return
+    if "default_env_var" not in requested.model_fields_set:
+        requested.default_env_var = stored.default_env_var
 
 
 def _authorize_delete(stored_secret_dto: SecretResponseDTO) -> None:

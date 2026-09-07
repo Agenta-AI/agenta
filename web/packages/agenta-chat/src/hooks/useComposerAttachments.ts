@@ -14,7 +14,8 @@ import {attachmentsBySession} from "../state/sessionEphemera"
 
 import {removeUploadFile, useAttachmentUploads} from "./useAttachmentUploads"
 
-type StagedFile = UploadFile<SessionAttachmentResponse>
+export type ComposerAttachment = UploadFile<SessionAttachmentResponse>
+type StagedFile = ComposerAttachment
 
 /** Convert settled upload-tray entries into reference `file` parts via the neutral builder. */
 export const stagedFilesToParts = (files: StagedFile[], sessionId: string) =>
@@ -78,7 +79,6 @@ export const useComposerAttachments = ({
     const [rejections, setRejections] = useState<AttachmentRejection[]>([])
     // The attachment currently open in the Files-drawer preview (its uid), or null when closed.
     const [viewingUid, setViewingUid] = useState<string | null>(null)
-    const [attachmentsOpen, setAttachmentsOpen] = useState(false)
     useEffect(() => {
         // Park whatever is on screen under the session it actually belongs to…
         const owner = filesOwnerRef.current
@@ -150,10 +150,9 @@ export const useComposerAttachments = ({
             setFiles((prev) => [...prev, ...staged])
             if (uploadsEnabled) uploads.enqueue(staged.map((f) => f.uid))
         }
-        setRejections(allRejections)
-        // Open for rejections too. Otherwise dropping something unsupported writes a message into
-        // a closed panel and reads as nothing having happened at all.
-        if (accepted.length || allRejections.length) setAttachmentsOpen(true)
+        // Append: a rejection stays until it is dismissed or the message is sent. Replacing the
+        // list made an earlier failure vanish the moment another file was attached.
+        if (allRejections.length) setRejections((prev) => [...prev, ...allRejections])
     }
 
     // Removing a chip also aborts its in-flight request.
@@ -206,7 +205,6 @@ export const useComposerAttachments = ({
                   },
         )
         setFiles((prev) => [...prev, ...settledEntries])
-        setAttachmentsOpen(true)
         return null
     }
 
@@ -273,12 +271,17 @@ export const useComposerAttachments = ({
         return {onDragEnter, onDragOver, onDragLeave, onDrop}
     }
 
+    /** Dismiss one rejection card by position — two files can reject with the same name AND
+     * reason, so the pair does not identify a card. */
+    const dismissRejection = (index: number) => {
+        setRejections((prev) => prev.filter((_, i) => i !== index))
+    }
+
     /** Drop the attachments a send just carried, plus any rejection notice. */
     const clearAttachments = (consumedUids: string[]) => {
         // Only what this send carried: anything staged while it was in flight belongs to the next message.
         setFiles((prev) => prev.filter((file) => !consumedUids.includes(file.uid)))
         setRejections([])
-        setAttachmentsOpen(false)
     }
 
     /**
@@ -287,20 +290,18 @@ export const useComposerAttachments = ({
      * than through `addFiles`, which would re-upload them as second attachments. Idempotent:
      * anything already back in the tray is left where it is.
      */
-    const restoreAttachments = (restored: StagedFile[]) => {
+    const restoreAttachments = useCallback((restored: StagedFile[]) => {
         setFiles((prev) => [
             ...restored.filter((file) => !prev.some((row) => row.uid === file.uid)),
             ...prev,
         ])
-    }
+    }, [])
 
     return {
         uploadsEnabled,
         files,
         rejections,
         setRejections,
-        attachmentsOpen,
-        setAttachmentsOpen,
         viewingUid,
         setViewingUid,
         limits,
@@ -310,6 +311,7 @@ export const useComposerAttachments = ({
         isDragging,
         addFiles,
         removeFile,
+        dismissRejection,
         uploadExtraFiles,
         uploads,
         clearAttachments,

@@ -15,7 +15,7 @@ import {type DriveId} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {atom, useAtom, useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import dynamic from "next/dynamic"
 
 import {DriveExplorerSkeleton} from "./index"

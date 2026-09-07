@@ -44,15 +44,19 @@ def _first_allowed_provider(harness):
     return HARNESS_CONNECTION_CAPABILITIES[harness].providers[0]
 
 
-def _request(*, stream=None, session_id=None):
+def _request(*, stream=None, session_id=None, detached=None):
     """Build the request `_agent` reads stream/session_id off of.
 
     `_agent` now sources the stream decision from `request.flags.stream` and the
     session id from `request.session_id` (both set at the route/normalizer edge),
     instead of receiving them as handler params.
     """
-    flags = {"stream": stream} if stream is not None else None
-    return WorkflowServiceRequest(flags=flags, session_id=session_id)
+    flags = {}
+    if stream is not None:
+        flags["stream"] = stream
+    if detached is not None:
+        flags["detached"] = detached
+    return WorkflowServiceRequest(flags=flags or None, session_id=session_id)
 
 
 def _patch_handler(monkeypatch, backend, *, tool_specs=(), tool_callback=None):
@@ -247,6 +251,24 @@ async def test_messages_session_id_reaches_session_config(patched):
     )
 
     assert backend.created_session_ids == ["sess_request"]
+    assert backend.created_detached == [False]
+
+
+async def test_detached_flag_reaches_the_backend_session(patched):
+    """The shared-delivery flag rides the same edge as the session id.
+
+    Nothing else in the service asserts it at this boundary, so a handler that stopped
+    forwarding `flags.detached` would still pass every other invoke test.
+    """
+    backend, _ = patched
+
+    await app._agent(
+        request=_request(session_id="sess_detached", detached=True),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters={"agent": {"harness": {"kind": "pi_core"}}},
+    )
+
+    assert backend.created_detached == [True]
 
 
 async def test_invoke_cross_harness_same_body_divergent_configs(

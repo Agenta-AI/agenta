@@ -38,7 +38,7 @@ import type {
     WorkflowReferenceType,
 } from "@agenta/ui/drill-in"
 import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {describeSkill} from "../SchemaControls/agentTemplate/itemDescriptors"

@@ -2,7 +2,7 @@ import {useEffect, useMemo, useState} from "react"
 
 import {attachmentContentUrl} from "@agenta/chat/assets"
 import {useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"

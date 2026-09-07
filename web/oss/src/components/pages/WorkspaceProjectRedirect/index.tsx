@@ -17,10 +17,6 @@ const WorkspaceProjectRedirect = () => {
         }
     }, [router, baseAppURL])
 
-    if (baseAppURL && router.asPath === baseAppURL) {
-        return null
-    }
-
     return (
         <section className="flex items-center justify-center w-full h-screen">
             <Spin spinning={true} />

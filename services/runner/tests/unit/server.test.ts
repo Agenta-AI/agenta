@@ -19,8 +19,17 @@ import {
   createAgentServer,
   normalizeKillProjectId,
   registerShutdownHandler,
+  runWithKeepalive,
+  type KeepaliveEngine,
   type RunAgent,
 } from "../../src/server.ts";
+import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
+import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
+import { HEARTBEAT_INTERVAL_SECONDS } from "../../src/sessions/contract.ts";
+import {
+  liveExecutions,
+  resetExecutionsForTest,
+} from "../../src/sessions/execution-registry.ts";
 
 const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
 const previousToken = process.env[TOKEN_ENV];
@@ -29,6 +38,7 @@ const LIMIT_ENV = "AGENTA_RUNNER_CONCURRENCY_LIMIT";
 const previousLimit = process.env[LIMIT_ENV];
 
 afterEach(() => {
+  resetExecutionsForTest();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
   if (previousToken === undefined) delete process.env[TOKEN_ENV];
@@ -524,6 +534,400 @@ describe("createAgentServer", () => {
     }
   });
 
+  it("persists one stopped ending when user Stop aborts a slow cold acquire", async () => {
+    let markAcquireStarted!: () => void;
+    const acquireStarted = new Promise<void>((resolve) => {
+      markAcquireStarted = resolve;
+    });
+    let runTurnCalls = 0;
+    const engine: KeepaliveEngine = {
+      async resolveKeepaliveMount() {
+        return null;
+      },
+      async acquireEnvironment(_request, signal) {
+        markAcquireStarted();
+        await new Promise<void>((resolve) => {
+          if (signal?.aborted) return resolve();
+          signal?.addEventListener("abort", () => resolve(), { once: true });
+        });
+        return { ok: false, error: "sandbox acquisition aborted" };
+      },
+      async runTurn() {
+        runTurnCalls += 1;
+        return { ok: true, output: "must not run" };
+      },
+      async runCold() {
+        return { ok: false, error: "must not run cold fallback" };
+      },
+    };
+    const run: RunAgent = (request, emit, signal) =>
+      runWithKeepalive(request, emit, signal, {
+        engine,
+        pool: new SessionPool<SessionEnvironment>({ poolMax: 1 }),
+        config: {
+          enabled: true,
+          ttlMs: 60_000,
+          approvalTtlMs: 60_000,
+          poolMax: 1,
+        },
+      });
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    let heartbeatCount = 0;
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          heartbeatCount += 1;
+          return Response.json({
+            stream: { id: "stream-stop-during-acquire" },
+            is_current_turn: heartbeatCount === 1,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+
+    try {
+      const responsePromise = fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-stop-during-acquire",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "start slowly" }],
+        }),
+      });
+
+      await acquireStarted;
+      await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_SECONDS * 1000);
+      const response = await responsePromise;
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(runTurnCalls, 0, "the Stop landed before the turn started");
+      const endings = ingested.filter(
+        (record) => record.record_type === "done",
+      );
+      assert.equal(endings.length, 1, "the transcript has one terminal record");
+      assert.equal(
+        ingested.filter((record) => record.record_type === "error").length,
+        0,
+        "a user Stop does not persist an acquire error",
+      );
+      assert.deepEqual(endings[0].attributes, {
+        type: "done",
+        stopReason: "cancelled",
+      });
+      assert.equal(
+        records.filter((record) => record.kind === "result").length,
+        1,
+        "the run outcome is reported once",
+      );
+      assert.equal(records.at(-1)?.result.ok, false);
+    } finally {
+      vi.useRealTimers();
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("persists an acquire failure error before exactly one ending", async () => {
+    const acquireError = "sandbox mount failed";
+    let runTurnCalls = 0;
+    const engine: KeepaliveEngine = {
+      async resolveKeepaliveMount() {
+        return null;
+      },
+      async acquireEnvironment() {
+        return { ok: false, error: acquireError };
+      },
+      async runTurn() {
+        runTurnCalls += 1;
+        return { ok: true, output: "must not run" };
+      },
+      async runCold() {
+        return { ok: false, error: "must not run cold fallback" };
+      },
+    };
+    const run: RunAgent = (request, emit, signal) =>
+      runWithKeepalive(request, emit, signal, {
+        engine,
+        pool: new SessionPool<SessionEnvironment>({ poolMax: 1 }),
+        config: {
+          enabled: true,
+          ttlMs: 60_000,
+          approvalTtlMs: 60_000,
+          poolMax: 1,
+        },
+      });
+    const s = await listen(run);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-acquire-failure" },
+            is_current_turn: true,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+
+    try {
+      const response = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sandbox: "local",
+          sessionId: "session-acquire-failure",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "fail during acquire" }],
+        }),
+      });
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(runTurnCalls, 0, "the failed acquire never starts the turn");
+      const endingRecords = ingested.filter((record) =>
+        ["error", "done"].includes(record.record_type),
+      );
+      assert.deepEqual(
+        endingRecords.map((record) => record.record_type),
+        ["error", "done"],
+        "the transcript preserves the error before its ending",
+      );
+      assert.deepEqual(endingRecords[0].attributes, {
+        type: "error",
+        message: acquireError,
+      });
+      assert.deepEqual(endingRecords[1].attributes, { type: "done" });
+      assert.equal(
+        records.filter((record) => record.kind === "result").length,
+        1,
+        "the failed run outcome is reported once",
+      );
+      assert.equal(records.at(-1)?.result.error, acquireError);
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("keeps the normal Stop path at exactly one persisted ending", async () => {
+    const normalStop: RunAgent = async (_request, emit) => {
+      emit?.({ type: "done", stopReason: "cancelled" });
+      return { ok: true, stopReason: "cancelled", events: [] };
+    };
+    const s = await listen(normalStop);
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-normal-stop" },
+            is_current_turn: true,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+
+    try {
+      const response = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-normal-stop",
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "stop normally" }],
+        }),
+      });
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      const endings = ingested.filter(
+        (record) => record.record_type === "done",
+      );
+      assert.equal(
+        endings.length,
+        1,
+        "the server must not duplicate runTurn's ending",
+      );
+      assert.deepEqual(endings[0].attributes, {
+        type: "done",
+        stopReason: "cancelled",
+      });
+      assert.equal(
+        records.filter(
+          (record) => record.kind === "event" && record.event?.type === "done",
+        ).length,
+        1,
+        "the normal Stop still streams its one done event",
+      );
+      assert.equal(
+        records.filter((record) => record.kind === "result").length,
+        1,
+        "the run outcome is reported once",
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+  for (const testCase of [
+    { name: "plain", sessionOwned: false, detached: false, aborts: true },
+    { name: "session-owned", sessionOwned: true, detached: false, aborts: false },
+    { name: "detached", sessionOwned: true, detached: true, aborts: false },
+  ]) {
+    it(`a dropped ${testCase.name} invoke ${testCase.aborts ? "cancels" : "does not cancel"} the turn`, async () => {
+      vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://api:8000");
+      let releaseRun: (() => void) | undefined;
+      let observedAbort = false;
+      let completed = false;
+      let markStarted: (() => void) | undefined;
+      const started = new Promise<void>((resolve) => {
+        markStarted = resolve;
+      });
+      const run: RunAgent = async (_request, _emit, signal) => {
+        markStarted?.();
+        return await new Promise((resolve) => {
+          const finish = () => {
+            if (completed) return;
+            completed = true;
+            resolve({ ok: true, output: "done", events: [] });
+          };
+          releaseRun = finish;
+          signal?.addEventListener(
+            "abort",
+            () => {
+              observedAbort = true;
+              finish();
+            },
+            { once: true },
+          );
+        });
+      };
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-1" },
+            is_current_turn: true,
+          });
+        }
+        return Response.json({});
+      });
+      const s = await listen(run);
+
+      try {
+        const request = http.request(`${s.url}/run`, {
+          method: "POST",
+          headers: {
+            ...AUTH,
+            accept: "application/x-ndjson",
+            "content-type": "application/json",
+          },
+        });
+        request.on("error", () => {});
+        request.end(
+          JSON.stringify({
+            harness: "pi_core",
+            ...(testCase.sessionOwned ? { sessionId: `session-${testCase.name}` } : {}),
+            ...(testCase.detached ? { detached: true } : {}),
+            telemetry: {
+              exporters: {
+                otlp: {
+                  endpoint: "http://127.0.0.1:8000/otlp/v1/traces",
+                  headers: { authorization: "ApiKey test" },
+                },
+              },
+            },
+            messages: [{ role: "user", content: "hello" }],
+          }),
+        );
+
+        await started;
+        request.destroy();
+        await new Promise<void>((resolve) => setTimeout(resolve, 25));
+
+        if (!testCase.aborts) {
+          assert.equal(observedAbort, false, "the dropped response must not own turn lifetime");
+          assert.equal(completed, false, "the fake turn is still running after disconnect");
+          releaseRun?.();
+        }
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error("run did not settle")), 1_000);
+          const poll = () => {
+            if (completed) {
+              clearTimeout(timeout);
+              resolve();
+            } else setImmediate(poll);
+          };
+          poll();
+        });
+        assert.equal(observedAbort, testCase.aborts);
+      } finally {
+        releaseRun?.();
+        await s.close();
+        fetchSpy.mockRestore();
+      }
+    });
+  }
+
   it("redacts this run's credentials from the stderr stack log when a run throws", async () => {
     // A per-run provider key rides ONLY the typed request (never process env). When the run
     // throws with that key captured in the error message/stack (an auth failure echoing it,
@@ -574,6 +978,73 @@ describe("createAgentServer", () => {
       assert.equal(logged.includes(PER_RUN_KEY), false);
       assert.match(logged, /\[ag:redacted/);
     } finally {
+      await s.close();
+    }
+  });
+
+  it("persists one terminal done record when a session-owned run throws", async () => {
+    const s = await listen(async () => {
+      throw new Error("engine escaped");
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-escaped-run" },
+            is_current_turn: true,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+
+    try {
+      const response = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-escaped-run",
+          runContext: { project: { id: "project-1" } },
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "Test platform authorization" },
+              },
+            },
+          },
+          messages: [{ role: "user", content: "throw" }],
+        }),
+      });
+      const records = (await response.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.deepEqual(
+        ingested
+          .filter((record) => ["error", "done"].includes(record.record_type))
+          .map((record) => record.record_type),
+        ["error", "done"],
+      );
+      assert.equal(
+        ingested.filter((record) => record.record_type === "done").length,
+        1,
+      );
+      assert.equal(records.filter((record) => record.kind === "result").length, 1);
+      assert.equal(records.at(-1)?.result.error, "engine escaped");
+    } finally {
+      fetchSpy.mockRestore();
+      errorSpy.mockRestore();
       await s.close();
     }
   });
@@ -644,6 +1115,7 @@ describe("createAgentServer", () => {
         records[0].result.error,
         "A user turn may carry at most 2 attachments.",
       );
+      assert.deepEqual(liveExecutions(), []);
     } finally {
       delete process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN;
       fetchSpy.mockRestore();

@@ -6,6 +6,7 @@ import {useCallback, useEffect, useMemo, type ReactNode} from "react"
 
 import {
     customSecretsAtom,
+    type AgentSecretBinding,
     standardSecretsAtom,
     vaultSecretsQueryAtom,
 } from "@agenta/entities/secret"
@@ -21,7 +22,7 @@ import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Cube, ShieldCheck} from "@phosphor-icons/react"
+import {Cube, Key, ShieldCheck} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
@@ -55,6 +56,7 @@ import {
 import {PiPermissionsControl} from "../PiPermissionsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
+import {AgentSecretsSection} from "./AgentSecretsSection"
 import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
 import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
 import ModelPickerControl from "./ModelPickerControl"
@@ -77,6 +79,8 @@ export function useModelHarness({
     withTooltip,
     revisionId,
     buildKitOverride,
+    credentialOperationsBlocked = false,
+    onCredentialRevisionCommitted,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
@@ -86,6 +90,10 @@ export function useModelHarness({
     revisionId?: string | null
     /** Draft buffer for the build-kit toggle (used by the section drawer's scoped-edit mode). */
     buildKitOverride?: {value: BuildKitUiState; onChange: (next: BuildKitUiState) => void}
+    /** The owning section drawer has unsaved local state outside the workflow draft atom. */
+    credentialOperationsBlocked?: boolean
+    /** Clear the owning section draft before the host adopts an immediate credential revision. */
+    onCredentialRevisionCommitted?: () => void
 }) {
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
     const subProps = useCallback(
@@ -111,6 +119,18 @@ export function useModelHarness({
     const harness = asObject("harness")
     const runner = asObject("runner")
     const sandbox = asObject("sandbox")
+
+    const secretBindings = Array.isArray(sandbox.credentials)
+        ? sandbox.credentials.filter((value): value is AgentSecretBinding => {
+              if (!value || typeof value !== "object") return false
+              const candidate = value as AgentSecretBinding
+              return (
+                  typeof candidate.secret?.slug === "string" &&
+                  candidate.binding?.type === "env" &&
+                  typeof candidate.binding.name === "string"
+              )
+          })
+        : []
 
     const runnerPermissions =
         runner.permissions && typeof runner.permissions === "object"
@@ -218,7 +238,14 @@ export function useModelHarness({
         !providerVaultEntry.key
 
     // The "Add custom provider" footer + drawer come from context, same source as the completion picker.
-    const {llmProviderConfig} = useDrillInUI()
+    const {llmProviderConfig, permissions, onWorkflowRevisionCommitted} = useDrillInUI()
+    const handleCredentialRevisionCommitted = useCallback(
+        (nextRevisionId: string) => {
+            onCredentialRevisionCommitted?.()
+            onWorkflowRevisionCommitted?.(nextRevisionId)
+        },
+        [onCredentialRevisionCommitted, onWorkflowRevisionCommitted],
+    )
 
     // Harness-filtered model options: the inspect catalog PLUS the vault custom_provider models,
     // so a configured Bedrock model is selectable. Empty when the harness publishes none AND the
@@ -438,7 +465,8 @@ export function useModelHarness({
         runnerProps.permissions ||
         hasClaudePermissions ||
         hasPiPermissions ||
-        hasBuildKitOverlay,
+        hasBuildKitOverlay ||
+        Boolean(revisionId),
     )
 
     // Harness list, from the inspect capabilities map. Model compatibility is shown per-card
@@ -732,6 +760,30 @@ export function useModelHarness({
                       executionBody,
                   )
                 : null}
+
+            {focus.active ? null : (
+                <ConfigAccordionSection
+                    size="compact"
+                    defaultOpen={secretBindings.length > 0}
+                    icon={<Key size={15} />}
+                    title="Custom secrets"
+                    summary={
+                        secretBindings.length
+                            ? `${secretBindings.length} attached`
+                            : "None attached"
+                    }
+                    summaryCollapsedOnly
+                >
+                    <AgentSecretsSection
+                        revisionId={revisionId}
+                        bindings={secretBindings}
+                        disabled={disabled}
+                        localDraftDirty={credentialOperationsBlocked}
+                        canEditSecrets={permissions?.canEditSecrets ?? false}
+                        onRevisionCommitted={handleCredentialRevisionCommitted}
+                    />
+                </ConfigAccordionSection>
+            )}
 
             {hasPermissionsGroup
                 ? advancedGroup(

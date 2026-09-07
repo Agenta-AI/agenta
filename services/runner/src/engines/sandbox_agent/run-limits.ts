@@ -37,9 +37,11 @@ export const TOOL_CALL_TIMEOUT_ENV = "AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS";
 // every mount-backed warm session rebuild cold. The ~1h gap under the 12h lease is
 // the warm parking window.
 export const DEFAULT_TOTAL_DEADLINE_MS = 11 * 60 * 60_000; // 11 hours
-export const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60_000; // 30 min
+// 30 minutes; override with AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS.
+export const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60_000;
 export const DEFAULT_TTFB_TIMEOUT_MS = 2 * 60_000; // 2 min
-export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 30 * 60_000; // 30 min
+// 30 minutes; override with AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS.
+export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 30 * 60_000;
 
 /** Every field is a usable timer delay (integer ms, at least 1, within Node's timer range) —
  *  `resolveRunLimits` guarantees it, so callers can arm any of them without re-checking. */

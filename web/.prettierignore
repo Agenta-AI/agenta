@@ -1,2 +1,6 @@
 packages/agenta-api-client/
 _reference/
+
+# Runtime-generated config and unmodified designer reference assets.
+**/public/__env.js
+storybook/public/agent-custom-secrets/

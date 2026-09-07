@@ -1,6 +1,7 @@
 import {createBatchFetcher} from "@agenta/shared/utils"
 import {atom, Atom} from "jotai"
-import {atomFamily, loadable} from "jotai/utils"
+import {loadable} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {evaluationRunQueryAtomFamily} from "@/oss/components/EvalRunDetails/atoms/table/run"

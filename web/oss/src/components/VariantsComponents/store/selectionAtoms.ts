@@ -1,5 +1,5 @@
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 /** Holds selected row keys for a given table scope */
 export const variantTableSelectionAtomFamily = atomFamily((_scopeId: string) =>

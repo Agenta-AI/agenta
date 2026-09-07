@@ -46,6 +46,8 @@ from agenta.sdk.agents import (
     TraceContext,
 )
 from agenta.sdk.agents.platform_instructions import compose_platform_instructions
+from agenta.sdk.agents.connections import EnvironmentCredentialBinding
+from agenta.sdk.agents.dtos import ResolvedSandboxCredential
 from agenta.sdk.agents.platform.gateway import _derived_tool_specs
 from agenta.sdk.agents.tools import (
     CompiledTool,
@@ -83,6 +85,7 @@ KNOWN_REQUEST_KEYS = {
     "harnessMode",
     "modelCapabilities",
     "modelConnection",
+    "sandboxCredentials",
     "messages",
     "context",
     "telemetry",
@@ -100,6 +103,7 @@ KNOWN_REQUEST_KEYS = {
     "sandboxPermission",
     "harnessFiles",
     "turnId",
+    "detached",
     "projectId",
     "effectiveParameters",
 }
@@ -284,6 +288,12 @@ def _codex_payload():
             ],
             endpoint=Endpoint(base_url="https://api.openai.com/v1"),
         ),
+        sandbox_credentials=[
+            ResolvedSandboxCredential(
+                binding=EnvironmentCredentialBinding(name="GITHUB_TOKEN"),
+                value="github-secret",
+            )
+        ],
     )
     return request_to_wire(
         harness=HarnessKind.CODEX,
@@ -604,6 +614,27 @@ def test_request_to_wire_omits_turn_id_when_none():
         messages=[Message(role="user", content="hi")],
     )
     assert "turnId" not in payload
+
+
+def test_request_to_wire_carries_detached_only_for_a_session():
+    detached = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5"),
+        messages=[],
+        session_id="sess-1",
+        detached=True,
+    )
+    ad_hoc = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5"),
+        messages=[],
+        detached=True,
+    )
+
+    assert detached["detached"] is True
+    assert "detached" not in ad_hoc
 
 
 def test_request_to_wire_carries_project_id_when_set():

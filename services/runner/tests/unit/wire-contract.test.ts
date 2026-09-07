@@ -55,8 +55,10 @@ const KNOWN_REQUEST_KEYS = [
   "appendSystemPrompt",
   "skills",
   "sandboxPermission",
+  "sandboxCredentials",
   "harnessFiles",
   "turnId",
+  "detached",
   "projectId",
   "effectiveParameters",
 ] as const;

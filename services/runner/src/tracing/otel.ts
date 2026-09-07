@@ -340,12 +340,40 @@ export function resolveOtlpTraceEndpoint(endpoint?: string): string {
  * public URL while the runner's own hop is internal. The full normalized ingest URL must match,
  * because a third-party collector may share the Agenta host behind a different proxy path.
  */
+/**
+ * Host names that all denote THIS deployment's own API host.
+ *
+ * A service running in bridge mode cannot reach the host through `localhost` — that name resolves
+ * to its own container — so the SDK rewrites a configured `localhost`/`0.0.0.0` API URL to
+ * `host.docker.internal` before using it (`agenta/sdk/utils/helpers.py`, `parse_url`). The endpoint
+ * that then arrives on a run request names a DIFFERENT alias than the base configured here, and
+ * comparing them verbatim says "this is somebody else's collector" about the deployment's own
+ * ingest. The credential is withheld on that basis and every session call the runner makes comes
+ * back 401 — with nothing in the message pointing at a hostname.
+ *
+ * Folding the aliases together does not widen who gets the credential: the endpoint must still
+ * equal one of the operator-configured API bases, port and path included. Only the spelling of the
+ * local host is treated as interchangeable, which is the same equivalence the SDK's rewrite asserts.
+ */
+const LOCAL_HOST_ALIASES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "[::1]",
+  "::1",
+  "host.docker.internal",
+]);
+
 export function isAgentaIngest(endpoint: string): boolean {
   const normalize = (value: string): string | undefined => {
     try {
       const url = new URL(value);
       const path = url.pathname.replace(/\/+$/, "") || "/";
-      return `${url.origin}${path}`;
+      const host = LOCAL_HOST_ALIASES.has(url.hostname)
+        ? "__local__"
+        : url.hostname;
+      const port = url.port ? `:${url.port}` : "";
+      return `${url.protocol}//${host}${port}${path}`;
     } catch {
       return undefined;
     }
@@ -381,8 +409,13 @@ const BRIDGE_REWRITTEN_HOSTS = new Set(["localhost", "0.0.0.0"]);
  * The mirror is deliberately exact: same scheme, port, and path, and only the two hosts the
  * rewrite touches. Three things it deliberately does NOT do:
  *
- *   - `127.0.0.1` earns no alias. Neither copy of `parse_url` rewrites it, so that deployment
- *     already matches its own raw base and the bridge form is a pair the platform cannot produce.
+ *   - `127.0.0.1` earns no alias HERE. Neither copy of `parse_url` rewrites it, so that
+ *     deployment already matches its own raw base and the bridge form is a pair the platform
+ *     cannot produce. It is admitted anyway, one layer up: `isAgentaIngest` folds every
+ *     local-host spelling into one host (#6392), which subsumes this mirror entirely. This
+ *     function is kept because it is the record of WHICH rewrite the platform actually performs,
+ *     and because it names the bridge form in `configuredIngestBases()` so a rejection message
+ *     lists the host the operator will see on the wire.
  *   - A scheme-less base earns no alias, because it cannot help. The SDK's `parse_url` does no
  *     scheme defaulting (unlike the api's), so a scheme-less `AGENTA_API_URL` yields an equally
  *     scheme-less ENDPOINT, which `new URL` reads as an opaque `localhost:`-scheme path. Both
@@ -2049,11 +2082,19 @@ export function createSandboxAgentOtel(
     }
     // Stamp the run's trace id on the turn's terminal event so a persisted transcript can link a
     // replayed turn back to its trace (undefined only in span-less mode with no valid traceparent).
-    // Mark a paused turn's terminal record so a cold reload can tell a pause from a real turn
+    // Mark a non-completing turn's terminal record so a cold reload can tell it from a real turn
     // boundary (the FE adoption heuristic and hydration read this). A completed turn omits it.
+    //
+    // `cancelled` rides here for the same reason `paused` does, and closes a real gap: without
+    // it a stopped turn is indistinguishable from a finished one in Postgres, so neither the
+    // frontend nor the release gate can tell a Stop from a completion. Kept as an explicit
+    // allowlist rather than passing `stopReason` through, so a harness-reported value such as
+    // `end_turn` or `max_tokens` cannot start appearing on the terminal record by accident.
     record({
       type: "done",
-      ...(stopReason === "paused" ? { stopReason: "paused" } : {}),
+      ...(stopReason === "paused" || stopReason === "cancelled"
+        ? { stopReason }
+        : {}),
       ...(runTraceId ? { traceId: runTraceId } : {}),
     });
     if (!emitSpans) return text;

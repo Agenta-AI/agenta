@@ -100,6 +100,13 @@ class WireCredentialBinding(_WireModel):
     name: str
 
 
+class WireSandboxCredential(_WireModel):
+    """One resolved credential delivered to the sandbox environment."""
+
+    binding: WireCredentialBinding
+    value: str
+
+
 class WireCredential(_WireModel):
     """One model credential, its binding, and its consumer usage contract."""
 
@@ -510,6 +517,7 @@ class WireRunRequest(_WireModel):
     harness: Optional[str] = None
     sandbox: Optional[str] = None
     session_id: Optional[str] = Field(default=None, alias="sessionId")
+    detached: Optional[bool] = None
     # Session-owned (detached) turn identity: the runner uses these to own the alive lock and
     # persist the transcript independently of any client connection. Omitted on ad-hoc runs.
     turn_id: Optional[str] = Field(default=None, alias="turnId")
@@ -522,6 +530,9 @@ class WireRunRequest(_WireModel):
     connection: Optional[WireConnection] = None
     model_connection: Optional[WireModelConnection] = Field(
         default=None, alias="modelConnection"
+    )
+    sandbox_credentials: Optional[List[WireSandboxCredential]] = Field(
+        default=None, alias="sandboxCredentials"
     )
     harness_mode: Optional[str] = Field(default=None, alias="harnessMode")
     # Resolved model input modalities. Omitted when the resolver cannot determine them.

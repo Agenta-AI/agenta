@@ -1,5 +1,6 @@
 import {atom} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 /** Per-message first-seen timestamp (ms), keyed by message id — an in-memory FALLBACK only. The
  * authoritative time is the turn's trace `start_time`; this just covers turns with no trace yet (e.g.

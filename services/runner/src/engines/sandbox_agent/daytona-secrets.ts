@@ -58,6 +58,118 @@ export interface DaytonaSecretAllocation {
 }
 
 /**
+ * Who owns one allocation right now, and therefore whether `release` may delete it.
+ *
+ *  - `detached`      No sandbox holds these Secrets. A release deletes them.
+ *  - `attached`      A live sandbox was registered against them. Its teardown deletes them, so a
+ *                    release from anywhere else must do nothing.
+ *  - `indeterminate` A sandbox create failed WITHOUT proving remote absence. Daytona may hold a
+ *                    partially created sandbox that mounts these Secrets, so a release must not
+ *                    delete them. This is the same fail-safe the fresh-allocation create path has
+ *                    always applied, named instead of implied.
+ *  - `released`      The Secrets were deleted. Terminal.
+ */
+export type DaytonaSecretLeaseState =
+  | "detached"
+  | "attached"
+  | "indeterminate"
+  | "released";
+
+/**
+ * A move-only claim on one Secret allocation, so exactly one owner can delete it.
+ *
+ * WHY THIS EXISTS. A sandbox the credential preflight convicts is destroyed while its Secrets are
+ * KEPT, because a new sandbox on the same Secret works and a new Secret often does not. The
+ * allocation therefore outlives its sandbox and moves to the next one, and "who deletes this, and
+ * when" stops being answerable from any single object's own fields. The lease answers it: the
+ * provider moves the state as ownership moves, and every other holder just calls `release`, which
+ * deletes only from `detached`.
+ *
+ * The state is the ONLY ownership signal. Do not infer ownership from the registry, from a
+ * sandbox id, or from call order.
+ */
+export class DaytonaSecretLease {
+  private leaseState: DaytonaSecretLeaseState = "detached";
+
+  constructor(
+    readonly allocation: DaytonaSecretAllocation,
+    private readonly api: DaytonaSecretApi,
+    private readonly log: (message: string) => void = () => {},
+  ) {}
+
+  get state(): DaytonaSecretLeaseState {
+    return this.leaseState;
+  }
+
+  /** A sandbox now holds these Secrets. Called by the provider when it registers the sandbox. */
+  attach(): void {
+    this.leaseState = "attached";
+  }
+
+  /** The sandbox that held these Secrets is gone, and nothing has claimed them yet. */
+  detach(): void {
+    this.leaseState = "detached";
+  }
+
+  /** A create failed without proving remote absence. Nothing may delete these Secrets. */
+  markIndeterminate(): void {
+    this.leaseState = "indeterminate";
+  }
+
+  /**
+   * Delete the Secrets if this lease still owns them.
+   *
+   * Safe to call on every exit path, safe to call twice, and safe to call CONCURRENTLY. Two
+   * things make that true, and both matter:
+   *
+   *  - The state advances to `released` only after the delete resolves, so a failed delete leaves
+   *    the lease releasable and a later call retries it. The error is re-raised so the caller can
+   *    log it.
+   *  - Overlapping callers share the one in-flight delete. Without that, the second caller would
+   *    read a state that is still `detached` (the first has not finished) and issue a second
+   *    delete of the same records. Both would then be racing the same provider ids, and the
+   *    loser's 404 would be swallowed as success, which is a wrong answer arrived at by luck.
+   */
+  release(): Promise<void> {
+    if (this.leaseState === "attached" || this.leaseState === "released") {
+      return Promise.resolve();
+    }
+    if (this.leaseState === "indeterminate") {
+      // Once, however many callers ask. The refusal is one fact about one allocation, and the
+      // create catch has already said the same thing; repeating it per release would make a
+      // retried teardown look like several separate leaks.
+      if (this.allocation.created.length > 0 && !this.refusalLogged) {
+        this.refusalLogged = true;
+        const hosts = [
+          ...new Set(this.allocation.created.flatMap((s) => s.hosts ?? [])),
+        ];
+        this.log(
+          `[daytona-secrets] retained n=${this.allocation.created.length} ` +
+            `hosts=[${hosts.join(",")}] reason=create-outcome-unknown`,
+        );
+      }
+      return Promise.resolve();
+    }
+    this.pendingRelease ??= this.deleteAndMarkReleased();
+    return this.pendingRelease;
+  }
+
+  private pendingRelease?: Promise<void>;
+  /** Whether the `indeterminate` refusal has already been said. See `release`. */
+  private refusalLogged = false;
+
+  /** The one delete every overlapping `release` awaits. Clears itself so a failure can retry. */
+  private async deleteAndMarkReleased(): Promise<void> {
+    try {
+      await deleteDaytonaSecrets(this.allocation, this.api, this.log);
+      this.leaseState = "released";
+    } finally {
+      this.pendingRelease = undefined;
+    }
+  }
+}
+
+/**
  * True when a Daytona failure means "the resource is already gone": the SDK's typed
  * not-found error, or any 404-shaped error object. The one absence predicate shared by
  * Secret cleanup here and the sandbox lifecycle wrapper (`daytona-secret-provider.ts`).

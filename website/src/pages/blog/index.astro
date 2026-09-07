@@ -1,4 +1,5 @@
 ---
+import Section from "../../components/Section.astro";
 import Site from "../../layouts/Site.astro";
 import PostCard from "../../components/PostCard.astro";
 import CategoryFilter from "../../components/CategoryFilter.tsx";
@@ -35,7 +36,6 @@ const categories = [
   ),
 ];
 
-const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;";
 ---
 
 <Site
@@ -43,38 +43,35 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
   description="The latest updates and insights from Agenta — prompt management, evaluation, and observability for LLM apps."
 >
   <!-- Blog header -->
-  <section
+  <Section tone="flat"
     class="ag-headpad ag-pad"
-    style={`background:#0E0D0F;${sectionBorder}padding:120px 0 56px;text-align:center;`}
+    style="background:var(--bi-sec-1);padding:120px 0 56px;text-align:center;"
   >
     <div style="display:flex;flex-direction:column;align-items:center;gap:18px;">
-      <span
-        style="font:var(--text-caption);letter-spacing:0.14em;text-transform:uppercase;color:var(--yellow-400);"
-        >Our blog</span
-      >
+      <span class="ag-eyebrow">Our blog</span>
       <h1
         class="ag-h1"
-        style="margin:0;font:var(--text-display-xl);color:#F7F6F4;max-width:760px;text-wrap:pretty;"
+        style="margin:0;font:var(--text-display-xl);color:var(--th-text-hi);max-width:760px;text-wrap:pretty;"
       >
         Stories and insights
       </h1>
       <p
-        style="margin:0;font:var(--text-body-md);color:rgba(255,255,255,0.6);max-width:560px;text-wrap:pretty;"
+        style="margin:0;font:var(--text-body-md);color:var(--th-text-body);max-width:560px;text-wrap:pretty;"
       >
         The latest updates and insights from Agenta — prompt management,
         evaluation, and observability for LLM apps.
       </p>
     </div>
-  </section>
+  </Section>
 
   <!-- Featured -->
   {
     primary && (
-      <section
+      <Section tone="flat"
         class="ag-pad"
-        style={`background:#0A0A0B;${sectionBorder}padding:64px 64px 24px;`}
+        style="background:var(--bi-sec-0);padding:64px 64px 24px;"
       >
-        <span style="display:block;font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:24px;">
+        <span style="display:block;font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:var(--bi-label);margin-bottom:24px;">
           Featured blog post
         </span>
         <div class="ag-featrow" style="display:flex;gap:28px;">
@@ -92,19 +89,19 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
             </div>
           )}
         </div>
-      </section>
+      </Section>
     )
   }
 
   <!-- All blogs -->
-  <section
+  <Section tone="flat"
     class="ag-pad"
-    style={`background:#0A0A0B;${sectionBorder}padding:32px 64px 88px;`}
+    style="background:var(--bi-sec-0);padding:32px 64px 88px;"
   >
     <div
       style="display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:32px;flex-wrap:wrap;"
     >
-      <h2 class="ag-dlg" style="margin:0;font:var(--text-display-lg);color:#F7F6F4;">
+      <h2 class="ag-dlg" style="margin:0;font:var(--text-display-lg);color:var(--th-text-hi);">
         All blogs
       </h2>
       <div class="ag-filter">
@@ -129,12 +126,12 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
       <button
         id="blog-loadmore"
         type="button"
-        style="display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 24px;border-radius:8px;border:none;cursor:pointer;background:rgba(255,255,255,0.04);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);"
+        class="ag-btn ag-btn--outline"
       >
         Load more
       </button>
     </div>
-  </section>
+  </Section>
 
   <script>
     // Client-side "load more" for the blog grid. The grid is fully server-rendered
@@ -191,6 +188,27 @@ const sectionBorder = "border:1px solid rgba(255,255,255,0.07);margin-top:-1px;"
   </script>
 
   <style is:global>
+    /* Blog-index theme vars: light values per the light-theme spec (the whole
+       page is white); [data-theme="dark"] restores the exact literals the page
+       previously hard-coded, so dark stays pixel-identical. */
+    :root {
+      --bi-sec-1: var(--paper-0); /* header band            */
+      --bi-sec-0: var(--paper-0); /* featured + grid bands   */
+      --bi-label: var(--ink-300); /* "Featured blog post"    */
+      /* CategoryFilter inactive pill (the island reads these). */
+      --cf-off-bg: var(--paper-50);
+      --cf-off-text: var(--ink-600);
+      --cf-off-ring: inset 0 0 0 1px var(--paper-200);
+    }
+    [data-theme="dark"] {
+      --bi-sec-1: #0e0d0f;
+      --bi-sec-0: #0a0a0b;
+      --bi-label: rgba(255, 255, 255, 0.4);
+      --cf-off-bg: rgba(255, 255, 255, 0.04);
+      --cf-off-text: rgba(255, 255, 255, 0.72);
+      --cf-off-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
+
     /* Category filter. The CategoryFilter island flips [data-filter] on
        #blog-grid; these rules hide the non-matching cards. The default
        (data-filter="All", and the no-JS state) shows every card. */

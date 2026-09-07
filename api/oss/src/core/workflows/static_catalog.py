@@ -26,6 +26,8 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
 from agenta.sdk.agents.platform.workflow import (
     REQUEST_CONNECTION_TOOL_NAME,
     REQUEST_CONNECTION_WORKFLOW_SLUG,
+    REQUEST_SECRET_TOOL_NAME,
+    REQUEST_SECRET_WORKFLOW_SLUG,
 )
 from agenta.sdk.agents.skills.models import SkillTemplate
 from agenta.sdk.engines.running.utils import (
@@ -152,6 +154,43 @@ def _client_tool_revision() -> WorkflowRevision:
     )
 
 
+def _request_secret_revision() -> WorkflowRevision:
+    return WorkflowRevision(
+        name="Request secret",
+        description="Ask the user to configure a custom secret for this agent.",
+        data=WorkflowRevisionData(
+            uri="client:tool:request_secret:v0",
+            parameters={
+                "tool": {
+                    "type": "client",
+                    "name": REQUEST_SECRET_TOOL_NAME,
+                    "description": "Pause the run and ask the user to configure a custom secret.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Readable credential name.",
+                            },
+                            "env_var": {
+                                "type": "string",
+                                "description": "Suggested environment variable name.",
+                            },
+                            "reason": {
+                                "type": "string",
+                                "description": "Why the credential is required.",
+                            },
+                        },
+                        "required": ["name", "env_var", "reason"],
+                        "additionalProperties": False,
+                    },
+                    "render": {"kind": "secret"},
+                }
+            },
+        ),
+    )
+
+
 REQUEST_INPUT_TOOL_NAME = "request_input"
 
 
@@ -254,6 +293,12 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
         "versions": {
             "v1": _client_tool_revision(),
         },
+    },
+    REQUEST_SECRET_WORKFLOW_SLUG: {
+        "kind": "tool",
+        "embeddable": True,
+        "latest": "v1",
+        "versions": {"v1": _request_secret_revision()},
     },
     REQUEST_INPUT_WORKFLOW_SLUG: {
         "kind": "tool",

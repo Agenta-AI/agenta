@@ -8,6 +8,7 @@
 export {
     buildAgentRequest,
     applyBuildKitOverlay,
+    SHARED_SESSION_RESPONSE_HEADER,
     type AgentRequest,
 } from "./state/execution/agentRequest"
 export {

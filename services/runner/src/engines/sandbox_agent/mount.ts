@@ -17,6 +17,11 @@
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
+import {
+  throwIfAcquireAborted,
+  waitForAcquire,
+} from "../../environment/acquire-abort.ts";
+
 const pExecFile = promisify(execFile);
 
 /** POSIX single-quote escaping for values interpolated into `sh -c` strings. */
@@ -51,6 +56,7 @@ export interface SignMountDeps {
   /** Injectable for tests; defaults to global fetch. */
   fetchImpl?: typeof fetch;
   log?: (msg: string) => void;
+  signal?: AbortSignal;
 }
 
 function defaultLog(msg: string): void {
@@ -81,6 +87,7 @@ export async function signSessionMountCredentials(
         "content-type": "application/json",
         authorization: deps.authorization,
       },
+      signal: deps.signal,
     });
     if (!res.ok) {
       // 503 = storage not configured (mounts disabled). Any non-2xx → run without this mount.
@@ -124,6 +131,7 @@ export async function signSessionMountCredentials(
           : undefined,
     };
   } catch (err) {
+    throwIfAcquireAborted(deps.signal);
     log(
       `sign failed session=${sessionId}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
     );
@@ -286,6 +294,7 @@ export interface MountStorageDeps {
   /** Injectable command/probe seams while retaining production unmountStorage behavior. */
   unmountDeps?: UnmountStorageDeps;
   log?: (msg: string) => void;
+  signal?: AbortSignal;
 }
 
 /**
@@ -304,6 +313,8 @@ export async function mountStorage(
 ): Promise<boolean> {
   const log = deps.log ?? defaultLog;
   const checkMounted = deps.checkMounted ?? ((c: string) => isMounted(c, log));
+  const signal = deps.signal;
+  throwIfAcquireAborted(signal);
 
   log(
     `mountStorage begin cwd=${cwd} bucket=${creds.bucket} prefix=${creds.prefix} ` +
@@ -311,7 +322,7 @@ export async function mountStorage(
       `expiresAt=${creds.expiresAt ?? "(none)"}`,
   );
 
-  if (await checkMounted(cwd)) {
+  if (await waitForAcquire(() => checkMounted(cwd), signal)) {
     log(`already mounted (verified alive): ${cwd}`);
     return true;
   }
@@ -322,6 +333,7 @@ export async function mountStorage(
     ...deps.unmountDeps,
     log,
   });
+  throwIfAcquireAborted(signal);
   if (!staleMountDetached) {
     throw new Error(
       "pre-mount detach could not be confirmed for " +
@@ -388,11 +400,16 @@ export async function mountStorage(
   let failure: unknown;
   try {
     log(`geesefs mount argv: ${args.join(" ")}`);
-    const started = await run(args, env);
+    const started = await waitForAcquire(() => run(args, env), signal, {
+      onLateSuccess: async (lateAttempt) => {
+        await lateAttempt?.stop();
+        await unmountStorage(cwd, { ...deps.unmountDeps, log });
+      },
+    });
     attempt = started || undefined;
     // Confirm the new mount actually serves I/O — a still-not-alive cwd means geesefs failed
     // to mount (invalid STS creds, store unreachable) or did not come up within the poll window.
-    if (!(await checkMounted(cwd))) {
+    if (!(await waitForAcquire(() => checkMounted(cwd), signal))) {
       failure = new Error(
         `mount reported success but cwd is NOT alive ${creds.bucket}:${creds.prefix} -> ${cwd} ` +
           `— likely expired/invalid STS creds or store unreachable`,
@@ -403,6 +420,18 @@ export async function mountStorage(
     }
   } catch (err) {
     failure = err;
+  }
+
+  if (signal?.aborted) {
+    // Cleanup must not hold the Stop response open. A late `runGeesefs` result has its own hook
+    // above; an already-returned attempt is stopped here, and both paths confirm the detach.
+    void Promise.resolve()
+      .then(async () => {
+        await attempt?.stop();
+        await unmountStorage(cwd, { ...deps.unmountDeps, log });
+      })
+      .catch(() => {});
+    throwIfAcquireAborted(signal);
   }
 
   // Never detach/fallback while a failed geesefs attempt may still attach later.
@@ -502,6 +531,7 @@ export interface TunnelDeps {
   ngrokApi?: string;
   fetchImpl?: typeof fetch;
   log?: (msg: string) => void;
+  signal?: AbortSignal;
 }
 
 /**
@@ -523,7 +553,7 @@ export async function discoverTunnelEndpoint(
     process.env.AGENTA_MOUNTS_TUNNEL_API ??
     "http://ngrok:4040";
   try {
-    const res = await doFetch(`${api}/api/tunnels`);
+    const res = await doFetch(`${api}/api/tunnels`, { signal: deps.signal });
     if (!res.ok) {
       log(`tunnel discovery HTTP ${res.status}`);
       return null;
@@ -539,6 +569,7 @@ export async function discoverTunnelEndpoint(
     const any = tunnels.find((t) => !!t.public_url)?.public_url;
     return https ?? any ?? null;
   } catch (err) {
+    throwIfAcquireAborted(deps.signal);
     log(
       `tunnel discovery failed: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`,
     );
@@ -569,6 +600,7 @@ export interface MountStorageRemoteDeps {
    */
   aliveAttempts?: number;
   log?: (msg: string) => void;
+  signal?: AbortSignal;
 }
 
 /**
@@ -586,25 +618,35 @@ async function remoteMountAlive(
   sandbox: SandboxExec,
   cwd: string,
   attempts: number,
+  signal?: AbortSignal,
 ): Promise<boolean> {
   let consecutiveThrows = 0;
   for (let i = 0; i < attempts; i++) {
+    throwIfAcquireAborted(signal);
     try {
-      const res = await sandbox.runProcess({
-        command: "sh",
-        args: [
-          "-c",
-          `mountpoint -q ${shellQuote(cwd)} && ls ${shellQuote(cwd)} >/dev/null 2>&1`,
-        ],
-        timeoutMs: 5_000,
-      });
+      const res = await waitForAcquire(
+        () =>
+          sandbox.runProcess({
+            command: "sh",
+            args: [
+              "-c",
+              `mountpoint -q ${shellQuote(cwd)} && ls ${shellQuote(cwd)} >/dev/null 2>&1`,
+            ],
+            timeoutMs: 5_000,
+          }),
+        signal,
+      );
       consecutiveThrows = 0;
       if (res?.exitCode === 0) return true;
     } catch {
+      throwIfAcquireAborted(signal);
       consecutiveThrows += 1;
       if (consecutiveThrows >= 2) break;
     }
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForAcquire(
+      () => new Promise<void>((resolve) => setTimeout(resolve, 500)),
+      signal,
+    );
   }
   return false;
 }
@@ -649,28 +691,45 @@ export async function mountStorageRemote(
   deps: MountStorageRemoteDeps,
 ): Promise<boolean> {
   const log = deps.log ?? defaultLog;
+  throwIfAcquireAborted(deps.signal);
   try {
     // A reattached running sandbox may still hold a FUSE mount with expired credentials. Detach
     // it before remounting; on a fresh sandbox this is one fast best-effort no-op.
-    await unmountRemoteDeadMount(sandbox, cwd, log);
+    await waitForAcquire(
+      () => unmountRemoteDeadMount(sandbox, cwd, log),
+      deps.signal,
+    );
     // Ensure the directory exists before mounting.
-    await sandbox.runProcess({
-      command: "sh",
-      args: ["-c", `mkdir -p ${shellQuote(cwd)}`],
-      timeoutMs: 30_000,
-    });
+    await waitForAcquire(
+      () =>
+        sandbox.runProcess({
+          command: "sh",
+          args: ["-c", `mkdir -p ${shellQuote(cwd)}`],
+          timeoutMs: 30_000,
+        }),
+      deps.signal,
+    );
     // Background geesefs with its logs to a file so the RPC returns immediately.
     const args = geesefsArgs(creds, cwd, deps.endpoint, false);
     const logFile = "/tmp/geesefs-mount.log";
     const quotedArgs = args.map(shellQuote).join(" ");
     const geefsCmd = `geesefs --log-file ${shellQuote(logFile)} ${quotedArgs} >>${shellQuote(logFile)} 2>&1 &`;
     log(`remote geesefs argv: ${args.join(" ")}`);
-    const res = await sandbox.runProcess({
-      command: "sh",
-      args: ["-c", geefsCmd],
-      env: credEnv(creds),
-      timeoutMs: deps.mountTimeoutMs ?? 60_000,
-    });
+    const res = await waitForAcquire(
+      () =>
+        sandbox.runProcess({
+          command: "sh",
+          args: ["-c", geefsCmd],
+          env: credEnv(creds),
+          timeoutMs: deps.mountTimeoutMs ?? 60_000,
+        }),
+      deps.signal,
+      {
+        onLateSuccess: async () => {
+          await unmountRemoteDeadMount(sandbox, cwd, log);
+        },
+      },
+    );
     if (res?.exitCode !== 0) {
       log(
         `remote mount exit=${res?.exitCode}: ${String(res?.stderr).slice(-300)}`,
@@ -678,12 +737,23 @@ export async function mountStorageRemote(
       return false;
     }
     // The daemon backgrounds before the FUSE channel serves I/O, so wait for it.
-    if (!(await remoteMountAlive(sandbox, cwd, deps.aliveAttempts ?? 12))) {
-      const tail = await sandbox.runProcess({
-        command: "sh",
-        args: ["-c", "tail -5 /tmp/geesefs-mount.log 2>/dev/null"],
-        timeoutMs: 10_000,
-      });
+    if (
+      !(await remoteMountAlive(
+        sandbox,
+        cwd,
+        deps.aliveAttempts ?? 12,
+        deps.signal,
+      ))
+    ) {
+      const tail = await waitForAcquire(
+        () =>
+          sandbox.runProcess({
+            command: "sh",
+            args: ["-c", "tail -5 /tmp/geesefs-mount.log 2>/dev/null"],
+            timeoutMs: 10_000,
+          }),
+        deps.signal,
+      );
       log(
         `remote mount not alive ${creds.bucket}:${creds.prefix} -> ${cwd}` +
           `; geesefs: ${String(tail?.result ?? tail?.stderr ?? "").slice(-400)}`,
@@ -698,6 +768,10 @@ export async function mountStorageRemote(
     );
     return true;
   } catch (err) {
+    if (deps.signal?.aborted) {
+      void unmountRemoteDeadMount(sandbox, cwd, log);
+      throwIfAcquireAborted(deps.signal);
+    }
     log(
       `remote mount failed: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
     );
@@ -715,6 +789,7 @@ export interface MountHarnessSessionDirsDeps {
   log?: (msg: string) => void;
   signSessionMountCredentials?: typeof signSessionMountCredentials;
   mountStorageRemote?: typeof mountStorageRemote;
+  signal?: AbortSignal;
 }
 
 /**
@@ -747,6 +822,7 @@ export async function mountHarnessSessionDirs(
         authorization: deps.authorization,
         fetchImpl: deps.fetchImpl,
         log,
+        signal: deps.signal,
       },
       dir.name,
     );
@@ -761,6 +837,7 @@ export async function mountHarnessSessionDirs(
     await mountRemote(sandbox, dir.path, creds, {
       endpoint: tunnelEndpoint,
       log,
+      signal: deps.signal,
     });
   }
 }

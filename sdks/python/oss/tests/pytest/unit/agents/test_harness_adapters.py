@@ -20,11 +20,13 @@ from agenta.sdk.agents import (
     HarnessKind,
     PiAgentTemplate,
     PiHarness,
+    ResolvedSandboxCredential,
     SessionConfig,
     ToolCallback,
     UnsupportedHarnessError,
     make_harness,
 )
+from agenta.sdk.agents.connections import EnvironmentCredentialBinding
 from agenta.sdk.agents.platform_instructions import (
     AGENTA_PLATFORM_BASE,
     compose_platform_instructions,
@@ -356,7 +358,16 @@ def test_platform_instructions_reach_every_harness(make_env, harness_cls, kind):
     The adapter emits one common string and keeps every author prompt field unchanged.
     """
     harness = harness_cls(make_env(supported=[kind]))
-    config = _session_config(agent=_guidance_agent(), gateway_policy=_GATEWAY_POLICY)
+    config = _session_config(
+        agent=_guidance_agent(),
+        gateway_policy=_GATEWAY_POLICY,
+        sandbox_credentials=[
+            ResolvedSandboxCredential(
+                binding=EnvironmentCredentialBinding(name="GITHUB_TOKEN"),
+                value="never-render-this-secret",
+            )
+        ],
+    )
 
     result = harness._to_harness_config(config)
 
@@ -367,6 +378,12 @@ def test_platform_instructions_reach_every_harness(make_env, harness_cls, kind):
     # The configured integration names read as EXAMPLES, so a stale list stays honest.
     assert "github, slack" in instructions
     assert "Others may exist" in instructions
+    assert "`GITHUB_TOKEN`" in instructions
+    assert "never-render-this-secret" not in instructions
+    assert "Do not inspect or enumerate the environment" in instructions
+    assert (
+        "do not request that secret again unless the user asks to retry" in instructions
+    )
     assert result.agents_md == _AUTHOR_INSTRUCTIONS
     if isinstance(result, PiAgentTemplate):
         assert result.append_system == _AUTHOR_APPEND
@@ -460,10 +477,17 @@ def test_gateway_guidance_is_absent_for_an_empty_policy():
 
 
 def test_platform_instruction_composition_is_deterministic():
-    expected = compose_platform_instructions(["github", "slack"])
-    assert compose_platform_instructions(["slack", "github"]) == expected
+    expected = compose_platform_instructions(
+        ["github", "slack"], ["Z_TOKEN", "A_TOKEN"]
+    )
     assert (
-        expected == f"{AGENTA_PLATFORM_BASE}\n\n{gateway_guidance(['github', 'slack'])}"
+        compose_platform_instructions(
+            ["slack", "github"], ["A_TOKEN", "Z_TOKEN", "A_TOKEN"]
+        )
+        == expected
+    )
+    assert expected.index("`A_TOKEN`, `Z_TOKEN`") < expected.index(
+        "## Connected integrations"
     )
 
 

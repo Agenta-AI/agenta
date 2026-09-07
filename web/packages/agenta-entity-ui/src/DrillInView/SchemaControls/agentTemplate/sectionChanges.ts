@@ -38,6 +38,7 @@ export type PanelSectionKey =
     | "model-harness"
     | "instructions"
     | "tools"
+    | "subagents"
     | "mcp"
     | "skills"
     | "advanced"
@@ -51,6 +52,7 @@ export const SECTION_ID_TO_PANEL_KEY: Record<SectionId, PanelSectionKey> = {
     model: "model-harness",
     instructions: "instructions",
     tools: "tools",
+    subagents: "subagents",
     mcps: "mcp",
     skills: "skills",
     params: "advanced",

@@ -29,6 +29,19 @@ const fadeMask = (left: boolean, right: boolean): string => {
     return `linear-gradient(to right, ${start}, ${end})`
 }
 
+/** Footprint of the inline New session (+): the 28px button plus the 4px it sits off the last chip. */
+const INLINE_ADD_PX = 32
+
+/** Chips' own width. `scrollWidth` can't give it: the scroller is `flex-1`, so a strip with room to
+ * spare reports `scrollWidth === clientWidth`, exactly like one filled to the millimetre. */
+const chipsWidth = (el: HTMLElement): number => {
+    const first = el.firstElementChild as HTMLElement | null
+    const last = el.lastElementChild as HTMLElement | null
+    if (!first || !last) return 0
+    const trailing = parseFloat(getComputedStyle(last).marginRight) || 0
+    return last.offsetLeft + last.offsetWidth + trailing - first.offsetLeft
+}
+
 export interface SessionTabStripProps {
     /** The chips — `SessionTab`s, each in its own `shrink-0` wrapper. */
     children?: ReactNode
@@ -78,15 +91,25 @@ export const SessionTabStrip = ({
     // Edge fade is applied per side only where the strip is actually scrolled past its content, so
     // a strip that fits (single tab, no scroll) shows no fade on either edge.
     const [fade, setFade] = useState({left: false, right: false})
+    // New session (+) sits inline after the last tab while they fit, pinned once they overflow.
+    // Starts inline so the common case never flashes it across the bar (first measure is pre-paint).
+    const [pinAdd, setPinAdd] = useState(false)
+    const pinAddRef = useRef(false)
     const stripElRef = useRef<HTMLDivElement | null>(null)
     const measureFade = useCallback(() => {
         const el = stripElRef.current
         if (!el) return
         const overflow = el.scrollWidth - el.clientWidth > 1
-        setFade({
-            left: overflow && el.scrollLeft > 1,
-            right: overflow && el.scrollLeft < el.scrollWidth - el.clientWidth - 1,
-        })
+        const left = overflow && el.scrollLeft > 1
+        const right = overflow && el.scrollLeft < el.scrollWidth - el.clientWidth - 1
+        // Chips resize per frame while animating; bail on an unchanged mask to avoid re-rendering.
+        setFade((prev) => (prev.left === left && prev.right === right ? prev : {left, right}))
+        // Pin once the chips overflow; un-pin once they leave the button's footprint spare.
+        const pin = pinAddRef.current ? el.clientWidth - chipsWidth(el) < INLINE_ADD_PX : overflow
+        if (pin !== pinAddRef.current) {
+            pinAddRef.current = pin
+            setPinAdd(pin)
+        }
     }, [])
     // React 19 registers onWheel as passive, so preventDefault would be a no-op. Attach a native
     // non-passive listener that maps vertical wheel delta to horizontal scroll; also track scroll +
@@ -116,24 +139,59 @@ export const SessionTabStrip = ({
             el.addEventListener("scroll", measureFade, {passive: true})
             const ro = new ResizeObserver(() => measureFade())
             ro.observe(el)
+            // Watch the chips too: they animate their width, and a removed chip never resizes the box.
+            const observeChildren = () => {
+                for (const child of Array.from(el.children)) ro.observe(child)
+            }
+            observeChildren()
+            const mo = new MutationObserver(() => {
+                observeChildren()
+                measureFade()
+            })
+            mo.observe(el, {childList: true})
             measureFade()
             stripCleanupRef.current = () => {
                 el.removeEventListener("wheel", onWheel)
                 el.removeEventListener("scroll", measureFade)
+                mo.disconnect()
                 ro.disconnect()
             }
         },
         [measureFade],
     )
-    // A ResizeObserver watches the element box, not its content — remeasure when the tab set changes.
+    // Remeasure when the tab set changes, and after the add button moves (it resizes the scroller).
     useEffect(() => {
         measureFade()
-    }, [remeasureKey, measureFade])
+    }, [remeasureKey, pinAdd, measureFade])
 
     const maskStyle = {
         maskImage: fadeMask(fade.left, fade.right),
         WebkitMaskImage: fadeMask(fade.left, fade.right),
     }
+
+    const canAdd = Boolean(showTabs && onAdd)
+    const addButton = canAdd ? (
+        <SimpleTooltip title={addTooltip ?? "New session"}>
+            {/* Non-disabled span trigger: tooltips don't fire on a disabled button. */}
+            <span className="inline-flex">
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="New session"
+                    onClick={onAdd}
+                    disabled={addDisabled}
+                    className="h-7 w-7 shrink-0 p-0"
+                >
+                    <PlusIcon size={14} />
+                </Button>
+            </span>
+        </SimpleTooltip>
+    ) : null
+    // Scroller's last child, so it trails the last chip. Not a reorder value, so never a drag slot.
+    const inlineAdd =
+        canAdd && !pinAdd ? (
+            <div className="ml-1 flex shrink-0 items-center">{addButton}</div>
+        ) : null
 
     return (
         <div
@@ -162,36 +220,21 @@ export const SessionTabStrip = ({
                         style={maskStyle}
                     >
                         {children}
+                        {inlineAdd}
                     </Reorder.Group>
                 ) : (
                     <div ref={scrollStripRef} className={SCROLLER_CLASS} style={maskStyle}>
                         {children}
+                        {inlineAdd}
                     </div>
                 )
             ) : (
                 <div className="min-w-0 flex-1" />
             )}
-            {/* Fixed session-actions cluster — pinned outside the scroll area so New session (+) sits
-                at the end of the tab strip without scrolling away, grouped with any extras. */}
-            {(showTabs && onAdd) || extra ? (
+            {/* Fixed session-actions cluster; (+) lands here only when inline would scroll out of reach. */}
+            {(canAdd && pinAdd) || extra ? (
                 <div className="flex shrink-0 items-center gap-1">
-                    {showTabs && onAdd ? (
-                        <SimpleTooltip title={addTooltip ?? "New session"}>
-                            {/* Non-disabled span trigger: tooltips don't fire on a disabled button. */}
-                            <span className="inline-flex">
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label="New session"
-                                    onClick={onAdd}
-                                    disabled={addDisabled}
-                                    className="h-7 w-7 shrink-0 p-0"
-                                >
-                                    <PlusIcon size={14} />
-                                </Button>
-                            </span>
-                        </SimpleTooltip>
-                    ) : null}
+                    {pinAdd ? addButton : null}
                     {extra}
                 </div>
             ) : null}

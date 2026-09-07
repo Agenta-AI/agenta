@@ -5,7 +5,8 @@ import {
 } from "@agenta/entities/trace"
 import type {TracesResponse} from "@agenta/entities/trace"
 import {uuidToTraceId} from "@agenta/shared/utils"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import type {TraceData, TraceNode, TraceTree} from "@/oss/lib/evaluations"
 import type {TraceSpanNode} from "@/oss/services/tracing/types"

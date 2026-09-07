@@ -5,11 +5,9 @@ import {
     AgentPageHeader,
     AgentRevisionStatus,
 } from "@agenta/playground-ui/agent-page-header"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 
 import {NavDrawer} from "../nav/NavDrawer"
-
-import {selectedRevisionAtomFamily} from "./selectedRevision"
 
 /**
  * The session workspace's top bar — the desktop playground's header on this surface: which agent
@@ -25,22 +23,17 @@ import {selectedRevisionAtomFamily} from "./selectedRevision"
 export const SessionTopBar = ({
     entityId,
     agentId,
-    sessionId,
     workspaceId,
     projectId,
 }: {
     /** The revision under edit. Absent = a session with no turns yet (nothing committed to show). */
     entityId: string | null
     agentId?: string | null
-    sessionId: string
     workspaceId: string
     projectId: string
 }) => {
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
-    // Picking a revision pins the whole workspace to it (config AND the conversation's target),
-    // as on the desktop; the pin lives per session and clears on commit.
-    const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
     // Only override the bar's chip once this agent has an icon; uncustomised, the shared bar draws
     // its own, so /m has no reason to carry a second robot.
     const chrome = useAgentIconChrome(agentId, {size: 15, fallbackGlyph: null})
@@ -62,11 +55,7 @@ export const SessionTopBar = ({
             }
             revision={
                 entityId ? (
-                    <AgentRevisionStatus
-                        revisionId={entityId}
-                        pickerWorkflowId={agentId}
-                        onSelectRevision={pinRevision}
-                    />
+                    <AgentRevisionStatus revisionId={entityId} historyWorkflowId={agentId} />
                 ) : undefined
             }
         />

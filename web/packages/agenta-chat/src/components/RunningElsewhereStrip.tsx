@@ -7,13 +7,20 @@ import {cn} from "@agenta/ui/ui"
  * session while THIS browser isn't the one streaming it (another tab, another device).
  *
  * Issue #5530: a second browser gave no sign at all that anything was happening, so a session that
- * was mid-turn looked identical to an idle one. There is no push channel to browsers today, so the
- * transcript catches up by polling the durable record log — this strip is what makes that
- * legible instead of looking frozen.
+ * was mid-turn looked identical to an idle one. This is now the fallback while the shared reader
+ * is disabled or disconnected; a ready reader streams the transcript and shows turn activity.
  *
  * NOT shown while this browser is the one streaming: the composer's send button is already a Stop
  * and the transcript already shows the turn working, so a second "running" banner is noise — and
  * one that mounts and unmounts around every turn shifts the layout twice per run.
+ *
+ * The copy stops short of promising the transcript WILL move. `is_running` says a turn took the
+ * lock, not that anything is still serving it: a runner that dies mid-turn leaves the flag set
+ * until its shutdown drain completes, or failing that until the execution watchdog settles it
+ * (`ORPHAN_THRESHOLD_SECONDS`, 120s by default). Measured on a dev stack, that window runs from
+ * ~20s to a couple of minutes. Asserting progress through it told people to keep waiting on a run
+ * that was over, so the second sentence names that possibility instead. It is deliberately not a call to action:
+ * only /m passes a Stop here, and the desktop has no control to point at.
  *
  * Matches the `running` dot in the session bar (`bg-colorInfo`, pulsing) so the two read as one
  * signal.
@@ -39,7 +46,8 @@ export const RunningElsewhereStrip = ({
             <span className="bg-colorInfo relative inline-flex size-2 rounded-full" />
         </span>
         <span className="text-colorTextSecondary text-xs">
-            This session is running somewhere else — the transcript updates as the turn progresses.
+            This turn is still running — the transcript updates as it progresses. If it stays still,
+            the run may have already ended.
         </span>
         {action ? <span className="ml-auto shrink-0">{action}</span> : null}
     </div>

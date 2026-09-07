@@ -15,6 +15,8 @@ import { ExportResultCode, type ExportResult } from "@opentelemetry/core";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 
 import {
+  curatedEnvSecretValues,
+  modelEnvironmentSecretValues,
   Redactor,
   sandboxVisibleSecretValues,
   seedForRun,
@@ -136,6 +138,64 @@ describe("seedForRun (WP1.1 — the deny-set source)", () => {
     expect(
       seedForRun(runRequest).redactString(`key is ${PER_RUN_KEY}`, "test"),
     ).not.toContain(PER_RUN_KEY);
+  });
+
+  it("keeps approved public model bindings readable and unknown legacy bindings fail-safe", () => {
+    expect(
+      modelEnvironmentSecretValues({
+        AWS_REGION: "eu-west-1",
+        GOOGLE_CLOUD_PROJECT: "plain-project-name",
+        LEGACY_GATEWAY_AUTH: "legacy-secret-value",
+      }),
+    ).toEqual(["legacy-secret-value"]);
+  });
+
+  it("keeps public model configuration and credential locator paths readable", () => {
+    const adcPath = "/run/secrets/service-account";
+    const serviceAccountJson =
+      '{"private_key":"fake-private-key-DO-NOT-USE"}';
+    const redactor = seedForRun({
+      modelConnection: {
+        environment: {
+          AWS_REGION: "eu-west-1",
+          GOOGLE_CLOUD_PROJECT: "plain-project-name",
+        },
+        credentials: [
+          {
+            binding: {
+              kind: "environment",
+              name: "GOOGLE_APPLICATION_CREDENTIALS",
+            },
+            value: adcPath,
+            usage: "local_use",
+          },
+          {
+            binding: {
+              kind: "environment",
+              name: "GOOGLE_APPLICATION_CREDENTIALS",
+            },
+            value: serviceAccountJson,
+            usage: "local_use",
+          },
+        ],
+      },
+    });
+
+    const ordinary = `region=eu-west-1 project=plain-project-name credentials=${adcPath}`;
+    expect(redactor.redactString(ordinary, "test")).toBe(ordinary);
+    expect(
+      redactor.redactString(`credentials=${serviceAccountJson}`, "test"),
+    ).not.toContain(serviceAccountJson);
+  });
+
+  it("does not infer that GOOGLE_APPLICATION_CREDENTIALS paths are secret values", () => {
+    const adcPath = "/run/secrets/service-account";
+    vi.stubEnv("GOOGLE_APPLICATION_CREDENTIALS", adcPath);
+    vi.stubEnv("OPENAI_API_KEY", PER_RUN_KEY);
+
+    const values = curatedEnvSecretValues();
+    expect(values).not.toContain(adcPath);
+    expect(values).toContain(PER_RUN_KEY);
   });
 
   it("also seeds the run credential from the OTLP auth header", () => {
@@ -266,22 +326,46 @@ describe("persisted transcript sink (WP1.4)", () => {
     expect(JSON.stringify(postedBodies[0])).not.toContain(PER_RUN_KEY);
   });
 
-  it("leaves ordinary user content untouched (we redact leaks, not conversation)", async () => {
+  it("leaves ordinary user content and public model configuration untouched", async () => {
+    const adcPath = "/run/secrets/service-account";
+    const publicRegion = "eu-west-1";
+    const redactor = seedForRun({
+      ...runRequest,
+      modelConnection: {
+        ...runRequest.modelConnection,
+        environment: { AWS_REGION: publicRegion },
+        credentials: [
+          ...runRequest.modelConnection.credentials,
+          {
+            binding: {
+              kind: "environment",
+              name: "GOOGLE_APPLICATION_CREDENTIALS",
+            },
+            value: adcPath,
+            usage: "local_use",
+          },
+        ],
+      },
+    });
     const { emit, flush } = buildPersistingEmitter(
       "sess-redact-content",
       () => RUN_CREDENTIAL,
       undefined,
-      seedForRun(runRequest),
+      redactor,
     );
 
-    // A deliberately-pasted key-SHAPED string that is not a live secret must survive: the
-    // known-value pass has zero false positives by construction.
+    // A deliberately-pasted key-shaped string that is not a live secret must survive too.
     const userPasted = "sk-user-pasted-this-on-purpose-000";
-    emit({ type: "message", text: `here is my sample ${userPasted}` });
+    emit({
+      type: "message",
+      text: `sample=${userPasted} region=${publicRegion} credentials=${adcPath}`,
+    });
     await flush();
 
     const persisted = JSON.stringify(postedBodies[0]);
     expect(persisted).toContain(userPasted);
+    expect(persisted).toContain(publicRegion);
+    expect(persisted).toContain(adcPath);
     expect(persisted).not.toContain("[ag:redacted");
   });
 });

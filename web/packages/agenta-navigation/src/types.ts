@@ -2,6 +2,17 @@ import type {ComponentType, MouseEvent, ReactElement, ReactNode} from "react"
 
 import type {PrimitiveAtom, WritableAtom} from "jotai"
 
+/**
+ * Identity of a hand-arrangeable row or heading. Items sharing a `zone` reorder against each
+ * other and nothing else — which is what makes a cross-heading drop impossible by construction.
+ */
+export interface SidebarDragItem {
+    kind: "row" | "group"
+    /** The persisted id: an agent id, a session id, or a heading key. */
+    id: string
+    zone: string
+}
+
 export interface SidebarConfig {
     key: string
     title: string
@@ -37,6 +48,8 @@ export interface SidebarConfig {
     /** Extra classes on the row itself — for state the label cannot carry, e.g. an archived
      * session rendering faded. Opt-in: a row that sets none renders exactly as before. */
     rowClassName?: string
+    /** Set on rows and headings the user may hand-arrange. Absent = fixed in place. */
+    dragItem?: SidebarDragItem
     /** A group with no collapse control: it renders no caret and stays expanded. Its own row
      * chrome (a filter, say) is the affordance instead. Also keeps its key in the shell's open
      * set, so a gated dynamic source stays subscribed. */

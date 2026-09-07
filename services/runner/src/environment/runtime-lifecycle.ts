@@ -169,6 +169,18 @@ export interface RuntimeEnvironment {
  * The stable telemetry-control PATH enters Pi's env; per-turn context rides that read-once file.
  * The OTLP endpoint and authorization remain runner-owned and never enter the daemon env.
  */
+export function assignSandboxEnvironment(
+  targets: Array<Record<string, string>>,
+  sandboxEnvironment: Record<string, string>,
+): void {
+  for (const name of Object.keys(sandboxEnvironment)) {
+    if (targets.some((target) => Object.prototype.hasOwnProperty.call(target, name))) {
+      throw new Error(`sandboxCredentials binding  collides with runner-owned environment`);
+    }
+  }
+  for (const target of targets) Object.assign(target, sandboxEnvironment);
+}
+
 export function buildRuntimeEnvironment(
   input: BuildRuntimeEnvironmentInput,
 ): RuntimeEnvironment {
@@ -220,6 +232,7 @@ export function buildRuntimeEnvironment(
   // `sessions/` rollouts) while CODEX_SQLITE_HOME points in-VM, off the mount. Set here because
   // the Daytona daemon env is fixed at sandbox creation and is built from `piExtEnv`.
   configureDaytonaCodexEnv(input.plan, piExtEnv);
+  assignSandboxEnvironment([env, piExtEnv], p.credentials.sandboxEnvironment);
   // LAST, deliberately: the local daemon inherits the extension env, and Daytona gets the same
   // values through `envVars`. Assigning earlier would drop every key added above.
   Object.assign(env, piExtEnv);

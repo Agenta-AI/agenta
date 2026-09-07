@@ -79,30 +79,31 @@ const testWithPromptsFixtures = baseTest.extend<PromptsFixtures>({
                 return payload.includes(promptName)
             })
 
-            const createButton = drawer.getByRole("button", {name: "Create", exact: true}).first()
-            await expect(createButton).toBeVisible({timeout: 15000})
-            await expect(createButton).toBeEnabled({timeout: 15000})
-            await createButton.click()
-
-            // Match the dialog by role, not by a component-library class:
-            // `EntityCommitModal` renders through `EnhancedModal`, now a facade over
-            // the @agenta/ui (Radix) `Dialog`, so no `.ant-modal-wrap` exists here.
-            // Radix `aria-hidden`s the launching antd drawer while the modal is open,
-            // so exactly one dialog resolves.
-            const confirmModal = page
-                .getByRole("dialog")
-                .filter({has: page.getByRole("button", {name: "Create", exact: true})})
-                .last()
-            const confirmButton = confirmModal.getByRole("button", {
-                name: "Create",
+            const confirmModal = page.getByRole("dialog", {
+                name: "Create changes",
                 exact: true,
             })
-            await expect(confirmModal).toBeVisible({timeout: 15000})
-            await expect(confirmButton).toBeVisible({timeout: 15000})
-            await expect(confirmButton).toBeEnabled({timeout: 15000})
-            await confirmButton.click({force: true})
+            const [createPromptResponse] = await Promise.all([
+                createPromptPromise,
+                (async () => {
+                    const createButton = drawer
+                        .getByRole("button", {name: "Create", exact: true})
+                        .first()
+                    await expect(createButton).toBeVisible({timeout: 15000})
+                    await expect(createButton).toBeEnabled({timeout: 15000})
+                    await createButton.click()
 
-            const createPromptResponse = await createPromptPromise
+                    const confirmButton = confirmModal.getByRole("button", {
+                        name: "Create",
+                        exact: true,
+                    })
+                    await expect(confirmModal).toBeVisible({timeout: 15000})
+                    await expect(confirmButton).toBeVisible({timeout: 15000})
+                    await expect(confirmButton).toBeEnabled({timeout: 15000})
+                    await confirmButton.click({force: true})
+                })(),
+            ])
+
             expect(createPromptResponse.ok()).toBe(true)
             await expect(confirmModal).toBeHidden({timeout: 15000})
         })

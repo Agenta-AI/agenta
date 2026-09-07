@@ -19,6 +19,7 @@
         ".": "./src/index.ts",
         "./state": "./src/state/index.ts",
         "./row": "./src/row/index.ts",
+        "./link": "./src/link/index.ts",
         "./watch": "./src/watch/index.ts"
     },
     "dependencies": {

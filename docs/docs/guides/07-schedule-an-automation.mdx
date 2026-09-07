@@ -1,7 +1,7 @@
 ---
 title: "Schedule an automation"
 sidebar_label: "Schedule an automation"
-description: "Run an agent on a recurring schedule by setting its cadence, version, and message."
+description: "Run an agent on a recurring schedule by setting its cadence and message."
 ---
 
 ```mdx-code-block
@@ -9,10 +9,6 @@ import { Stream } from "@cloudflare/stream-react";
 ```
 
 A schedule runs an agent at set times without anyone in the chat. First, [prepare the agent for automation](/guides/create-an-automation).
-
-## Commit before you schedule
-
-A schedule runs one pinned variant and revision. Commit the agent first, so the schedule can pin the version you want it to run. In the `Configuration` header, click `Commit`, keep `New version`, and confirm.
 
 ## Open the schedule dialog
 
@@ -48,11 +44,7 @@ A green line under the fields restates the schedule it parsed and the next time 
 
 If the schedule should only run between two dates, expand `Active window` and set the start and end.
 
-### 3. Which version runs?
-
-Choose `Pinned`, then select the variant and revision. Future changes to the agent do not affect this schedule until you update its pinned version.
-
-### 4. What should the agent do?
+### 3. What should the agent do?
 
 Write the message the agent receives on each run. Name the task and where to send the result. For example: `Summarize support tickets from the previous day and post the digest to #ops.`
 

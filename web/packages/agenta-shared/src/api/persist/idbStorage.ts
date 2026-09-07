@@ -20,6 +20,39 @@ const getStore = (): UseStore | null => {
 const hasPersistableData = (value: PersistedQuery): boolean =>
     value.state.data !== null && value.state.data !== undefined
 
+const IDB_READ_TIMEOUT_MS = 3_000
+
+/**
+ * Cap an IndexedDB read, because a hung one cannot be caught.
+ *
+ * `getItem` runs INSIDE the query's `persisterFn`, ahead of the real `queryFn`, so a read that
+ * never settles means the query never fetches: enabled, no request, no error, `isPending` forever.
+ * Every consumer of that query then sits on its loading state permanently — which is how the
+ * agent's Configuration panel came to show its skeleton for good.
+ *
+ * IndexedDB does that whenever an open is BLOCKED (another tab holding the database at an older
+ * version is the common one) — the request simply never fires `success` or `error`, so the promise
+ * neither resolves nor rejects and the `try/catch` below can never see it. A timeout is the only
+ * thing that can. Falling through to `undefined` is a cache miss, which is exactly what this
+ * adapter already degrades to on every other storage failure.
+ */
+const withReadTimeout = async <T>(read: Promise<T>, key: string): Promise<T | undefined> => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+        return await Promise.race([
+            read,
+            new Promise<undefined>((resolve) => {
+                timer = setTimeout(() => {
+                    persistLog("timeout", key)
+                    resolve(undefined)
+                }, IDB_READ_TIMEOUT_MS)
+            }),
+        ])
+    } finally {
+        if (timer !== undefined) clearTimeout(timer)
+    }
+}
+
 /**
  * AsyncStorage adapter over IndexedDB for TanStack Query's per-query persister.
  * Stores PersistedQuery objects directly (structured clone) — no JSON round-trip.
@@ -30,7 +63,7 @@ export const idbQueryStorage: AsyncStorage<PersistedQuery> = {
         const s = getStore()
         if (!s) return undefined
         try {
-            const value = await get<PersistedQuery>(key, s)
+            const value = await withReadTimeout(get<PersistedQuery>(key, s), key)
             if (value !== undefined && !hasPersistableData(value)) {
                 void del(key, s).catch(() => undefined)
                 persistLog("evict", key)

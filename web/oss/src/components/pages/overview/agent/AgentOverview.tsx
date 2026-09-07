@@ -1,8 +1,7 @@
-import {useCallback, useEffect} from "react"
+import {useCallback} from "react"
 
 import {AgentOverviewBody} from "@agenta/entity-ui/agent"
 import {RichChatInput} from "@agenta/ui/rich-chat-input"
-import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
 import {sessionRouteModes} from "@/oss/components/pages/sessions/assets/sessionRouteScope"
@@ -15,7 +14,6 @@ import {
 import UsageSummary from "@/oss/components/UsageSummary"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
-import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 
 interface Props {
     appId: string
@@ -35,21 +33,12 @@ interface Props {
  * it in the main column a waiting session sat below six rows of settings. The rail is also the
  * width the config rows were designed for — they come from the playground's panel, which is narrow.
  *
- * Columns scroll independently, as Home's do. They did not when this page held one list; with
- * Sessions and Automation runs both in the main column it outgrew the rail, and a whole-page
- * scroll meant losing the configuration while reading the sessions. The full-height frame is
- * requested rather than matched on the path, because this route also serves the prompt and
- * evaluator overviews, which still flow.
+ * The page scrolls as one. The columns used to scroll independently inside a bounded frame,
+ * which put two scrollbars on one page and left the rail and the reading column disagreeing
+ * about where the top was.
  */
 const AgentOverview = ({appId, agentName}: Props) => {
     const startSession = useStartAgentSession()
-    // The layout can't tell an agent overview from a prompt one by its path, so this branch asks
-    // for the bounded frame and releases it on the way out.
-    const requestFullHeight = useSetAtom(layoutFullHeightRequestAtom)
-    useEffect(() => {
-        requestFullHeight(true)
-        return () => requestFullHeight(false)
-    }, [requestFullHeight])
 
     // "View all" stays on this agent's rail rather than dropping you on the project list with a
     // filter you then have to trust.

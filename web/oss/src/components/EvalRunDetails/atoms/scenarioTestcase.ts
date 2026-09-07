@@ -9,7 +9,8 @@
  */
 
 import {atom} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {testcase} from "@/oss/state/entities/testcase"
 import type {FlattenedTestcase} from "@/oss/state/entities/testcase/schema"

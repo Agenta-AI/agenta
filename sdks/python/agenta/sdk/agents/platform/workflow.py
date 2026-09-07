@@ -38,6 +38,8 @@ log = get_module_logger(__name__)
 
 REQUEST_CONNECTION_WORKFLOW_SLUG = "__ag__request_connection"
 REQUEST_CONNECTION_TOOL_NAME = "request_connection"
+REQUEST_SECRET_WORKFLOW_SLUG = "__ag__request_secret"
+REQUEST_SECRET_TOOL_NAME = "request_secret"
 
 
 class AgentaWorkflowToolResolver:
@@ -64,14 +66,14 @@ class AgentaWorkflowToolResolver:
         authorization = self._connection.authorization()
 
         # Resolve every model-visible name up front. Sanitizing can merge two distinct children
-        # onto one name ("Support Router" and "Support/Router" both become `Support_Router`), and
+        # onto one name ("support router" and "support/router" both become `support_router`), and
         # a duplicate name silently shadows the earlier tool instead of erroring — so the second
         # subagent would simply never be callable. This is the only place that sees siblings.
         names_by_call_ref = disambiguate_tool_names(
             [
                 (tool_config.call_ref, tool_config.tool_name)
                 for tool_config in tools
-                if not _is_request_connection_workflow(tool_config)
+                if not _is_client_platform_workflow(tool_config)
             ]
         )
 
@@ -87,28 +89,18 @@ class AgentaWorkflowToolResolver:
                 log.warning("agent: %s", error)
                 raise error
             seen.add(call_ref)
-            if _is_request_connection_workflow(tool_config):
-                tool_specs.append(
-                    ClientToolSpec(
-                        kind="client",
-                        name=REQUEST_CONNECTION_TOOL_NAME,
-                        description=tool_config.description
-                        or "Request a connection from the user.",
-                        input_schema=expand_type_refs(tool_config.input_schema),
-                        render={"kind": "connect"},
-                    )
-                )
+            client_tool = _client_platform_tool(tool_config)
+            if client_tool is not None:
+                tool_specs.append(client_tool)
                 continue
             resolved_name = names_by_call_ref[call_ref]
             tool_specs.append(
                 CallbackToolSpec(
                     name=resolved_name,
-                    # The DESCRIPTION keeps the authored display name when there is one: that is
-                    # what the model reads to decide whether to call this subagent, and the
-                    # sanitized wire name may have lost the spacing that made it readable.
-                    description=tool_config.description
-                    or tool_config.name
-                    or resolved_name,
+                    # The DESCRIPTION is what the model reads to decide whether to call this
+                    # subagent, so it never falls back to the stored `name`: that copy goes stale
+                    # the moment the target is renamed (#6444).
+                    description=tool_config.description or resolved_name,
                     # Expand Agenta catalog pointers (``x-ag-type-ref``, e.g. ``messages``) into
                     # concrete JSON Schema so the harness sees a real shape (an array WITH items,
                     # not a bare ``x-ag-type-ref``) and can construct the call. Reference tools are
@@ -128,6 +120,44 @@ class AgentaWorkflowToolResolver:
                 authorization=authorization,
             ),
         )
+
+
+def _workflow_matches(tool_config: ReferenceToolConfig, slug: str) -> bool:
+    workflow = getattr(tool_config, "workflow", None)
+    if getattr(workflow, "slug", None) == slug:
+        return True
+    call_ref = tool_config.call_ref
+    return call_ref == f"workflow.variant.{slug}" or call_ref.startswith(
+        f"workflow.variant.{slug}."
+    )
+
+
+def _is_client_platform_workflow(tool_config: ReferenceToolConfig) -> bool:
+    return _is_request_connection_workflow(tool_config) or _workflow_matches(
+        tool_config, REQUEST_SECRET_WORKFLOW_SLUG
+    )
+
+
+def _client_platform_tool(tool_config: ReferenceToolConfig) -> Optional[ClientToolSpec]:
+    if _is_request_connection_workflow(tool_config):
+        return ClientToolSpec(
+            kind="client",
+            name=REQUEST_CONNECTION_TOOL_NAME,
+            description=tool_config.description
+            or "Request a connection from the user.",
+            input_schema=expand_type_refs(tool_config.input_schema),
+            render={"kind": "connect"},
+        )
+    if _workflow_matches(tool_config, REQUEST_SECRET_WORKFLOW_SLUG):
+        return ClientToolSpec(
+            kind="client",
+            name=REQUEST_SECRET_TOOL_NAME,
+            description=tool_config.description
+            or "Request a custom secret from the user.",
+            input_schema=expand_type_refs(tool_config.input_schema),
+            render={"kind": "secret"},
+        )
+    return None
 
 
 def _is_request_connection_workflow(tool_config: ReferenceToolConfig) -> bool:

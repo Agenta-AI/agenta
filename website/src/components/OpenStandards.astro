@@ -1,4 +1,6 @@
 ---
+import Badge from "./Badge.astro";
+import Section from "./Section.astro";
 // Open standards — the marquee stack. Copy left, card right (.ag-interop grid,
 // stacks to one column <=1100px via global.css). Each of the 5 rows is a label +
 // an auto-scrolling chip strip whose direction alternates; hovering a row pauses
@@ -108,6 +110,8 @@ const rows: Row[] = [
   },
 ];
 
+// Chip recipes are themed via the --ios-* vars below: light = the spec's white
+// chip / terracotta skill chip / "Soon" pill; dark = the original literals.
 const chipStyle = (c: Chip) => {
   const named = !!c.name;
   return (
@@ -116,8 +120,10 @@ const chipStyle = (c: Chip) => {
     (c.href ? "cursor:pointer;" : "cursor:default;") +
     (c.mono ? "font:var(--app-text-mono);" : "font:var(--text-label);") +
     (c.soon
-      ? "background:rgba(255,255,255,0.02);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.07);color:rgba(255,255,255,0.4);"
-      : "background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.12);color:rgba(255,255,255,0.9);")
+      ? "background:var(--ios-soon-bg);box-shadow:var(--ios-soon-shadow);color:var(--ios-soon-text);"
+      : c.mono
+        ? "background:var(--ios-skill-bg);box-shadow:var(--ios-skill-shadow);color:var(--ios-skill-text);"
+        : "background:var(--ios-chip-bg);box-shadow:var(--ios-chip-shadow);color:var(--ios-chip-text);")
   );
 };
 
@@ -132,46 +138,48 @@ const logoStyle = (c: Chip) => {
 };
 
 const soonStyle =
-  "font:500 10px/1 var(--font-sans);letter-spacing:0.05em;text-transform:uppercase;color:rgba(255,255,255,0.35);padding:3px 6px;border-radius:5px;background:rgba(255,255,255,0.06);";
+  "font:500 10px/1 var(--font-sans);letter-spacing:0.05em;text-transform:uppercase;color:var(--ios-soontag-text);padding:3px 6px;border-radius:5px;background:var(--ios-soontag-bg);";
 
 const labelStyle =
-  "font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.36);padding-left:28px;";
+  "font:var(--text-caption);letter-spacing:0.06em;text-transform:uppercase;color:var(--ios-label);padding-left:28px;";
 
 const isExternal = (href?: string) => !!href && href.startsWith("http");
 ---
 
-<section
+<Section
   data-screen-label="Open standards"
-  class="ag-secpad"
-  style="background:var(--ag-d-bg-1);border:1px solid rgba(255,255,255,0.07);margin-top:-1px;padding:var(--section-pad-y) 0;display:flex;justify-content:center;"
+  class="ag-secpad ag-ios"
+  style="background:var(--th-bg-1);padding:var(--section-pad-y) 0;display:flex;justify-content:center;"
 >
   <div
     class="ag-interop"
     style="width:min(1120px,100%);display:grid;grid-template-columns:360px 1fr;gap:64px;padding:0 28px;box-sizing:border-box;text-align:left;align-items:center;"
   >
     <div style="display:flex;flex-direction:column;gap:20px;">
-      <span
-        style="align-self:flex-start;display:inline-flex;align-items:center;height:24px;padding:0 11px;border-radius:999px;background:rgba(255,255,255,0.06);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.1);font:500 12px/1 var(--font-sans);letter-spacing:0.03em;color:rgba(255,255,255,0.7);"
-        >Open standards</span
-      >
-      <span
+      <Badge style="align-self:flex-start;">Open standards</Badge>
+      <!-- Real <h2>: this is the section's heading, and an outline extractor
+           (or a screen reader jumping by heading) must see it as one. `margin:0`
+           because global.css carries no heading reset, and the inline `font`
+           shorthand already sets size/weight — so the tag change is invisible. -->
+      <h2
         class="ag-bighead"
-        style="font:300 44px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;"
-        >One agent package, any stack</span
+        style="margin:0;font:300 44px/1.1 var(--font-display,'GT Alpina',serif);color:var(--th-text-hi);"
       >
-      <span style="font:var(--text-body-md);color:rgba(255,255,255,0.55);"
+        One agent package, any stack
+      </h2>
+      <span style="font:var(--text-body-md);color:var(--ios-body);"
         >Your agent is AGENTS.md, skills, and MCP tools. Swap the harness, model,
         or runtime without touching a line.</span
       >
       <span
-        style="font:var(--text-body-sm);color:rgba(255,255,255,0.45);border-top:1px solid rgba(255,255,255,0.08);padding-top:16px;"
+        style="font:var(--text-body-sm);color:var(--th-text-mut);border-top:1px solid var(--ios-note-rule);padding-top:16px;"
         >When self-hosting locally, you can use your Claude or ChatGPT
         subscription.</span
       >
     </div>
 
     <div
-      style="border-radius:12px;background:var(--ag-d-bg-2);box-shadow:0 24px 70px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.07);padding:10px 0;display:flex;flex-direction:column;min-width:0;"
+      style="border-radius:12px;background:var(--ios-card-bg);box-shadow:var(--ios-card-shadow);padding:10px 0;display:flex;flex-direction:column;min-width:0;"
     >
       {
         rows.map((r, i) => (
@@ -179,7 +187,7 @@ const isExternal = (href?: string) => !!href && href.startsWith("http");
             class="ag-io-row"
             style={
               "display:grid;grid-template-columns:130px 1fr;gap:16px;align-items:center;padding:17px 0;" +
-              (i > 0 ? "border-top:1px solid rgba(255,255,255,0.06);" : "")
+              (i > 0 ? "border-top:1px solid var(--ios-row-rule);" : "")
             }
           >
             <span class="ag-io-label" style={labelStyle}>{r.label}</span>
@@ -228,7 +236,51 @@ const isExternal = (href?: string) => !!href && href.startsWith("http");
       }
     </div>
   </div>
-</section>
+</Section>
+
+<style is:global>
+  /* Theme vars: light = the spec's Open-standards recipes (white section, white
+     card, white/terracotta chips); dark = the original literals, verbatim. */
+  .ag-ios {
+    --ios-body: var(--ink-600);
+    --ios-note-rule: var(--paper-150);
+    --ios-card-bg: var(--paper-0);
+    --ios-card-shadow: 0 0 0 1px var(--th-border);
+    --ios-row-rule: var(--paper-150);
+    --ios-label: var(--ink-300);
+    --ios-chip-bg: #ffffff;
+    --ios-chip-shadow: var(--shadow-ring);
+    --ios-chip-text: var(--ink-900);
+    --ios-skill-bg: rgba(217, 119, 87, 0.12);
+    --ios-skill-shadow: inset 0 0 0 1px rgba(217, 119, 87, 0.3);
+    --ios-skill-text: var(--ink-900);
+    --ios-soon-bg: var(--paper-150);
+    --ios-soon-shadow: inset 0 0 0 1px var(--paper-150);
+    --ios-soon-text: var(--ink-500);
+    --ios-soontag-bg: rgba(36, 36, 36, 0.06);
+    --ios-soontag-text: var(--ink-500);
+  }
+  [data-theme="dark"] .ag-ios {
+    --ios-body: rgba(255, 255, 255, 0.55);
+    --ios-note-rule: rgba(255, 255, 255, 0.08);
+    --ios-card-bg: var(--ag-d-bg-2);
+    --ios-card-shadow:
+      0 24px 70px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.07);
+    --ios-row-rule: rgba(255, 255, 255, 0.06);
+    --ios-label: rgba(255, 255, 255, 0.36);
+    --ios-chip-bg: rgba(255, 255, 255, 0.06);
+    --ios-chip-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    --ios-chip-text: rgba(255, 255, 255, 0.9);
+    --ios-skill-bg: rgba(255, 255, 255, 0.06);
+    --ios-skill-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    --ios-skill-text: rgba(255, 255, 255, 0.9);
+    --ios-soon-bg: rgba(255, 255, 255, 0.02);
+    --ios-soon-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    --ios-soon-text: rgba(255, 255, 255, 0.4);
+    --ios-soontag-bg: rgba(255, 255, 255, 0.06);
+    --ios-soontag-text: rgba(255, 255, 255, 0.35);
+  }
+</style>
 
 <style>
   /* Hover a row: pause its marquee and let it scroll horizontally. The inline

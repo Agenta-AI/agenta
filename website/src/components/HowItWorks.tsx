@@ -39,7 +39,7 @@ const BLOCK_BASE: CSSProperties[] = [
   {
     flexDirection: "column",
     gap: 9,
-    borderTop: "1px solid rgba(255,255,255,0.06)",
+    borderTop: "1px solid var(--hiw-block-rule)",
     paddingTop: 12,
   },
   { flexDirection: "column", gap: 8 },
@@ -47,7 +47,7 @@ const BLOCK_BASE: CSSProperties[] = [
   {
     flexDirection: "column",
     gap: 9,
-    borderTop: "1px solid rgba(255,255,255,0.06)",
+    borderTop: "1px solid var(--hiw-block-rule)",
     paddingTop: 12,
   },
   { alignItems: "center", gap: 12, padding: "2px 0" },
@@ -87,8 +87,8 @@ function ToolRow({ label, meta }: { label: string; meta: string }) {
         gap: 9,
         padding: "9px 13px",
         borderRadius: 8,
-        background: "rgba(255,255,255,0.03)",
-        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.07)",
+        background: "var(--hiw-tool-bg)",
+        boxShadow: "inset 0 0 0 1px var(--hiw-tool-ring)",
       }}
     >
       <GreenCheck />
@@ -97,7 +97,7 @@ function ToolRow({ label, meta }: { label: string; meta: string }) {
         style={{
           font: "var(--app-text-mono)",
           fontSize: 12,
-          color: "rgba(255,255,255,0.78)",
+          color: "var(--hiw-tool-label)",
         }}
       >
         {label}
@@ -107,7 +107,7 @@ function ToolRow({ label, meta }: { label: string; meta: string }) {
         style={{
           marginLeft: "auto",
           font: `400 12px/1 ${GEIST}`,
-          color: "rgba(255,255,255,0.38)",
+          color: "var(--hiw-tool-meta)",
         }}
       >
         {meta}
@@ -122,7 +122,7 @@ function AgentLabel() {
       style={{
         font: `600 10.5px/1 ${GEIST}`,
         letterSpacing: "0.08em",
-        color: "rgba(255,255,255,0.35)",
+        color: "var(--hiw-ts)",
       }}
     >
       AGENT
@@ -139,11 +139,11 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
           <span
             style={{
               font: `400 11px/1 ${GEIST}`,
-              color: "rgba(255,255,255,0.35)",
+              color: "var(--hiw-ts)",
             }}
           >
             2m ago{" "}
-            <span style={{ fontWeight: 600, color: "rgba(255,255,255,0.55)" }}>
+            <span style={{ fontWeight: 600, color: "var(--hiw-ts-you)" }}>
               YOU
             </span>
           </span>
@@ -152,10 +152,10 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
               maxWidth: "78%",
               padding: "11px 15px",
               borderRadius: 10,
-              background: "rgba(255,255,255,0.06)",
-              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.07)",
+              background: "var(--hiw-bub-bg)",
+              boxShadow: "inset 0 0 0 1px var(--hiw-bub-ring)",
               font: `400 13.5px/1.55 ${GEIST}`,
-              color: "#F0EFF2",
+              color: "var(--hiw-bub-text)",
             }}
           >
             Check how the new onboarding flow is performing in PostHog and
@@ -170,7 +170,7 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
           <span
             style={{
               font: `italic 400 12.5px/1 ${GEIST}`,
-              color: "rgba(255,255,255,0.4)",
+              color: "var(--hiw-thought)",
             }}
           >
             {"▸"}
@@ -189,19 +189,19 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
           <div
             style={{
               font: `400 13.5px/1.6 ${GEIST}`,
-              color: "rgba(255,255,255,0.82)",
+              color: "var(--hiw-body)",
             }}
           >
             Onboarding completion is{" "}
-            <span style={{ color: "#FFFFFF", fontWeight: 500 }}>64%</span>, down
+            <span style={{ color: "var(--hiw-body-hi)", fontWeight: 500 }}>64%</span>, down
             4% week over week. Biggest drop-off is step 3, connect data source.
             I updated{" "}
             <span
               style={{
                 font: "var(--app-text-mono)",
                 fontSize: 12,
-                color: "#F0EFF2",
-                background: "rgba(255,255,255,0.06)",
+                color: "var(--hiw-code-text)",
+                background: "var(--hiw-code-bg)",
                 padding: "2px 7px",
                 borderRadius: 5,
               }}
@@ -213,7 +213,7 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
           <span
             style={{
               font: `400 11.5px/1 ${GEIST}`,
-              color: "rgba(255,255,255,0.32)",
+              color: "var(--hiw-meta)",
             }}
           >
             2m ago{" "}·{" "}5.3s{" "}·{" "}28.3K tokens
@@ -227,11 +227,11 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
           <span
             style={{
               font: `400 11px/1 ${GEIST}`,
-              color: "rgba(255,255,255,0.35)",
+              color: "var(--hiw-ts)",
             }}
           >
             now{" "}
-            <span style={{ fontWeight: 600, color: "rgba(255,255,255,0.55)" }}>
+            <span style={{ fontWeight: 600, color: "var(--hiw-ts-you)" }}>
               YOU
             </span>
           </span>
@@ -240,10 +240,10 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
               maxWidth: "78%",
               padding: "11px 15px",
               borderRadius: 10,
-              background: "rgba(255,255,255,0.06)",
-              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.07)",
+              background: "var(--hiw-bub-bg)",
+              boxShadow: "inset 0 0 0 1px var(--hiw-bub-ring)",
               font: `400 13.5px/1.55 ${GEIST}`,
-              color: "#F0EFF2",
+              color: "var(--hiw-bub-text)",
             }}
           >
             Do this every Monday at 9:00. Flag anything that drops more than
@@ -263,8 +263,8 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
               gap: 12,
               padding: "15px 17px",
               borderRadius: 12,
-              background: "rgba(255,255,255,0.025)",
-              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.09)",
+              background: "var(--hiw-sched-bg)",
+              boxShadow: "inset 0 0 0 1px var(--hiw-sched-ring)",
               minWidth: "min(340px,100%)",
             }}
           >
@@ -277,7 +277,12 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
                   (e.currentTarget as HTMLImageElement).style.display = "none";
                 }}
               />
-              <span style={{ font: `500 13.5px/1 ${GEIST}`, color: "#FFFFFF" }}>
+              <span
+                style={{
+                  font: `500 13.5px/1 ${GEIST}`,
+                  color: "var(--hiw-sched-title)",
+                }}
+              >
                 Agent scheduled
               </span>
             </div>
@@ -310,7 +315,7 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
                 style={{
                   font: "var(--app-text-mono)",
                   fontSize: 12,
-                  color: "rgba(255,255,255,0.45)",
+                  color: "var(--hiw-sched-meta)",
                 }}
               >
                 Mondays · 09:00 · flag drops &gt; 10%
@@ -323,19 +328,19 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
       return (
         <div key="b5" style={wrap}>
           <span
-            style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }}
+            style={{ flex: 1, height: 1, background: "var(--hiw-div-line)" }}
           />
           <span
             style={{
               font: "var(--app-text-mono)",
               fontSize: 11,
-              color: "rgba(255,255,255,0.4)",
+              color: "var(--hiw-div-text)",
             }}
           >
             Monday 09:00 — ran while you were out
           </span>
           <span
-            style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.07)" }}
+            style={{ flex: 1, height: 1, background: "var(--hiw-div-line)" }}
           />
         </div>
       );
@@ -350,7 +355,7 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
           <div
             style={{
               font: `400 13.5px/1.6 ${GEIST}`,
-              color: "rgba(255,255,255,0.82)",
+              color: "var(--hiw-body)",
             }}
           >
             <span
@@ -359,10 +364,10 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
                 alignItems: "center",
                 padding: "3px 9px",
                 borderRadius: 6,
-                background: "rgba(217,119,87,0.14)",
-                boxShadow: "inset 0 0 0 1px rgba(217,119,87,0.3)",
+                background: "var(--hiw-flag-bg)",
+                boxShadow: "var(--hiw-flag-shadow)",
                 font: `500 11.5px/1 ${GEIST}`,
-                color: "#F7F6F4",
+                color: "var(--hiw-flag-text)",
                 marginRight: 8,
               }}
             >
@@ -374,7 +379,7 @@ function renderBlock(i: number, wrap: CSSProperties): ReactNode {
           <span
             style={{
               font: `400 11.5px/1 ${GEIST}`,
-              color: "rgba(255,255,255,0.32)",
+              color: "var(--hiw-meta)",
             }}
           >
             Mon 09:02{" "}·{" "}41s{" "}·{" "}12.1K tokens
@@ -428,8 +433,8 @@ function FilesDrawer({ stage }: { stage: number }) {
         style={{
           width: 212,
           height: "100%",
-          borderLeft: "1px solid rgba(255,255,255,0.07)",
-          background: "rgba(0,0,0,0.25)",
+          borderLeft: "1px solid var(--hiw-files-border)",
+          background: "var(--hiw-files-bg)",
           display: "flex",
           flexDirection: "column",
           boxSizing: "border-box",
@@ -441,7 +446,7 @@ function FilesDrawer({ stage }: { stage: number }) {
             alignItems: "center",
             gap: 8,
             padding: "13px 16px",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            borderBottom: "1px solid var(--hiw-files-hdr-border)",
           }}
         >
           <svg
@@ -449,7 +454,7 @@ function FilesDrawer({ stage }: { stage: number }) {
             height="13"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="rgba(255,255,255,0.5)"
+            stroke="var(--hiw-files-ico)"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -460,7 +465,7 @@ function FilesDrawer({ stage }: { stage: number }) {
           <span
             style={{
               font: `500 11.5px/1 ${GEIST}`,
-              color: "rgba(255,255,255,0.55)",
+              color: "var(--hiw-files-title)",
             }}
           >
             Files
@@ -469,7 +474,7 @@ function FilesDrawer({ stage }: { stage: number }) {
             style={{
               marginLeft: "auto",
               font: `400 11px/1 ${GEIST}`,
-              color: "rgba(255,255,255,0.3)",
+              color: "var(--hiw-files-count)",
             }}
           >
             {count}
@@ -498,8 +503,8 @@ function FilesDrawer({ stage }: { stage: number }) {
                 opacity: 1,
                 ...(f.hot
                   ? {
-                      background: "rgba(242,242,92,0.06)",
-                      boxShadow: "inset 0 0 0 1px rgba(242,242,92,0.2)",
+                      background: "var(--hiw-file-hot-bg)",
+                      boxShadow: "inset 0 0 0 1px var(--hiw-file-hot-ring)",
                     }
                   : {}),
               }}
@@ -509,7 +514,7 @@ function FilesDrawer({ stage }: { stage: number }) {
                 height="12"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke={f.hot ? "var(--yellow-400)" : "rgba(255,255,255,0.4)"}
+                stroke={f.hot ? "var(--hiw-file-ico-hot)" : "var(--hiw-file-ico)"}
                 strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -531,7 +536,9 @@ function FilesDrawer({ stage }: { stage: number }) {
                   style={{
                     font: "var(--app-text-mono)",
                     fontSize: 11,
-                    color: f.hot ? "#FFFFFF" : "rgba(255,255,255,0.62)",
+                    color: f.hot
+                      ? "var(--hiw-file-name-hot)"
+                      : "var(--hiw-file-name)",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
@@ -543,8 +550,8 @@ function FilesDrawer({ stage }: { stage: number }) {
                   style={{
                     font: `400 10.5px/1 ${GEIST}`,
                     color: f.hot
-                      ? "rgba(242,242,92,0.85)"
-                      : "rgba(255,255,255,0.3)",
+                      ? "var(--hiw-file-meta-hot)"
+                      : "var(--hiw-file-meta)",
                   }}
                 >
                   {f.meta}
@@ -565,8 +572,8 @@ function Composer() {
         flex: "0 0 auto",
         margin: "0 16px 16px",
         borderRadius: 12,
-        background: "rgba(255,255,255,0.025)",
-        boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.09)",
+        background: "var(--hiw-comp-bg)",
+        boxShadow: "inset 0 0 0 1px var(--hiw-comp-ring)",
         padding: "13px 16px",
         display: "flex",
         flexDirection: "column",
@@ -576,7 +583,7 @@ function Composer() {
       <span
         style={{
           font: `400 13.5px/1 ${GEIST}`,
-          color: "rgba(255,255,255,0.35)",
+          color: "var(--hiw-comp-ph)",
         }}
       >
         Ask the agent...
@@ -587,7 +594,7 @@ function Composer() {
           height="15"
           viewBox="0 0 24 24"
           fill="none"
-          stroke="rgba(255,255,255,0.4)"
+          stroke="var(--hiw-comp-ico)"
           strokeWidth="1.5"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -599,7 +606,7 @@ function Composer() {
           style={{
             marginLeft: "auto",
             font: `400 11.5px/1 ${GEIST}`,
-            color: "rgba(255,255,255,0.3)",
+            color: "var(--hiw-comp-hint)",
           }}
         >
           {"⏎"} send · {"⇧"}
@@ -610,7 +617,7 @@ function Composer() {
             width: 26,
             height: 26,
             borderRadius: "50%",
-            background: "rgba(255,255,255,0.1)",
+            background: "var(--hiw-send-bg)",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -625,7 +632,7 @@ function Composer() {
           >
             <path
               d="M6 10V2M2.5 5.5 6 2l3.5 3.5"
-              stroke="rgba(255,255,255,0.75)"
+              stroke="var(--hiw-send-arrow)"
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -665,9 +672,8 @@ function ChatCard({
         height,
         minWidth: 0,
         borderRadius: 12,
-        background: "#161519",
-        boxShadow:
-          "0 24px 70px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.08)",
+        background: "var(--hiw-card-bg)",
+        boxShadow: "var(--hiw-card-shadow)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
@@ -715,30 +721,14 @@ function Header() {
         maxWidth: 560,
       }}
     >
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          height: 22,
-          padding: "0 12px",
-          borderRadius: "var(--radius-pill)",
-          font: "var(--text-caption)",
-          letterSpacing: "var(--tracking-caption)",
-          whiteSpace: "nowrap",
-          boxSizing: "border-box",
-          background: "rgba(255,255,255,0.06)",
-          color: "rgba(255,255,255,0.8)",
-          boxShadow: "0 0 0 1px rgba(229,229,227,0.18)",
-        }}
-      >
-        How it works
-      </span>
+      {/* The shared eyebrow (components/Badge.astro) by its CSS class: this is a
+          React island, so it cannot render the Astro component itself. */}
+      <span className="ag-badge ag-badge--default">How it works</span>
       <h2
         style={{
           margin: 0,
           font: "var(--text-display-lg)",
-          color: "#FFFFFF",
+          color: "var(--hiw-h2)",
           textWrap: "pretty",
         }}
       >
@@ -748,7 +738,7 @@ function Header() {
         style={{
           margin: 0,
           font: "var(--text-body-md)",
-          color: "var(--text-on-dark-muted)",
+          color: "var(--hiw-sub)",
           textWrap: "pretty",
         }}
       >
@@ -788,7 +778,7 @@ function Chevron({ active }: { active: boolean }) {
     >
       <path
         d="M3 6l5 5 5-5"
-        stroke="rgba(255,255,255,0.6)"
+        stroke="var(--hiw-chev)"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -880,18 +870,22 @@ export default function HowItWorks() {
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span
+            {/* The no-JS / reduced-motion layout is what a crawler reads, so
+                the beat title has to be a real <h3> here too (see the scroll
+                layout below). margin:0 keeps it pixel-identical. */}
+            <h3
               style={{
+                margin: 0,
                 font: "300 27px/1.2 var(--font-display,'GT Alpina',serif)",
-                color: "#F7F6F4",
+                color: "var(--hiw-beat-on)",
               }}
             >
               {label}
-            </span>
+            </h3>
             <span
               style={{
                 font: "var(--text-body-sm)",
-                color: "rgba(255,255,255,0.55)",
+                color: "var(--hiw-beat-body)",
               }}
             >
               {body}
@@ -984,9 +978,9 @@ export default function HowItWorks() {
                   style={{
                     padding: "24px 2px",
                     cursor: "pointer",
-                    borderTop: "1px solid rgba(255,255,255,0.12)",
+                    borderTop: "1px solid var(--hiw-beat-border)",
                     ...(i === BEATS.length - 1
-                      ? { borderBottom: "1px solid rgba(255,255,255,0.12)" }
+                      ? { borderBottom: "1px solid var(--hiw-beat-border)" }
                       : {}),
                   }}
                 >
@@ -998,10 +992,17 @@ export default function HowItWorks() {
                       gap: 16,
                     }}
                   >
+                    {/* Deliberately NOT a heading: this row is a role="button" accordion
+                        control, and a heading inside a button is exposed as
+                        presentational, so it would add nothing for assistive
+                        tech. The no-JS layout below carries the real <h3> —
+                        that is the markup crawlers receive. */}
                     <span
                       style={{
                         font: "300 27px/1.2 var(--font-display,'GT Alpina',serif)",
-                        color: active ? "#F7F6F4" : "rgba(255,255,255,0.55)",
+                        color: active
+                          ? "var(--hiw-beat-on)"
+                          : "var(--hiw-beat-off)",
                       }}
                     >
                       {b.title}
@@ -1021,7 +1022,7 @@ export default function HowItWorks() {
                     <span
                       style={{
                         font: "var(--text-body-sm)",
-                        color: "rgba(255,255,255,0.55)",
+                        color: "var(--hiw-beat-body)",
                         maxWidth: 300,
                         display: "block",
                       }}
