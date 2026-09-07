@@ -1234,24 +1234,29 @@ export const useAgentConversation = ({
     const [executedFor] = useState(() => createExecutedToolIdentityCache())
     // Per-mount view-model cache: unchanged turns keep object identity, so `TurnRow`'s memo holds.
     const [turnCache] = useState(() => createTurnViewModelCache())
+    // Memoized so the turn cache can key on it: renderMap is built across the whole conversation,
+    // so a hint arriving late must invalidate the earlier turns it reclassifies.
+    const classifyClientToolPart = useMemo(
+        (): ClientToolPartPredicate => (part, ctx) =>
+            (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
+        [isClientToolPart, renderMap],
+    )
     const turns = useMemo(
         () =>
             buildTurnViewModels(displayMessages, {
                 busy: busy || (includePreview && previewMessages.length > 0),
                 executedFor,
                 cache: turnCache,
-                isClientToolPart: (part, ctx) =>
-                    (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
+                isClientToolPart: classifyClientToolPart,
             }),
         [
             displayMessages,
             busy,
             executedFor,
             turnCache,
-            isClientToolPart,
+            classifyClientToolPart,
             includePreview,
             previewMessages.length,
-            renderMap,
         ],
     )
 

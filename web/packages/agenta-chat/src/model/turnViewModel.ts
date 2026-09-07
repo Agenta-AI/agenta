@@ -50,20 +50,35 @@ export const createExecutedToolIdentityCache = (): ((message: UIMessage) => Set<
 export const createTurnViewModelCache = () => {
     const cache = new Map<
         string,
-        {message: UIMessage; key: string; executed: Set<string>; vm: TurnViewModel}
+        {
+            message: UIMessage
+            key: string
+            executed: Set<string>
+            classify: ClientToolPartPredicate | undefined
+            vm: TurnViewModel
+        }
     >()
     return {
         reuse(
             message: UIMessage,
             key: string,
             executed: Set<string>,
+            // Classification reads state built across the WHOLE conversation, so a later
+            // message can change an earlier turn while that message object is unchanged.
+            classify: ClientToolPartPredicate | undefined,
             build: () => TurnViewModel,
         ): TurnViewModel {
             const hit = cache.get(message.id)
-            if (hit && hit.message === message && hit.key === key && hit.executed === executed)
+            if (
+                hit &&
+                hit.message === message &&
+                hit.key === key &&
+                hit.executed === executed &&
+                hit.classify === classify
+            )
                 return hit.vm
             const vm = build()
-            cache.set(message.id, {message, key, executed, vm})
+            cache.set(message.id, {message, key, executed, classify, vm})
             return vm
         },
         /** Drop entries for messages no longer in the transcript (rewind, truncation). */
@@ -112,7 +127,8 @@ export interface BuildTurnViewModelsContext {
     busy: boolean
     /** Executed-identity resolver — pass a `createExecutedToolIdentityCache()` instance. */
     executedFor: (message: UIMessage) => Set<string>
-    /** Defaults to "nothing is a client tool" — parts fold into the regular tool groups. */
+    /** Defaults to "nothing is a client tool" — parts fold into the regular tool groups.
+     *  Must be stable across renders: the cache keys on its identity. */
     isClientToolPart?: ClientToolPartPredicate
     /** Pass a `createTurnViewModelCache()` instance to keep unchanged turns identity-stable. */
     cache?: TurnViewModelCache
@@ -148,7 +164,7 @@ export const buildTurnViewModels = (
                 executed,
                 isClientToolPart,
             })
-        return cache ? cache.reuse(message, key, executed, build) : build()
+        return cache ? cache.reuse(message, key, executed, isClientToolPart, build) : build()
     })
 }
 
