@@ -158,6 +158,9 @@ Keep every tool you add under `agent-files/.tools/`. That folder is hidden from 
 survives across sessions. Before each session starts, the platform copies
 `agent-files/.tools/bin/` to `.tools/bin/` in your working directory, marks the files
 executable, and runs `agent-files/.tools/setup.sh` if it exists, with a two-minute limit.
+The script runs only when this run's permission posture is `allow`, the posture under which
+your own shell calls need no approval; under `ask` or `deny` the binaries are still copied and
+the script is skipped, so check for its output before you rely on it.
 `.tools/` in your working directory is on local disk. Call added tools by that path:
 `.tools/bin/<tool>`.
 
