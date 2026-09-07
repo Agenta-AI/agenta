@@ -49,6 +49,8 @@ class _Workflow:
         self.slug = slug
         self.name = name
         self.meta = meta
+        # The head revision's own (immutable) meta — what checkpoint recovery reads.
+        self.revision_meta = meta
         self.payload = payload
         self.variant_id = uuid4()
         self.revision_id = uuid4()
@@ -73,6 +75,12 @@ class _StubWorkflowsService:
         ids = {ref.id for ref in (workflow_refs or [])}
         return [w for w in self.store.values() if w.id in ids]
 
+    async def fetch_workflow_revision(self, *, project_id, workflow_ref, **_):
+        workflow = self.store.get(workflow_ref.id)
+        if workflow is None:
+            return None
+        return SimpleNamespace(id=workflow.revision_id, meta=workflow.revision_meta)
+
     async def commit_workflow_revision_checked(
         self, *, project_id, user_id, workflow_revision_commit, platform_meta=False
     ):
@@ -84,6 +92,7 @@ class _StubWorkflowsService:
         self.commits.append(workflow_revision_commit)
         workflow = self.store[workflow_revision_commit.workflow_id]
         workflow.payload = dict(workflow_revision_commit.data.parameters["skill"])
+        workflow.revision_meta = workflow_revision_commit.meta
         workflow.revision_id = uuid4()
         return SimpleNamespace(
             revision=SimpleNamespace(id=workflow.revision_id),
@@ -327,6 +336,7 @@ async def test_check_derives_detached_from_local_edit(fixture_tree):
     # A local edit changes the head WITHOUT any provenance stamp (absence-as-
     # signal): the content hash walks away from the checkpoint.
     alpha.payload = {**alpha.payload, "body": "Edited in Agenta."}
+    alpha.revision_meta = None
 
     (fixture_tree / "skills/alpha/SKILL.md").write_text(
         "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
@@ -410,6 +420,7 @@ async def test_apply_never_overwrites_a_detached_skill(fixture_tree):
     await _import_all(service)
     alpha = _workflow_named(simple, "alpha")
     alpha.payload = {**alpha.payload, "body": "Edited in Agenta."}
+    alpha.revision_meta = None
 
     (fixture_tree / "skills/alpha/SKILL.md").write_text(
         "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
@@ -449,3 +460,53 @@ def test_merge_ag_meta_preserves_foreign_keys():
     assert merged["_ag"]["origin"] == {"a": 2}
     # The input dicts are not mutated.
     assert existing["_ag"]["origin"] == {"a": 1}
+
+
+@pytest.mark.asyncio
+async def test_check_recovers_from_a_lost_checkpoint_write(fixture_tree):
+    """Apply commits the revision and writes the checkpoint separately. If the
+    checkpoint write is lost, the head still carries immutable provenance proving
+    sync wrote it — so the skill reconciles instead of stranding as detached."""
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    alpha = _workflow_named(simple, "alpha")
+
+    (fixture_tree / "skills/alpha/SKILL.md").write_text(
+        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
+    )
+    service.fetcher.commit_sha = "def5678"
+    await service.apply_update(
+        project_id=PROJECT_ID, user_id=USER_ID, workflow_id=alpha.id
+    )
+
+    # Simulate the crash window: the commit landed, the checkpoint write did not.
+    alpha.meta = merge_ag_meta(
+        alpha.meta,
+        {
+            "origin": {
+                **read_origin(alpha.meta),
+                "last_imported": {
+                    **read_origin(alpha.meta)["last_imported"],
+                    "content_hash": "stale-checkpoint",
+                },
+            }
+        },
+    )
+
+    check = await service.check_update(project_id=PROJECT_ID, workflow_id=alpha.id)
+    assert check.status == "up_to_date"
+
+
+@pytest.mark.asyncio
+async def test_recovery_never_rescues_a_hand_edited_head(fixture_tree):
+    """The reconciliation is not a blanket 'trust the head': content that no
+    provenance stamp vouches for still reads as detached."""
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    alpha = _workflow_named(simple, "alpha")
+
+    # Provenance stays from the import, but the content moved underneath it.
+    alpha.payload = {**alpha.payload, "body": "Edited in Agenta."}
+
+    check = await service.check_update(project_id=PROJECT_ID, workflow_id=alpha.id)
+    assert check.status == "detached"

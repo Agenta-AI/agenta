@@ -19,7 +19,7 @@ from oss.src.core.skills.dtos import (
     SkillUsageQuery,
 )
 from oss.src.core.skills.provenance import (
-    last_imported_hash,
+    effective_anchor_hash,
     origin_locator,
     read_origin,
 )
@@ -177,8 +177,15 @@ class SkillsService:
                         checkpoint.get("url") if isinstance(checkpoint, dict) else None
                     ),
                     # Derived, never stored: a head that hashes away from the
-                    # checkpoint was edited locally (fails safe for any writer).
-                    detached=_head_hash(payload) != last_imported_hash(origin),
+                    # anchor was edited locally (fails safe for any writer). The
+                    # anchor reconciles against the head's own provenance, so a
+                    # lost checkpoint write never shows as a local edit.
+                    detached=_head_hash(payload)
+                    != effective_anchor_hash(
+                        origin,
+                        head_content_hash=_head_hash(payload),
+                        head_meta=revision.meta,
+                    ),
                 )
 
             skills.append(

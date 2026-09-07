@@ -44,7 +44,7 @@ from oss.src.core.skills.parser import (
 from oss.src.core.skills.provenance import (
     build_origin,
     build_provenance,
-    last_imported_hash,
+    effective_anchor_hash,
     merge_ag_meta,
     origin_locator,
     read_origin,
@@ -395,6 +395,13 @@ class SkillImportService:
                 "checked against an upstream source.",
             )
 
+        # The head revision carries the immutable provenance that checkpoint
+        # reconciliation reads (see effective_anchor_hash).
+        head_revision = await self.workflows_service.fetch_workflow_revision(
+            project_id=project_id,
+            workflow_ref=Reference(id=workflow_id),
+        )
+
         with make_workdir() as workdir:
             fetched = await self.fetcher.fetch(
                 repo_url=f"github.com/{repository}",
@@ -404,7 +411,7 @@ class SkillImportService:
             scan = scan_tree(fetched.root)
 
         candidate = next((c for c in scan.candidates if c.path_in_repo == path), None)
-        return workflow, origin, fetched, candidate
+        return workflow, origin, head_revision, fetched, candidate
 
     @staticmethod
     def _classify(
@@ -412,17 +419,23 @@ class SkillImportService:
         origin: Dict[str, Any],
         candidate: Optional[ScanCandidate],
         head_payload: Optional[dict],
+        head_meta: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, Optional[str], List[SkillIssue]]:
         """Shared check/apply triage. Detachment derives from CONTENT, never a
-        stored flag: an unstamped or hand-edited head hashes differently from
-        `origin.last_imported.content_hash` and reads as detached (fails safe)."""
+        stored flag: an unstamped or hand-edited head hashes differently from the
+        anchor and reads as detached (fails safe). The anchor is the artifact
+        checkpoint, reconciled against the head revision's own provenance so a
+        checkpoint write lost after a successful commit cannot strand the skill."""
         if candidate is None:
             return "missing_in_source", None, []
         if not candidate.valid or not candidate.skill:
             return "invalid_in_source", None, candidate.issues
 
-        anchor_hash = last_imported_hash(origin)
-        if skill_content_hash(head_payload) != anchor_hash:
+        head_hash = skill_content_hash(head_payload)
+        anchor_hash = effective_anchor_hash(
+            origin, head_content_hash=head_hash, head_meta=head_meta
+        )
+        if head_hash != anchor_hash:
             return "detached", None, []
 
         if content_hash(candidate) == anchor_hash:
@@ -437,13 +450,20 @@ class SkillImportService:
         workflow_id: UUID,
     ) -> UpdateCheckResult:
         """Read-only: compare one imported skill against its upstream origin."""
-        workflow, origin, fetched, candidate = await self._load_update_context(
+        (
+            workflow,
+            origin,
+            head_revision,
+            fetched,
+            candidate,
+        ) = await self._load_update_context(
             project_id=project_id, workflow_id=workflow_id
         )
         status, _, issues = self._classify(
             origin=origin,
             candidate=candidate,
             head_payload=_stored_payload(workflow.data),
+            head_meta=getattr(head_revision, "meta", None),
         )
         return UpdateCheckResult(
             workflow_id=str(workflow_id),
@@ -462,7 +482,13 @@ class SkillImportService:
         """Commit the upstream version as a new revision, with the head as the
         base (a moved head 409s → `conflict`), then advance the artifact's
         `origin.last_imported` checkpoint through the `_ag` merge."""
-        workflow, origin, fetched, candidate = await self._load_update_context(
+        (
+            workflow,
+            origin,
+            head_revision,
+            fetched,
+            candidate,
+        ) = await self._load_update_context(
             project_id=project_id, workflow_id=workflow_id
         )
         head_payload = _stored_payload(workflow.data)
@@ -470,6 +496,7 @@ class SkillImportService:
             origin=origin,
             candidate=candidate,
             head_payload=head_payload,
+            head_meta=getattr(head_revision, "meta", None),
         )
         if status != "update_available":
             return UpdateApplyResult(

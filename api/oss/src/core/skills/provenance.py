@@ -89,6 +89,44 @@ def origin_locator(origin: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return locator if isinstance(locator, dict) else {}
 
 
+def read_provenance(meta: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The immutable provenance stamped on one revision by import/update."""
+    if not isinstance(meta, dict):
+        return None
+    ag = meta.get(AG_META_KEY)
+    provenance = ag.get("provenance") if isinstance(ag, dict) else None
+    return provenance if isinstance(provenance, dict) else None
+
+
+def effective_anchor_hash(
+    origin: Optional[Dict[str, Any]],
+    *,
+    head_content_hash: Optional[str],
+    head_meta: Optional[Dict[str, Any]],
+) -> Optional[str]:
+    """The hash the head must match to still count as sync-owned.
+
+    Normally the artifact's checkpoint. Applying an update writes the revision
+    and the checkpoint separately, so a crash between them would otherwise
+    strand the skill as `detached` forever. The head revision's provenance is
+    immutable and says what sync wrote, so a head whose OWN provenance matches
+    its content reconciles the checkpoint instead of reading as a local edit.
+    """
+    anchor = last_imported_hash(origin)
+    if head_content_hash is not None and head_content_hash == anchor:
+        return anchor
+
+    provenance = read_provenance(head_meta)
+    if (
+        provenance is not None
+        and provenance.get("operation") in ("import", "update")
+        and provenance.get("content_hash") == head_content_hash
+    ):
+        return head_content_hash
+
+    return anchor
+
+
 def last_imported_hash(origin: Optional[Dict[str, Any]]) -> Optional[str]:
     checkpoint = (origin or {}).get("last_imported")
     if not isinstance(checkpoint, dict):
