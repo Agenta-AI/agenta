@@ -9,7 +9,10 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
     BUILD_AN_AGENT_SLUG,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
-from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
+from agenta.sdk.agents.platform.workflow import (
+    REQUEST_CONNECTION_WORKFLOW_SLUG,
+    REQUEST_SECRET_WORKFLOW_SLUG,
+)
 from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
@@ -130,6 +133,7 @@ def test_agent_template_overlay_tools_list_is_pinned():
         slug=REQUEST_CONNECTION_WORKFLOW_SLUG
     )
     request_input = catalog.retrieve_revision(slug=REQUEST_INPUT_WORKFLOW_SLUG)
+    request_secret = catalog.retrieve_revision(slug=REQUEST_SECRET_WORKFLOW_SLUG)
 
     assert overlay["tools"] == [
         *[
@@ -159,6 +163,13 @@ def test_agent_template_overlay_tools_list_is_pinned():
                 "@ag.selector": {"path": "parameters.tool"},
             },
             "name": request_input.name,
+        },
+        {
+            "@ag.embed": {
+                "@ag.references": {"workflow": {"slug": REQUEST_SECRET_WORKFLOW_SLUG}},
+                "@ag.selector": {"path": "parameters.tool"},
+            },
+            "name": request_secret.name,
         },
     ]
 
@@ -245,6 +256,7 @@ def test_agent_template_overlay_includes_only_allowlisted_static_tool_embeds():
     assert tool_embed_slugs == {
         REQUEST_CONNECTION_WORKFLOW_SLUG,
         REQUEST_INPUT_WORKFLOW_SLUG,
+        REQUEST_SECRET_WORKFLOW_SLUG,
     }
 
 
@@ -362,10 +374,13 @@ async def test_resolved_build_kit_overlay_parses_through_from_params():
     assert [tool.name for tool in client_tools] == [
         "request_connection",
         "request_input",
+        "request_secret",
     ]
     assert client_tools[0].render == {"kind": "connect"}
     # The elicitation tool (interaction kinds M1) carries its REQUIRED render.kind.
     assert client_tools[1].render == {"kind": "elicitation"}
+    # The secret request opens the secret dock, so it carries its own render.kind.
+    assert client_tools[2].render == {"kind": "secret"}
     assert [skill.name for skill in template.skills] == ["build-an-agent"]
 
 

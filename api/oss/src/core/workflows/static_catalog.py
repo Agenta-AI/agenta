@@ -164,7 +164,16 @@ def _request_secret_revision() -> WorkflowRevision:
                 "tool": {
                     "type": "client",
                     "name": REQUEST_SECRET_TOOL_NAME,
-                    "description": "Pause the run and ask the user to configure a custom secret.",
+                    "description": (
+                        "Pause the run and ask the user to configure a custom secret. "
+                        "Call this tool when a credential the operation needs is not "
+                        "available, and let the user set it up here instead of asking "
+                        "for the value. Never ask the user to paste a credential into "
+                        "chat, and never inspect or print the value of a configured "
+                        "credential. If the user cancels the setup, stop the affected "
+                        "operation and do not ask for that secret again unless the user "
+                        "asks to retry."
+                    ),
                     "input_schema": {
                         "type": "object",
                         "properties": {

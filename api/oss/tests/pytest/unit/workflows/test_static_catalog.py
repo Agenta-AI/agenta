@@ -1026,3 +1026,11 @@ def test_request_secret_catalog_entry_shape():
     assert tool["render"] == {"kind": "secret"}
     assert tool["input_schema"]["required"] == ["name", "env_var", "reason"]
     assert "value" not in tool["input_schema"]["properties"]
+    # The usage rules live on the tool, not in the always-on platform preamble: an agent that
+    # cannot see this tool must not be told about the secret setup flow at all.
+    description = tool["description"]
+    assert description.startswith(
+        "Pause the run and ask the user to configure a custom secret."
+    )
+    assert "Never ask the user to paste a credential into chat" in description
+    assert "do not ask for that secret again" in description

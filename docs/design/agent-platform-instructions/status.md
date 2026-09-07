@@ -40,3 +40,35 @@ mechanisms are out of scope.
 Implementation uses an isolated source copy of release commit
 `76f7b0b6f0795c2e792ab4a4403e3e01303f228c`. The shared checkout contains unrelated
 website conflicts. Publication must preserve those files and the shared index.
+
+## 2026-09-07: the base text became the platform prompt
+
+Branch `feat/release-1153-platform-prompt`, target `release/v0.115.3`.
+
+- `AGENTA_PLATFORM_BASE` grew from a four-sentence stub into the full platform prompt: what
+  Agenta is, the coworker persona, how the agent works and talks, the three ask gates, files
+  and storage, credentials, GitHub rules, and the harness features that do not work here. A
+  second constant, `AGENTA_CONFIG_SECTIONS`, holds the parts that name configuration tools
+  (task against configuration intent, the configuration itself, memory, automations, naming).
+  `compose_platform_instructions` includes it only when the run offers `commit_revision`.
+- The runner's fenced block dropped the two config sentences the prompt now owns (the rendered
+  file is a copy; skills live in the configuration). Its file-citation sentence now asks for a
+  path relative to the working directory, because the chat's link gate cannot open an absolute
+  sandbox path. The mount paragraph and the codex rebuttal stay.
+- `request_secret` ships through the build-kit overlay beside `request_connection` and
+  `request_input`, and its usage guidance moved into the tool description.
+- Open: the agent still cannot see its own name, the session name, or a first-turn flag. See
+  [open-issues.md](./open-issues.md).
+- The prompt gained an "Installing tools" section that matches the `agent-files/.tools`
+  restore hook from #6639: no `apt` or `sudo`, the shipped tool list, static binaries in
+  `agent-files/.tools/bin/`, environments rebuilt on local disk by `setup.sh`, and tools
+  called as `.tools/bin/<tool>` from the working directory. It assumes #5796 lands in the
+  same release.
+- Codex review (2026-09-07) on the combined change: the ask gates were narrowed to changes
+  outside the working directory, the refusal rule now distinguishes a policy refusal from a
+  refusal that names a fix, the link rule no longer claims an absolute path never opens, the
+  rendered-copy rule names the instruction and skill files only, and the storage section
+  hedges on an unavailable durable folder. The runner's mount paragraph no longer forbids
+  storing a preference in the instructions, which the prompt's Memory section requires. The
+  SDK resolver collapses two identical copies of a reserved client tool, so a revision that
+  embedded `request_secret` by hand before it joined the kit still runs.

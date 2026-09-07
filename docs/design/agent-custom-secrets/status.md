@@ -16,6 +16,18 @@ Implementation and independent review are complete. Runtime, SDK, runner, shared
 - V1 uses existing secret-edit, agent-edit, and run permissions. It adds no role system.
 - Runtime values travel only in typed `sandboxCredentials` and participate in existing redaction and credential lifecycle controls.
 
+## 2026-09-07: `request_secret` ships through the build kit overlay
+
+`request_secret` is now a reserved static tool embed in the playground build kit
+(`api/oss/src/core/workflows/build_kit.py`), next to `request_connection` and
+`request_input`. Every playground agent gets the tool the same way it gets the other two,
+and no agent has to embed it by hand.
+
+The usage rules moved with the tool. The guidance about opening the secret setup flow,
+never asking for a pasted credential, and stopping after a cancellation now lives in the
+`request_secret` description in `api/oss/src/core/workflows/static_catalog.py`. An agent
+that cannot see the tool no longer reads instructions about it.
+
 ## Validation evidence
 
 - Local Pi S1 passed injection, same-slug rotation, removal, continuity, and no-plaintext assertions.
