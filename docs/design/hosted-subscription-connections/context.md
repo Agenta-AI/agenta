@@ -1,7 +1,5 @@
 # Context
 
-> AGENT-GENERATED, low weight. This is a draft. Mahmoud must approve product and interface decisions.
-
 ## What users can do today
 
 Agenta already supports subscription authentication on a self-hosted local runner. The operator
@@ -28,7 +26,7 @@ third-party sandbox.
 
 ## Goal
 
-Let an eligible user connect one ChatGPT or SuperGrok account once, select it as an AI provider
+Let a user connect one ChatGPT or SuperGrok account once, select it as an AI provider
 connection, and use it for interactive agent turns. The first release limits use to the person who
 connected the account and allows one active run per connection. Keep authentication material
 outside agent workspaces. Preserve provider refresh updates. Support immediate revocation and clear
@@ -44,4 +42,3 @@ user's subscription when that user is not actively starting the run.
 - Do not advertise an unsupported consumer subscription.
 - Do not copy refresh tokens into every agent or sandbox.
 - Do not send subscription login files to Daytona in the first release.
-- Do not make an OAuth grant a substitute for reviewing provider terms.

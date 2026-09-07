@@ -1,7 +1,5 @@
 # Implementation plan
 
-> AGENT-GENERATED, low weight. This is a draft. Mahmoud must approve product and interface decisions.
-
 ## Recommendation
 
 For the first hosted release, use the official Codex and Grok Build programs as both the login
@@ -9,13 +7,8 @@ owner and the model harness. Codex already exists as an Agenta harness. Grok Bui
 a new Agent Client Protocol (ACP) harness. Keep each connection private to the user who completed
 the login and allow one interactive run at a time.
 
-The broader AI provider connection interface can later support two authentication paths:
-
-1. Subscription API keys, such as MiniMax Token Plan and Kimi Code, should use Agenta's existing
-   write-only vault and normal managed credential delivery. These do not need a persistent runner.
-2. Native CLI logins, such as Codex and Grok Build, should use a private durable authentication
-   home attached through a server-owned runner connection. They must not live in a sandbox or
-   agent workspace.
+Native CLI logins use a private durable authentication home attached through a server-owned runner
+connection. They must not live in a sandbox or agent workspace.
 
 Do not copy Squad's one-virtual-machine-per-customer architecture as a prerequisite. It is simple
 but expensive and joins unrelated state. Agenta can preserve its control-plane and runner split by
@@ -57,7 +50,6 @@ subscription_connection
   runner_connection_id     server-only routing reference
   state
   provider_subject_hash    optional deduplication value, never the email address
-  policy_version
   created_at
   last_verified_at
   disconnected_at
@@ -236,15 +228,14 @@ Extend the existing provider connection concept with an authentication source:
   "provider": "openai",
   "auth_source": "runner_login",
   "product": "chatgpt_codex",
-  "usage_mode": "interactive_only",
+  "execution_mode": "interactive_only",
   "harnesses": ["codex"]
 }
 ```
 
-For a subscription API key, use `vault_key` instead. Native logins store a server-owned
-`runner_connection_id`. Never return that identifier's target URL or authentication-home path to
-the browser. `usage_mode` is provider policy enforced by the server. It is not a descriptive UI
-tag. Values should initially be `interactive_only` or `interactive_and_scheduled`.
+Native logins store a server-owned `runner_connection_id`. Never return that identifier's target
+URL or authentication-home path to the browser. `execution_mode` is a server-enforced run
+restriction. The first release uses `interactive_only`.
 
 ## Delivery order
 
@@ -285,12 +276,12 @@ Candidate areas:
 5. Back up encrypted credential state separately from agent working files.
 6. Delete or revoke the home when the user disconnects the account.
 
-The authentication home is shared by eligible agents using that connection. Their conversation
+The authentication home is shared by agents using that connection. Their conversation
 working directories, native session state, and sandboxes remain separate.
 
 ### Add browser-based connection onboarding
 
-1. User chooses an eligible provider product in AI Providers.
+1. User chooses ChatGPT or SuperGrok in AI Providers.
 2. Agenta creates a pending connection and starts the provider's official device or browser flow on
    the assigned runner.
 3. The frontend shows the provider URL and user code. It never receives the refresh token.
@@ -301,27 +292,8 @@ working directories, native session state, and sandboxes remain separate.
 7. Disconnect revokes at the provider when supported, destroys the local authentication home, and
    blocks new runs immediately.
 
-Use the official client unmodified when its license and provider terms require that identity. Do
-not replay private OAuth endpoints with an invented Agenta client.
-
-### Add eligible subscription API-key products later
-
-1. Finish the stable provider connection work in `docs/design/provider-connections-models/`.
-2. Add MiniMax Token Plan and Kimi Code as named products with fixed endpoints, model identifiers,
-   allowed harnesses, and required client identity.
-3. Store their keys in the existing write-only vault.
-4. Resolve them as `credential_mode = "env"` through the existing connection resolver.
-5. Test revocation, multiple accounts, model selection, schedules, and rate-limit errors.
-
-This path remains independent from the ChatGPT and SuperGrok onboarding release.
-
-### Enforce product policy
-
-1. Build a versioned allowlist keyed by product and authentication method.
-2. Reject scheduled or event runs for `interactive_only` products.
-3. Do not offer blocked products in the connection interface.
-4. Record the terms source and review date beside each catalog entry.
-5. Fail closed when a policy entry expires or the provider changes the access rules.
+Use the official client for device login and model execution. Do not replay private OAuth endpoints
+with an Agenta client.
 
 ### Add operational controls
 
@@ -335,20 +307,18 @@ This path remains independent from the ChatGPT and SuperGrok onboarding release.
 ## Acceptance criteria
 
 - Two users cannot resolve each other's runner or authentication home.
-- Two agents can use one approved subscription connection while keeping separate sessions and
+- Two agents can use one subscription connection while keeping separate sessions and
   working directories.
 - A provider refresh persists and is visible to the next run.
 - Concurrent refresh attempts cannot corrupt or invalidate rotating credentials.
 - Removing a connection blocks subsequent runs before a harness starts.
 - The model never receives access tokens, refresh tokens, credential paths, or runner credentials.
 - An interactive-only product cannot run from a schedule or event.
-- Gemini consumer OAuth and other blocked products cannot be configured through hidden API fields.
 - Existing self-hosted subscription mounts keep working without migration.
 - Existing API-key connections and Daytona runs remain unchanged.
 
 ## Suggested first release
 
-Start with ChatGPT through Codex and SuperGrok through Grok Build. Provider approval is
-founder-confirmed. Build the user-owned connection resource, encrypted authentication homes, and
-server-owned runner routing before exposing either option in onboarding. Keep the current
-self-hosted Codex, Claude Code, and Pi mount path unchanged.
+Start with ChatGPT through Codex and SuperGrok through Grok Build. Build the user-owned connection
+resource, encrypted authentication homes, and server-owned runner routing before exposing either
+option in onboarding. Keep the current self-hosted Codex, Claude Code, and Pi mount path unchanged.

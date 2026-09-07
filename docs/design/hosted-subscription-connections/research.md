@@ -1,7 +1,5 @@
 # Code research
 
-> AGENT-GENERATED, low weight. This is a draft. Mahmoud must approve product and interface decisions.
-
 ## Existing subscription execution
 
 The connection resolver already maps `self_managed` to `runtime_provided` without adding a model
@@ -149,7 +147,7 @@ Official sources:
 ## Main conclusion
 
 Agenta does not need one persistent sandbox per customer. It needs one durable authentication home
-per connected account and a runner that can mount that home for an eligible harness. Sessions can
+per connected account and a runner that can mount that home for the selected harness. Sessions can
 continue using separate durable working directories and separate runtime processes. The mounted
 design remains conditional on proving that model-started tools cannot read the authentication
 home.
