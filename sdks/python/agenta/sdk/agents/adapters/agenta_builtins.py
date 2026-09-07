@@ -34,35 +34,26 @@ _ORDERED = ordered_operations_enabled()
 GETTING_STARTED_WITH_AGENTA_SLUG = "__ag__getting_started_with_agenta"
 BUILD_AN_AGENT_SLUG = "__ag__build_an_agent"
 
-# Canonical SKILL.md body for the platform "getting started" skill. Single source of the body
-# text: the server-side StaticWorkflowCatalog imports this constant rather than redeclaring it.
+# RETIRED on 2026-09-07. The four conventions this skill carried (greet once, state assumptions,
+# resolve relative paths against the skill folder, keep answers short) now live in the platform
+# prompt (`platform_instructions.py`), which every harness reads first. No default template
+# embeds the slug any more (`build_agent_v0_default()` is called without a skill slug), but
+# revisions saved before that still reference `__ag__getting_started_with_agenta`, and an
+# embed the catalog cannot resolve fails the run. So the slug stays resolvable and serves this
+# one-line stub. Delete the constant, the catalog entry, and this comment once a data migration
+# has dropped the embed from stored revisions.
 _GETTING_STARTED_BODY = (
     "# Getting started with Agenta agents\n"
     "\n"
-    "This skill orients an agent running on the Agenta platform.\n"
-    "\n"
-    "## When to use it\n"
-    "\n"
-    "Use it at the start of a task to recall how Agenta agents are expected to behave: be "
-    "concise, ask for missing inputs, and prefer the tools and skills the agent was given over "
-    "guessing.\n"
-    "\n"
-    "## Conventions\n"
-    "\n"
-    "- Greet the user once, then get to work.\n"
-    "- State assumptions briefly when a request is ambiguous.\n"
-    "- When a skill or tool references a relative path, resolve it against the skill directory "
-    "(the parent of SKILL.md) before running it.\n"
-    "- Keep answers short unless the user asks for depth.\n"
+    "This skill is retired. The platform instructions you already read cover how an Agenta "
+    "agent behaves. There is nothing more to do here.\n"
 )
 
-# The platform default skill as a concrete inline package. This is the canonical content; the
-# server-side catalogue serves the same SkillTemplate for the reserved slug above.
 GETTING_STARTED_WITH_AGENTA_SKILL = SkillTemplate(
     name="agenta-getting-started",
     description=(
-        "Getting started on the Agenta platform: how an Agenta agent should behave, ask for "
-        "missing inputs, and use its tools and skills. Use at the start of a task."
+        "Retired. The platform instructions cover how an Agenta agent behaves; this skill "
+        "adds nothing and you do not need to read it."
     ),
     body=_GETTING_STARTED_BODY,
 )

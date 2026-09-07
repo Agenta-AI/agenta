@@ -90,3 +90,7 @@ Branch `feat/release-1153-build-kit-skill`, stacked on `feat/release-1153-platfo
   the next session.
 - `annotate_trace` and `query_spans` left the build kit. They stay in the catalog as
   opt-ins.
+- The `agenta-getting-started` skill is retired to a one-line stub. No default template
+  embeds it any more, but revisions saved earlier still reference its slug, and an embed the
+  catalog cannot resolve fails the run. The slug stays resolvable until a data migration
+  drops the embed from stored revisions; then the constant and the catalog entry go.
