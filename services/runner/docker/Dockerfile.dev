@@ -8,51 +8,30 @@ FROM node:24-slim
 
 WORKDIR /app
 
-# CA certificates: the sandbox-agent daemon downloads harness CLIs (e.g. Claude Code) over
-# HTTPS using the system trust store, which node:*-slim omits — without this the daemon's
-# `install-agent claude` fails TLS verification. git lets npm/installers fetch git deps.
-# python3 runs `code` tools whose runtime is "python": the runner relays the call and
-# spawns `python3` (src/tools/code.ts), so without it those tools fail `spawn python3 ENOENT`.
-# fuse + geesefs: the durable session cwd (mount.ts) is a geesefs FUSE mount of the store
-# prefix; `fuse` provides fusermount + /etc/fuse.conf (user_allow_other for -o allow_other).
-# unzip/zip + python-is-python3 (which symlinks /usr/bin/python -> python3): the local sandbox
-# IS this container, and an agent handed an archive reaches for `unzip` and plain `python`.
-# Without them every such task burns failed bash calls and extra approval round-trips.
-# ripgrep/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are the first
-# commands every harness reaches for when searching a tree. `fd` itself is pinned below
-# rather than taken from Debian, for the version reason recorded there.
-# libnss-unknown + the nsswitch edit: keep dev parity with Dockerfile.gh — the documented
-# subscription self-host scheme runs the container as the operator's uid, and fusermount aborts
-# ("could not determine username") for a uid with no passwd entry, killing every geesefs mount.
+# Everything an agent calls (git, gh, uv, fd, ripgrep, python3 + the pinned package set, node
+# tools, ffmpeg, poppler, tesseract, and ONE Chromium under PLAYWRIGHT_BROWSERS_PATH) comes from
+# the shared recipe images/sandbox/install-agent-tools.sh, which the Daytona snapshot runs
+# too, so the local sandbox (this container) and the remote one cannot drift. Each section of
+# that script asserts its own pin and fails the build otherwise.
+COPY images/sandbox/install-agent-tools.sh /tmp/install-agent-tools.sh
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
+RUN sh /tmp/install-agent-tools.sh && rm /tmp/install-agent-tools.sh
+
+# Image-specific bits the shared recipe leaves alone.
+# fuse: the durable session cwd (mount.ts) is a geesefs FUSE mount of the store prefix; `fuse`
+# provides fusermount + /etc/fuse.conf (user_allow_other for -o allow_other).
+# libnss-unknown + the nsswitch edit: the documented subscription self-host scheme runs this
+# container as the OPERATOR's uid (`user: "<id -u>:<id -g>"`), which usually has no /etc/passwd
+# entry in the image. fusermount calls getpwuid() and aborts with "could not determine username"
+# for a nameless uid, killing every geesefs workspace mount. libnss-unknown synthesizes an entry
+# for unknown uids so any `user:` override works.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        ca-certificates git python3 python-is-python3 unzip zip fuse curl \
-        ripgrep jq procps file tree libnss-unknown \
+        ca-certificates fuse libnss-unknown \
     && rm -rf /var/lib/apt/lists/* \
     && echo "user_allow_other" >> /etc/fuse.conf \
     && sed -i -E "s/^(passwd|group):(.*)/\1:\2 unknown/" /etc/nsswitch.conf \
     && grep -E "^(passwd|group):.* unknown$" /etc/nsswitch.conf
-
-# fd static binary. Debian's `fd-find` is 8.6.0 on bookworm, and Pi's `find` builtin passes
-# `--no-require-git`, a flag fd only gained in 9.0. Every Pi `find` call therefore failed with
-# "Found argument '--no-require-git' which wasn't expected" (measured: 52 of 52 across two
-# benchmark runs). Pinned release, arch-matched, same shape as geesefs above; the tarball holds
-# the binary one directory down, hence the --strip-components.
-ARG FD_VERSION=v10.4.2
-RUN set -eux; \
-    arch="$(dpkg --print-architecture)"; \
-    case "$arch" in \
-      amd64) fdarch="x86_64-unknown-linux-musl" ;; \
-      arm64) fdarch="aarch64-unknown-linux-musl" ;; \
-      *) echo "unsupported arch $arch" >&2; exit 1 ;; \
-    esac; \
-    curl -fsSL "https://github.com/sharkdp/fd/releases/download/${FD_VERSION}/fd-${FD_VERSION}-${fdarch}.tar.gz" \
-      -o /tmp/fd.tar.gz; \
-    tar -xzf /tmp/fd.tar.gz -C /usr/local/bin --strip-components=1 --wildcards '*/fd'; \
-    rm /tmp/fd.tar.gz; \
-    chmod +x /usr/local/bin/fd; \
-    fd --version; \
-    fd --help | grep -q -- --no-require-git
 
 # geesefs static binary (FUSE-over-S3) for the durable cwd. Pinned release; arch-matched.
 ARG GEESEFS_VERSION=v0.43.0

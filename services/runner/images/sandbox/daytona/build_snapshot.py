@@ -15,7 +15,8 @@ fresh sandbox. Set the runner service to use it:
 The runner probes for its pinned Pi before each session; because this recipe bakes it, the
 probe hits and no session-time install runs. The SDK code-evaluator runner can share the
 built snapshot through its own DAYTONA_SNAPSHOT_CODE / DAYTONA_SNAPSHOT variables, so the
-recipe additionally installs python3 and typescript/ts-node.
+recipe runs the shared tool recipe (install-agent-tools.sh), which includes python3 and
+typescript/ts-node.
 
 Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--force]
 
@@ -146,13 +147,21 @@ GEESEFS_URL = (
     "https://github.com/yandex-cloud/geesefs/releases/download/"
     f"{GEESEFS_VERSION}/geesefs-linux-amd64"
 )
-FD_VERSION = "v10.4.2"
-# amd64 only, matching this snapshot's base. The runner image arch-matches instead, because it
-# is built for both architectures; this snapshot is x86_64 by construction.
-FD_URL = (
-    f"https://github.com/sharkdp/fd/releases/download/{FD_VERSION}/"
-    f"fd-{FD_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-)
+
+# The shared tool recipe: one file installs everything an agent calls (gh, uv, fd, ripgrep, the
+# pinned Python set, node tools, ffmpeg, poppler, tesseract, ONE Chromium) in the runner images
+# AND this snapshot, so the local and the remote sandbox cannot drift. The Daytona build has no
+# context from this repo, so the script is embedded base64, the same way the codex patch is.
+INSTALL_SCRIPT = (Path(__file__).resolve().parents[1] / "install-agent-tools.sh").read_bytes()
+PLAYWRIGHT_BROWSERS_PATH = "/opt/pw-browsers"
+
+
+def install_agent_tools_command() -> str:
+    blob = base64.b64encode(INSTALL_SCRIPT).decode()
+    return (
+        f"RUN echo {blob} | base64 -d > /tmp/install-agent-tools.sh "
+        "&& sh /tmp/install-agent-tools.sh && rm /tmp/install-agent-tools.sh"
+    )
 
 
 def main() -> None:
@@ -196,33 +205,13 @@ def main() -> None:
             "&& echo codex-baked-in-base-image",
             "RUN test -x /home/sandbox/.local/share/sandbox-agent/bin/opencode "
             "&& echo opencode-baked-in-base-image",
+            # Everything an agent calls comes from the shared recipe (see INSTALL_SCRIPT).
+            # This includes python3 and typescript/ts-node for the SDK code-evaluator runtimes.
+            f"ENV PLAYWRIGHT_BROWSERS_PATH={PLAYWRIGHT_BROWSERS_PATH}",
+            install_agent_tools_command(),
             # Durable cwd: fuse + geesefs so the remote sandbox can mount its store prefix.
-            # unzip/zip + python-is-python3 (symlinks /usr/bin/python -> python3): an agent
-            # handed an archive reaches for `unzip` and plain `python`; without them every
-            # such task burns failed bash calls and extra approval round-trips. The base is
-            # Debian bookworm (node:22-bookworm), so python-is-python3 is the right package.
-            # ripgrep/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are
-            # the first commands every harness reaches for when searching a tree. `fd` is
-            # pinned below rather than taken from Debian, for the version reason recorded there.
-            "RUN apt-get update && apt-get install -y --no-install-recommends fuse curl "
-            "python3 python-is-python3 unzip zip ripgrep jq procps file tree "
+            "RUN apt-get update && apt-get install -y --no-install-recommends fuse "
             "&& rm -rf /var/lib/apt/lists/* && echo user_allow_other >> /etc/fuse.conf",
-            # fd, pinned. Debian's `fd-find` is 8.6.0 on bookworm, and Pi's `find` builtin
-            # passes `--no-require-git`, a flag fd only gained in 9.0, so every Pi `find` call
-            # failed here exactly as it did in the runner image. The final `grep -q` is a
-            # BUILD-TIME assertion: a pin that does not carry the flag fails the snapshot build
-            # instead of shipping a sandbox whose `find` is quietly broken.
-            f"RUN curl -fsSL -o /tmp/fd.tar.gz {FD_URL} "
-            "&& tar -xzf /tmp/fd.tar.gz -C /usr/local/bin --strip-components=1 "
-            "--wildcards '*/fd' && rm /tmp/fd.tar.gz && chmod +x /usr/local/bin/fd "
-            "&& fd --version && fd --help | grep -q -- --no-require-git",
-            # Code-evaluator runtimes: this snapshot is shared with the SDK DaytonaRunner.
-            # typescript@5: ts-node needs the JS compiler API; typescript 7+ is the Go
-            # rewrite with no JS API (ts.sys undefined).
-            "RUN npm install -g typescript@5 ts-node@10 "
-            "&& python3 --version "
-            "&& echo 'const v: number = 1; console.log(v)' > /tmp/v.ts "
-            "&& ts-node /tmp/v.ts && rm /tmp/v.ts",
             f"RUN curl -fsSL -o /usr/local/bin/geesefs {GEESEFS_URL} "
             "&& chmod +x /usr/local/bin/geesefs",
             "USER sandbox",
