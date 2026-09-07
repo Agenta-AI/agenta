@@ -355,7 +355,7 @@ services:
             # only its last message loses the conversation.
             AGENTA_SESSIONS_RECONSTRUCT: ${AGENTA_SESSIONS_RECONSTRUCT:-}
             AGENTA_RECORDS_DURABLE: ${AGENTA_RECORDS_DURABLE:-}
-            AGENTA_RUNNER_LIVE_FRAMES: ${AGENTA_RUNNER_LIVE_FRAMES:-false}
+            AGENTA_RUNNER_LIVE_FRAMES: ${AGENTA_RUNNER_LIVE_FRAMES:-true}
         # === SUBSCRIPTION MOUNTS (opt-in) ========================= #
         # Use your own harness subscription for LOCAL runs instead of a managed API
         # key. Mount the login READ-WRITE: the harness runs directly out of the mount and

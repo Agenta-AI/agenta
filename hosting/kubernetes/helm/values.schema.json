@@ -307,7 +307,7 @@
         "externalUrl": { "type": "string", "description": "AGENTA_RUNNER_INTERNAL_URL override pointing at an external runner." },
         "piAgentDir":  { "type": "string", "description": "PI_CODING_AGENT_DIR for local Pi runs (default /pi-agent); unset means no Agenta extension for the run (the runner logs a warning)." },
         "logLevel":    { "type": "string", "description": "AGENTA_RUNNER_LOG_LEVEL read by the runner service." },
-        "liveFrames":  { "type": "boolean", "description": "AGENTA_RUNNER_LIVE_FRAMES; opt-in temporary live-frame publication. Defaults to false." },
+        "liveFrames":  { "type": "boolean", "description": "AGENTA_RUNNER_LIVE_FRAMES; temporary live-frame publication. Defaults to true." },
         "providers": {
           "type": "object",
           "additionalProperties": false,
