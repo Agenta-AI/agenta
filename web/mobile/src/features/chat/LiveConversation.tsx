@@ -7,6 +7,7 @@ import {
     resolveStopExecution,
     shouldShowStopControl,
 } from "@agenta/chat/assets"
+import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {
     ConnectionDock,
     ConnectionFocusProvider,
@@ -30,6 +31,7 @@ import {
 import {getSessionTurnId} from "@agenta/chat/state"
 import {cancelSessionExecution} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
+import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {
@@ -48,7 +50,8 @@ import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {Button} from "@/components/ui/button"
 
-import {pendingTasksAtom, failPendingTaskAtom, sendPendingTaskAtom} from "../home/pendingTask"
+import {useProjectPermission} from "../context/useProjectPermission"
+import {failPendingTaskAtom, pendingTasksAtom, sendPendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 
@@ -56,6 +59,7 @@ import {ApprovalDock} from "./ApprovalDock"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
+import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {cancelledStopAction} from "./stopHereState"
@@ -124,6 +128,19 @@ export const LiveConversation = ({
         sharedReaderRunning: running,
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
     })
+    const canEditSecrets = useProjectPermission(projectId, "edit_secret")
+    const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+    const adoptSecretRevision = useCallback(
+        (next: string) => {
+            conversation.adoptRevision(next)
+            pinRevision(next)
+        },
+        [conversation.adoptRevision, pinRevision],
+    )
+    const pendingSecret = useMemo(
+        () => getPendingSecretInteractions(conversation.messages)[0],
+        [conversation.messages],
+    )
 
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
@@ -493,13 +510,16 @@ export const LiveConversation = ({
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
+    const secretDockOpen =
+        !streamingHere && !stopping && !conversation.stopped && Boolean(pendingSecret)
     // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
-    // surface has no question-form dock yet, so only approvals and connect cards can gate it.
-    const gateOpen = jumpGateOpen({
-        approvals: pendingApprovals.length,
-        elicitationOpen: false,
-        connectionOpen: connects.open,
-    })
+    // surface has no question-form dock yet, so approvals, connect, and secret cards gate it.
+    const gateOpen =
+        jumpGateOpen({
+            approvals: pendingApprovals.length,
+            elicitationOpen: false,
+            connectionOpen: connects.open,
+        }) || secretDockOpen
 
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
     // so the warning about tools that already ran, and putting a rewound user message back into
@@ -692,6 +712,18 @@ export const LiveConversation = ({
                         ) : null}
                         {/* Parked question forms, between approval and connect — the same order as
                         desktop, and the same order as the keyboard precedence. */}
+                        {secretDockOpen && pendingSecret ? (
+                            <ContentRail>
+                                <SecretRequestDock
+                                    key={pendingSecret.toolCallId}
+                                    meta={pendingSecret}
+                                    revisionId={entityId}
+                                    onAdoptRevision={adoptSecretRevision}
+                                    canEditSecrets={canEditSecrets}
+                                    onOutput={conversation.sendToolOutput}
+                                />
+                            </ContentRail>
+                        ) : null}
                         {elicits.open ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                                 <ContentRail>

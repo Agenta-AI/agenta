@@ -35,6 +35,7 @@ import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {getDefaultStore} from "jotai"
 
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
@@ -61,6 +62,11 @@ const openTrace = ({traceId, spanId}: {traceId: string; spanId?: string | null})
  */
 export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
     const {llmProviderConfig, overlay: llmProviderOverlay} = useLLMProviderConfig()
+    const {hasPermission} = useProjectPermissions()
+    const permissions = useMemo(
+        () => ({canEditSecrets: hasPermission("edit_secret")}),
+        [hasPermission],
+    )
     const baseWorkflowReference = useWorkflowReferenceBridge()
     const {baseAppURL} = useURL()
     // Only the app knows its routes, so the "Open agent" link is supplied here.
@@ -85,10 +91,11 @@ export function OSSdrillInUIProvider({children}: OSSdrillInUIProviderProps) {
                 workflowReference,
                 openTrace,
                 deployment,
+                permissions,
                 // Rich concrete components vs the context's index-signature slots (pre-existing gap)
             }) as DrillInUIComponents,
         // openTrace is a module-level const (stable) — no dep needed.
-        [llmProviderConfig, workflowReference, deployment],
+        [llmProviderConfig, workflowReference, deployment, permissions],
     )
 
     return (

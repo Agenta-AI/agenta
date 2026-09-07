@@ -1,4 +1,4 @@
-import {type PropsWithChildren, useMemo} from "react"
+import {type PropsWithChildren, useCallback, useMemo} from "react"
 
 import {
     DrillInUIProvider,
@@ -12,8 +12,12 @@ import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {isEE} from "@agenta/shared/api"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {getDefaultStore} from "jotai"
+import {getDefaultStore, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
+
+import {useProjectPermission} from "../context/useProjectPermission"
+
+import {selectedRevisionAtomFamily} from "./selectedRevision"
 
 const openTrace = ({traceId, spanId}: {traceId: string; spanId?: string | null}) => {
     if (!traceId) return
@@ -27,14 +31,18 @@ const openTrace = ({traceId, spanId}: {traceId: string; spanId?: string | null})
  * Only the "Open agent" link differs: it lands on this app's agent overview, not the desktop
  * playground, because routes are the one thing a host genuinely owns.
  */
-export const DrillInBridgeProvider = ({children}: PropsWithChildren) => {
+export const DrillInBridgeProvider = ({
+    children,
+    sessionId,
+    projectId,
+}: PropsWithChildren<{sessionId: string; projectId: string}>) => {
     const {llmProviderConfig, overlay: llmProviderOverlay} = useLLMProviderConfig()
     const baseWorkflowReference = useWorkflowReferenceBridge()
     const router = useRouter()
-    const {workspace_id: workspaceId, project_id: projectId} = router.query
+    const {workspace_id: workspaceId} = router.query
     // A bare <a target="_blank">, so the `/m` basePath has to be spelled out here.
     const agentBase =
-        typeof workspaceId === "string" && typeof projectId === "string"
+        typeof workspaceId === "string"
             ? `${router.basePath}/w/${workspaceId}/p/${projectId}/agents`
             : null
 
@@ -44,6 +52,14 @@ export const DrillInBridgeProvider = ({children}: PropsWithChildren) => {
             agentHref: (workflowId: string) => (agentBase ? `${agentBase}/${workflowId}` : null),
         }),
         [baseWorkflowReference, agentBase],
+    )
+
+    const canEditSecrets = useProjectPermission(projectId, "edit_secret")
+    const permissions = useMemo(() => ({canEditSecrets}), [canEditSecrets])
+    const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+    const onWorkflowRevisionCommitted = useCallback(
+        (revisionId: string) => pinRevision(revisionId),
+        [pinRevision],
     )
 
     // Deployment policy never changes at runtime; a stable identity keeps the context value stable.
@@ -58,8 +74,16 @@ export const DrillInBridgeProvider = ({children}: PropsWithChildren) => {
                 workflowReference,
                 openTrace,
                 deployment,
+                permissions,
+                onWorkflowRevisionCommitted,
             }) as DrillInUIComponents,
-        [llmProviderConfig, workflowReference, deployment],
+        [
+            llmProviderConfig,
+            workflowReference,
+            deployment,
+            permissions,
+            onWorkflowRevisionCommitted,
+        ],
     )
 
     return (

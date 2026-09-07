@@ -78,6 +78,8 @@ from .dtos import (
     RunContextTrace,
     RunContextWorkflow,
     SandboxPermission,
+    SandboxCredentialConfig,
+    ResolvedSandboxCredential,
     SessionConfig,
     ToolCallback,
     TraceContext,
@@ -188,6 +190,8 @@ __all__ = [
     "ToolCallback",
     "PermissionMode",
     "SandboxPermission",
+    "SandboxCredentialConfig",
+    "ResolvedSandboxCredential",
     "NetworkEgress",
     # Canonical tools API
     "ToolConfig",

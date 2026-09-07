@@ -230,7 +230,7 @@ export const SessionWorkspace = ({
                             : "hidden"
                     }
                 >
-                    <ConfigPane entityId={entityId} sessionId={sessionId} />
+                    <ConfigPane entityId={entityId} sessionId={sessionId} projectId={projectId} />
                 </div>
             ) : null}
             {configSlide.keepMounted && paneKind === "sessions" ? (
