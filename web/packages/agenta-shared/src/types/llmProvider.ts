@@ -27,6 +27,8 @@ export interface LlmProvider {
     sessionToken?: string
     bearerToken?: string
     models?: string[]
+    /** Provider-supplied display names keyed by model id. */
+    modelNames?: Record<string, string>
     modelKeys?: string[]
     /**
      * The stored record's stable slug — the connection's identity, which the credential

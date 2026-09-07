@@ -176,13 +176,17 @@ const modelsFor = (
 ): ConnectionModel[] => {
     if (connection.secretKind === SecretKind.CustomProvider) {
         const keys = connection.source.modelKeys ?? connection.models ?? []
-        return keys.map((model) => ({value: model, label: model}))
+        return keys.map((model) => ({
+            value: model,
+            label: connection.modelNames?.[model] ?? model,
+        }))
     }
 
     const models = connection.models ?? fallbackModels(connection, catalog, capabilities)
     return models.map((model) => {
         const value = toLitellmModelId(model, connection.kind)
-        const curated = curatedModelName(capabilities, connection.kind, model)
+        const curated =
+            curatedModelName(capabilities, connection.kind, model) ?? connection.modelNames?.[model]
         // Only a CURATED label carries an aside; a raw id's parentheses are part of the id.
         const {name, hint} = curated
             ? splitCuratedLabel(curated)

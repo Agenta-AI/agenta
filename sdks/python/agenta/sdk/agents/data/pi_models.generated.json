@@ -1,9 +1,9 @@
 {
   "schema_version": "1",
   "_generator": {
-    "source": "@earendil-works/pi-ai@0.80.6",
+    "source": "@earendil-works/pi-ai@0.85.1",
     "generated_by": ".agents/skills/sync-model-catalog/generate_pi_models.mjs",
-    "generated_at": "2026-07-12T19:40:09.956Z",
+    "generated_at": "2026-09-07T18:24:57.260Z",
     "note": "Generated file. Do not hand-edit. Curated fields live in pi_models.curated.json."
   },
   "models": [
@@ -259,27 +259,6 @@
       "ratings": null
     },
     {
-      "id": "openai/gpt-5-codex",
-      "provider": "openai",
-      "source": "pi_generated",
-      "name": "GPT-5-Codex",
-      "pricing": {
-        "input_per_mtok": 1.25,
-        "output_per_mtok": 10,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.125,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 400000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
       "id": "openai/gpt-5-mini",
       "provider": "openai",
       "source": "pi_generated",
@@ -364,90 +343,6 @@
       "ratings": null
     },
     {
-      "id": "openai/gpt-5.1-chat-latest",
-      "provider": "openai",
-      "source": "pi_generated",
-      "name": "GPT-5.1 Chat",
-      "pricing": {
-        "input_per_mtok": 1.25,
-        "output_per_mtok": 10,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.125,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 128000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openai/gpt-5.1-codex",
-      "provider": "openai",
-      "source": "pi_generated",
-      "name": "GPT-5.1 Codex",
-      "pricing": {
-        "input_per_mtok": 1.25,
-        "output_per_mtok": 10,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.125,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 400000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openai/gpt-5.1-codex-max",
-      "provider": "openai",
-      "source": "pi_generated",
-      "name": "GPT-5.1 Codex Max",
-      "pricing": {
-        "input_per_mtok": 1.25,
-        "output_per_mtok": 10,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.125,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 400000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openai/gpt-5.1-codex-mini",
-      "provider": "openai",
-      "source": "pi_generated",
-      "name": "GPT-5.1 Codex mini",
-      "pricing": {
-        "input_per_mtok": 0.25,
-        "output_per_mtok": 2,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.025,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 400000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
       "id": "openai/gpt-5.2",
       "provider": "openai",
       "source": "pi_generated",
@@ -481,27 +376,6 @@
         "cache_write_per_mtok": 0
       },
       "context_window": 128000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openai/gpt-5.2-codex",
-      "provider": "openai",
-      "source": "pi_generated",
-      "name": "GPT-5.2 Codex",
-      "pricing": {
-        "input_per_mtok": 1.75,
-        "output_per_mtok": 14,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.175,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 400000,
       "modalities": [
         "text",
         "image"
@@ -726,11 +600,11 @@
       "source": "pi_generated",
       "name": "GPT-5.6 Luna",
       "pricing": {
-        "input_per_mtok": 1,
-        "output_per_mtok": 6,
+        "input_per_mtok": 0.2,
+        "output_per_mtok": 1.2,
         "currency": "USD",
-        "cache_read_per_mtok": 0.1,
-        "cache_write_per_mtok": 1.25
+        "cache_read_per_mtok": 0.02,
+        "cache_write_per_mtok": 0.25
       },
       "context_window": 272000,
       "modalities": [
@@ -747,11 +621,11 @@
       "source": "pi_generated",
       "name": "GPT-5.6 Sol",
       "pricing": {
-        "input_per_mtok": 5,
-        "output_per_mtok": 30,
+        "input_per_mtok": 4,
+        "output_per_mtok": 20,
         "currency": "USD",
-        "cache_read_per_mtok": 0.5,
-        "cache_write_per_mtok": 6.25
+        "cache_read_per_mtok": 0.4,
+        "cache_write_per_mtok": 5
       },
       "context_window": 272000,
       "modalities": [
@@ -768,13 +642,55 @@
       "source": "pi_generated",
       "name": "GPT-5.6 Terra",
       "pricing": {
-        "input_per_mtok": 2.5,
-        "output_per_mtok": 15,
+        "input_per_mtok": 2,
+        "output_per_mtok": 12,
         "currency": "USD",
-        "cache_read_per_mtok": 0.25,
-        "cache_write_per_mtok": 3.125
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 2.5
       },
       "context_window": 272000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openai/gpt-6-astra",
+      "provider": "openai",
+      "source": "pi_generated",
+      "name": "GPT-6 Astra",
+      "pricing": {
+        "input_per_mtok": 10,
+        "output_per_mtok": 50,
+        "currency": "USD",
+        "cache_read_per_mtok": 1,
+        "cache_write_per_mtok": 12.5
+      },
+      "context_window": 272000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openai/gpt-realtime-2.1",
+      "provider": "openai",
+      "source": "pi_generated",
+      "name": "GPT-Realtime-2.1",
+      "pricing": {
+        "input_per_mtok": 4,
+        "output_per_mtok": 24,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.4,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 128000,
       "modalities": [
         "text",
         "image"
@@ -835,27 +751,6 @@
         "output_per_mtok": 8,
         "currency": "USD",
         "cache_read_per_mtok": 0.5,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 200000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openai/o3-deep-research",
-      "provider": "openai",
-      "source": "pi_generated",
-      "name": "o3-deep-research",
-      "pricing": {
-        "input_per_mtok": 10,
-        "output_per_mtok": 40,
-        "currency": "USD",
-        "cache_read_per_mtok": 2.5,
         "cache_write_per_mtok": 0
       },
       "context_window": 200000,
@@ -930,27 +825,6 @@
       "ratings": null
     },
     {
-      "id": "openai/o4-mini-deep-research",
-      "provider": "openai",
-      "source": "pi_generated",
-      "name": "o4-mini-deep-research",
-      "pricing": {
-        "input_per_mtok": 2,
-        "output_per_mtok": 8,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.5,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 200000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
       "id": "anthropic/claude-fable-5",
       "provider": "anthropic",
       "source": "pi_generated",
@@ -960,6 +834,27 @@
         "output_per_mtok": 50,
         "currency": "USD",
         "cache_read_per_mtok": 1,
+        "cache_write_per_mtok": 12.5
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "anthropic/claude-fable-5-1",
+      "provider": "anthropic",
+      "source": "pi_generated",
+      "name": "Claude Fable 5.1",
+      "pricing": {
+        "input_per_mtok": 10,
+        "output_per_mtok": 50,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
         "cache_write_per_mtok": 12.5
       },
       "context_window": 1000000,
@@ -1003,48 +898,6 @@
         "currency": "USD",
         "cache_read_per_mtok": 0.1,
         "cache_write_per_mtok": 1.25
-      },
-      "context_window": 200000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "anthropic/claude-opus-4-1",
-      "provider": "anthropic",
-      "source": "pi_generated",
-      "name": "Claude Opus 4.1 (latest)",
-      "pricing": {
-        "input_per_mtok": 15,
-        "output_per_mtok": 75,
-        "currency": "USD",
-        "cache_read_per_mtok": 1.5,
-        "cache_write_per_mtok": 18.75
-      },
-      "context_window": 200000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "anthropic/claude-opus-4-1-20250805",
-      "provider": "anthropic",
-      "source": "pi_generated",
-      "name": "Claude Opus 4.1",
-      "pricing": {
-        "input_per_mtok": 15,
-        "output_per_mtok": 75,
-        "currency": "USD",
-        "cache_read_per_mtok": 1.5,
-        "cache_write_per_mtok": 18.75
       },
       "context_window": 200000,
       "modalities": [
@@ -1161,6 +1014,27 @@
       "ratings": null
     },
     {
+      "id": "anthropic/claude-opus-5",
+      "provider": "anthropic",
+      "source": "pi_generated",
+      "name": "Claude Opus 5",
+      "pricing": {
+        "input_per_mtok": 5,
+        "output_per_mtok": 25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.5,
+        "cache_write_per_mtok": 6.25
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "anthropic/claude-sonnet-4-5",
       "provider": "anthropic",
       "source": "pi_generated",
@@ -1245,18 +1119,18 @@
       "ratings": null
     },
     {
-      "id": "gemini/gemini-2.0-flash",
+      "id": "gemini/deep-research-max-preview-04-2026",
       "provider": "gemini",
       "source": "pi_generated",
-      "name": "Gemini 2.0 Flash",
+      "name": "Deep Research Max Preview (Apr-21-2026)",
       "pricing": {
-        "input_per_mtok": 0.1,
-        "output_per_mtok": 0.4,
+        "input_per_mtok": 2,
+        "output_per_mtok": 12,
         "currency": "USD",
-        "cache_read_per_mtok": 0.025,
+        "cache_read_per_mtok": 0.2,
         "cache_write_per_mtok": 0
       },
-      "context_window": 1048576,
+      "context_window": 131072,
       "modalities": [
         "text",
         "image"
@@ -1266,18 +1140,39 @@
       "ratings": null
     },
     {
-      "id": "gemini/gemini-2.0-flash-lite",
+      "id": "gemini/deep-research-preview-04-2026",
       "provider": "gemini",
       "source": "pi_generated",
-      "name": "Gemini 2.0 Flash-Lite",
+      "name": "Deep Research Preview (Apr-21-2026)",
       "pricing": {
-        "input_per_mtok": 0.075,
-        "output_per_mtok": 0.3,
+        "input_per_mtok": 2,
+        "output_per_mtok": 12,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 131072,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "gemini/gemini-2.5-computer-use-preview-10-2025",
+      "provider": "gemini",
+      "source": "pi_generated",
+      "name": "Gemini 2.5 Computer Use Preview 10-2025",
+      "pricing": {
+        "input_per_mtok": 1.25,
+        "output_per_mtok": 10,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 1048576,
+      "context_window": 131072,
       "modalities": [
         "text",
         "image"
@@ -1371,27 +1266,6 @@
       "ratings": null
     },
     {
-      "id": "gemini/gemini-3-pro-preview",
-      "provider": "gemini",
-      "source": "pi_generated",
-      "name": "Gemini 3 Pro Preview",
-      "pricing": {
-        "input_per_mtok": 2,
-        "output_per_mtok": 12,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.2,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 1048576,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
       "id": "gemini/gemini-3.1-flash-lite",
       "provider": "gemini",
       "source": "pi_generated",
@@ -1413,6 +1287,27 @@
       "ratings": null
     },
     {
+      "id": "gemini/gemini-3.1-flash-lite-image",
+      "provider": "gemini",
+      "source": "pi_generated",
+      "name": "Nano Banana 2 Lite",
+      "pricing": {
+        "input_per_mtok": 0.25,
+        "output_per_mtok": 30,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 65536,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "gemini/gemini-3.1-flash-lite-preview",
       "provider": "gemini",
       "source": "pi_generated",
@@ -1425,6 +1320,27 @@
         "cache_write_per_mtok": 0
       },
       "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "gemini/gemini-3.1-flash-live-preview",
+      "provider": "gemini",
+      "source": "pi_generated",
+      "name": "Gemini 3.1 Flash Live Preview",
+      "pricing": {
+        "input_per_mtok": 0.75,
+        "output_per_mtok": 4.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 131072,
       "modalities": [
         "text",
         "image"
@@ -1485,6 +1401,90 @@
         "output_per_mtok": 9,
         "currency": "USD",
         "cache_read_per_mtok": 0.15,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "gemini/gemini-3.5-flash-lite",
+      "provider": "gemini",
+      "source": "pi_generated",
+      "name": "Gemini 3.5 Flash Lite",
+      "pricing": {
+        "input_per_mtok": 0.3,
+        "output_per_mtok": 2.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.03,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "gemini/gemini-3.6-flash",
+      "provider": "gemini",
+      "source": "pi_generated",
+      "name": "Gemini 3.6 Flash",
+      "pricing": {
+        "input_per_mtok": 0.75,
+        "output_per_mtok": 3.75,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.075,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "gemini/gemini-3.7-flash",
+      "provider": "gemini",
+      "source": "pi_generated",
+      "name": "Gemini 3.7 Flash",
+      "pricing": {
+        "input_per_mtok": 0.75,
+        "output_per_mtok": 3.75,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.075,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "gemini/gemini-3.8-flash",
+      "provider": "gemini",
+      "source": "pi_generated",
+      "name": "Gemini 3.8 Flash",
+      "pricing": {
+        "input_per_mtok": 0.75,
+        "output_per_mtok": 3.75,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.075,
         "cache_write_per_mtok": 0
       },
       "context_window": 1048576,
@@ -2194,6 +2194,46 @@
       "ratings": null
     },
     {
+      "id": "mistral/voxtral-small-latest",
+      "provider": "mistral",
+      "source": "pi_generated",
+      "name": "Voxtral Small (latest)",
+      "pricing": {
+        "input_per_mtok": 0.1,
+        "output_per_mtok": 0.3,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.01,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 32000,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "mistral/zai-glm-5-2",
+      "provider": "mistral",
+      "source": "pi_generated",
+      "name": "GLM-5.2",
+      "pricing": {
+        "input_per_mtok": 1.4,
+        "output_per_mtok": 4.4,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.14,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "groq/llama-3.1-8b-instant",
       "provider": "groq",
       "source": "pi_generated",
@@ -2228,27 +2268,6 @@
       "context_window": 131072,
       "modalities": [
         "text"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "groq/meta-llama/llama-4-scout-17b-16e-instruct",
-      "provider": "groq",
-      "source": "pi_generated",
-      "name": "Llama 4 Scout 17B 16E",
-      "pricing": {
-        "input_per_mtok": 0.11,
-        "output_per_mtok": 0.34,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 131072,
-      "modalities": [
-        "text",
-        "image"
       ],
       "label": null,
       "description": null,
@@ -2315,20 +2334,42 @@
       "ratings": null
     },
     {
-      "id": "groq/qwen/qwen3-32b",
+      "id": "groq/qwen/qwen3.6-27b",
       "provider": "groq",
       "source": "pi_generated",
-      "name": "Qwen3-32B",
+      "name": "Qwen3.6 27B",
       "pricing": {
-        "input_per_mtok": 0.29,
-        "output_per_mtok": 0.59,
+        "input_per_mtok": 0.6,
+        "output_per_mtok": 3,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.3,
         "cache_write_per_mtok": 0
       },
       "context_window": 131072,
       "modalities": [
-        "text"
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "groq/qwen/qwen3.8-27b",
+      "provider": "groq",
+      "source": "pi_generated",
+      "name": "Qwen3.8 27B",
+      "pricing": {
+        "input_per_mtok": 0.8,
+        "output_per_mtok": 4,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 131042,
+      "modalities": [
+        "text",
+        "image"
       ],
       "label": null,
       "description": null,
@@ -2386,7 +2427,7 @@
         "cache_read_per_mtok": 0.06,
         "cache_write_per_mtok": 0
       },
-      "context_window": 1000000,
+      "context_window": 1048576,
       "modalities": [
         "text",
         "image"
@@ -2457,47 +2498,6 @@
       "ratings": null
     },
     {
-      "id": "together_ai/Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
-      "provider": "together_ai",
-      "source": "pi_generated",
-      "name": "Qwen3 235B A22B Instruct 2507 FP8",
-      "pricing": {
-        "input_per_mtok": 0.2,
-        "output_per_mtok": 0.6,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 262144,
-      "modalities": [
-        "text"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "together_ai/Qwen/Qwen3.5-397B-A17B",
-      "provider": "together_ai",
-      "source": "pi_generated",
-      "name": "Qwen3.5 397B A17B",
-      "pricing": {
-        "input_per_mtok": 0.6,
-        "output_per_mtok": 3.6,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 262144,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
       "id": "together_ai/Qwen/Qwen3.5-9B",
       "provider": "together_ai",
       "source": "pi_generated",
@@ -2547,7 +2547,27 @@
         "input_per_mtok": 1.25,
         "output_per_mtok": 3.75,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.125,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "together_ai/deepseek-ai/DeepSeek-V4-Flash-0731",
+      "provider": "together_ai",
+      "source": "pi_generated",
+      "name": "DeepSeek V4 Flash 0731",
+      "pricing": {
+        "input_per_mtok": 0.14,
+        "output_per_mtok": 0.28,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.03,
         "cache_write_per_mtok": 0
       },
       "context_window": 1000000,
@@ -2579,18 +2599,18 @@
       "ratings": null
     },
     {
-      "id": "together_ai/essentialai/Rnj-1-Instruct",
+      "id": "together_ai/deepseek-ai/DeepSeek-V4-Pro-0813",
       "provider": "together_ai",
       "source": "pi_generated",
-      "name": "Rnj-1 Instruct",
+      "name": "DeepSeek V4 Pro 0813",
       "pricing": {
-        "input_per_mtok": 0.15,
-        "output_per_mtok": 0.15,
+        "input_per_mtok": 1.32,
+        "output_per_mtok": 3.96,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.13,
         "cache_write_per_mtok": 0
       },
-      "context_window": 32768,
+      "context_window": 1048576,
       "modalities": [
         "text"
       ],
@@ -2681,6 +2701,27 @@
       "ratings": null
     },
     {
+      "id": "together_ai/moonshotai/Kimi-K3",
+      "provider": "together_ai",
+      "source": "pi_generated",
+      "name": "Kimi K3",
+      "pricing": {
+        "input_per_mtok": 3,
+        "output_per_mtok": 15,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.3,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "together_ai/nvidia/nemotron-3-ultra-550b-a55b",
       "provider": "together_ai",
       "source": "pi_generated",
@@ -2741,40 +2782,21 @@
       "ratings": null
     },
     {
-      "id": "together_ai/zai-org/GLM-5",
+      "id": "together_ai/thinkingmachines/Inkling",
       "provider": "together_ai",
       "source": "pi_generated",
-      "name": "GLM-5",
+      "name": "Inkling",
       "pricing": {
         "input_per_mtok": 1,
-        "output_per_mtok": 3.2,
+        "output_per_mtok": 4.05,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.17,
         "cache_write_per_mtok": 0
       },
-      "context_window": 202752,
+      "context_window": 524288,
       "modalities": [
-        "text"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "together_ai/zai-org/GLM-5.1",
-      "provider": "together_ai",
-      "source": "pi_generated",
-      "name": "GLM-5.1",
-      "pricing": {
-        "input_per_mtok": 1.4,
-        "output_per_mtok": 4.4,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 202752,
-      "modalities": [
-        "text"
+        "text",
+        "image"
       ],
       "label": null,
       "description": null,
@@ -2792,7 +2814,7 @@
         "cache_read_per_mtok": 0.26,
         "cache_write_per_mtok": 0
       },
-      "context_window": 262144,
+      "context_window": 512000,
       "modalities": [
         "text"
       ],
@@ -2801,20 +2823,356 @@
       "ratings": null
     },
     {
-      "id": "openrouter/ai21/jamba-large-1.7",
-      "provider": "openrouter",
+      "id": "together_ai/zai-org/GLM-5.3",
+      "provider": "together_ai",
       "source": "pi_generated",
-      "name": "AI21: Jamba Large 1.7",
+      "name": "GLM-5.3",
       "pricing": {
-        "input_per_mtok": 2,
-        "output_per_mtok": 8,
+        "input_per_mtok": 1.4,
+        "output_per_mtok": 4.4,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.26,
         "cache_write_per_mtok": 0
       },
-      "context_window": 256000,
+      "context_window": 1048576,
       "modalities": [
         "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "together_ai/zai-org/GLM-5.3-Flash",
+      "provider": "together_ai",
+      "source": "pi_generated",
+      "name": "GLM-5.3-Flash",
+      "pricing": {
+        "input_per_mtok": 0.15,
+        "output_per_mtok": 0.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.03,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048575,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-3-haiku",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude 3 Haiku",
+      "pricing": {
+        "input_per_mtok": 0.25,
+        "output_per_mtok": 1.25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.03,
+        "cache_write_per_mtok": 0.3
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-fable-5",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Fable 5",
+      "pricing": {
+        "input_per_mtok": 10,
+        "output_per_mtok": 50,
+        "currency": "USD",
+        "cache_read_per_mtok": 1,
+        "cache_write_per_mtok": 12.5
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-fable-5.1",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Fable 5.1",
+      "pricing": {
+        "input_per_mtok": 10,
+        "output_per_mtok": 50,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 12.5
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-haiku-4.5",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Haiku 4.5",
+      "pricing": {
+        "input_per_mtok": 1,
+        "output_per_mtok": 5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.1,
+        "cache_write_per_mtok": 1.25
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-4",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Opus 4",
+      "pricing": {
+        "input_per_mtok": 15,
+        "output_per_mtok": 75,
+        "currency": "USD",
+        "cache_read_per_mtok": 1.5,
+        "cache_write_per_mtok": 18.75
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-4.1",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Opus 4.1",
+      "pricing": {
+        "input_per_mtok": 15,
+        "output_per_mtok": 75,
+        "currency": "USD",
+        "cache_read_per_mtok": 1.5,
+        "cache_write_per_mtok": 18.75
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-4.5",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Opus 4.5",
+      "pricing": {
+        "input_per_mtok": 5,
+        "output_per_mtok": 25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.5,
+        "cache_write_per_mtok": 6.25
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-4.6",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Opus 4.6",
+      "pricing": {
+        "input_per_mtok": 5,
+        "output_per_mtok": 25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.5,
+        "cache_write_per_mtok": 6.25
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-4.7",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Opus 4.7",
+      "pricing": {
+        "input_per_mtok": 5,
+        "output_per_mtok": 25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.5,
+        "cache_write_per_mtok": 6.25
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-4.8",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Opus 4.8",
+      "pricing": {
+        "input_per_mtok": 5,
+        "output_per_mtok": 25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.5,
+        "cache_write_per_mtok": 6.25
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-5",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Claude Opus 5",
+      "pricing": {
+        "input_per_mtok": 5,
+        "output_per_mtok": 25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.5,
+        "cache_write_per_mtok": 6.25
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-sonnet-4",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Sonnet 4",
+      "pricing": {
+        "input_per_mtok": 3,
+        "output_per_mtok": 15,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.3,
+        "cache_write_per_mtok": 3.75
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-sonnet-4.5",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Sonnet 4.5",
+      "pricing": {
+        "input_per_mtok": 3,
+        "output_per_mtok": 15,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.3,
+        "cache_write_per_mtok": 3.75
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-sonnet-4.6",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Sonnet 4.6",
+      "pricing": {
+        "input_per_mtok": 3,
+        "output_per_mtok": 15,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.3,
+        "cache_write_per_mtok": 3.75
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-sonnet-5",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Sonnet 5",
+      "pricing": {
+        "input_per_mtok": 2,
+        "output_per_mtok": 10,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 2.5
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
       ],
       "label": null,
       "description": null,
@@ -2985,37 +3343,16 @@
       "ratings": null
     },
     {
-      "id": "openrouter/anthropic/claude-3-haiku",
+      "id": "openrouter/anthropic/claude-fable-5.1:batch",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "Anthropic: Claude 3 Haiku",
+      "name": "Anthropic: Claude Fable 5.1 (batch)",
       "pricing": {
-        "input_per_mtok": 0.25,
-        "output_per_mtok": 1.25,
+        "input_per_mtok": 5,
+        "output_per_mtok": 25,
         "currency": "USD",
-        "cache_read_per_mtok": 0.03,
-        "cache_write_per_mtok": 0.3
-      },
-      "context_window": 200000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-fable-5",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Fable 5",
-      "pricing": {
-        "input_per_mtok": 10,
-        "output_per_mtok": 50,
-        "currency": "USD",
-        "cache_read_per_mtok": 1,
-        "cache_write_per_mtok": 12.5
+        "cache_read_per_mtok": 0.125,
+        "cache_write_per_mtok": 6.25
       },
       "context_window": 1000000,
       "modalities": [
@@ -3027,268 +3364,226 @@
       "ratings": null
     },
     {
-      "id": "openrouter/anthropic/claude-haiku-4.5",
+      "id": "openrouter/anthropic/claude-fable-5:batch",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "Anthropic: Claude Haiku 4.5",
+      "name": "Anthropic: Claude Fable 5 (batch)",
+      "pricing": {
+        "input_per_mtok": 5,
+        "output_per_mtok": 25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.5,
+        "cache_write_per_mtok": 6.25
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-haiku-4.5:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Haiku 4.5 (batch)",
+      "pricing": {
+        "input_per_mtok": 0.5,
+        "output_per_mtok": 2.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.05,
+        "cache_write_per_mtok": 0.625
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-4.1:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Opus 4.1 (batch)",
+      "pricing": {
+        "input_per_mtok": 7.5,
+        "output_per_mtok": 37.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.75,
+        "cache_write_per_mtok": 9.375
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-4.5:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Opus 4.5 (batch)",
+      "pricing": {
+        "input_per_mtok": 2.5,
+        "output_per_mtok": 12.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 3.125
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-4.6:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Opus 4.6 (batch)",
+      "pricing": {
+        "input_per_mtok": 2.5,
+        "output_per_mtok": 12.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 3.125
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-4.7:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Opus 4.7 (batch)",
+      "pricing": {
+        "input_per_mtok": 2.5,
+        "output_per_mtok": 12.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 3.125
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-4.8:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Opus 4.8 (batch)",
+      "pricing": {
+        "input_per_mtok": 2.5,
+        "output_per_mtok": 12.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 3.125
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-opus-5:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Claude Opus 5 (batch)",
+      "pricing": {
+        "input_per_mtok": 2.5,
+        "output_per_mtok": 12.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 3.125
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-sonnet-4.5:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Sonnet 4.5 (batch)",
+      "pricing": {
+        "input_per_mtok": 1.5,
+        "output_per_mtok": 7.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.15,
+        "cache_write_per_mtok": 1.875
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-sonnet-4.6:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Sonnet 4.6 (batch)",
+      "pricing": {
+        "input_per_mtok": 1.5,
+        "output_per_mtok": 7.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.15,
+        "cache_write_per_mtok": 1.875
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/anthropic/claude-sonnet-5:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Anthropic: Claude Sonnet 5 (batch)",
       "pricing": {
         "input_per_mtok": 1,
         "output_per_mtok": 5,
         "currency": "USD",
         "cache_read_per_mtok": 0.1,
         "cache_write_per_mtok": 1.25
-      },
-      "context_window": 200000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-opus-4",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Opus 4",
-      "pricing": {
-        "input_per_mtok": 15,
-        "output_per_mtok": 75,
-        "currency": "USD",
-        "cache_read_per_mtok": 1.5,
-        "cache_write_per_mtok": 18.75
-      },
-      "context_window": 200000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-opus-4.1",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Opus 4.1",
-      "pricing": {
-        "input_per_mtok": 15,
-        "output_per_mtok": 75,
-        "currency": "USD",
-        "cache_read_per_mtok": 1.5,
-        "cache_write_per_mtok": 18.75
-      },
-      "context_window": 200000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-opus-4.5",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Opus 4.5",
-      "pricing": {
-        "input_per_mtok": 5,
-        "output_per_mtok": 25,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.5,
-        "cache_write_per_mtok": 6.25
-      },
-      "context_window": 200000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-opus-4.6",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Opus 4.6",
-      "pricing": {
-        "input_per_mtok": 5,
-        "output_per_mtok": 25,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.5,
-        "cache_write_per_mtok": 6.25
-      },
-      "context_window": 1000000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-opus-4.7",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Opus 4.7",
-      "pricing": {
-        "input_per_mtok": 5,
-        "output_per_mtok": 25,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.5,
-        "cache_write_per_mtok": 6.25
-      },
-      "context_window": 1000000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-opus-4.7-fast",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Opus 4.7 (Fast)",
-      "pricing": {
-        "input_per_mtok": 30,
-        "output_per_mtok": 150,
-        "currency": "USD",
-        "cache_read_per_mtok": 3,
-        "cache_write_per_mtok": 37.5
-      },
-      "context_window": 1000000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-opus-4.8",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Opus 4.8",
-      "pricing": {
-        "input_per_mtok": 5,
-        "output_per_mtok": 25,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.5,
-        "cache_write_per_mtok": 6.25
-      },
-      "context_window": 1000000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-opus-4.8-fast",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Opus 4.8 (Fast)",
-      "pricing": {
-        "input_per_mtok": 10,
-        "output_per_mtok": 50,
-        "currency": "USD",
-        "cache_read_per_mtok": 1,
-        "cache_write_per_mtok": 12.5
-      },
-      "context_window": 1000000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-sonnet-4",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Sonnet 4",
-      "pricing": {
-        "input_per_mtok": 3,
-        "output_per_mtok": 15,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.3,
-        "cache_write_per_mtok": 3.75
-      },
-      "context_window": 1000000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-sonnet-4.5",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Sonnet 4.5",
-      "pricing": {
-        "input_per_mtok": 3,
-        "output_per_mtok": 15,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.3,
-        "cache_write_per_mtok": 3.75
-      },
-      "context_window": 1000000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-sonnet-4.6",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Sonnet 4.6",
-      "pricing": {
-        "input_per_mtok": 3,
-        "output_per_mtok": 15,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.3,
-        "cache_write_per_mtok": 3.75
-      },
-      "context_window": 1000000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/anthropic/claude-sonnet-5",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Anthropic: Claude Sonnet 5",
-      "pricing": {
-        "input_per_mtok": 2,
-        "output_per_mtok": 10,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.2,
-        "cache_write_per_mtok": 2.5
       },
       "context_window": 1000000,
       "modalities": [
@@ -3312,46 +3607,6 @@
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
-      "modalities": [
-        "text"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/arcee-ai/trinity-mini",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Arcee AI: Trinity Mini",
-      "pricing": {
-        "input_per_mtok": 0.045,
-        "output_per_mtok": 0.15,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 131072,
-      "modalities": [
-        "text"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/arcee-ai/virtuoso-large",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Arcee AI: Virtuoso Large",
-      "pricing": {
-        "input_per_mtok": 0.75,
-        "output_per_mtok": 1.2,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 131072,
       "modalities": [
         "text"
       ],
@@ -3409,6 +3664,48 @@
       "pricing": {
         "input_per_mtok": 0.075,
         "output_per_mtok": 0.3,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 262144,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/bytedance-seed/seed-2-1-turbo",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "ByteDance Seed: Seed 2.1 Turbo",
+      "pricing": {
+        "input_per_mtok": 0.5,
+        "output_per_mtok": 2.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 262144,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/bytedance-seed/seed-2.0-code",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "ByteDance Seed: Seed-2.0-Code",
+      "pricing": {
+        "input_per_mtok": 0.5,
+        "output_per_mtok": 3,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
@@ -3530,13 +3827,13 @@
       "source": "pi_generated",
       "name": "DeepSeek: DeepSeek V3",
       "pricing": {
-        "input_per_mtok": 0.2002,
-        "output_per_mtok": 0.8001,
+        "input_per_mtok": 0.32,
+        "output_per_mtok": 0.89,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 131072,
+      "context_window": 163840,
       "modalities": [
         "text"
       ],
@@ -3550,10 +3847,10 @@
       "source": "pi_generated",
       "name": "DeepSeek: DeepSeek V3 0324",
       "pricing": {
-        "input_per_mtok": 0.24,
-        "output_per_mtok": 0.9,
+        "input_per_mtok": 0.25,
+        "output_per_mtok": 1,
         "currency": "USD",
-        "cache_read_per_mtok": 0.135,
+        "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
       "context_window": 163840,
@@ -3570,13 +3867,13 @@
       "source": "pi_generated",
       "name": "DeepSeek: DeepSeek V3.1",
       "pricing": {
-        "input_per_mtok": 0.21,
-        "output_per_mtok": 0.79,
+        "input_per_mtok": 0.55,
+        "output_per_mtok": 1.65,
         "currency": "USD",
-        "cache_read_per_mtok": 0.13,
+        "cache_read_per_mtok": 0.55,
         "cache_write_per_mtok": 0
       },
-      "context_window": 163840,
+      "context_window": 161000,
       "modalities": [
         "text"
       ],
@@ -3596,7 +3893,7 @@
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 163840,
+      "context_window": 64000,
       "modalities": [
         "text"
       ],
@@ -3631,12 +3928,12 @@
       "name": "DeepSeek: DeepSeek V3.1 Terminus",
       "pricing": {
         "input_per_mtok": 0.27,
-        "output_per_mtok": 0.95,
+        "output_per_mtok": 1,
         "currency": "USD",
-        "cache_read_per_mtok": 0.13,
+        "cache_read_per_mtok": 0.135,
         "cache_write_per_mtok": 0
       },
-      "context_window": 163840,
+      "context_window": 131072,
       "modalities": [
         "text"
       ],
@@ -3650,13 +3947,13 @@
       "source": "pi_generated",
       "name": "DeepSeek: DeepSeek V3.2",
       "pricing": {
-        "input_per_mtok": 0.2288,
-        "output_per_mtok": 0.3432,
+        "input_per_mtok": 0.269,
+        "output_per_mtok": 0.4,
         "currency": "USD",
-        "cache_read_per_mtok": 0.02288,
+        "cache_read_per_mtok": 0.1345,
         "cache_write_per_mtok": 0
       },
-      "context_window": 131072,
+      "context_window": 163840,
       "modalities": [
         "text"
       ],
@@ -3688,12 +3985,32 @@
       "id": "openrouter/deepseek/deepseek-v4-flash",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "DeepSeek: DeepSeek V4 Flash",
+      "name": "DeepSeek: DeepSeek V4 Flash 0423",
       "pricing": {
-        "input_per_mtok": 0.09,
+        "input_per_mtok": 0.08526,
+        "output_per_mtok": 0.17052,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.017052,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1024000,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/deepseek/deepseek-v4-flash-0731",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "DeepSeek: DeepSeek V4 Flash 0731",
+      "pricing": {
+        "input_per_mtok": 0.065,
         "output_per_mtok": 0.18,
         "currency": "USD",
-        "cache_read_per_mtok": 0.018,
+        "cache_read_per_mtok": 0.016,
         "cache_write_per_mtok": 0
       },
       "context_window": 1048576,
@@ -3705,20 +4022,122 @@
       "ratings": null
     },
     {
-      "id": "openrouter/deepseek/deepseek-v4-pro",
+      "id": "openrouter/deepseek/deepseek-v4-flash-0731:batch",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "DeepSeek: DeepSeek V4 Pro",
+      "name": "DeepSeek: DeepSeek V4 Flash 0731 (batch)",
       "pricing": {
-        "input_per_mtok": 0.435,
-        "output_per_mtok": 0.87,
+        "input_per_mtok": 0.14,
+        "output_per_mtok": 0.28,
         "currency": "USD",
-        "cache_read_per_mtok": 0.003625,
+        "cache_read_per_mtok": 0.03,
         "cache_write_per_mtok": 0
       },
       "context_window": 1048576,
       "modalities": [
         "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/deepseek/deepseek-v4-flash-vision-exp",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "DeepSeek: DeepSeek V4 Flash Vision Exp",
+      "pricing": {
+        "input_per_mtok": 0.22,
+        "output_per_mtok": 0.66,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.007,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/deepseek/deepseek-v4-pro",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "DeepSeek: DeepSeek V4 Pro 0423",
+      "pricing": {
+        "input_per_mtok": 0.890358,
+        "output_per_mtok": 1.780716,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.074196,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1024000,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/deepseek/deepseek-v4-pro-0813",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "DeepSeek: DeepSeek V4 Pro 0813",
+      "pricing": {
+        "input_per_mtok": 1.12068,
+        "output_per_mtok": 3.36204,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.037356,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1024000,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/deepseek/deepseek-v4-pro-0813:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "DeepSeek: DeepSeek V4 Pro 0813 (batch)",
+      "pricing": {
+        "input_per_mtok": 1.32,
+        "output_per_mtok": 3.96,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.13,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/dots-studio/dots-3-note-preview:free",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Dots Studio: Dots3-Note Preview (free)",
+      "pricing": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 512000,
+      "modalities": [
+        "text",
+        "image"
       ],
       "label": null,
       "description": null,
@@ -3756,6 +4175,48 @@
         "currency": "USD",
         "cache_read_per_mtok": 0.01,
         "cache_write_per_mtok": 0.083333
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-2.5-flash-lite:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 2.5 Flash Lite (batch)",
+      "pricing": {
+        "input_per_mtok": 0.05,
+        "output_per_mtok": 0.2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.01,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-2.5-flash:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 2.5 Flash (batch)",
+      "pricing": {
+        "input_per_mtok": 0.15,
+        "output_per_mtok": 1.25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.03,
+        "cache_write_per_mtok": 0
       },
       "context_window": 1048576,
       "modalities": [
@@ -3830,6 +4291,27 @@
       "ratings": null
     },
     {
+      "id": "openrouter/google/gemini-2.5-pro:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 2.5 Pro (batch)",
+      "pricing": {
+        "input_per_mtok": 0.625,
+        "output_per_mtok": 5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.125,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/google/gemini-3-flash-preview",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -3840,6 +4322,27 @@
         "currency": "USD",
         "cache_read_per_mtok": 0.05,
         "cache_write_per_mtok": 0.083333
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-3-flash-preview:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 3 Flash Preview (batch)",
+      "pricing": {
+        "input_per_mtok": 0.25,
+        "output_per_mtok": 1.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
       },
       "context_window": 1048576,
       "modalities": [
@@ -3914,6 +4417,27 @@
       "ratings": null
     },
     {
+      "id": "openrouter/google/gemini-3.1-flash-lite:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 3.1 Flash Lite (batch)",
+      "pricing": {
+        "input_per_mtok": 0.125,
+        "output_per_mtok": 0.75,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.0125,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/google/gemini-3.1-pro-preview",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -3946,7 +4470,28 @@
         "cache_read_per_mtok": 0.2,
         "cache_write_per_mtok": 0.375
       },
-      "context_window": 1048756,
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-3.1-pro-preview:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 3.1 Pro Preview (batch)",
+      "pricing": {
+        "input_per_mtok": 1,
+        "output_per_mtok": 6,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
       "modalities": [
         "text",
         "image"
@@ -3966,6 +4511,195 @@
         "currency": "USD",
         "cache_read_per_mtok": 0.15,
         "cache_write_per_mtok": 0.083333
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-3.5-flash-lite",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 3.5 Flash Lite",
+      "pricing": {
+        "input_per_mtok": 0.3,
+        "output_per_mtok": 2.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.03,
+        "cache_write_per_mtok": 0.083333
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-3.5-flash-lite:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 3.5 Flash Lite (batch)",
+      "pricing": {
+        "input_per_mtok": 0.15,
+        "output_per_mtok": 1.25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.015,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-3.5-flash:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 3.5 Flash (batch)",
+      "pricing": {
+        "input_per_mtok": 0.75,
+        "output_per_mtok": 4.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.075,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-3.6-flash",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 3.6 Flash",
+      "pricing": {
+        "input_per_mtok": 0.75,
+        "output_per_mtok": 3.75,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.075,
+        "cache_write_per_mtok": 0.041667
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-3.6-flash:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 3.6 Flash (batch)",
+      "pricing": {
+        "input_per_mtok": 0.375,
+        "output_per_mtok": 1.875,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.0375,
+        "cache_write_per_mtok": 0.041667
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-3.7-flash",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 3.7 Flash",
+      "pricing": {
+        "input_per_mtok": 0.75,
+        "output_per_mtok": 3.75,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.075,
+        "cache_write_per_mtok": 0.041667
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-3.7-flash:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 3.7 Flash (batch)",
+      "pricing": {
+        "input_per_mtok": 0.375,
+        "output_per_mtok": 1.875,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.0375,
+        "cache_write_per_mtok": 0.041667
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-3.8-flash",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 3.8 Flash",
+      "pricing": {
+        "input_per_mtok": 0.75,
+        "output_per_mtok": 3.75,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.075,
+        "cache_write_per_mtok": 0.041667
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemini-3.8-flash:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemini 3.8 Flash (batch)",
+      "pricing": {
+        "input_per_mtok": 0.375,
+        "output_per_mtok": 1.875,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.0375,
+        "cache_write_per_mtok": 0.041667
       },
       "context_window": 1048576,
       "modalities": [
@@ -4004,9 +4738,9 @@
       "name": "Google: Gemma 3 27B",
       "pricing": {
         "input_per_mtok": 0.08,
-        "output_per_mtok": 0.16,
+        "output_per_mtok": 0.45,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.04,
         "cache_write_per_mtok": 0
       },
       "context_window": 131072,
@@ -4024,8 +4758,8 @@
       "source": "pi_generated",
       "name": "Google: Gemma 4 26B A4B ",
       "pricing": {
-        "input_per_mtok": 0.06,
-        "output_per_mtok": 0.33,
+        "input_per_mtok": 0.07,
+        "output_per_mtok": 0.34,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
@@ -4066,10 +4800,31 @@
       "source": "pi_generated",
       "name": "Google: Gemma 4 31B",
       "pricing": {
-        "input_per_mtok": 0.12,
-        "output_per_mtok": 0.35,
+        "input_per_mtok": 0.09,
+        "output_per_mtok": 0.34,
         "currency": "USD",
-        "cache_read_per_mtok": 0.09,
+        "cache_read_per_mtok": 0.05,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 262144,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/google/gemma-4-31b-it:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Google: Gemma 4 31B (batch)",
+      "pricing": {
+        "input_per_mtok": 0.39,
+        "output_per_mtok": 0.97,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
@@ -4103,13 +4858,13 @@
       "ratings": null
     },
     {
-      "id": "openrouter/ibm-granite/granite-4.1-8b",
+      "id": "openrouter/ibm-granite/granite-4.2-8b",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "IBM: Granite 4.1 8B",
+      "name": "IBM: Granite 4.2 8B",
       "pricing": {
-        "input_per_mtok": 0.05,
-        "output_per_mtok": 0.1,
+        "input_per_mtok": 0.1,
+        "output_per_mtok": 0.15,
         "currency": "USD",
         "cache_read_per_mtok": 0.05,
         "cache_write_per_mtok": 0
@@ -4143,15 +4898,35 @@
       "ratings": null
     },
     {
-      "id": "openrouter/inclusionai/ling-2.6-1t",
+      "id": "openrouter/inception/mercury-2.5-preview",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "inclusionAI: Ling-2.6-1T",
+      "name": "Inception: Mercury 2.5 Preview",
       "pricing": {
-        "input_per_mtok": 0.075,
-        "output_per_mtok": 0.625,
+        "input_per_mtok": 0.04,
+        "output_per_mtok": 0.15,
         "currency": "USD",
-        "cache_read_per_mtok": 0.015,
+        "cache_read_per_mtok": 0.004,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 260000,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/inclusionai/ling-3.0-flash",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "inclusionAI: Ling 3.0 Flash",
+      "pricing": {
+        "input_per_mtok": 0.021,
+        "output_per_mtok": 0.063,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.0042,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
@@ -4163,15 +4938,15 @@
       "ratings": null
     },
     {
-      "id": "openrouter/inclusionai/ling-2.6-flash",
+      "id": "openrouter/inclusionai/ling-3.0-flash-fin",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "inclusionAI: Ling-2.6-flash",
+      "name": "inclusionAI: Ling 3.0 Flash Fin",
       "pricing": {
-        "input_per_mtok": 0.01,
-        "output_per_mtok": 0.03,
+        "input_per_mtok": 0.06,
+        "output_per_mtok": 0.18,
         "currency": "USD",
-        "cache_read_per_mtok": 0.002,
+        "cache_read_per_mtok": 0.012,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
@@ -4183,15 +4958,35 @@
       "ratings": null
     },
     {
-      "id": "openrouter/inclusionai/ring-2.6-1t",
+      "id": "openrouter/inclusionai/ling-3.0-flash-fin:free",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "inclusionAI: Ring-2.6-1T",
+      "name": "inclusionAI: Ling 3.0 Flash Fin (free)",
       "pricing": {
-        "input_per_mtok": 0.075,
-        "output_per_mtok": 0.625,
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
         "currency": "USD",
-        "cache_read_per_mtok": 0.015,
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 262144,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/inclusionai/ling-3.0-flash-sante:free",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "inclusionAI: Ling 3.0 Flash Sante (free)",
+      "pricing": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
@@ -4214,7 +5009,7 @@
         "cache_read_per_mtok": 0.06,
         "cache_write_per_mtok": 0
       },
-      "context_window": 256000,
+      "context_window": 262144,
       "modalities": [
         "text"
       ],
@@ -4223,10 +5018,30 @@
       "ratings": null
     },
     {
-      "id": "openrouter/liquid/lfm-2.5-1.2b-thinking:free",
+      "id": "openrouter/kwaipilot/kat-coder-pro-v2.5",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "LiquidAI: LFM2.5-1.2B-Thinking (free)",
+      "name": "Kwaipilot: KAT-Coder-Pro V2.5",
+      "pricing": {
+        "input_per_mtok": 0.74,
+        "output_per_mtok": 2.96,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.15,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 262144,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/liquid/lfm-2.5-2.6b:free",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "LiquidAI: LFM2.5-2.6B (free)",
       "pricing": {
         "input_per_mtok": 0,
         "output_per_mtok": 0,
@@ -4234,7 +5049,27 @@
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 32768,
+      "context_window": 65536,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/meituan/longcat-2.0",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Meituan: LongCat 2.0",
+      "pricing": {
+        "input_per_mtok": 0.3,
+        "output_per_mtok": 1.2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.006,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048756,
       "modalities": [
         "text"
       ],
@@ -4268,10 +5103,10 @@
       "source": "pi_generated",
       "name": "Meta: Llama 3.1 8B Instruct",
       "pricing": {
-        "input_per_mtok": 0.02,
-        "output_per_mtok": 0.03,
+        "input_per_mtok": 0.05,
+        "output_per_mtok": 0.08,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.025,
         "cache_write_per_mtok": 0
       },
       "context_window": 131072,
@@ -4303,38 +5138,18 @@
       "ratings": null
     },
     {
-      "id": "openrouter/meta-llama/llama-3.3-70b-instruct:free",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Meta: Llama 3.3 70B Instruct (free)",
-      "pricing": {
-        "input_per_mtok": 0,
-        "output_per_mtok": 0,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 131072,
-      "modalities": [
-        "text"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
       "id": "openrouter/meta-llama/llama-4-maverick",
       "provider": "openrouter",
       "source": "pi_generated",
       "name": "Meta: Llama 4 Maverick",
       "pricing": {
-        "input_per_mtok": 0.15,
-        "output_per_mtok": 0.6,
+        "input_per_mtok": 0.2,
+        "output_per_mtok": 0.696,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 1048576,
+      "context_window": 128000,
       "modalities": [
         "text",
         "image"
@@ -4355,7 +5170,154 @@
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 10000000,
+      "context_window": 327680,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/meta/muse-glimmer-30b",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Meta: Muse Glimmer 30B",
+      "pricing": {
+        "input_per_mtok": 0.3,
+        "output_per_mtok": 1.1,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.04,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 131072,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/meta/muse-glimmer-30b:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Meta: Muse Glimmer 30B (batch)",
+      "pricing": {
+        "input_per_mtok": 0.35,
+        "output_per_mtok": 1.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.04,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 131072,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/meta/muse-spark-1.1",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Meta: Muse Spark 1.1",
+      "pricing": {
+        "input_per_mtok": 1.25,
+        "output_per_mtok": 4.25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.15,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/meta/muse-spark-1.2",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Meta: Muse Spark 1.2",
+      "pricing": {
+        "input_per_mtok": 1.25,
+        "output_per_mtok": 4.25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.15,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/meta/muse-spark-1.2-contributor",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Meta: Muse Spark 1.2 Contributor",
+      "pricing": {
+        "input_per_mtok": 0.1,
+        "output_per_mtok": 0.2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.002,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/meta/muse-spark-1.3",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Meta: Muse Spark 1.3",
+      "pricing": {
+        "input_per_mtok": 1.25,
+        "output_per_mtok": 4.25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.15,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/meta/muse-spark-1.3-contributor",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Meta: Muse Spark 1.3 Contributor",
+      "pricing": {
+        "input_per_mtok": 0.1,
+        "output_per_mtok": 0.2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.002,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
       "modalities": [
         "text",
         "image"
@@ -4370,7 +5332,7 @@
       "source": "pi_generated",
       "name": "MiniMax: MiniMax M1",
       "pricing": {
-        "input_per_mtok": 0.4,
+        "input_per_mtok": 0.55,
         "output_per_mtok": 2.2,
         "currency": "USD",
         "cache_read_per_mtok": 0,
@@ -4430,13 +5392,13 @@
       "source": "pi_generated",
       "name": "MiniMax: MiniMax M2.5",
       "pricing": {
-        "input_per_mtok": 0.15,
-        "output_per_mtok": 0.9,
+        "input_per_mtok": 0.27,
+        "output_per_mtok": 1.08,
         "currency": "USD",
-        "cache_read_per_mtok": 0.05,
+        "cache_read_per_mtok": 0.027,
         "cache_write_per_mtok": 0
       },
-      "context_window": 204800,
+      "context_window": 200000,
       "modalities": [
         "text"
       ],
@@ -4450,13 +5412,33 @@
       "source": "pi_generated",
       "name": "MiniMax: MiniMax M2.7",
       "pricing": {
-        "input_per_mtok": 0.24,
-        "output_per_mtok": 0.96,
+        "input_per_mtok": 0.3,
+        "output_per_mtok": 1.2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.06,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 204800,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/minimax/minimax-m2.7:free",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "MiniMax: MiniMax M2.7 (free)",
+      "pricing": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 204800,
+      "context_window": 196608,
       "modalities": [
         "text"
       ],
@@ -4474,6 +5456,48 @@
         "output_per_mtok": 1.2,
         "currency": "USD",
         "cache_read_per_mtok": 0.06,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 524288,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/minimax/minimax-m3:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "MiniMax: MiniMax M3 (batch)",
+      "pricing": {
+        "input_per_mtok": 0.3,
+        "output_per_mtok": 1.2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.06,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 524288,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/minimax/minimax-m3:free",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "MiniMax: MiniMax M3 (free)",
+      "pricing": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
       "context_window": 1048576,
@@ -4692,6 +5716,27 @@
       "ratings": null
     },
     {
+      "id": "openrouter/mistralai/mistral-medium-3-5:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Mistral: Mistral Medium 3.5 (batch)",
+      "pricing": {
+        "input_per_mtok": 0.75,
+        "output_per_mtok": 3.75,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 32768,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/mistralai/mistral-medium-3.1",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -4718,7 +5763,7 @@
       "source": "pi_generated",
       "name": "Mistral: Mistral Nemo",
       "pricing": {
-        "input_per_mtok": 0.02,
+        "input_per_mtok": 0.019,
         "output_per_mtok": 0.03,
         "currency": "USD",
         "cache_read_per_mtok": 0,
@@ -4826,7 +5871,7 @@
         "cache_read_per_mtok": 0.01,
         "cache_write_per_mtok": 0
       },
-      "context_window": 32000,
+      "context_window": 32768,
       "modalities": [
         "text"
       ],
@@ -4921,10 +5966,10 @@
       "source": "pi_generated",
       "name": "MoonshotAI: Kimi K2.6",
       "pricing": {
-        "input_per_mtok": 0.66,
-        "output_per_mtok": 3.41,
+        "input_per_mtok": 0.95,
+        "output_per_mtok": 4,
         "currency": "USD",
-        "cache_read_per_mtok": 0.15,
+        "cache_read_per_mtok": 0.16,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
@@ -4942,13 +5987,55 @@
       "source": "pi_generated",
       "name": "MoonshotAI: Kimi K2.7 Code",
       "pricing": {
-        "input_per_mtok": 0.72,
-        "output_per_mtok": 3.49,
+        "input_per_mtok": 0.66,
+        "output_per_mtok": 3.4,
         "currency": "USD",
-        "cache_read_per_mtok": 0.159,
+        "cache_read_per_mtok": 0.18,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/moonshotai/kimi-k3",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "MoonshotAI: Kimi K3",
+      "pricing": {
+        "input_per_mtok": 3,
+        "output_per_mtok": 15,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.3,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/moonshotai/kimi-k3:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "MoonshotAI: Kimi K3 (batch)",
+      "pricing": {
+        "input_per_mtok": 3,
+        "output_per_mtok": 15,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.3,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
       "modalities": [
         "text",
         "image"
@@ -5000,26 +6087,6 @@
       "ratings": null
     },
     {
-      "id": "openrouter/nvidia/llama-3.3-nemotron-super-49b-v1.5",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "NVIDIA: Llama 3.3 Nemotron Super 49B V1.5",
-      "pricing": {
-        "input_per_mtok": 0.4,
-        "output_per_mtok": 0.4,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 131072,
-      "modalities": [
-        "text"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
       "id": "openrouter/nvidia/nemotron-3-nano-30b-a3b",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -5028,30 +6095,10 @@
         "input_per_mtok": 0.05,
         "output_per_mtok": 0.2,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.03,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
-      "modalities": [
-        "text"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "NVIDIA: Nemotron 3 Nano 30B A3B (free)",
-      "pricing": {
-        "input_per_mtok": 0,
-        "output_per_mtok": 0,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 256000,
       "modalities": [
         "text"
       ],
@@ -5086,13 +6133,13 @@
       "source": "pi_generated",
       "name": "NVIDIA: Nemotron 3 Super",
       "pricing": {
-        "input_per_mtok": 0.08,
-        "output_per_mtok": 0.45,
+        "input_per_mtok": 0.085,
+        "output_per_mtok": 0.4,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 1000000,
+      "context_window": 262144,
       "modalities": [
         "text"
       ],
@@ -5112,7 +6159,7 @@
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 1000000,
+      "context_window": 262144,
       "modalities": [
         "text"
       ],
@@ -5126,13 +6173,13 @@
       "source": "pi_generated",
       "name": "NVIDIA: Nemotron 3 Ultra",
       "pricing": {
-        "input_per_mtok": 0.5,
-        "output_per_mtok": 2.2,
+        "input_per_mtok": 0.625,
+        "output_per_mtok": 3.125,
         "currency": "USD",
-        "cache_read_per_mtok": 0.1,
+        "cache_read_per_mtok": 0.1875,
         "cache_write_per_mtok": 0
       },
-      "context_window": 1000000,
+      "context_window": 256000,
       "modalities": [
         "text"
       ],
@@ -5161,31 +6208,30 @@
       "ratings": null
     },
     {
-      "id": "openrouter/nvidia/nemotron-nano-12b-v2-vl:free",
+      "id": "openrouter/nvidia/nemotron-3.5-lightning",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "NVIDIA: Nemotron Nano 12B 2 VL (free)",
+      "name": "NVIDIA: Nemotron 3.5 Lightning",
       "pricing": {
-        "input_per_mtok": 0,
-        "output_per_mtok": 0,
+        "input_per_mtok": 0.08,
+        "output_per_mtok": 0.2,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.04,
         "cache_write_per_mtok": 0
       },
-      "context_window": 128000,
+      "context_window": 262144,
       "modalities": [
-        "text",
-        "image"
+        "text"
       ],
       "label": null,
       "description": null,
       "ratings": null
     },
     {
-      "id": "openrouter/nvidia/nemotron-nano-9b-v2:free",
+      "id": "openrouter/nvidia/nemotron-3.5-lightning:free",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "NVIDIA: Nemotron Nano 9B V2 (free)",
+      "name": "NVIDIA: Nemotron 3.5 Lightning (free)",
       "pricing": {
         "input_per_mtok": 0,
         "output_per_mtok": 0,
@@ -5193,7 +6239,7 @@
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 128000,
+      "context_window": 1000000,
       "modalities": [
         "text"
       ],
@@ -5249,6 +6295,26 @@
       "pricing": {
         "input_per_mtok": 3,
         "output_per_mtok": 4,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 16385,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-3.5-turbo:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-3.5 Turbo (batch)",
+      "pricing": {
+        "input_per_mtok": 0.25,
+        "output_per_mtok": 0.75,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
@@ -5323,6 +6389,27 @@
       "ratings": null
     },
     {
+      "id": "openrouter/openai/gpt-4-turbo:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-4 Turbo (batch)",
+      "pricing": {
+        "input_per_mtok": 5,
+        "output_per_mtok": 15,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 128000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/openai/gpt-4.1",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -5365,6 +6452,27 @@
       "ratings": null
     },
     {
+      "id": "openrouter/openai/gpt-4.1-mini:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-4.1 Mini (batch)",
+      "pricing": {
+        "input_per_mtok": 0.2,
+        "output_per_mtok": 0.8,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.05,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1047576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/openai/gpt-4.1-nano",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -5386,6 +6494,48 @@
       "ratings": null
     },
     {
+      "id": "openrouter/openai/gpt-4.1-nano:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-4.1 Nano (batch)",
+      "pricing": {
+        "input_per_mtok": 0.05,
+        "output_per_mtok": 0.2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.0125,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1047576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-4.1:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-4.1 (batch)",
+      "pricing": {
+        "input_per_mtok": 1,
+        "output_per_mtok": 4,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1047576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/openai/gpt-4o",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -5394,7 +6544,7 @@
         "input_per_mtok": 2.5,
         "output_per_mtok": 10,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 1.25,
         "cache_write_per_mtok": 0
       },
       "context_window": 128000,
@@ -5512,18 +6662,18 @@
       "ratings": null
     },
     {
-      "id": "openrouter/openai/gpt-5",
+      "id": "openrouter/openai/gpt-4o-mini:batch",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "OpenAI: GPT-5",
+      "name": "OpenAI: GPT-4o-mini (batch)",
       "pricing": {
-        "input_per_mtok": 1.25,
-        "output_per_mtok": 10,
+        "input_per_mtok": 0.075,
+        "output_per_mtok": 0.3,
         "currency": "USD",
-        "cache_read_per_mtok": 0.125,
+        "cache_read_per_mtok": 0.0375,
         "cache_write_per_mtok": 0
       },
-      "context_window": 400000,
+      "context_window": 128000,
       "modalities": [
         "text",
         "image"
@@ -5533,10 +6683,31 @@
       "ratings": null
     },
     {
-      "id": "openrouter/openai/gpt-5-codex",
+      "id": "openrouter/openai/gpt-4o:batch",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "OpenAI: GPT-5 Codex",
+      "name": "OpenAI: GPT-4o (batch)",
+      "pricing": {
+        "input_per_mtok": 1.25,
+        "output_per_mtok": 5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.625,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 128000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5",
       "pricing": {
         "input_per_mtok": 1.25,
         "output_per_mtok": 10,
@@ -5575,6 +6746,27 @@
       "ratings": null
     },
     {
+      "id": "openrouter/openai/gpt-5-mini:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5 Mini (batch)",
+      "pricing": {
+        "input_per_mtok": 0.125,
+        "output_per_mtok": 1,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.0125,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 400000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/openai/gpt-5-nano",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -5583,7 +6775,28 @@
         "input_per_mtok": 0.05,
         "output_per_mtok": 0.4,
         "currency": "USD",
-        "cache_read_per_mtok": 0.01,
+        "cache_read_per_mtok": 0.005,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 400000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5-nano:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5 Nano (batch)",
+      "pricing": {
+        "input_per_mtok": 0.025,
+        "output_per_mtok": 0.2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.0025,
         "cache_write_per_mtok": 0
       },
       "context_window": 400000,
@@ -5617,15 +6830,15 @@
       "ratings": null
     },
     {
-      "id": "openrouter/openai/gpt-5.1",
+      "id": "openrouter/openai/gpt-5-pro:batch",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "OpenAI: GPT-5.1",
+      "name": "OpenAI: GPT-5 Pro (batch)",
       "pricing": {
-        "input_per_mtok": 1.25,
-        "output_per_mtok": 10,
+        "input_per_mtok": 7.5,
+        "output_per_mtok": 60,
         "currency": "USD",
-        "cache_read_per_mtok": 0.13,
+        "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
       "context_window": 400000,
@@ -5638,18 +6851,18 @@
       "ratings": null
     },
     {
-      "id": "openrouter/openai/gpt-5.1-chat",
+      "id": "openrouter/openai/gpt-5.1",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "OpenAI: GPT-5.1 Chat",
+      "name": "OpenAI: GPT-5.1",
       "pricing": {
         "input_per_mtok": 1.25,
         "output_per_mtok": 10,
         "currency": "USD",
-        "cache_read_per_mtok": 0.13,
+        "cache_read_per_mtok": 0.125,
         "cache_write_per_mtok": 0
       },
-      "context_window": 128000,
+      "context_window": 400000,
       "modalities": [
         "text",
         "image"
@@ -5709,7 +6922,28 @@
         "input_per_mtok": 0.25,
         "output_per_mtok": 2,
         "currency": "USD",
-        "cache_read_per_mtok": 0.025,
+        "cache_read_per_mtok": 0.03,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 400000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5.1:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.1 (batch)",
+      "pricing": {
+        "input_per_mtok": 0.625,
+        "output_per_mtok": 5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.0625,
         "cache_write_per_mtok": 0
       },
       "context_window": 400000,
@@ -5806,18 +7040,39 @@
       "ratings": null
     },
     {
-      "id": "openrouter/openai/gpt-5.3-chat",
+      "id": "openrouter/openai/gpt-5.2-pro:batch",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "OpenAI: GPT-5.3 Chat",
+      "name": "OpenAI: GPT-5.2 Pro (batch)",
       "pricing": {
-        "input_per_mtok": 1.75,
-        "output_per_mtok": 14,
+        "input_per_mtok": 10.5,
+        "output_per_mtok": 84,
         "currency": "USD",
-        "cache_read_per_mtok": 0.175,
+        "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 128000,
+      "context_window": 400000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5.2:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.2 (batch)",
+      "pricing": {
+        "input_per_mtok": 0.875,
+        "output_per_mtok": 7,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.0875,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 400000,
       "modalities": [
         "text",
         "image"
@@ -5890,6 +7145,27 @@
       "ratings": null
     },
     {
+      "id": "openrouter/openai/gpt-5.4-mini:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.4 Mini (batch)",
+      "pricing": {
+        "input_per_mtok": 0.375,
+        "output_per_mtok": 2.25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.0375,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 400000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/openai/gpt-5.4-nano",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -5911,6 +7187,27 @@
       "ratings": null
     },
     {
+      "id": "openrouter/openai/gpt-5.4-nano:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.4 Nano (batch)",
+      "pricing": {
+        "input_per_mtok": 0.1,
+        "output_per_mtok": 0.625,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.01,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 400000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/openai/gpt-5.4-pro",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -5920,6 +7217,48 @@
         "output_per_mtok": 180,
         "currency": "USD",
         "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5.4-pro:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.4 Pro (batch)",
+      "pricing": {
+        "input_per_mtok": 15,
+        "output_per_mtok": 90,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5.4:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.4 (batch)",
+      "pricing": {
+        "input_per_mtok": 1.25,
+        "output_per_mtok": 7.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.125,
         "cache_write_per_mtok": 0
       },
       "context_window": 1050000,
@@ -5974,16 +7313,58 @@
       "ratings": null
     },
     {
+      "id": "openrouter/openai/gpt-5.5-pro:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.5 Pro (batch)",
+      "pricing": {
+        "input_per_mtok": 15,
+        "output_per_mtok": 90,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5.5:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.5 (batch)",
+      "pricing": {
+        "input_per_mtok": 2.5,
+        "output_per_mtok": 15,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/openai/gpt-5.6-luna",
       "provider": "openrouter",
       "source": "pi_generated",
       "name": "OpenAI: GPT-5.6 Luna",
       "pricing": {
-        "input_per_mtok": 1,
-        "output_per_mtok": 6,
+        "input_per_mtok": 0.2,
+        "output_per_mtok": 1.2,
         "currency": "USD",
-        "cache_read_per_mtok": 0.1,
-        "cache_write_per_mtok": 1.25
+        "cache_read_per_mtok": 0.02,
+        "cache_write_per_mtok": 0.25
       },
       "context_window": 1050000,
       "modalities": [
@@ -6000,11 +7381,53 @@
       "source": "pi_generated",
       "name": "OpenAI: GPT-5.6 Luna Pro",
       "pricing": {
-        "input_per_mtok": 1,
-        "output_per_mtok": 6,
+        "input_per_mtok": 0.2,
+        "output_per_mtok": 1.2,
         "currency": "USD",
-        "cache_read_per_mtok": 0.1,
-        "cache_write_per_mtok": 1.25
+        "cache_read_per_mtok": 0.02,
+        "cache_write_per_mtok": 0.25
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5.6-luna-pro:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.6 Luna Pro (batch)",
+      "pricing": {
+        "input_per_mtok": 0.1,
+        "output_per_mtok": 0.6,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.01,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5.6-luna:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.6 Luna (batch)",
+      "pricing": {
+        "input_per_mtok": 0.1,
+        "output_per_mtok": 0.6,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.01,
+        "cache_write_per_mtok": 0
       },
       "context_window": 1050000,
       "modalities": [
@@ -6021,11 +7444,11 @@
       "source": "pi_generated",
       "name": "OpenAI: GPT-5.6 Sol",
       "pricing": {
-        "input_per_mtok": 5,
-        "output_per_mtok": 30,
+        "input_per_mtok": 2,
+        "output_per_mtok": 10,
         "currency": "USD",
-        "cache_read_per_mtok": 0.5,
-        "cache_write_per_mtok": 6.25
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 2.5
       },
       "context_window": 1050000,
       "modalities": [
@@ -6042,11 +7465,53 @@
       "source": "pi_generated",
       "name": "OpenAI: GPT-5.6 Sol Pro",
       "pricing": {
-        "input_per_mtok": 5,
-        "output_per_mtok": 30,
+        "input_per_mtok": 2,
+        "output_per_mtok": 10,
         "currency": "USD",
-        "cache_read_per_mtok": 0.5,
-        "cache_write_per_mtok": 6.25
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 2.5
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5.6-sol-pro:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.6 Sol Pro (batch)",
+      "pricing": {
+        "input_per_mtok": 1,
+        "output_per_mtok": 5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.1,
+        "cache_write_per_mtok": 1.25
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5.6-sol:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.6 Sol (batch)",
+      "pricing": {
+        "input_per_mtok": 1,
+        "output_per_mtok": 5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.1,
+        "cache_write_per_mtok": 1.25
       },
       "context_window": 1050000,
       "modalities": [
@@ -6063,11 +7528,11 @@
       "source": "pi_generated",
       "name": "OpenAI: GPT-5.6 Terra",
       "pricing": {
-        "input_per_mtok": 2.5,
-        "output_per_mtok": 15,
+        "input_per_mtok": 2,
+        "output_per_mtok": 12,
         "currency": "USD",
-        "cache_read_per_mtok": 0.25,
-        "cache_write_per_mtok": 3.125
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 2.5
       },
       "context_window": 1050000,
       "modalities": [
@@ -6084,11 +7549,158 @@
       "source": "pi_generated",
       "name": "OpenAI: GPT-5.6 Terra Pro",
       "pricing": {
-        "input_per_mtok": 2.5,
-        "output_per_mtok": 15,
+        "input_per_mtok": 2,
+        "output_per_mtok": 12,
         "currency": "USD",
-        "cache_read_per_mtok": 0.25,
-        "cache_write_per_mtok": 3.125
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 2.5
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5.6-terra-pro:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.6 Terra Pro (batch)",
+      "pricing": {
+        "input_per_mtok": 1,
+        "output_per_mtok": 6,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.1,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5.6-terra:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5.6 Terra (batch)",
+      "pricing": {
+        "input_per_mtok": 1,
+        "output_per_mtok": 6,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.1,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-5:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-5 (batch)",
+      "pricing": {
+        "input_per_mtok": 0.625,
+        "output_per_mtok": 5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.0625,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 400000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-6-astra",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-6 Astra",
+      "pricing": {
+        "input_per_mtok": 10,
+        "output_per_mtok": 50,
+        "currency": "USD",
+        "cache_read_per_mtok": 1,
+        "cache_write_per_mtok": 12.5
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-6-astra-pro",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-6 Astra Pro",
+      "pricing": {
+        "input_per_mtok": 10,
+        "output_per_mtok": 50,
+        "currency": "USD",
+        "cache_read_per_mtok": 1,
+        "cache_write_per_mtok": 12.5
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-6-astra-pro:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-6 Astra Pro (batch)",
+      "pricing": {
+        "input_per_mtok": 5,
+        "output_per_mtok": 25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.5,
+        "cache_write_per_mtok": 6.25
+      },
+      "context_window": 1050000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/gpt-6-astra:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: GPT-6 Astra (batch)",
+      "pricing": {
+        "input_per_mtok": 5,
+        "output_per_mtok": 25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.5,
+        "cache_write_per_mtok": 6.25
       },
       "context_window": 1050000,
       "modalities": [
@@ -6166,8 +7778,8 @@
       "source": "pi_generated",
       "name": "OpenAI: gpt-oss-120b",
       "pricing": {
-        "input_per_mtok": 0.036,
-        "output_per_mtok": 0.18,
+        "input_per_mtok": 0.037,
+        "output_per_mtok": 0.17,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
@@ -6181,13 +7793,13 @@
       "ratings": null
     },
     {
-      "id": "openrouter/openai/gpt-oss-120b:free",
+      "id": "openrouter/openai/gpt-oss-120b:batch",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "OpenAI: gpt-oss-120b (free)",
+      "name": "OpenAI: gpt-oss-120b (batch)",
       "pricing": {
-        "input_per_mtok": 0,
-        "output_per_mtok": 0,
+        "input_per_mtok": 0.15,
+        "output_per_mtok": 0.6,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
@@ -6206,30 +7818,10 @@
       "source": "pi_generated",
       "name": "OpenAI: gpt-oss-20b",
       "pricing": {
-        "input_per_mtok": 0.029,
-        "output_per_mtok": 0.14,
+        "input_per_mtok": 0.03,
+        "output_per_mtok": 0.13,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 131072,
-      "modalities": [
-        "text"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/openai/gpt-oss-20b:free",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "OpenAI: gpt-oss-20b (free)",
-      "pricing": {
-        "input_per_mtok": 0,
-        "output_per_mtok": 0,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.03,
         "cache_write_per_mtok": 0
       },
       "context_window": 131072,
@@ -6303,27 +7895,6 @@
       "ratings": null
     },
     {
-      "id": "openrouter/openai/o3-deep-research",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "OpenAI: o3 Deep Research",
-      "pricing": {
-        "input_per_mtok": 10,
-        "output_per_mtok": 40,
-        "currency": "USD",
-        "cache_read_per_mtok": 2.5,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 200000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
       "id": "openrouter/openai/o3-mini",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -6364,6 +7935,26 @@
       "ratings": null
     },
     {
+      "id": "openrouter/openai/o3-mini:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: o3 Mini (batch)",
+      "pricing": {
+        "input_per_mtok": 0.55,
+        "output_per_mtok": 2.2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.275,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/openai/o3-pro",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -6373,6 +7964,27 @@
         "output_per_mtok": 80,
         "currency": "USD",
         "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openai/o3:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: o3 (batch)",
+      "pricing": {
+        "input_per_mtok": 1,
+        "output_per_mtok": 4,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
         "cache_write_per_mtok": 0
       },
       "context_window": 200000,
@@ -6406,27 +8018,6 @@
       "ratings": null
     },
     {
-      "id": "openrouter/openai/o4-mini-deep-research",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "OpenAI: o4 Mini Deep Research",
-      "pricing": {
-        "input_per_mtok": 2,
-        "output_per_mtok": 8,
-        "currency": "USD",
-        "cache_read_per_mtok": 0.5,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 200000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
       "id": "openrouter/openai/o4-mini-high",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -6448,10 +8039,52 @@
       "ratings": null
     },
     {
+      "id": "openrouter/openai/o4-mini:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "OpenAI: o4 Mini (batch)",
+      "pricing": {
+        "input_per_mtok": 0.55,
+        "output_per_mtok": 2.2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.1375,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 200000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/openrouter/auto",
       "provider": "openrouter",
       "source": "pi_generated",
       "name": "Auto Router",
+      "pricing": {
+        "input_per_mtok": -1000000,
+        "output_per_mtok": -1000000,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 2000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/openrouter/auto-beta",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Auto Router (Beta)",
       "pricing": {
         "input_per_mtok": -1000000,
         "output_per_mtok": -1000000,
@@ -6510,18 +8143,18 @@
       "ratings": null
     },
     {
-      "id": "openrouter/poolside/laguna-m.1",
+      "id": "openrouter/poolside/laguna-s-2.1",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "Poolside: Laguna M.1",
+      "name": "Poolside: Laguna S 2.1",
       "pricing": {
-        "input_per_mtok": 0.2,
-        "output_per_mtok": 0.4,
+        "input_per_mtok": 0.09,
+        "output_per_mtok": 0.18,
         "currency": "USD",
-        "cache_read_per_mtok": 0.1,
+        "cache_read_per_mtok": 0.009,
         "cache_write_per_mtok": 0
       },
-      "context_window": 262144,
+      "context_window": 1048576,
       "modalities": [
         "text"
       ],
@@ -6530,10 +8163,10 @@
       "ratings": null
     },
     {
-      "id": "openrouter/poolside/laguna-m.1:free",
+      "id": "openrouter/poolside/laguna-s-2.1:free",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "Poolside: Laguna M.1 (free)",
+      "name": "Poolside: Laguna S 2.1 (free)",
       "pricing": {
         "input_per_mtok": 0,
         "output_per_mtok": 0,
@@ -6601,7 +8234,7 @@
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 131072,
+      "context_window": 32768,
       "modalities": [
         "text"
       ],
@@ -6615,13 +8248,13 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen2.5 7B Instruct",
       "pricing": {
-        "input_per_mtok": 0.04,
-        "output_per_mtok": 0.1,
+        "input_per_mtok": 0.1,
+        "output_per_mtok": 0.2,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 131072,
+      "context_window": 32768,
       "modalities": [
         "text"
       ],
@@ -6670,38 +8303,18 @@
       "ratings": null
     },
     {
-      "id": "openrouter/qwen/qwen-plus-2025-07-28:thinking",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Qwen: Qwen Plus 0728 (thinking)",
-      "pricing": {
-        "input_per_mtok": 0.26,
-        "output_per_mtok": 0.78,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0.325
-      },
-      "context_window": 1000000,
-      "modalities": [
-        "text"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
       "id": "openrouter/qwen/qwen3-14b",
       "provider": "openrouter",
       "source": "pi_generated",
       "name": "Qwen: Qwen3 14B",
       "pricing": {
-        "input_per_mtok": 0.1,
+        "input_per_mtok": 0.12,
         "output_per_mtok": 0.24,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 131702,
+      "context_window": 40960,
       "modalities": [
         "text"
       ],
@@ -6736,7 +8349,7 @@
       "name": "Qwen: Qwen3 235B A22B Instruct 2507",
       "pricing": {
         "input_per_mtok": 0.09,
-        "output_per_mtok": 0.1,
+        "output_per_mtok": 0.55,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
@@ -6755,13 +8368,13 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3 235B A22B Thinking 2507",
       "pricing": {
-        "input_per_mtok": 0.1495,
-        "output_per_mtok": 1.495,
+        "input_per_mtok": 0.23,
+        "output_per_mtok": 2.3,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 262144,
+      "context_window": 131072,
       "modalities": [
         "text"
       ],
@@ -6781,7 +8394,7 @@
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 131072,
+      "context_window": 40960,
       "modalities": [
         "text"
       ],
@@ -6801,7 +8414,7 @@
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 131072,
+      "context_window": 128000,
       "modalities": [
         "text"
       ],
@@ -6815,13 +8428,13 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3 30B A3B Thinking 2507",
       "pricing": {
-        "input_per_mtok": 0.13,
-        "output_per_mtok": 1.56,
+        "input_per_mtok": 0.2,
+        "output_per_mtok": 2.4,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 131072,
+      "context_window": 81920,
       "modalities": [
         "text"
       ],
@@ -6841,7 +8454,7 @@
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 131072,
+      "context_window": 40960,
       "modalities": [
         "text"
       ],
@@ -6875,13 +8488,13 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3 Coder 480B A35B",
       "pricing": {
-        "input_per_mtok": 0.22,
-        "output_per_mtok": 1.8,
+        "input_per_mtok": 0.3,
+        "output_per_mtok": 1,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.1,
         "cache_write_per_mtok": 0
       },
-      "context_window": 1048576,
+      "context_window": 262144,
       "modalities": [
         "text"
       ],
@@ -6896,12 +8509,12 @@
       "name": "Qwen: Qwen3 Coder 30B A3B Instruct",
       "pricing": {
         "input_per_mtok": 0.07,
-        "output_per_mtok": 0.27,
+        "output_per_mtok": 0.28,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 160000,
+      "context_window": 262144,
       "modalities": [
         "text"
       ],
@@ -6935,7 +8548,7 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3 Coder Next",
       "pricing": {
-        "input_per_mtok": 0.11,
+        "input_per_mtok": 0.12,
         "output_per_mtok": 0.8,
         "currency": "USD",
         "cache_read_per_mtok": 0.07,
@@ -6962,26 +8575,6 @@
         "cache_write_per_mtok": 0.8125
       },
       "context_window": 1000000,
-      "modalities": [
-        "text"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/qwen/qwen3-coder:free",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Qwen: Qwen3 Coder 480B A35B (free)",
-      "pricing": {
-        "input_per_mtok": 0,
-        "output_per_mtok": 0,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 1048576,
       "modalities": [
         "text"
       ],
@@ -7035,30 +8628,10 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3 Next 80B A3B Instruct",
       "pricing": {
-        "input_per_mtok": 0.09,
+        "input_per_mtok": 0.1,
         "output_per_mtok": 1.1,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 0
-      },
-      "context_window": 262144,
-      "modalities": [
-        "text"
-      ],
-      "label": null,
-      "description": null,
-      "ratings": null
-    },
-    {
-      "id": "openrouter/qwen/qwen3-next-80b-a3b-instruct:free",
-      "provider": "openrouter",
-      "source": "pi_generated",
-      "name": "Qwen: Qwen3 Next 80B A3B Instruct (free)",
-      "pricing": {
-        "input_per_mtok": 0,
-        "output_per_mtok": 0,
-        "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.07,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
@@ -7075,13 +8648,13 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3 Next 80B A3B Thinking",
       "pricing": {
-        "input_per_mtok": 0.0975,
-        "output_per_mtok": 0.78,
+        "input_per_mtok": 0.15,
+        "output_per_mtok": 1.2,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 262144,
+      "context_window": 131072,
       "modalities": [
         "text"
       ],
@@ -7095,13 +8668,13 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3 VL 235B A22B Instruct",
       "pricing": {
-        "input_per_mtok": 0.2,
-        "output_per_mtok": 0.88,
+        "input_per_mtok": 0.21,
+        "output_per_mtok": 1.9,
         "currency": "USD",
-        "cache_read_per_mtok": 0.11,
+        "cache_read_per_mtok": 0.1,
         "cache_write_per_mtok": 0
       },
-      "context_window": 262144,
+      "context_window": 131072,
       "modalities": [
         "text",
         "image"
@@ -7116,8 +8689,8 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3 VL 235B A22B Thinking",
       "pricing": {
-        "input_per_mtok": 0.26,
-        "output_per_mtok": 2.6,
+        "input_per_mtok": 0.4,
+        "output_per_mtok": 4,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
@@ -7137,8 +8710,8 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3 VL 30B A3B Instruct",
       "pricing": {
-        "input_per_mtok": 0.13,
-        "output_per_mtok": 0.52,
+        "input_per_mtok": 0.15,
+        "output_per_mtok": 0.6,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
@@ -7158,8 +8731,8 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3 VL 30B A3B Thinking",
       "pricing": {
-        "input_per_mtok": 0.13,
-        "output_per_mtok": 1.56,
+        "input_per_mtok": 0.2,
+        "output_per_mtok": 2.4,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
@@ -7185,7 +8758,7 @@
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 262144,
+      "context_window": 131072,
       "modalities": [
         "text",
         "image"
@@ -7206,7 +8779,7 @@
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 256000,
+      "context_window": 131072,
       "modalities": [
         "text",
         "image"
@@ -7221,13 +8794,13 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3 VL 8B Thinking",
       "pricing": {
-        "input_per_mtok": 0.117,
-        "output_per_mtok": 1.365,
+        "input_per_mtok": 0.18,
+        "output_per_mtok": 2.1,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
-      "context_window": 256000,
+      "context_window": 131072,
       "modalities": [
         "text",
         "image"
@@ -7242,8 +8815,8 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3.5-122B-A10B",
       "pricing": {
-        "input_per_mtok": 0.26,
-        "output_per_mtok": 2.08,
+        "input_per_mtok": 0.29,
+        "output_per_mtok": 2.4,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
@@ -7284,10 +8857,10 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3.5-35B-A3B",
       "pricing": {
-        "input_per_mtok": 0.14,
-        "output_per_mtok": 1,
+        "input_per_mtok": 0.08,
+        "output_per_mtok": 0.75,
         "currency": "USD",
-        "cache_read_per_mtok": 0.05,
+        "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
@@ -7305,13 +8878,13 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3.5 397B A17B",
       "pricing": {
-        "input_per_mtok": 0.385,
-        "output_per_mtok": 2.45,
+        "input_per_mtok": 0.55,
+        "output_per_mtok": 3.5,
         "currency": "USD",
-        "cache_read_per_mtok": 0.111,
+        "cache_read_per_mtok": 0.225,
         "cache_write_per_mtok": 0
       },
-      "context_window": 256000,
+      "context_window": 262144,
       "modalities": [
         "text",
         "image"
@@ -7328,6 +8901,27 @@
       "pricing": {
         "input_per_mtok": 0.1,
         "output_per_mtok": 0.15,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 262144,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/qwen/qwen3.5-9b:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Qwen: Qwen3.5-9B (batch)",
+      "pricing": {
+        "input_per_mtok": 0.17,
+        "output_per_mtok": 0.25,
         "currency": "USD",
         "cache_read_per_mtok": 0,
         "cache_write_per_mtok": 0
@@ -7410,10 +9004,10 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3.6 27B",
       "pricing": {
-        "input_per_mtok": 0.285,
-        "output_per_mtok": 2.4,
+        "input_per_mtok": 0.3,
+        "output_per_mtok": 2,
         "currency": "USD",
-        "cache_read_per_mtok": 0.15,
+        "cache_read_per_mtok": 0.03,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
@@ -7431,10 +9025,10 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3.6 35B A3B",
       "pricing": {
-        "input_per_mtok": 0.14,
-        "output_per_mtok": 1,
+        "input_per_mtok": 0.1,
+        "output_per_mtok": 0.9,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.05,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
@@ -7473,11 +9067,11 @@
       "source": "pi_generated",
       "name": "Qwen: Qwen3.6 Max Preview",
       "pricing": {
-        "input_per_mtok": 1.04,
-        "output_per_mtok": 6.24,
+        "input_per_mtok": 1.027,
+        "output_per_mtok": 6.162,
         "currency": "USD",
         "cache_read_per_mtok": 0,
-        "cache_write_per_mtok": 1.3
+        "cache_write_per_mtok": 1.28375
       },
       "context_window": 262144,
       "modalities": [
@@ -7509,16 +9103,37 @@
       "ratings": null
     },
     {
+      "id": "openrouter/qwen/qwen3.7-flash",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Qwen: Qwen3.7 Flash",
+      "pricing": {
+        "input_per_mtok": 0.03,
+        "output_per_mtok": 0.13,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.006,
+        "cache_write_per_mtok": 0.038
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/qwen/qwen3.7-max",
       "provider": "openrouter",
       "source": "pi_generated",
       "name": "Qwen: Qwen3.7 Max",
       "pricing": {
-        "input_per_mtok": 1.25,
-        "output_per_mtok": 3.75,
+        "input_per_mtok": 1.475,
+        "output_per_mtok": 4.425,
         "currency": "USD",
-        "cache_read_per_mtok": 0.25,
-        "cache_write_per_mtok": 1.5625
+        "cache_read_per_mtok": 0.295,
+        "cache_write_per_mtok": 1.84375
       },
       "context_window": 1000000,
       "modalities": [
@@ -7539,6 +9154,109 @@
         "currency": "USD",
         "cache_read_per_mtok": 0.064,
         "cache_write_per_mtok": 0.4
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/qwen/qwen3.8-2.4t-a95b",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Qwen: Qwen3.8 2.4T A95B",
+      "pricing": {
+        "input_per_mtok": 2,
+        "output_per_mtok": 6,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/qwen/qwen3.8-2.4t-a95b:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Qwen: Qwen3.8 2.4T A95B (batch)",
+      "pricing": {
+        "input_per_mtok": 2,
+        "output_per_mtok": 6,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1010000,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/qwen/qwen3.8-27b",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Qwen: Qwen3.8 27B",
+      "pricing": {
+        "input_per_mtok": 0.42,
+        "output_per_mtok": 3,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.085,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/qwen/qwen3.8-flash",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Qwen: Qwen3.8 Flash",
+      "pricing": {
+        "input_per_mtok": 0.15,
+        "output_per_mtok": 0.47,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.016,
+        "cache_write_per_mtok": 0.2
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/qwen/qwen3.8-max-0902",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Qwen: Qwen3.8 Max (0902)",
+      "pricing": {
+        "input_per_mtok": 2,
+        "output_per_mtok": 6,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 2.5
       },
       "context_window": 1000000,
       "modalities": [
@@ -7603,6 +9321,27 @@
         "cache_write_per_mtok": 0
       },
       "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/sakana/sakana-namazu",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Sakana: Sakana Namazu",
+      "pricing": {
+        "input_per_mtok": 0.95,
+        "output_per_mtok": 4,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.15,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 262144,
       "modalities": [
         "text",
         "image"
@@ -7678,10 +9417,10 @@
       "source": "pi_generated",
       "name": "Tencent: Hy3",
       "pricing": {
-        "input_per_mtok": 0.14,
-        "output_per_mtok": 0.58,
+        "input_per_mtok": 0.132,
+        "output_per_mtok": 0.528,
         "currency": "USD",
-        "cache_read_per_mtok": 0.035,
+        "cache_read_per_mtok": 0.033,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
@@ -7698,10 +9437,10 @@
       "source": "pi_generated",
       "name": "Tencent: Hy3 preview",
       "pricing": {
-        "input_per_mtok": 0.063,
-        "output_per_mtok": 0.21,
+        "input_per_mtok": 0.18,
+        "output_per_mtok": 0.6,
         "currency": "USD",
-        "cache_read_per_mtok": 0.021,
+        "cache_read_per_mtok": 0.06,
         "cache_write_per_mtok": 0
       },
       "context_window": 262144,
@@ -7713,18 +9452,18 @@
       "ratings": null
     },
     {
-      "id": "openrouter/tencent/hy3:free",
+      "id": "openrouter/tencent/hy4-preview",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "Tencent: Hy3 (free)",
+      "name": "Tencent: Hy4 preview",
       "pricing": {
-        "input_per_mtok": 0,
-        "output_per_mtok": 0,
+        "input_per_mtok": 0.834,
+        "output_per_mtok": 2.501,
         "currency": "USD",
-        "cache_read_per_mtok": 0,
+        "cache_read_per_mtok": 0.042,
         "cache_write_per_mtok": 0
       },
-      "context_window": 262144,
+      "context_window": 1048576,
       "modalities": [
         "text"
       ],
@@ -7753,6 +9492,132 @@
       "ratings": null
     },
     {
+      "id": "openrouter/thinkingmachines/inkling",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Thinking Machines: Inkling",
+      "pricing": {
+        "input_per_mtok": 1,
+        "output_per_mtok": 4.05,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.17,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 524288,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/thinkingmachines/inkling-small",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Thinking Machines: Inkling Small",
+      "pricing": {
+        "input_per_mtok": 0.45,
+        "output_per_mtok": 1.2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.1,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 524288,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/thinkingmachines/inkling-small:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Thinking Machines: Inkling Small (batch)",
+      "pricing": {
+        "input_per_mtok": 0.5,
+        "output_per_mtok": 1.2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.1,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 524288,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/thinkingmachines/inkling-small:free",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Thinking Machines: Inkling Small (free)",
+      "pricing": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/thinkingmachines/inkling:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Thinking Machines: Inkling (batch)",
+      "pricing": {
+        "input_per_mtok": 1,
+        "output_per_mtok": 4.05,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.17,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 524288,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/thinkingmachines/inkling:free",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Thinking Machines: Inkling (free)",
+      "pricing": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/upstage/solar-pro-3",
       "provider": "openrouter",
       "source": "pi_generated",
@@ -7764,7 +9629,27 @@
         "cache_read_per_mtok": 0.015,
         "cache_write_per_mtok": 0
       },
-      "context_window": 128000,
+      "context_window": 131072,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/upstage/solar-pro4",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Upstage: Solar Pro 4",
+      "pricing": {
+        "input_per_mtok": 0.03,
+        "output_per_mtok": 0.12,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.006,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 524288,
       "modalities": [
         "text"
       ],
@@ -7776,7 +9661,7 @@
       "id": "openrouter/x-ai/grok-4.20",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "xAI: Grok 4.20",
+      "name": "SpaceXAI: Grok 4.20",
       "pricing": {
         "input_per_mtok": 1.25,
         "output_per_mtok": 2.5,
@@ -7797,7 +9682,7 @@
       "id": "openrouter/x-ai/grok-4.3",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "xAI: Grok 4.3",
+      "name": "SpaceXAI: Grok 4.3",
       "pricing": {
         "input_per_mtok": 1.25,
         "output_per_mtok": 2.5,
@@ -7815,10 +9700,52 @@
       "ratings": null
     },
     {
+      "id": "openrouter/x-ai/grok-4.3:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "SpaceXAI: Grok 4.3 (batch)",
+      "pricing": {
+        "input_per_mtok": 1,
+        "output_per_mtok": 2,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.16,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/x-ai/grok-4.5",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "xAI: Grok 4.5",
+      "name": "SpaceXAI: Grok 4.5",
+      "pricing": {
+        "input_per_mtok": 2,
+        "output_per_mtok": 6,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.3,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 500000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/x-ai/grok-4.6",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "SpaceXAI: Grok 4.6",
       "pricing": {
         "input_per_mtok": 2,
         "output_per_mtok": 6,
@@ -7839,7 +9766,7 @@
       "id": "openrouter/x-ai/grok-build-0.1",
       "provider": "openrouter",
       "source": "pi_generated",
-      "name": "xAI: Grok Build 0.1",
+      "name": "SpaceXAI: Grok Build 0.1",
       "pricing": {
         "input_per_mtok": 1,
         "output_per_mtok": 2,
@@ -7862,10 +9789,10 @@
       "source": "pi_generated",
       "name": "Xiaomi: MiMo-V2.5",
       "pricing": {
-        "input_per_mtok": 0.105,
+        "input_per_mtok": 0.14,
         "output_per_mtok": 0.28,
         "currency": "USD",
-        "cache_read_per_mtok": 0.028,
+        "cache_read_per_mtok": 0.0028,
         "cache_write_per_mtok": 0
       },
       "context_window": 1048576,
@@ -7964,13 +9891,13 @@
       "source": "pi_generated",
       "name": "Z.ai: GLM 4.6",
       "pricing": {
-        "input_per_mtok": 0.43,
-        "output_per_mtok": 1.74,
+        "input_per_mtok": 0.55,
+        "output_per_mtok": 2.2,
         "currency": "USD",
-        "cache_read_per_mtok": 0.08,
+        "cache_read_per_mtok": 0.11,
         "cache_write_per_mtok": 0
       },
-      "context_window": 202752,
+      "context_window": 204800,
       "modalities": [
         "text"
       ],
@@ -8051,7 +9978,7 @@
         "cache_read_per_mtok": 0.119,
         "cache_write_per_mtok": 0
       },
-      "context_window": 202752,
+      "context_window": 198000,
       "modalities": [
         "text"
       ],
@@ -8071,7 +9998,7 @@
         "cache_read_per_mtok": 0.24,
         "cache_write_per_mtok": 0
       },
-      "context_window": 262144,
+      "context_window": 202752,
       "modalities": [
         "text"
       ],
@@ -8091,7 +10018,7 @@
         "cache_read_per_mtok": 0.1794,
         "cache_write_per_mtok": 0
       },
-      "context_window": 202752,
+      "context_window": 200000,
       "modalities": [
         "text"
       ],
@@ -8105,15 +10032,97 @@
       "source": "pi_generated",
       "name": "Z.ai: GLM 5.2",
       "pricing": {
-        "input_per_mtok": 0.532,
-        "output_per_mtok": 1.672,
+        "input_per_mtok": 0.966,
+        "output_per_mtok": 3.036,
         "currency": "USD",
-        "cache_read_per_mtok": 0.0988,
+        "cache_read_per_mtok": 0.1932,
         "cache_write_per_mtok": 0
       },
       "context_window": 1048576,
       "modalities": [
         "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/z-ai/glm-5.2:free",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Z.ai: GLM 5.2 (free)",
+      "pricing": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "currency": "USD",
+        "cache_read_per_mtok": 0,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 256000,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/z-ai/glm-5.3",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Z.ai: GLM 5.3",
+      "pricing": {
+        "input_per_mtok": 1.4,
+        "output_per_mtok": 4.4,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.14,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/z-ai/glm-5.3-flash",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Z.ai: GLM 5.3 Flash",
+      "pricing": {
+        "input_per_mtok": 0.075,
+        "output_per_mtok": 0.25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.015,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/z-ai/glm-5.3-flash:batch",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Z.ai: GLM 5.3 Flash (batch)",
+      "pricing": {
+        "input_per_mtok": 0.15,
+        "output_per_mtok": 0.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.03,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048575,
+      "modalities": [
+        "text",
+        "image"
       ],
       "label": null,
       "description": null,
@@ -8149,7 +10158,7 @@
         "input_per_mtok": 10,
         "output_per_mtok": 50,
         "currency": "USD",
-        "cache_read_per_mtok": 1,
+        "cache_read_per_mtok": 0.25,
         "cache_write_per_mtok": 12.5
       },
       "context_window": 1000000,
@@ -8225,16 +10234,36 @@
       "ratings": null
     },
     {
+      "id": "openrouter/~deepseek/deepseek-v4-flash-latest",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "DeepSeek V4 Flash Latest",
+      "pricing": {
+        "input_per_mtok": 0.04998,
+        "output_per_mtok": 0.09996,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.009996,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
       "id": "openrouter/~google/gemini-flash-latest",
       "provider": "openrouter",
       "source": "pi_generated",
       "name": "Google Gemini Flash Latest",
       "pricing": {
-        "input_per_mtok": 1.5,
-        "output_per_mtok": 9,
+        "input_per_mtok": 0.75,
+        "output_per_mtok": 3.75,
         "currency": "USD",
-        "cache_read_per_mtok": 0.15,
-        "cache_write_per_mtok": 0.083333
+        "cache_read_per_mtok": 0.075,
+        "cache_write_per_mtok": 0.041667
       },
       "context_window": 1048576,
       "modalities": [
@@ -8272,13 +10301,13 @@
       "source": "pi_generated",
       "name": "MoonshotAI Kimi Latest",
       "pricing": {
-        "input_per_mtok": 0.66,
-        "output_per_mtok": 3.41,
+        "input_per_mtok": 2.55,
+        "output_per_mtok": 12.75,
         "currency": "USD",
-        "cache_read_per_mtok": 0.15,
+        "cache_read_per_mtok": 0.256,
         "cache_write_per_mtok": 0
       },
-      "context_window": 262144,
+      "context_window": 1048576,
       "modalities": [
         "text",
         "image"
@@ -8293,11 +10322,11 @@
       "source": "pi_generated",
       "name": "OpenAI GPT Latest",
       "pricing": {
-        "input_per_mtok": 5,
-        "output_per_mtok": 30,
+        "input_per_mtok": 2,
+        "output_per_mtok": 10,
         "currency": "USD",
-        "cache_read_per_mtok": 0.5,
-        "cache_write_per_mtok": 6.25
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 2.5
       },
       "context_window": 1050000,
       "modalities": [
@@ -8345,6 +10374,47 @@
       "modalities": [
         "text",
         "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/~z-ai/glm-flash-latest",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Z.ai: GLM Flash Latest",
+      "pricing": {
+        "input_per_mtok": 0.075,
+        "output_per_mtok": 0.25,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.015,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1048576,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openrouter/~z-ai/glm-latest",
+      "provider": "openrouter",
+      "source": "pi_generated",
+      "name": "Z.ai: GLM Latest",
+      "pricing": {
+        "input_per_mtok": 1.15,
+        "output_per_mtok": 3.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.1,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 262144,
+      "modalities": [
+        "text"
       ],
       "label": null,
       "description": null,
@@ -8439,13 +10509,13 @@
       "source": "pi_generated",
       "name": "GPT-5.6 Luna",
       "pricing": {
-        "input_per_mtok": 1,
-        "output_per_mtok": 6,
+        "input_per_mtok": 0.2,
+        "output_per_mtok": 1.2,
         "currency": "USD",
-        "cache_read_per_mtok": 0.1,
-        "cache_write_per_mtok": 1.25
+        "cache_read_per_mtok": 0.02,
+        "cache_write_per_mtok": 0.25
       },
-      "context_window": 372000,
+      "context_window": 272000,
       "modalities": [
         "text",
         "image"
@@ -8466,7 +10536,7 @@
         "cache_read_per_mtok": 0.5,
         "cache_write_per_mtok": 6.25
       },
-      "context_window": 372000,
+      "context_window": 272000,
       "modalities": [
         "text",
         "image"
@@ -8481,13 +10551,34 @@
       "source": "pi_generated",
       "name": "GPT-5.6 Terra",
       "pricing": {
-        "input_per_mtok": 2.5,
-        "output_per_mtok": 15,
+        "input_per_mtok": 2,
+        "output_per_mtok": 12,
         "currency": "USD",
-        "cache_read_per_mtok": 0.25,
-        "cache_write_per_mtok": 3.125
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 2.5
       },
-      "context_window": 372000,
+      "context_window": 272000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "openai-codex/gpt-6-astra",
+      "provider": "openai-codex",
+      "source": "pi_generated",
+      "name": "GPT-6 Astra",
+      "pricing": {
+        "input_per_mtok": 10,
+        "output_per_mtok": 50,
+        "currency": "USD",
+        "cache_read_per_mtok": 1,
+        "cache_write_per_mtok": 12.5
+      },
+      "context_window": 272000,
       "modalities": [
         "text",
         "image"

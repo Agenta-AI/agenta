@@ -89,6 +89,13 @@ const storageFacts = (secret: SecretResponseDto) => ({
     managementPolicy: secret.management?.policy,
 })
 
+const modelNames = (models: {slug: string; extras?: Record<string, unknown> | null}[]) =>
+    Object.fromEntries(
+        models.flatMap((model) =>
+            typeof model.extras?.name === "string" ? [[model.slug, model.extras.name]] : [],
+        ),
+    )
+
 export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => {
     return secrets.reduce((acc, secret) => {
         if (secret.kind === SecretKind.ProviderKey) {
@@ -115,6 +122,7 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 // Absent stays absent: no saved list means "use the defaults", which an empty
                 // array would misreport as "this connection offers no models".
                 models: data.models?.map((model) => model.slug),
+                modelNames: data.models ? modelNames(data.models) : undefined,
                 harnesses: data.harnesses ?? undefined,
                 created_at: secret.lifecycle?.created_at ?? undefined,
             })
@@ -141,6 +149,7 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 sessionToken: extras.aws_session_token || "",
                 bearerToken: extras.aws_bearer_token_bedrock || "",
                 models: data.models.map((model) => model.slug),
+                modelNames: modelNames(data.models),
                 modelKeys: data.model_keys ?? undefined,
                 harnesses: data.harnesses ?? undefined,
                 version: data.provider.version ?? "",
@@ -190,7 +199,16 @@ export const transformStandardProviderPayloadData = (
                 kind: providerKind,
                 // An omitted key means "keep the stored value"; `""` would blank it.
                 provider: values.key ? {key: values.key} : {},
-                ...(values.models ? {models: values.models.map((slug) => ({slug}))} : {}),
+                ...(values.models
+                    ? {
+                          models: values.models.map((slug) => ({
+                              slug,
+                              ...(values.modelNames?.[slug]
+                                  ? {extras: {name: values.modelNames[slug]}}
+                                  : {}),
+                          })),
+                      }
+                    : {}),
                 ...(values.harnesses ? {harnesses: values.harnesses} : {}),
             } satisfies StandardProviderDto,
         },
@@ -231,7 +249,13 @@ export const transformCustomProviderPayloadData = (values: LlmProvider): CreateS
                         aws_bearer_token_bedrock: values.bearerToken,
                     },
                 },
-                models: values.models?.map((slug) => ({slug})) ?? [],
+                models:
+                    values.models?.map((slug) => ({
+                        slug,
+                        ...(values.modelNames?.[slug]
+                            ? {extras: {name: values.modelNames[slug]}}
+                            : {}),
+                    })) ?? [],
                 ...(values.harnesses ? {harnesses: values.harnesses} : {}),
             } as CustomProviderDto,
         },

@@ -301,6 +301,24 @@ describe("providerModelCatalog", () => {
 })
 
 describe("buildModelOptions", () => {
+    it("carries a provider display name without changing the saved id", () => {
+        expect(
+            buildModelOptions({
+                available: ["z-ai/glm-5.2"],
+                checked: ["z-ai/glm-5.2"],
+                names: {"z-ai/glm-5.2": "Z.ai: GLM 5.2"},
+            }),
+        ).toEqual([
+            {
+                id: "z-ai/glm-5.2",
+                name: "Z.ai: GLM 5.2",
+                checked: true,
+                isDefault: false,
+                unavailable: false,
+            },
+        ])
+    })
+
     it("keeps a saved model the fetch no longer offers, checked and flagged unavailable", () => {
         const options = buildModelOptions({
             available: ["gpt-5.6-luna", "gpt-5.5"],
@@ -606,6 +624,23 @@ describe("one effective model set across all three surfaces", () => {
 })
 
 describe("buildConnectionPayload", () => {
+    it("persists provider display names beside model ids", () => {
+        const payload = buildConnectionPayload(
+            {
+                kind: "openrouter",
+                name: "",
+                credential: {apiKey: "sk-or"},
+                models: ["z-ai/glm-5.2"],
+                modelNames: {"z-ai/glm-5.2": "Z.ai: GLM 5.2"},
+            },
+            "OpenRouter",
+        )
+
+        expect(payload.secret.data).toMatchObject({
+            models: [{slug: "z-ai/glm-5.2", extras: {name: "Z.ai: GLM 5.2"}}],
+        })
+    })
+
     it("sends a provider_key header-less when the name is empty, so the API names it", () => {
         const payload = buildConnectionPayload(
             {
@@ -744,7 +779,11 @@ describe("probeProvider", () => {
     it("posts the credential and returns the two statuses", async () => {
         fernProbeProvider.mockResolvedValueOnce({
             credential: {status: "valid", message: "OpenAI accepted this key."},
-            discovery: {status: "fetched", models: ["gpt-5.5"]},
+            discovery: {
+                status: "fetched",
+                models: ["gpt-5.5"],
+                model_names: {"gpt-5.5": "GPT-5.5"},
+            },
             fetched_at: "2026-08-12T10:00:00Z",
         })
 
@@ -760,6 +799,7 @@ describe("probeProvider", () => {
         )
         expect(result?.credential.status).toBe("valid")
         expect(result?.discovery.models).toEqual(["gpt-5.5"])
+        expect(result?.discovery.model_names).toEqual({"gpt-5.5": "GPT-5.5"})
     })
 
     it("puts the stored row on the wire as `secret_id`, and omits the field otherwise", async () => {

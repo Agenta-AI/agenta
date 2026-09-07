@@ -52,7 +52,7 @@ from daytona.common.errors import DaytonaNotFoundError
 
 SNAPSHOT_NAME = "agenta-agent-sandbox-v1"
 SANDBOX_AGENT_IMAGE = "rivetdev/sandbox-agent:0.5.0-rc.2-full"
-PI_VERSION = "0.80.6"
+PI_VERSION = "0.85.1"
 PI_PACKAGE = f"@earendil-works/pi-coding-agent@{PI_VERSION}"
 PI_ACP_VERSION = "0.0.29"
 SANDBOX_AGENT_HOME = "/home/sandbox/.local/share/sandbox-agent"

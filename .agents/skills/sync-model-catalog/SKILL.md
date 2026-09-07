@@ -1,6 +1,6 @@
 ---
 name: sync-model-catalog
-description: Regenerate and refresh the curated agent model catalog (the label/description/pricing/ratings behind the agent model picker). Use when the pinned @earendil-works/pi-ai version bumps, when a Claude Code build changes its accepted alias set, or before a release when the curated Claude/Pi facts (lineup, pricing, ratings) need refreshing from current public sources. Owns the data files under sdks/python/agenta/sdk/agents/data/; never edits capabilities.py logic.
+description: Refresh Agenta's harness catalogs, provider model lists, recommended defaults, and provider-supplied display names. Use for new OpenAI, Anthropic, Codex, Pi, or OpenRouter models and before releases that need current model choices.
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -17,7 +17,7 @@ Design and rationale:
 
 ## What it owns
 
-Three JSON data files under `sdks/python/agenta/sdk/agents/data/`, loaded by
+Four JSON data files under `sdks/python/agenta/sdk/agents/data/`, loaded by
 `sdks/python/agenta/sdk/agents/model_catalog.py`:
 
 - `pi_models.generated.json` — machine-generated from pi-ai. Objective facts only (name / pricing /
@@ -27,10 +27,13 @@ Three JSON data files under `sdks/python/agenta/sdk/agents/data/`, loaded by
   list holds whole entries for models the pinned pi-ai release predates (see below).
 - `claude_models.curated.json` — hand-curated Claude alias entries (facts + judgments),
   `source: "curated"`.
+- `codex_models.curated.json` — hand-curated Codex entries (facts + judgments),
+  `source: "curated"`.
 
-It never edits `capabilities.py` logic — only these data files.
+It also updates the accepted subscription model ids and recommended provider defaults in
+`capabilities.py`, plus the canonical API-key provider list in `sdk/utils/assets.py`.
 
-## The three jobs
+## Refresh workflow
 
 ### 1. Regenerate the Pi file (on a pi-ai version bump)
 
@@ -86,6 +89,51 @@ WebFetch), then propose updated descriptions and ratings for a human to confirm.
 from memory. Validate the 1-5 range and flag any entry whose facts you could not verify. Ratings:
 higher is better on every axis; `cost` is cost-efficiency (5 = cheapest).
 
+### 4. Refresh Codex and OpenAI
+
+Use OpenAI's official model pages for the current general-purpose lineup, ids, pricing, context,
+and recommended starting models. Add a new model to `supported_llm_models["openai"]` and
+`PROVIDER_DEFAULT_MODELS["openai"]` only when the official page identifies it as a current
+general-purpose model.
+
+For Codex subscription models, confirm the model is accepted by the pinned Codex app-server or a
+live authenticated session. Add it to `CODEX_MODELS` and `codex_models.curated.json`. For Pi's
+ChatGPT subscription path, update the Pi package first; regenerate the catalog, then make
+`PI_SUBSCRIPTION_MODELS["openai-codex"]` exactly match the pinned package's catalog.
+
+### 5. Refresh Anthropic API models
+
+Use `GET https://api.anthropic.com/v1/models` with the user's key when available. The response is
+newest-first and supplies `id`, `display_name`, capabilities, and token limits. Cross-check the
+official models overview and deprecation page before changing recommendations or removing an id.
+Keep the current four product tiers in `PROVIDER_DEFAULT_MODELS["anthropic"]`; do not remove a
+deprecated model from the canonical list until Anthropic marks it retired.
+
+### 6. Refresh OpenRouter by weekly usage
+
+Run:
+
+```bash
+python .agents/skills/sync-model-catalog/audit_provider_models.py
+```
+
+The script calls OpenRouter's public `GET /api/v1/models` with `sort=most-popular`,
+`supported_parameters=tools`, and `output_modalities=text`. Use the first 25 results for
+`supported_llm_models["openrouter"]` and the first six for
+`PROVIDER_DEFAULT_MODELS["openrouter"]`, preserving response order. The endpoint's `name` field is
+the human-readable label.
+
+The ranking changes with usage. Review removals before applying them because a saved connection
+may still use a model that fell out of the top 25.
+
+### 7. Preserve provider display names
+
+Provider probes keep ids in `DiscoveryResult.models` for compatibility and return names in
+`DiscoveryResult.model_names`. OpenRouter supplies `name`; Anthropic supplies `display_name`;
+Gemini supplies `displayName`. Save selected names in each model's existing `extras.name` field so
+the settings list and model picker still show the friendly name after reload. OpenAI's Models API
+supplies ids only, so its friendly names come from the curated catalog.
+
 ## Validate
 
 The pydantic loader enforces the schema (including the 1-5 rating range) on load, and the unit test
@@ -103,5 +151,7 @@ empty catalog rather than crashing `/inspect`).
 
 - Job 1 on a pi-ai bump (automatable from a lockfile diff).
 - Jobs 2 and 3 before a release or on demand (need a live session and a web lookup).
+- Jobs 4 and 5 when OpenAI or Anthropic announce a model or deprecation.
+- Job 6 weekly or before a release; it is safe to run without a credential.
 
 The skill writes files and a proposal; a human reviews the curated changes and commits.
