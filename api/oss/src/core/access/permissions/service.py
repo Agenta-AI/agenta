@@ -253,9 +253,13 @@ async def check_rbac_permission(
 
     # Assert that either permission or role is provided, but not both
     if permission is None and role is None:
-        raise ValueError("Either 'permission' or 'role' must be provided, but neither is provided")
+        raise ValueError(
+            "Either 'permission' or 'role' must be provided, but neither is provided"
+        )
     if permission is not None and role is not None:
-        raise ValueError("'permission' and 'role' cannot both be provided at the same time")
+        raise ValueError(
+            "'permission' and 'role' cannot both be provided at the same time"
+        )
 
     if project_id is not None:
         project = await db_manager.get_project_by_id(project_id)
