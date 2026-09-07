@@ -25,7 +25,7 @@ const SNAPSHOTS = new Map<
     string,
     {messages: UIMessage[]; recordCount: number | undefined; sequenceCursor: number | undefined}
 >()
-// Matches the tab rail's open-tab cap — the sessions a switch can plausibly land back on.
+// Bounds the retained transcripts; a switch rarely lands further back than this.
 const SNAPSHOT_LIMIT = 12
 
 /** Logout is a client-side route change, so these outlive it without this. */
@@ -72,11 +72,11 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
     const pendingRef = useRef(false)
     // What is on screen, read by the adoption guard: `messages` state lags a commit behind, so
     // two deliveries landing back-to-back would both see the pre-adoption transcript.
-    const messagesRef = useRef<UIMessage[]>(SNAPSHOTS.get(sessionId)?.messages ?? [])
+    const messagesRef = useRef<UIMessage[]>([])
     // Records the rendered transcript was built from; `undefined` until the first adoption. This
     // is in-memory only — mobile persists no transcript, so there is nothing to file it against.
-    const recordCountRef = useRef<number | undefined>(SNAPSHOTS.get(sessionId)?.recordCount)
-    const sequenceCursorRef = useRef<number | undefined>(SNAPSHOTS.get(sessionId)?.sequenceCursor)
+    const recordCountRef = useRef<number | undefined>(undefined)
+    const sequenceCursorRef = useRef<number | undefined>(undefined)
 
     /**
      * Apply one delivery behind the shared adoption rule (`shouldAdoptTranscript`). Returns

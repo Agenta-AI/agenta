@@ -78,7 +78,9 @@ export const AgentListScreen = ({
         >
             <div className="flex min-w-0 items-center gap-2">
                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                <h1 className="text-colorText m-0 min-w-0 flex-1 truncate text-[24px] font-semibold leading-[1.3333333333333333]">
+                {/* From `sm`, 24px is the desktop page-title rung; on a phone it eats the row, so
+                    the title drops to the 16px body ramp — the same shape the sessions bar uses. */}
+                <h1 className="text-colorText m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] sm:text-[24px] sm:leading-[1.3333333333333333]">
                     Agents
                 </h1>
                 <NewAgentAction
@@ -88,6 +90,7 @@ export const AgentListScreen = ({
                     creating={newAgent.creating}
                     error={newAgent.error}
                     align="end"
+                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
                 />
             </div>
 

@@ -11,11 +11,13 @@ export const SessionPinButton = ({
     pinned,
     onToggle,
     revealOnHover = true,
+    className,
 }: {
     pinned: boolean
     onToggle: () => void
     /** Web reveals an unpinned row's pin on hover; touch has no hover, so it stays visible there. */
     revealOnHover?: boolean
+    className?: string
 }) => (
     <Tip title={pinned ? "Unpin" : "Pin"}>
         <button
@@ -32,6 +34,7 @@ export const SessionPinButton = ({
                 // there is no cursor to aim with: ~38px against the ~26px a mouse gets.
                 "after:absolute after:inset-[-12px] after:content-[''] [@media(hover:hover)]:after:inset-[-6px]",
                 !pinned && revealOnHover && "opacity-0 focus:opacity-100 group-hover:opacity-100",
+                className,
             )}
         >
             <PushPinIcon size={14} weight={pinned ? "fill" : "regular"} />

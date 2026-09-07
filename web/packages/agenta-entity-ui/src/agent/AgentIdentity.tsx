@@ -24,8 +24,9 @@ const IDENTITY_SIZE: Record<
     },
     title: {
         row: "flex min-w-0 items-center gap-2",
-        // ::after hit extender — 28px is under the touch guideline.
-        chip: "relative flex size-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold after:absolute after:-inset-1.5 after:content-['']",
+        // ::after hit extender — 28px is under the touch guideline. Below `sm` the chip drops to
+        // the playground bar's 24px, so a phone header carries one identity size, not two.
+        chip: "relative flex size-6 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold after:absolute after:-inset-1.5 after:content-[''] sm:size-7 sm:rounded-lg",
         glyph: 16,
         initialsFallback: true,
         label: "h1",

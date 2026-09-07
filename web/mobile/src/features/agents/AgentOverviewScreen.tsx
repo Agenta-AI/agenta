@@ -108,6 +108,7 @@ export const AgentOverviewScreen = ({
                                 {agent ? (
                                     <AgentActionsMenu
                                         agent={{id: agentId, name, slug: agent.slug}}
+                                        align="end"
                                     />
                                 ) : null}
                             </div>

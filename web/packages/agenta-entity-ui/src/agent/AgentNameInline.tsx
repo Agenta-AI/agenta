@@ -15,8 +15,8 @@ const NAME_SIZE: Record<AgentNameSize, {label: string; input: string}> = {
         input: "h-6 w-32 text-[14px] font-[600]",
     },
     title: {
-        label: "text-[24px] font-semibold leading-[1.3333333333333333]",
-        input: "h-8 w-48 text-[20px] font-semibold",
+        label: "text-[16px] font-semibold leading-[1.5] sm:text-[24px] sm:leading-[1.3333333333333333]",
+        input: "h-7 w-40 text-[16px] font-semibold sm:h-8 sm:w-48 sm:text-[20px]",
     },
 }
 
@@ -124,7 +124,7 @@ export const AgentNameInline = ({
     }
 
     return (
-        <div className="group/name flex min-w-0 items-center gap-1">
+        <div className="group/name flex min-w-0 items-center gap-1.5">
             {/* At `bar` the type matches AgentPageHeader's own string branch, so the slot reads
                 identically. */}
             <Label

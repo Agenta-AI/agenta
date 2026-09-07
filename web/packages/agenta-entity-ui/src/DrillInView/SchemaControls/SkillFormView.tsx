@@ -28,6 +28,7 @@ import {
     TooltipTrigger,
 } from "@agenta/ui/ui"
 import {
+    ArrowLeft,
     CaretDown,
     File as FileIcon,
     Info,
@@ -166,6 +167,13 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         : []
 
     const [selected, setSelected] = useState<Selection>("skill")
+    // Phone: one pane at a time, as the version-history drawer does. Opens on the editor for the
+    // pinned SKILL.md — the reason to open a skill — with a back link to the file list.
+    const [mobileView, setMobileView] = useState<"list" | "detail">("detail")
+    const openEntry = (next: Selection) => {
+        setSelected(next)
+        setMobileView("detail")
+    }
     // Quiet on a pristine draft; on once the user or an upload touches the field.
     const [nameTouched, setNameTouched] = useState(() => Boolean(String(skill.name ?? "").trim()))
     const [descriptionTouched, setDescriptionTouched] = useState(() =>
@@ -232,7 +240,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         setFiles(files.map((f, i) => (i === index ? {...f, ...patch} : f)))
     const addFile = () => {
         setFiles([...files, {path: "", content: ""}])
-        setSelected(files.length) // the new entry's index
+        openEntry(files.length) // the new entry's index
     }
     const removeFile = (index: number) => {
         setFiles(files.filter((_, i) => i !== index))
@@ -259,7 +267,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
         if (parsed.files.length) next.files = parsed.files
         else delete next.files
         onChange(next)
-        setSelected("skill")
+        openEntry("skill")
     }
 
     // Drawer-wide SKILL.md paste: refs keep the once-registered listener reading the latest draft.
@@ -284,7 +292,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
             if (!/^\uFEFF?---\r?\n/.test(text)) return
             e.preventDefault()
             onChangeRef.current(mergePastedSkill(skillRef.current, text))
-            setSelected("skill")
+            openEntry("skill")
             message.success("Filled from the pasted skill")
         }
         document.addEventListener("paste", onPaste)
@@ -304,8 +312,9 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                     // it meets the header and footer rules, without moving the rail's content.
                     // No `ag-drawer-rail`: that class paints a recessed band in dark, which shows
                     // through around the Files panel. The panel is this rail's surface, as in light.
-                    "-my-4 flex w-44 shrink-0 flex-col gap-2 py-4 pr-3",
-                    "border-0 border-r border-solid border-colorBorderSecondary",
+                    "-my-4 flex flex-col gap-2 py-4 sm:w-44 sm:shrink-0 sm:pr-3",
+                    "sm:border-0 sm:border-r sm:border-solid sm:border-colorBorderSecondary",
+                    mobileView === "list" ? "w-full" : "hidden sm:flex",
                 )}
             >
                 <div className="flex shrink-0 items-center justify-between gap-1">
@@ -335,7 +344,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                     <FileRow
                         label="SKILL.md"
                         active={showSkill}
-                        onSelect={() => setSelected("skill")}
+                        onSelect={() => openEntry("skill")}
                         disabled={disabled}
                     />
                     {files.map((file, index) => (
@@ -343,7 +352,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                             key={index}
                             label={file.path || "untitled"}
                             active={selected === index}
-                            onSelect={() => setSelected(index)}
+                            onSelect={() => openEntry(index)}
                             onRemove={() => removeFile(index)}
                             disabled={disabled}
                         />
@@ -358,7 +367,20 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
             </div>
 
             {/* Right: skill-level fields + the selected file's editor + behaviour toggles. */}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
+            <div
+                className={cn(
+                    "min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden",
+                    mobileView === "detail" ? "flex" : "hidden sm:flex",
+                )}
+            >
+                <button
+                    type="button"
+                    onClick={() => setMobileView("list")}
+                    className="flex shrink-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-colorTextSecondary sm:hidden"
+                >
+                    <ArrowLeft />
+                    Files
+                </button>
                 <Field
                     className="shrink-0"
                     invalid={nameMissing}

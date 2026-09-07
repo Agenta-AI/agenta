@@ -69,6 +69,9 @@ const Row = ({
     onRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
 }) => {
     const entries = menuFor?.(vm)
+    // The phone hides the pin because the menu carries Pin/Unpin. A host that passes no menu, or
+    // one without that entry, would otherwise leave the row with no way to pin at all.
+    const menuHasPin = Boolean(entries?.some((entry) => "key" in entry && entry.key === "pin"))
     const onRename = useMemo(
         () => (onRenameRow ? (name: string) => onRenameRow(vm, name) : undefined),
         [onRenameRow, vm],
@@ -149,7 +152,7 @@ const Row = ({
 
             {/* h-5 = the title's line box, so the trailing controls centre on the TITLE rather
                 than on a row whose height the subtitle decides. */}
-            <div className="flex h-5 shrink-0 items-center gap-2">
+            <div className="flex h-5 shrink-0 items-center gap-1 sm:gap-2">
                 {/* Quiet chip: the amber urgency lives on the dot; this states WHAT is asked. */}
                 {vm.status.chipLabel ? (
                     <span className="shrink-0 rounded bg-colorFillQuaternary px-1.5 py-0.5 text-xs leading-none text-colorTextSecondary">
@@ -167,10 +170,12 @@ const Row = ({
                 <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
                     {vm.activityAt ? timeAgo(Date.parse(vm.activityAt)) : "—"}
                 </span>
+                {/* Phone-hidden, like SessionRow, but only where the menu can stand in for it. */}
                 <SessionPinButton
                     pinned={vm.isPinned}
                     onToggle={() => onTogglePin(vm.id)}
                     revealOnHover={!alwaysShowPin}
+                    className={menuHasPin ? "hidden sm:block" : undefined}
                 />
             </div>
         </div>

@@ -37,6 +37,11 @@ export interface SessionRowTarget {
 
 const RENAME = "rename"
 
+// [font-family:inherit]: preflight is off, so a bare <button> renders Arial, not Inter.
+// Themed focus ring, not the UA blue: Radix returns focus to the trigger on close.
+const KEBAB_CLASS =
+    "flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 outline-none transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
+
 /**
  * Per-row session verbs in the nav rail — rename, pin, archive, delete.
  *
@@ -61,6 +66,12 @@ const SessionRowActions = ({
     const {menuItems, onMenuClick, renameSession} = chrome
     const router = useRouter()
     const [open, setOpen] = useState(false)
+    // Radix's menu costs a Popper and a Presence per row; mount it on first use, not on mount.
+    const [armed, setArmed] = useState(false)
+    const arm = useCallback(() => {
+        setArmed(true)
+        setOpen(true)
+    }, [])
     // Navigation is held for one double-click window so a rename doesn't also open the session.
     const navTimerRef = useRef<number | null>(null)
     const inputRef = useRef<HTMLInputElement | null>(null)
@@ -192,44 +203,59 @@ const SessionRowActions = ({
                 className="relative z-[1] -mr-2 flex h-5 w-7 shrink-0 items-center justify-center"
                 onClick={swallow}
             >
-                <DropdownMenu open={open} onOpenChange={setOpen}>
-                    <DropdownMenuTrigger asChild>
-                        <button
-                            type="button"
-                            aria-label={`Actions for ${session.name || "Untitled session"}`}
-                            data-open={open || undefined}
-                            // [font-family:inherit]: preflight is off, so a bare <button>
-                            // renders Arial while the rows around it render Inter.
-                            // Themed focus ring, not the UA blue: Radix returns focus to the
-                            // trigger on close, so `:focus-visible` matches and painted a stray
-                            // blue box over the row. `outline-none` drops the default.
-                            className="flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-colorTextTertiary opacity-0 outline-none transition-opacity [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring group-hover/row:opacity-100 data-[open]:opacity-100 pointer-coarse:opacity-100"
-                        >
-                            <DotsThreeVerticalIcon size={16} weight="bold" />
-                        </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" side="bottom" className="min-w-[168px]">
-                        {entries.map((entry, index) =>
-                            isMenuDivider(entry) ? (
-                                <DropdownMenuSeparator key={`divider-${index}`} />
-                            ) : (
-                                <DropdownMenuItem
-                                    key={entry.key}
-                                    disabled={entry.disabled}
-                                    variant={entry.danger ? "destructive" : undefined}
-                                    onSelect={() => onSelect(entry.key)}
-                                >
-                                    {entry.icon ? (
-                                        <span className="flex shrink-0 items-center">
-                                            {entry.icon}
-                                        </span>
-                                    ) : null}
-                                    {entry.label}
-                                </DropdownMenuItem>
-                            ),
-                        )}
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                {armed ? (
+                    <DropdownMenu open={open} onOpenChange={setOpen}>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                aria-label={`Actions for ${session.name || "Untitled session"}`}
+                                data-open={open || undefined}
+                                className={KEBAB_CLASS}
+                            >
+                                <DotsThreeVerticalIcon size={16} weight="bold" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" side="bottom" className="min-w-[168px]">
+                            {entries.map((entry, index) =>
+                                isMenuDivider(entry) ? (
+                                    <DropdownMenuSeparator key={`divider-${index}`} />
+                                ) : (
+                                    <DropdownMenuItem
+                                        key={entry.key}
+                                        disabled={entry.disabled}
+                                        variant={entry.danger ? "destructive" : undefined}
+                                        onSelect={() => onSelect(entry.key)}
+                                    >
+                                        {entry.icon ? (
+                                            <span className="flex shrink-0 items-center">
+                                                {entry.icon}
+                                            </span>
+                                        ) : null}
+                                        {entry.label}
+                                    </DropdownMenuItem>
+                                ),
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                ) : (
+                    <button
+                        type="button"
+                        aria-label={`Actions for ${session.name || "Untitled session"}`}
+                        aria-haspopup="menu"
+                        aria-expanded={false}
+                        className={KEBAB_CLASS}
+                        onPointerDown={(event) => {
+                            // Radix's trigger opens on pointer-down; the first press matches it.
+                            if (event.button !== 0 || event.ctrlKey) return
+                            arm()
+                        }}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") arm()
+                        }}
+                    >
+                        <DotsThreeVerticalIcon size={16} weight="bold" />
+                    </button>
+                )}
             </span>
         </span>
     )

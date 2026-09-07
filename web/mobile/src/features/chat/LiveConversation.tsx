@@ -50,7 +50,7 @@ import {Button} from "@/components/ui/button"
 
 import {pendingTasksAtom, failPendingTaskAtom, sendPendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
-import {livenessQueryKey} from "../sessions/useLivenessPoll"
+import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {Composer} from "./Composer"
@@ -91,7 +91,6 @@ export const LiveConversation = ({
     sessionTurnId,
     stoppingTurnId,
     sharedReader,
-    livenessUpdatedAt,
     agentId,
     embedded = false,
 }: {
@@ -108,12 +107,14 @@ export const LiveConversation = ({
     /** Backend-advertised ability to receive display-only live frames from another sender. */
     sharedReader: boolean
     /** React Query timestamp used to reject the sender's stale post-settle liveness snapshot. */
-    livenessUpdatedAt: number
     /** Scopes the session tab rail to this agent's sessions. */
     agentId?: string | null
     /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
     embedded?: boolean
 }) => {
+    // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
+    // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
+    const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
     const conversation = useAgentConversation({
         entityId,
         sessionId,

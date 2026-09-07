@@ -140,7 +140,9 @@ function SubagentRow({
                 label={option.name}
                 onExpandedChange={setExpanded}
             />
-            <span className="mt-1.5 flex min-w-0 items-center gap-2">
+            {/* Model and connected apps are desktop-only: on a phone they crowded out the name
+                and description the row is picked by. */}
+            <span className="mt-1.5 hidden min-w-0 items-center gap-2 sm:flex">
                 {option.model ? (
                     <ModelChip model={option.model} provider={option.provider} />
                 ) : null}
@@ -151,7 +153,8 @@ function SubagentRow({
                     max={5}
                     label={`Apps connected to ${option.name}`}
                     empty={
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                        // One line: the model slug beside it truncates, this wrapped to three.
+                        <span className="shrink-0 whitespace-nowrap text-xs text-[var(--ag-colorTextTertiary)]">
                             No connected apps
                         </span>
                     }

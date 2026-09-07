@@ -1,12 +1,8 @@
 import {AgentIdentity} from "@agenta/entity-ui/agent"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// WHO an agent is, as one control: the icon (click to open the picker) beside the name (pencil or
-// double-click to rename). The playground top bar and the agent overview page both render this, so
-// neither can drift on offering only one of the two edits.
-//
-// The states a reviewer cannot click to: the read-only identity, and the window before the agent
-// record lands (the host's own skeleton stands in for the name while the icon stays pickable).
+// The agent's icon and name as one editable control, in the states a reviewer cannot click to:
+// read-only, and the window before the agent record lands.
 const meta = {
     title: "@agenta/entity-ui/Agent/AgentIdentity",
     component: AgentIdentity,
