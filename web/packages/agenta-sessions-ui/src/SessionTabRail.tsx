@@ -9,11 +9,12 @@
  * props: how a chip opens, and what "new" means.
  */
 import type {ReactNode} from "react"
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {sessionRowStatusMeta, type SessionRowVm} from "@agenta/sessions/row"
 import {
     applySessionTabOrder,
+    closeSessionTabsAtom,
     openSessionTabRows,
     sessionTabCloseTargets,
     sessionTabOrderAtomFamily,
@@ -86,6 +87,11 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
     /** Close several — "Close other tabs" and "Close tabs to the right". */
     onCloseMany?: (ids: string[], ordered: readonly string[]) => void
     /**
+     * Open a session the list does not carry yet — one created here, before it is listed. It has
+     * no row view-model, so the host routes from the id alone. Omit and such a chip is inert.
+     */
+    onSelectUnlisted?: (sessionId: string) => void
+    /**
      * Drag to hand-arrange the tabs, persisted per agent. On by default — a tab strip is a place
      * users expect to arrange. Off leaves the rail in list order.
      */
@@ -96,6 +102,49 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
      * the spot the config panel disappeared from. */
     leadingExtra?: ReactNode
     className?: string
+}
+
+/**
+ * Keeps the active chip in view, scrolling ONLY when it is off-screen — scrolling on every
+ * activation yanked the rail back when you clicked a chip you could already see. A just-created
+ * session always needs it: its chip is appended last, past the right edge of a full strip.
+ */
+const useRevealWhenActive = (active: boolean) => {
+    const ref = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        if (!active) return
+        const reveal = () => {
+            const tab = ref.current
+            if (!tab) return
+            let scroller: HTMLElement | null = tab.parentElement
+            while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowX)) {
+                scroller = scroller.parentElement
+            }
+            if (!scroller) return
+            const t = tab.getBoundingClientRect()
+            const s = scroller.getBoundingClientRect()
+            const delta =
+                t.right > s.right ? t.right - s.right : t.left < s.left ? t.left - s.left : 0
+            if (delta === 0) return
+            // Instant, like the wheel handler: `scroll-smooth` would leave the next frame
+            // measuring a rect mid-flight, and the correction below would compound.
+            const previous = scroller.style.scrollBehavior
+            scroller.style.scrollBehavior = "auto"
+            scroller.scrollLeft += delta
+            scroller.style.scrollBehavior = previous
+        }
+        // The strip settles a frame late — the inline New session (+) pins itself once the chips
+        // overflow, moving them by its own footprint after the first measure.
+        let frame = 0
+        let left = 3
+        const tick = () => {
+            reveal()
+            if (--left > 0) frame = requestAnimationFrame(tick)
+        }
+        tick()
+        return () => cancelAnimationFrame(frame)
+    }, [active])
+    return ref
 }
 
 /**
@@ -127,27 +176,7 @@ const RailTab = ({
     /** Hairline before this tab. Suppressed either side of the filled active chip. */
     divided?: boolean
 }) => {
-    const ref = useRef<HTMLDivElement>(null)
-    // Reveal the active chip ONLY when it is actually off-screen. Scrolling on every activation
-    // meant that picking a session you could already see still yanked the rail — you scroll
-    // through a long strip, click, and it jumps back to centre the chip you just clicked. The
-    // desktop bar applies the same rule to its enter-animation nudge: move only when the tab
-    // pokes past a visible edge.
-    useEffect(() => {
-        if (!active) return
-        const tab = ref.current
-        if (!tab) return
-        let scroller: HTMLElement | null = tab.parentElement
-        while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowX)) {
-            scroller = scroller.parentElement
-        }
-        if (!scroller) return
-        const t = tab.getBoundingClientRect()
-        const s = scroller.getBoundingClientRect()
-        if (t.right > s.right || t.left < s.left) {
-            tab.scrollIntoView({block: "nearest", inline: "nearest"})
-        }
-    }, [active])
+    const ref = useRevealWhenActive(active)
     const handleSelect = useCallback(() => onSelect(vm), [onSelect, vm])
     // The SAME rename machine the session rows use, so Enter/blur commit and Escape abandons here
     // exactly as they do in a list — and the commit lands on the host's one rename path.
@@ -266,9 +295,6 @@ const RailTab = ({
     )
 }
 
-/** The fallback chip IS the open session — selecting it would be a no-op route push. */
-const noop = () => undefined
-
 /**
  * The rail's own menu verbs, appended to the host's. Reserved keys, handled here and never
  * forwarded — the host knows nothing about tab order.
@@ -332,6 +358,64 @@ const TAB_DIVIDER =
 /** The pending tab has no stream yet, so it wears the same idle chrome every quiet row does. */
 const IDLE_STATUS = sessionRowStatusMeta("idle")
 
+/**
+ * A session held open but not carried by the list yet — a session created here, before it is
+ * listed. There is no row view-model behind it, so it offers no menu and no rename; closing is
+ * the local open-set operation, and only off the active chip (the host owns routing elsewhere).
+ */
+const UnlistedTab = ({
+    id,
+    title,
+    active,
+    onSelect,
+    onClose,
+}: {
+    id: string
+    title: string
+    active: boolean
+    onSelect?: (sessionId: string) => void
+    onClose?: () => void
+}) => {
+    const ref = useRevealWhenActive(active)
+    return (
+        <div ref={ref} className="mr-1.5 shrink-0">
+            <SessionTab
+                active={active}
+                label={title}
+                onSelect={() => onSelect?.(id)}
+                statusDot={
+                    <SimpleTooltip title={IDLE_STATUS.label}>
+                        <span
+                            aria-label={IDLE_STATUS.label}
+                            className={clsx(
+                                "h-1.5 w-1.5 shrink-0 rounded-full",
+                                IDLE_STATUS.dotClassName,
+                            )}
+                        />
+                    </SimpleTooltip>
+                }
+                renderActions={
+                    onClose
+                        ? () => (
+                              <button
+                                  type="button"
+                                  aria-label={`Close ${title}`}
+                                  onClick={(event) => {
+                                      event.stopPropagation()
+                                      onClose()
+                                  }}
+                                  className="text-colorTextTertiary hover:text-colorText flex h-5 w-5 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                              >
+                                  <XIcon size={12} />
+                              </button>
+                          )
+                        : undefined
+                }
+            />
+        </div>
+    )
+}
+
 export const SessionTabRail = ({
     activeSessionId,
     onSelect,
@@ -343,6 +427,7 @@ export const SessionTabRail = ({
     onMenuSelect,
     onClose,
     onCloseMany,
+    onSelectUnlisted,
     onRenameTab,
     reorderable = true,
     className,
@@ -371,6 +456,27 @@ export const SessionTabRail = ({
         [arranged, openIds, activeSessionId],
     )
     const hasActive = rows.some((vm) => vm.id === activeSessionId)
+    // Sessions open here but absent from the capped list — chiefly one just created. The rail
+    // renders them itself, so navigating away no longer takes the new tab with it.
+    const [unlisted, setUnlisted] = useState<{id: string; title: string}[]>([])
+    const closeOpenTabs = useSetAtom(closeSessionTabsAtom)
+    useEffect(() => {
+        if (list.isPending || hasActive || !activeSessionId) return
+        setUnlisted((prev) =>
+            prev.some((tab) => tab.id === activeSessionId)
+                ? prev
+                : [...prev, {id: activeSessionId, title: activeFallbackTitle || "New session"}],
+        )
+    }, [activeFallbackTitle, activeSessionId, hasActive, list.isPending])
+    // Let one go the moment the list carries it, or the tab is closed.
+    useEffect(() => {
+        setUnlisted((prev) => {
+            const next = prev.filter(
+                (tab) => !listedIds.includes(tab.id) && (openIds?.includes(tab.id) ?? true),
+            )
+            return next.length === prev.length ? prev : next
+        })
+    }, [listedIds, openIds])
     const orderedIds = useMemo(() => rows.map((vm) => vm.id), [rows])
     // Published so a keyboard surface outside the rail can address "the Nth tab".
     usePublishRenderedSessionTabs(orderScope, orderedIds)
@@ -442,31 +548,23 @@ export const SessionTabRail = ({
                           }}
                       />
                   ))}
-            {!hasActive && !list.isPending ? (
-                // Last, and outside the reorder group on purpose: it stands in for a session the
-                // list does not hold yet, so it belongs at the end and has no place in an order
-                // the list defines.
-                <div className="mr-1.5 shrink-0">
-                    <SessionTab
-                        active
-                        label={activeFallbackTitle || "New session"}
-                        // Idle, like any session with no run yet — the strip reads as one row of
-                        // tabs rather than one tab missing its dot.
-                        statusDot={
-                            <SimpleTooltip title={IDLE_STATUS.label}>
-                                <span
-                                    aria-label={IDLE_STATUS.label}
-                                    className={clsx(
-                                        "h-1.5 w-1.5 shrink-0 rounded-full",
-                                        IDLE_STATUS.dotClassName,
-                                    )}
-                                />
-                            </SimpleTooltip>
-                        }
-                        onSelect={noop}
-                    />
-                </div>
-            ) : null}
+            {list.isPending
+                ? null
+                : unlisted.map((tab) => (
+                      <UnlistedTab
+                          key={tab.id}
+                          id={tab.id}
+                          title={tab.title}
+                          active={tab.id === activeSessionId}
+                          onSelect={onSelectUnlisted}
+                          // Never off the chip you are on: the host owns where a close lands.
+                          onClose={
+                              tab.id === activeSessionId
+                                  ? undefined
+                                  : () => closeOpenTabs({scope: orderScope, ids: [tab.id]})
+                          }
+                      />
+                  ))}
         </SessionTabStrip>
     )
 }

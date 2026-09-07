@@ -10,13 +10,13 @@ import {useAtom, useAtomValue} from "jotai"
 import {ChevronsLeft, ChevronsRight} from "lucide-react"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
+
+import {PageTitle} from "@/components/PageTitle"
 
 /**
  * The conversation pane's header: this agent's sessions as tabs, the open one active — the same
@@ -97,6 +97,10 @@ export const SessionTabs = ({
                 onCloseMany={closeTabs}
                 onSelect={(vm) => {
                     if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
+                }}
+                // A session created here routes the same way, before the list has caught up.
+                onSelectUnlisted={(id) => {
+                    if (id !== sessionId) void router.push(`${base}/sessions/${id}`)
                 }}
                 // Starting a session needs an agent to start it with.
                 // A blank session to type into — NOT the agent's overview, which is where this
