@@ -264,10 +264,12 @@ export async function runAgentToolsSetup(
   } = {},
 ): Promise<AgentToolsSetupResult> {
   const log = deps.log ?? (() => {});
-  if (deps.hasToolsDir && !(await deps.hasToolsDir()))
-    return { status: "absent" };
   const started = Date.now();
   try {
+    // Inside the guarded path: a stat that throws (a mount that went away between the agent
+    // mount and here) is an `error` result like any other, never an exception out of acquire.
+    if (deps.hasToolsDir && !(await deps.hasToolsDir()))
+      return { status: "absent" };
     const { exitCode } = await exec.run({
       script: agentToolsSetupScript(
         input.mountPath,

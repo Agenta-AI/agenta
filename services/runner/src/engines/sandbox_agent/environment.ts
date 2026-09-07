@@ -1082,6 +1082,9 @@ async function acquireEnvironmentOnce(
         },
       );
       timingLog("agent_tools_setup", agentToolsStartedAt);
+      // The restore can wait up to its timeout; a Stop that landed meanwhile must not let the
+      // acquire continue into workspace and session setup.
+      throwIfAcquireAborted(signal);
     }
 
     const prepareWorkspaceStartedAt = Date.now();

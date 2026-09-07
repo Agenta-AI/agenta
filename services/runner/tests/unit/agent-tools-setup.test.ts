@@ -137,6 +137,21 @@ describe("runAgentToolsSetup", () => {
     assert.equal(ran, false);
   });
 
+  it("a hasToolsDir check that throws is an error result, not an exception", async () => {
+    const result = await runAgentToolsSetup(
+      input,
+      { run: async () => ({ exitCode: 0 }) },
+      {
+        log: SILENT,
+        hasToolsDir: async () => {
+          throw new Error("ENOTCONN");
+        },
+      },
+    );
+    assert.equal(result.status, "error");
+    assert.match((result as { message: string }).message, /ENOTCONN/);
+  });
+
   it("passes the script, cwd, env, timeout, and abort signal to the executor", async () => {
     let seen: unknown;
     const controller = new AbortController();
