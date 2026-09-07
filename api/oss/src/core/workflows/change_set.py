@@ -576,6 +576,7 @@ AGENT_COMMIT_SCOPE: ScopePolicy = subtree_scope(
         ["parameters", "agent", "runner", "permissions"],
         ["parameters", "agent", "sandbox", "kind"],
         ["parameters", "agent", "sandbox", "permissions"],
+        ["parameters", "agent", "sandbox", "credentials"],
     ),
 )
 

@@ -115,8 +115,19 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
 log = get_module_logger(__name__)
 
+_SANDBOX_CREDENTIAL_PATH = ("parameters", "agent", "sandbox", "credentials")
+
+
+def _overlaps_sandbox_credentials(path: tuple[str, ...]) -> bool:
+    if not path:
+        return False
+    common = min(len(path), len(_SANDBOX_CREDENTIAL_PATH))
+    return path[:common] == _SANDBOX_CREDENTIAL_PATH[:common]
+
 
 def _changes_sandbox_credentials(value: Any, path: tuple[str, ...] = ()) -> bool:
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(mode="json", exclude_none=True)
     if isinstance(value, dict):
         for key, child in value.items():
             segments = tuple(
@@ -129,13 +140,21 @@ def _changes_sandbox_credentials(value: Any, path: tuple[str, ...] = ()) -> bool
                 return True
     elif isinstance(value, list):
         if (
-            path[-1:] == ("path",)
+            path[-1:] in (("target",), ("path",))
             and value
             and all(isinstance(item, str) for item in value)
         ):
-            joined = ".".join(value).replace("/", ".")
-            if "sandbox.credentials" in joined:
+            if _overlaps_sandbox_credentials(tuple(value)):
                 return True
+        if path[-1:] == ("remove",):
+            for item in value:
+                if not isinstance(item, str):
+                    continue
+                segments = tuple(
+                    part for part in item.replace("/", ".").split(".") if part
+                )
+                if _overlaps_sandbox_credentials(segments):
+                    return True
         return any(_changes_sandbox_credentials(item, path) for item in value)
     return False
 

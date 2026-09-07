@@ -1,8 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-
 from oss.src.apis.fastapi.workflows import router as router_module
+from oss.src.apis.fastapi.workflows.models import WorkflowVariantForkRequest
 from oss.src.apis.fastapi.workflows.router import (
     _changes_sandbox_credentials,
     _require_fork_secret_attachment_access,
@@ -10,8 +10,7 @@ from oss.src.apis.fastapi.workflows.router import (
 )
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.shared.dtos import Reference
-from oss.src.apis.fastapi.workflows.models import WorkflowVariantForkRequest
-from oss.src.core.workflows.dtos import WorkflowVariantFork
+from oss.src.core.workflows.dtos import WorkflowRevisionCommit, WorkflowVariantFork
 
 
 def test_detects_credentials_in_full_agent_revision():
@@ -20,12 +19,40 @@ def test_detects_credentials_in_full_agent_revision():
     )
 
 
-def test_detects_credentials_in_ordered_delta_path():
+def test_detects_credentials_in_schema_valid_ordered_delta():
+    commit = WorkflowRevisionCommit.model_validate(
+        {
+            "workflow_variant_id": "00000000-0000-0000-0000-000000000001",
+            "base_revision_id": "00000000-0000-0000-0000-000000000002",
+            "delta": {
+                "operations": [
+                    {
+                        "operation": "set",
+                        "target": [
+                            "parameters",
+                            "agent",
+                            "sandbox",
+                            "credentials",
+                        ],
+                        "value": [],
+                    }
+                ]
+            },
+        }
+    )
+    assert _changes_sandbox_credentials(commit)
+
+
+def test_detects_ordered_delta_that_replaces_credentials_parent():
     assert _changes_sandbox_credentials(
         {
             "delta": {
                 "operations": [
-                    {"path": ["parameters", "agent", "sandbox", "credentials"]}
+                    {
+                        "operation": "set",
+                        "target": ["parameters", "agent", "sandbox"],
+                        "value": {},
+                    }
                 ]
             }
         }
@@ -38,9 +65,32 @@ def test_detects_credentials_in_legacy_delta_path():
     )
 
 
+def test_detects_credentials_in_legacy_remove():
+    assert _changes_sandbox_credentials(
+        {
+            "delta": {
+                "remove": [
+                    "parameters.agent.instructions",
+                    "parameters.agent.sandbox.credentials",
+                ]
+            }
+        }
+    )
+
+
 def test_ignores_unrelated_workflow_changes():
     assert not _changes_sandbox_credentials(
-        {"delta": {"operations": [{"path": ["parameters", "agent", "instructions"]}]}}
+        {
+            "delta": {
+                "operations": [
+                    {
+                        "operation": "set",
+                        "target": ["parameters", "agent", "instructions"],
+                        "value": "updated",
+                    }
+                ]
+            }
+        }
     )
 
 
