@@ -62,13 +62,12 @@ Output shape:
     Routed to: <owner>
     Why: <one line>
 
-## Verify
-1. test_run with a blunt test message shaped like a support thread ("Our export button is
-   throwing a 500, can someone look?") and read the verdict and the tools line, not a 200. An
-   incomplete verdict means rewrite the instructions blunter and re-test.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the real
-   trigger test: the Lightning "Test event" button for this event subscription.
-3. Read back the posted triage reply to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted triage reply)
+before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what channel and owners it is watching for, what you
@@ -132,13 +131,12 @@ Output shape:
     Cited from: <source, or "ticket history only">
     Confidence: <high/low>
 
-## Verify
-1. test_run with a blunt test message shaped like a new ticket ("Customer asks how to export
-   their data to CSV") and read the verdict and the tools line, not a 200. An incomplete
-   verdict means rewrite the instructions blunter and re-test.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the real
-   trigger test: the Lightning "Test event" button for this event subscription.
-3. Read back the posted draft (or comment) to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted draft or
+comment) before you call it verified. For a trigger, point them at the Test event button of
+a subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what ticket system and knowledge source it uses (or that
@@ -196,14 +194,12 @@ Output shape:
     Reported by: <name/handle>
     Ticket: <link>
 
-## Verify
-1. test_run with a blunt test message shaped like a bug report ("The app crashes when I
-   upload a file over 10MB") and read the verdict and the tools line, not a 200. An incomplete
-   verdict means rewrite the instructions blunter and re-test.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the real
-   trigger test: the Lightning "Test event" button for this event subscription (or send a real
-   mention if mention-triggered).
-3. Read back the created ticket to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the created ticket) before
+you call it verified. For a trigger, point them at the Test event button of a subscription
+or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what channel and tracker it is wired to, what you
@@ -262,13 +258,12 @@ Output shape:
     - <count> mentions
     - Example: "<quoted message>"
 
-## Verify
-1. test_run with a blunt test message ("Cluster today's feedback from #feedback") and read
-   the verdict and the tools line, not a 200. An incomplete verdict means rewrite the
-   instructions blunter and re-test.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the real
-   trigger test: the Play "Run" button for this schedule.
-3. Read back the logged Notion entry to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the logged Notion entry)
+before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is scheduled, what you verified,

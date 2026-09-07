@@ -63,12 +63,12 @@ Output shape (CRM note field):
     Qualified: <yes/no> - <one-line reason>
     Enrichment: <company size, industry, signal found>
 
-## Verify
-1. test_run with a blunt message ("Qualify this lead: <sample email/company>") and read the
-   verdict and the tools line, not a 200.
-2. Fire an artificial "new lead" trigger test message first. If that passes, ask the user to run
-   the real trigger test: the Lightning "Test event" button.
-3. Read back the CRM record to confirm the score and notes landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the CRM record with its
+score and notes) before you call it verified. For a trigger, point them at the Test event
+button of a subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is subscribed, what you verified,
@@ -118,12 +118,12 @@ contact at a time with the exact update tool, which is approval-gated: the platf
 gate on that tool is the review stop, not a separate step. If the gate is not approved, the run
 ends with the proposal posted and nothing written.
 
-## Verify
-1. test_run with a blunt message ("Propose CRM updates from yesterday's threads") and read the
-   verdict and the tools line, not a 200.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the real
-   trigger test: the Play "Run" button for the schedule.
-3. Read back one updated contact to confirm the applied change landed as proposed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (one updated contact) before
+you call it verified. For a trigger, point them at the Test event button of a subscription
+or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is scheduled, what you verified,
@@ -176,11 +176,11 @@ Output shape (per contact):
     Subject: <subject>
     Body: <2-4 short paragraphs, one personalized hook>
 
-## Verify
-1. test_run with a blunt message ("Draft outreach for these 3 contacts: <names>") and read the
-   verdict and the tools line, not a 200. Confirm no send tool appears in the tools line.
-2. This template has no trigger to verify; it runs on demand.
-3. Read back the Gmail Drafts folder (or the returned text) to confirm every contact got a draft.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the Gmail draft for every
+contact) before you call it verified. Confirm no send tool appears in `tools`.
 
 ## Closing report
 Tell the user how many drafts were created, where they landed, what is connected, and remind
@@ -228,13 +228,12 @@ agenda from the calendar event or notes thread, log a meeting note on the matchi
 with the exact note tool if the CRM is connected, then finish by creating a Gmail draft to the
 attendees with the exact create-draft tool. NEVER call a send tool.
 
-## Verify
-1. test_run with a blunt message describing a sample meeting and read the verdict and the tools
-   line, not a 200.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the real
-   trigger test: the Lightning "Test event" button for the calendar event, or the Play "Run"
-   button if it falls back to a schedule.
-3. Read back the Gmail draft and, if connected, the CRM note to confirm both landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the Gmail draft, and the
+CRM note if the CRM is connected) before you call it verified. For a trigger, point them at
+the Test event button of a subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is subscribed or scheduled, what
@@ -287,12 +286,12 @@ Output shape:
     New: <count> | Moved: <count> | Won: <count> | Lost: <count>
     Stale (14+ days): <deal name> - <days since activity>
 
-## Verify
-1. test_run with a blunt message ("Post today's pipeline digest now") and read the verdict and
-   the tools line, not a 200.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the real
-   trigger test: the Play "Run" button for the schedule.
-3. Read back the posted Slack message to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted Slack message)
+before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is scheduled, what you verified,

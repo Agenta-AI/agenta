@@ -61,13 +61,12 @@ Output shape:
     - <person>: <what they did or asked>
     - <person>: <what they did or asked>
 
-## Verify
-1. test_run with a blunt message ("Summarize yesterday's activity in this channel") and read
-   the verdict and the tools line, not a 200. An incomplete verdict means rewrite the
-   instructions blunter and re-test.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the
-   real trigger test: the Play "Run" button on the schedule.
-3. Read back the posted digest to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted digest) before
+you call it verified. For a trigger, point them at the Test event button of a subscription
+or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, which channel it reads and posts to, the schedule
@@ -129,13 +128,12 @@ Output shape:
     ### Commits
     - <message> (<sha>)
 
-## Verify
-1. test_run with a blunt message ("Post a digest of today's repo activity") and read the
-   verdict and the tools line, not a 200.
-2. This template needs two schedules (morning and evening). Fire an artificial trigger test
-   message for each, then ask the user to run the real trigger test: the Play "Run" button on
-   each schedule.
-3. Read back the posted digest to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted digest) before
+you call it verified. For a trigger, point them at the Test event button of a subscription
+or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, the repo and channel it is wired to, both schedules
@@ -192,13 +190,12 @@ the last run with the exact list tool, for each one check the destination for an
 mirrored record by the source id, then create it if missing or update it if changed with the
 exact write tool. Pin the source id and destination id.
 
-## Verify
-1. test_run with a blunt message ("Sync the latest issues now") and read the verdict and the
-   tools line, not a 200.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the
-   real trigger test: the Play "Run" button for a schedule, or the Lightning "Test event"
-   button if wired to a source webhook.
-3. Read back the destination record to confirm the write landed and was not duplicated.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the destination record, and
+check it was not duplicated) before you call it verified. For a trigger, point them at the
+Test event button of a subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, the source and destination it syncs, the schedule or
@@ -258,13 +255,12 @@ Output shape:
     ### Product metrics (if connected)
     - <metric>: <value>
 
-## Verify
-1. test_run with a blunt message ("Compile this week's report now") and read the verdict and
-   the tools line, not a 200. Confirm it works both with and without the PostHog tool
-   present.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the
-   real trigger test: the Play "Run" button on the schedule.
-3. Read back the published report to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the published report)
+before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected (and which PostHog-based section is

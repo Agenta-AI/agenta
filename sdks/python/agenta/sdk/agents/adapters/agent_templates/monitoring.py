@@ -69,14 +69,12 @@ Output shape:
     Suspected cause: <one line, or "unknown, investigating">
     Paged: <yes/no, escalation policy>
 
-## Verify
-1. test_run with an artificial alert-shaped message ("New Sentry issue: NullPointerException
-   in checkout-service, level=fatal, 40 events/min") and read the verdict and the tools line,
-   not a 200. An incomplete verdict means rewrite the instructions blunter and re-test.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the
-   real trigger test: the Lightning "Test event" button on the Sentry event subscription.
-3. Read back the posted Slack message (and the PagerDuty incident, if triggered) to confirm
-   the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted Slack message,
+and the PagerDuty incident if one was triggered) before you call it verified. For a trigger,
+point them at the Test event button of a subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is subscribed, what you
@@ -131,13 +129,12 @@ Ticket shape:
     Title: [<severity>] <exception type> in <service>
     Body: First seen <time>, <n> events/<window>. <stack trace excerpt>. Sentry: <link>
 
-## Verify
-1. test_run with an artificial message ("New Sentry issue: TimeoutError in payment-worker,
-   level=error, 12 events in 5m, first seen 3 min ago") and read the verdict and the tools
-   line, not a 200. Confirm it either files or correctly skips as noise.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the
-   real trigger test: the Lightning "Test event" button on the Sentry event subscription.
-3. Read back the created ticket to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the created ticket) before
+you call it verified. For a trigger, point them at the Test event button of a subscription
+or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is subscribed, what you
@@ -193,13 +190,12 @@ Output shape:
     Top issues:
     - <title> (<count> events)
 
-## Verify
-1. test_run with an artificial message ("Summarize the last 24 hours") and read the verdict
-   and the tools line, not a 200. An incomplete verdict means rewrite the instructions
-   blunter and re-test.
-2. Fire an artificial schedule-fire test message first. If that passes, ask the user to run
-   the real trigger test: the Play "Run" button on the schedule.
-3. Read back the posted Slack message to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted Slack message)
+before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is scheduled, what you
@@ -257,13 +253,12 @@ Output shape:
     Still open: <n>
     - <title> (<days open>d)
 
-## Verify
-1. test_run with an artificial message ("Brief on-call with today's open incidents") and read
-   the verdict and the tools line, not a 200. An incomplete verdict means rewrite the
-   instructions blunter and re-test.
-2. Fire an artificial schedule-fire test message first. If that passes, ask the user to run
-   the real trigger test: the Play "Run" button on the schedule.
-3. Read back the posted Slack message to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted Slack message)
+before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is scheduled, what you

@@ -139,9 +139,11 @@ def test_default_static_skill_catalog_replaces_old_authoring_skills():
     playbook = catalog.retrieve_revision(slug=_PLAYBOOK_SLUG)
     skill = playbook.data.parameters["skill"]
     assert skill["name"] == "build-an-agent"
-    assert skill["body"].startswith("# Build an Agenta agent")
+    assert skill["body"].startswith("# Configure this Agenta agent")
     assert "test_run" in skill["body"]
-    assert "query_spans" in skill["body"]
+    # Left the build kit on 2026-09-07; the skill must not send the model to a tool it lacks.
+    assert "query_spans" not in skill["body"]
+    assert "annotate_trace" not in skill["body"]
 
 
 def test_build_kit_static_workflow_returns_agent_config_equivalent_to_overlay():
@@ -310,7 +312,7 @@ async def test_build_agent_skill_embed_resolves_through_static_catalog_without_d
 
     skill = resolved_revision.data.parameters["agent"]["skills"][0]
     assert skill["name"] == "build-an-agent"
-    assert skill["body"].startswith("# Build an Agenta agent")
+    assert skill["body"].startswith("# Configure this Agenta agent")
     assert resolution_info.embeds_resolved == 1
     # Resolving the static playbook skill must use the catalogue, not Postgres.
     workflows_dao.fetch_revision.assert_not_awaited()

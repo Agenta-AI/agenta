@@ -62,12 +62,12 @@ Output shape:
     Sources:
     - <page title> (<link>)
 
-## Verify
-1. test_run with an artificial mention-shaped message ("@docs-bot how do I reset my API key?")
-   and read the verdict and the tools line, not a 200.
-2. Fire an artificial test message first; if it passes, ask the user to run the real trigger
-   test with the Lightning "Test event" button.
-3. Confirm the reply landed in the right channel/thread.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the reply in its channel or
+thread) before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 What the agent became, which sources it searches, which channel it answers in, what you
@@ -124,12 +124,12 @@ Output shape:
     Sources:
     - <page title> (<link>)
 
-## Verify
-1. test_run with an artificial mention/message ("Do you support refunds after 30 days?") and
-   read the verdict and the tools line, not a 200.
-2. Fire an artificial test message first; then ask the user to run the real trigger test with
-   the Lightning "Test event" button.
-3. Confirm the reply appears on the right platform and channel.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the reply on the right
+platform and channel) before you call it verified. For a trigger, point them at the Test
+event button of a subscription or the Run button of a schedule.
 
 ## Closing report
 What the agent became, which content it can see, which platform it answers on, what you
@@ -186,12 +186,12 @@ Output shape:
     Sources:
     - <page title> (<link>)
 
-## Verify
-1. test_run with an artificial mention-shaped message ("@onboarding-buddy where do I request a
-   laptop?") and read the verdict and the tools line, not a 200.
-2. Fire an artificial test message first; then ask the user to run the real trigger test with
-   the Lightning "Test event" button.
-3. Confirm the reply landed in the right channel/thread.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the reply in its channel or
+thread) before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 What the agent became, which wiki it searches, which channel it answers in, what you verified,
@@ -241,11 +241,11 @@ quotes the doc does not contain. Each draft links back to the source doc. If the
 enough substance for a platform, say so instead of padding with invented detail. Finish by
 posting the drafts to the review channel or draft page with the exact write tool.
 
-## Verify
-1. test_run with a blunt message ("Repurpose this doc into LinkedIn and X drafts") and read the
-   verdict and the tools line, not a 200.
-2. This template has no trigger to verify; it runs on demand by chatting with the agent.
-3. Read back the posted drafts to confirm they landed in the review channel or page.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted drafts in the
+review channel or page) before you call it verified.
 
 ## Closing report
 What the agent became, which doc it read, where drafts post, what you verified, and any
@@ -302,12 +302,12 @@ Output shape:
     ### Fixed
     - <item> (<link>)
 
-## Verify
-1. test_run with a blunt message ("Draft this week's newsletter from recent shipping activity")
-   and read the verdict and the tools line, not a 200.
-2. Fire an artificial scheduled-run test message first; if it passes, ask the user to run the
-   real trigger test with the Play "Run" button.
-3. Read back the Notion page to confirm the draft landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the Notion page with the
+draft) before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 What the agent became, which sources it reads, where it drafts, what is scheduled, what you

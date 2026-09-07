@@ -67,14 +67,12 @@ Output shape:
     ### Fixes
     - <PR title> (#<number>)
 
-## Verify
-1. test_run with a blunt message ("Draft release notes from the last 5 merged PRs") and read
-   the verdict and the tools line, not a 200. An incomplete verdict means rewrite the
-   instructions blunter and re-test.
-2. Fire an artificial trigger test message first. If that passes, ask the user to run the real
-   trigger test: the Lightning "Test event" button for a subscription, the Play "Run" button
-   for a schedule.
-3. Read back the published note to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the published note) before
+you call it verified. For a trigger, point them at the Test event button of a subscription
+or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is scheduled or subscribed, what
@@ -135,12 +133,12 @@ Output shape (summary comment):
     - Risky: <file>:<line> - <why>
     - Missing tests: <file>
 
-## Verify
-1. test_run with a blunt message ("Review the latest open PR for risky changes and missing
-   tests") and read the verdict and the tools line, not a 200.
-2. Fire an artificial "PR opened" trigger test message first. If that passes, ask the user to
-   run the real trigger test: the Lightning "Test event" button.
-3. Read back the posted comments on the PR to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted review comments
+on the PR) before you call it verified. For a trigger, point them at the Test event button
+of a subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is subscribed, what you verified,
@@ -194,12 +192,12 @@ infer a priority label from keyword patterns (data loss or crash implies the hig
 apply the labels with the exact label tool, and finish by assigning the matched owner (from
 CODEOWNERS, if present) with the exact assign tool. Pin the repo id.
 
-## Verify
-1. test_run with a blunt message ("Triage the newest open issue") and read the verdict and the
-   tools line, not a 200.
-2. Fire an artificial "issue opened" trigger test message first. If that passes, ask the user to
-   run the real trigger test: the Lightning "Test event" button.
-3. Read back the issue's labels and assignee to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the issue's labels and
+assignee) before you call it verified. For a trigger, point them at the Test event button of
+a subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is subscribed, what you verified,
@@ -252,12 +250,12 @@ from the log (test failure, compile error, timeout, or infra), write a concise s
 finish by posting it as a comment on the PR or commit tagging the author with the exact comment
 tool (and, only if Slack is connected, also sending it to the channel). Pin the repo id.
 
-## Verify
-1. test_run with a blunt message ("Summarize why the last CI run failed") and read the verdict
-   and the tools line, not a 200.
-2. Fire an artificial "workflow run failed" trigger test message first. If that passes, ask the
-   user to run the real trigger test: the Lightning "Test event" button.
-3. Read back the posted comment to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted comment) before
+you call it verified. For a trigger, point them at the Test event button of a subscription
+or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected (note whether Slack is wired or
@@ -313,12 +311,12 @@ Output shape:
 
     Sources: <path>:<line>, <path>:<line>
 
-## Verify
-1. test_run with a blunt message ("What does <a real function or module> do?") and read the
-   verdict and the tools line, not a 200.
-2. Fire an artificial mention trigger test message first. If that passes, ask the user to run
-   the real trigger test: the Lightning "Test event" button.
-3. Read back the reply to confirm it landed in the right thread.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the reply in its thread)
+before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is subscribed, what you verified,
@@ -374,12 +372,12 @@ Output shape:
     ### <ecosystem>
     - <package> <old version> -> <new version> (#<PR number>)
 
-## Verify
-1. test_run with a blunt message ("Summarize the open dependency-update PRs") and read the
-   verdict and the tools line, not a 200.
-2. Fire an artificial schedule-fired test message first. If that passes, ask the user to run
-   the real trigger test: the Play "Run" button.
-3. Read back the posted digest to confirm the write landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted digest) before
+you call it verified. For a trigger, point them at the Test event button of a subscription
+or the Run button of a schedule.
 
 ## Closing report
 Tell the user what the agent became, what is connected, what is scheduled, what you verified,

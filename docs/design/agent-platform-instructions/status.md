@@ -72,3 +72,21 @@ Branch `feat/release-1153-platform-prompt`, target `release/v0.115.3`.
   storing a preference in the instructions, which the prompt's Memory section requires. The
   SDK resolver collapses two identical copies of a reserved client tool, so a revision that
   embedded `request_secret` by hand before it joined the kit still runs.
+
+## 2026-09-07: the build-an-agent skill follows the platform prompt
+
+Branch `feat/release-1153-build-kit-skill`, stacked on `feat/release-1153-platform-prompt`.
+
+- The skill description no longer says "ALWAYS read this skill before your first reply". It
+  is read when the request is a change to the agent, and for a new agent's first request.
+- The decision table, the playbook-index detour, and the eight-step loop are gone. The
+  skill lists the template names inline, keeps a five-step change procedure aligned with
+  the prompt, and keeps the sections that came from evaluations: writing instructions for
+  multi-tool agents, prefer wired tools, when something fails, footguns.
+- `test_run` is no longer mandated after every commit, in the skill, in
+  `references/config-schema.md`, or in the 28 playbooks. Each playbook's Verify section is
+  now an "Offer a test" section. The read-before-propose use of `test_run` with an
+  uncommitted tools delta stays, because a newly committed integration is callable only in
+  the next session.
+- `annotate_trace` and `query_spans` left the build kit. They stay in the catalog as
+  opt-ins.
