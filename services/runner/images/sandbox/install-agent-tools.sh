@@ -29,11 +29,25 @@ export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/opt/pw-browsers}"
 
 export DEBIAN_FRONTEND=noninteractive
 arch="$(dpkg --print-architecture)"
+# Release tarballs are pinned by sha256 per architecture, so a moved tag or a tampered download
+# fails the build. Refresh the sums when the pin changes: the uv release publishes
+# `<asset>.sha256`; for fd, download and `sha256sum` the tarball.
 case "$arch" in
-  amd64) fdarch="x86_64-unknown-linux-musl"; uvarch="x86_64-unknown-linux-gnu" ;;
-  arm64) fdarch="aarch64-unknown-linux-musl"; uvarch="aarch64-unknown-linux-gnu" ;;
+  amd64)
+    fdarch="x86_64-unknown-linux-musl"
+    fdsha="e3257d48e29a6be965187dbd24ce9af564e0fe67b3e73c9bdcd180f4ec11bdde"
+    uvarch="x86_64-unknown-linux-gnu"
+    uvsha="173d95a0c32d18c896c46ba6fafbf3cf9c14ab74b033f81b76c883ef492a976b"
+    ;;
+  arm64)
+    fdarch="aarch64-unknown-linux-musl"
+    fdsha="f32d3657473fba74e2600babc8db0b93420d51169223b7e8143b2ed55d8fd9e8"
+    uvarch="aarch64-unknown-linux-gnu"
+    uvsha="9ff6b9d4665edcdd3a88dcc73cd1eb641754deb927f14e8c62ebfde6bf4f5f5e"
+    ;;
   *) echo "unsupported arch $arch" >&2; exit 1 ;;
 esac
+verify_sha256() { echo "$2  $1" | sha256sum -c - >/dev/null || { echo "checksum mismatch: $1" >&2; exit 1; }; }
 
 # ---- apt: the everyday shell tools -----------------------------------------------------------
 # python3-venv: plain `python -m venv` fails on Debian without it. python-is-python3: a plain
@@ -73,9 +87,14 @@ apt-get install -y --no-install-recommends "gh=${GH_VERSION}*"
 gh --version | grep -q "gh version ${GH_VERSION}"
 rm -rf /var/lib/apt/lists/*
 
-# ---- uv: the way an agent adds Python packages and runs scripts with dependencies. -----------
-curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" \
-  | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
+# ---- uv: the way an agent adds Python packages and runs scripts with dependencies. The release
+# tarball, checksum-verified, instead of the piped install script. ---------------------------
+curl -fsSL "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${uvarch}.tar.gz" \
+  -o /tmp/uv.tar.gz
+verify_sha256 /tmp/uv.tar.gz "$uvsha"
+tar -xzf /tmp/uv.tar.gz -C /usr/local/bin --strip-components=1 --wildcards '*/uv' '*/uvx'
+rm /tmp/uv.tar.gz
+chmod +x /usr/local/bin/uv /usr/local/bin/uvx
 uv --version | grep -q "uv ${UV_VERSION}"
 
 # ---- fd: static release. Debian's fd-find is 8.6.0 on bookworm and Pi's find builtin passes
@@ -83,6 +102,7 @@ uv --version | grep -q "uv ${UV_VERSION}"
 # benchmark runs) until this pin. The flag check makes a bad pin fail the build. ---------------
 curl -fsSL "https://github.com/sharkdp/fd/releases/download/${FD_VERSION}/fd-${FD_VERSION}-${fdarch}.tar.gz" \
   -o /tmp/fd.tar.gz
+verify_sha256 /tmp/fd.tar.gz "$fdsha"
 tar -xzf /tmp/fd.tar.gz -C /usr/local/bin --strip-components=1 --wildcards '*/fd'
 rm /tmp/fd.tar.gz
 chmod +x /usr/local/bin/fd

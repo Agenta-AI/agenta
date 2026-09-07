@@ -26,12 +26,14 @@ one-shot-discovery claims.
 """
 
 import argparse
+import ipaddress
 import json
 import os
 import pathlib
 import subprocess
 import sys
 import time
+import urllib.parse
 import uuid
 
 import httpx
@@ -50,6 +52,22 @@ from qa_matrix_lib import (  # noqa: E402
 BASE = os.environ["AGENTA_BASE"]
 PROJECT = os.environ["AGENTA_PROJECT_ID"]
 KEY = os.environ["AGENTA_API_KEY"]
+
+# The API key rides every request. Plain HTTP to anything but a loopback address sends it in
+# clear, so say so loudly. Not fatal: every gate cell runs against the dev box over plain HTTP
+# today, and this cell must not be the one that silently refuses to run there.
+_host = urllib.parse.urlsplit(BASE).hostname or ""
+try:
+    _loopback = ipaddress.ip_address(_host).is_loopback
+except ValueError:
+    _loopback = _host == "localhost"
+if not BASE.startswith("https://") and not _loopback:
+    print(
+        f"WARNING: AGENTA_BASE={BASE} is plain HTTP to a non-loopback host; the API key "
+        "travels in clear. Use https:// for any deployment outside this box.",
+        file=sys.stderr,
+    )
+
 
 HARNESS_MODELS = {
     "pi_core": ("gpt-5.6-luna", "openai"),
