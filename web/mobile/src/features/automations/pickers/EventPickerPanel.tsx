@@ -1,20 +1,30 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    triggerCatalogDrawerOpenAtom,
+    triggerEventsSearchAtom,
     useTriggerConnectionsQuery,
     useTriggerEvent,
     type TriggerSubscription,
     type TriggerSubscriptionEdit,
 } from "@agenta/entities/gatewayTrigger"
 import {SchemaForm, type SchemaFormHandle} from "@agenta/entity-ui/gatewayTool"
-import {SourceBrowsePage, useSchemaFormInstance} from "@agenta/entity-ui/gatewayTrigger"
-import {CaretLeft, Warning} from "@phosphor-icons/react"
+import {useSchemaFormInstance} from "@agenta/entity-ui/gatewayTrigger"
+import {Warning} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
+import {ChevronLeft, Plug, Search} from "lucide-react"
 
 import {Button} from "@/components/ui/button"
+import {Input} from "@/components/ui/input"
 
 import {buildAutomationEdit} from "../automationEdit"
 import type {Automation} from "../automationModel"
 import {useAutomation} from "../useAutomation"
+
+import {appLabel, connectedApps, eventLabel, type ConnectedApp} from "./connectedApps"
+import {EventAppRail} from "./EventAppRail"
+import {EventList} from "./EventList"
+import {EventSearchResults} from "./EventSearchResults"
 
 /** What Done hands back in a draft's "not yet saved" mode. */
 export interface EventSelection {
@@ -27,14 +37,18 @@ export interface EventSelection {
  * Which event runs this automation — the panel only, with no overlay of its own, so the
  * "Runs when" control can put it under the kind chips next to the schedule builder.
  *
- * Nothing here is a mobile reimplementation of the desktop chooser. `SourceBrowsePage` IS the
- * subscription drawer's "choose a trigger" step — the same app rail, the same search, the same
- * event list, already phone-aware (it collapses the rail below `sm`) — and the event's own
- * `trigger_config` filters are the same `SchemaForm`, which puts the optional ones behind its own
- * "Optional (N)" disclosure. This file is the two of them plus the save.
+ * Browse is the connected apps and their events, and nothing else: an automation can only watch
+ * an app this workspace has already connected, so the marketplace catalog (descriptions,
+ * categories, action counts) answers a question nobody asked here. Connecting a NEW app is that
+ * other question, and it opens the real integration drawer — mounted at screen level, since a
+ * drawer owned by this popover dies with it.
+ *
+ * The filters step is not reimplemented either: it is the event's own `trigger_config` through
+ * the shared `SchemaForm`, which paints the required fields inline and hides the optional ones
+ * behind its own disclosure.
  *
  * Unlike the agent field, this one commits on **Done**, not on pick: an event whose required
- * filters are empty (GitHub's owner/repo) is a subscription that can never fire, so saving the
+ * filters are empty (GitHub's owner/repo) is a subscription that can never run, so saving the
  * moment the event is chosen would write a broken automation and call it done.
  */
 export const EventPickerPanel = ({
@@ -50,7 +64,7 @@ export const EventPickerPanel = ({
     /** A draft's "not yet saved" mode — the host takes the selection instead of a save. */
     onSelectEvent?: (selection: EventSelection) => void
 }) => {
-    const {connections} = useTriggerConnectionsQuery()
+    const {connections, isLoading: connectionsLoading} = useTriggerConnectionsQuery()
     // A draft has no row behind it, so the entity hook stays inert rather than fetching "new".
     const {edit} = useAutomation(onSelectEvent ? undefined : automation.id, automation.kind)
 
@@ -59,6 +73,13 @@ export const EventPickerPanel = ({
     const [browsing, setBrowsing] = useState(!automation.eventKey)
     const [values, setValues] = useState<Record<string, unknown>>({})
     const [saving, setSaving] = useState(false)
+    const [search, setSearch] = useState("")
+    /** Only what the user clicked in the rail — the default is derived, so it can arrive late. */
+    const [railKey, setRailKey] = useState<string | undefined>(undefined)
+
+    const openCatalogDrawer = useSetAtom(triggerCatalogDrawerOpenAtom)
+    // The catalog hooks read one shared search atom — the panel owns it while it is open.
+    const setEventsSearch = useSetAtom(triggerEventsSearchAtom)
 
     // SchemaForm keeps its state in a host-owned form instance — the only way to prefill the
     // stored filters, and the only way to read them back validated.
@@ -74,12 +95,29 @@ export const EventPickerPanel = ({
         [automation.raw],
     )
 
+    const apps = useMemo(() => connectedApps(connections), [connections])
     const connection = useMemo(
         () => connections.find((candidate) => candidate.id === connectionId),
         [connections, connectionId],
     )
     const {event} = useTriggerEvent(connection?.integration_key ?? "", eventKey)
     const schema = (event?.trigger_config ?? null) as Record<string, unknown> | null
+
+    const activeApp = useMemo<ConnectedApp | undefined>(() => {
+        const key = railKey ?? connection?.integration_key
+        return apps.find((app) => app.integrationKey === key) ?? apps[0]
+    }, [apps, connection?.integration_key, railKey])
+
+    const query = search.trim()
+
+    // Debounced, because the atom is a query key: every keystroke would be a request per app.
+    useEffect(() => {
+        const timer = window.setTimeout(() => setEventsSearch(query), 200)
+        return () => window.clearTimeout(timer)
+    }, [query, setEventsSearch])
+
+    // Leaving the panel must not leave the catalog filtered for whoever opens it next.
+    useEffect(() => () => setEventsSearch(""), [setEventsSearch])
 
     // Reopening restarts from what is SAVED, not from an abandoned edit: a half-picked event
     // must not survive as the next session's starting point.
@@ -89,6 +127,8 @@ export const EventPickerPanel = ({
         setEventKey(automation.eventKey ?? "")
         setBrowsing(!automation.eventKey)
         setSaving(false)
+        setSearch("")
+        setRailKey(undefined)
     }, [open, automation.connectionId, automation.eventKey])
 
     // Filters belong to the event's own schema, so a different event starts from empty; the
@@ -108,7 +148,19 @@ export const EventPickerPanel = ({
         setConnectionId(pickedConnectionId)
         setEventKey(pickedEventKey)
         setBrowsing(false)
+        setSearch("")
     }, [])
+
+    const onSelectApp = useCallback((app: ConnectedApp) => {
+        setRailKey(app.integrationKey)
+    }, [])
+
+    // The drawer lives on the screen, so the picker gets out of its way first — on a phone this
+    // panel is a modal sheet, and a sheet over the drawer is a drawer nobody can reach.
+    const onConnectAnother = useCallback(() => {
+        onClose()
+        openCatalogDrawer(true)
+    }, [onClose, openCatalogDrawer])
 
     const onDone = useCallback(async () => {
         if (!connectionId || !eventKey) return
@@ -140,51 +192,79 @@ export const EventPickerPanel = ({
         }
     }, [automation, connectionId, edit, eventKey, onClose, onSelectEvent])
 
+    const boundAppLabel = connection ? appLabel(connection) : (activeApp?.label ?? "connected")
+
     return (
-        // One height for both panes: the browse step and the filters step must not resize
-        // the overlay as the user moves between them.
-        <div className="flex h-[60vh] max-h-[560px] min-h-[320px] flex-col lg:h-[460px]">
+        <div className="flex min-h-0 flex-col">
             {browsing ? (
-                <>
-                    {automation.eventKey ? (
-                        <div className="flex shrink-0 items-center border-b px-2 py-2">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setBrowsing(false)}
-                            >
-                                <CaretLeft aria-hidden size={14} />
-                                Back
-                            </Button>
-                        </div>
-                    ) : null}
-                    <div className="min-h-0 flex-1">
-                        <SourceBrowsePage
-                            connections={connections}
-                            // Re-opening a bound event lands on its app's event list, not
-                            // back at the app grid — the app is rarely what changed.
-                            defaultIntegrationKey={connection?.integration_key}
-                            onPick={onPick}
+                <div className="flex min-h-0 flex-col gap-2.5 p-2.5">
+                    <div className="relative">
+                        <Search
+                            aria-hidden
+                            className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                        />
+                        <Input
+                            value={search}
+                            onChange={(changed) => setSearch(changed.target.value)}
+                            aria-label="Search events"
+                            placeholder="Search events — try “issue”"
+                            className="h-8 pl-8 text-[13px]"
                         />
                     </div>
-                </>
+
+                    <div className="flex min-h-0 gap-[10px]">
+                        {query ? null : (
+                            <EventAppRail
+                                apps={apps}
+                                selectedKey={activeApp?.integrationKey}
+                                isLoading={connectionsLoading}
+                                onSelect={onSelectApp}
+                            />
+                        )}
+                        {query ? (
+                            <EventSearchResults
+                                apps={apps}
+                                selectedEventKey={eventKey}
+                                onPick={onPick}
+                            />
+                        ) : activeApp ? (
+                            <EventList
+                                app={activeApp}
+                                selectedEventKey={eventKey}
+                                onPick={onPick}
+                            />
+                        ) : (
+                            <p className="m-0 min-w-0 flex-1 px-2 py-3 text-[12px] leading-snug text-muted-foreground">
+                                Connect an app to watch its events.
+                            </p>
+                        )}
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={onConnectAnother}
+                        className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-muted-foreground hover:bg-muted"
+                    >
+                        <Plug aria-hidden className="size-3.5 shrink-0" />
+                        <span className="min-w-0 truncate">Connect another app…</span>
+                    </button>
+                </div>
             ) : (
                 <>
-                    <div className="flex shrink-0 items-center gap-2 border-b px-4 py-2">
-                        <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
-                            {event?.name || eventKey}
-                        </span>
-                        <Button
+                    <div className="flex shrink-0 flex-col gap-1 border-0 border-b border-solid border-border px-4 py-2.5">
+                        <button
                             type="button"
-                            variant="ghost"
-                            size="sm"
                             onClick={() => setBrowsing(true)}
+                            className="flex w-fit cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-left text-[12px] text-muted-foreground hover:text-foreground"
                         >
-                            Change
-                        </Button>
+                            <ChevronLeft aria-hidden className="size-3.5 shrink-0" />
+                            <span className="min-w-0 truncate">All {boundAppLabel} events</span>
+                        </button>
+                        <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
+                            {eventLabel(event?.name, eventKey)}
+                        </span>
                     </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                    <div className="max-h-[420px] min-h-0 flex-1 overflow-y-auto px-4 py-3">
                         {schema ? (
                             <SchemaForm
                                 ref={formRef}
@@ -193,14 +273,14 @@ export const EventPickerPanel = ({
                                 onValuesChange={setValues}
                             />
                         ) : (
-                            <p className="text-muted-foreground m-0 py-2 text-xs">
+                            <p className="m-0 py-2 text-xs text-muted-foreground">
                                 This event needs no filters — it runs every time it arrives.
                             </p>
                         )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-3 border-t px-4 py-3">
+                    <div className="flex shrink-0 items-center gap-3 border-0 border-t border-solid border-border px-4 py-3">
                         {missing.length ? (
-                            <p className="text-muted-foreground m-0 flex min-w-0 flex-1 items-center gap-1.5 text-xs leading-snug">
+                            <p className="m-0 flex min-w-0 flex-1 items-center gap-1.5 text-xs leading-snug text-muted-foreground">
                                 <Warning aria-hidden size={14} className="shrink-0" />
                                 <span className="min-w-0">
                                     {missing.length === 1
@@ -214,7 +294,7 @@ export const EventPickerPanel = ({
                         )}
                         <Button
                             type="button"
-                            size="sm"
+                            className="font-normal"
                             disabled={!ready || saving}
                             onClick={() => void onDone()}
                         >

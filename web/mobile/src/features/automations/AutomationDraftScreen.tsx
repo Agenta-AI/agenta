@@ -29,6 +29,7 @@ import {AutomationInstructionField} from "./AutomationInstructionField"
 import type {Automation, AutomationKind} from "./automationModel"
 import {AutomationRunsWhenField} from "./AutomationRunsWhenField"
 import {AutomationTitle} from "./AutomationTitle"
+import {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 import {type EventSelection} from "./pickers/EventPickerPanel"
 import {AUTOMATION_TEMPLATES} from "./templates"
 import {useAutomation} from "./useAutomation"
@@ -287,6 +288,7 @@ export const AutomationDraftScreen = ({
                     </div>
                 </ScreenScaffold>
             </AppShell>
+            <AutomationTriggerDrawers />
         </>
     )
 }
