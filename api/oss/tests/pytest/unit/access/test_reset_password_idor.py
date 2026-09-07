@@ -312,3 +312,51 @@ class TestUserProfileMissingUser:
 
         assert exc_info.value.status_code == 404
         assert "user not found" in exc_info.value.detail.lower()
+
+
+# ---------------------------------------------------------------------------
+# Test 6 — Signature Validation
+# ---------------------------------------------------------------------------
+
+
+class TestSignatureValidation:
+    """Ensures that calling get_user_org_and_workspace_id uses the correct kwargs."""
+
+    @pytest.mark.asyncio
+    async def test_signature_matches(self, _allow_access):
+        from oss.src.routers.user_profile import reset_user_password
+
+        project = _make_project(organization_id=ORG_A_ID)
+
+        target_org_data = {
+            "id": TARGET_OTHER_ORG_USER_ID,
+            "uid": "target-other-uid",
+            "workspace_ids": ["workspace-id"],
+            "organization_ids": ["DIFFERENT-ORG-ID"],
+        }
+
+        with (
+            patch(
+                "oss.src.routers.user_profile.db_manager.get_project_by_id",
+                AsyncMock(return_value=project),
+            ),
+            patch(
+                "oss.src.routers.user_profile.db_manager.get_organization_owner",
+                AsyncMock(return_value=None),
+            ),
+            patch(
+                "oss.src.services.user_service.db_manager.get_user_org_and_workspace_id",
+                autospec=True,
+                return_value=target_org_data,
+            ),
+            patch(
+                "oss.src.services.user_service.create_reset_password_link",
+                AsyncMock(side_effect=AssertionError("Should not create reset link")),
+            ),
+        ):
+            response = await reset_user_password(
+                request=_make_request(),
+                user_id=TARGET_OTHER_ORG_USER_ID,
+            )
+
+        assert response.status_code == 403

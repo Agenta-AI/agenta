@@ -152,7 +152,7 @@ async def generate_user_password_reset_link(
         PermissionError: If the target user does not belong to the caller's organization.
     """
 
-    target_access = await db_manager.get_user_org_and_workspace_id(user_id=user_id)
+    target_access = await db_manager.get_user_org_and_workspace_id(user_uid=user_id)
     if str(caller_org_id) not in target_access["organization_ids"]:
         raise PermissionError(
             "You do not have permission to reset the password for a user outside your organization"
