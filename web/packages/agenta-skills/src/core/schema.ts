@@ -181,6 +181,8 @@ export const skillSourceScanResponseSchema = z
                 issues: z.array(skillIssueSchema).optional(),
             })
             .passthrough(),
+        /** Candidate paths this project already imported from this repo. */
+        already_imported_paths: z.array(z.string()).optional(),
     })
     .passthrough()
 export type SkillSourceScanResponse = z.infer<typeof skillSourceScanResponseSchema>

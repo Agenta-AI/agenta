@@ -46,6 +46,7 @@ export function SkillImportDrawer({
     const [error, setError] = useState<string | null>(null)
     const [commitSha, setCommitSha] = useState<string | null>(null)
     const [candidates, setCandidates] = useState<ScanCandidate[]>([])
+    const [alreadyImported, setAlreadyImported] = useState<Set<string>>(new Set())
     const [selected, setSelected] = useState<Set<string>>(new Set())
     const [syncEnabled, setSyncEnabled] = useState(false)
     const [result, setResult] = useState<SkillSourceImportResponse | null>(null)
@@ -57,6 +58,7 @@ export function SkillImportDrawer({
         setError(null)
         setCommitSha(null)
         setCandidates([])
+        setAlreadyImported(new Set())
         setSelected(new Set())
         setSyncEnabled(false)
         setResult(null)
@@ -81,7 +83,16 @@ export function SkillImportDrawer({
             }
             setCommitSha(response.commit_sha ?? null)
             setCandidates(found)
-            setSelected(new Set(found.filter((c) => c.valid).map((c) => c.path_in_repo)))
+            const already = new Set(response.already_imported_paths ?? [])
+            setAlreadyImported(already)
+            // Already-linked skills are Refresh's job, not a re-import — offer only new ones.
+            setSelected(
+                new Set(
+                    found
+                        .filter((c) => c.valid && !already.has(c.path_in_repo))
+                        .map((c) => c.path_in_repo),
+                ),
+            )
             setStep("select")
         } catch (err) {
             setError(
@@ -227,11 +238,12 @@ export function SkillImportDrawer({
                             {candidates.map((candidate) => {
                                 const path = candidate.path_in_repo
                                 const name = candidate.skill?.name ?? path
+                                const imported = alreadyImported.has(path)
                                 return (
                                     <label
                                         key={path}
                                         className={`box-border flex items-start gap-2.5 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] p-2.5 ${
-                                            candidate.valid
+                                            candidate.valid && !imported
                                                 ? "cursor-pointer hover:border-[var(--ag-colorBorder)]"
                                                 : "opacity-60"
                                         }`}
@@ -239,7 +251,7 @@ export function SkillImportDrawer({
                                         <Checkbox
                                             className="mt-0.5"
                                             checked={selected.has(path)}
-                                            disabled={!candidate.valid || busy}
+                                            disabled={!candidate.valid || imported || busy}
                                             onCheckedChange={() => toggle(path)}
                                         />
                                         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -247,6 +259,11 @@ export function SkillImportDrawer({
                                                 <span className="min-w-0 truncate font-mono text-xs font-medium">
                                                     {name}
                                                 </span>
+                                                {imported ? (
+                                                    <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                                        Already imported
+                                                    </span>
+                                                ) : null}
                                                 {candidate.valid ? (
                                                     <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px font-mono text-[10px] text-[var(--ag-colorTextTertiary)]">
                                                         SKILL.md
@@ -257,10 +274,12 @@ export function SkillImportDrawer({
                                                 ) : null}
                                             </span>
                                             <span className="line-clamp-1 text-xs text-[var(--ag-colorTextSecondary)]">
-                                                {candidate.valid
-                                                    ? (candidate.skill?.description ??
-                                                      "No description.")
-                                                    : issueText(candidate.issues)}
+                                                {imported
+                                                    ? "Already in this project — use Refresh to pick up upstream changes."
+                                                    : candidate.valid
+                                                      ? (candidate.skill?.description ??
+                                                        "No description.")
+                                                      : issueText(candidate.issues)}
                                             </span>
                                         </span>
                                     </label>
@@ -281,6 +300,11 @@ export function SkillImportDrawer({
                         {validCandidates.length === 0 ? (
                             <span className="text-xs text-[var(--ag-colorTextSecondary)]">
                                 No valid skills in this repository.
+                            </span>
+                        ) : validCandidates.every((c) => alreadyImported.has(c.path_in_repo)) ? (
+                            <span className="text-xs text-[var(--ag-colorTextSecondary)]">
+                                Everything here is already imported — use Refresh on the repo&apos;s
+                                section to pick up upstream changes.
                             </span>
                         ) : null}
                     </>

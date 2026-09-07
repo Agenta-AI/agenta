@@ -48,6 +48,9 @@ class SourceScanResult(BaseModel):
     ref: Optional[str] = None
     commit_sha: Optional[str] = None
     scan: ScanResult
+    # Candidate paths this project has already imported from this repo — the import
+    # drawer marks these rows instead of offering them as new.
+    already_imported_paths: List[str] = []
 
 
 class ImportedSkill(BaseModel):
@@ -129,17 +132,38 @@ class SkillImportService:
         *,
         repo_url: str,
         ref: Optional[str] = None,
+        project_id=None,
     ) -> SourceScanResult:
         with make_workdir() as workdir:
             fetched = await self.fetcher.fetch(
                 repo_url=repo_url, ref=ref, dest=Path(workdir)
             )
-            return SourceScanResult(
-                repo_url=repo_url,
-                ref=ref,
-                commit_sha=fetched.commit_sha,
-                scan=scan_tree(fetched.root),
+            scan = scan_tree(fetched.root)
+
+        already: List[str] = []
+        if project_id is not None:
+            owner, repo = parse_github_url(repo_url)
+            source = await self.sources_dao.fetch_source_by_slug(
+                project_id=project_id,
+                slug=f"{owner}-{repo}".lower(),
             )
+            if source and source.id:
+                links = await self.sources_dao.list_links(
+                    project_id=project_id,
+                    source_id=source.id,
+                )
+                linked = {link.path_in_repo for link in links}
+                already = [
+                    c.path_in_repo for c in scan.candidates if c.path_in_repo in linked
+                ]
+
+        return SourceScanResult(
+            repo_url=repo_url,
+            ref=ref,
+            commit_sha=fetched.commit_sha,
+            scan=scan,
+            already_imported_paths=already,
+        )
 
     async def import_from_source(
         self,

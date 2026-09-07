@@ -188,6 +188,31 @@ async def test_scan_source_reports_candidates(fixture_tree):
 
 
 @pytest.mark.asyncio
+async def test_scan_marks_already_imported_paths(fixture_tree):
+    service, _, _ = _service(fixture_tree)
+    # Before any import, a project-scoped scan marks nothing.
+    fresh = await service.scan_source(
+        repo_url="github.com/acme/skills", project_id=PROJECT_ID
+    )
+    assert fresh.already_imported_paths == []
+
+    await service.import_from_source(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        repo_url="github.com/acme/skills",
+        paths=["skills/alpha"],
+    )
+
+    rescan = await service.scan_source(
+        repo_url="github.com/acme/skills", project_id=PROJECT_ID
+    )
+    assert rescan.already_imported_paths == ["skills/alpha"]
+    # Without project context (pure repo preview) the marker stays empty.
+    anonymous = await service.scan_source(repo_url="github.com/acme/skills")
+    assert anonymous.already_imported_paths == []
+
+
+@pytest.mark.asyncio
 async def test_import_creates_workflows_and_links(fixture_tree):
     service, simple, dao = _service(fixture_tree)
     result = await service.import_from_source(

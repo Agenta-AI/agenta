@@ -212,6 +212,7 @@ class SkillsRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         return await self.import_service.scan_source(
+            project_id=UUID(request.state.project_id),
             repo_url=scan_request.repo_url,
             ref=scan_request.ref,
         )
