@@ -112,3 +112,34 @@ def test_sandbox_runner_honors_explicit_restricted(monkeypatch):
     finally:
         monkeypatch.delenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER", raising=False)
         importlib.reload(env)
+
+
+@pytest.mark.parametrize(
+    "configured, expected", [(None, True), ("", True), ("true", True), ("false", False)]
+)
+def test_session_features_default_on_and_honor_overrides(
+    monkeypatch, configured, expected
+):
+    try:
+        with monkeypatch.context() as context:
+            for name in (
+                "AGENTA_SESSIONS_DURABLE_APPROVALS",
+                "AGENTA_SESSIONS_QUEUE",
+                "AGENTA_SESSIONS_STEER",
+                "AGENTA_SESSIONS_SHARED_READER",
+                "AGENTA_SESSIONS_SEQUENCE_WRITES",
+            ):
+                if configured is None:
+                    context.delenv(name, raising=False)
+                else:
+                    context.setenv(name, configured)
+            importlib.reload(env)
+            sessions_config = env.SessionsConfig()
+            redis_config = env.SessionsRedisConfig()
+            assert sessions_config.durable_approvals is expected
+            assert sessions_config.queue is expected
+            assert sessions_config.steer is expected
+            assert redis_config.shared_reader is expected
+            assert redis_config.sequence_writes is expected
+    finally:
+        importlib.reload(env)

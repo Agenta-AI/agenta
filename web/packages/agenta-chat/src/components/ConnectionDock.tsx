@@ -469,13 +469,13 @@ const ConnectBody = ({
     const settle = useCallback<SettleClientTool>(
         (args) => {
             if ("errorText" in args) {
-                onOutput({
+                return onOutput({
                     toolName: meta.toolName,
                     toolCallId: meta.toolCallId,
                     errorText: args.errorText,
                 })
             } else {
-                onOutput({
+                return onOutput({
                     toolName: meta.toolName,
                     toolCallId: meta.toolCallId,
                     output: args.output,
@@ -537,7 +537,7 @@ const ConnectBody = ({
                         Connecting {name}… finish signing in from the popup window.
                     </span>
                 </div>
-            ) : phase === "error" ? (
+            ) : phase === "error" || errorText ? (
                 <span className="text-xs text-colorError" title={errorText ?? undefined}>
                     {errorText ?? "Connection failed."}
                 </span>
@@ -560,6 +560,7 @@ const ConnectBody = ({
                             variant="ghost"
                             className={`text-colorTextSecondary ${touchCls}`}
                             onClick={decline}
+                            disabled={Boolean(errorText)}
                         >
                             Not now
                         </Button>
@@ -573,7 +574,7 @@ const ConnectBody = ({
                             }
                             onClick={() => runConnect(true)}
                         >
-                            {phase === "error" ? "Retry" : "Connect"}
+                            {phase === "error" || errorText ? "Retry" : "Connect"}
                         </Button>
                     </>
                 )}

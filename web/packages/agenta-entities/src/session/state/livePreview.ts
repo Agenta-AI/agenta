@@ -3,12 +3,16 @@ import {atomFamily} from "jotai-family"
 
 export interface SessionLivePreviewEntityState {
     part: Record<string, unknown> & {type: string}
+    complete?: boolean
 }
 
 export interface SessionLivePreviewExecution {
     entityOrder: string[]
     byEntity: Record<string, SessionLivePreviewEntityState>
     lastFrameIndex: number
+    retiredEntityIds?: string[]
+    incompleteEntityIds?: string[]
+    terminalCreatedAt?: string
 }
 
 /**

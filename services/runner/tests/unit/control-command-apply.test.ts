@@ -643,6 +643,80 @@ describe("applyCommand", () => {
   });
 });
 
+describe("Stop teardown before outcome", () => {
+  it("aborts once immediately but holds original and duplicate outcomes until release", async () => {
+    const { execution, aborts } = liveRun();
+    registerExecution(execution);
+    const { reported, report } = collector();
+    const first = applyCommand(command(), { report });
+    const duplicate = applyCommand(command(), { report });
+    await Promise.resolve();
+    assert.equal(aborts.length, 1);
+    assert.equal(
+      reported.length,
+      0,
+      "Steer cannot promote into the still-busy environment",
+    );
+    noteExecutionSettled(SESSION, TURN);
+    await Promise.resolve();
+    assert.equal(reported.length, 0, "prompt settlement precedes teardown");
+    unregisterExecution(SESSION, TURN);
+    await Promise.all([first, duplicate]);
+    assert.equal(reported.length, 2);
+    assert.ok(
+      reported.every((outcome) => outcome.execution.state === "stopped"),
+    );
+  });
+
+  it("reports failure for an abandoned turn, including an already-waiting duplicate", async () => {
+    registerExecution(liveRun().execution);
+    const { reported, report } = collector();
+    const first = applyCommand(command(), { report });
+    const duplicate = applyCommand(command(), { report });
+    unregisterExecution(SESSION, TURN, false);
+    await Promise.all([first, duplicate]);
+    assert.equal(reported.length, 2);
+    assert.ok(
+      reported.every((outcome) => outcome.execution.state === "failed"),
+    );
+  });
+
+  it("does not strand a duplicate when abort throws before teardown", async () => {
+    registerExecution(
+      liveRun({
+        abort: () => {
+          throw new Error("abort failed");
+        },
+      }).execution,
+    );
+    const { reported, report } = collector();
+    await Promise.all([
+      applyCommand(command(), { report }),
+      applyCommand(command(), { report }),
+    ]);
+    assert.equal(reported.length, 2);
+    assert.ok(
+      reported.every((outcome) => outcome.execution.state === "failed"),
+    );
+    unregisterExecution(SESSION, TURN);
+  });
+
+  it("does not let unregistering an older execution release its successor", async () => {
+    const older = liveRun({ turnId: "older" }).execution;
+    const current = liveRun().execution;
+    registerExecution(older);
+    registerExecution(current);
+    const { reported, report } = collector();
+    const pending = applyCommand(command(), { report });
+    unregisterExecution(SESSION, "older");
+    await Promise.resolve();
+    assert.equal(reported.length, 0);
+    unregisterExecution(SESSION, TURN);
+    await pending;
+    assert.equal(reported.length, 1);
+  });
+});
+
 describe("the execution registry", () => {
   it("refuses a lookup from another project once the scope is known", () => {
     const { execution } = liveRun();

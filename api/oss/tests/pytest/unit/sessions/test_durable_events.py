@@ -113,6 +113,31 @@ def test_maps_interaction_records_to_durable_lifecycle_events():
     assert events[1].payload.kind == "user_approval"
 
 
+def test_invalid_open_wire_strings_do_not_poison_durable_event_projection():
+    records = [
+        _record(
+            sequence=1,
+            record_type="interaction_request",
+            attributes={"id": "interaction-1", "kind": {"invalid": True}},
+        ),
+        _record(
+            sequence=2,
+            record_type="message",
+            attributes={"id": "message-1", "text": "bad", "finish_reason": 42},
+        ),
+        _record(
+            sequence=3,
+            record_type="message",
+            attributes={"id": "message-2", "text": "kept", "finish_reason": "stop"},
+        ),
+    ]
+
+    events = durable_events_from_records(records)
+
+    assert [event.entity_id for event in events] == ["message-2"]
+    assert events[0].payload.finish_reason == "stop"
+
+
 def test_non_dict_payload_reads_as_absent_instead_of_raising():
     """A record whose `payload` attribute is not a dict must not poison the batch.
 
@@ -146,3 +171,20 @@ def test_non_dict_payload_reads_as_absent_instead_of_raising():
         "execution.started",
     ]
     assert [event.sequence for event in events] == [1, 2]
+
+
+def test_maps_runner_done_records_to_terminal_events():
+    for reason in (None, "paused", "cancelled"):
+        attributes = {"type": "done"}
+        if reason is not None:
+            attributes["stopReason"] = reason
+        record = _record(sequence=7, record_type="done", attributes=attributes)
+        events = durable_events_from_records([record])
+        assert len(events) == 1
+        event = events[0]
+        assert event.type == "execution.stopped"
+        assert event.execution_id == record.turn_id
+        assert event.sequence == 7
+        assert event.watermark == 7
+        assert event.payload.stopped_at == record.created_at
+        assert event.payload.reason == (reason or "completed")

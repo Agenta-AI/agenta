@@ -100,6 +100,57 @@ describe("the auto-approve row", () => {
     })
 })
 
+describe("durable response state", () => {
+    it("shows that the answer was accepted while the continuation catches up", () => {
+        const markup = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[{approvalId: "a1", toolName: "bash", input: {command: "ls"}}]}
+                responding
+                answered
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+
+        expect(markup).toContain("Answered, waiting for the agent")
+        expect(markup).toContain("The answer is saved")
+        // HeightCollapse keeps its child mounted for the leave animation, but removes it from
+        // layout, accessibility, and interaction while the answered state is visible.
+        expect(markup).toContain('aria-hidden="true" inert=""')
+        expect(markup).toContain('disabled=""')
+    })
+
+    it("keeps a failed answer pending and surfaces the retryable error", () => {
+        const markup = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[{approvalId: "a1", toolName: "bash", input: {command: "ls"}}]}
+                errorText="Approval failed. Please try again."
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+
+        expect(markup).toContain("Needs your approval")
+        expect(markup).toContain("Approval failed. Please try again.")
+        expect(markup).toContain(">Approve<")
+    })
+
+    it("explains a recoverable 202 on the shared desktop and mobile card", () => {
+        const markup = renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[{approvalId: "a1", toolName: "bash", input: {command: "ls"}}]}
+                answered
+                recoverable
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+
+        expect(markup).toContain("Answer saved, retry needed")
+        expect(markup).toContain("Send your next message to retry the continuation")
+    })
+})
+
 describe("granting a batch", () => {
     const mount = (approvals: {approvalId: string; toolName: string; input: unknown}[]) => {
         const host = document.createElement("div")

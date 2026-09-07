@@ -131,6 +131,9 @@ class Backend(ABC):
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
         detached: bool = False,
+        turn_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> Session:
@@ -203,6 +206,9 @@ class Environment:
             run_context=session_config.run_context,
             session_id=session_config.session_id,
             detached=session_config.detached,
+            turn_id=session_config.turn_id,
+            project_id=session_config.project_id,
+            control_command_id=session_config.control_command_id,
             effective_parameters=session_config.effective_parameters,
             gateway_policy=session_config.gateway_policy,
         )

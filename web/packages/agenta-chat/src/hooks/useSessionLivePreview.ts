@@ -12,6 +12,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {liveCommittedRevisions, type CommittedRevision} from "../assets/committedRevisions"
 import type {SessionTranscript} from "../assets/loadSession"
 import {transcriptToMessages} from "../assets/transcriptToMessages"
 import {
@@ -23,6 +24,9 @@ import {
 import {
     isSessionSnapshotRunning,
     reduceSessionLivePreview,
+    markSessionLivePreviewTerminal,
+    retireSessionLivePreview,
+    retireCoveredSessionLivePreview,
     sessionLivePreviewMessages,
     shouldSubscribeToSessionLivePreview,
 } from "../model/livePreview"
@@ -40,6 +44,7 @@ export const useSessionLivePreview = ({
     runningElsewhere,
     sender,
     onReadyChange,
+    onCommittedRevision,
     onExecutionSettled,
     onDisconnect,
 }: {
@@ -50,13 +55,20 @@ export const useSessionLivePreview = ({
     runningElsewhere: boolean
     /** Subscribe before this browser sends its next turn. */
     sender?: boolean
+    /** Reports commits learned after initial hydration, once their transcript is adopted. */
+    onCommittedRevision?: (revision: CommittedRevision) => void
     /** Non-reactive request-pipeline signal: true only while the shared event route is ready. */
     onReadyChange?: (ready: boolean) => void
     /** Reports the shared path's durable terminal verdict for the current execution. */
     onExecutionSettled?: (executionId?: string) => void
     /** Adopts a bounded transcript or re-fetches after a later gap/disconnect. */
     onDisconnect: (transcript?: SessionTranscript) => boolean | Promise<boolean>
-}): {messages: UIMessage[]; runningFromSnapshot: boolean; readerReady: boolean} => {
+}): {
+    messages: UIMessage[]
+    runningFromSnapshot: boolean
+    readerReady: boolean
+    sharedSettledAt: number
+} => {
     const projectId = useAtomValue(projectIdAtom)
     const [preview, setPreview] = useAtom(sessionLivePreviewAtomFamily(sessionId))
     const clearPreview = useSetAtom(clearSessionLivePreviewAtom)
@@ -64,6 +76,9 @@ export const useSessionLivePreview = ({
     const revalidateInteractionStates = useSetAtom(revalidateSessionInteractionsAtom)
     const [runningFromSnapshot, setRunningFromSnapshot] = useState(false)
     const [readerReady, setReaderReady] = useState(false)
+    const [sharedSettledAt, setSharedSettledAt] = useState(0)
+    const onCommittedRevisionRef = useRef(onCommittedRevision)
+    onCommittedRevisionRef.current = onCommittedRevision
     const onDisconnectRef = useRef(onDisconnect)
     onDisconnectRef.current = onDisconnect
     const retryHydrationRef = useRef<() => void>(() => undefined)
@@ -83,6 +98,7 @@ export const useSessionLivePreview = ({
 
     useEffect(() => {
         clearPreview(sessionId)
+        setSharedSettledAt(0)
         setReaderReady(false)
         onReadyChangeRef.current?.(false)
         if (!sharedReaderAdvertised || !sessionId) return
@@ -96,13 +112,13 @@ export const useSessionLivePreview = ({
         let reconnectDelayMs = RECONNECT_INITIAL_DELAY_MS
         let generation = 0
         let durable = createSessionDurableEventState()
+        let liveBaselineSequence: number | undefined
 
         const close = () => {
             connection?.close()
             connection = null
             setReaderReady(false)
             onReadyChangeRef.current?.(false)
-            clearPreview(sessionId)
         }
 
         const scheduleReconnect = () => {
@@ -127,25 +143,47 @@ export const useSessionLivePreview = ({
 
         const readBoundedTranscript = async (
             throughSequence: number,
-        ): Promise<SessionTranscript | null> => {
+        ): Promise<{
+            transcript: SessionTranscript
+            coveredEntityIds: Set<string>
+            committedRevisions: CommittedRevision[]
+        } | null> => {
             if (!projectId) return null
             const [records, interactionRowStates] = await Promise.all([
                 querySessionTranscript({sessionId, projectId, throughSequence}),
                 fetchInteractionStates(sessionId),
             ])
             if (!Array.isArray(records)) return null
+            const coveredEntityIds = new Set(
+                records.flatMap((record) => {
+                    const payload = record.payload
+                    if (!payload) return []
+                    const id =
+                        payload.type === "message" || payload.type === "thought"
+                            ? payload.message_id
+                            : payload.type === "tool_result"
+                              ? payload.id
+                              : undefined
+                    return typeof id === "string" ? [id] : []
+                }),
+            )
             return {
-                messages: transcriptToMessages(records, {interactionRowStates}) ?? [],
-                recordCount: records.length,
-                sequenceCursor: throughSequence,
-                interactionRows: interactionRowStates,
+                transcript: {
+                    messages: transcriptToMessages(records, {interactionRowStates}) ?? [],
+                    recordCount: records.length,
+                    sequenceCursor: throughSequence,
+                    interactionRows: interactionRowStates,
+                },
+                coveredEntityIds,
+                committedRevisions: liveCommittedRevisions(records, liveBaselineSequence),
             }
         }
 
         const hydrateAndOpen = async () => {
             if (disposed || connection || document.visibilityState !== "visible") return
+            if (reconnectTimer) clearTimeout(reconnectTimer)
+            reconnectTimer = null
             const currentGeneration = ++generation
-            clearPreview(sessionId)
 
             let snapshot
             try {
@@ -157,22 +195,44 @@ export const useSessionLivePreview = ({
             if (disposed || currentGeneration !== generation) return
             const snapshotRunning = isSessionSnapshotRunning(snapshot ?? undefined)
             setRunningFromSnapshot(snapshotRunning)
-            if (snapshot && !snapshotRunning) onExecutionSettledRef.current?.()
+            if (snapshot?.session && snapshot.read && !snapshotRunning) {
+                setSharedSettledAt(Date.now())
+                onExecutionSettledRef.current?.()
+            }
 
-            if (snapshot && projectId) {
+            if (snapshot?.session && snapshot.read && projectId) {
                 try {
-                    const transcript = await readBoundedTranscript(snapshot.read.latest_sequence)
-                    if (!transcript) {
+                    let previewBoundary: typeof preview | undefined
+                    setPreview((current) => {
+                        previewBoundary = current
+                        return current
+                    })
+                    const bounded = await readBoundedTranscript(snapshot.read.latest_sequence)
+                    if (!bounded) {
                         scheduleReconnect()
                         return
                     }
                     if (disposed || currentGeneration !== generation) return
-                    const adopted = await adoptTranscript(transcript)
+                    const adopted = await adoptTranscript(bounded.transcript)
                     if (disposed || currentGeneration !== generation) return
                     if (!adopted) {
                         scheduleReconnect()
                         return
                     }
+                    for (const revision of bounded.committedRevisions)
+                        onCommittedRevisionRef.current?.(revision)
+                    liveBaselineSequence ??= snapshot.read.latest_sequence
+                    if (!snapshotRunning) clearPreview(sessionId)
+                    else
+                        setPreview((current) => ({
+                            ...retireCoveredSessionLivePreview(
+                                current,
+                                previewBoundary ?? current,
+                                bounded.coveredEntityIds,
+                                bounded.transcript.messages,
+                            ),
+                            gapDetected: false,
+                        }))
                 } catch {
                     scheduleReconnect()
                     return
@@ -186,14 +246,17 @@ export const useSessionLivePreview = ({
                 }
             }
             durable = createSessionDurableEventState(
-                snapshot?.read.latest_sequence ?? durable.latestSequence,
+                snapshot?.read?.latest_sequence ?? durable.latestSequence,
             )
             connection = connectSessionLiveEvents({
                 sessionId,
                 after: durable.latestSequence,
-                onFrame: (frame) =>
-                    setPreview((current) => reduceSessionLivePreview(current, frame)),
+                onFrame: (frame) => {
+                    if (disposed || currentGeneration !== generation) return
+                    setPreview((current) => reduceSessionLivePreview(current, frame))
+                },
                 onEvent: (event) => {
+                    if (disposed || currentGeneration !== generation) return
                     const next = reduceSessionDurableEvent(durable, event)
                     if (!shouldRefetchSessionTranscript(durable, next, event)) {
                         durable = next
@@ -201,44 +264,69 @@ export const useSessionLivePreview = ({
                     }
                     durable = next
                     if (event.type === "execution.started") setRunningFromSnapshot(true)
+                    let previewBoundary: typeof preview | undefined
+                    setPreview((current) => {
+                        previewBoundary = current
+                        return ["execution.stopped", "execution.failed", "execution.lost"].includes(
+                            event.type,
+                        )
+                            ? markSessionLivePreviewTerminal(current, event)
+                            : current
+                    })
                     if (
                         event.type === "execution.stopped" ||
                         event.type === "execution.failed" ||
                         event.type === "execution.lost"
                     ) {
                         setRunningFromSnapshot(false)
+                        setSharedSettledAt(Date.now())
                         onExecutionSettledRef.current?.(event.execution_id)
                     }
                     const interactionChanged =
                         event.type === "interaction.requested" ||
                         event.type === "interaction.responded"
                     if (interactionChanged) revalidateInteractionStates(sessionId)
-                    // Completed durable rows replace temporary frames in the transcript source.
-                    clearPreview(sessionId)
-                    const refresh =
-                        interactionChanged || event.type === "tool.completed"
-                            ? readBoundedTranscript(next.latestSequence).then((transcript) =>
-                                  transcript ? adoptTranscript(transcript) : false,
-                              )
-                            : adoptTranscript()
-                    void refresh.then(
-                        (adopted) => {
-                            if (!adopted && !disposed) scheduleReconnect()
-                        },
-                        () => {
-                            if (!disposed) scheduleReconnect()
-                        },
-                    )
+                    void readBoundedTranscript(next.latestSequence)
+                        .then(async (bounded) => {
+                            if (disposed || currentGeneration !== generation) return
+                            const transcript = bounded?.transcript
+                            const adopted = transcript ? await adoptTranscript(transcript) : false
+                            if (disposed || currentGeneration !== generation) return
+                            if (adopted) {
+                                for (const revision of bounded?.committedRevisions ?? [])
+                                    onCommittedRevisionRef.current?.(revision)
+                                setPreview((current) =>
+                                    retireSessionLivePreview(
+                                        bounded && previewBoundary
+                                            ? retireCoveredSessionLivePreview(
+                                                  current,
+                                                  previewBoundary ?? current,
+                                                  bounded.coveredEntityIds,
+                                                  bounded.transcript.messages,
+                                              )
+                                            : current,
+                                        event,
+                                        previewBoundary,
+                                        transcript?.messages,
+                                    ),
+                                )
+                            } else scheduleReconnect()
+                        })
+                        .catch(() => {
+                            if (!disposed && currentGeneration === generation) scheduleReconnect()
+                        })
                 },
                 onReady: ({watermark}) => {
+                    if (disposed || currentGeneration !== generation) return
                     durable = completeSessionDurableEventReplay(durable, watermark)
                     reconnectDelayMs = RECONNECT_INITIAL_DELAY_MS
                     setReaderReady(true)
                     onReadyChangeRef.current?.(true)
                 },
                 onDisconnect: ({reconnect}) => {
+                    if (disposed || currentGeneration !== generation) return
                     close()
-                    void adoptTranscript()
+                    // Reconcile saved records and preview together during snapshot recovery.
                     if (reconnect) scheduleReconnect()
                 },
             })
@@ -263,6 +351,7 @@ export const useSessionLivePreview = ({
             if (reconnectTimer) clearTimeout(reconnectTimer)
             document.removeEventListener("visibilitychange", onVisibility)
             close()
+            clearPreview(sessionId)
         }
     }, [
         clearPreview,
@@ -277,15 +366,13 @@ export const useSessionLivePreview = ({
 
     useEffect(() => {
         if (!preview.gapDetected) return
-        const retryHydration = retryHydrationRef.current
-        void Promise.resolve(onDisconnectRef.current()).then((adopted) => {
-            if (!adopted) retryHydration()
-        }, retryHydration)
+        retryHydrationRef.current()
     }, [preview.gapDetected])
 
     return {
         messages: useMemo(() => sessionLivePreviewMessages(preview), [preview]),
         runningFromSnapshot: sharedReaderAdvertised && runningFromSnapshot,
         readerReady: sharedReaderAdvertised && subscribed && readerReady,
+        sharedSettledAt: sharedReaderAdvertised ? sharedSettledAt : 0,
     }
 }

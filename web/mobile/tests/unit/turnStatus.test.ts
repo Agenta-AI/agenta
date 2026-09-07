@@ -1,7 +1,9 @@
+import {isComposerRunStoppable} from "@agenta/chat/assets"
 import {describe, expect, it} from "vitest"
 
 import {
     deriveMobileRemoteTurnPresentation,
+    showRunningElsewhere,
     showTrailingWorkingPulse,
 } from "@/features/chat/turnStatus"
 
@@ -32,35 +34,35 @@ describe("showTrailingWorkingPulse", () => {
 describe("deriveMobileRemoteTurnPresentation", () => {
     it.each([
         {
-            name: "renders activity and no strip for a ready reader",
+            name: "renders activity without remote Stop for a ready reader",
             input: {livenessRunning: true, sharedReaderAdvertised: true, readerReady: true},
-            expected: {showActivity: true, showStrip: false},
+            expected: {showActivity: true, showRemoteStop: false},
         },
         {
-            name: "renders the strip while the reader is not ready",
+            name: "renders activity and remote Stop while the reader reconnects",
             input: {livenessRunning: true, sharedReaderAdvertised: true, readerReady: false},
-            expected: {showActivity: false, showStrip: true},
+            expected: {showActivity: true, showRemoteStop: true},
         },
         {
-            name: "renders the strip when the feature is off",
+            name: "renders activity and remote Stop when the reader is off",
             input: {livenessRunning: true, sharedReaderAdvertised: false, readerReady: false},
-            expected: {showActivity: false, showStrip: true},
+            expected: {showActivity: true, showRemoteStop: true},
         },
         {
-            name: "does not render the strip in the tab that owns a continuation",
+            name: "renders activity without remote Stop for an owned continuation",
             input: {
                 livenessRunning: true,
                 sharedReaderAdvertised: true,
                 readerReady: false,
                 ownedContinuation: true,
             },
-            expected: {showActivity: false, showStrip: false},
+            expected: {showActivity: true, showRemoteStop: false},
         },
     ])("$name", ({input, expected}) => {
         expect(deriveMobileRemoteTurnPresentation(input)).toEqual(expected)
     })
 
-    it("shows the flag-off observer banner only while session-stream liveness is running", () => {
+    it("offers legacy remote Stop only while session-stream liveness is running", () => {
         const input = {
             snapshotRunning: true,
             sharedReaderAdvertised: false,
@@ -68,20 +70,48 @@ describe("deriveMobileRemoteTurnPresentation", () => {
         }
 
         expect(
-            deriveMobileRemoteTurnPresentation({...input, livenessRunning: true}).showStrip,
+            deriveMobileRemoteTurnPresentation({...input, livenessRunning: true}).showRemoteStop,
         ).toBe(true)
         expect(
-            deriveMobileRemoteTurnPresentation({...input, livenessRunning: false}).showStrip,
+            deriveMobileRemoteTurnPresentation({...input, livenessRunning: false}).showRemoteStop,
         ).toBe(false)
     })
 
-    it("hides the banner when the advertised reader is ready", () => {
+    it("hides remote Stop when the advertised reader is ready", () => {
         expect(
             deriveMobileRemoteTurnPresentation({
                 livenessRunning: true,
                 sharedReaderAdvertised: true,
                 readerReady: true,
-            }).showStrip,
+            }).showRemoteStop,
         ).toBe(false)
+    })
+})
+
+describe("showRunningElsewhere", () => {
+    it("hides the strip for the tab that owns a detached continuation", () => {
+        expect(showRunningElsewhere({running: true, localStatus: "running"})).toBe(false)
+    })
+
+    it("shows the strip for an idle observer of the same backend run", () => {
+        expect(showRunningElsewhere({running: true, localStatus: "idle"})).toBe(true)
+    })
+
+    it("keeps a locally parked gate from being labeled remote", () => {
+        expect(showRunningElsewhere({running: true, localStatus: "awaiting"})).toBe(false)
+    })
+
+    it("renders exactly one Stop for a flag-off remote run", () => {
+        const stripStop = showRunningElsewhere({running: true, localStatus: "idle"})
+        const composerStop = isComposerRunStoppable({
+            localStreaming: false,
+            serverBusy: true,
+            serverControlEnabled: false,
+            waitingOnUser: false,
+        })
+
+        expect([stripStop, composerStop].filter(Boolean)).toHaveLength(1)
+        expect(stripStop).toBe(true)
+        expect(composerStop).toBe(false)
     })
 })

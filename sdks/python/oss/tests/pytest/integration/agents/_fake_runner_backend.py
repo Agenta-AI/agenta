@@ -59,6 +59,9 @@ class FakeRunnerSession(Session):
         run_context: Optional[RunContext],
         session_id: Optional[str],
         detached: bool = False,
+        turn_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> None:
@@ -69,6 +72,9 @@ class FakeRunnerSession(Session):
         self._run_context = run_context
         self._session_id = session_id
         self._detached = detached
+        self._turn_id = turn_id
+        self._project_id = project_id
+        self._control_command_id = control_command_id
         self._effective_parameters = effective_parameters
         self._gateway_policy = gateway_policy
 
@@ -87,6 +93,9 @@ class FakeRunnerSession(Session):
             run_context=self._run_context,
             session_id=self._session_id,
             detached=self._detached,
+            turn_id=self._turn_id,
+            project_id=self._project_id,
+            control_command_id=self._control_command_id,
             effective_parameters=self._effective_parameters,
             gateway_policy=self._gateway_policy,
         )
@@ -165,6 +174,9 @@ class FakeRunnerBackend(Backend):
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
         detached: bool = False,
+        turn_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
     ) -> FakeRunnerSession:
@@ -176,6 +188,9 @@ class FakeRunnerBackend(Backend):
             run_context=run_context,
             session_id=session_id,
             detached=detached,
+            turn_id=turn_id,
+            project_id=project_id,
+            control_command_id=control_command_id,
             effective_parameters=effective_parameters,
             gateway_policy=gateway_policy,
         )

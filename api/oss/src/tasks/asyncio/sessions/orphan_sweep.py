@@ -309,6 +309,68 @@ async def _mark_endings_written(
     )
 
 
+async def _reconcile_completed_executions(
+    *,
+    commands_service: Optional[Any],
+    candidates: Sequence[Tuple[UUID, str, str]],
+) -> Set[Tuple[UUID, str, str]]:
+    """Return persisted endings whose execution could not be terminalized yet."""
+    if commands_service is None:
+        return set(candidates)
+    failed: Set[Tuple[UUID, str, str]] = set()
+    for project_id, session_id, turn_id in candidates:
+        try:
+            reconciled = await commands_service.settle_execution_completed(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=turn_id,
+            )
+        except Exception:
+            reconciled = False
+            log.warning(
+                "watchdog: failed to settle a completed continuation execution",
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=turn_id,
+                exc_info=True,
+            )
+        if not reconciled:
+            failed.add((project_id, session_id, turn_id))
+    return failed
+
+
+async def _runner_completed_executions(
+    *,
+    records_service: RecordsService,
+    candidates: Sequence[Tuple[UUID, str, str]],
+) -> Tuple[Set[Tuple[UUID, str, str]], Set[Tuple[UUID, str, str]]]:
+    by_project: Dict[UUID, List[Tuple[str, str]]] = {}
+    for project_id, session_id, turn_id in candidates:
+        by_project.setdefault(project_id, []).append((session_id, turn_id))
+    completed: Set[Tuple[UUID, str, str]] = set()
+    failed: Set[Tuple[UUID, str, str]] = set()
+    for project_id, keys in by_project.items():
+        try:
+            matches = await records_service.runner_completed_turns(
+                project_id=project_id,
+                keys=keys,
+            )
+        except Exception:
+            log.warning(
+                "watchdog: runner-completion lookup failed",
+                project_id=str(project_id),
+                exc_info=True,
+            )
+            failed.update(
+                (project_id, session_id, turn_id) for session_id, turn_id in keys
+            )
+            continue
+        completed.update(
+            (project_id, session_id, turn_id) for session_id, turn_id in matches
+        )
+    return completed, failed
+
+
 async def _settle_abandoned_commands(
     commands_service: Optional[Any],
     now: datetime,
@@ -472,6 +534,32 @@ async def run_orphan_sweep(
             written_at=now_utc,
         )
 
+        # A runner can persist `done` and die before the post-append execution settlement.
+        # Reconcile that durable proof before clearing its stale heartbeat; otherwise the next
+        # Send would see a recoverable continuation and replay already-completed work.
+        completion_failures: Set[Tuple[UUID, str, str]] = set()
+        if (
+            records_service is not None
+            and commands_service is not None
+            and (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
+        ):
+            runner_completed, completion_failures = await _runner_completed_executions(
+                records_service=records_service,
+                candidates=claimed,
+            )
+            completion_failures.update(
+                await _reconcile_completed_executions(
+                    commands_service=commands_service,
+                    candidates=sorted(runner_completed, key=lambda t: t[1]),
+                )
+            )
+            if completion_failures:
+                orphan_rows = [
+                    row
+                    for row in orphan_rows
+                    if (row[1], row[2], str(row[3])) not in completion_failures
+                ]
+
         if not orphan_rows and not unsettled:
             # No stale row and nothing owed an ending, but a command can still be abandoned:
             # its execution may have ended normally between the claim and the report.
@@ -531,12 +619,12 @@ async def run_orphan_sweep(
                     if turn_id is not None
                     else SessionStreamDBE.turn_id.is_(None)
                 ),
-                (
-                    SessionStreamDBE.updated_at == observed_updated_at
-                    if observed_updated_at is not None
-                    else SessionStreamDBE.updated_at.is_(None)
-                ),
             ]
+            conditions.append(
+                SessionStreamDBE.updated_at == observed_updated_at
+                if observed_updated_at is not None
+                else SessionStreamDBE.updated_at.is_(None)
+            )
             result = await session.execute(
                 sa_update(SessionStreamDBE)
                 .where(*conditions)

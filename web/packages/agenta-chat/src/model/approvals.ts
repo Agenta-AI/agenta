@@ -48,11 +48,35 @@ export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] =>
     const out: PendingApproval[] = []
     for (const message of messages) {
         if (message.role !== "assistant") continue
+        const continuation = (
+            message.metadata as
+                | {
+                      approvalContinuation?: {
+                          state?: string
+                          approvalIds?: unknown
+                      }
+                  }
+                | undefined
+        )?.approvalContinuation
+        const terminalApprovalIds =
+            (continuation?.state === "done" || continuation?.state === "error") &&
+            Array.isArray(continuation.approvalIds)
+                ? new Set(
+                      continuation.approvalIds.filter(
+                          (id): id is string => typeof id === "string" && id.length > 0,
+                      ),
+                  )
+                : null
         const manifests = manifestsByToolCallId(message.parts)
         for (const part of message.parts ?? []) {
             const p = part as ToolUIPart
             const approval = (p as {approval?: ApprovalRef}).approval
-            if (isToolPart(p.type as string) && p.state === "approval-requested" && approval?.id) {
+            if (
+                isToolPart(p.type as string) &&
+                p.state === "approval-requested" &&
+                approval?.id &&
+                !terminalApprovalIds?.has(approval.id)
+            ) {
                 out.push({
                     approvalId: approval.id,
                     toolName: partToolName(p),

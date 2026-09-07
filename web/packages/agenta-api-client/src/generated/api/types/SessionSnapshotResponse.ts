@@ -3,8 +3,10 @@
 import type * as AgentaApi from "../index.js";
 
 export interface SessionSnapshotResponse {
-    session: AgentaApi.SessionStream;
+    session?: (AgentaApi.SessionStream | null) | undefined;
     execution?: (AgentaApi.SessionTurn | null) | undefined;
+    execution_state?: AgentaApi.SessionExecutionSnapshot | undefined;
     pending: AgentaApi.SessionSnapshotPending;
-    read: AgentaApi.SessionRecordsReadState;
+    read?: (AgentaApi.SessionRecordsReadState | null) | undefined;
+    capabilities?: AgentaApi.SessionCapabilities | undefined;
 }

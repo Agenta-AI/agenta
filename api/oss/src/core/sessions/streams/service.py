@@ -28,6 +28,7 @@ from oss.src.dbs.redis.sessions.contract import (
 )
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.dbs.redis.sessions.locks import (
+    SessionHeartbeatGuardLost,
     acquire_alive_with_start,
     acquire_running,
     claim_owner,
@@ -35,6 +36,7 @@ from oss.src.dbs.redis.sessions.locks import (
     clear_owner,
     displace_turns,
     release_running,
+    session_heartbeat_guard,
     force_clear_owner,
     get_alive_owner,
     get_owner,
@@ -547,6 +549,30 @@ class SessionStreamsService:
         return owner
 
     async def heartbeat(
+        self,
+        *,
+        project_id: UUID,
+        request: SessionHeartbeatRequest,
+    ) -> SessionHeartbeatResult:
+        _validate_session_id(request.session_id)
+        async with session_heartbeat_guard(
+            self._lock,
+            project_id=str(project_id),
+            session_id=request.session_id,
+        ) as guard:
+            result = await self._heartbeat_locked(
+                project_id=project_id, request=request
+            )
+            try:
+                guard.ensure_held()
+            except SessionHeartbeatGuardLost:
+                log.warning(
+                    "sessions: heartbeat guard lease lost after heartbeat committed",
+                    session_id=request.session_id,
+                )
+            return result
+
+    async def _heartbeat_locked(
         self,
         *,
         project_id: UUID,
