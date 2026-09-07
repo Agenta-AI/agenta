@@ -113,6 +113,7 @@ class _StubSimpleWorkflowsService:
     async def create(
         self, *, project_id, user_id, simple_workflow_create, platform_meta=False
     ):
+        self.last_create_trusted = platform_meta
         if self._reject > 0:
             self._reject -= 1
             from oss.src.core.shared.exceptions import EntityCreationConflict
@@ -249,6 +250,9 @@ async def test_import_creates_workflows_with_provenance_meta(fixture_tree):
     provenance = alpha.meta["_ag"]["provenance"]
     assert provenance["operation"] == "import"
     assert provenance["content_hash"] == checkpoint["content_hash"]
+    # The create must be a TRUSTED platform write, or the DAO guard strips this
+    # very meta on the real chain (stubs cannot see the strip — assert the flag).
+    assert simple.last_create_trusted is True
 
 
 @pytest.mark.asyncio

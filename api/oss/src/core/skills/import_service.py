@@ -329,6 +329,8 @@ class SkillImportService:
                     created = await self.simple_workflows_service.create(
                         project_id=project_id,
                         user_id=user_id,
+                        # Trusted platform write: provenance meta passes the _ag guard.
+                        platform_meta=True,
                         simple_workflow_create=SimpleWorkflowCreate(
                             # Display names may collide (like agents); the slug is
                             # plumbing and carries a random suffix.
