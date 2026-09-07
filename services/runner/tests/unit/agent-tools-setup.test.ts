@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import {
   chmodSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,6 +15,7 @@ import { describe, it } from "vitest";
 
 import {
   AGENT_TOOLS_SETUP_TIMEOUT_MS,
+  agentToolsLocalDir,
   agentToolsSetupEnv,
   agentToolsSetupScript,
   localAgentToolsExec,
@@ -24,28 +27,38 @@ const SILENT = () => {};
 
 describe("agentToolsSetupScript", () => {
   it("exits 0 with no shell work when the agent has no .tools folder", () => {
-    const script = agentToolsSetupScript("/mnt/agent", "/work/cwd");
+    const script = agentToolsSetupScript("/mnt/agent", "/work/cwd", "/tmp/t");
     assert.ok(script.startsWith("[ -d '/mnt/agent/.tools' ] || exit 0"));
   });
 
-  it("copies binaries to local disk, then execs setup.sh from the session cwd", () => {
-    const script = agentToolsSetupScript("/mnt/agent", "/work/cwd");
+  it("links <cwd>/.tools to local disk, copies binaries there, then execs setup.sh", () => {
+    const script = agentToolsSetupScript("/mnt/agent", "/work/cwd", "/tmp/t");
+    // The cwd is a geesefs mount where the exec bit does not survive, so the bytes live on
+    // local disk and the cwd only carries a link (recreated every session).
+    assert.ok(script.includes("ln -sfn '/tmp/t' '/work/cwd/.tools'"), script);
     assert.ok(
-      script.includes(
-        "cp -f '/mnt/agent/.tools'/bin/* '/work/cwd/.tools'/bin/",
-      ),
+      script.includes("cp -f '/mnt/agent/.tools'/bin/* '/tmp/t'/bin/"),
       script,
     );
+    assert.ok(script.includes("chmod +x '/tmp/t'/bin/*"), script);
     assert.match(script, /exec sh '\/mnt\/agent\/.tools\/setup.sh'$/);
-    // `cp`, never `ln -s`: a symlink into the mount would run the binary over the network.
-    assert.doesNotMatch(script, /ln -s/);
   });
 
   it("tells the script where the durable folder and the local tools dir are", () => {
-    assert.deepEqual(agentToolsSetupEnv("/mnt/agent", "/work/cwd"), {
+    assert.deepEqual(agentToolsSetupEnv("/mnt/agent", "/tmp/t"), {
       AGENT_FILES: "/mnt/agent",
-      AGENT_TOOLS_DIR: "/work/cwd/.tools",
+      AGENT_TOOLS_DIR: "/tmp/t",
     });
+  });
+
+  it("keys the local dir by the session cwd, under /tmp on a remote sandbox", () => {
+    assert.equal(
+      agentToolsLocalDir("/home/sandbox/mounts/sess-1", true),
+      "/tmp/agenta-tools/sess-1",
+    );
+    assert.ok(
+      agentToolsLocalDir("/x/y/sess-2", false).endsWith("/agenta-tools/sess-2"),
+    );
   });
 });
 
@@ -53,7 +66,7 @@ describe("runAgentToolsSetup", () => {
   it("reports absent without running anything when the local stat says no .tools", async () => {
     let ran = false;
     const result = await runAgentToolsSetup(
-      { mountPath: "/mnt/agent", cwd: "/work" },
+      { mountPath: "/mnt/agent", cwd: "/work", localDir: "/tmp/t" },
       {
         run: async () => {
           ran = true;
@@ -69,7 +82,7 @@ describe("runAgentToolsSetup", () => {
   it("passes the script, cwd, env, and the timeout to the executor", async () => {
     let seen: unknown;
     const result = await runAgentToolsSetup(
-      { mountPath: "/mnt/agent", cwd: "/work" },
+      { mountPath: "/mnt/agent", cwd: "/work", localDir: "/tmp/t" },
       {
         run: async (opts) => {
           seen = opts;
@@ -91,7 +104,7 @@ describe("runAgentToolsSetup", () => {
 
   it("never throws: a failing script is reported, an executor error is reported", async () => {
     const failed = await runAgentToolsSetup(
-      { mountPath: "/m", cwd: "/w" },
+      { mountPath: "/m", cwd: "/w", localDir: "/tmp/t" },
       { run: async () => ({ exitCode: 3 }) },
       { log: SILENT },
     );
@@ -99,7 +112,7 @@ describe("runAgentToolsSetup", () => {
     assert.equal((failed as { exitCode?: number }).exitCode, 3);
 
     const errored = await runAgentToolsSetup(
-      { mountPath: "/m", cwd: "/w" },
+      { mountPath: "/m", cwd: "/w", localDir: "/tmp/t" },
       {
         run: async () => {
           throw new Error("sandbox gone");
@@ -120,7 +133,7 @@ describe("runAgentToolsSetup", () => {
       },
     });
     const result = await runAgentToolsSetup(
-      { mountPath: "/mnt/agent", cwd: "/work" },
+      { mountPath: "/mnt/agent", cwd: "/work", localDir: "/tmp/t" },
       exec,
       { log: SILENT },
     );
@@ -131,10 +144,11 @@ describe("runAgentToolsSetup", () => {
     assert.equal(call.cwd, "/work");
   });
 
-  it("local executor: copies a binary to <cwd>/.tools/bin and runs setup.sh there", async () => {
+  it("local executor: links <cwd>/.tools to local disk, copies a binary, runs setup.sh", async () => {
     const root = mkdtempSync(join(tmpdir(), "agent-tools-"));
     const mount = join(root, "agent-files");
     const cwd = join(root, "cwd");
+    const localDir = join(root, "local-tools");
     mkdirSync(join(mount, ".tools", "bin"), { recursive: true });
     mkdirSync(cwd, { recursive: true });
     writeFileSync(
@@ -148,17 +162,16 @@ describe("runAgentToolsSetup", () => {
     );
 
     const result = await runAgentToolsSetup(
-      { mountPath: mount, cwd },
+      { mountPath: mount, cwd, localDir },
       localAgentToolsExec,
       { log: SILENT },
     );
     assert.equal(result.status, "ok");
     const ran = readFileSync(join(cwd, ".tools", "ran"), "utf8");
-    assert.equal(
-      ran.trim(),
-      `cwd=${cwd} tools=${join(cwd, ".tools")} files=${mount}`,
-    );
-    // The binary landed on local disk, executable.
+    assert.equal(ran.trim(), `cwd=${cwd} tools=${localDir} files=${mount}`);
+    // <cwd>/.tools is a link to the local dir, and the binary there is executable.
+    assert.ok(lstatSync(join(cwd, ".tools")).isSymbolicLink());
+    assert.notEqual(statSync(join(localDir, "bin", "hello")).mode & 0o111, 0);
     const copied = readFileSync(join(cwd, ".tools", "bin", "hello"), "utf8");
     assert.match(copied, /echo hi/);
   });
@@ -171,7 +184,7 @@ describe("runAgentToolsSetup", () => {
     mkdirSync(cwd, { recursive: true });
     writeFileSync(join(mount, ".tools", "setup.sh"), "exit 7\n");
     const result = await runAgentToolsSetup(
-      { mountPath: mount, cwd },
+      { mountPath: mount, cwd, localDir: join(root, "local-tools") },
       localAgentToolsExec,
       { log: SILENT },
     );

@@ -9,10 +9,16 @@
  * teaches the model is therefore: keep the DESCRIPTION durable, rebuild the environment on local
  * disk each session.
  *
- *  - `agent-files/.tools/bin/`       static binaries; copied to `<cwd>/.tools/bin/` (local disk).
+ *  - `agent-files/.tools/bin/`       static binaries; copied to `<cwd>/.tools/bin/`.
  *  - `agent-files/.tools/setup.sh`   the model's own restore script (`uv venv` from a
  *                                    requirements file, `npm install` from a package.json, ...);
  *                                    run once here, before the session, with `<cwd>` as cwd.
+ *
+ * `<cwd>/.tools` is a symlink to a directory on LOCAL disk, never a folder on the mount: the
+ * session cwd is itself a geesefs mount (local and Daytona alike), and a file's exec bit does not
+ * survive there, so a binary copied into the cwd came back mode 644 and every call failed with
+ * "Permission denied" (found by the T9 gate cell). The link is recreated every session, the same
+ * way `agent-files` is, so geesefs degrading symlinks across remounts cannot hurt it.
  *
  * Nothing here can fail a turn. A missing `.tools/` is the normal case and costs one `test -d`.
  * A setup script that fails or times out is logged and the session still opens; the model sees
@@ -20,7 +26,8 @@
  */
 
 import { execFile } from "node:child_process";
-import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
 
 import { shellQuote, type SandboxExec } from "./mount.ts";
 
@@ -46,20 +53,38 @@ export type AgentToolsSetupResult =
   | { status: "error"; message: string; durationMs: number };
 
 /**
+ * The local-disk directory `<cwd>/.tools` links to. Keyed by the cwd's basename (the session's
+ * mount directory name), so two sessions never share one. Under the OS temp dir locally; under
+ * `/tmp` inside a remote sandbox, where the runner's own tmpdir means nothing.
+ */
+export function agentToolsLocalDir(cwd: string, remote: boolean): string {
+  const base = remote ? "/tmp" : tmpdir();
+  return join(base, "agenta-tools", basename(cwd));
+}
+
+/**
  * The restore script. Posix sh, no bashisms: the Daytona base and node:*-slim both run dash.
  * `cp` (not `ln -s`) for the binaries so they execute from local disk. The model's `setup.sh`
  * runs with the session cwd as its cwd and sees where things are through two env vars.
  */
-export function agentToolsSetupScript(mountPath: string, cwd: string): string {
+export function agentToolsSetupScript(
+  mountPath: string,
+  cwd: string,
+  localDir: string,
+): string {
   const tools = shellQuote(join(mountPath, AGENT_TOOLS_DIR_NAME));
-  const localTools = shellQuote(join(cwd, AGENT_TOOLS_DIR_NAME));
+  const link = shellQuote(join(cwd, AGENT_TOOLS_DIR_NAME));
+  const local = shellQuote(localDir);
   const setup = shellQuote(
     join(mountPath, AGENT_TOOLS_DIR_NAME, AGENT_TOOLS_SETUP_NAME),
   );
   return [
     `[ -d ${tools} ] || exit 0`,
-    `mkdir -p ${localTools}/bin`,
-    `if [ -d ${tools}/bin ]; then cp -f ${tools}/bin/* ${localTools}/bin/ 2>/dev/null; chmod +x ${localTools}/bin/* 2>/dev/null; fi`,
+    `mkdir -p ${local}/bin`,
+    // A stale link, a degraded link (an empty file), or a folder from an older runner: replace.
+    `if [ -L ${link} ]; then rm -f ${link}; elif [ -e ${link} ]; then rm -rf ${link}; fi`,
+    `ln -sfn ${local} ${link}`,
+    `if [ -d ${tools}/bin ]; then cp -f ${tools}/bin/* ${local}/bin/ 2>/dev/null; chmod +x ${local}/bin/* 2>/dev/null; fi`,
     `[ -f ${setup} ] || exit 0`,
     `exec sh ${setup}`,
   ].join("; ");
@@ -67,11 +92,11 @@ export function agentToolsSetupScript(mountPath: string, cwd: string): string {
 
 export function agentToolsSetupEnv(
   mountPath: string,
-  cwd: string,
+  localDir: string,
 ): Record<string, string> {
   return {
     AGENT_FILES: mountPath,
-    AGENT_TOOLS_DIR: join(cwd, AGENT_TOOLS_DIR_NAME),
+    AGENT_TOOLS_DIR: localDir,
   };
 }
 
@@ -115,7 +140,7 @@ export function remoteAgentToolsExec(
 }
 
 export async function runAgentToolsSetup(
-  input: { mountPath: string; cwd: string },
+  input: { mountPath: string; cwd: string; localDir: string },
   exec: AgentToolsSetupExec,
   deps: {
     log?: (msg: string) => void;
@@ -130,9 +155,9 @@ export async function runAgentToolsSetup(
   const started = Date.now();
   try {
     const { exitCode } = await exec.run({
-      script: agentToolsSetupScript(input.mountPath, input.cwd),
+      script: agentToolsSetupScript(input.mountPath, input.cwd, input.localDir),
       cwd: input.cwd,
-      env: agentToolsSetupEnv(input.mountPath, input.cwd),
+      env: agentToolsSetupEnv(input.mountPath, input.localDir),
       timeoutMs: deps.timeoutMs ?? AGENT_TOOLS_SETUP_TIMEOUT_MS,
     });
     const durationMs = Date.now() - started;
