@@ -87,7 +87,7 @@ export const AutomationRunsWhenField = ({
                 }
             >
                 <div className="flex min-h-0 flex-col">
-                    <div className="flex shrink-0 gap-1 border-b p-2">
+                    <div className="flex shrink-0 gap-1 p-2">
                         {KINDS.map(({value, label: kindLabel, icon: KindIcon}) => {
                             const active = value === automation.kind
                             return (

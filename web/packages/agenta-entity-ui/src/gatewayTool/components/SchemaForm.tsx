@@ -93,6 +93,12 @@ interface Props {
     form?: FormInstance
     disabled?: boolean
     jsonMode?: boolean
+    /**
+     * What the optional-fields collapse calls itself, given the count. Defaults to
+     * "Optional (N)" — a host whose optional fields are something more specific than "fields"
+     * (event filters, say) passes its own wording.
+     */
+    optionalLabel?: (count: number) => string
     /** Render optional fields inline instead of behind an "Optional (N)" collapse. */
     flat?: boolean
     /** Opt-in `format` handling (date/date-time/multiline/email/uri) — see BuildFormFieldsOptions. */
@@ -115,6 +121,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
             disabled,
             jsonMode,
             flat,
+            optionalLabel,
             formats,
             openEnums,
             onValuesChange,
@@ -449,7 +456,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                       <AccordionItem value="optional">
                                           <AccordionTrigger className="py-2 text-xs">
                                               <span className="text-xs text-colorTextDescription">
-                                                  Optional ({optionalFields.length})
+                                                  {optionalLabel ? optionalLabel(optionalFields.length) : `Optional (${optionalFields.length})`}
                                               </span>
                                           </AccordionTrigger>
                                           {/* forceMount: collapsed fields must stay registered
@@ -534,11 +541,12 @@ function FieldLabel({field}: {field: FormFieldDescriptor}) {
     return (
         <span className="inline-flex items-center gap-1 text-[13px] font-medium leading-tight">
             <span>{field.label}</span>
-            {field.description && <HelpTip label={field.label}>{field.description}</HelpTip>}
-            {/* Word, not an asterisk — FormItem no longer asks Field chrome for the `*`. */}
+            {/* Word, not an asterisk — FormItem no longer asks Field chrome for the `*`. It sits
+                before the help icon: Required qualifies the field, the icon explains it. */}
             {field.required && (
                 <span className="text-xs font-normal text-colorError">Required</span>
             )}
+            {field.description && <HelpTip label={field.label}>{field.description}</HelpTip>}
         </span>
     )
 }
