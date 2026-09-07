@@ -8,6 +8,10 @@ import {ROW_LINK} from "@/lib/interactive"
  *
  * A card rather than a list preview: runs are their own screen (W6), and a truncated list here
  * would answer neither "did it work" nor "what did it do".
+ *
+ * The design draws this two lines tall — a title over a run count. It collapses to a single row
+ * until that count is wired, because a box sized for two lines holding one reads as padding
+ * around nothing.
  */
 export const AutomationRunHistoryCard = ({
     href,
@@ -18,10 +22,18 @@ export const AutomationRunHistoryCard = ({
 }) => (
     <Link
         href={href}
-        className={`mt-[30px] flex w-full items-center gap-3.5 rounded-[11px] border border-solid border-border px-[18px] py-4 no-underline ${ROW_LINK}`}
+        className={`mt-[30px] flex w-full items-center rounded-[11px] border border-solid border-border no-underline ${caption ? "gap-3.5 px-[18px] py-4" : "gap-3 px-4 py-3"} ${ROW_LINK}`}
     >
-        <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[9px] bg-muted">
-            <ClockCounterClockwise aria-hidden size={17} className="text-muted-foreground" />
+        <span
+            className={`flex shrink-0 items-center justify-center rounded-[9px] bg-muted ${
+                caption ? "size-[34px]" : "size-7"
+            }`}
+        >
+            <ClockCounterClockwise
+                aria-hidden
+                size={caption ? 17 : 15}
+                className="text-muted-foreground"
+            />
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
             <span className="text-[14px] font-medium text-foreground">Run history</span>
