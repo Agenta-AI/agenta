@@ -1,60 +1,137 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
-import {ScheduleBuilderField} from "@agenta/entity-ui/gatewayTrigger"
-import {CaretDown} from "@phosphor-icons/react"
+import {ScheduleBuilderPanel, useScheduleBuilder} from "@agenta/entity-ui/gatewayTrigger"
+import {selectTriggerVariants} from "@agenta/ui/ui"
+import {CalendarBlank, Lightning} from "@phosphor-icons/react"
+import {ChevronDown} from "lucide-react"
 
 import {Button} from "@/components/ui/button"
+import {cn} from "@/lib/utils"
 
 import {AutomationField} from "./AutomationField"
-import {runsWhenLabel, type Automation} from "./automationModel"
-import {EventPicker} from "./pickers/EventPicker"
+import {runsWhenLabel, type Automation, type AutomationKind} from "./automationModel"
+import {EventPickerPanel, type EventSelection} from "./pickers/EventPickerPanel"
+import {PickerOverlay} from "./pickers/PickerOverlay"
+
+/** The two things an automation can run on, in the order the design shows them. */
+const KINDS: {value: AutomationKind; label: string; icon: typeof CalendarBlank}[] = [
+    {value: "schedule", label: "On a schedule", icon: CalendarBlank},
+    {value: "event", label: "When something happens", icon: Lightning},
+]
 
 /**
- * When the automation runs.
+ * When the automation runs — ONE control, not two.
  *
- * A schedule gets the shared `ScheduleBuilderField` — its collapsed row and cadence popover ARE
- * this control, so there are no cadence chips of our own to drift from the drawer's. An event
- * subscription gets the same treatment one level up: the button opens `EventPicker`, which is the
- * subscription drawer's own app/event chooser and filter form in a popover or sheet.
+ * The kind chips sit at the top of the overlay and the chosen kind's own panel sits under them,
+ * because a schedule that can never become an event subscription is a control that only reports
+ * the choice someone else made. Neither panel is reimplemented here: the schedule half is the
+ * shared `ScheduleBuilderPanel` (the drawer's own cadence builder, minus its trigger), the event
+ * half is `EventPickerPanel` (the subscription drawer's app/event chooser and filter form).
  */
 export const AutomationRunsWhenField = ({
     automation,
     onChangeCron,
+    onChangeKind,
+    onSelectEvent,
 }: {
     automation: Automation
     onChangeCron: (cron: string) => void
+    /** Present ⇒ the kind is still the host's to change (a draft). Absent ⇒ the chips read only. */
+    onChangeKind?: (kind: AutomationKind) => void
+    /** A draft's "not yet saved" mode — the host takes the picked event instead of a save. */
+    onSelectEvent?: (selection: EventSelection) => void
 }) => {
-    // ScheduleBuilderField prints its own "Next run …" line, so a running schedule needs no
-    // helper here — repeating it just stacks the same sentence twice. Paused is the one thing the
-    // builder can't know, and an event subscription has no next run to compute.
+    const [open, setOpen] = useState(false)
+    const schedule = useScheduleBuilder(automation.cron ?? "", onChangeCron)
+
+    const isSchedule = automation.kind === "schedule"
+
+    // The schedule panel prints its own "Next run …" line, so a running schedule needs no helper
+    // here — repeating it just stacks the same sentence twice. Paused is the one thing the builder
+    // can't know, and an event subscription has no next run to compute. An unusable expression
+    // outranks both: the drawer's own `Field` says so and this line is the only place left to.
     const helper = useMemo(() => {
+        if (isSchedule && !schedule.validation.valid) return schedule.validation.error
         if (!automation.isActive) return "Paused — it won't run until you switch it on."
-        return automation.kind === "schedule" ? "" : "It runs each time this event arrives."
-    }, [automation.isActive, automation.kind])
+        return isSchedule ? "" : "It runs each time this event arrives."
+    }, [automation.isActive, isSchedule, schedule.validation])
+
+    const Icon = isSchedule ? CalendarBlank : Lightning
+    // While the popover is open the summary tracks the builder, not the saved row: a cron typed
+    // in the Cron editor is not yet a saved `automation.cron`.
+    const label = isSchedule ? schedule.summary : runsWhenLabel(automation)
 
     return (
         <AutomationField label="Runs when" helper={helper}>
-            {automation.kind === "schedule" ? (
-                <ScheduleBuilderField value={automation.cron ?? ""} onChange={onChangeCron} />
-            ) : (
-                <EventPicker
-                    automation={automation}
-                    trigger={
-                        <Button
-                            type="button"
-                            variant="outline"
-                            className="h-10 w-full justify-between font-normal"
-                        >
-                            <span className="min-w-0 truncate">{runsWhenLabel(automation)}</span>
-                            <CaretDown
+            <PickerOverlay
+                open={open}
+                onOpenChange={setOpen}
+                title="Runs when"
+                trigger={
+                    // The same geometry `AutomationAgentField`'s SelectTrigger has, so the two
+                    // controls read as one stack rather than two sizes of field.
+                    <button
+                        type="button"
+                        className={cn(selectTriggerVariants(), "h-auto py-input-y")}
+                    >
+                        <span className="flex min-w-0 flex-1 items-center gap-2">
+                            <Icon
                                 aria-hidden
                                 size={14}
                                 className="text-muted-foreground shrink-0"
                             />
-                        </Button>
-                    }
-                />
-            )}
+                            <span className="min-w-0 truncate">{label}</span>
+                        </span>
+                        <ChevronDown className="text-placeholder size-3 shrink-0" />
+                    </button>
+                }
+            >
+                <div className="flex min-h-0 flex-col">
+                    <div className="flex shrink-0 gap-1 border-b p-2">
+                        {KINDS.map(({value, label: kindLabel, icon: KindIcon}) => {
+                            const active = value === automation.kind
+                            return (
+                                <Button
+                                    key={value}
+                                    type="button"
+                                    size="sm"
+                                    variant={active ? "default" : "outline"}
+                                    aria-pressed={active}
+                                    // A saved automation's kind is its entity type — two
+                                    // endpoints, not a field — so only a draft can still switch.
+                                    disabled={!onChangeKind && !active}
+                                    title={
+                                        onChangeKind
+                                            ? undefined
+                                            : "An automation's trigger type is fixed once it's created."
+                                    }
+                                    onClick={() => onChangeKind?.(value)}
+                                    className="min-w-0 flex-1"
+                                >
+                                    <KindIcon aria-hidden size={14} />
+                                    <span className="min-w-0 truncate">{kindLabel}</span>
+                                </Button>
+                            )
+                        })}
+                    </div>
+
+                    {isSchedule ? (
+                        <div className="p-4">
+                            <ScheduleBuilderPanel
+                                value={automation.cron ?? ""}
+                                controls={schedule}
+                            />
+                        </div>
+                    ) : (
+                        <EventPickerPanel
+                            automation={automation}
+                            open={open}
+                            onClose={() => setOpen(false)}
+                            onSelectEvent={onSelectEvent}
+                        />
+                    )}
+                </div>
+            </PickerOverlay>
         </AutomationField>
     )
 }

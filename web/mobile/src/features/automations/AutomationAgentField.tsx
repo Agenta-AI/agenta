@@ -1,45 +1,55 @@
-import {CaretDown, Robot} from "@phosphor-icons/react"
+import {useCallback, useMemo} from "react"
 
-import {Button} from "@/components/ui/button"
+import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
+import {Robot} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
+
+import {Skeleton} from "@/components/ui/skeleton"
 
 import {AutomationField} from "./AutomationField"
 import type {Automation} from "./automationModel"
-import {AgentPicker} from "./pickers/AgentPicker"
+import {useAgentBinding} from "./useAgentBinding"
 
 /**
  * Which agent the automation runs.
  *
- * The button is the whole control: given the automation it IS the picker's trigger and rebinding
- * saves in place. Without it — the callers that only know the agent's name — it falls back to
- * `onOpenAgentPicker`, and with neither it reads as a bound fact rather than offering a dead tap
- * target.
+ * A selector, not a list of buttons: this is the same `Select` every other field in the app uses,
+ * so it closes on pick, marks the bound one, and lines up with the "Runs when" trigger beside it
+ * (both are `selectTriggerVariants` at `h-auto py-input-y`).
+ *
+ * How a pick is committed depends on what the host has. Given an `automation` it rebinds and
+ * saves in place through `useAgentBinding`. Given `onSelectAgent` — the draft screen, which has no
+ * row to PUT to — it reports the pick and the host holds it until Create. With neither it reads as
+ * a bound fact rather than offering a dead tap target.
  */
 export const AutomationAgentField = ({
+    agentId = null,
     agentName,
     automation,
-    onOpenAgentPicker,
+    onSelectAgent,
 }: {
+    /** The bound agent. Defaults to the automation's own when one is given. */
+    agentId?: string | null
     agentName: string | null
     /** The automation being edited. Present ⇒ the field picks and saves the agent itself. */
     automation?: Automation
-    onOpenAgentPicker?: () => void
+    /** A draft's "not yet saved" mode — the host takes the pick instead of a save. */
+    onSelectAgent?: (agentId: string) => void
 }) => {
-    const control = (
-        <Button
-            type="button"
-            variant="outline"
-            disabled={!automation && !onOpenAgentPicker}
-            // When the picker wraps this, the overlay supplies the open handler instead.
-            onClick={automation ? undefined : onOpenAgentPicker}
-            // Not dimmed while there is nothing to open: the bound agent is still a fact to read.
-            className="h-10 w-full justify-between font-normal disabled:opacity-100"
-        >
-            <span className="flex min-w-0 items-center gap-2">
-                <Robot aria-hidden size={16} className="text-muted-foreground shrink-0" />
-                <span className="min-w-0 truncate">{agentName ?? "Pick an agent"}</span>
-            </span>
-            <CaretDown aria-hidden size={14} className="text-muted-foreground shrink-0" />
-        </Button>
+    const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
+    const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
+    const bindAgent = useAgentBinding(automation)
+
+    const bound = automation?.agentId ?? agentId
+    const editable = Boolean(automation || onSelectAgent)
+
+    const onValueChange = useCallback(
+        (next: string) => {
+            if (onSelectAgent) onSelectAgent(next)
+            else bindAgent(next)
+        },
+        [bindAgent, onSelectAgent],
     )
 
     return (
@@ -47,7 +57,44 @@ export const AutomationAgentField = ({
             label="Agent"
             helper="This agent does the work, with the tools it already has."
         >
-            {automation ? <AgentPicker automation={automation} trigger={control} /> : control}
+            <Select value={bound ?? undefined} onValueChange={onValueChange} disabled={!editable}>
+                {/* h-auto py-input-y: the same treatment `ScheduleBuilderField` gives its own
+                    trigger, so the two controls are one height. Not dimmed while there is
+                    nothing to open — the bound agent is still a fact to read. */}
+                <SelectTrigger
+                    aria-label="Agent"
+                    className="h-auto py-input-y disabled:cursor-default disabled:border-border disabled:bg-background disabled:text-foreground"
+                >
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                        <Robot aria-hidden size={16} className="text-muted-foreground shrink-0" />
+                        <SelectValue className="min-w-0 truncate" placeholder="Pick an agent">
+                            {agentName}
+                        </SelectValue>
+                    </span>
+                </SelectTrigger>
+                <SelectContent className="max-h-[320px]">
+                    {agentsQuery.isPending ? (
+                        // Row geometry, not a spinner — the list replaces this without shifting.
+                        <div className="flex flex-col gap-1 p-1">
+                            <Skeleton className="h-7 w-full" />
+                            <Skeleton className="h-7 w-4/5" />
+                            <Skeleton className="h-7 w-3/5" />
+                        </div>
+                    ) : agents.length === 0 ? (
+                        <p className="text-muted-foreground m-0 px-3 py-6 text-center text-xs">
+                            No agents in this project yet.
+                        </p>
+                    ) : (
+                        agents.map((agent) =>
+                            agent.id ? (
+                                <SelectItem key={agent.id} value={agent.id}>
+                                    {agent.name?.trim() || agent.slug?.trim() || "Untitled agent"}
+                                </SelectItem>
+                            ) : null,
+                        )
+                    )}
+                </SelectContent>
+            </Select>
         </AutomationField>
     )
 }

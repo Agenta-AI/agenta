@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     useTriggerConnectionsQuery,
@@ -16,31 +16,43 @@ import {buildAutomationEdit} from "../automationEdit"
 import type {Automation} from "../automationModel"
 import {useAutomation} from "../useAutomation"
 
-import {PickerOverlay} from "./PickerOverlay"
+/** What Done hands back in a draft's "not yet saved" mode. */
+export interface EventSelection {
+    connectionId: string
+    eventKey: string
+    triggerConfig: Record<string, unknown> | undefined
+}
 
 /**
- * Which event runs this automation.
+ * Which event runs this automation — the panel only, with no overlay of its own, so the
+ * "Runs when" control can put it under the kind chips next to the schedule builder.
  *
  * Nothing here is a mobile reimplementation of the desktop chooser. `SourceBrowsePage` IS the
  * subscription drawer's "choose a trigger" step — the same app rail, the same search, the same
  * event list, already phone-aware (it collapses the rail below `sm`) — and the event's own
  * `trigger_config` filters are the same `SchemaForm`, which puts the optional ones behind its own
- * "Optional (N)" disclosure. This file is the two of them in one overlay plus the save.
+ * "Optional (N)" disclosure. This file is the two of them plus the save.
  *
  * Unlike the agent field, this one commits on **Done**, not on pick: an event whose required
  * filters are empty (GitHub's owner/repo) is a subscription that can never fire, so saving the
  * moment the event is chosen would write a broken automation and call it done.
  */
-export const EventPicker = ({
+export const EventPickerPanel = ({
     automation,
-    trigger,
+    open,
+    onClose,
+    onSelectEvent,
 }: {
     automation: Automation
-    trigger: ReactNode
+    /** Whether the surface holding this panel is open — the prefill restarts from saved on each. */
+    open: boolean
+    onClose: () => void
+    /** A draft's "not yet saved" mode — the host takes the selection instead of a save. */
+    onSelectEvent?: (selection: EventSelection) => void
 }) => {
-    const [open, setOpen] = useState(false)
     const {connections} = useTriggerConnectionsQuery()
-    const {edit} = useAutomation(automation.id, automation.kind)
+    // A draft has no row behind it, so the entity hook stays inert rather than fetching "new".
+    const {edit} = useAutomation(onSelectEvent ? undefined : automation.id, automation.kind)
 
     const [connectionId, setConnectionId] = useState(automation.connectionId ?? undefined)
     const [eventKey, setEventKey] = useState(automation.eventKey ?? "")
@@ -69,8 +81,8 @@ export const EventPicker = ({
     const {event} = useTriggerEvent(connection?.integration_key ?? "", eventKey)
     const schema = (event?.trigger_config ?? null) as Record<string, unknown> | null
 
-    // Reopening restarts from what is SAVED, not from an abandoned edit: the overlay unmounts on
-    // close, so a half-picked event must not survive as the next session's starting point.
+    // Reopening restarts from what is SAVED, not from an abandoned edit: a half-picked event
+    // must not survive as the next session's starting point.
     useEffect(() => {
         if (!open) return
         setConnectionId(automation.connectionId ?? undefined)
@@ -105,6 +117,11 @@ export const EventPicker = ({
             // Throws on a failed rule — SchemaForm has already painted the inline errors, so
             // there is nothing to report here beyond staying open.
             const triggerConfig = await formRef.current?.getValues()
+            if (onSelectEvent) {
+                onSelectEvent({connectionId, eventKey, triggerConfig: triggerConfig ?? undefined})
+                onClose()
+                return
+            }
             const body = buildAutomationEdit(automation, {}) as TriggerSubscriptionEdit
             const saved = await edit({
                 ...body,
@@ -115,106 +132,98 @@ export const EventPicker = ({
                     trigger_config: triggerConfig ?? undefined,
                 },
             })
-            if (saved) setOpen(false)
+            if (saved) onClose()
         } catch {
             // Validation failure or a rejected save: the overlay stays open with the edit intact.
         } finally {
             setSaving(false)
         }
-    }, [automation, connectionId, edit, eventKey])
+    }, [automation, connectionId, edit, eventKey, onClose, onSelectEvent])
 
     return (
-        <PickerOverlay
-            open={open}
-            onOpenChange={setOpen}
-            title="Run on which event?"
-            trigger={trigger}
-            contentClassName="w-[480px]"
-        >
-            {/* One height for both panes: the browse step and the filters step must not resize
-                the overlay as the user moves between them. */}
-            <div className="flex h-[60vh] max-h-[560px] min-h-[320px] flex-col lg:h-[460px]">
-                {browsing ? (
-                    <>
-                        {automation.eventKey ? (
-                            <div className="flex shrink-0 items-center border-b px-2 py-2">
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setBrowsing(false)}
-                                >
-                                    <CaretLeft aria-hidden size={14} />
-                                    Back
-                                </Button>
-                            </div>
-                        ) : null}
-                        <div className="min-h-0 flex-1">
-                            <SourceBrowsePage
-                                connections={connections}
-                                // Re-opening a bound event lands on its app's event list, not
-                                // back at the app grid — the app is rarely what changed.
-                                defaultIntegrationKey={connection?.integration_key}
-                                onPick={onPick}
-                            />
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        <div className="flex shrink-0 items-center gap-2 border-b px-4 py-2">
-                            <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
-                                {event?.name || eventKey}
-                            </span>
+        // One height for both panes: the browse step and the filters step must not resize
+        // the overlay as the user moves between them.
+        <div className="flex h-[60vh] max-h-[560px] min-h-[320px] flex-col lg:h-[460px]">
+            {browsing ? (
+                <>
+                    {automation.eventKey ? (
+                        <div className="flex shrink-0 items-center border-b px-2 py-2">
                             <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => setBrowsing(true)}
+                                onClick={() => setBrowsing(false)}
                             >
-                                Change
+                                <CaretLeft aria-hidden size={14} />
+                                Back
                             </Button>
                         </div>
-                        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-                            {schema ? (
-                                <SchemaForm
-                                    ref={formRef}
-                                    form={configForm}
-                                    schema={schema}
-                                    onValuesChange={setValues}
-                                />
-                            ) : (
-                                <p className="text-muted-foreground m-0 py-2 text-xs">
-                                    This event needs no filters — it runs every time it arrives.
-                                </p>
-                            )}
-                        </div>
-                        <div className="flex shrink-0 items-center gap-3 border-t px-4 py-3">
-                            {missing.length ? (
-                                <p className="text-muted-foreground m-0 flex min-w-0 flex-1 items-center gap-1.5 text-xs leading-snug">
-                                    <Warning aria-hidden size={14} className="shrink-0" />
-                                    <span className="min-w-0">
-                                        {missing.length === 1
-                                            ? "One filter is still empty"
-                                            : `${missing.length} filters are still empty`}
-                                        {" — without them this event never arrives."}
-                                    </span>
-                                </p>
-                            ) : (
-                                <span className="flex-1" />
-                            )}
-                            <Button
-                                type="button"
-                                size="sm"
-                                disabled={!ready || saving}
-                                onClick={() => void onDone()}
-                            >
-                                Done
-                            </Button>
-                        </div>
-                    </>
-                )}
-            </div>
-        </PickerOverlay>
+                    ) : null}
+                    <div className="min-h-0 flex-1">
+                        <SourceBrowsePage
+                            connections={connections}
+                            // Re-opening a bound event lands on its app's event list, not
+                            // back at the app grid — the app is rarely what changed.
+                            defaultIntegrationKey={connection?.integration_key}
+                            onPick={onPick}
+                        />
+                    </div>
+                </>
+            ) : (
+                <>
+                    <div className="flex shrink-0 items-center gap-2 border-b px-4 py-2">
+                        <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
+                            {event?.name || eventKey}
+                        </span>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setBrowsing(true)}
+                        >
+                            Change
+                        </Button>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                        {schema ? (
+                            <SchemaForm
+                                ref={formRef}
+                                form={configForm}
+                                schema={schema}
+                                onValuesChange={setValues}
+                            />
+                        ) : (
+                            <p className="text-muted-foreground m-0 py-2 text-xs">
+                                This event needs no filters — it runs every time it arrives.
+                            </p>
+                        )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3 border-t px-4 py-3">
+                        {missing.length ? (
+                            <p className="text-muted-foreground m-0 flex min-w-0 flex-1 items-center gap-1.5 text-xs leading-snug">
+                                <Warning aria-hidden size={14} className="shrink-0" />
+                                <span className="min-w-0">
+                                    {missing.length === 1
+                                        ? "One filter is still empty"
+                                        : `${missing.length} filters are still empty`}
+                                    {" — without them this event never arrives."}
+                                </span>
+                            </p>
+                        ) : (
+                            <span className="flex-1" />
+                        )}
+                        <Button
+                            type="button"
+                            size="sm"
+                            disabled={!ready || saving}
+                            onClick={() => void onDone()}
+                        >
+                            Done
+                        </Button>
+                    </div>
+                </>
+            )}
+        </div>
     )
 }
 

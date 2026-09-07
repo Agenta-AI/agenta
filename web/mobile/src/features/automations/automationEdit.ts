@@ -90,6 +90,8 @@ export interface AutomationCreateDraft {
     cron: string
     eventKey: string | null
     connectionId: string | null
+    /** Event drafts only — the event's own `trigger_config` filters, as the picker returned them. */
+    triggerConfig?: Record<string, unknown>
     inputsFields: Record<string, unknown>
 }
 
@@ -131,6 +133,7 @@ export function buildAutomationCreate(
         connection_id: draft.connectionId ?? "",
         data: {
             event_key: draft.eventKey ?? "",
+            trigger_config: draft.triggerConfig,
             inputs_fields: draft.inputsFields,
             references,
         },
