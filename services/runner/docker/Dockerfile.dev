@@ -15,6 +15,9 @@ WORKDIR /app
 # that script asserts its own pin and fails the build otherwise.
 COPY images/sandbox/install-agent-tools.sh /tmp/install-agent-tools.sh
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
+# ts-node 10 + typescript 5.9 on node 24 picks `module: NodeNext` without a tsconfig and fails
+# (TS5109); agents run it from a working directory with no tsconfig. See the recipe.
+ENV TS_NODE_COMPILER_OPTIONS="{\"module\":\"commonjs\",\"moduleResolution\":\"node\"}"
 RUN sh /tmp/install-agent-tools.sh && rm /tmp/install-agent-tools.sh
 
 # Image-specific bits the shared recipe leaves alone.

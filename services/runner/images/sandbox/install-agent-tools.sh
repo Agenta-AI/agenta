@@ -38,12 +38,16 @@ case "$arch" in
     fdsha="e3257d48e29a6be965187dbd24ce9af564e0fe67b3e73c9bdcd180f4ec11bdde"
     uvarch="x86_64-unknown-linux-gnu"
     uvsha="173d95a0c32d18c896c46ba6fafbf3cf9c14ab74b033f81b76c883ef492a976b"
+    bunarch="x64"
+    bunsha="36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913"
     ;;
   arm64)
     fdarch="aarch64-unknown-linux-musl"
     fdsha="f32d3657473fba74e2600babc8db0b93420d51169223b7e8143b2ed55d8fd9e8"
     uvarch="aarch64-unknown-linux-gnu"
     uvsha="9ff6b9d4665edcdd3a88dcc73cd1eb641754deb927f14e8c62ebfde6bf4f5f5e"
+    bunarch="aarch64"
+    bunsha="54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7"
     ;;
   *) echo "unsupported arch $arch" >&2; exit 1 ;;
 esac
@@ -109,13 +113,31 @@ chmod +x /usr/local/bin/fd
 fd --version | grep -q "fd ${FD_VERSION#v}"
 fd --help | grep -q -- --no-require-git
 
-# ---- node globals: formatters, the TS toolchain, bun, and the playwright CLI ------------------
+# ---- node globals: formatters, the TS toolchain, and the playwright CLI -----------------------
 npm install -g --no-fund --no-audit \
   "playwright@${PLAYWRIGHT_VERSION}" "typescript@${TYPESCRIPT_VERSION}" "ts-node@${TS_NODE_VERSION}" \
-  "prettier@${PRETTIER_VERSION}" "eslint@${ESLINT_VERSION}" "bun@${BUN_VERSION}"
+  "prettier@${PRETTIER_VERSION}" "eslint@${ESLINT_VERSION}"
 tsc --version | grep -q "${TYPESCRIPT_VERSION}"
 prettier --version | grep -q "${PRETTIER_VERSION}"
+
+# ---- bun: the release zip, checksum-verified. Not the npm package: its binary arrives through
+# an install script, which npm 11.19+ refuses for global installs by default, so the package
+# "installs" with no binary and only the version check catches it. --------------------------
+curl -fsSL "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-${bunarch}.zip" \
+  -o /tmp/bun.zip
+verify_sha256 /tmp/bun.zip "$bunsha"
+unzip -q -o /tmp/bun.zip -d /tmp/bun-extract
+install -m 0755 "/tmp/bun-extract/bun-linux-${bunarch}/bun" /usr/local/bin/bun
+ln -sf /usr/local/bin/bun /usr/local/bin/bunx
+rm -rf /tmp/bun.zip /tmp/bun-extract
 bun --version | grep -q "${BUN_VERSION}"
+# ts-node 10 with typescript 5.9 on node 24 defaults to `module: NodeNext` when no tsconfig is in
+# reach, then refuses to compile (TS5109). Agents run ts-node from a working directory with no
+# tsconfig, so the images set TS_NODE_COMPILER_OPTIONS (see the Dockerfiles and the snapshot
+# recipe); the check here runs under the same setting.
+# Set here unconditionally (single quotes: sh takes the JSON verbatim), not via a `${X:-...}`
+# default, because the `}` inside a default value ends the expansion early and corrupts the JSON.
+export TS_NODE_COMPILER_OPTIONS='{"module":"commonjs","moduleResolution":"node"}'
 echo 'const v: number = 1; console.log(v)' > /tmp/v.ts
 ts-node /tmp/v.ts | grep -q '^1$'
 rm /tmp/v.ts

@@ -208,6 +208,9 @@ def main() -> None:
             # Everything an agent calls comes from the shared recipe (see INSTALL_SCRIPT).
             # This includes python3 and typescript/ts-node for the SDK code-evaluator runtimes.
             f"ENV PLAYWRIGHT_BROWSERS_PATH={PLAYWRIGHT_BROWSERS_PATH}",
+            # ts-node 10 + typescript 5.9 picks `module: NodeNext` without a tsconfig and fails
+            # (TS5109) on newer node; same setting as the runner images, see the recipe.
+            'ENV TS_NODE_COMPILER_OPTIONS="{\\"module\\":\\"commonjs\\",\\"moduleResolution\\":\\"node\\"}"',
             install_agent_tools_command(),
             # Durable cwd: fuse + geesefs so the remote sandbox can mount its store prefix.
             "RUN apt-get update && apt-get install -y --no-install-recommends fuse "
