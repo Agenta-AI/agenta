@@ -553,46 +553,46 @@ _SEARCH_SKILLS_INPUT_SCHEMA: Dict[str, Any] = {
     },
 }
 
-# Skill-source sync (read + gated write): the check is silent and commits nothing; the apply is a
+# Skill update sync (read + gated write): the check endpoint never writes; the apply is a
 # write, so under the default policy the approval card IS the user prompt — no extra UI.
 _CHECK_SKILL_UPDATES_DESCRIPTION = (
-    "Check one imported skill source (a connected repo) against its upstream, without "
-    "changing anything. Reports a status per linked skill: `update_available` (newer "
-    "upstream content), `unchanged`, `detached` (edited in Agenta — sync never "
-    "overwrites it), `missing_in_source`, or `invalid_in_source`. Source ids come from "
-    "`search_skills` (its `sources` block, and each skill's `source_id`). Use this "
-    "when the user asks about skill updates, or before proposing `apply_skill_update`; "
-    "summarize which skills changed before applying."
+    "Check one imported skill against its upstream source, without changing anything. "
+    "Reports `update_available` (newer upstream content), `up_to_date`, `detached` "
+    "(edited in Agenta — updates never overwrite it), `missing_in_source`, or "
+    "`invalid_in_source`. Skill workflow ids come from `search_skills`; only skills "
+    "with an import origin can be checked. Use this when the user asks about skill "
+    "updates, or before proposing `apply_skill_update`; summarize what changed before "
+    "applying."
 )
 _CHECK_SKILL_UPDATES_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "properties": {
-        "source_id": {
+        "skill_id": {
             "type": "string",
-            "description": "The skill source's id (a UUID from `search_skills`).",
+            "description": "The skill's workflow id (a UUID from `search_skills`).",
         },
     },
-    "required": ["source_id"],
+    "required": ["skill_id"],
 }
 
 _APPLY_SKILL_UPDATE_DESCRIPTION = (
-    "Commit the available upstream updates of one imported skill source into the "
-    "registry (a new version of each changed, unedited skill). Run "
-    "`check_skill_updates` first and tell the user WHICH skills changed — this call "
-    "needs the user's approval, and the approval is their yes to updating. Skills "
-    "edited in Agenta stay detached and are never overwritten. Agents referencing a "
-    "skill by slug (follow-latest) pick the new version up on their next run; pinned "
-    "references keep their version until repinned."
+    "Commit the upstream version of one imported skill as a new revision. Run "
+    "`check_skill_updates` first and tell the user what changed — this call needs the "
+    "user's approval, and the approval is their yes to updating. Skills edited in "
+    "Agenta report `detached` and are never overwritten; a concurrent edit reports "
+    "`conflict` instead of clobbering. Agents referencing the skill by slug "
+    "(follow-latest) pick the new version up on their next run; pinned references "
+    "keep their version until repinned."
 )
 _APPLY_SKILL_UPDATE_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "properties": {
-        "source_id": {
+        "skill_id": {
             "type": "string",
-            "description": "The skill source's id (a UUID from `search_skills`).",
+            "description": "The skill's workflow id (a UUID from `search_skills`).",
         },
     },
-    "required": ["source_id"],
+    "required": ["skill_id"],
 }
 
 _QUERY_WORKFLOWS_DESCRIPTION = (
@@ -1636,19 +1636,16 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             op="check_skill_updates",
             description=_CHECK_SKILL_UPDATES_DESCRIPTION,
             method="POST",
-            path="/api/skills/sources/{source_id}/refresh",
+            path="/api/skills/{skill_id}/updates/check",
             input_schema=_CHECK_SKILL_UPDATES_INPUT_SCHEMA,
-            # The hardwired flag is what makes this a read: the model cannot flip it.
-            static_body={"apply": False},
             read_only=True,
         ),
         PlatformOp(
             op="apply_skill_update",
             description=_APPLY_SKILL_UPDATE_DESCRIPTION,
             method="POST",
-            path="/api/skills/sources/{source_id}/refresh",
+            path="/api/skills/{skill_id}/updates/apply",
             input_schema=_APPLY_SKILL_UPDATE_INPUT_SCHEMA,
-            static_body={"apply": True},
             read_only=False,
         ),
         PlatformOp(
