@@ -103,8 +103,7 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
         )
     }
 
-    // The slot is handed the rail's state; without forwarding it the switcher kept its expanded
-    // padding inside a 48px rail, which put the avatar 8px right of the icon column's axis.
+    // Forwarded, or the switcher keeps its expanded padding inside the 48px rail.
     const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
         <DrawerProjectSwitcher
             workspaceId={workspaceId}
