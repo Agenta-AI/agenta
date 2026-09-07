@@ -57,28 +57,36 @@ export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
 
     const apply = useCallback(async () => {
         setBusy(true)
-        try {
-            const outcomes = await Promise.all(
-                pending.map(async (workflowId) => ({
-                    workflowId,
-                    status:
-                        (await applySkillUpdate({projectId, workflowId}))?.status ?? "apply_failed",
-                })),
-            )
-            const updated = outcomes.filter((o) => o.status === "updated").length
-            const failed = outcomes.length - updated
-            setSummary(
-                [updated && `${updated} updated`, failed && `${failed} failed`]
-                    .filter(Boolean)
-                    .join(" · ") || "nothing applied",
-            )
-            setPending([])
-            if (updated) invalidateSkillsListCache()
-        } catch {
-            setSummary("apply failed")
-        } finally {
-            setBusy(false)
+        // allSettled, not all: one rejection must not discard the successes, or the
+        // applied skills stay queued and a second click re-applies them.
+        const outcomes = await Promise.allSettled(
+            pending.map(async (workflowId) => ({
+                workflowId,
+                status: (await applySkillUpdate({projectId, workflowId}))?.status ?? "",
+            })),
+        )
+        const applied: string[] = []
+        const retryable: string[] = []
+        for (const [index, outcome] of outcomes.entries()) {
+            const workflowId = pending[index]
+            if (outcome.status === "fulfilled" && outcome.value.status === "updated") {
+                applied.push(workflowId)
+            } else {
+                retryable.push(workflowId)
+            }
         }
+        setSummary(
+            [
+                applied.length && `${applied.length} updated`,
+                retryable.length && `${retryable.length} failed`,
+            ]
+                .filter(Boolean)
+                .join(" · ") || "nothing applied",
+        )
+        // Only what did NOT apply stays queued for a retry.
+        setPending(retryable)
+        if (applied.length) invalidateSkillsListCache()
+        setBusy(false)
     }, [pending, projectId])
 
     return (
