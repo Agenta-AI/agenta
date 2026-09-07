@@ -313,6 +313,7 @@ export const Composer = ({
                         <ChatComposer
                             inputRef={richInputRef}
                             onSubmit={submit}
+                            fileMentions
                             attachments={attachments}
                             attachmentsBlocked={attachmentsBlocked}
                             initialMarkdown={draft.initialDraft}
