@@ -14,6 +14,7 @@ import {AutomationBackLink} from "./AutomationBackLink"
 import {AutomationDetailBody} from "./AutomationDetailBody"
 import {buildAutomationEdit} from "./automationEdit"
 import {agentLabel} from "./automationModel"
+import {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 import {AutomationDetailSkeleton} from "./states/AutomationStates"
 import {useAutomation} from "./useAutomation"
 import {useAutomations} from "./useAutomations"
@@ -135,6 +136,7 @@ export const AutomationDetailScreen = ({
                     )}
                 </ScreenScaffold>
             </AppShell>
+            <AutomationTriggerDrawers />
         </>
     )
 }
