@@ -180,6 +180,16 @@ class AgentTemplateShapeError(ErrorStatus):
         super().__init__(code=self.code, type=self.type, message=message)
 
 
+class AgentTemplateValidationError(ErrorStatus):
+    """A run request contains an invalid value in its agent template."""
+
+    code: int = 422
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-template"
+
+    def __init__(self, message: str) -> None:
+        super().__init__(code=self.code, type=self.type, message=message)
+
+
 # ---------------------------------------------------------------------------
 # Sandbox permission (Layer 2: the sandbox security boundary)
 # ---------------------------------------------------------------------------
