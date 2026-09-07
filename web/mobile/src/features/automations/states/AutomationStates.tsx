@@ -1,7 +1,11 @@
-import {Plus, RefreshCw, TriangleAlert, Zap} from "lucide-react"
+import {Lightning} from "@phosphor-icons/react"
+import {RefreshCw, TriangleAlert} from "lucide-react"
 
 import {Button} from "@/components/ui/button"
 import {Skeleton} from "@/components/ui/skeleton"
+
+import {AutomationTemplateCard} from "../AutomationTemplateCard"
+import {AUTOMATION_TEMPLATES, type AutomationTemplate} from "../templates"
 
 /**
  * Designed states for the automations screens.
@@ -26,20 +30,36 @@ export const AutomationListSkeleton = ({rows = 5}: {rows?: number}) => (
     </div>
 )
 
-export const AutomationListEmpty = ({onCreate}: {onCreate?: () => void}) => (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-        <Zap className="size-6 text-muted-foreground" />
-        <p className="m-0 text-sm font-medium text-foreground">No automations yet</p>
-        <p className="m-0 text-xs text-muted-foreground">
-            An automation runs one of your agents on a schedule, or when something happens in an
-            app you connect.
+/**
+ * No automations at all — the one screen where the reader has to be told what an automation IS
+ * before a "New automation" button means anything. The three examples do that work: each names
+ * a job rather than a trigger type, and picking one seeds the draft (W5).
+ */
+export const AutomationListEmpty = ({
+    onSelectTemplate,
+}: {
+    onSelectTemplate: (template: AutomationTemplate) => void
+}) => (
+    <div className="mx-auto w-full max-w-3xl rounded-xl border border-border bg-card px-6 py-10 text-center">
+        <span className="inline-flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Lightning size={22} weight="fill" aria-hidden />
+        </span>
+        <h2 className="mt-3.5 mb-1.5 text-base font-semibold text-foreground">
+            No automations yet
+        </h2>
+        <p className="mx-auto mb-5 max-w-md text-sm text-muted-foreground">
+            An automation runs one of your agents without you asking. Start from an example, or
+            build your own.
         </p>
-        {onCreate ? (
-            <Button variant="outline" size="sm" onClick={onCreate}>
-                <Plus className="size-3.5" />
-                New automation
-            </Button>
-        ) : null}
+        <div className="grid gap-3 text-left [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+            {AUTOMATION_TEMPLATES.map((template) => (
+                <AutomationTemplateCard
+                    key={template.id}
+                    template={template}
+                    onSelect={onSelectTemplate}
+                />
+            ))}
+        </div>
     </div>
 )
 
