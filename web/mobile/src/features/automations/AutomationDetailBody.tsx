@@ -13,6 +13,10 @@ import {AutomationTitle} from "./AutomationTitle"
  *
  * Every edit here saves on its own — there is no Save button, because none of these fields is
  * part of a form the others depend on.
+ *
+ * The column has no `gap`: each block owns the space above it, because the rhythm is uneven by
+ * design (4px under the meta row, 26px above the fields, 30px above the run-history card) and a
+ * single gap cannot express that.
  */
 export const AutomationDetailBody = ({
     automation,
@@ -37,7 +41,7 @@ export const AutomationDetailBody = ({
     onChangeInputs: (inputs: Record<string, unknown>) => void
     onToggle: (next: boolean) => Promise<void>
 }) => (
-    <div className="mx-auto flex w-full max-w-[720px] flex-col gap-5 px-4 pb-10 pt-1 lg:px-16">
+    <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px]">
         <AutomationTitle
             name={automation.name}
             description={automation.description}
@@ -50,7 +54,7 @@ export const AutomationDetailBody = ({
             onToggle={onToggle}
         />
         <AutomationFailureBanner reason={failureReason} />
-        <div className="flex flex-col gap-5">
+        <div className="mt-[26px] flex flex-col gap-[22px]">
             <AutomationAgentField agentName={agentName} onOpenAgentPicker={onOpenAgentPicker} />
             <AutomationRunsWhenField automation={automation} onChangeCron={onChangeCron} />
             <AutomationInstructionField

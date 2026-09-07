@@ -51,10 +51,11 @@ export const AutomationDetailScreen = ({
         [automations, automationId],
     )
     // The entity fetch waits on the kind — until then the hook is inert and the row stands in.
-    const {automation: fetched, edit, setActive} = useAutomation(
-        listed ? automationId : undefined,
-        listed?.kind ?? "schedule",
-    )
+    const {
+        automation: fetched,
+        edit,
+        setActive,
+    } = useAutomation(listed ? automationId : undefined, listed?.kind ?? "schedule")
     const automation = fetched ?? listed ?? null
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
@@ -103,7 +104,7 @@ export const AutomationDetailScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div className="flex shrink-0 flex-col gap-1 px-4 pb-2 pt-2 lg:px-16 lg:pt-14">
+                        <div className="mx-auto w-full max-w-[760px] shrink-0 px-8 pb-3.5 pt-[30px]">
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <AutomationBackLink href={`${base}/automations`} />
@@ -127,7 +128,7 @@ export const AutomationDetailScreen = ({
                     ) : listLoading ? (
                         <AutomationDetailSkeleton />
                     ) : (
-                        <p className="text-muted-foreground m-0 px-4 py-16 text-center text-sm">
+                        <p className="m-0 px-8 py-16 text-center text-[13px] text-muted-foreground">
                             This automation no longer exists.
                         </p>
                     )}

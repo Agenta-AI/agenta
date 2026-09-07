@@ -10,23 +10,37 @@ import {AUTOMATION_TEMPLATES, type AutomationTemplate} from "../templates"
 /**
  * Designed states for the automations screens.
  *
- * The list skeleton mirrors a real table row (name over description, status pill, runs-when,
- * agent) so the rows do not shift when the two trigger queries land.
+ * The list skeleton mirrors the real table — the same shell, the same four-column grid, the same
+ * 13/14 row padding — so the rows do not shift when the two trigger queries land.
  */
 
+const GRID =
+    "grid gap-3 [grid-template-columns:minmax(120px,1.7fr)_118px_minmax(120px,1.5fr)_minmax(80px,1fr)]"
+
 export const AutomationListSkeleton = ({rows = 5}: {rows?: number}) => (
-    <div className="flex flex-col divide-y divide-border" aria-hidden>
-        {Array.from({length: rows}, (_, i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-3">
-                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                    <Skeleton className="h-3.5 w-2/5" />
-                    <Skeleton className="h-3 w-3/5" />
+    <div className="overflow-hidden rounded-xl border border-solid border-border" aria-hidden>
+        <div className="overflow-x-auto">
+            <div className="min-w-[544px]">
+                <div
+                    className={`${GRID} border-0 border-b border-solid border-border bg-muted/40 px-3.5 py-[9px]`}
+                >
+                    {Array.from({length: 4}, (_, i) => (
+                        <Skeleton key={i} className="h-3 w-16" />
+                    ))}
                 </div>
-                <Skeleton className="h-5 w-16 shrink-0 rounded-full" />
-                <Skeleton className="hidden h-3 w-28 shrink-0 sm:block" />
-                <Skeleton className="hidden h-3 w-20 shrink-0 sm:block" />
+                {Array.from({length: rows}, (_, i) => (
+                    <div
+                        key={i}
+                        className={`${GRID} items-center border-0 border-b border-solid border-border px-3.5 py-[13px] last:border-b-0`}
+                    >
+                        <Skeleton className="h-3.5 w-4/5" />
+                        <Skeleton className="h-3.5 w-16" />
+                        <Skeleton className="h-3.5 w-3/5" />
+                        <Skeleton className="h-3.5 w-2/3" />
+                    </div>
+                ))}
             </div>
-        ))}
+        </div>
     </div>
 )
 
@@ -40,14 +54,12 @@ export const AutomationListEmpty = ({
 }: {
     onSelectTemplate: (template: AutomationTemplate) => void
 }) => (
-    <div className="mx-auto w-full max-w-3xl rounded-xl border border-border bg-card px-6 py-10 text-center">
-        <span className="inline-flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+    <div className="mt-7 rounded-xl border border-solid border-border bg-card p-10 text-center">
+        <span className="mb-3.5 inline-flex size-11 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
             <Lightning size={22} weight="fill" aria-hidden />
         </span>
-        <h2 className="mt-3.5 mb-1.5 text-base font-semibold text-foreground">
-            No automations yet
-        </h2>
-        <p className="mx-auto mb-5 max-w-md text-sm text-muted-foreground">
+        <h2 className="m-0 mb-1.5 text-[17px] font-semibold text-foreground">No automations yet</h2>
+        <p className="mx-auto mb-[22px] mt-0 max-w-[46ch] text-[14px] text-muted-foreground">
             An automation runs one of your agents without you asking. Start from an example, or
             build your own.
         </p>
@@ -70,9 +82,9 @@ export const AutomationListError = ({
     message?: string
     onRetry?: () => void
 }) => (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+    <div className="mt-7 flex flex-col items-center justify-center gap-3 rounded-xl border border-solid border-border p-10 text-center">
         <TriangleAlert className="size-6 text-destructive" />
-        <p className="m-0 text-sm font-medium text-foreground">{message}</p>
+        <p className="m-0 text-[14px] font-medium text-foreground">{message}</p>
         {onRetry ? (
             <Button variant="outline" size="sm" onClick={onRetry}>
                 <RefreshCw className="size-3.5" />
@@ -82,26 +94,25 @@ export const AutomationListError = ({
     </div>
 )
 
+/** Mirrors the detail body's own rhythm — identity, meta row, field stack — at its measurements. */
 export const AutomationDetailSkeleton = () => (
-    <div className="flex flex-col gap-6 px-4 py-4" aria-hidden>
-        {/* Identity: name, then the runs-when line under it. */}
-        <div className="flex flex-col gap-2">
-            <Skeleton className="h-5 w-1/2" />
-            <Skeleton className="h-3 w-2/3" />
+    <div className="mx-auto w-full max-w-[760px] px-8 pb-[70px]" aria-hidden>
+        {/* Identity: name, then the description under it. */}
+        <Skeleton className="h-[30px] w-1/2" />
+        <Skeleton className="mt-1.5 h-4 w-2/3" />
+        {/* The toggle / agent / edited facts row. */}
+        <div className="mb-1 mt-4 flex items-center gap-3.5">
+            <Skeleton className="h-5 w-9 rounded-full" />
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-28" />
         </div>
-        {/* The status/agent/cadence facts row. */}
-        <div className="flex items-center gap-3">
-            <Skeleton className="h-5 w-16 rounded-full" />
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-3 w-28" />
-        </div>
-        {/* The recent-runs list below them. */}
-        <div className="flex flex-col divide-y divide-border">
-            {Array.from({length: 4}, (_, i) => (
-                <div key={i} className="flex items-center gap-3 py-3">
-                    <Skeleton className="size-2 shrink-0 rounded-full" />
-                    <Skeleton className="h-3 w-1/3" />
-                    <Skeleton className="ml-auto h-3 w-16 shrink-0" />
+        {/* The three fields below them. */}
+        <div className="mt-[26px] flex flex-col gap-[22px]">
+            {Array.from({length: 3}, (_, i) => (
+                <div key={i} className="flex flex-col gap-[7px]">
+                    <Skeleton className="h-3.5 w-20" />
+                    <Skeleton className="h-[38px] w-full rounded-[9px]" />
+                    <Skeleton className="h-3 w-2/5" />
                 </div>
             ))}
         </div>
