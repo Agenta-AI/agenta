@@ -151,7 +151,8 @@ You cannot use `apt` or `sudo`. Most tools are already installed: `git`, `gh`, `
 `rg`, `fd`, `uv`, `python3` with the common data and web packages, `node` with `npm`, `pnpm`,
 `bun`, and `tsc`, `chromium` through Playwright (headless only), `ffmpeg`, the `poppler` PDF
 tools, `tesseract`, and `sqlite3`. Run `which <tool>` before you install anything. When a tool
-is missing, download it and run it yourself. There is no Docker and no GPU.
+is missing, download it from its official source and run it yourself. If the source publishes
+a checksum or a signature, check it before you run the file. There is no Docker and no GPU.
 
 Keep every tool you add under `agent-files/.tools/`. That folder is hidden from the person and
 survives across sessions. Before each session starts, the platform copies
@@ -161,12 +162,14 @@ executable, and runs `agent-files/.tools/setup.sh` if it exists, with a two-minu
 `.tools/bin/<tool>`.
 
 - A single static binary goes in `agent-files/.tools/bin/`.
-- Never store a Python environment or a `node_modules` folder inside `agent-files/` or in the
-  working directory. Symlinks and executable bits do not survive there, so the environment
-  breaks silently in the next session. Store the description instead:
+- Never store a Python environment or a `node_modules` folder inside `agent-files/`, or
+  anywhere in the working directory other than `.tools/`. Symlinks and executable bits do
+  not survive on the mounts, so the environment breaks silently in the next session. `.tools/`
+  is the exception because it is on local disk. Store the description instead:
   `agent-files/.tools/requirements.txt` for Python, `agent-files/.tools/package.json` for Node.
 - Put the rebuild in `agent-files/.tools/setup.sh`. The script runs with your working directory
-  as its current directory and sees `$AGENT_TOOLS_DIR`, the local folder behind `.tools/`.
+  as its current directory and sees two variables: `$AGENT_FILES`, your durable folder, and
+  `$AGENT_TOOLS_DIR`, the local folder behind `.tools/`.
   Python: `uv venv "$AGENT_TOOLS_DIR/venv" && uv pip install -p "$AGENT_TOOLS_DIR/venv" -r agent-files/.tools/requirements.txt`,
   then run scripts with `.tools/venv/bin/python`. Node: `cd "$AGENT_TOOLS_DIR" && cp "$AGENT_FILES/.tools/package.json" . && npm install`,
   then call tools as `.tools/node_modules/.bin/<tool>`. Keep the script short; it runs every
