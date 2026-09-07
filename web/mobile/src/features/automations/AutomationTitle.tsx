@@ -49,7 +49,7 @@ export const AutomationTitle = ({
                         if (event.key === "Enter") void rename.commit()
                         if (event.key === "Escape") rename.cancel()
                     }}
-                    className="-ml-2 h-auto rounded-lg px-2 py-1 text-[24px] font-semibold leading-[1.25] tracking-[-0.02em] md:text-[24px]"
+                    className="-ml-2 h-auto rounded-lg px-2 py-1 text-[18px] font-semibold leading-[1.25] tracking-[-0.02em] md:text-[18px]"
                 />
             ) : (
                 <button
@@ -58,7 +58,7 @@ export const AutomationTitle = ({
                     title="Rename"
                     className={`-ml-2 flex min-w-0 items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground hover:bg-accent ${FOCUS_RING}`}
                 >
-                    <h1 className="m-0 min-w-0 truncate text-[24px] font-semibold leading-[1.25] tracking-[-0.02em]">
+                    <h1 className="m-0 min-w-0 truncate text-[18px] font-semibold leading-[1.25] tracking-[-0.02em]">
                         {name}
                     </h1>
                     <PencilSimple
