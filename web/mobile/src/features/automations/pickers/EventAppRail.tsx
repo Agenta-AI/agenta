@@ -39,7 +39,7 @@ export const EventAppRail = ({
     }, [integrations])
 
     return (
-        <div className="flex max-h-[420px] w-1/3 shrink-0 flex-col gap-px overflow-y-auto border-0 border-r border-solid border-border pr-[9px]">
+        <div className="flex min-h-0 w-1/3 shrink-0 flex-col gap-px overflow-y-auto border-0 border-r border-solid border-border pr-[9px]">
             {isLoading ? (
                 <>
                     <Skeleton className="h-7 w-full" />
