@@ -522,18 +522,23 @@ function cleanFormValues(values: Record<string, unknown>): Record<string, unknow
 // Field components
 // ---------------------------------------------------------------------------
 
+/** Inline message under an empty required field. */
+const REQUIRED_MESSAGE = "Needed before this can run"
+
 /**
- * A field's label, with its description behind a `?`. Provider schemas ship descriptions that
- * run to several sentences (Gmail's `label_ids` enumerates eleven label constants); rendering
+ * A field's label, with its description behind an info icon. Provider schemas ship descriptions
+ * that run to several sentences (Gmail's `label_ids` enumerates eleven label constants); rendering
  * them inline buried every control under a paragraph it only needed to read once.
  */
 function FieldLabel({field}: {field: FormFieldDescriptor}) {
     return (
-        <span className="inline-flex items-center gap-1 leading-tight">
-            {/* No required marker: a form of mostly-required provider fields reads as noise,
-                and the validation message on submit is the honest signal. */}
+        <span className="inline-flex items-center gap-1 text-[13px] font-medium leading-tight">
             <span>{field.label}</span>
             {field.description && <HelpTip label={field.label}>{field.description}</HelpTip>}
+            {/* Word, not an asterisk — FormItem no longer asks Field chrome for the `*`. */}
+            {field.required && (
+                <span className="text-xs font-normal text-colorError">Required</span>
+            )}
         </span>
     )
 }
@@ -966,7 +971,7 @@ function SchemaFormField({
     /** Threaded explicitly — the replaced leaves don't read antd's Form disabled context. */
     disabled?: boolean
 }) {
-    const rules = field.required ? [{required: true, message: `${field.label} is required`}] : []
+    const rules = field.required ? [{required: true, message: REQUIRED_MESSAGE}] : []
     const label = hideLabel ? undefined : <FieldLabel field={field} />
 
     // Object with nested children → render in a collapsible section
@@ -1366,7 +1371,7 @@ function ArrayObjectItem({
                 <AccordionContent forceMount className="data-[state=closed]:hidden">
                     {itemChildren.map((child) => {
                         const childRules = child.required
-                            ? [{required: true, message: `${child.label} is required`}]
+                            ? [{required: true, message: REQUIRED_MESSAGE}]
                             : []
                         const childLabel = <FieldLabel field={child} />
 
@@ -1401,7 +1406,7 @@ function ArrayObjectItem({
                                                             ? [
                                                                   {
                                                                       required: true,
-                                                                      message: `${gc.label} is required`,
+                                                                      message: REQUIRED_MESSAGE,
                                                                   },
                                                               ]
                                                             : []
