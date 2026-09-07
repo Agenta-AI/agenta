@@ -58,10 +58,13 @@ export function AgentSecretsSection({
         [namedSecrets],
     )
     const targetLabel = [artifactName, variantLabel].filter(Boolean).join(" / ") || "Agent"
-    const canAttach = Boolean(revisionId) && !disabled && canEditSecrets && !dirty
+    const committedRevision = Boolean(revisionId && !revisionId.startsWith("local-"))
+    const canAttach = committedRevision && !disabled && canEditSecrets && !dirty
 
     const saveBindings = async (next: AgentSecretBinding[]) => {
-        if (!revisionId) throw new Error("Save this agent before attaching a secret.")
+        if (!committedRevision || !revisionId) {
+            throw new Error("Save this agent before attaching a secret.")
+        }
         if (dirty) throw new Error("Save or discard the current agent changes first.")
         const result = await commitCredentials({revisionId, bindings: next})
         onRevisionCommitted?.(result.revisionId)
@@ -126,7 +129,7 @@ export function AgentSecretsSection({
                 </div>
             ) : null}
 
-            {!revisionId ? (
+            {!committedRevision ? (
                 <div className="rounded-lg border border-colorBorderSecondary p-3 text-xs text-colorTextSecondary">
                     Save this agent before attaching a secret.
                 </div>

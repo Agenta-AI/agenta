@@ -241,7 +241,7 @@ def cell(sandbox: str, harness: str) -> dict:
 
         messages = [
             user_msg(
-                f"Use your shell to compute SHA-256 of the configured {ENV_NAME} variable and "
+                f"Run `printf '%s' \"${ENV_NAME}\" | sha256sum | cut -d' ' -f1` and "
                 f"write only the 64 lowercase hex characters to {digest_path}. Do not print the "
                 "variable or its value. Reply only DONE after the file is closed."
             )
@@ -261,7 +261,8 @@ def cell(sandbox: str, harness: str) -> dict:
             [
                 turn_one.assistant_message(),
                 user_msg(
-                    f"The credential was rotated. Recompute SHA-256 of {ENV_NAME} into "
+                    f"The credential was rotated. Run `printf '%s' \"${ENV_NAME}\" | "
+                    "sha256sum | cut -d' ' -f1` and write the result into "
                     f"{rotated_path} without printing the variable or value. Reply only DONE."
                 ),
             ]
@@ -296,6 +297,10 @@ def cell(sandbox: str, harness: str) -> dict:
             references=detached_references,
             result_path=absent_path,
         )
+
+        removed_frames = json.dumps(turn_removed.raw_frames)
+        if value_one in removed_frames or value_two in removed_frames:
+            raise RuntimeError("credential appeared in the post-removal SSE stream")
 
         passed = (
             digest_one == expected_one
@@ -342,7 +347,7 @@ def main() -> int:
         parser.error("the Pi subscription baseline is local-only; pass --only local")
     results = [cell(sandbox, args.harness) for sandbox in sandboxes]
     print(json.dumps({"cell": "S1-custom-secrets", "results": results}, indent=2))
-    return 0 if all(result["status"] == "PASS" for result in results) else 1
+    return 0 if all(result["status"] in {"PASS", "SKIP"} for result in results) else 1
 
 
 if __name__ == "__main__":

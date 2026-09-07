@@ -1847,6 +1847,15 @@ describe("platform instructions splice", () => {
   } as unknown as AgentRunRequest;
   const deps = { createLocalCwd: () => "local-cwd" };
 
+  it("rejects a non-string platform instructions value", () => {
+    const result = buildRunPlan(
+      { ...base, platformInstructions: null } as unknown as AgentRunRequest,
+      deps,
+    );
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.error, /must be a string/);
+  });
+
   it("splices platform instructions ahead of the authored append prompt for Pi", () => {
     const result = buildRunPlan(
       {

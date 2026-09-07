@@ -1060,7 +1060,11 @@ const AgentConversation = ({
                                         connects={connects}
                                         elicits={elicits}
                                         secretDock={
-                                            !busy && !stopped && pendingSecret ? (
+                                            interactionAvailability.parkedDocks &&
+                                            !busy &&
+                                            !stopping &&
+                                            !stopped &&
+                                            pendingSecret ? (
                                                 <SecretRequestDock
                                                     key={pendingSecret.toolCallId}
                                                     meta={pendingSecret}

@@ -1639,10 +1639,6 @@ class WorkflowsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        await _require_secret_attachment_access(
-            request, workflow_revision_commit_request.workflow_revision
-        )
-
         if workflow_variant_id is not None and str(workflow_variant_id) != str(
             workflow_revision_commit_request.workflow_revision.workflow_variant_id
         ):
@@ -1673,6 +1669,17 @@ class WorkflowsRouter:
                 status_code=400,
                 detail="Provide either data or delta for a commit, not both.",
             )
+
+        secret_access_payload: Any = workflow_revision_commit
+        if has_data and not _changes_sandbox_credentials(workflow_revision_commit):
+            current_revision = await self.workflows_service.fetch_workflow_revision(
+                project_id=UUID(request.state.project_id),
+                workflow_variant_ref=Reference(id=variant_id),
+                include_archived=False,
+            )
+            if current_revision and _changes_sandbox_credentials(current_revision):
+                secret_access_payload = current_revision
+        await _require_secret_attachment_access(request, secret_access_payload)
         # A scoped caller states changes, never a whole configuration: a full replacement
         # carries every field the scope exists to protect, so it is refused rather than
         # filtered. The agent's tool only ever sends a delta.

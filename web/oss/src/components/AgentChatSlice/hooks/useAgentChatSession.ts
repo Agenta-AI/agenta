@@ -186,9 +186,15 @@ export const useAgentChatSession = ({
     useLayoutEffect(() => {
         entityIdRef.current = entityId
     }, [entityId])
-    const adoptRevision = useCallback((next: string) => {
-        entityIdRef.current = next
-    }, [])
+    const adoptRevision = useCallback(
+        (next: string) => {
+            entityIdRef.current = next
+            if (next !== entityId) {
+                switchEntity({currentEntityId: entityId, newEntityId: next})
+            }
+        },
+        [entityId, switchEntity],
+    )
     const settleSharedTurn = useCallback(
         (executionId?: string) => {
             const acceptedExecutionId = acceptedExecutionIdRef.current

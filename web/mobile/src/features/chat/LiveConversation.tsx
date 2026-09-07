@@ -507,7 +507,8 @@ export const LiveConversation = ({
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
-    const secretDockOpen = !streamingHere && !conversation.stopped && Boolean(pendingSecret)
+    const secretDockOpen =
+        !streamingHere && !stopping && !conversation.stopped && Boolean(pendingSecret)
     // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
     // surface has no question-form dock yet, so approvals, connect, and secret cards gate it.
     const gateOpen =

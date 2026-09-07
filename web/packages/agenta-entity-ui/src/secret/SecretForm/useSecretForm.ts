@@ -255,12 +255,14 @@ export function useSecretForm({
             // Slug is immutable: only sent on create. Resolved up front so the value handed
             // back to `onSaved` is the one that was actually sent.
             const createSlug = slug.trim() || slugifyBase(trimmedName)
+            const savedDefaultEnvVar =
+                format === CustomSecretFormat.Text ? defaultEnvVar.trim() || undefined : undefined
             await handleModifyNamedSecret({
                 name: trimmedName,
                 slug: isEditing ? undefined : createSlug,
                 format,
                 content,
-                defaultEnvVar: defaultEnvVar.trim(),
+                defaultEnvVar: savedDefaultEnvVar,
                 id: initialSecret?.id,
             })
             // The vault owns the raw value now. Clear it before any attachment callback can run.
@@ -273,7 +275,7 @@ export function useSecretForm({
                 name: trimmedName,
                 slug: isEditing ? (initialSecret?.slug ?? "") : createSlug,
                 format,
-                defaultEnvVar: defaultEnvVar.trim() || undefined,
+                defaultEnvVar: savedDefaultEnvVar,
             })
         } catch (error) {
             console.error("Secret save failed", {

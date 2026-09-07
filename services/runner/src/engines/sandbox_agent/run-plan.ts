@@ -430,6 +430,15 @@ export function buildRunPlan(
       error: `Unrecognized harness ${JSON.stringify(request.harness)}: not a string.`,
     };
   }
+  if (
+    request.platformInstructions !== undefined &&
+    typeof request.platformInstructions !== "string"
+  ) {
+    return {
+      ok: false,
+      error: "platformInstructions must be a string when provided.",
+    };
+  }
   const harness = request.harness || "pi_core";
   const sandboxId = request.sandbox || defaultProvider || "local";
 

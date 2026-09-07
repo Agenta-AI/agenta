@@ -75,6 +75,10 @@ class AgentaWorkflowToolResolver:
                 for tool_config in tools
                 if not _is_client_platform_workflow(tool_config)
             ]
+            + [
+                (REQUEST_CONNECTION_WORKFLOW_SLUG, REQUEST_CONNECTION_TOOL_NAME),
+                (REQUEST_SECRET_WORKFLOW_SLUG, REQUEST_SECRET_TOOL_NAME),
+            ]
         )
 
         seen: set[str] = set()
