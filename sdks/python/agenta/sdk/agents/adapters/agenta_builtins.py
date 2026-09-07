@@ -875,9 +875,9 @@ _BUILD_TEMPLATES = """\
 
 ## Templates
 
-There are playbooks for common agents, one file each under `references/agent-templates/`:
-{names}. If the ask clearly matches one of these, read that file and follow it. Otherwise
-skip them.
+There are playbooks for common agents, one file each under `references/agent-templates/`,
+named here with their file names: {names}. If the ask clearly matches one of these, read that
+file and follow it. Otherwise skip them.
 """
 
 _BUILD_LOOP_ORDERED = """\
@@ -1050,7 +1050,9 @@ _BUILD_AN_AGENT_BODY = (
     _BUILD_HEAD
     + (_BUILD_SHAPE_ORDERED if _ORDERED else _BUILD_SHAPE_LEGACY)
     + _BUILD_TEMPLATES.format(
-        names=", ".join(entry.name for entry in AGENT_TEMPLATE_ENTRIES)
+        names=", ".join(
+            f"{entry.name} (`{entry.key}.md`)" for entry in AGENT_TEMPLATE_ENTRIES
+        )
     )
     + (_BUILD_LOOP_ORDERED if _ORDERED else _BUILD_LOOP_LEGACY)
     + _BUILD_INSTRUCTIONS_WRITING
