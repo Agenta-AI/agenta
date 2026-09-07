@@ -74,7 +74,7 @@ class _StubWorkflowsService:
         return [w for w in self.store.values() if w.id in ids]
 
     async def commit_workflow_revision_checked(
-        self, *, project_id, user_id, workflow_revision_commit
+        self, *, project_id, user_id, workflow_revision_commit, platform_meta=False
     ):
         if self.conflict_next_commit:
             self.conflict_next_commit = False
@@ -91,7 +91,9 @@ class _StubWorkflowsService:
             warnings=[],
         )
 
-    async def edit_workflow(self, *, project_id, user_id, workflow_edit):
+    async def edit_workflow(
+        self, *, project_id, user_id, workflow_edit, platform_meta=False
+    ):
         self.edits.append(workflow_edit)
         workflow = self.store[workflow_edit.id]
         if "meta" in workflow_edit.model_fields_set:
@@ -108,7 +110,9 @@ class _StubSimpleWorkflowsService:
         self.created = []
         self._reject = reject_first_create
 
-    async def create(self, *, project_id, user_id, simple_workflow_create):
+    async def create(
+        self, *, project_id, user_id, simple_workflow_create, platform_meta=False
+    ):
         if self._reject > 0:
             self._reject -= 1
             from oss.src.core.shared.exceptions import EntityCreationConflict

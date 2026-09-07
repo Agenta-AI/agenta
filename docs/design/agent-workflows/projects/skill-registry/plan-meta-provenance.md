@@ -13,11 +13,15 @@ review (tables vs meta, feature-by-feature, reversibility asymmetry).
    each imported/applied revision. Reversibility drove this: meta→tables later
    is an additive backfill from immutable provenance; tables→meta later is a
    destructive down-migration.
-2. **Scoped protection only.** `meta._ag` is merged-not-replaced inside the
-   SKILLS-owned write paths only (import, update-apply, `/skills` commit).
-   No platform-wide protected-namespace project as a precondition; a direct
-   generic `/workflows` write can theoretically clobber artifact meta —
-   accepted, documented, and the detachment rule fails safe against it.
+2. **Backend-owned `_ag` namespace, enforced at the git DAO** (revised
+   2026-09-07, per Mahmoud's requirement): every meta write in the git layer
+   passes `guard_platform_meta` (`core/git/platform_meta.py`) — EDITS preserve
+   the stored `_ag` (it can be neither replaced nor removed by clients),
+   CREATES/COMMITS strip an incoming `_ag` (no forged provenance, and a
+   local-edit commit never inherits it — derived detachment depends on that
+   absence). Trusted platform writes (skills import/apply) pass
+   `platform_meta=True` through the service layer. Because legacy routes
+   construct the same DAO, the rule holds platform-wide for workflow writes.
 3. **Canonical origin shape: nested.** Identity fields are written at import
    and change only when the user re-points; the checkpoint rewrites on every
    successful import/apply:
@@ -114,9 +118,6 @@ review (tables vs meta, feature-by-feature, reversibility asymmetry).
 
 - Duplicate-on-race at import (read-then-write, no DB constraint): low
   frequency, cleanup = archive one copy.
-- Generic `/workflows` writes can clobber artifact `origin` (until a
-  platform-level protected-namespace exists). Detachment still fails safe;
-  a re-import restores origin.
 - Shared per-repo facts are N copies that can disagree after a partial
   refresh; the UI derives group state and shows per-skill truth.
 

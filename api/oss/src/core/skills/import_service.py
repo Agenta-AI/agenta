@@ -487,6 +487,7 @@ class SkillImportService:
             outcome = await self.workflows_service.commit_workflow_revision_checked(
                 project_id=project_id,
                 user_id=user_id,
+                platform_meta=True,
                 workflow_revision_commit=WorkflowRevisionCommit(
                     slug=uuid4().hex[-12:],
                     name=skill.name,
@@ -525,6 +526,7 @@ class SkillImportService:
         await self.workflows_service.edit_workflow(
             project_id=project_id,
             user_id=user_id,
+            platform_meta=True,
             workflow_edit=WorkflowEdit(
                 id=workflow_id,
                 name=skill.name,
