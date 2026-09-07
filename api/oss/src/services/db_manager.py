@@ -2248,7 +2248,15 @@ async def admin_create_organization(
         org_db = OrganizationDB(
             name=name,
             slug=slug,
-            flags={"is_demo": False},
+            flags={
+                "is_demo": False,
+                "allow_email": env.auth.email_enabled,
+                "allow_social": env.auth.oidc_enabled,
+                "allow_sso": False,
+                "allow_root": False,
+                "domains_only": False,
+                "auto_join": False,
+            },
             owner_id=owner_id,
             created_by_id=owner_id,
         )
