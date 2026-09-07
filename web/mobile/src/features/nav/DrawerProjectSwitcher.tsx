@@ -23,9 +23,12 @@ import {CreateProjectSheet} from "./CreateProjectSheet"
 export const DrawerProjectSwitcher = ({
     workspaceId,
     projectId,
+    collapsed = false,
 }: {
     workspaceId: string
     projectId: string
+    /** The rail's state. False in the drawer, which never collapses. */
+    collapsed?: boolean
 }) => {
     const router = useRouter()
     const logout = useLogout()
@@ -121,7 +124,7 @@ export const DrawerProjectSwitcher = ({
         <div ref={setPanelContainer}>
             <ProjectOrgSwitcherView
                 panelContainer={panelContainer}
-                collapsed={false}
+                collapsed={collapsed}
                 projectLabel={currentProject?.project_name ?? "Select project"}
                 orgLabel={currentGroup?.organizationName ?? "Organization"}
                 projects={projects}

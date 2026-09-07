@@ -68,8 +68,14 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
         <SidebarLogo collapsed={collapsed} toggle={<SidebarToggleButton onDismiss={onDismiss} />} />
     )
 
-    const AfterBottom = () => (
-        <DrawerProjectSwitcher workspaceId={workspaceId} projectId={projectId} />
+    // The slot is handed the rail's state; without forwarding it the switcher kept its expanded
+    // padding inside a 48px rail, which put the avatar 8px right of the icon column's axis.
+    const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
+        <DrawerProjectSwitcher
+            workspaceId={workspaceId}
+            projectId={projectId}
+            collapsed={collapsed}
+        />
     )
 
     // Same slot the desktop rail fills, and hidden while collapsed for the same reason: the
