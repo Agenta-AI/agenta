@@ -9,7 +9,8 @@ import {FOCUS_RING} from "@/lib/interactive"
  * The automation's identity: its name, renamed in place, and the description under it.
  *
  * Click-to-rename rather than a menu item — the name IS the control, so there is nothing to open.
- * Enter and blur both commit (the hook guards the double call), Escape leaves it alone.
+ * Enter and blur both commit (the hook guards the double call), Escape leaves it alone. The input
+ * carries the heading's own type and box so the swap into edit does not move the title.
  */
 export const AutomationTitle = ({
     name,
@@ -36,7 +37,7 @@ export const AutomationTitle = ({
     })
 
     return (
-        <div className="flex min-w-0 flex-col gap-1">
+        <div className="flex min-w-0 flex-col">
             {rename.renaming ? (
                 <Input
                     autoFocus
@@ -48,27 +49,29 @@ export const AutomationTitle = ({
                         if (event.key === "Enter") void rename.commit()
                         if (event.key === "Escape") rename.cancel()
                     }}
-                    className="h-auto py-0.5 text-xl font-semibold tracking-tight md:text-xl"
+                    className="-ml-2 h-auto rounded-lg px-2 py-1 text-[24px] font-semibold leading-[1.25] tracking-[-0.02em] md:text-[24px]"
                 />
             ) : (
                 <button
                     type="button"
                     onClick={rename.start}
                     title="Rename"
-                    className={`text-foreground -mx-1 flex min-w-0 items-center gap-2 rounded-md border-0 bg-transparent px-1 py-0.5 text-left ${FOCUS_RING} hover:bg-accent`}
+                    className={`-ml-2 flex min-w-0 items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground hover:bg-accent ${FOCUS_RING}`}
                 >
-                    <h1 className="m-0 min-w-0 truncate text-xl font-semibold tracking-tight">
+                    <h1 className="m-0 min-w-0 truncate text-[24px] font-semibold leading-[1.25] tracking-[-0.02em]">
                         {name}
                     </h1>
                     <PencilSimple
                         aria-hidden
                         size={14}
-                        className="text-muted-foreground shrink-0"
+                        className="ml-2 shrink-0 text-muted-foreground"
                     />
                 </button>
             )}
             {description ? (
-                <p className="text-muted-foreground m-0 text-sm leading-snug">{description}</p>
+                <p className="m-0 mt-1.5 text-[14px] leading-snug text-muted-foreground">
+                    {description}
+                </p>
             ) : null}
         </div>
     )

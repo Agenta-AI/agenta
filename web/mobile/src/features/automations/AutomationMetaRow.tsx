@@ -21,7 +21,7 @@ export const AutomationMetaRow = ({
     const edited = updatedAt ? timeAgo(Date.parse(updatedAt)) : ""
 
     return (
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="mb-1 mt-4 flex min-w-0 flex-wrap items-center gap-3.5">
             <ActiveToggle
                 active={active}
                 onToggle={onToggle}
@@ -29,9 +29,9 @@ export const AutomationMetaRow = ({
                 pausedMessage="Automation switched off"
                 errorMessage="Couldn't change this automation"
             />
-            <span className="text-foreground text-xs font-medium">{active ? "On" : "Off"}</span>
-            <span aria-hidden className="bg-border h-4 w-px shrink-0" />
-            <span className="text-muted-foreground min-w-0 truncate text-xs">
+            <span className="text-[14px] font-medium text-foreground">{active ? "On" : "Off"}</span>
+            <span aria-hidden className="h-4 w-px shrink-0 bg-border" />
+            <span className="min-w-0 truncate text-[13px] text-muted-foreground">
                 {agentName ? `Runs ${agentName}` : "No agent yet"}
                 {edited ? ` · edited ${edited}` : ""}
             </span>

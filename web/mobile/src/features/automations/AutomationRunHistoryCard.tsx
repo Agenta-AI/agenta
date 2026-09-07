@@ -18,17 +18,17 @@ export const AutomationRunHistoryCard = ({
 }) => (
     <Link
         href={href}
-        className={`border-border flex w-full items-center gap-3 rounded-lg border p-3 no-underline ${ROW_LINK}`}
+        className={`mt-[30px] flex w-full items-center gap-3.5 rounded-[11px] border border-solid border-border px-[18px] py-4 no-underline ${ROW_LINK}`}
     >
-        <span className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-md">
-            <ClockCounterClockwise aria-hidden size={18} className="text-muted-foreground" />
+        <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[9px] bg-muted">
+            <ClockCounterClockwise aria-hidden size={17} className="text-muted-foreground" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-foreground text-sm font-medium">Run history</span>
+            <span className="text-[14px] font-medium text-foreground">Run history</span>
             {caption ? (
-                <span className="text-muted-foreground truncate text-xs">{caption}</span>
+                <span className="truncate text-[13px] text-muted-foreground">{caption}</span>
             ) : null}
         </span>
-        <CaretRight aria-hidden size={16} className="text-muted-foreground shrink-0" />
+        <CaretRight aria-hidden size={14} className="shrink-0 text-muted-foreground" />
     </Link>
 )

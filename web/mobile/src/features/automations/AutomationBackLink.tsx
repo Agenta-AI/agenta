@@ -12,9 +12,9 @@ import {ICON_LINK} from "@/lib/interactive"
 export const AutomationBackLink = ({href}: {href: string}) => (
     <Link
         href={href}
-        className={`text-muted-foreground -ml-1 inline-flex items-center gap-1.5 px-1 py-1 text-sm no-underline ${ICON_LINK}`}
+        className={`text-muted-foreground -ml-1.5 inline-flex items-center gap-[5px] rounded-md py-[3px] pr-2 pl-1.5 text-xs no-underline ${ICON_LINK}`}
     >
-        <ArrowLeft aria-hidden size={16} />
+        <ArrowLeft aria-hidden size={13} />
         Automations
     </Link>
 )
