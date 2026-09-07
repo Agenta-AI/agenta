@@ -11,9 +11,9 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {SchemaForm, type SchemaFormHandle} from "@agenta/entity-ui/gatewayTool"
 import {useSchemaFormInstance} from "@agenta/entity-ui/gatewayTrigger"
-import {Warning} from "@phosphor-icons/react"
+import {ArrowLeft, Warning} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
-import {ChevronLeft, Plug, Search} from "lucide-react"
+import {Plug, Search} from "lucide-react"
 
 import {Button} from "@/components/ui/button"
 import {Input} from "@/components/ui/input"
@@ -46,7 +46,8 @@ export interface EventSelection {
  *
  * The filters step is not reimplemented either: it is the event's own `trigger_config` through
  * the shared `SchemaForm`, which paints the required fields inline and hides the optional ones
- * behind its own disclosure.
+ * behind its own disclosure. It takes over the right pane only — the search field, the app rail
+ * and "Connect another app…" stay where they were, so picking a different app is still one click.
  *
  * Unlike the agent field, this one commits on **Done**, not on pick: an event whose required
  * filters are empty (GitHub's owner/repo) is a subscription that can never run, so saving the
@@ -142,6 +143,10 @@ export const EventPickerPanel = ({
         setValues(initial)
     }, [open, eventKey, automation.eventKey, storedConfig, configForm])
 
+    // A query is a request to browse, whatever was picked before: the results own the right pane
+    // until the field is cleared, and the picked event is still there underneath.
+    const showFilters = !browsing && !query
+
     const missing = useMemo(() => requiredGaps(schema, values), [schema, values])
     const ready = Boolean(connectionId && eventKey) && missing.length === 0
 
@@ -152,8 +157,11 @@ export const EventPickerPanel = ({
         setSearch("")
     }, [])
 
+    // The rail never leaves, so it is also the way out of an event's filters: picking an app is
+    // asking for its events.
     const onSelectApp = useCallback((app: ConnectedApp) => {
         setRailKey(app.integrationKey)
+        setBrowsing(true)
     }, [])
 
     // The drawer lives on the screen, so the picker gets out of its way first — on a phone this
@@ -206,113 +214,114 @@ export const EventPickerPanel = ({
 
     return (
         <div className="flex min-h-0 flex-col">
-            {browsing ? (
-                <div className="flex min-h-0 flex-col gap-2.5 p-2.5">
-                    <div className="relative">
-                        <Search
-                            aria-hidden
-                            className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                        />
-                        <Input
-                            value={search}
-                            onChange={(changed) => setSearch(changed.target.value)}
-                            aria-label="Search events"
-                            placeholder="Search events — try “issue”"
-                            className="h-8 pl-8 text-[13px]"
-                        />
-                    </div>
-
-                    <div className="flex min-h-0 gap-[10px]">
-                        {query ? null : (
-                            <EventAppRail
-                                apps={apps}
-                                selectedKey={activeApp?.integrationKey}
-                                isLoading={connectionsLoading}
-                                onSelect={onSelectApp}
-                            />
-                        )}
-                        {query ? (
-                            <EventSearchResults
-                                apps={apps}
-                                selectedEventKey={eventKey}
-                                onPick={onPick}
-                            />
-                        ) : activeApp ? (
-                            <EventList
-                                app={activeApp}
-                                selectedEventKey={eventKey}
-                                onPick={onPick}
-                            />
-                        ) : (
-                            <p className="m-0 min-w-0 flex-1 px-2 py-3 text-[12px] leading-snug text-muted-foreground">
-                                Connect an app to watch its events.
-                            </p>
-                        )}
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={onConnectAnother}
-                        className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-muted-foreground hover:bg-muted"
-                    >
-                        <Plug aria-hidden className="size-3.5 shrink-0" />
-                        <span className="min-w-0 truncate">Connect another app…</span>
-                    </button>
+            <div className="flex min-h-0 flex-col gap-2.5 p-2.5">
+                <div className="relative">
+                    <Search
+                        aria-hidden
+                        className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                    />
+                    <Input
+                        value={search}
+                        onChange={(changed) => setSearch(changed.target.value)}
+                        aria-label="Search events"
+                        placeholder="Search events — try “issue”"
+                        className="h-8 pl-8 text-[13px]"
+                    />
                 </div>
-            ) : (
-                <>
-                    <div className="flex shrink-0 flex-col gap-1 border-0 border-b border-solid border-border px-4 py-2.5">
-                        <button
-                            type="button"
-                            onClick={() => setBrowsing(true)}
-                            className="flex w-fit cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-left text-[12px] text-muted-foreground hover:text-foreground"
-                        >
-                            <ChevronLeft aria-hidden className="size-3.5 shrink-0" />
-                            <span className="min-w-0 truncate">All {boundAppLabel} events</span>
-                        </button>
-                        <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
-                            {eventLabel(event?.name, eventKey)}
-                        </span>
-                    </div>
-                    <div className="max-h-[420px] min-h-0 flex-1 overflow-y-auto px-4 py-3">
-                        {schema ? (
-                            <SchemaForm
-                                ref={formRef}
-                                form={configForm}
-                                schema={schema}
-                                onValuesChange={setValues}
-                            />
-                        ) : (
-                            <p className="m-0 py-2 text-xs text-muted-foreground">
-                                This event needs no filters — it runs every time it arrives.
-                            </p>
-                        )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3 border-0 border-t border-solid border-border px-4 py-3">
-                        {missing.length ? (
-                            <p className="m-0 flex min-w-0 flex-1 items-center gap-1.5 text-xs leading-snug text-muted-foreground">
-                                <Warning aria-hidden size={14} className="shrink-0" />
-                                <span className="min-w-0">
-                                    {missing.length === 1
-                                        ? "One filter is still empty"
-                                        : `${missing.length} filters are still empty`}
-                                    {" — without them this event never arrives."}
+
+                <div className="flex max-h-[420px] min-h-0 gap-[10px]">
+                    {/* A query searches every app at once, so the rail has nothing to filter. */}
+                    {query ? null : (
+                        <EventAppRail
+                            apps={apps}
+                            selectedKey={activeApp?.integrationKey}
+                            isLoading={connectionsLoading}
+                            onSelect={onSelectApp}
+                        />
+                    )}
+                    {/* Only the right pane changes once an event is chosen — the rail stays put. */}
+                    {showFilters ? (
+                        <div className="flex max-h-[420px] min-w-0 flex-1 flex-col gap-2 overflow-y-auto">
+                            <div className="flex flex-col gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setBrowsing(true)}
+                                    className="flex w-fit cursor-pointer items-center gap-[5px] border-0 bg-transparent p-0 text-left text-[12px] text-muted-foreground hover:text-foreground"
+                                >
+                                    <ArrowLeft aria-hidden size={13} className="shrink-0" />
+                                    <span className="min-w-0 truncate">
+                                        All {boundAppLabel} events
+                                    </span>
+                                </button>
+                                <span className="min-w-0 truncate text-[13px] font-medium text-foreground">
+                                    {eventLabel(event?.name, eventKey)}
                                 </span>
-                            </p>
-                        ) : (
-                            <span className="flex-1" />
-                        )}
-                        <Button
-                            type="button"
-                            className="font-normal"
-                            disabled={!ready || saving}
-                            onClick={() => void onDone()}
-                        >
-                            Done
-                        </Button>
-                    </div>
-                </>
-            )}
+                            </div>
+                            {schema ? (
+                                <SchemaForm
+                                    ref={formRef}
+                                    form={configForm}
+                                    schema={schema}
+                                    optionalLabel={(count) => `Add optional filters (${count})`}
+                                    onValuesChange={setValues}
+                                />
+                            ) : (
+                                <p className="m-0 py-2 text-xs text-muted-foreground">
+                                    This event needs no filters — it runs every time it arrives.
+                                </p>
+                            )}
+                        </div>
+                    ) : query ? (
+                        <EventSearchResults
+                            apps={apps}
+                            selectedEventKey={eventKey}
+                            onPick={onPick}
+                        />
+                    ) : activeApp ? (
+                        <EventList app={activeApp} selectedEventKey={eventKey} onPick={onPick} />
+                    ) : (
+                        <p className="m-0 min-w-0 flex-1 px-2 py-3 text-[12px] leading-snug text-muted-foreground">
+                            Connect an app to watch its events.
+                        </p>
+                    )}
+                </div>
+
+                <button
+                    type="button"
+                    onClick={onConnectAnother}
+                    className="flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-[13px] text-muted-foreground hover:bg-muted"
+                >
+                    <Plug aria-hidden className="size-3.5 shrink-0" />
+                    <span className="min-w-0 truncate">Connect another app…</span>
+                </button>
+            </div>
+
+            {/* Done commits the filters, so it belongs to the event, not to browsing. */}
+            {showFilters ? (
+                <div className="flex shrink-0 items-center gap-3 border-0 border-t border-solid border-border px-4 py-3">
+                    {missing.length ? (
+                        <p className="m-0 flex min-w-0 flex-1 items-center gap-1.5 text-xs leading-snug text-muted-foreground">
+                            <Warning aria-hidden size={14} className="shrink-0" />
+                            <span className="min-w-0">
+                                {missing.length === 1
+                                    ? "One filter is still empty"
+                                    : `${missing.length} filters are still empty`}
+                                {" — without them this event never arrives."}
+                            </span>
+                        </p>
+                    ) : (
+                        <span className="flex-1" />
+                    )}
+                    <Button
+                        type="button"
+                        className="font-normal"
+                        disabled={!ready || saving}
+                        onClick={() => void onDone()}
+                    >
+                        Done
+                    </Button>
+                </div>
+            ) : null}
         </div>
     )
 }
