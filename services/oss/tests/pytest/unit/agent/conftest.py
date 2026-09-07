@@ -121,6 +121,7 @@ class FakeBackend(Backend):
         secrets=None,
         trace=None,
         run_context=None,
+        turn_context=None,
         session_id=None,
         detached=False,
         turn_id=None,
