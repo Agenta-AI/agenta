@@ -3,7 +3,6 @@ import {message} from "@agenta/ui/app-message"
 import {PencilSimple} from "@phosphor-icons/react"
 
 import {Input} from "@/components/ui/input"
-import {FOCUS_RING} from "@/lib/interactive"
 
 /**
  * The automation's identity: its name, renamed in place, and the description under it.
@@ -49,14 +48,16 @@ export const AutomationTitle = ({
                         if (event.key === "Enter") void rename.commit()
                         if (event.key === "Escape") rename.cancel()
                     }}
-                    className="-ml-2 h-auto rounded-lg px-2 py-1 text-[18px] font-semibold leading-[1.25] tracking-[-0.02em] md:text-[18px]"
                 />
             ) : (
                 <button
                     type="button"
                     onClick={rename.start}
                     title="Rename"
-                    className={`-ml-2 flex min-w-0 items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground hover:bg-accent ${FOCUS_RING}`}
+                    // The shared FOCUS_RING is a hard 2px outline in the near-black ring colour,
+                    // which reads as a border on a heading. The soft shadcn ring the inputs use is
+                    // still keyboard-visible without looking like chrome.
+                    className="-ml-2 flex min-w-0 items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 >
                     <h1 className="m-0 min-w-0 truncate text-[18px] font-semibold leading-[1.25] tracking-[-0.02em]">
                         {name}
