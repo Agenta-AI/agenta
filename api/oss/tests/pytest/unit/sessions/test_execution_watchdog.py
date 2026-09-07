@@ -364,6 +364,9 @@ class _FakeRecordsService:
         self.queries.append(list(keys))
         return {key for key in keys if key in self.settled}
 
+    async def runner_completed_turns(self, *, project_id, keys):
+        return set()
+
 
 @pytest.mark.anyio
 async def test_terminal_record_checks_are_batched_once_per_project(anyio_backend):
@@ -1142,6 +1145,53 @@ async def test_lost_turn_clear_loses_to_a_concurrent_turn_advance(anyio_backend)
     assert redis._store[alive_key] == b"turn-new"
     assert redis._store[running_key] == b"turn-new"
     assert redis._store[owner_key] == b"runner-new"
+
+
+@pytest.mark.anyio
+async def test_completion_lookup_failure_defers_settlement_and_cleanup(
+    anyio_backend, monkeypatch
+):
+    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+
+    class _FailingCompletionLookup(_FakeRecordsService):
+        async def runner_completed_turns(self, *, project_id, keys):
+            raise RuntimeError("tracing db unreachable")
+
+    stream = _stale_running_row(
+        session_id="sess-completion-lookup", turn_id="turn-current"
+    )
+    commands = _CommandsService()
+    publisher = _Publisher()
+    redis = _FakeRedis()
+    project = str(stream.project_id)
+    alive_key = f"alive:{project}:session:{stream.session_id}"
+    running_key = f"running:{project}:session:{stream.session_id}"
+    owner_key = f"owner:{project}:session:{stream.session_id}"
+    superseded_key = (
+        f"superseded:{project}:session:{stream.session_id}:turn:{stream.turn_id}"
+    )
+    owner = make_owner_value(replica_id="runner-1", turn_id=stream.turn_id).encode()
+    redis._store[alive_key] = stream.turn_id.encode()
+    redis._store[running_key] = stream.turn_id.encode()
+    redis._store[owner_key] = owner
+
+    await run_orphan_sweep(
+        _FakeTransactionsEngine([stream]),
+        redis,
+        records_service=_FailingCompletionLookup(),
+        commands_service=commands,
+        publish=publisher,
+    )
+
+    assert commands.execution_lost_calls == []
+    assert publisher.published == []
+    assert stream.flags["is_alive"] is True
+    assert stream.flags["is_running"] is True
+    assert redis._store[alive_key] == stream.turn_id.encode()
+    assert redis._store[running_key] == stream.turn_id.encode()
+    assert redis._store[owner_key] == owner
+    assert superseded_key not in redis._store
 
 
 @pytest.mark.anyio

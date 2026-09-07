@@ -1627,10 +1627,16 @@ class SessionCommandsService:
         )
         if (
             execution is not None
-            and (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
             and (
-                execution.source_interaction_id is not None
-                or execution.parent_execution_id is not None
+                (
+                    execution.source_interaction_id is not None
+                    and env.agenta.sessions.durable_approvals
+                )
+                or (
+                    execution.source_interaction_id is None
+                    and execution.parent_execution_id is not None
+                    and env.agenta.sessions.queue
+                )
             )
             and execution.terminal_outcome is None
         ):
