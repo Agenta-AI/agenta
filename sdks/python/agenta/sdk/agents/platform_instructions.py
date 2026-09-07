@@ -13,6 +13,7 @@ not read a page about tools it does not have.
 
 from __future__ import annotations
 
+import re
 from typing import Optional, Sequence
 
 from .dtos import SessionContext
@@ -22,6 +23,10 @@ from .dtos import SessionContext
 # by a flag: `commit_revision` is in the playground build kit unconditionally, and a run that
 # lacks it (a trigger fire, an embedded run) has no use for the config sections.
 CONFIG_COMMIT_TOOL = "commit_revision"
+
+# The exact names the platform seeds. The UI appends a counter to "New agent" when the name is
+# taken, so a trailing number is part of the seeded shape.
+_PLACEHOLDER_AGENT_NAME = re.compile(r"new agent(?: \d+)?|untitled(?: agent)?")
 
 AGENTA_PLATFORM_BASE = """\
 ## Agenta platform
@@ -330,54 +335,63 @@ list can go stale — `search_tools` is the source of truth for what is connecte
 def is_placeholder_agent_name(name: Optional[str]) -> bool:
     """Say whether an agent display name is still the seeded placeholder.
 
-    A placeholder is what the platform names a new agent before anyone has named it: an empty
-    name, "Untitled", "Untitled agent", or anything that starts with "New agent" (the UI appends
-    a counter, as in "New agent 2"). The comparison is case-insensitive and ignores surrounding
-    whitespace. This is the only predicate behind the `rename_agent` rule, so a real name the
-    author chose is never mistaken for a placeholder."""
-    if name is None:
-        return True
+    A placeholder is one of the names the platform seeds itself, and nothing else: "New agent",
+    "New agent" plus a counter such as "New agent 2", "Untitled", and "Untitled agent". The
+    match is on the WHOLE name, case-insensitive, with surrounding and repeated whitespace
+    normalized. A prefix test was wrong: it read a chosen name such as "New Agent Research" as
+    a placeholder and told the author's agent to rename itself.
+
+    An absent or empty name is not a placeholder. It means the caller does not know the name,
+    and the renderer says nothing about a name it does not have."""
+    if not name:
+        return False
     normalized = " ".join(name.split()).casefold()
-    if not normalized:
-        return True
-    if normalized in {"untitled", "untitled agent"}:
-        return True
-    return normalized.startswith("new agent")
+    return bool(_PLACEHOLDER_AGENT_NAME.fullmatch(normalized))
 
 
 def session_context_guidance(
     context: Optional[SessionContext], tool_names: Sequence[str] = ()
 ) -> Optional[str]:
-    """Render current facts, adding naming actions only for tools this run offers."""
+    """Render current facts, adding naming actions only for tools this run offers.
+
+    Every field is optional and ``None`` means UNKNOWN. A fact the server could not read gets
+    no line at all, because a wrong fact is worse than a missing one: telling a named session
+    it has no name makes the agent rename it. ``first_turn`` is the tell for the session read,
+    since the name and the turn position come from the same read. When nothing is known the
+    whole block is dropped."""
     if context is None:
         return None
 
-    name = context.agent_name
-    if is_placeholder_agent_name(name):
-        shown = name.strip() if name and name.strip() else "New agent"
-        agent_line = f'Your name is "{shown}". That is a placeholder.'
+    lines = []
+
+    name = (context.agent_name or "").strip()
+    if name and is_placeholder_agent_name(name):
+        agent_line = f'Your name is "{name}". That is a placeholder.'
         if "rename_agent" in tool_names:
             agent_line += " Rename yourself with `rename_agent` in this turn."
-    else:
-        agent_line = f'Your name is "{name.strip()}". Keep it.'
+        lines.append(agent_line)
+    elif name:
+        lines.append(f'Your name is "{name}". Keep it.')
 
-    if context.session_name and context.session_name.strip():
-        session_line = (
-            f'This session is named "{context.session_name.strip()}". Do not rename it.'
-        )
-    else:
+    session_name = (context.session_name or "").strip()
+    if session_name:
+        lines.append(f'This session is named "{session_name}". Do not rename it.')
+    elif context.first_turn is not None:
         session_line = "This session has no name yet."
         if "rename_session" in tool_names:
             session_line += (
                 " Name it with `rename_session` once the first exchange makes clear "
                 "what it is about."
             )
+        lines.append(session_line)
 
-    lines = [agent_line, session_line]
     if context.first_turn is True:
         lines.append("This is the first turn of the session.")
     elif context.first_turn is False:
         lines.append("This is not the first turn of the session.")
+
+    if not lines:
+        return None
     return "## This session\n\nCurrent facts for this turn:\n" + "\n".join(lines)
 
 

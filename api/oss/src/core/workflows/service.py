@@ -2986,14 +2986,23 @@ class WorkflowsService:
         share this prelude, so a UI turn, a HITL resume, and a trigger fire are all covered
         without three separate stamps that can drift.
 
-        Server-owned. A caller-supplied ``session_context`` is overwritten, never merged: it
-        names the agent to itself and a client must not be able to tell the agent it is
-        already named.
+        Server-owned. A caller-supplied ``session_context`` is dropped first and replaced by
+        what the server reads, never merged: it names the agent to itself, and a client must
+        not be able to tell the agent it is already named. The drop happens before any read,
+        so a read that fails leaves the key absent rather than leaving the client's version
+        in place.
+
+        Every fact is optional and ``None`` means UNKNOWN, not "no". Only a run with no
+        session id asserts ``first_turn`` as a fact: that run opens a fresh session, so it is
+        the first turn and the session has no name yet. A run that carries a session id but
+        has no resolver installed knows nothing about that session, and says so.
 
         Gated to agent runs by the revision URI, so an evaluation batch over an LLM workflow
         pays nothing. Failures are swallowed: this shapes prompt text, and a session row that
         cannot be read must degrade to today's prompt rather than fail the run.
         """
+        if request.meta:
+            request.meta.pop("session_context", None)
         if revision_data is None:
             return
         _, _, key, _ = (
@@ -3002,19 +3011,24 @@ class WorkflowsService:
         if key != "agent":
             return
 
+        session_name: Optional[str] = None
+        first_turn: Optional[bool] = None
+        session_id = request.session_id
         try:
             agent_name = await self._resolve_agent_name(
                 project_id=project_id,
                 request=request,
             )
-            session_name: Optional[str] = None
-            first_turn = True
-            session_id = request.session_id
-            if session_id and self._session_context_resolver is not None:
+            if session_id is None:
+                # No session id: this run opens a fresh session. First turn, no name.
+                first_turn = True
+            elif self._session_context_resolver is not None:
                 session_name, first_turn = await self._session_context_resolver(
                     project_id=project_id,
                     session_id=session_id,
                 )
+            # A session id with no resolver installed: both facts stay unknown. Claiming
+            # "unnamed, first turn" here would tell an already named session to name itself.
         # Prompt text, never a run-breaking read: degrade to today's prompt.
         except Exception as e:  # noqa: BLE001
             log.warning(

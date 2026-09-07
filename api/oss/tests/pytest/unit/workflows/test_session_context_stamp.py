@@ -97,6 +97,27 @@ async def test_a_trigger_run_is_first_without_reading_a_session():
         "session_name": None,
         "first_turn": True,
     }
+    service._session_context_resolver.assert_not_awaited()
+
+
+async def test_a_session_run_with_no_resolver_claims_nothing_about_the_session():
+    # The composition that forgets `set_session_context_resolver` must not answer "unnamed,
+    # first turn" for an existing session: that tells a named session to name itself and asks
+    # for the opening plan on turn twenty. Unknown is `None`, and the renderer prints no line.
+    service = _service(agent_name="Changelog writer")
+    request = _request(session_id="sess-1", workflow_id=uuid4())
+
+    await service._stamp_session_context(
+        project_id=uuid4(),
+        request=request,
+        revision_data=WorkflowRevisionData(uri=AGENT_URI),
+    )
+
+    assert request.meta["session_context"] == {
+        "agent_name": "Changelog writer",
+        "session_name": None,
+        "first_turn": None,
+    }
 
 
 async def test_a_non_agent_workflow_is_never_stamped_and_never_read():
@@ -151,6 +172,48 @@ async def test_a_failing_session_read_costs_the_prompt_a_section_not_the_run():
     )
 
     assert request.meta is None
+
+
+async def test_a_failing_read_drops_the_caller_version_instead_of_serving_it():
+    # Server ownership must not depend on the read succeeding. The incoming key goes first, so
+    # a failure leaves the section absent rather than leaving forged facts on the wire.
+    service = _service(agent_name="Changelog writer")
+    service.set_session_context_resolver(AsyncMock(side_effect=RuntimeError("db down")))
+    request = _request(
+        session_id="sess-1",
+        workflow_id=uuid4(),
+        meta={
+            "run_id": "run-1",
+            "session_context": {"agent_name": "Root", "session_name": "forged"},
+        },
+    )
+
+    await service._stamp_session_context(
+        project_id=uuid4(),
+        request=request,
+        revision_data=WorkflowRevisionData(uri=AGENT_URI),
+    )
+
+    assert "session_context" not in request.meta
+    assert request.meta["run_id"] == "run-1"
+
+
+async def test_a_non_agent_run_also_drops_a_caller_supplied_section():
+    service = _service(agent_name="An evaluator", session=("named", False))
+    request = _request(
+        session_id="sess-1",
+        workflow_id=uuid4(),
+        meta={"run_id": "run-1", "session_context": {"agent_name": "Root"}},
+    )
+
+    await service._stamp_session_context(
+        project_id=uuid4(),
+        request=request,
+        revision_data=WorkflowRevisionData(uri=LLM_URI),
+    )
+
+    assert "session_context" not in request.meta
+    assert request.meta["run_id"] == "run-1"
 
 
 async def test_no_revision_data_is_a_no_op():

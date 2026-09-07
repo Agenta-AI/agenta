@@ -72,12 +72,11 @@ def test_the_base_never_names_a_config_tool_it_cannot_promise():
 @pytest.mark.parametrize(
     "name",
     [
-        None,
-        "",
-        "   ",
         "New agent",
         "new agent",
+        "  New   agent  ",
         "New agent 2",
+        "NEW AGENT 17",
         "Untitled",
         "Untitled agent",
     ],
@@ -88,12 +87,40 @@ def test_placeholder_names_are_recognized(name):
 
 @pytest.mark.parametrize(
     "name",
-    ["Changelog writer", "Newsletter agent", "Agent Smith", "Untitled sonata", "new"],
+    [
+        "Changelog writer",
+        "Newsletter agent",
+        "Agent Smith",
+        "Untitled sonata",
+        "new",
+        # The prefix test read every one of these as a placeholder and told an agent its
+        # author's chosen name was not real.
+        "New Agent Research",
+        "New agent for the support queue",
+        "Untitled agent runner",
+    ],
 )
 def test_a_real_name_is_never_read_as_a_placeholder(name):
-    # "Newsletter agent" and "Untitled sonata" are the near-misses that a substring test would
-    # get wrong: a placeholder is the whole name, not a fragment of one.
+    # A placeholder is the whole name, not a prefix of one and not a fragment of one.
     assert is_placeholder_agent_name(name) is False
+
+
+@pytest.mark.parametrize("name", [None, "", "   "])
+def test_an_absent_name_is_unknown_rather_than_a_placeholder(name):
+    # The server sends no name when it could not read one. Calling that a placeholder told the
+    # agent to rename itself over a name nobody had looked at.
+    assert is_placeholder_agent_name(name) is False
+
+
+@pytest.mark.parametrize("name", [None, "", "   "])
+def test_an_unknown_agent_name_renders_no_agent_line(name):
+    block = session_context_guidance(
+        SessionContext(agent_name=name, session_name="Q3 notes", first_turn=False),
+        ["rename_agent", "rename_session"],
+    )
+    assert "Your name is" not in block
+    assert "`rename_agent`" not in block
+    assert 'This session is named "Q3 notes". Do not rename it.' in block
 
 
 @pytest.mark.parametrize(
@@ -136,6 +163,25 @@ def test_an_unknown_turn_position_renders_no_turn_line():
         SessionContext(agent_name="Changelog writer", session_name=None)
     )
     assert "first turn" not in block
+
+
+def test_an_unread_session_renders_neither_a_session_line_nor_a_turn_line():
+    # This is what a composition with no resolver stamps: the agent name is known, the session
+    # was never read. Saying "no name yet" here would make the agent rename a named session.
+    block = session_context_guidance(
+        SessionContext(
+            agent_name="Changelog writer", session_name=None, first_turn=None
+        ),
+        ["rename_agent", "rename_session"],
+    )
+    assert "This session has no name yet." not in block
+    assert "`rename_session`" not in block
+    assert "first turn" not in block
+    assert 'Your name is "Changelog writer". Keep it.' in block
+
+
+def test_a_block_with_nothing_known_is_dropped():
+    assert session_context_guidance(SessionContext()) is None
 
 
 def test_no_context_renders_no_block():

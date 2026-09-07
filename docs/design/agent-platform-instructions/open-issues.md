@@ -5,6 +5,37 @@ provenance to act on cold. See the `defer-todo` skill for the format.
 
 ## Open issues
 
+### A live approval resume carries the parked turn's context, not a fresh one
+
+**Status:** open
+**Added:** 2026-09-07
+**Commit:** dfbb856105 (branch `feat/release-1153-session-context`)
+**Project:** [Agent platform instructions](./README.md)
+**Source:** Codex review of PR [#6638](https://github.com/Agenta-AI/agenta/pull/6638)
+
+**The problem.** Per-turn context reaches the harness as the `turnContext` string on a fresh
+prompt. A live approval resume sends no fresh prompt. In
+`services/runner/src/engines/sandbox_agent/run-turn.ts` (around line 1144) the resume answers
+the parked gate on the SAME harness session and continues the ORIGINAL, still-pending prompt
+promise, so the tool runs with its original byte-exact arguments. The API stamps a new
+`session_context` on the resume request and the SDK renders a new `turnContext`, and the
+harness never sees it. If the session was named or the agent was renamed while the turn was
+parked, the resumed turn keeps working from the older facts.
+
+**Why it is deferred.** The parked turn's snapshot is the authoritative one for that turn. The
+whole point of a live resume is that the tool call runs with the arguments the person approved,
+in the context the person read when they approved it. Delivering a competing prompt into a
+parked session is not safe: a second prompt on the same session races the pending one, and the
+harnesses do not all define that. The blast radius is also small. The stale facts are the
+session name and the placeholder flag, and they can only go stale inside one parked turn.
+
+**What to decide.** Either accept that a parked turn keeps its opening snapshot and say so in
+the design doc, or find a delivery channel that is not a prompt. The candidate is to fold the
+fresh context into the resume's own text where a harness accepts one, and to leave the pure
+`respondPermission` path alone. Settle it before anything time-sensitive, such as the current
+time or the user's name, joins the context block. Those go stale in every parked turn, not
+just a renamed one. See [#6636](https://github.com/Agenta-AI/agenta/issues/6636).
+
 ### Tell the agent its own name, the session name, and whether this is the first turn
 
 **Status:** resolved (2026-09-07, per-turn context delivery)
