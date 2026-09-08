@@ -118,6 +118,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             onOpenSession={sessionMenu.open}
             sessionMenuFor={sessionMenu.menuFor}
             onSessionMenuSelect={sessionMenu.onMenuSelect}
+            onSessionRename={sessionMenu.onRenameRow}
             alwaysShowPin
             agentsPanel={
                 <AgentsPanel

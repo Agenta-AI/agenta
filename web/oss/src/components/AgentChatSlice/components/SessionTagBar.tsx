@@ -24,6 +24,7 @@ import {
     reorderSessionsAtomFamily,
     sessionFirstUserTextAtomFamily,
 } from "../state/sessions"
+import {renameSessionRequestAtom} from "../state/uiRequests"
 
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
 
@@ -308,6 +309,10 @@ const SessionTagBar = ({
     const tabIds = useMemo(() => sessions.map((session) => session.id), [sessions])
     const {isPinned} = useSessionPins()
     const {menuItems, onMenuClick} = useSessionActions()
+    // Rename edits the chip in place, and the chip owns that state — so the menu asks for it the
+    // way Alt+R does, through the one-shot request atom `useInlineRenameRequest` consumes. One
+    // path for both, so the menu entry cannot drift from the shortcut.
+    const requestRename = useSetAtom(renameSessionRequestAtom)
     const menuFor = useCallback(
         (session: AgentChatSession) => {
             const target = {
@@ -326,7 +331,9 @@ const SessionTagBar = ({
                 .slice(index + 1)
                 .filter((s) => !isPinned(s.id))
                 .map((s) => s.id)
-            const shared = onMenuClick(target)
+            const shared = onMenuClick(target, {
+                onRename: () => requestRename({scope, sessionId: session.id, nonce: Date.now()}),
+            })
             return {
                 items: [
                     ...menuItems(target).map((entry) => {
@@ -363,10 +370,13 @@ const SessionTagBar = ({
                     if (key === "close-others") return onCloseMany?.(others)
                     if (key === "close-right") return onCloseMany?.(toRight)
                     shared({key})
+                    // Rename opens the chip's own input. Say so, or the menu's closing focus
+                    // restore blurs it and the blur commits — the editor would flash and vanish.
+                    return key === "rename"
                 },
             }
         },
-        [isPinned, menuItems, onClose, onCloseMany, onMenuClick, scope, sessions],
+        [isPinned, menuItems, onClose, onCloseMany, onMenuClick, requestRename, scope, sessions],
     )
     // Session ids present when the bar first mounted. Seeded once; NOT topped up, so an id that
     // appears later reads as "added after mount" and scrolls smoothly (see SessionTag).
