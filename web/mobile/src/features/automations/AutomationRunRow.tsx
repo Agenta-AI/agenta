@@ -34,7 +34,7 @@ export const AutomationRunRow = ({
             aria-current={selected ? "true" : undefined}
             aria-label={`${label} — ${runOutcomeLabel(delivery)}${time ? `, ${time}` : ""}`}
             className={cn(
-                "flex w-full items-center gap-[9px] rounded-lg border-0 bg-transparent px-2.5 py-[9px] text-left",
+                "flex w-full items-center gap-[9px] rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left",
                 "cursor-pointer transition-colors",
                 selected ? "bg-accent" : "hover:bg-accent/60 active:bg-accent/60",
                 FOCUS_RING,

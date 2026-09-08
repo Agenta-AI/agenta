@@ -88,8 +88,12 @@ export const AutomationRunsScreen = ({
                 <ScreenScaffold
                     fill
                     header={
-                        <div className="w-full shrink-0 px-5 pb-2 pt-5">
-                            <div className="flex min-w-0 items-center gap-2">
+                        <div className="w-full shrink-0 pb-2 pl-[30px] pr-5 pt-5">
+                            {/* pl-[30px] above and this cap keep the header on the column's grid:
+                                the column adds pl-5 and the rows px-2.5, so 30px puts the arrow on
+                                the dots' line, and 240 is the column's MINIMUM width — anything
+                                wider crosses the divider at some window sizes. */}
+                            <div className="flex min-w-0 max-w-[240px] items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <AutomationBackLink
                                     href={`${base}/automations/${automationId}`}
@@ -110,14 +114,14 @@ export const AutomationRunsScreen = ({
                                 )}
                             >
                                 <div className="flex shrink-0 items-center gap-2">
-                                    <h1 className="m-0 min-w-0 flex-1 text-[16px] font-semibold text-foreground">
+                                    <h1 className="m-0 min-w-0 flex-1 pl-2.5 text-[16px] font-semibold text-foreground">
                                         Run history
                                     </h1>
                                 </div>
                                 {/* Empty until the deliveries land — the hook withholds the
                                     caption rather than claiming "0 runs" off a query that has not
                                     run. The line keeps its height so the list does not jump. */}
-                                <p className="m-0 mb-2.5 mt-1 min-h-[18px] text-[13px] text-muted-foreground">
+                                <p className="m-0 mb-2.5 mt-1 min-h-[18px] pl-2.5 text-[13px] text-muted-foreground">
                                     {caption}
                                 </p>
                                 <AutomationRunList
