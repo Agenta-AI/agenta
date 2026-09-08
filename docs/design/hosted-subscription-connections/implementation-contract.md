@@ -289,3 +289,18 @@ Applied from the Codex code-organization review, with the simplify rules.
 - **SDK and web.** The hosted Codex mapping is removed until that credential format is supported;
   ChatGPT plus Pi is enforced at resolution. The card resolves from the connection state when a
   poll response is lost, and the 15-minute backstop shows a terminal state with a retry.
+
+### Corrections from the final reviews (2026-09-08)
+
+- The two runner-facing routes (`subscription-login` and `subscription-login/failure`) require the
+  runtime grant `secret-resolve`, the same grant the SDK uses to read the login. Run permissions
+  alone are not enough, because a stale answer carries the login.
+- Automatic recovery after an adopted or refreshed login does not replay inside the same daemon:
+  the running Pi keeps its cached token. The turn ends with a retryable code that forces a cold
+  start, and the user sends the message again. The generation bump path already worked this way.
+- The prompts a run delivers (`SYSTEM.md`, `APPEND_SYSTEM.md`) are per session, never inside the
+  shared per-connection directory. Only the login file and its lock are shared.
+- The runner keeps the per-connection login under `AGENTA_RUNNER_STATE_DIR`, a named volume in
+  every compose file (`runner-state`), because the local copy is the only holder of a rotated
+  refresh token until the next 5 s publish.
+- ChatGPT plus Pi is enforced at runner admission as well as at SDK resolution.
