@@ -53,10 +53,9 @@ export interface NavMenuProps {
 const ROW_HEIGHT = "h-[26px] text-[13px] leading-none"
 const ROW_BASE = `relative box-border mb-1 flex ${ROW_HEIGHT} w-[calc(100%-16px)] mx-auto items-center gap-[10px] rounded-md px-3 select-none`
 const ROW_INTERACTIVE = "cursor-pointer text-colorText hover:bg-colorFillQuaternary"
-// The rail's own selection tokens, not neutral fills: the pill is accent-washed and the
-// LABEL AND ICON both take the accent (the icon inherits, so no separate rule). The ring
-// is inset rather than a border so the row's box never changes size between states; it is
-// transparent in dark, where the olive wash carries the state on its own.
+// The rail's own selection tokens, not neutral fills: a raised pill with a hairline in both
+// themes. The ring is inset rather than a border so the row's box never changes size
+// between states.
 const ROW_SELECTED =
     "bg-[var(--ag-shell-selected-bg)] font-medium !text-[var(--ag-shell-selected-text)] shadow-[inset_0_0_0_1px_var(--ag-shell-selected-border)]"
 const ROW_DISABLED = "cursor-default text-colorTextQuaternary"
