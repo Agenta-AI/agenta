@@ -471,37 +471,32 @@ posthog:
 #       memory: 512Mi
 #     limits:
 #       memory: 1Gi
-# workerEvaluations:
+# The chart has two worker deployments. `streams` and `queues` are selector
+# lists; an empty list means every loop of that kind.
+# workerStreams:
 #   enabled: true
 #   replicas: 1
-# workerTracing:
+#   # streams: "tracing"
+# workerQueues:
 #   enabled: true
 #   replicas: 1
-# workerWebhooks:
-#   enabled: true
-#   replicas: 1
-# workerEvents:
-#   enabled: true
-#   replicas: 1
-# workerRecords:
-#   enabled: true
-#   replicas: 1
-# workerTriggers:
-#   enabled: true
-#   replicas: 1
-# workerInteractions:
-#   enabled: true
-#   replicas: 1
+#   # queues: "evaluations"
 # cron:
 #   enabled: true
 #   replicas: 1
 
 # ================================================================== #
 # === ingress ===
-# Path routing: / → web, /m → web-mobile, /api → api (prefix-stripped),
-# /services → services (prefix-stripped). The /m route is fixed because the mobile
-# image is built with basePath /m.  When running behind Traefik, attach the StripPrefix
+# Path routing: / → web, /m → web-mobile, /api → api, /services → services.
+#
+# Do NOT strip /api.  The API is mounted at /api (SCRIPT_NAME plus the FastAPI
+# root_path), so it needs the prefix and its redirects keep it.  This matches
+# docker-compose.
+#
+# DO strip /services.  When running behind Traefik, attach the StripPrefix
 # Middleware defined under extraObjects below.
+#
+# The /m route is fixed because the mobile image is built with basePath /m.
 # ================================================================== #
 # ingress:
 #   enabled: true
@@ -523,8 +518,17 @@ posthog:
 # ================================================================== #
 # === store — object store (AGENTA_STORE_*) ===
 # Docs: https://docs.agenta.ai/self-host/configuration#store-durable-object-store
+#
+# store.enabled is FALSE by default, so the whole block below does nothing until
+# you set it.  The store holds session artifacts and file mounts.
+#
+# With store.enabled: true the chart also deploys a bundled SeaweedFS
+# StatefulSet, because store.seaweedfs.enabled defaults to true.  If you point
+# the store at your own S3 or GCS bucket, set store.seaweedfs.enabled: false as
+# well, or you pay for a StatefulSet nothing reads.
 # ================================================================== #
 # store:
+#   enabled: false
 #   endpointUrl:
 #   stsEndpointUrl:
 #   accessKey:
@@ -536,7 +540,7 @@ posthog:
 #   jwtIssuer:
 #   jwtPrivateKey:
 #   seaweedfs:
-#     enabled: false
+#     enabled: false   # defaults to TRUE when store.enabled is true; set false for an external store
 #     port: 8333
 #     image:
 #       repository: chrislusf/seaweedfs
@@ -545,8 +549,8 @@ posthog:
 # ================================================================== #
 # === extraObjects — arbitrary Kubernetes resources ===
 # Includes the Traefik v3 StripPrefix Middleware referenced from the
-# ingress.annotations above.  Required so /api and /services backends
-# receive requests without the prefix.
+# ingress.annotations above.  Required so the services backend receives
+# requests without its prefix.  The API keeps /api, so it is not listed.
 # ================================================================== #
 # extraObjects:
 #   - apiVersion: traefik.io/v1alpha1
@@ -556,6 +560,6 @@ posthog:
 #       namespace: "{{ .Release.Namespace }}"
 #     spec:
 #       stripPrefix:
+#         # /api is deliberately absent: the API expects its own prefix.
 #         prefixes:
-#           - /api
 #           - /services
