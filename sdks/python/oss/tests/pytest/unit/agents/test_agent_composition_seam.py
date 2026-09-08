@@ -8,6 +8,8 @@ now carries the safe behavior, and that a composition can still override it.
 
 from __future__ import annotations
 
+import asyncio
+import time
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 import pytest
@@ -1005,4 +1007,130 @@ async def test_a_client_supplied_session_context_cannot_survive_a_failed_resolve
         parameters=_params(),
     )
 
+    assert backend.created_turn_contexts == [None]
+
+
+async def test_competing_artifact_families_report_no_agent_name():
+    """Two families naming different artifacts is an ambiguous identity, so report neither.
+
+    An inline-config run bypasses reference hydration, so the family validator that would
+    reject this never runs. Preferring one silently would put a name in the prompt that the
+    run may not belong to.
+    """
+    backend = _FakeBackend()
+    seen: Dict[str, Any] = {}
+
+    async def resolve(*, session_id, workflow_id):
+        seen["workflow_id"] = workflow_id
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            references={
+                "application": {"id": "0199e0d0-0000-7000-8000-0000000000aa"},
+                "workflow": {"id": "0199e0d0-0000-7000-8000-0000000000bb"},
+            },
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert seen["workflow_id"] is None
+
+
+async def test_two_families_naming_the_same_artifact_still_resolve():
+    """The families overlap by design. Agreement is not ambiguity."""
+    backend = _FakeBackend()
+    seen: Dict[str, Any] = {}
+
+    async def resolve(*, session_id, workflow_id):
+        seen["workflow_id"] = workflow_id
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    same = "0199e0d0-0000-7000-8000-0000000000aa"
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            references={"application": {"id": same}, "workflow": {"id": same}},
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert seen["workflow_id"] == same
+
+
+async def test_a_slow_injected_resolver_cannot_delay_the_turn(monkeypatch):
+    """An injected resolver has no budget of its own, so the handler gives it one."""
+    monkeypatch.setenv("AGENTA_AGENT_SESSION_CONTEXT_TIMEOUT", "0.1")
+    backend = _FakeBackend()
+    cancelled: List[str] = []
+
+    async def resolve(*, session_id, workflow_id):
+        try:
+            await asyncio.sleep(30.0)
+        except asyncio.CancelledError:
+            cancelled.append("resolver")
+            raise
+        return SessionContext(session_name="never")
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    started = time.monotonic()
+    await handler(
+        request=WorkflowServiceRequest(session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 5.0
+    assert cancelled
+    assert backend.created_turn_contexts == [None]
+
+
+async def test_an_injected_resolver_that_raises_costs_only_the_prompt_section():
+    backend = _FakeBackend()
+
+    async def resolve(*, session_id, workflow_id):
+        raise RuntimeError("resolver is broken")
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    result = await handler(
+        request=WorkflowServiceRequest(session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert result is not None
     assert backend.created_turn_contexts == [None]

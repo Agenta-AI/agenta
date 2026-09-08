@@ -8,7 +8,9 @@ read which fails costs the prompt a fact and never the turn.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 from typing import Any, Dict, List, Optional
 
 import pytest
@@ -294,3 +296,281 @@ async def test_an_unset_connection_is_built_from_the_ambient_config():
     """The service passes no connection; the SDK's own resolution must still apply."""
     assert isinstance(PlatformConnection(), PlatformConnection)
     assert await resolve_session_context(session_id="s", workflow_id=None) is None
+
+
+# --------------------------------------------------------------------------- #
+# The total deadline
+# --------------------------------------------------------------------------- #
+
+
+def _slow_client(delay: float):
+    """A client whose reads never finish inside a short budget."""
+
+    class _Client:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def get(self, url, params=None, headers=None):
+            await asyncio.sleep(delay)
+            return _FakeResponse(200, {})
+
+        async def post(self, url, json=None, headers=None):
+            await asyncio.sleep(delay)
+            return _FakeResponse(200, {})
+
+    return _Client
+
+
+async def test_a_slow_backend_costs_the_budget_and_no_more(connection, monkeypatch):
+    """The budget bounds TOTAL elapsed time, not one operation.
+
+    A per-operation timeout does not bound this: a backend that trickles bytes resets it on
+    every chunk while the turn waits. These facts are optional, so a slow backend must cost
+    the user a prompt section rather than a wait.
+    """
+    monkeypatch.setattr(session_context.httpx, "AsyncClient", _slow_client(30.0))
+
+    started = time.monotonic()
+    context = await resolve_session_context(
+        session_id="session-1",
+        workflow_id=WORKFLOW_ID,
+        connection=connection,
+        timeout=0.1,
+    )
+    elapsed = time.monotonic() - started
+
+    assert context is None
+    assert elapsed < 1.0
+
+
+async def test_the_budget_cancels_the_outstanding_reads(connection, monkeypatch):
+    """An expired budget must not leave reads running against the backend."""
+    cancelled: List[str] = []
+
+    class _Client:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def _hang(self):
+            try:
+                await asyncio.sleep(30.0)
+            except asyncio.CancelledError:
+                cancelled.append("read")
+                raise
+            return _FakeResponse(200, {})
+
+        async def get(self, url, params=None, headers=None):
+            return await self._hang()
+
+        async def post(self, url, json=None, headers=None):
+            return await self._hang()
+
+    monkeypatch.setattr(session_context.httpx, "AsyncClient", _Client)
+
+    assert (
+        await resolve_session_context(
+            session_id="session-1",
+            workflow_id=WORKFLOW_ID,
+            connection=connection,
+            timeout=0.1,
+        )
+        is None
+    )
+    assert cancelled
+
+
+async def test_a_client_that_raises_on_construction_costs_only_the_facts(
+    connection, monkeypatch
+):
+    """Client construction and teardown sit inside the boundary, not outside it."""
+
+    def _explode(*args, **kwargs):
+        raise RuntimeError("no transport")
+
+    monkeypatch.setattr(session_context.httpx, "AsyncClient", _explode)
+
+    assert (
+        await resolve_session_context(
+            session_id="session-1", workflow_id=WORKFLOW_ID, connection=connection
+        )
+        is None
+    )
+
+
+async def test_an_outside_cancellation_is_not_swallowed(connection, monkeypatch):
+    """The caller is going away, so this optional work goes with it."""
+    monkeypatch.setattr(session_context.httpx, "AsyncClient", _slow_client(30.0))
+
+    task = asyncio.ensure_future(
+        resolve_session_context(
+            session_id="session-1",
+            workflow_id=WORKFLOW_ID,
+            connection=connection,
+            timeout=30.0,
+        )
+    )
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        (None, session_context.DEFAULT_SESSION_CONTEXT_TIMEOUT),
+        ("0.25", 0.25),
+        ("nonsense", session_context.DEFAULT_SESSION_CONTEXT_TIMEOUT),
+        ("0", session_context.DEFAULT_SESSION_CONTEXT_TIMEOUT),
+        ("-3", session_context.DEFAULT_SESSION_CONTEXT_TIMEOUT),
+    ],
+)
+def test_the_budget_reads_its_env_override(monkeypatch, raw, expected):
+    monkeypatch.delenv("AGENTA_AGENT_SESSION_CONTEXT_TIMEOUT", raising=False)
+    if raw is not None:
+        monkeypatch.setenv("AGENTA_AGENT_SESSION_CONTEXT_TIMEOUT", raw)
+    assert session_context.session_context_timeout() == expected
+
+
+# --------------------------------------------------------------------------- #
+# Malformed session data is UNKNOWN, never "unnamed"
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    "stream_body",
+    [
+        {"stream": []},
+        {"stream": "a-session"},
+        {"stream": {"name": 123}},
+        {"stream": {"name": ["QA"]}},
+        ["not", "an", "object"],
+    ],
+)
+async def test_malformed_session_data_reports_unknown_not_unnamed(
+    connection, routed, stream_body
+):
+    """The dangerous half of this module.
+
+    Reading a shape we do not understand as "unnamed" would render "This session has no name
+    yet. Name it with rename_session" at an already-named session, which is the bug this
+    module exists to fix. Both halves of the pair go UNKNOWN instead.
+    """
+    routed(
+        {
+            f"/workflows/{WORKFLOW_ID}": _workflow("Changelog writer"),
+            "/sessions/streams/": _FakeResponse(200, stream_body),
+            "/sessions/turns/query": _turns(3),
+        }
+    )
+
+    context = await resolve_session_context(
+        session_id="session-1", workflow_id=WORKFLOW_ID, connection=connection
+    )
+
+    assert context.session_name is None
+    assert context.first_turn is None
+    assert context.agent_name == "Changelog writer"
+
+
+@pytest.mark.parametrize(
+    "turns_body",
+    [{"turns": "many"}, {"turns": {}}, {"count": 0}, ["not", "an", "object"]],
+)
+async def test_a_malformed_turns_answer_reports_unknown(connection, routed, turns_body):
+    """An absent `turns` is not "no turns": the query always answers with the list it matched."""
+    routed(
+        {
+            f"/workflows/{WORKFLOW_ID}": _workflow("Changelog writer"),
+            "/sessions/streams/": _stream("Sapphire Ledger"),
+            "/sessions/turns/query": _FakeResponse(200, turns_body),
+        }
+    )
+
+    context = await resolve_session_context(
+        session_id="session-1", workflow_id=WORKFLOW_ID, connection=connection
+    )
+
+    assert context.session_name is None
+    assert context.first_turn is None
+
+
+@pytest.mark.parametrize("stream_body", [{"stream": None}, {"capabilities": {}}])
+async def test_an_omitted_stream_is_a_legitimately_unnamed_session(
+    connection, routed, stream_body
+):
+    """The response model omits null fields, and a session with no row yet has no name.
+
+    This is the case the strictness above must NOT swallow: a real unnamed session still has
+    to get its naming instruction.
+    """
+    routed(
+        {
+            f"/workflows/{WORKFLOW_ID}": _workflow("Changelog writer"),
+            "/sessions/streams/": _FakeResponse(200, stream_body),
+            "/sessions/turns/query": _turns(0),
+        }
+    )
+
+    context = await resolve_session_context(
+        session_id="session-1", workflow_id=WORKFLOW_ID, connection=connection
+    )
+
+    assert context.session_name is None
+    assert context.first_turn is True
+
+
+async def test_an_explicitly_null_name_is_a_legitimately_unnamed_session(
+    connection, routed
+):
+    routed(
+        {
+            f"/workflows/{WORKFLOW_ID}": _workflow("Changelog writer"),
+            "/sessions/streams/": _stream(None),
+            "/sessions/turns/query": _turns(2),
+        }
+    )
+
+    context = await resolve_session_context(
+        session_id="session-1", workflow_id=WORKFLOW_ID, connection=connection
+    )
+
+    assert context.session_name is None
+    assert context.first_turn is False
+
+
+@pytest.mark.parametrize(
+    "workflow_body",
+    [{"workflow": []}, {"workflow": {"name": 7}}, ["not", "an", "object"]],
+)
+async def test_a_malformed_workflow_answer_reports_no_agent_name(
+    connection, routed, workflow_body
+):
+    """Malformed and absent read the same here: both render no name line, which is safe."""
+    routed(
+        {
+            f"/workflows/{WORKFLOW_ID}": _FakeResponse(200, workflow_body),
+            "/sessions/streams/": _stream("Sapphire Ledger"),
+            "/sessions/turns/query": _turns(1),
+        }
+    )
+
+    context = await resolve_session_context(
+        session_id="session-1", workflow_id=WORKFLOW_ID, connection=connection
+    )
+
+    assert context.agent_name is None
+    assert context.session_name == "Sapphire Ledger"
+    assert context.first_turn is False

@@ -9,6 +9,7 @@ composition override) gets them for free instead of a permissive fallback.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -44,6 +45,7 @@ from agenta.sdk.agents.platform import resolve_mcp as _platform_resolve_mcp
 from agenta.sdk.agents.platform import resolve_tools as _platform_resolve_tools
 from agenta.sdk.agents.platform import (
     resolve_session_context as _platform_resolve_session_context,
+    session_context_timeout,
 )
 
 from agenta.sdk.agents.fold import fold, trim_to_trailing_unit
@@ -125,6 +127,38 @@ async def _default_resolve_session_context(
     )
 
 
+async def _bounded_session_context(
+    resolve: ResolveSessionContextFn,
+    *,
+    session_id: Optional[str],
+    workflow_id: Optional[str],
+) -> Optional[SessionContext]:
+    """Run the session-context resolver under one deadline, and swallow its failures.
+
+    The facts are optional: the turn is correct without them, and the renderer says nothing
+    about a fact it does not have. So no resolver may delay or break a turn. The deadline
+    covers the WHOLE call, and its expiry cancels whatever the resolver still has in flight.
+
+    The default resolver carries the same budget internally and finishes first; this bound
+    exists for an INJECTED resolver, which has no budget of its own. A cancellation from
+    outside propagates: the caller is going away and this work must go with it.
+    """
+    budget = session_context_timeout()
+    try:
+        return await asyncio.wait_for(
+            resolve(session_id=session_id, workflow_id=workflow_id),
+            timeout=budget,
+        )
+    except asyncio.TimeoutError:
+        log.warning("agent: session context resolver exceeded %.3fs", budget)
+        return None
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: session context resolver failed", exc_info=True)
+        return None
+
+
 def _reference_id(references, name: str) -> Optional[str]:
     """The id of one entry in ``request.references``, whatever shape it arrived in.
 
@@ -152,16 +186,32 @@ def _agent_artifact_id(run_context, references) -> Optional[str]:
     Fall back to the request's own references when the run has no tracing context, which is
     the bare-SDK case. Returns ``None`` for a run with no artifact at all: a draft has no name
     to report.
+
+    Competing families decline rather than pick. A request that carries ``application=A`` and
+    ``workflow=B`` names two different artifacts, and the family validator that would reject
+    it runs only during reference hydration, which an inline-config run bypasses. Preferring
+    one of them would put a name in the prompt that the run may not belong to, so an ambiguous
+    identity reports no name at all.
     """
     artifact = getattr(getattr(run_context, "workflow", None), "artifact", None)
     identifier = getattr(artifact, "id", None)
     if identifier:
         return str(identifier)
-    for name in ("workflow", "application", "evaluator"):
-        identifier = _reference_id(references, name)
-        if identifier:
-            return identifier
-    return None
+    found = {
+        identifier
+        for identifier in (
+            _reference_id(references, name)
+            for name in ("workflow", "application", "evaluator")
+        )
+        if identifier
+    }
+    if len(found) > 1:
+        log.warning(
+            "agent: the run names %d competing workflow artifacts; reporting no agent name",
+            len(found),
+        )
+        return None
+    return next(iter(found), None)
 
 
 def _check_harness_pre_resolve(model_ref: ModelRef, harness: Optional[str]) -> None:
@@ -390,7 +440,8 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         # agent it is already named. The API stamps `meta.session_context` for the runs it
         # proxies; that stamp is deliberately ignored, because a service cannot tell it apart
         # from a forged one in its own request body.
-        session_context = await comp.resolve_session_context(
+        session_context = await _bounded_session_context(
+            comp.resolve_session_context,
             session_id=session_id,
             workflow_id=_agent_artifact_id(rc, request.references),
         )
