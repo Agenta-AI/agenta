@@ -160,7 +160,10 @@ export const AutomationActionsMenu = ({
                         aria-label="Automation actions"
                         className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
                     >
-                        <DotsThreeVertical aria-hidden weight="bold" />
+                        {/* 14 against the 12 the button would give it: three small dots read smaller
+                            than a glyph that fills its box, so matching them by measurement
+                            mismatches them by eye. */}
+                        <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-[220px]">
