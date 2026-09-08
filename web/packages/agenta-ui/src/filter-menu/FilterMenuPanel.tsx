@@ -207,6 +207,10 @@ export const FilterMenuPanel = ({
                 </label>
             ) : null}
 
+            {/* The rows sit off the search field's rule rather than starting against it — the
+                gap belongs to the panel, not to whichever block happens to be first. */}
+            {searchable ? <div aria-hidden className="h-1.5 shrink-0" /> : null}
+
             {order.length === 0 ? (
                 <p className="m-0 px-3 py-8 text-center text-[12px] text-muted-foreground">
                     Nothing matches “{query.trim()}”.
@@ -218,7 +222,7 @@ export const FilterMenuPanel = ({
                         // No rule between the blocks: the sort and group rows are the same kind
                         // of thing as the filters above them, and a line there read as a break
                         // in a list that has none.
-                        className="flex flex-col gap-px p-1 pt-0 first:pt-1.5"
+                        className="flex flex-col gap-px p-1 pt-0"
                     >
                         {block.entries.map((entry) => (
                             <FilterMenuRow
