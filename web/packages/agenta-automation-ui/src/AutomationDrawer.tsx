@@ -161,16 +161,16 @@ const AutomationEditDrawer = ({
             onAfterOpenChange={onAfterOpenChange}
             playgroundEntityId={playgroundEntityId}
             title="Automation"
-            // Nothing to commit, nothing to stand under the form: the bar arrives with the edit.
+            // The bar stands whether or not there is an edit, disabled until there is — a footer
+            // that appears mid-edit moves the ground under the cursor.
             footer={
-                editor.dirty ? (
-                    <AutomationSaveBar
-                        bare
-                        saving={editor.saving}
-                        onDiscard={editor.discard}
-                        onSave={() => void editor.save()}
-                    />
-                ) : undefined
+                <AutomationSaveBar
+                    bare
+                    dirty={editor.dirty}
+                    saving={editor.saving}
+                    onDiscard={editor.discard}
+                    onSave={() => void editor.save()}
+                />
             }
         >
             {editor.loading ? (

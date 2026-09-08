@@ -1,18 +1,22 @@
 import {Button} from "@agenta/ui/ui"
 
 /**
- * The detail screen's unsaved-changes footer — the same bar the draft screen creates from, so
- * "finish this automation" looks the same whether the automation exists yet or not.
+ * The detail screen's save footer — the same bar the draft screen creates from, so "finish this
+ * automation" looks the same whether the automation exists yet or not.
  *
- * It appears only when there is something to save: a footer standing over an unedited screen is a
- * permanent invitation to press a button that does nothing.
+ * It STANDS whether or not there is anything to commit, disabled until there is: a bar that
+ * appears only once you have typed leaves a reader who has typed nothing wondering how an edit
+ * is meant to be saved, and a control that arrives mid-edit moves the ground under the cursor.
  */
 export const AutomationSaveBar = ({
+    dirty,
     saving,
     onDiscard,
     onSave,
     bare = false,
 }: {
+    /** The draft differs from what is saved. Nothing to save and nothing to throw away without it. */
+    dirty: boolean
     saving: boolean
     onDiscard: () => void
     onSave: () => void
@@ -31,7 +35,7 @@ export const AutomationSaveBar = ({
             size={bare ? "default" : "sm"}
             variant="outline"
             className={bare ? "font-normal" : "text-xs font-normal"}
-            disabled={saving}
+            disabled={saving || !dirty}
             onClick={onDiscard}
         >
             Discard
@@ -40,7 +44,7 @@ export const AutomationSaveBar = ({
             type="button"
             size={bare ? "default" : "sm"}
             className={bare ? "font-normal" : "text-xs font-normal"}
-            disabled={saving}
+            disabled={saving || !dirty}
             onClick={onSave}
         >
             {saving ? "Saving…" : "Save"}
