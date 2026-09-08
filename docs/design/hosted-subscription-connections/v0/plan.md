@@ -1,5 +1,10 @@
 # Implementation plan
 
+> Historical v0 proposal. This is a good starting point, but it may miss important
+> requirements and design questions. Its choices are not approved requirements.
+> Read the [current requirements](../requirements.md) and
+> [open design questions](../design-questions.md) before using this proposal.
+
 ## Recommendation
 
 For the first hosted release, use the official Codex and Grok Build programs as both the login

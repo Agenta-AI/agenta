@@ -1,5 +1,10 @@
 # Code research
 
+> Historical v0 proposal. This is a good starting point, but it may miss important
+> requirements and design questions. Its choices are not approved requirements.
+> Read the [current requirements](../requirements.md) and
+> [open design questions](../design-questions.md) before using this proposal.
+
 ## Existing subscription execution
 
 The connection resolver already maps `self_managed` to `runtime_provided` without adding a model

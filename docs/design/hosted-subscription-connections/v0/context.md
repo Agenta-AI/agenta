@@ -1,5 +1,10 @@
 # Context
 
+> Historical v0 proposal. This is a good starting point, but it may miss important
+> requirements and design questions. Its choices are not approved requirements.
+> Read the [current requirements](../requirements.md) and
+> [open design questions](../design-questions.md) before using this proposal.
+
 ## What users can do today
 
 Agenta already supports subscription authentication on a self-hosted local runner. The operator

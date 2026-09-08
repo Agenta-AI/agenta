@@ -1,5 +1,10 @@
 # Status
 
+> Historical v0 proposal. This is a good starting point, but it may miss important
+> requirements and design questions. Its choices are not approved requirements.
+> Read the [current requirements](../requirements.md) and
+> [open design questions](../design-questions.md) before using this proposal.
+
 ## Current state
 
 - Research and candidate implementation plan updated September 7, 2026 for ChatGPT and SuperGrok
