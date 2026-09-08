@@ -15,12 +15,13 @@ import {AUTOMATION_TEMPLATES, type AutomationTemplate} from "../templates"
  * the same distance above whatever is showing.
  */
 
+// The list's own columns, kebab included, so the skeleton and the table line up cell for cell.
 const GRID =
-    "grid gap-3 [grid-template-columns:minmax(120px,1.7fr)_118px_minmax(120px,1.5fr)_minmax(80px,1fr)]"
+    "grid gap-3 [grid-template-columns:minmax(140px,2fr)_minmax(110px,1fr)_minmax(130px,1fr)_minmax(120px,1fr)_24px]"
 
 export const AutomationListSkeleton = ({rows = 5}: {rows?: number}) => (
     <div className="overflow-x-auto" aria-hidden>
-        <div className="min-w-[544px]">
+        <div className="min-w-[572px]">
             <div className={`${GRID} mb-1 border-0 border-b border-solid border-border px-2 py-2`}>
                 {Array.from({length: 4}, (_, i) => (
                     <Skeleton key={i} className="h-3 w-16" />

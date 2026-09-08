@@ -58,11 +58,11 @@ const STATUS_COLOR: Record<AutomationStatus, {dot: string; text: string}> = {
 /**
  * The four columns, shared by the header row and every body row so the two can never drift.
  *
- * The identity column is the widest and shares surplus with runs-when and agent; status holds
- * its 118 at every width, because a status word does not get wider with the window. The last
- * column is the row's kebab, fixed at the button's own width so the four reading columns keep
- * their proportions. The minima sum to 572 — the width below which the table scrolls sideways
- * rather than crushing five columns into a phone.
+ * Identity takes twice the share of the other three, which split the rest equally — status held
+ * a fixed 118 before, so the gap after it grew while the others' did not and the three read as
+ * unevenly spaced. The last column is the row's kebab, fixed at the button's own width so the
+ * reading columns keep their proportions. The minima plus gaps sum to 572 — the width below
+ * which the table scrolls sideways rather than crushing five columns into a phone.
  */
 /**
  * The page column, shared with the sessions page: same max width, same gutters, so a reader
@@ -71,7 +71,7 @@ const STATUS_COLOR: Record<AutomationStatus, {dot: string; text: string}> = {
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 const GRID =
-    "grid gap-3 [grid-template-columns:minmax(120px,1.7fr)_118px_minmax(120px,1.5fr)_minmax(80px,1fr)_24px]"
+    "grid gap-3 [grid-template-columns:minmax(140px,2fr)_minmax(110px,1fr)_minmax(130px,1fr)_minmax(120px,1fr)_24px]"
 
 /**
  * The automations list — where the nav's Automations entry lands.
