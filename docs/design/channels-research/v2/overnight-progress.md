@@ -28,8 +28,8 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
 - QA env: scratchpad qa.env (QA_API_URL/KEY/PROJECT_ID); variant 01a080fa-6833.
 
 ## Plan and checklist (work top-down; check items as done)
-- [ ] Commit the verified Telegram work on branch channels/telegram; push; open PR (base channels/fix-approval-card-on-park).
-- [ ] Codex astra review (ask-codex skill, medium): apply simplify skill first; do NOT change JP's architecture; review added code.
+- [x] Committed + pushed + PR 6679 (base channels/fix-approval-card-on-park). CodeRabbit requested.
+- [~] Codex astra review RUNNING (xhigh, /tmp/codex-out-telegram.log). Subagent quality review RUNNING.
 - [ ] Subagent code-quality/cleanliness review of the added code; address findings.
 - [ ] Request CodeRabbit review on the PR.
 - [ ] Address all review findings (system + subsystem).
@@ -40,8 +40,38 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
 - [ ] Update decision notes; final morning report.
 
 ## Decisions taken tonight (with rationale)
-- (record each decision here as it is made)
+- D-TG1 Model for QA answers: gpt-5.6-luna via the Pi harness/subscription. Why: the Claude
+  subscription credential lapsed (credentialBindings=[]); Mahmoud chose "another subscription";
+  the Codex/ChatGPT and Pi logins are valid; gpt-5.6-luna is the config's own default and pairs
+  with pi_core. Changed the QA variant 01a080fa-6833 config in the DB (QA only, not code).
+- D-TG2 Telegram delivery is typing-only: no "Thinking…" message; send the native typing action
+  at turn start and post the answer as one fresh message. Why: Mahmoud asked for the typing
+  indicator like other bots, and the placeholder message both hid the typing and (with a second
+  turn_ended) produced a duplicate. Set controls.update=false for Telegram.
+- D-TG3 A Telegram chat is one conversation (conversation.default=thread, thread key=[chat_id]).
+  Why: default=space made session scope MESSAGE, so each message lost memory. Forum-topic
+  separation (message_thread_id) is deferred; a chat = one session for v1.
+- D-TG4 Delivery is idempotent in the shared outbox: skip a row already SENT with identical
+  content. Why: turn_ended is published twice (complete_turn + records worker); this removes the
+  duplicate on post-only channels and the wasted "not modified" edit on Slack. Shared fix.
+- D-TG5 Indicator text is "Thinking…" everywhere (shared INDICATOR_TEXT). Mahmoud's request.
+- D-TG6 Media (image/voice) is NOT built blind; it is cross-cutting multimodal into the shared
+  sessions/runner. Scoped in media-input.md for Mahmoud's decision. Images first, voice deferred.
 
 ## Blocked / needs Mahmoud
 - Media (image/voice) is cross-cutting multimodal into shared sessions/runner; may need a product/design call.
 - Hosted Slack app creation + prod env vars is ops (needs Mahmoud's Slack org).
+
+## Status snapshot (night, after PR + reviews launched)
+- PR #6679 open (Telegram custom bot + 2 shared fixes). CodeRabbit requested.
+- Codex astra review: RUNNING at xhigh, log /tmp/codex-out-telegram.log.
+- Subagent code-quality review: RUNNING, writes docs/design/channels-research/v2/review-telegram-quality.md.
+- Design read: 109KB "Agent Channels.dc.html" saved in tool-results; screens = agent overview + Slack custom flow (name/manifest/scopes/install/credentials) + Telegram (QR/Continue/link/allowed-ids/bot-token) + add-channel + behavior(Allow/Deny)+Advanced+Disconnect.
+- Media decision doc written: docs/design/channels-research/v2/media-input.md (images first, voice deferred; needs Mahmoud's call on multimodal session input).
+- Lane 3 reference read: identity.py has ChannelIdentityLink (account-link model exists); agenta adapter is the project-keyed reference for hosted.
+
+## Next when reviews land
+1. Read /tmp/codex-out-telegram.log and review-telegram-quality.md; consolidate findings.
+2. Address findings on channels/telegram; push; keep tests green.
+3. Lane 3 (hosted bind) stacked on it.
+4. UI first pass from the design for /m + desktop (own branch), then visual QA.
