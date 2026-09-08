@@ -124,6 +124,9 @@ redisDurable:
 #   seaweedfs:
 #     enabled: false
 #     port: 8333
+#     ingress:         # optional public route to the bundled S3 gateway; off by default.
+#       enabled: false # Set store.endpointUrl to this host so clients outside the cluster
+#       host: store.example.com   # (a Daytona sandbox) can reach the store.
 #     image:
 #       repository: chrislusf/seaweedfs
 #       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases

@@ -544,6 +544,14 @@ posthog:
 #   seaweedfs:
 #     enabled: false   # defaults to TRUE when store.enabled is true; set false for an external store
 #     port: 8333
+#     ingress:         # optional public route to the bundled S3 gateway; off by default
+#       enabled: false
+#       className: nginx
+#       host: store.example.com
+#       annotations: {}
+#       tls:
+#         - hosts: [store.example.com]
+#           secretName: agenta-store-tls
 #     image:
 #       repository: chrislusf/seaweedfs
 #       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases

@@ -284,6 +284,19 @@
           "properties": {
             "enabled":     { "type": "boolean", "description": "Deploy the bundled SeaweedFS StatefulSet." },
             "port":        { "type": ["integer", "string"], "description": "SeaweedFS S3 gateway port (default 8333)." },
+            "ingress": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Optional public route to the bundled S3 gateway, for clients outside the cluster such as a Daytona sandbox. Set store.endpointUrl to the same hostname so every pod hands out that URL.",
+              "required": ["host"],
+              "properties": {
+                "enabled":     { "type": "boolean", "description": "Default false." },
+                "className":   { "type": "string", "description": "IngressClass name. Unset leaves the field out and the cluster default applies." },
+                "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+                "host":        { "type": "string", "description": "Hostname for the gateway, for example store.example.com. Required when enabled." },
+                "tls":         { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Passed through verbatim, in the shape the Ingress spec uses." }
+              }
+            },
             "image": {
               "type": "object",
               "additionalProperties": true,

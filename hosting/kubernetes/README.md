@@ -191,6 +191,36 @@ store:
   secretKey: "..."
 ```
 
+### Reaching the bundled store from outside the cluster
+
+Pods reach the bundled gateway through its in-cluster Service, and that is the
+default. A Daytona sandbox runs outside the cluster and cannot resolve that name,
+so give the gateway a hostname and point every pod at it. Set both keys:
+
+```yaml
+store:
+  enabled: true
+  endpointUrl: https://store.example.com    # what pods and sandboxes are told to use
+  seaweedfs:
+    enabled: true
+    ingress:
+      enabled: true                         # default false
+      className: gce
+      host: store.example.com
+      annotations:
+        kubernetes.io/ingress.global-static-ip-name: agenta-store-ip
+      tls:
+        - hosts:
+            - store.example.com
+          secretName: agenta-store-tls
+```
+
+`store.endpointUrl` wins over the internal Service URL whenever it is set, with
+or without the bundled SeaweedFS. Leave it unset to keep the store internal.
+The Ingress renders only when the bundled SeaweedFS is deployed, and `host` is
+required once you enable it. Compose does the same thing with
+`AGENTA_STORE_TRAEFIK_ENABLE` and `AGENTA_STORE_DOMAIN`.
+
 ## Checking a values file before you install
 
 ```bash
