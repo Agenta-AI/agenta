@@ -98,6 +98,7 @@ import {
 import {
   PI_AGENT_DIR_UNWRITABLE_MESSAGE,
   PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE,
+  PI_PROMPT_CHANNEL_UNAVAILABLE_MESSAGE,
   PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE,
   PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
   prepareLocalPiAssets,
@@ -453,6 +454,7 @@ async function acquireEnvironmentOnce(
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
     localPiAgentDirUnwritable,
+    localPiPromptChannelUnavailable,
     localSubscriptionError,
     logger,
     mcpAbort,
@@ -599,6 +601,7 @@ async function acquireEnvironmentOnce(
     // Codex auth.json backstop that deliberately does NOT exist — lives with the unit.
     removeRuntimeFiles({
       runAgentDir: environment.runAgentDir,
+      piPromptDir: environment.piPromptDir,
       codexSqliteHome: environment.codexSqliteHome,
     });
     // Remove the per-run skills temp root the materializer created (success or error).
@@ -643,6 +646,11 @@ async function acquireEnvironmentOnce(
     // written would come up unauthenticated, and Pi never re-reads the file once it is running.
     if (localSubscriptionError) {
       throw localSubscriptionError;
+    }
+    // Fail closed: without its own prompt dir the run would read, or write, the system prompts
+    // of the other sessions on this connection.
+    if (localPiPromptChannelUnavailable) {
+      throw new Error(PI_PROMPT_CHANNEL_UNAVAILABLE_MESSAGE);
     }
     // The one publisher for this session, started as soon as the login is on disk and
     // BEFORE the remaining fail-closed gates, so an acquire that fails later still publishes

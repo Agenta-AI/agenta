@@ -324,6 +324,12 @@ export interface SessionEnvironment {
   mcpAbort: AbortController;
   runAgentDir: string | undefined;
   /**
+   * The per-run dir holding this run's Pi system-prompt files, on a local subscription run whose
+   * agent dir is shared with every other session on the connection. Removed at teardown.
+   * Undefined for every other run. See `preparePiPromptChannel`.
+   */
+  piPromptDir: string | undefined;
+  /**
    * The local off-mount directory this run pointed CODEX_SQLITE_HOME at (Codex's SQLite state,
    * which cannot live on the geesefs cwd mount). Removed best-effort by `destroy`; the state is
    * disposable because native resume rides the `sessions/` rollout files on CODEX_HOME, not the

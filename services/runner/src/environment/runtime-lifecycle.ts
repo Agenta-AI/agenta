@@ -88,6 +88,11 @@ export interface RuntimeFilesInput {
    */
   runAgentDir: string | undefined;
   /**
+   * The per-run Pi prompt dir (`preparePiPromptChannel`). Throwaway by construction: it holds
+   * only this run's prompt files and the wrapper that hands them to Pi.
+   */
+  piPromptDir: string | undefined;
+  /**
    * The local off-mount Codex SQLite home. Disposable: native resume rides the `sessions/`
    * rollout files on CODEX_HOME, not the SQLite, so losing it costs nothing.
    */
@@ -110,6 +115,7 @@ export function removeRuntimeFiles(input: RuntimeFilesInput): void {
   // never to throw. Each removal is independent, so one failure must not skip the next.
   for (const [path, recursive] of [
     [input.runAgentDir, true],
+    [input.piPromptDir, true],
     [input.codexSqliteHome, true],
   ] as const) {
     if (!path) continue;

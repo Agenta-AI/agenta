@@ -343,6 +343,14 @@ export async function prepareEnvironmentSetup(
   // engine try, like the three gates above, so it becomes a visible error frame.
   const localPiAgentDirUnwritable =
     plan.isPi && !plan.isDaytona && !localPiAssets.agentDirWritable;
+  // Fail closed: a local subscription run reads its system prompts from a per-run dir precisely
+  // because the agent dir belongs to the connection, not to the session. With no such dir the
+  // only remaining channel is that shared dir. Recorded here and thrown inside the engine try.
+  const localPiPromptChannelUnavailable =
+    plan.isPi &&
+    !plan.isDaytona &&
+    plan.credentials.credentialMode === "runtime_provided" &&
+    !localPiAssets.promptDir;
 
   // A local Claude subscription run reads and writes the operator's read-write mounted login
   // DIRECTLY: `buildDaemonEnv` already carried `CLAUDE_CONFIG_DIR` (the mount) into the daemon env,
@@ -420,6 +428,7 @@ export async function prepareEnvironmentSetup(
     executableToolGateRef,
     mcpAbort,
     runAgentDir,
+    piPromptDir: localPiAssets.promptDir,
     codexSqliteHome,
     subscriptionPublish: subscriptionForRun
       ? subscriptionPublishState(subscriptionForRun)
@@ -479,6 +488,7 @@ export async function prepareEnvironmentSetup(
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
     localPiAgentDirUnwritable,
+    localPiPromptChannelUnavailable,
     localSubscriptionError,
     mcpAbort,
     piExtEnv,
