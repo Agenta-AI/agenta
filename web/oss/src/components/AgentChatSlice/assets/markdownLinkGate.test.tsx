@@ -58,8 +58,7 @@ describe("chat markdown link gate", () => {
     })
 
     it("never turns a path into an off-site link, dot segments included", () => {
-        // `a/..//evil.com/x` resolves to the pathname `//evil.com/x`, which a browser reads as a
-        // host. Rendered through the app's own anchor, no anchor may come out of it.
+        // The pathname of `a/..//evil.com/x` is `//evil.com/x`, which a browser reads as a host.
         for (const target of ["a/..//evil.com/x", "a/%2e%2e//evil.com/x"]) {
             const html = renderToStaticMarkup(<Markdown content={link(target)} />)
             expect(html).not.toContain("<a ")

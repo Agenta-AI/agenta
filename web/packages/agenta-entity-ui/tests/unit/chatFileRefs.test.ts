@@ -41,8 +41,7 @@ describe("knownFromRecords", () => {
     })
 
     it("treats a slash-prefixed basename as bare, not as a qualified path (#6004)", () => {
-        // Every relative link reaches the resolver with a leading slash now, so the bare-basename
-        // guard has to count segments without it or `/README.md` links to a file that is not there.
+        // Every relative link reaches the resolver with a leading slash now.
         const byBasename = new Map([["README.md", ["/tmp/agenta/mounts/p/m/src/README.md"]]])
         expect(knownFromRecords(byBasename, "/README.md")).toBe(false)
         expect(knownFromRecords(byBasename, "/src/README.md")).toBe(true)
