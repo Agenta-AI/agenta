@@ -77,7 +77,12 @@ The chart derives these from ingress.host when ingress.enabled=true. Either:
        ingress:
          enabled: true
          host: agenta.example.com
-         tls: true   # optional
+         # tls is optional and is a list, in the shape the Ingress spec uses.
+         # Any non-empty list also switches the derived URLs to https.
+         tls:
+           - hosts:
+               - agenta.example.com
+             secretName: agenta-tls
 
   2. Or set the three URLs explicitly:
 
