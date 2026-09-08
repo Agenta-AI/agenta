@@ -150,10 +150,8 @@ describe("resolveAgentModelCandidateSources", () => {
         expect(state.status).toBe("ready")
     })
     it("never answers 'no routes' from an empty harness catalog", () => {
-        // An empty map is what `fetchHarnessCapabilities` builds from any 200 that carries no
-        // harnesses, and the catalog query persists to disk. Read as a catalog it says no harness
-        // supports any provider, so a project with working keys shows the connect-a-model gate and
-        // keeps showing it across reloads (issue #6660).
+        // `fetchHarnessCapabilities` built `{}` from any 200 without harnesses, and the query
+        // persists to disk, so one bad answer kept the gate up over working keys (#6660).
         const state = resolveAgentModelCandidateSources({
             vaultRows,
             capabilities: {},

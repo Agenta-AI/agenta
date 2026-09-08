@@ -227,8 +227,7 @@ export function useModelHarness({
             ) ?? null
         )
     }, [standardSecrets, selectedProviderFamily])
-    // Presence goes through `hasStoredKey`, never the row's value: a write-only record never
-    // returns one. The whole rule, and what it deliberately does not judge, lives in the module.
+    // Presence goes through `hasStoredKey`, never the row's value (see the module for the rule).
     const providerNeedsKey = shouldPromptForProviderKey({
         connectionMode: connection.mode,
         connectionSlug: connection.slug,
@@ -701,9 +700,8 @@ export function useModelHarness({
     return {
         hasModelOrHarness,
         mcpSupported,
-        // The selected model's provider has a standard vault slot but no key yet, so the config
-        // panel highlights the Model section. The chat composer gates on its own project-wide
-        // rule (`gateActive`), not on this one.
+        // Standard vault slot, no key yet: the config panel highlights the Model section. The chat
+        // composer gates on its own project-wide `gateActive`, not on this.
         needsProviderKey: providerNeedsKey,
         // A model is selected but its harness can't run it — a *model* problem, so the config panel
         // flags the Model section as invalid.

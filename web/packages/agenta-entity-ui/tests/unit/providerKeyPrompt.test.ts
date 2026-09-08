@@ -1,14 +1,6 @@
 /**
- * Unit tests for `shouldPromptForProviderKey`, the rule behind the Model section's "Connect key"
- * badge and its "Connect the model's provider key to run this agent." tooltip.
- *
- * Issue #6660: the playground kept asking for a provider key after one was added and while the
- * agent ran on it. The rule read the value off the vault row, and a write-only record never
- * returns its value — it reports presence through `hasKey` — so every connected project on a
- * write-only deployment (staging, and any current dev stack) read as keyless forever.
- *
- * The row shapes below are the ones the vault really serves: an unconnected catalog entry, a
- * write-only record, a readable one, and both of those restored from IndexedDB.
+ * `shouldPromptForProviderKey` drives the Model section's "Connect key" badge and tooltip.
+ * Fixtures are the row shapes the vault really serves; #6660 was the write-only one.
  */
 import {describe, expect, it} from "vitest"
 
@@ -29,17 +21,10 @@ const writeOnlyConnected = {
 /** A readable record, which proves presence by carrying the value. */
 const readableConnected = {...unconnected, id: "readable", key: "sk-live-value"}
 
-/**
- * A readable row restored from IndexedDB. `redactVaultSecretRow` replaces a value it holds with a
- * truthy sentinel, so this row still carries a `key` and it is not the real one.
- */
+/** Restored from IndexedDB: `redactVaultSecretRow` swapped the value for a truthy sentinel. */
 const readableRestoredFromDisk = {...readableConnected, key: "[redacted]"}
 
-/**
- * A write-only row restored from IndexedDB. Redaction only replaces values that are there, and a
- * write-only row never had one, so it comes back from disk exactly as the API served it: presence
- * on `hasKey`, no value anywhere.
- */
+/** Restored from IndexedDB: nothing to redact, so it returns exactly as the API served it. */
 const writeOnlyRestoredFromDisk = {...writeOnlyConnected}
 
 const prompt = (overrides: Partial<Parameters<typeof shouldPromptForProviderKey>[0]> = {}) =>
@@ -57,8 +42,7 @@ describe("shouldPromptForProviderKey", () => {
     })
 
     it("stops asking once a write-only key is stored (issue #6660)", () => {
-        // The regression: the row carries no value to read, only `hasKey`. Reading the value here
-        // left the badge standing over a key the agent was already running on.
+        // No value to read, only `hasKey`: reading the value left the badge over a working key.
         expect(prompt({standardProviderEntry: writeOnlyConnected})).toBe(false)
     })
 
@@ -72,16 +56,14 @@ describe("shouldPromptForProviderKey", () => {
     })
 
     it("keeps asking when the record says the key is gone but a value lingers", () => {
-        // `hasKey: false` is the record's own answer and it wins. A rule spelled `hasKey || key`
-        // would read the stale value and hide the prompt on a project that has no key.
+        // The record's own answer wins; `hasKey || key` would hide the prompt on a keyless project.
         expect(
             prompt({standardProviderEntry: {...unconnected, hasKey: false, key: "sk-stale"}}),
         ).toBe(true)
     })
 
     it("never asks while the vault is still loading", () => {
-        // `standardSecretsAtom` serves the static catalog with empty keys until the query lands,
-        // so asserting there would flash the badge on every load.
+        // The catalog serves empty keys until the query lands; asserting there flashes the badge.
         expect(prompt({vaultLoaded: false})).toBe(false)
     })
 

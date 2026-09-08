@@ -6,25 +6,12 @@ import type {ConnectionMode} from "../connectionUtils"
 /**
  * Whether the Model section should prompt for the selected model's standard provider key.
  *
- * It drives a prompt, not an enforcement: the `Connect key` badge, the section's
- * "Connect the model's provider key to run this agent." tooltip, and the section auto-opening.
- * It answers one narrow question, whether the vault holds a STANDARD key for the selected model's
- * provider family, and it deliberately answers `false` wherever it cannot say.
+ * Presence comes from `hasStoredKey`, never the row's value: a write-only record returns no value
+ * and reports presence through `hasKey`, so `!row.key` called a connected project keyless (#6660).
  *
- * Presence comes from `hasStoredKey`, the one vault presence rule, and never from reading the
- * value off the row. A write-only record never returns its value; it reports presence through
- * `hasKey`. Reading `!row.key` therefore called a connected project keyless and left the badge and
- * its tooltip standing over a key the agent was already running on. That is issue #6660.
- *
- * The two exemptions come first, and both mean this function is not the right judge:
- *
- * - A `self_managed` connection signs itself in through the harness, so no vault key applies.
- * - A named `agenta` connection points at one vault record by slug. That record IS its credential
- *   source, but this function never looks it up, so a missing standard key for the family says
- *   nothing about it.
- *
- * `vaultLoaded` gates the rest: the vault answers "no key" for every provider until it resolves,
- * and prompting on that would flash the badge on every load.
+ * Answers `false` wherever it cannot judge: a `self_managed` connection signs itself in, a named
+ * `agenta` connection points at a vault record this rule never looks up, and an unresolved vault
+ * reads as keyless for every provider.
  */
 export const shouldPromptForProviderKey = ({
     connectionMode,

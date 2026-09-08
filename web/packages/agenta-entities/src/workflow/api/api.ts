@@ -1432,11 +1432,8 @@ export async function fetchHarnessCapabilities(opts?: {
             byHarness[record.key] = record.capabilities
         }
     }
-    // The product always ships harnesses, so an empty map means we did not get the catalog: a 200
-    // that is not this document, or one whose records carry no capabilities. Returning it would
-    // cache a catalog saying no harness supports any provider, and the callers that ask "is any
-    // model runnable" would answer no for a project with working keys. Reject instead, so the
-    // query reports an error and the persister stores nothing.
+    // The product always ships harnesses, so an empty map means a 200 that is not this catalog.
+    // Reject rather than return it: returning caches "no harness supports anything" (#6660).
     if (Object.keys(byHarness).length === 0) {
         throw new Error("[workflows] Harness catalog returned no harnesses")
     }
