@@ -51,8 +51,7 @@ export interface SidebarEntityReorder {
     /** Zone the HEADINGS arrange in; absent leaves them fixed. */
     groupZone?: string
     /** The id a heading is SAVED under, or `undefined` to leave that heading fixed. Defaults to
-     * the group key — agent headings map `agent:<id>` to the bare agent id, so they share the
-     * Agents group's zone, and headings that are not agents opt out entirely. */
+     * the group key; headings that are not agents opt out entirely. */
     groupId?: (groupKey: string) => string | undefined
     /** Zone a heading's rows arrange in; `undefined` leaves that heading's rows fixed. */
     rowZone?: (groupKey: string) => string | undefined

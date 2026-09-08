@@ -20,12 +20,10 @@ import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 import {
     applyManualOrder,
     SIDEBAR_AGENT_GROUP_ZONE,
-    SIDEBAR_AGENT_ORDER_ZONE,
     SIDEBAR_STATUS_GROUP_ZONE,
     sidebarManualOrderAtomFamily,
     sidebarManualOrdersAtom,
     sidebarSessionZone,
-    withManualAgentRanks,
 } from "../reorder"
 import {
     sidebarAlwaysOpenGroupsAtomFamily,
@@ -630,7 +628,7 @@ export const sidebarSessionGroupKey = (ref: SessionSidebarRef): string =>
  */
 export const SESSION_REORDER_ZONES: Partial<Record<SidebarSessionGroupBy, SidebarEntityReorder>> = {
     agent: {
-        // Its OWN zone, not the Agents group's: the two agent lists arrange independently.
+        // The headings' own zone — nothing else arranges agents in the rail.
         groupZone: SIDEBAR_AGENT_GROUP_ZONE,
         // Keyed as the heading is, like the status headings. Nothing else writes this zone, so
         // there is no id shape to agree with.
@@ -665,10 +663,10 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
             }
         }
         const groupBy = get(sidebarSessionFiltersAtomFamily(scopeId)).groupBy
-        // Under AGENT grouping, order the headings by the SAME chat-session rank the Agents group
-        // uses — so the two agent lists agree and the busiest agent leads, not the alphabetical
-        // first. Frozen per page load like that rank, so headings do not reshuffle as you work.
-        // Pinned still leads and "No agent yet" still trails (their ranks are untouched).
+        // Under AGENT grouping, order the headings by chat-session count, so the busiest agent
+        // leads rather than the alphabetical first. Frozen per page load, so headings do not
+        // reshuffle as you work. Pinned still leads and "No agent yet" still trails (their
+        // ranks are untouched).
         if (groupBy === "agent") {
             const ranks = get(sidebarAgentCountsAtomFamily(scopeId))
             for (const [key, bucket] of labels) {
@@ -765,11 +763,11 @@ const sessionsGroupOpen = (get: Getter, scopeId: string): boolean => {
 const AGENT_RANK_WINDOW = 200
 
 /**
- * Every agent's sessions, UNFILTERED — the query that ranks the Agents group.
+ * Every agent's sessions, UNFILTERED — the query that ranks the agent headings.
  *
  * Its own request, not the rail's rows: the rail's list carries the session filters, so ranking
- * off it let a filter (one agent, one status, a narrower window) reorder the Agents group — a
- * filter is not a use. Project-scoped, origin-agnostic, no activity floor.
+ * off it let a filter (one agent, one status, a narrower window) reorder the headings — a filter
+ * is not a use. Project-scoped, origin-agnostic, no activity floor.
  *
  * FROZEN per page load — `staleTime`/`gcTime: Infinity`, no focus refetch, no interval — so the
  * order an agent lives at does not shift while you work: a new session bumps nothing until you
@@ -803,8 +801,8 @@ const sidebarAgentActivityQueryAtomFamily = atomFamily((scopeId: string) =>
 )
 
 /**
- * `agentId -> chat-session count`, ranking the Agents group by how much you actually work with
- * each agent.
+ * `agentId -> chat-session count`, ranking the agent headings by how much you actually work
+ * with each agent.
  *
  * CHATS only — the query above excludes trigger runs — so an automation-heavy agent ranks on the
  * conversations you had, not the runs a schedule fired. A busy agent leads, the count barely moves
@@ -827,22 +825,7 @@ const sidebarAgentCountsAtomFamily = atomFamily((scopeId: string) =>
 )
 
 /**
- * Ranks for the Agents NAV GROUP: counts, with that group's own arrangement on top.
- *
- * The agent headings under Sessions deliberately do NOT read this — they carry their own zone, so
- * arranging one list leaves the other alone.
- */
-export const sidebarAgentRanksAtomFamily = atomFamily((scopeId: string) =>
-    atom((get) =>
-        withManualAgentRanks(
-            get(sidebarAgentCountsAtomFamily(scopeId)),
-            get(sidebarManualOrderAtomFamily(SIDEBAR_AGENT_ORDER_ZONE)),
-        ),
-    ),
-)
-
-/**
- * Agents the filter can narrow to, from the same catalog the Agents group lists.
+ * Agents the filter can narrow to, from the project's agent catalog.
  *
  * Gated on the Sessions group being open, exactly like the session query itself: the filter is
  * only reachable from an open group, and an ungated read would pull the agent catalog on every

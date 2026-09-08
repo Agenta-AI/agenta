@@ -61,28 +61,6 @@ export const mergeManualOrder = (
     return next
 }
 
-/** Above any plausible chat-session count, so a manual placement always beats activity. */
-const MANUAL_RANK_BASE = 1_000_000
-
-/**
- * Chat-session counts with the hand-arranged agents lifted above them.
- *
- * One map for every agent surface: the Agents group's rows and the agent headings under Sessions
- * read the same atom, so an arrangement applied here cannot be applied twice or disagree between
- * the two. `withRefsByRecency` sorts descending (manual first, then counted, then uncounted in
- * catalog order); `sidebarSessionGroupsAtomFamily` negates the same value into its ascending sort,
- * landing manual headings below every real bucket rank but above Pinned and below "No agent yet".
- */
-export const withManualAgentRanks = (
-    counts: ReadonlyMap<string, number>,
-    order: readonly string[],
-): ReadonlyMap<string, number> => {
-    if (!order.length) return counts
-    const ranks = new Map(counts)
-    order.forEach((id, index) => ranks.set(id, MANUAL_RANK_BASE - index))
-    return ranks
-}
-
 /** Moves `id` one slot within `ids`. Returns null when the move would leave the list. */
 export const movedManualOrder = (
     ids: readonly string[],
