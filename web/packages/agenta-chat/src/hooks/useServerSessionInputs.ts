@@ -17,11 +17,7 @@ import {reduceSessionPendingInputs, type SessionPendingInputView} from "../asset
 
 import type {QueuedMessage} from "./useAgentChatQueue"
 
-/**
- * What the server did with an admitted input. "queued" means it is parked as a pending input and
- * the dock owns it from here; "running" means it started a turn whose records the transcript will
- * adopt. Callers use it to retire a local echo at the right moment.
- */
+/** "queued" parks the input and the dock owns it; "running" starts a turn the transcript adopts. */
 export type ServerInputAdmission = "queued" | "running"
 
 export interface ServerSessionInputs {

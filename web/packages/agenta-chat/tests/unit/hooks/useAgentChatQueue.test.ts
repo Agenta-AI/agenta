@@ -1363,3 +1363,42 @@ describe("useAgentChatQueue pending-send echoes", () => {
         expect(result.current.pendingSendRows).toHaveLength(0)
     })
 })
+
+describe("useAgentChatQueue echo retirement timing", () => {
+    it("never paints an adopted durable row and its echo in the same frame", async () => {
+        // Retirement in an effect runs AFTER the paint, so the frame carrying the newly adopted
+        // row would also carry the echo: one duplicate-bubble flash per send.
+        const server = durableServer()
+        const props: HarnessProps = {...settledEmpty, server}
+        const frames: {durableUsers: number; echoes: number}[] = []
+        const {result, rerender} = renderHook(
+            (p: HarnessProps) => {
+                const queue = useAgentChatQueue({
+                    ...p,
+                    markRunOwned: () => undefined,
+                    sendQueued: () => undefined,
+                })
+                frames.push({
+                    durableUsers: p.messages.filter((m) => m.role === "user").length,
+                    echoes: queue.pendingSendRows.length,
+                })
+                return queue
+            },
+            {initialProps: props},
+        )
+
+        await act(async () => {
+            await result.current.submit({text: "saved soon"})
+        })
+        expect(result.current.pendingSendRows).toHaveLength(1)
+
+        frames.length = 0
+        rerender({...props, messages: [userTurn("record-1", "saved soon")]})
+
+        expect(frames.length).toBeGreaterThan(0)
+        for (const frame of frames) {
+            expect(frame.durableUsers + frame.echoes).toBeLessThanOrEqual(1)
+        }
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+})

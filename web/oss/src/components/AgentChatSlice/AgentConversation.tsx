@@ -464,15 +464,12 @@ const AgentConversation = ({
         server: serverInputs,
     })
 
-    // Declared after the queue because it renders the queue's echoes: a durable send adds nothing
-    // to the AI SDK chat, so without them the transcript stays unchanged until the records read
-    // that adopts the saved row lands.
+    // Declared after the queue because it renders the queue's echoes.
     const transcriptMessages = useMemo(() => {
         const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
         const live =
             turnDeliverySource === "legacy" || previewMessages.length === 0 ? [] : previewMessages
-        // A just-sent message goes between the two: after everything already saved, and before the
-        // answer streaming under it.
+        // A just-sent message sits after everything saved and before the answer streaming under it.
         if (pendingSendRows.length === 0 && live.length === 0) return durableMessages
         return [...durableMessages, ...pendingSendRows, ...live]
     }, [messages, pendingSendRows, previewMessages, turnDeliverySource])

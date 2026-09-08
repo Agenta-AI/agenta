@@ -212,18 +212,10 @@ export const useAgentChatQueue = ({
         queuedRef.current = queued
     }, [queued])
 
-    // ── The local echo of a durable send ──────────────────────────────────────────────────────
-    // A server-owned send adds NOTHING to the AI SDK chat, so the transcript stays unchanged until
-    // the invoke POST, the durable event, and the records read all land. Measured at ~0.9s on a
-    // local stack and several seconds against a remote deployment, with the composer already
-    // cleared — the message simply vanishes for the whole window. These echoes render it at once
-    // and retire as the durable rows catch up. They live only in the merged render array, never in
-    // the AI SDK `messages`: `shouldAdoptServerTranscript` weighs the local message count, and an
-    // echo counted there would make the adoption that retires it look redundant.
+    // Local echoes of durable sends, which the AI SDK chat never receives. See `pendingSends.ts`.
     const [pendingSends, setPendingSends] = useState<readonly PendingSend[]>([])
-    // The ref, not the state, is the source of truth: two sends can land before React re-renders,
-    // and a second echo reading a stale list would claim the first one's coverage number and
-    // retire with it. Every writer goes through `updatePendingSends`, which keeps both in step.
+    // The ref leads the state: two sends can land in one render, and the second must not reuse
+    // the first's coverage number.
     const pendingSendsRef = useRef(pendingSends)
     const updatePendingSends = useCallback(
         (next: (current: readonly PendingSend[]) => readonly PendingSend[]) => {
@@ -235,9 +227,14 @@ export const useAgentChatQueue = ({
         [],
     )
     const userMessageCount = countUserMessages(messages)
-    useEffect(() => {
-        updatePendingSends((current) => retirePendingSends(current, userMessageCount))
-    }, [updatePendingSends, userMessageCount])
+    // Retire DURING render, never in an effect: an effect runs after the paint, so the frame that
+    // first carries an adopted durable row would also carry its echo — one duplicate-bubble flash
+    // per send. Setting state here makes React re-run this render before painting anything.
+    const retiredPendingSends = retirePendingSends(pendingSendsRef.current, userMessageCount)
+    if (retiredPendingSends !== pendingSendsRef.current) {
+        pendingSendsRef.current = retiredPendingSends
+        setPendingSends(retiredPendingSends)
+    }
     const dropPendingSend = useCallback(
         (id: string) => {
             updatePendingSends((current) => {
@@ -349,10 +346,8 @@ export const useAgentChatQueue = ({
             const message: QueuedMessage = {...item, id: generateId()}
             const admit = (queue: boolean) => {
                 if (queue && server) {
-                    // Echo it into the transcript before the request leaves, and retire it the
-                    // moment something else in the UI owns the message: the dock on a 202, the
-                    // durable user row on a 200, the composer restore on a refusal (both hosts put
-                    // the text back there), so it is never shown twice and never lost.
+                    // Echo it before the request leaves; the dock owns it on a 202 and the
+                    // composer restore owns it on a refusal, so drop it in both cases.
                     updatePendingSends((current) => {
                         const userCount = countUserMessages(messagesRef.current)
                         return [
@@ -584,17 +579,15 @@ export const useAgentChatQueue = ({
         sendQueued(head)
     }, [settled, canReleaseNow, queued, markRunOwned, sendQueued])
 
-    // Rebuilt only when an echo is added or retired, so the transcript memo that appends these
-    // does not churn on every streamed token.
-    const pendingSendRows = useMemo(() => pendingSendMessages(pendingSends), [pendingSends])
+    // Keyed on the retired list, so this render never rebuilds a row it just dropped.
+    const pendingSendRows = useMemo(
+        () => pendingSendMessages(retiredPendingSends),
+        [retiredPendingSends],
+    )
 
     return {
         queued: [...(server?.queued ?? []), ...queued],
-        /**
-         * Disposable user rows for messages this tab has sent and the durable transcript has not
-         * echoed back yet. Render them AFTER the adopted messages and BEFORE any live preview, so
-         * the question stays above the answer streaming under it.
-         */
+        /** Sent-but-not-yet-saved user rows; render after the adopted messages, before the preview. */
         pendingSendRows,
         submit,
         steer,

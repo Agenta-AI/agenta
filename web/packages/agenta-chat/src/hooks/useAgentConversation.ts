@@ -1077,9 +1077,7 @@ export const useAgentConversation = ({
     const displayMessages = useMemo(() => {
         const transcriptMessages = withoutSharedSenderAcceptanceMessages(messages)
         const live = includePreview && previewMessages.length ? previewMessages : []
-        // The queue's echoes sit between the two: after everything already saved, and before the
-        // answer streaming under them. Without them a durable send leaves the transcript unchanged
-        // until the records read that adopts the saved row lands.
+        // A just-sent message sits after everything saved and before the answer streaming under it.
         if (pendingSendRows.length === 0 && live.length === 0) return transcriptMessages
         return [...transcriptMessages, ...pendingSendRows, ...live]
     }, [includePreview, messages, pendingSendRows, previewMessages])
