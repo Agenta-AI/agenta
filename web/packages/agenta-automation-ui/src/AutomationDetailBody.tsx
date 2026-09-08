@@ -122,8 +122,13 @@ export const AutomationDetailBody = ({
         ) : null}
         {/* Last on the page: the bar commits the whole screen, so it reads as the end of the
             form rather than a divider halfway down it. */}
-        {dirty && !hideSaveBar ? (
-            <AutomationSaveBar saving={saving} onDiscard={onDiscard} onSave={onSave} />
-        ) : null}
+        {hideSaveBar ? null : (
+            <AutomationSaveBar
+                dirty={dirty}
+                saving={saving}
+                onDiscard={onDiscard}
+                onSave={onSave}
+            />
+        )}
     </div>
 )
