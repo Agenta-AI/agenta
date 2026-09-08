@@ -15,7 +15,8 @@ PR, a two-replica test, and the Codex review items listed at the end of the tabl
 - Integration worktree: `/home/mahmoud/code/agenta-2-worktrees/hosted-subscriptions`.
 - Local branch: `spike/hosted-subscription-exploration`.
 - PR branch: `agent/hosted-subscription-connections-plan-20260907` (Codex's plan PR).
-- Implementation branch on origin: `spike/hosted-subscription-exploration` at `e2773a30c0` (2026-09-08).
+- Implementation branch on origin: `spike/hosted-subscription-exploration`.
+- Pull request: [#6674](https://github.com/Agenta-AI/agenta/pull/6674) against `release/v0.115.4` (opened 2026-09-08).
 - Workflow: ordinary Git in the explicitly requested worktree. Do not initialize GitButler here.
 
 ## Landed on the branch (2026-09-08)
