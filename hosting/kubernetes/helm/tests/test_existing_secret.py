@@ -169,5 +169,10 @@ def main() -> int:
     return 0
 
 
+def test_existing_secret_is_honored() -> None:
+    """pytest entry point. The module also runs standalone; both call main()."""
+    assert main() == 0, "secrets.existingSecret is honored"
+
+
 if __name__ == "__main__":
     raise SystemExit(main())

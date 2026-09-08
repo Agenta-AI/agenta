@@ -195,5 +195,10 @@ def main() -> int:
     return 0
 
 
+def test_runner_env_stays_narrow() -> None:
+    """pytest entry point. The module also runs standalone; both call main()."""
+    assert main() == 0, "the runner environment stays narrow"
+
+
 if __name__ == "__main__":
     raise SystemExit(main())

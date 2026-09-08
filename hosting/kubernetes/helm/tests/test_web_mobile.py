@@ -161,5 +161,10 @@ def main() -> int:
     return 0
 
 
+def test_web_mobile_is_deployed_and_routed() -> None:
+    """pytest entry point. The module also runs standalone; both call main()."""
+    assert main() == 0, "web-mobile is deployed and routed"
+
+
 if __name__ == "__main__":
     raise SystemExit(main())
