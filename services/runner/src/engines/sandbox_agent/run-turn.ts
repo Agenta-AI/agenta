@@ -12,6 +12,10 @@ import {
   type ToolCallbackContext,
 } from "../../protocol.ts";
 import { sandboxVisibleSecretValues, seedForRun } from "../../redaction.ts";
+import {
+  observeSubscription,
+  thrownFields,
+} from "../../subscription-events.ts";
 import { startPlatformCredentialLease } from "../../sessions/auth.ts";
 import {
   ApprovalResponder,
@@ -251,6 +255,12 @@ export async function runTurn(
    * records the refusal in its own transcript and ends the turn cleanly, so the ordinary path is
    * the swallowed-error branch below and the `catch` is the exception. With the swallowed branch
    * unwired, a dead sign-in surfaces as an HTTP 500 carrying Pi's internal sentence.
+   *
+   * IT NEVER REJECTS. The recovery reads and writes the login file, on Daytona through the
+   * sandbox's file API, and a sandbox that died mid-turn makes that throw. Both call sites run
+   * where a rejection would escape before the trace is flushed — one of them from inside the
+   * `catch` itself, which would replace the run's real error with a filesystem one. A recovery
+   * that cannot complete is simply no recovery: the turn keeps the classification it already had.
    */
   const subscriptionRecovery = async (
     err: unknown,
@@ -277,6 +287,14 @@ export async function runTurn(
         ? { publish: env.subscriptionPublisher.reconcile }
         : {}),
       log: logger,
+    }).catch((thrown) => {
+      observeSubscription(logger, "subscription.recovery", {
+        connection: subscription.id,
+        decision: "recover",
+        verdict: "threw",
+        ...thrownFields(thrown),
+      });
+      return undefined;
     });
   };
   const harnessTrace = createHarnessTracePort({
