@@ -129,8 +129,14 @@ describe("retirePendingSendEchoes and the dock", () => {
         // A completed snapshot request is not evidence the dock has the row.
         const pending = [echo("m1", "queued", 3, {parkedInputId: "input-1"})]
         expect(retire(pending, 2, [], [])).toEqual(pending)
-        expect(retire(pending, 9, ["turn-anything"], [])).toEqual(pending)
         expect(retire(pending, 2, [], ["input-1"])).toEqual([])
+    })
+
+    it("still bounds a parked echo the dock never shows, when promotion beat observation", () => {
+        // A promoted input leaves the dock query for good and never gets a turn id of its own,
+        // so dock membership alone would leave this echo on screen forever.
+        const pending = [echo("m1", "queued", 3, {parkedInputId: "input-1"})]
+        expect(retire(pending, 3, [], [])).toEqual([])
     })
 
     it("ignores a dock row belonging to some other input", () => {
@@ -284,6 +290,7 @@ describe("isPendingSendFailed", () => {
     })
 
     it("carries a note that says what happened and what to do", () => {
-        expect(PENDING_SEND_FAILED_NOTE).toMatch(/not sent/i)
+        // Word for word what the composer shows for the other refusal shape.
+        expect(PENDING_SEND_FAILED_NOTE).toBe("Message wasn't sent — try again.")
     })
 })

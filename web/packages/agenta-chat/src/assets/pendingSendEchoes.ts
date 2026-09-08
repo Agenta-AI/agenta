@@ -97,7 +97,11 @@ export const retirePendingSendEchoes = (
         // The saved row is the strongest evidence there is, so it is checked FIRST. A row that
         // turns up late still retires an echo an earlier guess had already flagged as failed.
         if (item.executionId) return !durableTurnIds.has(item.executionId)
-        if (item.parkedInputId) return !dockedIds.has(item.parkedInputId)
+        // A parked input that is promoted before any snapshot observes it disappears from the
+        // dock query for good, and it never gets a turn id of its own, so dock membership cannot
+        // be its only successor. The count is the fallback that keeps it from waiting forever.
+        if (item.parkedInputId)
+            return !dockedIds.has(item.parkedInputId) && userCount < item.coveredAtUserCount
         // A failed send outlives everything else here. The composer has already cleared, so
         // dropping the row would delete the user's text with nothing to show for it.
         if (item.failed) return true
@@ -130,8 +134,11 @@ export const pendingSendEchoMessages = (pending: readonly PendingSendEcho[]): UI
 export const isPendingSendFailed = (message: UIMessage): boolean =>
     (message.metadata as {pendingSendFailed?: unknown} | undefined)?.pendingSendFailed === true
 
-/** Shown on a failed echo. One sentence: what happened, and what to do about it. */
-export const PENDING_SEND_FAILED_NOTE = "Not sent. Copy the text and try again."
+/**
+ * Shown on a failed echo. Word for word what the composer says when a send is refused before it
+ * resolves, because to the user those are one event and two phrasings read as carelessness.
+ */
+export const PENDING_SEND_FAILED_NOTE = "Message wasn't sent — try again."
 
 const previewExecutionId = (message: UIMessage): string | null => {
     const metadata = message.metadata as {executionId?: unknown} | undefined

@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {UIMessage} from "ai"
 
@@ -66,36 +66,42 @@ export const usePendingSendEchoes = ({
         setEchoes((current) => retirePendingSendEchoes(current, retireArgs))
     }, [retireArgs])
 
-    // `userCount` is closed over as a plain value, so the updaters stay pure and React may replay
-    // them freely. Coverage itself is allocated from the list React hands the updater.
-    const add = useCallback(
-        (input: PendingSendEchoInput) => {
-            setEchoes((current) => [
-                ...current,
-                {
-                    id: input.id,
-                    text: input.text,
-                    fileParts: input.fileParts,
-                    coveredAtUserCount: nextPendingSendCoverage(userCount, current),
-                    createdAtUserCount: userCount,
-                },
-            ])
-        },
-        [userCount],
-    )
+    // The baseline is read at CALL time, not closed over. A send can be registered long after the
+    // render that created this callback — capability resolution is a round trip — and a count
+    // captured back then may already be behind, which would hide the echo the moment it appears.
+    // Written from an effect, so it tracks the last COMMITTED render and an abandoned one cannot
+    // move it.
+    const committedUserCount = useRef(userCount)
+    useEffect(() => {
+        committedUserCount.current = userCount
+    }, [userCount])
 
-    const drop = useCallback(
-        (id: string) => {
-            setEchoes((current) => {
-                const next = current.filter((item) => item.id !== id)
-                if (next.length === current.length) return current
-                // An echo behind a dropped one reserved a count that is now one too high and
-                // would never retire.
-                return compactPendingSendCoverage(next, userCount)
-            })
-        },
-        [userCount],
-    )
+    // The updaters take that baseline as a plain argument, so they stay pure and React may replay
+    // them. Coverage itself is allocated from the list React hands the updater.
+    const add = useCallback((input: PendingSendEchoInput) => {
+        const at = committedUserCount.current
+        setEchoes((current) => [
+            ...current,
+            {
+                id: input.id,
+                text: input.text,
+                fileParts: input.fileParts,
+                coveredAtUserCount: nextPendingSendCoverage(at, current),
+                createdAtUserCount: at,
+            },
+        ])
+    }, [])
+
+    const drop = useCallback((id: string) => {
+        const at = committedUserCount.current
+        setEchoes((current) => {
+            const next = current.filter((item) => item.id !== id)
+            if (next.length === current.length) return current
+            // An echo behind a dropped one reserved a count that is now one too high and
+            // would never retire.
+            return compactPendingSendCoverage(next, at)
+        })
+    }, [])
 
     const mark = useCallback((id: string, patch: Partial<PendingSendEcho>) => {
         setEchoes((current) => {

@@ -221,3 +221,37 @@ describe("usePendingSendEchoes before a send is acknowledged", () => {
         expect(texts(result.current.rows)).toEqual(["mine"])
     })
 })
+
+describe("usePendingSendEchoes baseline freshness", () => {
+    it("registers a send against the transcript as it is NOW, not as it was", async () => {
+        // Capability resolution is a round trip, so `add` can be called long after the render that
+        // produced it. A baseline captured back then is already behind, and the echo would be
+        // hidden the moment it appeared.
+        const {result, rerender} = setup()
+
+        // The submit that is mid-capability-resolution holds THIS handler, taken before the
+        // transcript moved on. Calling result.current later would take the fresh one and test
+        // nothing.
+        const staleAdd = result.current.add
+
+        rerender({messages: [user("s1", "someone else")], dockedInputIds: NO_DOCK})
+
+        act(() => staleAdd({id: "m1", text: "mine"}))
+
+        expect(texts(result.current.rows)).toEqual(["mine"])
+    })
+
+    it("keeps a burst distinct even when every add runs against the same fresh baseline", () => {
+        const {result, rerender} = setup()
+        rerender({messages: [user("s1", "old")], dockedInputIds: NO_DOCK})
+
+        act(() => {
+            result.current.add({id: "m1", text: "one"})
+            result.current.add({id: "m2", text: "two"})
+        })
+        expect(texts(result.current.rows)).toEqual(["one", "two"])
+
+        rerender({messages: [user("s1", "old"), user("s2", "one")], dockedInputIds: NO_DOCK})
+        expect(texts(result.current.rows)).toEqual(["two"])
+    })
+})
