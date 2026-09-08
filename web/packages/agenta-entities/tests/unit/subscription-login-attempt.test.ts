@@ -5,7 +5,11 @@ import {
     MIN_LOGIN_POLL_MS,
     isTerminalLoginAttemptState,
 } from "../../src/secret/api/loginAttempts"
-import {loginAttemptKey, loginAttemptPollInterval} from "../../src/secret/state/subscriptionLogin"
+import {
+    loginAttemptKey,
+    loginAttemptOutcome,
+    loginAttemptPollInterval,
+} from "../../src/secret/state/subscriptionLogin"
 
 const STARTED_AT = 1_700_000_000_000
 
@@ -102,5 +106,59 @@ describe("loginAttemptKey", () => {
         expect(
             loginAttemptKey({secretId: "sub-1", attemptId: "att-1", startedAt: STARTED_AT}),
         ).not.toBe(loginAttemptKey({secretId: "sub-1", attemptId: "att-2", startedAt: STARTED_AT}))
+    })
+})
+
+describe("loginAttemptOutcome", () => {
+    const outcome = (over: Record<string, unknown> = {}) =>
+        loginAttemptOutcome({
+            state: "pending",
+            startedAt: STARTED_AT,
+            now: STARTED_AT + 1000,
+            ...over,
+        })
+
+    it("waits while the server keeps answering pending", () => {
+        expect(outcome()).toBe("waiting")
+        expect(outcome({state: undefined})).toBe("waiting")
+    })
+
+    it("reports the server's own endings", () => {
+        expect(outcome({state: "succeeded"})).toBe("succeeded")
+        for (const state of ["failed", "expired", "cancelled"]) {
+            expect(outcome({state})).toBe("failed")
+        }
+    })
+
+    /**
+     * A sign-in whose response was lost has already landed on the row, and the row then cleared
+     * the binding, so the next poll reads 404 exactly like a stranger's attempt id. The card must
+     * ask the vault rather than show a failure over a connection that is ready.
+     */
+    it("calls a poll it could not read unreadable, ahead of every other ending", () => {
+        expect(outcome({unreadable: true})).toBe("unreadable")
+        expect(outcome({unreadable: true, state: "failed"})).toBe("unreadable")
+        expect(outcome({unreadable: true, now: STARTED_AT + LOGIN_ATTEMPT_BACKSTOP_MS + 1})).toBe(
+            "unreadable",
+        )
+    })
+
+    it("times out an attempt the server never ended, on the poll's own backstop", () => {
+        expect(outcome({now: STARTED_AT + LOGIN_ATTEMPT_BACKSTOP_MS - 1})).toBe("waiting")
+        expect(outcome({now: STARTED_AT + LOGIN_ATTEMPT_BACKSTOP_MS})).toBe("timed_out")
+        // The poll stops on the same clock, so the two never disagree.
+        expect(
+            loginAttemptPollInterval({
+                state: "pending",
+                startedAt: STARTED_AT,
+                now: STARTED_AT + LOGIN_ATTEMPT_BACKSTOP_MS + 1,
+            }),
+        ).toBe(false)
+    })
+
+    it("still reports a success that arrived after the backstop", () => {
+        expect(outcome({state: "succeeded", now: STARTED_AT + LOGIN_ATTEMPT_BACKSTOP_MS + 1})).toBe(
+            "succeeded",
+        )
     })
 })

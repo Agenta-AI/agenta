@@ -81,6 +81,37 @@ export const loginAttemptPollInterval = ({
 }
 
 /**
+ * What a card should DO about an attempt, given the last poll and the clock.
+ *
+ * The poll answers three ways and the clock answers a fourth, and each needs a different move, so
+ * the choice lives here rather than in a component's effects — beside `loginAttemptPollInterval`,
+ * which stops the poll on the same backstop.
+ *
+ * `unreadable` comes first because it is the recoverable one: a sign-in whose response was lost has
+ * already landed on the row, and the next poll reads 404 exactly like a stranger's attempt id. The
+ * caller asks the vault instead of showing a failure.
+ */
+export type LoginAttemptOutcome = "waiting" | "succeeded" | "failed" | "unreadable" | "timed_out"
+
+export const loginAttemptOutcome = ({
+    state,
+    unreadable = false,
+    startedAt,
+    now = Date.now(),
+}: {
+    state?: string | null
+    unreadable?: boolean
+    startedAt?: number
+    now?: number
+}): LoginAttemptOutcome => {
+    if (unreadable) return "unreadable"
+    if (state === "succeeded") return "succeeded"
+    if (isTerminalLoginAttemptState(state)) return "failed"
+    if (startedAt && now - startedAt >= LOGIN_ATTEMPT_BACKSTOP_MS) return "timed_out"
+    return "waiting"
+}
+
+/**
  * The live state of one device login attempt.
  *
  * Refetches at the interval the server asked for, stops the moment the server reports a terminal

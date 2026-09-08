@@ -368,19 +368,17 @@ const ProviderDrawer = ({
                         label={isSettings ? undefined : "Add a provider"}
                         hint={isSettings ? undefined : "several connections per provider are fine"}
                     />
-                    {/* The hosted sign-in, above the deployment-mounted rows: both are
-                        subscriptions, but only this one is connected from here. It is not gated on
-                        `showSubscriptions`, which switches off the MOUNTED rows — a deployment that
+                    {/* One section for both sign-in sources. The hosted card is not gated on
+                        `showSubscriptions`, which switches off the MOUNTED rows: a deployment that
                         can mount nothing still runs a hosted subscription. */}
                     {isPlayground ? (
-                        <div className="shrink-0 border-0 border-t border-solid border-colorSplit px-6 pb-3 pt-4">
-                            <SubscriptionConnectionCard connection={hostedSubscription} />
-                        </div>
-                    ) : null}
-                    {showSubscriptionRows ? (
                         <PlaygroundSubscriptionsSection
                             subscriptionDocsUrl={subscriptionDocsUrl}
                             onSelectPair={(pair) => showView({level: "subscription", pair})}
+                            hostedCard={
+                                <SubscriptionConnectionCard connection={hostedSubscription} />
+                            }
+                            showMounted={showSubscriptionRows}
                         />
                     ) : null}
                 </>

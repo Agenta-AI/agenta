@@ -102,7 +102,9 @@ export {
     connectedRowSubtitle,
     connectionModelCount,
     mountedSubscriptionName,
+    subscriptionAvailability,
     subscriptionConnectionCandidates,
+    subscriptionHarnesses,
     subscriptionIsReady,
     subscriptionPairModels,
     subscriptionPairsFrom,
@@ -204,12 +206,14 @@ export {
     createSubscriptionConnectionAtom,
     forgetLoginAttemptAtom,
     loginAttemptKey,
+    loginAttemptOutcome,
     loginAttemptPollInterval,
     loginAttemptQueryAtomFamily,
     refreshVaultSecretsAtom,
     startSubscriptionLoginAtom,
     useVaultSecret,
     type LoginAttemptKey,
+    type LoginAttemptOutcome,
 } from "./state"
 
 // ============================================================================

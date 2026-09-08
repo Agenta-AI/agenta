@@ -38,13 +38,16 @@ const NAME_BY_SUBSCRIPTION_PROVIDER: Record<string, string> = {
 /**
  * What a harness calls the provider when it runs on a subscription login.
  *
- * Pi drives a ChatGPT login through its own `openai-codex` provider id, while Codex speaks plain
- * `openai`. The run config stores this value as `agent.llm.provider`, and the server checks the
- * (harness, provider, mode) triple, so a wrong name fails the run.
+ * Pi drives a ChatGPT login through its own `openai-codex` provider id. The run config stores this
+ * value as `agent.llm.provider`, and the server checks the (harness, provider, mode) triple, so a
+ * wrong name fails the run.
+ *
+ * Pi is the only entry. Codex refuses a login file without an `id_token`, which the ChatGPT device
+ * login never issues, so offering a Codex row would offer a run that cannot authenticate. The SDK
+ * refuses the same pair at resolution. Add a harness here once its credential format is supported.
  */
 const RUN_PROVIDER_BY_HARNESS: Record<string, string> = {
     pi_core: "openai-codex",
-    codex: "openai",
 }
 
 /** The harnesses a subscription connection drives when the record names none. */
@@ -56,8 +59,14 @@ export const subscriptionProviderFamily = (provider: string): string =>
 export const subscriptionProviderName = (provider: string): string =>
     NAME_BY_SUBSCRIPTION_PROVIDER[provider] ?? provider
 
-export const subscriptionRunProvider = (harness: string, provider: string): string =>
-    RUN_PROVIDER_BY_HARNESS[harness] ?? subscriptionProviderFamily(provider)
+/**
+ * The provider name a run carries, or `null` when this harness cannot use a subscription login.
+ *
+ * `null` is what keeps an unusable pair out of the picker: the caller drops the candidate rather
+ * than offering a row whose run the server would refuse.
+ */
+export const subscriptionRunProvider = (harness: string, _provider: string): string | null =>
+    RUN_PROVIDER_BY_HARNESS[harness] ?? null
 
 /** Whether a row's sign-in can drive a run right now. Anything but `ready` cannot. */
 export const subscriptionIsReady = (
@@ -110,4 +119,36 @@ export const subscriptionStatusLine = (
               subscription.loginError,
           )}`
         : SUBSCRIPTION_SIGN_IN_HINT
+}
+
+/** The shape the availability rules read. Structural, so this module stays free of the row type. */
+export interface SubscriptionRowFacts {
+    harnesses?: string[] | null
+    subscription?: SubscriptionLoginFacts | null
+}
+
+/** The harnesses a row drives: the ones it names, or the default when it names none. */
+export const subscriptionHarnesses = (row: SubscriptionRowFacts): readonly string[] =>
+    row.harnesses?.length ? row.harnesses : DEFAULT_SUBSCRIPTION_HARNESSES
+
+/**
+ * What a hosted subscription row is worth to a surface narrowed to `harnessIds`.
+ *
+ * One rule for every surface that shows the row. `not_applicable` means the row has nothing to say
+ * here — a ChatGPT subscription drives Pi, so an agent that runs only Claude gains nothing by
+ * signing in, and telling it to sign in would be a false instruction. `sign_in_needed` is the only
+ * state that earns a disabled row: it is the one the user can act on.
+ *
+ * An undefined `harnessIds` means no narrowing at all, so every row applies.
+ */
+export type SubscriptionAvailability = "ready" | "sign_in_needed" | "not_applicable"
+
+export const subscriptionAvailability = (
+    row: SubscriptionRowFacts,
+    harnessIds?: readonly string[],
+): SubscriptionAvailability => {
+    const drives =
+        !harnessIds || subscriptionHarnesses(row).some((harness) => harnessIds.includes(harness))
+    if (!drives) return "not_applicable"
+    return subscriptionIsReady(row.subscription) ? "ready" : "sign_in_needed"
 }

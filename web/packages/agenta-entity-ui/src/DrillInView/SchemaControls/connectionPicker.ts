@@ -9,15 +9,14 @@ import {
     agentModelSelectionIsRunnable,
     bareModelId,
     connectionModelIds,
-    DEFAULT_SUBSCRIPTION_HARNESSES,
     effectiveHarnesses,
     firstAgentModelForConnection,
     isSubscriptionConnection,
     mountedSubscriptionName,
     resolveAgentModelSelection,
-    subscriptionIsReady,
     SecretKind,
     SUBSCRIPTION_SIGN_IN_HINT,
+    subscriptionAvailability,
     type AgentModelCandidate,
     type AgentModelSelection,
     type ProviderConnection,
@@ -123,23 +122,6 @@ const modelFromCandidate = (
 }
 
 /**
- * Whether a signed-in subscription would give THIS agent anything.
- *
- * A ChatGPT subscription drives Pi. An agent that runs only Claude gains nothing by signing in, so
- * the row has nothing to tell it. With no narrowing every subscription passes.
- */
-const subscriptionDrivesAnyHarness = (
-    connection: ProviderConnection,
-    harnessIds: readonly string[] | undefined,
-): boolean => {
-    if (!harnessIds) return true
-    const allowed = connection.harnesses?.length
-        ? connection.harnesses
-        : DEFAULT_SUBSCRIPTION_HARNESSES
-    return allowed.some((harness) => harnessIds.includes(harness))
-}
-
-/**
  * The row a hosted subscription shows while its sign-in cannot run anything.
  *
  * It contributes no candidates, so without this it would vanish from the picker exactly when the
@@ -175,11 +157,9 @@ export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConn
     for (const connection of args.connections) {
         if (!isSubscriptionConnection(connection)) continue
         if (byKey.has(connection.id)) continue
-        // Only a dead sign-in earns the row. A READY subscription with no candidates was dropped
-        // for some other reason — the agent runs a harness it does not drive — and "Sign in
-        // needed" would be a false instruction there.
-        if (subscriptionIsReady(connection.subscription)) continue
-        if (!subscriptionDrivesAnyHarness(connection, args.harnessIds)) continue
+        // Only a sign-in the user can act on earns the row. A READY subscription with no candidates
+        // was dropped for another reason, and a row this agent cannot drive has nothing to say.
+        if (subscriptionAvailability(connection, args.harnessIds) !== "sign_in_needed") continue
         rows.push(disabledSubscriptionRow(connection))
     }
 

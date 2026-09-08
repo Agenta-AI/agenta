@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     buildAgentModelCandidates,
     isSubscriptionConnection,
+    subscriptionAvailability,
     subscriptionStatusLine,
     toProviderConnections,
     transformSecret,
@@ -21,6 +22,13 @@ const capabilities: HarnessCapabilityMap = {
         providers: ["anthropic"],
         deployments: ["direct"],
         connection_modes: ["agenta"],
+    },
+    codex: {
+        providers: ["openai"],
+        deployments: ["direct"],
+        connection_modes: ["agenta", "self_managed"],
+        model_selection: "provider/id",
+        models: {openai: ["openai/gpt-5.5"]},
     },
 }
 
@@ -124,6 +132,18 @@ describe("subscription candidates", () => {
         expect(candidates).toEqual([])
     })
 
+    it("offers nothing to a harness that cannot consume the login", () => {
+        // Codex refuses a login file without an `id_token`, and the ChatGPT device login never
+        // issues one. The record naming the harness is not enough: an offered row would be a run
+        // that cannot authenticate, and the SDK refuses the same pair at resolution.
+        const candidates = buildAgentModelCandidates({
+            connections: connectionsFor("ready", {harnesses: ["pi_core", "codex"]}),
+            capabilities,
+            harnessIds: ["codex"],
+        })
+        expect(candidates).toEqual([])
+    })
+
     it("skips a harness that cannot run self-managed at all", () => {
         const candidates = buildAgentModelCandidates({
             connections: connectionsFor("ready", {harnesses: ["claude"]}),
@@ -197,5 +217,24 @@ describe("subscriptionStatusLine", () => {
                 loginError: "refresh_rejected",
             }),
         ).toBe("Sign in needed. The grok sign-in is no longer valid.")
+    })
+})
+
+describe("subscription availability", () => {
+    it("is ready only when the sign-in is, and only for a harness it drives", () => {
+        const [ready] = connectionsFor("ready")
+        const [dead] = connectionsFor("needs_login")
+
+        expect(subscriptionAvailability(ready, ["pi_core"])).toBe("ready")
+        expect(subscriptionAvailability(dead, ["pi_core"])).toBe("sign_in_needed")
+        // An agent that runs only Claude gains nothing by signing in, so the row says nothing.
+        expect(subscriptionAvailability(dead, ["claude"])).toBe("not_applicable")
+        // No narrowing at all: every row applies.
+        expect(subscriptionAvailability(dead)).toBe("sign_in_needed")
+    })
+
+    it("falls back to the default harness when the record names none", () => {
+        const [connection] = connectionsFor("needs_login", {harnesses: []})
+        expect(subscriptionAvailability(connection, ["pi_core"])).toBe("sign_in_needed")
     })
 })

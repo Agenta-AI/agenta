@@ -5,6 +5,7 @@ import {
     credentialSummary,
     deleteSecretAtom,
     isSubscriptionConnection,
+    subscriptionIsReady,
     SecretManagementPolicy,
     providerConnectionsAtom,
     useVaultSecret,
@@ -100,6 +101,7 @@ export const AIProvidersPage = ({
         () => connections.find(isSubscriptionConnection) ?? null,
         [connections],
     )
+    const subscriptionConnected = subscriptionIsReady(subscription?.subscription)
 
     const openCatalog = useCallback(() => {
         setSelected(null)
@@ -230,12 +232,18 @@ export const AIProvidersPage = ({
                             image="simple"
                             description={
                                 <div className="flex flex-col gap-1">
+                                    {/* The table lists API-key connections only, so its empty
+                                        state must not claim the project has nothing connected
+                                        while the subscription card above says Connected. */}
                                     <span className="text-xs font-medium text-colorText">
-                                        No providers connected
+                                        {subscriptionConnected
+                                            ? "No API keys connected"
+                                            : "No providers connected"}
                                     </span>
                                     <span>
-                                        Connect a provider with your own API key to run agents,
-                                        prompts, and evaluations.
+                                        {subscriptionConnected
+                                            ? "Your ChatGPT subscription runs agents already. Add an API key to use another provider, or to run prompts and evaluations."
+                                            : "Connect a provider with your own API key to run agents, prompts, and evaluations."}
                                     </span>
                                 </div>
                             }

@@ -7,7 +7,7 @@ import {
 } from "./connections"
 import {connectionSlugFor} from "./promptModelGroups"
 import {
-    DEFAULT_SUBSCRIPTION_HARNESSES,
+    subscriptionHarnesses,
     subscriptionIsReady,
     subscriptionRunProvider,
 } from "./subscriptionConnections"
@@ -171,19 +171,21 @@ export const subscriptionConnectionCandidates = ({
     const slug = connection.slug?.trim()
     if (!slug) return []
 
-    const allowed = connection.harnesses?.length
-        ? connection.harnesses
-        : DEFAULT_SUBSCRIPTION_HARNESSES
+    const allowed = subscriptionHarnesses(connection)
     const ids = (connection.models ?? []).filter(Boolean)
 
     const candidates: AgentModelCandidate[] = []
     for (const harness of harnessIds) {
         if (!allowed.includes(harness)) continue
         if (!capabilities?.[harness]?.connection_modes?.includes("self_managed")) continue
+        // A harness with no run-provider name cannot consume this login at all, so it gets no
+        // row: the SDK refuses the same pair, and an offered row would only fail the run.
+        const runProvider = subscriptionRunProvider(harness, subscription.provider)
+        if (!runProvider) continue
         for (const modelId of ids) {
             candidates.push({
                 modelId,
-                provider: subscriptionRunProvider(harness, subscription.provider),
+                provider: runProvider,
                 mode: "self_managed",
                 slug,
                 harness,

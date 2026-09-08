@@ -11,6 +11,11 @@
  *   ready          Connected, with Sign in again and Remove
  *   sign-in needed the reason the last run gave, with Sign in again and Remove
  *
+ * Two endings are not the server's to report. A poll that cannot read its attempt asks the vault
+ * instead: a sign-in whose response was lost has already landed on the row, so the connection is
+ * what answers. A server that keeps saying `pending` past the backstop ends the attempt on screen
+ * rather than leaving a countdown that has stopped counting.
+ *
  * The poll lives in `@agenta/entities/secret`; this component only starts an attempt, renders what
  * the poll reports, and refetches the vault once the sign-in lands.
  *
@@ -23,6 +28,7 @@ import {
     createSubscriptionConnectionAtom,
     forgetLoginAttemptAtom,
     loginAttemptKey,
+    loginAttemptOutcome,
     loginAttemptQueryAtomFamily,
     refreshVaultSecretsAtom,
     startSubscriptionLoginAtom,
@@ -51,6 +57,8 @@ interface PendingAttempt {
     userCode: string
     verificationUri: string
     expiresAt: string | null
+    /** When the attempt started, so the backstop can end a poll the server never terminates. */
+    startedAt: number
     /** The family key its poll is addressed by. */
     pollKey: string
 }
@@ -104,6 +112,7 @@ const SubscriptionConnectionCard = ({
     const [pending, setPending] = useState<PendingAttempt | null>(null)
     const [starting, setStarting] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [lostPoll, setLostPoll] = useState(false)
     const [now, setNow] = useState(() => Date.now())
 
     const name = connection?.name || subscriptionProviderName(provider)
@@ -116,14 +125,23 @@ const SubscriptionConnectionCard = ({
     // The poll only exists while an attempt does. `loginAttemptQueryAtomFamily("")` is disabled,
     // which is what lets the hook stay unconditional.
     const attemptQuery = useAtomValue(loginAttemptQueryAtomFamily(pending?.pollKey ?? ""))
-    const attemptState = pending ? attemptQuery.data?.state : undefined
+    const attemptState = attemptQuery.data?.state
+    const outcome = pending
+        ? loginAttemptOutcome({
+              state: attemptState,
+              unreadable: Boolean(attemptQuery.error),
+              startedAt: pending.startedAt,
+              now,
+          })
+        : "waiting"
 
-    // One tick a second, only while a countdown is on screen.
+    // One tick a second while an attempt is in flight: it drives the countdown, and it is what
+    // makes the backstop happen on screen rather than only inside the query.
     useEffect(() => {
-        if (!pending?.expiresAt) return
+        if (!pending) return
         const timer = window.setInterval(() => setNow(Date.now()), 1000)
         return () => window.clearInterval(timer)
-    }, [pending?.expiresAt])
+    }, [pending])
 
     const closeAttempt = useCallback(
         (attempt: PendingAttempt | null) => {
@@ -133,27 +151,58 @@ const SubscriptionConnectionCard = ({
         [forgetAttempt],
     )
 
-    // The sign-in landed on the server: the row now holds a login, so the vault is what the card
-    // reads from here on.
+    /**
+     * One ending per attempt, decided by `loginAttemptOutcome`.
+     *
+     * `unreadable` is the recoverable one: the sign-in most likely landed and the row cleared the
+     * binding, so the vault is asked and the card resolves from the connection. `timed_out` is the
+     * server never ending the attempt; stopping a timer is not an ending a person can see, so the
+     * attempt is closed here and said out loud.
+     */
     useEffect(() => {
-        if (!pending || !attemptState || attemptState === "pending") return
-        if (attemptState === "succeeded") {
-            void refreshVault()
+        if (!pending || outcome === "waiting") return
+        const attempt = pending
+        closeAttempt(attempt)
+
+        if (outcome === "succeeded") {
             setError(null)
-        } else {
-            setError(
-                attemptQuery.data?.error ||
-                    (attemptState === "expired"
-                        ? "The sign-in code expired. Start again."
-                        : "The sign-in did not complete. Try again."),
-            )
+            void refreshVault()
+            return
         }
-        closeAttempt(pending)
-    }, [attemptState, attemptQuery.data?.error, closeAttempt, pending, refreshVault])
+        if (outcome === "unreadable") {
+            void refreshVault().then(() => setLostPoll(true))
+            return
+        }
+        if (outcome === "timed_out") {
+            void cancelLogin({secretId: attempt.secretId, attemptId: attempt.attemptId})
+            setError("The sign-in did not finish in time. Start it again.")
+            return
+        }
+        setError(
+            attemptQuery.data?.error ||
+                (attemptState === "expired"
+                    ? "The sign-in code expired. Start again."
+                    : "The sign-in did not complete. Try again."),
+        )
+    }, [
+        attemptQuery.data?.error,
+        attemptState,
+        cancelLogin,
+        closeAttempt,
+        outcome,
+        pending,
+        refreshVault,
+    ])
+
+    // A sign-in that landed after all: the connection answers, so there is nothing to recover.
+    useEffect(() => {
+        if (lostPoll && isReady) setLostPoll(false)
+    }, [isReady, lostPoll])
 
     const connect = useCallback(async () => {
         setStarting(true)
         setError(null)
+        setLostPoll(false)
         try {
             const secretId = connection?.id ?? (await createConnection({provider, name}))
             const attempt = await startLogin({secretId})
@@ -167,6 +216,7 @@ const SubscriptionConnectionCard = ({
                 userCode: attempt.user_code,
                 verificationUri: attempt.verification_uri,
                 expiresAt: attempt.expires_at ?? null,
+                startedAt,
                 pollKey: loginAttemptKey({
                     secretId,
                     attemptId: attempt.attempt_id,
@@ -259,6 +309,13 @@ const SubscriptionConnectionCard = ({
                         </Button>
                     </div>
                 </div>
+            ) : null}
+
+            {lostPoll && !isReady ? (
+                <span className="flex items-center gap-1 text-colorWarning">
+                    <WarningCircle size={14} />
+                    Agenta lost track of that sign-in. Check ChatGPT, then sign in again.
+                </span>
             ) : null}
 
             {error ? (

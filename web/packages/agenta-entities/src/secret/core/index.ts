@@ -121,12 +121,18 @@ export {activeModelsSummary, connectedRowSubtitle, connectionModelCount} from ".
 
 export type {SubscriptionHarnessStatus, SubscriptionPair} from "./subscriptionPairs"
 
-export type {SubscriptionLoginState} from "./subscriptionConnections"
+export type {
+    SubscriptionAvailability,
+    SubscriptionLoginState,
+    SubscriptionRowFacts,
+} from "./subscriptionConnections"
 export {
     DEFAULT_SUBSCRIPTION_HARNESSES,
     SUBSCRIPTION_LOGIN_STATES,
     SUBSCRIPTION_PROVIDER_KIND,
     SUBSCRIPTION_SIGN_IN_HINT,
+    subscriptionAvailability,
+    subscriptionHarnesses,
     subscriptionIsReady,
     subscriptionProviderFamily,
     subscriptionProviderName,

@@ -29,11 +29,13 @@ export {
     createSubscriptionConnectionAtom,
     forgetLoginAttemptAtom,
     loginAttemptKey,
+    loginAttemptOutcome,
     loginAttemptPollInterval,
     loginAttemptQueryAtomFamily,
     refreshVaultSecretsAtom,
     startSubscriptionLoginAtom,
     type LoginAttemptKey,
+    type LoginAttemptOutcome,
 } from "./subscriptionLogin"
 
 export {useVaultSecret} from "./useVaultSecret"
