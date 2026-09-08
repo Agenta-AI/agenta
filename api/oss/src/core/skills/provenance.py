@@ -16,19 +16,20 @@ from typing import Any, Dict, Optional
 AG_META_KEY = "_ag"
 
 ORIGIN_KIND_CATALOG = "catalog"
-PROVIDER_GITHUB = "github"
 
 
 def build_origin(
     *,
+    provider: str,
     repository: str,
     ref: Optional[str],
     path: str,
     resolved_version: Optional[str],
     content_hash: str,
-    provider: str = PROVIDER_GITHUB,
+    url: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """The artifact-side origin: nested, identity above the mutable checkpoint."""
+    """The artifact-side origin: nested, identity above the mutable checkpoint.
+    `url` is provider-supplied (CatalogProvider.item_url) — no provider shapes here."""
     return {
         "kind": ORIGIN_KIND_CATALOG,
         "provider": provider,
@@ -37,7 +38,7 @@ def build_origin(
         "last_imported": {
             "resolved_version": resolved_version,
             "content_hash": content_hash,
-            "url": _github_url(repository, resolved_version, path),
+            "url": url,
         },
     }
 
@@ -45,11 +46,12 @@ def build_origin(
 def build_provenance(
     *,
     operation: str,  # "import" | "update"
+    provider: str,
     repository: str,
     path: str,
     resolved_version: Optional[str],
     content_hash: str,
-    provider: str = PROVIDER_GITHUB,
+    url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """The revision-side provenance: flat, one immutable event."""
     return {
@@ -58,7 +60,7 @@ def build_provenance(
         "identifier": f"{repository}/{path}",
         "resolved_version": resolved_version,
         "content_hash": content_hash,
-        "url": _github_url(repository, resolved_version, path),
+        "url": url,
     }
 
 
@@ -133,11 +135,3 @@ def last_imported_hash(origin: Optional[Dict[str, Any]]) -> Optional[str]:
         return None
     value = checkpoint.get("content_hash")
     return value if isinstance(value, str) else None
-
-
-def _github_url(
-    repository: str, resolved_version: Optional[str], path: str
-) -> Optional[str]:
-    if not resolved_version:
-        return None
-    return f"https://github.com/{repository}/tree/{resolved_version}/{path}"

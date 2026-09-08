@@ -38,7 +38,8 @@ export const toSkillListItem = (
 /** Provenance the drawer and picker rows show for an imported skill. */
 export const toSourceInfo = (origin: SkillOriginInfo): SkillSourceInfo => ({
     label: origin.repository ?? "Imported",
-    repoUrl: origin.repository ? `https://github.com/${origin.repository}` : undefined,
+    // Provider-supplied provenance link — the frontend never builds provider URLs.
+    repoUrl: origin.imported_at_url ?? undefined,
     commitSha: origin.resolved_version ?? undefined,
     detached: origin.detached ?? undefined,
 })

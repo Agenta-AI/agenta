@@ -3,10 +3,11 @@
 /**
  * @example
  *     {
- *         repo_url: "repo_url"
+ *         source_url: "source_url"
  *     }
  */
 export interface SkillSourceScanRequest {
-    repo_url: string;
+    source_url: string;
     ref?: string | null;
+    provider?: string | null;
 }

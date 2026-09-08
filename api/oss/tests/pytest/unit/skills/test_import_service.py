@@ -13,10 +13,15 @@ from uuid import uuid4
 import pytest
 
 from oss.src.core.skills.exceptions import SkillOriginMissingError
-from oss.src.core.skills.fetcher import FetchedSource
 from oss.src.core.skills.import_service import (
     SkillImportService,
     skill_content_hash,
+)
+from oss.src.core.skills.providers import (
+    CatalogProvider,
+    ProviderRegistry,
+    SourceLocator,
+    SourceSnapshot,
 )
 from oss.src.core.skills.provenance import (
     merge_ag_meta,
@@ -28,17 +33,32 @@ PROJECT_ID = uuid4()
 USER_ID = uuid4()
 
 
-class LocalFetcher:
+class LocalProvider(CatalogProvider):
+    """A filesystem adapter registered like any real one — the registry itself
+    is exercised by every test."""
+
+    provider = "local"
+
     def __init__(self, fixture_root: Path, commit_sha: str = "abc1234"):
         self.fixture_root = fixture_root
         self.commit_sha = commit_sha
 
-    async def fetch(
-        self, *, repo_url: str, ref: Optional[str], dest: Path
-    ) -> FetchedSource:
+    def claims(self, source_url: str) -> Optional[SourceLocator]:
+        if not source_url.startswith("local:"):
+            return None
+        return SourceLocator(
+            provider=self.provider, repository=source_url.removeprefix("local:")
+        )
+
+    async def fetch_snapshot(
+        self, locator: SourceLocator, *, dest: Path
+    ) -> SourceSnapshot:
         root = dest / "tree"
         shutil.copytree(self.fixture_root, root)
-        return FetchedSource(root=root, commit_sha=self.commit_sha)
+        return SourceSnapshot(root=root, resolved_version=self.commit_sha)
+
+    def item_url(self, locator, *, path, resolved_version):
+        return f"local://{locator.repository}/{path}@{resolved_version}"
 
 
 class _Workflow:
@@ -174,10 +194,12 @@ def fixture_tree(tmp_path: Path) -> Path:
 
 def _service(fixture_tree: Path, **kwargs):
     simple = _StubSimpleWorkflowsService(**kwargs)
+    provider = LocalProvider(fixture_tree)
     service = SkillImportService(
         simple_workflows_service=simple,
-        fetcher=LocalFetcher(fixture_tree),
+        providers=ProviderRegistry([provider]),
     )
+    service.test_provider = provider
     return service, simple
 
 
@@ -185,7 +207,7 @@ async def _import_all(service):
     return await service.import_from_source(
         project_id=PROJECT_ID,
         user_id=USER_ID,
-        repo_url="github.com/acme/skills",
+        source_url="local:acme/skills",
     )
 
 
@@ -199,7 +221,7 @@ def _workflow_named(simple, name):
 @pytest.mark.asyncio
 async def test_scan_source_reports_candidates(fixture_tree):
     service, _ = _service(fixture_tree)
-    result = await service.scan_source(repo_url="github.com/acme/skills")
+    result = await service.scan_source(source_url="local:acme/skills")
 
     assert result.commit_sha == "abc1234"
     by_path = {c.path_in_repo: c for c in result.scan.candidates}
@@ -212,23 +234,23 @@ async def test_scan_source_reports_candidates(fixture_tree):
 async def test_scan_marks_already_imported_paths(fixture_tree):
     service, _ = _service(fixture_tree)
     fresh = await service.scan_source(
-        repo_url="github.com/acme/skills", project_id=PROJECT_ID
+        source_url="local:acme/skills", project_id=PROJECT_ID
     )
     assert fresh.already_imported_paths == []
 
     await service.import_from_source(
         project_id=PROJECT_ID,
         user_id=USER_ID,
-        repo_url="github.com/acme/skills",
+        source_url="local:acme/skills",
         paths=["skills/alpha"],
     )
 
     rescan = await service.scan_source(
-        repo_url="github.com/acme/skills", project_id=PROJECT_ID
+        source_url="local:acme/skills", project_id=PROJECT_ID
     )
     assert rescan.already_imported_paths == ["skills/alpha"]
     # Without project context (pure repo preview) the marker stays empty.
-    anonymous = await service.scan_source(repo_url="github.com/acme/skills")
+    anonymous = await service.scan_source(source_url="local:acme/skills")
     assert anonymous.already_imported_paths == []
 
 
@@ -246,12 +268,13 @@ async def test_import_creates_workflows_with_provenance_meta(fixture_tree):
     alpha = _workflow_named(simple, "alpha")
     origin = read_origin(alpha.meta)
     assert origin["kind"] == "catalog"
-    assert origin["provider"] == "github"
+    assert origin["provider"] == "local"
     assert origin["locator"] == {
         "repository": "acme/skills",
         "ref": None,
         "path": "skills/alpha",
     }
+    assert origin["last_imported"]["url"] == "local://acme/skills/skills/alpha@abc1234"
     checkpoint = origin["last_imported"]
     assert checkpoint["resolved_version"] == "abc1234"
     assert checkpoint["content_hash"] == skill_content_hash(alpha.payload)
@@ -270,7 +293,7 @@ async def test_import_with_empty_paths_imports_nothing(fixture_tree):
     result = await service.import_from_source(
         project_id=PROJECT_ID,
         user_id=USER_ID,
-        repo_url="github.com/acme/skills",
+        source_url="local:acme/skills",
         paths=[],
     )
     assert result.imported == []
@@ -382,7 +405,7 @@ async def test_apply_commits_and_advances_the_checkpoint(fixture_tree):
     (fixture_tree / "skills/alpha/SKILL.md").write_text(
         "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
     )
-    service.fetcher.commit_sha = "def5678"
+    service.test_provider.commit_sha = "def5678"
 
     outcome = await service.apply_update(
         project_id=PROJECT_ID, user_id=USER_ID, workflow_id=alpha.id
@@ -474,7 +497,7 @@ async def test_check_recovers_from_a_lost_checkpoint_write(fixture_tree):
     (fixture_tree / "skills/alpha/SKILL.md").write_text(
         "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
     )
-    service.fetcher.commit_sha = "def5678"
+    service.test_provider.commit_sha = "def5678"
     await service.apply_update(
         project_id=PROJECT_ID, user_id=USER_ID, workflow_id=alpha.id
     )
@@ -510,3 +533,16 @@ async def test_recovery_never_rescues_a_hand_edited_head(fixture_tree):
 
     check = await service.check_update(project_id=PROJECT_ID, workflow_id=alpha.id)
     assert check.status == "detached"
+
+
+@pytest.mark.asyncio
+async def test_identity_key_includes_the_provider(fixture_tree):
+    """Two catalogs may name the same repository string; only provider +
+    repository + path identifies one imported item."""
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+
+    index = await service._origin_index(project_id=PROJECT_ID)
+    assert ("local", "acme/skills", "skills/alpha") in index
+    # The same repo/path under a different provider is a DIFFERENT item.
+    assert ("github", "acme/skills", "skills/alpha") not in index

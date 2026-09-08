@@ -169,7 +169,8 @@ export type ScanCandidate = z.infer<typeof scanCandidateSchema>
 
 export const skillSourceScanResponseSchema = z
     .object({
-        repo_url: z.string().optional().nullable(),
+        source_url: z.string().optional().nullable(),
+        provider: z.string().optional().nullable(),
         ref: z.string().optional().nullable(),
         commit_sha: z.string().optional().nullable(),
         scan: z
@@ -188,7 +189,8 @@ export type SkillSourceScanResponse = z.infer<typeof skillSourceScanResponseSche
 
 export const skillSourceImportResponseSchema = z
     .object({
-        repo_url: z.string().optional().nullable(),
+        source_url: z.string().optional().nullable(),
+        provider: z.string().optional().nullable(),
         commit_sha: z.string().optional().nullable(),
         imported: z
             .array(

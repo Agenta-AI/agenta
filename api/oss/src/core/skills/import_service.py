@@ -28,12 +28,11 @@ from oss.src.core.skills.exceptions import (
     SkillNotFoundError,
     SkillOriginMissingError,
 )
-from oss.src.core.skills.fetcher import (
-    FetchedSource,
-    GitHubTarballFetcher,
-    SourceFetcher,
-    make_workdir,
-    parse_github_url,
+from oss.src.core.skills.fetcher import make_workdir
+from oss.src.core.skills.providers import (
+    CatalogProvider,
+    ProviderRegistry,
+    SourceLocator,
 )
 from oss.src.core.skills.parser import (
     ScanCandidate,
@@ -65,7 +64,8 @@ log = get_module_logger(__name__)
 
 
 class SourceScanResult(BaseModel):
-    repo_url: str
+    source_url: str
+    provider: Optional[str] = None
     ref: Optional[str] = None
     commit_sha: Optional[str] = None
     scan: ScanResult
@@ -86,7 +86,8 @@ class SkippedSkill(BaseModel):
 
 
 class ImportResult(BaseModel):
-    repo_url: str
+    source_url: str
+    provider: Optional[str] = None
     commit_sha: Optional[str] = None
     imported: List[ImportedSkill] = []
     skipped: List[SkippedSkill] = []
@@ -154,10 +155,10 @@ class SkillImportService:
         self,
         *,
         simple_workflows_service,
-        fetcher: Optional[SourceFetcher] = None,
+        providers: ProviderRegistry,
     ):
         self.simple_workflows_service = simple_workflows_service
-        self.fetcher = fetcher or GitHubTarballFetcher()
+        self.providers = providers
 
     @property
     def workflows_service(self):
@@ -165,8 +166,11 @@ class SkillImportService:
 
     async def _origin_index(
         self, *, project_id: UUID
-    ) -> Dict[Tuple[str, str], Dict[str, Any]]:
-        """(repository, path) → artifact origin, over every live skill workflow.
+    ) -> Dict[Tuple[str, str, str], Dict[str, Any]]:
+        """(provider, repository, path) → artifact origin, over every live skill.
+
+        The provider is part of the identity: two catalogs can name the same
+        repository string, and only the triple identifies one imported item.
 
         Two bounded queries: the head-revision query yields the project's skill
         set (revision-level `is_skill`), a batched artifact fetch yields meta.
@@ -189,14 +193,19 @@ class SkillImportService:
             workflow_refs=[Reference(id=artifact_id) for artifact_id in artifact_ids],
         )
 
-        index: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        index: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
         for artifact in artifacts:
             origin = read_origin(getattr(artifact, "meta", None))
             locator = origin_locator(origin)
+            provider = (origin or {}).get("provider")
             repository = locator.get("repository")
             path = locator.get("path")
-            if isinstance(repository, str) and isinstance(path, str):
-                index[(repository, path)] = {
+            if (
+                isinstance(provider, str)
+                and isinstance(repository, str)
+                and isinstance(path, str)
+            ):
+                index[(provider, repository, path)] = {
                     "workflow_id": artifact.id,
                     "origin": origin,
                 }
@@ -205,31 +214,32 @@ class SkillImportService:
     async def scan_source(
         self,
         *,
-        repo_url: str,
+        source_url: str,
         ref: Optional[str] = None,
+        provider: Optional[str] = None,
         project_id=None,
     ) -> SourceScanResult:
+        adapter, locator = self.providers.resolve(
+            source_url, provider=provider, ref=ref
+        )
         with make_workdir() as workdir:
-            fetched = await self.fetcher.fetch(
-                repo_url=repo_url, ref=ref, dest=Path(workdir)
-            )
-            scan = scan_tree(fetched.root)
+            snapshot = await adapter.fetch_snapshot(locator, dest=Path(workdir))
+            scan = scan_tree(snapshot.root)
 
         already: List[str] = []
         if project_id is not None:
-            owner, repo = parse_github_url(repo_url)
-            repository = f"{owner}/{repo}"
             index = await self._origin_index(project_id=project_id)
             already = [
                 c.path_in_repo
                 for c in scan.candidates
-                if (repository, c.path_in_repo) in index
+                if (adapter.provider, locator.repository, c.path_in_repo) in index
             ]
 
         return SourceScanResult(
-            repo_url=repo_url,
+            source_url=source_url,
+            provider=adapter.provider,
             ref=ref,
-            commit_sha=fetched.commit_sha,
+            commit_sha=snapshot.resolved_version,
             scan=scan,
             already_imported_paths=already,
         )
@@ -240,15 +250,17 @@ class SkillImportService:
         project_id,
         user_id,
         #
-        repo_url: str,
+        source_url: str,
         ref: Optional[str] = None,
+        provider: Optional[str] = None,
         paths: Optional[List[str]] = None,
     ) -> ImportResult:
+        adapter, locator = self.providers.resolve(
+            source_url, provider=provider, ref=ref
+        )
         with make_workdir() as workdir:
-            fetched: FetchedSource = await self.fetcher.fetch(
-                repo_url=repo_url, ref=ref, dest=Path(workdir)
-            )
-            scan = scan_tree(fetched.root)
+            snapshot = await adapter.fetch_snapshot(locator, dest=Path(workdir))
+            scan = scan_tree(snapshot.root)
 
         # None = every valid candidate; an explicit empty list imports NOTHING.
         selected = {p.rstrip("/") for p in paths} if paths is not None else None
@@ -256,15 +268,18 @@ class SkillImportService:
             c for c in scan.candidates if selected is None or c.path_in_repo in selected
         ]
 
-        owner, repo = parse_github_url(repo_url)
-        repository = f"{owner}/{repo}"
+        repository = locator.repository
 
         # Idempotency rides import provenance, not the name: re-importing a path
         # this repo already delivered is a skip, while an unrelated name clash just
         # gets a fresh suffixed slug (display names may collide, like agents).
         index = await self._origin_index(project_id=project_id)
 
-        result = ImportResult(repo_url=repo_url, commit_sha=fetched.commit_sha)
+        result = ImportResult(
+            source_url=source_url,
+            provider=adapter.provider,
+            commit_sha=snapshot.resolved_version,
+        )
 
         for candidate in candidates:
             if not candidate.valid or not candidate.skill:
@@ -277,7 +292,7 @@ class SkillImportService:
                 continue
 
             skill = candidate.skill
-            if (repository, candidate.path_in_repo) in index:
+            if (adapter.provider, repository, candidate.path_in_repo) in index:
                 result.skipped.append(
                     SkippedSkill(
                         path_in_repo=candidate.path_in_repo,
@@ -301,22 +316,31 @@ class SkillImportService:
             # One meta for the create call: the artifact keeps `origin`, the v1
             # revision keeps `provenance` — the simple create stamps both records
             # with the same dict, and both halves are true of each record.
+            item_url = adapter.item_url(
+                locator,
+                path=candidate.path_in_repo,
+                resolved_version=snapshot.resolved_version,
+            )
             meta = merge_ag_meta(
                 None,
                 {
                     "origin": build_origin(
+                        provider=adapter.provider,
                         repository=repository,
                         ref=ref,
                         path=candidate.path_in_repo,
-                        resolved_version=fetched.commit_sha,
+                        resolved_version=snapshot.resolved_version,
                         content_hash=candidate_hash,
+                        url=item_url,
                     ),
                     "provenance": build_provenance(
                         operation="import",
+                        provider=adapter.provider,
                         repository=repository,
                         path=candidate.path_in_repo,
-                        resolved_version=fetched.commit_sha,
+                        resolved_version=snapshot.resolved_version,
                         content_hash=candidate_hash,
+                        url=item_url,
                     ),
                 },
             )
@@ -386,9 +410,9 @@ class SkillImportService:
                 f"Skill workflow {workflow_id} was not found in this project.",
             )
         origin = read_origin(getattr(workflow, "meta", None))
-        locator = origin_locator(origin)
-        repository = locator.get("repository")
-        path = locator.get("path")
+        stored_locator = origin_locator(origin)
+        repository = stored_locator.get("repository")
+        path = stored_locator.get("path")
         if not isinstance(repository, str) or not isinstance(path, str):
             raise SkillOriginMissingError(
                 "This skill has no import origin — only imported skills can be "
@@ -402,16 +426,20 @@ class SkillImportService:
             workflow_ref=Reference(id=workflow_id),
         )
 
+        adapter: CatalogProvider = self.providers.get(
+            str((origin or {}).get("provider"))
+        )
+        locator = SourceLocator(
+            provider=adapter.provider,
+            repository=repository,
+            ref=stored_locator.get("ref"),
+        )
         with make_workdir() as workdir:
-            fetched = await self.fetcher.fetch(
-                repo_url=f"github.com/{repository}",
-                ref=locator.get("ref"),
-                dest=Path(workdir),
-            )
-            scan = scan_tree(fetched.root)
+            snapshot = await adapter.fetch_snapshot(locator, dest=Path(workdir))
+            scan = scan_tree(snapshot.root)
 
         candidate = next((c for c in scan.candidates if c.path_in_repo == path), None)
-        return workflow, origin, head_revision, fetched, candidate
+        return workflow, origin, head_revision, adapter, locator, snapshot, candidate
 
     @staticmethod
     def _classify(
@@ -454,7 +482,9 @@ class SkillImportService:
             workflow,
             origin,
             head_revision,
-            fetched,
+            _,
+            _,
+            snapshot,
             candidate,
         ) = await self._load_update_context(
             project_id=project_id, workflow_id=workflow_id
@@ -468,7 +498,7 @@ class SkillImportService:
         return UpdateCheckResult(
             workflow_id=str(workflow_id),
             status=status,
-            resolved_version=fetched.commit_sha,
+            resolved_version=snapshot.resolved_version,
             issues=issues,
         )
 
@@ -486,7 +516,9 @@ class SkillImportService:
             workflow,
             origin,
             head_revision,
-            fetched,
+            adapter,
+            locator,
+            snapshot,
             candidate,
         ) = await self._load_update_context(
             project_id=project_id, workflow_id=workflow_id
@@ -502,15 +534,17 @@ class SkillImportService:
             return UpdateApplyResult(
                 workflow_id=str(workflow_id),
                 status=status,
-                resolved_version=fetched.commit_sha,
+                resolved_version=snapshot.resolved_version,
                 issues=issues,
             )
 
         skill = candidate.skill  # type: ignore[union-attr]  # classified above
-        locator = origin_locator(origin)
-        repository = str(locator.get("repository"))
-        path = str(locator.get("path"))
+        repository = locator.repository
+        path = str(origin_locator(origin).get("path"))
         new_hash = content_hash(candidate)  # type: ignore[arg-type]
+        item_url = adapter.item_url(
+            locator, path=path, resolved_version=snapshot.resolved_version
+        )
 
         try:
             outcome = await self.workflows_service.commit_workflow_revision_checked(
@@ -521,16 +555,18 @@ class SkillImportService:
                     slug=uuid4().hex[-12:],
                     name=skill.name,
                     description=skill.description,
-                    message=f"sync: {repository}@{fetched.commit_sha}",
+                    message=f"sync: {repository}@{snapshot.resolved_version}",
                     meta=merge_ag_meta(
                         None,
                         {
                             "provenance": build_provenance(
                                 operation="update",
+                                provider=adapter.provider,
                                 repository=repository,
                                 path=path,
-                                resolved_version=fetched.commit_sha,
+                                resolved_version=snapshot.resolved_version,
                                 content_hash=new_hash,
+                                url=item_url,
                             )
                         },
                     ),
@@ -548,7 +584,7 @@ class SkillImportService:
             return UpdateApplyResult(
                 workflow_id=str(workflow_id),
                 status="conflict",
-                resolved_version=fetched.commit_sha,
+                resolved_version=snapshot.resolved_version,
             )
 
         # Advance the checkpoint via the merge helper — foreign meta keys survive.
@@ -564,11 +600,13 @@ class SkillImportService:
                     getattr(workflow, "meta", None),
                     {
                         "origin": build_origin(
+                            provider=adapter.provider,
                             repository=repository,
-                            ref=locator.get("ref"),
+                            ref=locator.ref,
                             path=path,
-                            resolved_version=fetched.commit_sha,
+                            resolved_version=snapshot.resolved_version,
                             content_hash=new_hash,
+                            url=item_url,
                         )
                     },
                 ),
@@ -582,5 +620,5 @@ class SkillImportService:
             workflow_id=str(workflow_id),
             status="updated",
             revision_id=revision_id,
-            resolved_version=fetched.commit_sha,
+            resolved_version=snapshot.resolved_version,
         )
