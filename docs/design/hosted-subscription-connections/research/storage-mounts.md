@@ -26,6 +26,14 @@ primitive. It needs a direct S3 call, not the mount.
 This document records how the mounts work, what geesefs guarantees, what the store guarantees,
 what the alternatives cost, and the experiment that measured all of it.
 
+> Correction (2026-09-08, after Codex review): the lock cell below tests `flock`. Pi uses
+> `proper-lockfile`, which coordinates through a lock directory (`mkdir`), not `flock`. The
+> measured result shows that `flock` does not cross mounts. It does not show that Pi's own lock
+> fails across mounts, and it does not show that an overwritten token is unusable, because the
+> provider accepts overlapping token lineages for about an hour (see working-research.md). The
+> 58-second cache staleness stands on its own. The mount candidate was not chosen for the
+> staleness and the lost-update behavior, not for the lock result.
+
 ## 1. How the durable session cwd is mounted
 
 ### 1.1 The geesefs command line
