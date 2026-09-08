@@ -80,9 +80,9 @@ user-facing subscription concept?
 Document those boundaries now. Defer Grok implementation and avoid requiring a generic provider
 framework until a concrete need is established.
 
-## Suggested investigation order
+## Investigation alongside implementation
 
-Start with harness feasibility and concurrent renewal, then prove the cloud isolation boundary.
-Inspect the existing scope and connection infrastructure before selecting persistence, service
-ownership, and routing. Resolve the remaining lifecycle behavior before writing a replacement
-implementation plan. Grok should inform those decisions without becoming a first-release dependency.
+Use [working research](working-research.md) to pursue these questions alongside the UI, backend,
+and session implementation. Concurrent research should improve a working application rather than
+block all implementation until an architecture is selected. Native shared storage and session-owned
+refresh are the initial hypotheses. A single authentication-owning process is the last option.

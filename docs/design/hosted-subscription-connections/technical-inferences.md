@@ -3,7 +3,8 @@
 > Disclaimer: this document contains the AI agent's interpretation of the
 > [user requirements](requirements.md). These are proposed technical implications, not additional
 > requirements supplied or approved by the user. They may be incomplete or incorrect. They do not
-> select an architecture, storage backend, service owner, or harness.
+> select an architecture, storage backend, service owner, or harness. The current exploration
+> direction is in [working research](working-research.md).
 
 ## Proposed implications
 
