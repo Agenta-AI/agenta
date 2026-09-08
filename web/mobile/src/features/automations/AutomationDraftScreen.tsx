@@ -1,9 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {
-    type TriggerSchedule,
-    type TriggerSubscription,
-} from "@agenta/entities/gatewayTrigger"
+import {type TriggerSchedule, type TriggerSubscription} from "@agenta/entities/gatewayTrigger"
 import {
     agentWorkflowsListQueryStateAtom,
     workflowVariantsListQueryStateAtomFamily,
@@ -39,10 +36,7 @@ import {useAutomation} from "./useAutomation"
 // unrepresentable and the field would open showing a raw cron instead of "Weekdays at 09:00 UTC".
 const DEFAULT_CRON = "0 9 * * 1,2,3,4,5"
 
-/**
- * A stable id for the draft, so `AutomationInstructionField` never re-hydrates its composer
- * mid-edit (it rehydrates on an id change, and a draft's id never changes).
- */
+/** A stand-in id for the draft, so the field components have an `Automation` to read. */
 const DRAFT_ID = "new"
 
 /** Everything a draft carries before it becomes a row. */
@@ -69,8 +63,8 @@ interface AutomationDraft {
  * never run. What remains is the same three fields, rendered by the same components, so the
  * screen someone creates on and the screen they land on are visibly one screen.
  *
- * Every edit is local. The detail screen saves per field because each field is already a row;
- * here there is no row to PUT to, so the whole draft goes out once, on Create.
+ * Every edit is local, and so is the detail screen's: the difference is only where the draft ends
+ * up — there it is a PUT to an existing row, here the whole draft goes out once, on Create.
  */
 export const AutomationDraftScreen = ({
     workspaceId,
@@ -113,7 +107,7 @@ export const AutomationDraftScreen = ({
     }, [agents, draft.agentId])
 
     // "Latest" binds the agent's VARIANT so the newest revision resolves at run time — the same
-    // rule `useAgentBinding` obeys on an existing row. An agent with more than one variant (or one
+    // rule the detail screen's own save obeys. An agent with more than one variant (or one
     // whose variants have not landed yet) binds the artifact alone, which is what the desktop
     // drawer writes too.
     const variants = useAtomValue(workflowVariantsListQueryStateAtomFamily(draft.agentId ?? ""))
@@ -255,7 +249,6 @@ export const AutomationDraftScreen = ({
                                 onSelectEvent={onSelectEvent}
                             />
                             <AutomationInstructionField
-                                automationId={DRAFT_ID}
                                 agentId={draft.agentId}
                                 inputsFields={draft.inputsFields}
                                 onCommit={onChangeInputs}

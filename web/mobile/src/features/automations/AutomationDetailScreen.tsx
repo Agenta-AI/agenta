@@ -9,16 +9,21 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
+import {useConfirmSheet} from "../settings/useConfirmSheet"
 
+import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationBackLink} from "./AutomationBackLink"
 import {AutomationDetailBody} from "./AutomationDetailBody"
 import {buildAutomationEdit} from "./automationEdit"
 import {agentLabel} from "./automationModel"
+import {AutomationTestRunButton} from "./AutomationTestRunButton"
 import {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 import {AutomationDetailSkeleton} from "./states/AutomationStates"
 import {useAutomation} from "./useAutomation"
+import {useAutomationDraft} from "./useAutomationDraft"
 import {useAutomationRuns} from "./useAutomationRuns"
 import {useAutomations} from "./useAutomations"
+import {useUnsavedGuard} from "./useUnsavedGuard"
 
 /**
  * One automation — its identity, what it runs, when it runs, and what it is told.
@@ -27,6 +32,9 @@ import {useAutomations} from "./useAutomations"
  * then subscriptions) rather than being threaded through from the row that was tapped: a link
  * pasted into a cold tab has to open the same screen. The list row also seeds the body, so the
  * screen is readable before the single-entity fetch lands.
+ *
+ * The three config fields are one unsaved draft (`useAutomationDraft`) that leaves on Save; only
+ * the name and the on/off switch still write on the spot.
  */
 export const AutomationDetailScreen = ({
     workspaceId,
@@ -53,42 +61,35 @@ export const AutomationDetailScreen = ({
     } = useAutomation(listed ? automationId : undefined, listed?.kind ?? "schedule")
     const automation = fetched ?? listed ?? null
 
+    const {preview, dirty, saving, setAgent, setCron, setInputs, setEvent, discard, save} =
+        useAutomationDraft(automation, edit)
+
+    // One sheet for both questions this screen can ask (leave without saving, delete) would mean
+    // one of them waiting on the other; the menu owns its own.
+    const {confirm, sheet} = useConfirmSheet()
+    const leave = useUnsavedGuard({dirty, confirm})
+
     // The runs answer two questions this screen asks: how many there have been, and whether the
     // last one failed. Same hook and same cache the run history reads, so the caption on the card
     // is the caption on the screen it opens.
     const {caption: runHistoryCaption, failureReason} = useAutomationRuns(automation)
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
+    // The DRAFT's agent, not the saved one: the field has to name what a Save would bind.
     const agentName = useMemo(() => {
         const agents: Workflow[] = agentsQuery.data ?? []
-        const agent = agents.find((candidate) => candidate.id === automation?.agentId)
+        const agent = agents.find((candidate) => candidate.id === preview?.agentId)
         return agentLabel(
-            automation?.agentId ?? null,
+            preview?.agentId ?? null,
             agent?.name || agent?.slug || null,
             !agentsQuery.isPending,
         )
-    }, [agentsQuery.data, agentsQuery.isPending, automation?.agentId])
+    }, [agentsQuery.data, agentsQuery.isPending, preview?.agentId])
 
     const onRename = useCallback(
         async (name: string) => {
             if (!automation) return false
             return !!(await edit(buildAutomationEdit(automation, {name})))
-        },
-        [automation, edit],
-    )
-
-    const onChangeCron = useCallback(
-        (cron: string) => {
-            if (!automation) return
-            void edit(buildAutomationEdit(automation, {cron}))
-        },
-        [automation, edit],
-    )
-
-    const onChangeInputs = useCallback(
-        (inputs: Record<string, unknown>) => {
-            if (!automation) return
-            void edit(buildAutomationEdit(automation, {inputsFields: inputs}))
         },
         [automation, edit],
     )
@@ -112,21 +113,42 @@ export const AutomationDetailScreen = ({
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <AutomationBackLink href={`${base}/automations`} />
+                                {automation ? (
+                                    <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                                        <AutomationTestRunButton
+                                            automation={automation}
+                                            base={base}
+                                            dirty={dirty}
+                                        />
+                                        <AutomationActionsMenu
+                                            automation={automation}
+                                            base={base}
+                                            onLeave={leave}
+                                        />
+                                    </div>
+                                ) : null}
                             </div>
                         </div>
                     }
                 >
-                    {automation ? (
+                    {automation && preview ? (
                         <AutomationDetailBody
                             automation={automation}
+                            preview={preview}
                             agentName={agentName}
                             runsHref={`${base}/automations/${automation.id}/runs`}
                             failureReason={failureReason}
                             runHistoryCaption={runHistoryCaption}
+                            dirty={dirty}
+                            saving={saving}
                             onRename={onRename}
-                            onChangeCron={onChangeCron}
-                            onChangeInputs={onChangeInputs}
+                            onSelectAgent={setAgent}
+                            onChangeCron={setCron}
+                            onSelectEvent={setEvent}
+                            onChangeInputs={setInputs}
                             onToggle={onToggle}
+                            onDiscard={discard}
+                            onSave={() => void save()}
                         />
                     ) : listLoading ? (
                         <AutomationDetailSkeleton />
@@ -138,6 +160,7 @@ export const AutomationDetailScreen = ({
                 </ScreenScaffold>
             </AppShell>
             <AutomationTriggerDrawers />
+            {sheet}
         </>
     )
 }

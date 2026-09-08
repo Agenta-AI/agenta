@@ -7,7 +7,6 @@ import {
     useTriggerConnectionsQuery,
     useTriggerEvent,
     type TriggerSubscription,
-    type TriggerSubscriptionEdit,
 } from "@agenta/entities/gatewayTrigger"
 import {SchemaForm, type SchemaFormHandle} from "@agenta/entity-ui/gatewayTool"
 import {useSchemaFormInstance} from "@agenta/entity-ui/gatewayTrigger"
@@ -18,9 +17,7 @@ import {Plug, Search} from "lucide-react"
 import {Button} from "@/components/ui/button"
 import {Input} from "@/components/ui/input"
 
-import {buildAutomationEdit} from "../automationEdit"
 import type {Automation} from "../automationModel"
-import {useAutomation} from "../useAutomation"
 
 import {appLabel, connectedApps, eventLabel, type ConnectedApp} from "./connectedApps"
 import {EventAppRail} from "./EventAppRail"
@@ -49,9 +46,10 @@ export interface EventSelection {
  * behind its own disclosure. It takes over the right pane only — the search field, the app rail
  * and "Connect another app…" stay where they were, so picking a different app is still one click.
  *
- * Unlike the agent field, this one commits on **Done**, not on pick: an event whose required
- * filters are empty (GitHub's owner/repo) is a subscription that can never run, so saving the
- * moment the event is chosen would write a broken automation and call it done.
+ * The selection leaves on **Done**, not on pick: an event whose required filters are empty
+ * (GitHub's owner/repo) is a subscription that can never run, so handing back the moment the event
+ * is chosen would report a half-made choice as the choice. Nothing here writes to the backend —
+ * the host holds the pick with the rest of its draft until it is saved.
  */
 export const EventPickerPanel = ({
     automation,
@@ -63,12 +61,10 @@ export const EventPickerPanel = ({
     /** Whether the surface holding this panel is open — the prefill restarts from saved on each. */
     open: boolean
     onClose: () => void
-    /** A draft's "not yet saved" mode — the host takes the selection instead of a save. */
-    onSelectEvent?: (selection: EventSelection) => void
+    /** Where the picked event goes — the host's draft, never a save from here. */
+    onSelectEvent: (selection: EventSelection) => void
 }) => {
     const {connections, isLoading: connectionsLoading} = useTriggerConnectionsQuery()
-    // A draft has no row behind it, so the entity hook stays inert rather than fetching "new".
-    const {edit} = useAutomation(onSelectEvent ? undefined : automation.id, automation.kind)
 
     const [connectionId, setConnectionId] = useState(automation.connectionId ?? undefined)
     const [eventKey, setEventKey] = useState(automation.eventKey ?? "")
@@ -121,8 +117,8 @@ export const EventPickerPanel = ({
     // Leaving the panel must not leave the catalog filtered for whoever opens it next.
     useEffect(() => () => setEventsSearch(""), [setEventsSearch])
 
-    // Reopening restarts from what is SAVED, not from an abandoned edit: a half-picked event
-    // must not survive as the next session's starting point.
+    // Reopening restarts from the host's current selection, not from an abandoned edit: a
+    // half-picked event must not survive as the next session's starting point.
     useEffect(() => {
         if (!open) return
         setConnectionId(automation.connectionId ?? undefined)
@@ -178,28 +174,14 @@ export const EventPickerPanel = ({
             // Throws on a failed rule — SchemaForm has already painted the inline errors, so
             // there is nothing to report here beyond staying open.
             const triggerConfig = await formRef.current?.getValues()
-            if (onSelectEvent) {
-                onSelectEvent({connectionId, eventKey, triggerConfig: triggerConfig ?? undefined})
-                onClose()
-                return
-            }
-            const body = buildAutomationEdit(automation, {}) as TriggerSubscriptionEdit
-            const saved = await edit({
-                ...body,
-                connection_id: connectionId,
-                data: {
-                    ...body.data,
-                    event_key: eventKey,
-                    trigger_config: triggerConfig ?? undefined,
-                },
-            })
-            if (saved) onClose()
+            onSelectEvent({connectionId, eventKey, triggerConfig: triggerConfig ?? undefined})
+            onClose()
         } catch {
-            // Validation failure or a rejected save: the overlay stays open with the edit intact.
+            // Validation failed: the overlay stays open with the edit intact.
         } finally {
             setSaving(false)
         }
-    }, [automation, connectionId, edit, eventKey, onClose, onSelectEvent])
+    }, [connectionId, eventKey, onClose, onSelectEvent])
 
     // The catalog's display name, not the integration key made readable: "Google Calendar",
     // not "Googlecalendar".

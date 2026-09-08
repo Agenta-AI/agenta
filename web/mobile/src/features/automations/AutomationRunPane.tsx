@@ -68,13 +68,17 @@ export const AutomationRunPane = ({
                     aria-hidden
                     className={cn("size-2 shrink-0 rounded-full", runDotClass(delivery))}
                 />
-                <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-[14px] font-medium text-foreground">
+                {/* One line: the run's name and when it ran are one fact, and stacking them
+                    made a two-line header for two short strings. */}
+                <span className="flex min-w-0 flex-1 items-baseline gap-2">
+                    <span className="shrink-0 text-[14px] font-medium text-foreground">
                         {label}
                         <span className="sr-only"> — {runOutcomeLabel(delivery)}</span>
                     </span>
                     {meta ? (
-                        <span className="truncate text-xs text-muted-foreground">{meta}</span>
+                        <span className="min-w-0 truncate text-xs text-muted-foreground">
+                            {meta}
+                        </span>
                     ) : null}
                 </span>
             </div>

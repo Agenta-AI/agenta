@@ -38,8 +38,8 @@ export const AutomationRunsWhenField = ({
     onChangeCron: (cron: string) => void
     /** Present ⇒ the kind is still the host's to change (a draft). Absent ⇒ the chips read only. */
     onChangeKind?: (kind: AutomationKind) => void
-    /** A draft's "not yet saved" mode — the host takes the picked event instead of a save. */
-    onSelectEvent?: (selection: EventSelection) => void
+    /** Where a picked event goes — the host's draft, which saves it with the rest. */
+    onSelectEvent: (selection: EventSelection) => void
 }) => {
     const [open, setOpen] = useState(false)
     const schedule = useScheduleBuilder(automation.cron ?? "", onChangeCron)
