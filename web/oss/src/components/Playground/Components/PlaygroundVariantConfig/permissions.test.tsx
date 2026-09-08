@@ -10,7 +10,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {RouterContext} from "next/dist/shared/lib/router-context.shared-runtime"
 import type {NextRouter} from "next/router"
 import {createRoot} from "react-dom/client"
-import {expect, it, vi} from "vitest"
+import {afterEach, expect, it, vi} from "vitest"
 
 import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
@@ -145,6 +145,8 @@ vi.mock("@/oss/hooks/useURL", () => ({
 
 import PlaygroundVariantConfig from "."
 
+afterEach(() => vi.unstubAllGlobals())
+
 it.each([{environments: []}, {environments: ["local"]}, {environments: ["local", "daytona"]}])(
     "desktop host renders shared permissions with environments $environments",
     async ({environments}) => {
@@ -153,15 +155,15 @@ it.each([{environments: []}, {environments: ["local"]}, {environments: ["local",
         Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})
         Element.prototype.scrollIntoView = vi.fn()
         Element.prototype.hasPointerCapture = () => false
-        // idleReadyAtom gates the deferred bootstrap queries (trigger subscriptions and
-        // schedules). jsdom has no requestIdleCallback, so the atom falls back to a 1.5s
-        // timer and those queries start to fetch mid-test on a slow machine. Their explicit
-        // `enabled` overrides the disabled query default below. Stub an idle callback that
-        // never runs, so the deferral holds for the whole test.
-        Object.assign(globalThis, {
-            requestIdleCallback: vi.fn(() => 1),
-            cancelIdleCallback: vi.fn(),
-        })
+        // Hold the deferred bootstrap work before idle for the whole test. jsdom has no
+        // requestIdleCallback, so idleReadyAtom falls back to a timer once it mounts, and
+        // a slow case lets the idle-gated queries fetch. This test covers the pre-idle
+        // render only.
+        vi.stubGlobal(
+            "requestIdleCallback",
+            vi.fn(() => 1),
+        )
+        vi.stubGlobal("cancelIdleCallback", vi.fn())
         const store = createStore()
         const router: NextRouter = {
             basePath: "",
