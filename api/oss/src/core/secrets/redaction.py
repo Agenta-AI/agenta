@@ -34,9 +34,19 @@ PRIMARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, str]] = {
     "webhook_provider": ("provider", "key"),
     "sso_provider": ("provider", "client_secret"),
     "custom_secret": ("secret", "content"),
-    # A channel credential is the bot token; the signing secret beside it verifies inbound
-    # requests and is never the value a caller probes or previews.
+    # A channel credential is the bot token; the signing/webhook secrets beside it verify
+    # inbound requests and are never the value a caller probes or previews.
     "channel_secret": ("channel", "bot_token"),
+}
+
+
+# Secret fields that sit BESIDE the primary in the same container and must also be
+# stripped from a public response. The redaction below nulls the primary and pops the
+# shared extras vocabulary; a field that is neither (Slack's signing_secret, Telegram's
+# webhook_secret, both plain fields on the channel container) would otherwise survive and
+# hand a VIEW_SECRET caller a value that authenticates inbound platform requests.
+SECONDARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
+    "channel_secret": ("channel", ("signing_secret", "webhook_secret")),
 }
 
 
@@ -120,6 +130,13 @@ def project_secret_response(
 
     if hasattr(container, field):
         setattr(container, field, None)
+
+    _, secondary_fields = SECONDARY_CREDENTIAL_FIELDS.get(
+        str(projected.kind.value), (None, ())
+    )
+    for secondary in secondary_fields:
+        if hasattr(container, secondary):
+            setattr(container, secondary, None)
 
     extras = getattr(container, "extras", None)
     if extras:

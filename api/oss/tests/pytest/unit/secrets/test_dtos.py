@@ -478,7 +478,7 @@ def test_create_channel_secret_agenta_body_is_empty():
 
 def test_create_channel_secret_rejects_unknown_inner_kind():
     with pytest.raises(ValidationError, match="ChannelSecretKind"):
-        CreateSecretDTO.model_validate(_channel_secret_payload("telegram", {}))
+        CreateSecretDTO.model_validate(_channel_secret_payload("nonexistent", {}))
 
 
 def test_create_channel_secret_rejects_missing_channel_body():

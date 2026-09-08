@@ -1,3 +1,4 @@
+import json
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -15,10 +16,9 @@ from oss.src.core.channels.adapters.telegram.mapping import (
     render_content,
     routing_token_from_path,
     split_for_max_chars,
-    MAX_CHARS,
+    to_html,
 )
 from oss.src.core.channels.adapters.telegram.signature import verify_telegram_secret
-from oss.src.core.channels.render.render import INDICATOR_TEXT
 from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
@@ -41,9 +41,11 @@ log = get_module_logger(__name__)
 
 _TELEGRAM_API_BASE = "https://api.telegram.org"
 
-# Telegram's own signal that the bot was removed from a chat: a my_chat_member
-# update whose new status is one of these. Deactivate, never route as a message.
-_DEACTIVATION_STATUSES = {"kicked", "left"}
+# Split the RAW answer text at this size before html-escaping each chunk, below
+# Telegram's 4096 limit so ordinary escape expansion (< > & -> &lt; &gt; &amp;)
+# still fits. Splitting the raw text (not the escaped text) is what keeps a
+# split from cutting an HTML entity in half.
+_RAW_SPLIT_LIMIT = 3900
 
 
 def _bot_token(connection: ChannelConnection) -> str:
@@ -125,12 +127,16 @@ class TelegramAdapter(ChannelAdapterInterface):
         if not bot_token:
             raise ChannelConnectionIncomplete(channel=self.channel, field="bot_token")
 
-        body = await self._call_with_token(bot_token, "getMe", {})
-        if not body.get("ok"):
+        # A bad token makes getMe return a non-200, which _call_with_token
+        # raises as _TelegramApiError. Translate it to the domain failure the
+        # router maps to a 4xx setup error, rather than letting it surface as an
+        # internal error.
+        try:
+            body = await self._call_with_token(bot_token, "getMe", {})
+        except _TelegramApiError as e:
             raise ChannelConnectionVerificationFailed(
-                channel=self.channel,
-                message=body.get("description", "unknown_error"),
-            )
+                channel=self.channel, message=e.description
+            ) from e
 
         result = body.get("result") or {}
         bot_id = result.get("id")
@@ -179,7 +185,7 @@ class TelegramAdapter(ChannelAdapterInterface):
             {
                 "url": url,
                 "secret_token": webhook_secret,
-                "allowed_updates": ["message", "callback_query", "my_chat_member"],
+                "allowed_updates": ["message", "callback_query"],
                 # A stale queue from a previous owner of this token is not this
                 # connection's history; start clean.
                 "drop_pending_updates": True,
@@ -215,11 +221,11 @@ class TelegramAdapter(ChannelAdapterInterface):
             raise ChannelSignatureInvalid(channel=self.channel)
         return str(bot_id)
 
-    async def detect_deactivation(self, *, body: bytes) -> bool:
-        update = _parse_json(body)
-        member = update.get("my_chat_member") or {}
-        new_member = member.get("new_chat_member") or {}
-        return new_member.get("status") in _DEACTIVATION_STATUSES
+    # No detect_deactivation override. A Telegram my_chat_member "kicked"/"left"
+    # is a per-CHAT membership change, not an app uninstall: one user blocking
+    # the bot in one DM would otherwise disable the whole connection for every
+    # chat. The interface default (never deactivated from the inside) is correct
+    # for a connection that spans many chats.
 
     async def parse_event(
         self, *, body: bytes, connection: Optional[ChannelConnection] = None
@@ -228,6 +234,14 @@ class TelegramAdapter(ChannelAdapterInterface):
 
         callback = update.get("callback_query")
         if callback:
+            # Acknowledge the button press so Telegram clears its progress
+            # spinner. Best-effort, and only on the authenticated path (this
+            # runs after verify_signature). Then route the click as an action.
+            callback_id = callback.get("id")
+            if connection is not None and callback_id:
+                await self.answer_callback_query(
+                    connection=connection, callback_query_id=callback_id
+                )
             return _parse_callback_query(callback)
 
         # A plain message or a caption-bearing message. Edits, joins, and every
@@ -247,8 +261,9 @@ class TelegramAdapter(ChannelAdapterInterface):
             return None
 
         space_kind = classify_space_kind(message)
-        thread_id = message.get("message_thread_id")
-        locator = build_locator(chat_id=chat_id, message_thread_id=thread_id)
+        # v1 keys a conversation on the chat and does not separate forum topics,
+        # so the locator carries no message_thread_id.
+        locator = build_locator(chat_id=chat_id)
 
         sender = message.get("from") or {}
         addressed = is_addressed(
@@ -292,15 +307,16 @@ class TelegramAdapter(ChannelAdapterInterface):
 
         text, reply_markup = render_content(content)
         receipts: List[Dict[str, Any]] = []
-        chunks = split_for_max_chars(text, max_chars=MAX_CHARS) or [" "]
+        # Split the RAW text first, then escape each chunk. Escaping before the
+        # split could cut an HTML entity (e.g. "&amp;") in half and break the
+        # message. The raw budget leaves headroom for escape expansion.
+        chunks = split_for_max_chars(text, max_chars=_RAW_SPLIT_LIMIT) or [""]
         for chunk in chunks:
             params: Dict[str, Any] = {
                 "chat_id": locator["chat_id"],
-                "text": chunk,
+                "text": to_html(chunk) or " ",
                 "parse_mode": "HTML",
             }
-            if locator.get("message_thread_id"):
-                params["message_thread_id"] = locator["message_thread_id"]
             # The keyboard belongs on the last chunk, the one the answer ends on.
             if reply_markup and chunk is chunks[-1]:
                 params["reply_markup"] = reply_markup
@@ -430,18 +446,15 @@ class _TelegramApiError(Exception):
 
 
 def _is_indicator(content: List[Dict[str, Any]]) -> bool:
-    """True when this content is the turn-start indicator, the single
-    INDICATOR_TEXT part, and nothing else. Telegram shows that as a typing
-    action instead of a message."""
+    """True when this content is the turn-start indicator. Identified by the
+    explicit `indicator` marker the render layer sets, not by the display text,
+    so a real answer whose text happens to equal the indicator text is never
+    mistaken for it and swallowed."""
 
-    texts = [p.get("text", "") for p in content if p.get("type") == "text"]
-    has_button = any(p.get("type") == "button" for p in content)
-    return texts == [INDICATOR_TEXT] and not has_button
+    return any(part.get("indicator") for part in content)
 
 
 def _parse_json(body: bytes) -> Dict[str, Any]:
-    import json
-
     try:
         return json.loads(body) if body else {}
     except ValueError:
@@ -464,7 +477,6 @@ def _parse_callback_query(callback: Dict[str, Any]) -> Optional[ChannelInboundEv
         return None
 
     user = callback.get("from") or {}
-    thread_id = message.get("message_thread_id")
 
     # external_id is the click's own identity, not the message's: Telegram can
     # redeliver, and every button on one message would otherwise dedupe to the
@@ -475,7 +487,7 @@ def _parse_callback_query(callback: Dict[str, Any]) -> Optional[ChannelInboundEv
         external_id=external_id,
         kind=ChannelEventKind.ACTION,
         space_kind=classify_space_kind(message),
-        external_locator=build_locator(chat_id=chat_id, message_thread_id=thread_id),
+        external_locator=build_locator(chat_id=chat_id),
         processed=ChannelInboxEventProcessed(
             content=[{"type": "text", "text": token}],
             sender={"id": user.get("id")},

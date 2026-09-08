@@ -16,6 +16,7 @@ from oss.src.core.secrets.context import set_data_encryption_key
 from oss.src.core.secrets.redaction import (
     CREDENTIAL_EXTRAS_KEYS,
     PRIMARY_CREDENTIAL_FIELDS,
+    SECONDARY_CREDENTIAL_FIELDS,
 )
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
@@ -111,6 +112,27 @@ def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) ->
                 stored_value = getattr(stored_container, field, None)
                 if stored_value is not None:
                     setattr(update_container, field, stored_value)
+
+    # Secondary secrets sit beside the primary in the same container (Slack's
+    # signing_secret, Telegram's server-minted webhook_secret). They are neither
+    # the primary nor extras, so without this a token-only rotation would drop
+    # them and break inbound verification. Keep an omitted one from the stored
+    # record, the same rule as the primary.
+    secondary_container_name, secondary_fields = SECONDARY_CREDENTIAL_FIELDS.get(
+        kind, (None, ())
+    )
+    if secondary_container_name is not None:
+        update_container = getattr(update_data, secondary_container_name, None)
+        stored_container = getattr(stored_data, secondary_container_name, None)
+        if update_container is not None and stored_container is not None:
+            for secondary in secondary_fields:
+                if (
+                    hasattr(update_container, secondary)
+                    and getattr(update_container, secondary) is None
+                ):
+                    stored_value = getattr(stored_container, secondary, None)
+                    if stored_value is not None:
+                        setattr(update_container, secondary, stored_value)
 
     _carry_over_saved_extras(stored_data=stored_data, update_data=update_data)
 

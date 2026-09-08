@@ -101,11 +101,13 @@ def test_classify_space_kind():
     assert (
         classify_space_kind({"chat": {"type": "supergroup"}}) == ChannelSpaceKind.GROUP
     )
+    # v1 does not separate forum topics; a forum message is a GROUP, so
+    # classification and the chat-only thread key stay consistent.
     assert (
         classify_space_kind(
             {"chat": {"type": "supergroup", "is_forum": True}, "message_thread_id": 7}
         )
-        == ChannelSpaceKind.TOPIC
+        == ChannelSpaceKind.GROUP
     )
 
 
@@ -292,8 +294,9 @@ async def test_parse_event_skips_the_bots_own_message():
 
 
 @pytest.mark.asyncio
-async def test_parse_event_callback_query_is_an_action():
-    adapter = TelegramAdapter()
+async def test_parse_event_callback_query_is_an_action_and_acks():
+    # A callback triggers answerCallbackQuery, so the adapter needs a client.
+    adapter, seen = _adapter_with_capture()
     body = json.dumps(
         {
             "callback_query": {
@@ -313,6 +316,9 @@ async def test_parse_event_callback_query_is_an_action():
     assert event.external_id == "cbq:cbq-1"
     assert event.processed.content == [{"type": "text", "text": "tok-approve"}]
     assert event.addressed is True
+    # The button press was acknowledged so Telegram clears its spinner.
+    ack = next(r for r in seen if r.url.path.endswith("/answerCallbackQuery"))
+    assert json.loads(ack.content.decode())["callback_query_id"] == "cbq-1"
 
 
 @pytest.mark.asyncio
@@ -323,17 +329,14 @@ async def test_parse_event_ignores_non_message_updates():
 
 
 @pytest.mark.asyncio
-async def test_detect_deactivation_on_kick():
+async def test_a_chat_kick_never_deactivates_the_connection():
+    # A my_chat_member kick/leave is a per-chat membership change, not an app
+    # uninstall, so it must NOT deactivate the whole bot connection.
     adapter = TelegramAdapter()
     body = json.dumps(
         {"my_chat_member": {"new_chat_member": {"status": "kicked"}}}
     ).encode()
-    assert await adapter.detect_deactivation(body=body) is True
-
-    still_member = json.dumps(
-        {"my_chat_member": {"new_chat_member": {"status": "member"}}}
-    ).encode()
-    assert await adapter.detect_deactivation(body=still_member) is False
+    assert await adapter.detect_deactivation(body=body) is False
 
 
 # --- egress ------------------------------------------------------------------- #
@@ -392,7 +395,8 @@ async def test_indicator_content_shows_typing_and_posts_no_message():
     receipt = await adapter.post_message(
         connection=_connection(),
         locator={"chat_id": 999},
-        content=[{"type": "text", "text": INDICATOR_TEXT}],
+        # The indicator is identified by its explicit marker, not its text.
+        content=[{"type": "text", "text": INDICATOR_TEXT, "indicator": True}],
         idempotency_key=uuid4(),
     )
     # The indicator becomes a typing action; no message is posted, and the
@@ -435,3 +439,67 @@ async def test_activate_connection_registers_the_webhook(monkeypatch):
     assert body["secret_token"] == WEBHOOK_SECRET
     assert "message" in body["allowed_updates"]
     assert "callback_query" in body["allowed_updates"]
+
+
+# --- review-fix coverage ------------------------------------------------------ #
+
+
+def test_render_content_renders_the_approval_card_as_text():
+    from oss.src.core.channels.adapters.telegram.mapping import render_content
+
+    content = [
+        {
+            "type": "card",
+            "title": "Approval needed: Write",
+            "arguments": {"path": "/x"},
+        },
+        {"type": "button", "label": "Approve", "value": "approve"},
+        {"type": "button", "label": "Deny", "value": "deny"},
+    ]
+    text, markup = render_content(content)
+    assert "Approval needed: Write" in text
+    assert "path: /x" in text
+    assert markup["inline_keyboard"][0][0]["callback_data"] == "approve"
+
+
+@pytest.mark.asyncio
+async def test_answer_equal_to_indicator_text_is_still_posted():
+    from oss.src.core.channels.render.render import INDICATOR_TEXT
+
+    adapter, seen = _adapter_with_capture()
+    # A real answer whose text equals the indicator text, but WITHOUT the
+    # indicator marker, must post a message, not be swallowed as the indicator.
+    receipt = await adapter.post_message(
+        connection=_connection(),
+        locator={"chat_id": 999},
+        content=[{"type": "text", "text": INDICATOR_TEXT}],
+        idempotency_key=uuid4(),
+    )
+    assert receipt == {"chat_id": 999, "message_id": 7777}
+    assert [r.url.path for r in seen] == ["/bot123:abc/sendMessage"]
+
+
+@pytest.mark.asyncio
+async def test_long_answer_splits_without_corrupting_html():
+    import html as _html
+
+    adapter, seen = _adapter_with_capture()
+    # A long answer with an ampersand near the split boundary. Splitting the raw
+    # text and escaping each chunk must never cut an entity.
+    raw = ("a" * 3899) + "&" + ("b" * 50)
+    await adapter.post_message(
+        connection=_connection(),
+        locator={"chat_id": 999},
+        content=[{"type": "text", "text": raw}],
+        idempotency_key=uuid4(),
+    )
+    sends = [
+        json.loads(r.content.decode())
+        for r in seen
+        if r.url.path.endswith("/sendMessage")
+    ]
+    assert len(sends) >= 2
+    # Each chunk is valid HTML on its own, and unescaping+concatenating restores
+    # the original text — no entity was cut.
+    joined = "".join(_html.unescape(s["text"]) for s in sends)
+    assert joined == raw

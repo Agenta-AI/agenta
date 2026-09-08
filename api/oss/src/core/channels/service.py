@@ -56,6 +56,7 @@ from oss.src.core.channels.types import (
     ChannelAgentNotFound,
     ChannelConnectionIdentityConflict,
     ChannelConnectionNotFound,
+    ChannelConnectionVerificationFailed,
     ChannelGrantRuleInvalid,
     ChannelsError,
     ChannelSpaceNotFound,
@@ -209,21 +210,38 @@ class ChannelsService:
 
         # Register the connection with the platform now that the row exists.
         # No-op for every channel whose setup is read-only; Telegram points its
-        # webhook at our per-bot ingress here. A failure leaves the row in place
-        # but inactive rather than half-rolling-back a stored row and its vault
-        # secret; re-activation is a follow-up. It is logged, not swallowed.
+        # webhook at our per-bot ingress here. It runs after the row is stored
+        # because the call writes on the platform's side and the first update it
+        # triggers must find a row (and its secret) to verify against.
+        #
+        # A failure here means the connection can never receive events, so it is
+        # not a live connection: roll the row and its vault secret back and fail
+        # the create, rather than leaving a connection that looks ready but is
+        # deaf. A caller retries by creating again.
         try:
             await adapter.activate_connection(
                 connection=created,
                 credentials=activation_credentials,
             )
-        except Exception as e:  # noqa: BLE001 - activation must not 500 the create
+        except Exception as e:
+            await self.channels_dao.delete_connection(
+                project_id=project_id, connection_id=created.id
+            )
+            if credential_secret_id is not None:
+                await self._discard_credential_secret(
+                    project_id=project_id, secret_id=credential_secret_id
+                )
             log.warning(
-                "channels: activate_connection failed for channel=%s slug=%s: %s",
+                "channels: activate_connection failed for channel=%s slug=%s: %s — "
+                "rolled back the connection",
                 connection.channel,
                 connection.slug,
                 e,
             )
+            raise ChannelConnectionVerificationFailed(
+                channel=connection.channel,
+                message=f"could not register the connection with the platform: {e}",
+            ) from e
 
         if one_time_secret is None:
             return created

@@ -25,15 +25,17 @@ def routing_token_from_path(path: str) -> Optional[str]:
 
 
 def classify_space_kind(message: Dict[str, Any]) -> ChannelSpaceKind:
-    """chat.type private -> PRIVATE; a forum topic (message_thread_id in a
-    supergroup) -> TOPIC; any other group/supergroup -> GROUP."""
+    """chat.type private -> PRIVATE; any group or supergroup -> GROUP.
+
+    v1 does not separate forum topics into their own sessions, so it never
+    classifies TOPIC. Classifying TOPIC while the thread key is chat_id alone
+    would collapse every topic into one session and post replies into the wrong
+    topic. Keeping classification and keying consistent avoids that misroute;
+    topic-as-its-own-session is a later refinement (see capabilities)."""
 
     chat = message.get("chat") or {}
-    chat_type = chat.get("type")
-    if chat_type == "private":
+    if chat.get("type") == "private":
         return ChannelSpaceKind.PRIVATE
-    if message.get("message_thread_id") and chat.get("is_forum"):
-        return ChannelSpaceKind.TOPIC
     return ChannelSpaceKind.GROUP
 
 
@@ -79,16 +81,27 @@ def is_addressed(
         return True
 
     text = _entities_text(message)
+    lowered = text.lower()
     entities = message.get("entities") or message.get("caption_entities") or []
+
+    # A plain-string check avoids Telegram's UTF-16 entity offsets (which do not
+    # line up with Python code-point indexing once the text has an emoji). The
+    # bot username is unique in the workspace, so a substring match is safe.
+    if bot_username and f"@{bot_username.lower()}" in lowered:
+        return True
+
     for entity in entities:
         etype = entity.get("type")
         if etype == "bot_command":
-            return True
-        if etype == "mention" and bot_username:
             offset = entity.get("offset", 0)
             length = entity.get("length", 0)
-            mentioned = text[offset : offset + length]
-            if mentioned.lower() == f"@{bot_username}".lower():
+            command = text[offset : offset + length]
+            # A command may target a specific bot: "/start@otherbot". Admit a
+            # bare command, or one addressed to this bot; ignore one aimed at
+            # another bot in the group.
+            if "@" not in command or (
+                bot_username and command.lower().endswith(f"@{bot_username.lower()}")
+            ):
                 return True
         if etype == "text_mention":
             user = entity.get("user") or {}
@@ -129,21 +142,46 @@ def _within_callback_limit(value: str) -> bool:
     return len(value.encode("utf-8")) <= CALLBACK_DATA_MAX_BYTES
 
 
+def _card_to_text(card: Dict[str, Any]) -> str:
+    """An approval card as plain lines: its title and each argument. Without
+    this the tool name and arguments (which live only on the card part, not in
+    any text part) would be dropped and the user would see empty text."""
+
+    lines: List[str] = []
+    title = card.get("title")
+    if title:
+        lines.append(title)
+    arguments = card.get("arguments") or {}
+    if isinstance(arguments, dict):
+        for key, value in arguments.items():
+            lines.append(f"{key}: {value}")
+    return "\n".join(lines)
+
+
 def render_content(
     content: List[Dict[str, Any]],
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
-    """Flatten internal content parts into (HTML text, reply_markup).
+    """Flatten internal content parts into (RAW text, reply_markup).
 
-    Buttons render as an inline keyboard, one button per row, using the button
-    value as callback_data. Above BUTTONS_MAX, or when a value exceeds the
-    64-byte callback limit, buttons degrade to numbered text with no markup.
+    The text is NOT html-escaped here; the caller splits it and escapes each
+    chunk, so a split can never cut an HTML entity in half. Text and card parts
+    become lines; buttons render as an inline keyboard (one button per row,
+    the button value as callback_data). Above BUTTONS_MAX, or when a value
+    exceeds the 64-byte callback limit, buttons degrade to numbered text.
     """
 
+    segments: List[str] = []
+    for item in content:
+        if item.get("type") == "text" and item.get("text"):
+            segments.append(item["text"])
+        elif item.get("type") == "card":
+            card_text = _card_to_text(item)
+            if card_text:
+                segments.append(card_text)
+
+    text = "\n".join(segments)
+
     buttons = [item for item in content if item.get("type") == "button"]
-    texts = [item.get("text", "") for item in content if item.get("type") == "text"]
-
-    text = "\n".join(t for t in texts if t)
-
     options = [
         {
             "label": b.get("label", b.get("id", "")),
@@ -157,10 +195,10 @@ def render_content(
         keyboard = [
             [{"text": o["label"], "callback_data": o["value"]}] for o in options
         ]
-        return to_html(text) if text else " ", {"inline_keyboard": keyboard}
+        return text, {"inline_keyboard": keyboard}
 
     if options:
         numbered = "\n".join(f"{i + 1}. {o['label']}" for i, o in enumerate(options))
         text = f"{text}\n{numbered}" if text else numbered
 
-    return to_html(text) if text else " ", None
+    return text, None

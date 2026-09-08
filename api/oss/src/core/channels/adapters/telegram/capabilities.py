@@ -19,9 +19,11 @@ TELEGRAM_CAPABILITIES: dict = {
         "mention": True,
         "commands": {"native": True, "in_conversation": True},
     },
-    # private = a 1:1 chat with the bot; group = a group or supergroup;
-    # topic = a forum topic inside a supergroup (message_thread_id).
-    "spaces": {"private": True, "group": True, "topic": True},
+    # private = a 1:1 chat with the bot; group = a group or supergroup. Forum
+    # topics are NOT a separate space in v1: the thread is keyed on the chat, so
+    # advertising topic support while collapsing topics into one session would
+    # misroute replies. Topic-as-its-own-session is a later refinement.
+    "spaces": {"private": True, "group": True, "topic": False},
     # A chat is one running conversation. "thread" as the default makes the
     # session scope THREAD, so every message in a direct message or a group
     # continues the same session instead of starting a fresh one. Without this

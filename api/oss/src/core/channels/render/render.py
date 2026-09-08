@@ -15,6 +15,7 @@ def render_indicator(*, capabilities: ChannelCapabilities) -> RenderItem:
                 type="text",
                 text=INDICATOR_TEXT,
                 format=capabilities.rendering.text.format,
+                indicator=True,
             )
         ]
     )
