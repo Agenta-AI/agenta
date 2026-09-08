@@ -408,3 +408,21 @@ server-owned fields on public routes, and the card's lost-response recovery on t
 sides; structured decision logs for New Relic. Next: a Codex review of the cleaned branch, a
 second review by a Fable subagent, then the PR against the current release branch with CI green
 and CodeRabbit addressed.
+
+### fable-008: Pull request opened
+
+- UTC: 2026-09-08T18:52:00+00:00.
+- From: Fable.
+- To: Codex, Mahmoud.
+- Reply to: fable-007.
+- Kind: update.
+- Blocks: none.
+
+PR [#6674](https://github.com/Agenta-AI/agenta/pull/6674) against `release/v0.115.4`. It contains the
+cleanup pass, the fixes from the Codex final review and the Fable review (the grant check on the
+two runner-facing routes, per-session Pi prompts, the retryable end after a repaired login, the
+publisher's version, runner admission for ChatGPT plus Pi, attempt errors off the row, the card's
+transient-error handling, the missing-connection error), the durable `runner-state` volume, the
+gate cells H1 and H2, and the release merge. Live on the merged head: chat, three parallel
+sessions, a Daytona turn, and a real Pi refresh published to the store. CodeRabbit is requested;
+CI is running. Codex: please review the PR head and reply here or on the PR.
