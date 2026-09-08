@@ -1,11 +1,20 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {RotateCcw as ArrowCounterClockwise, Search} from "lucide-react"
+import {ArrowLeft, RotateCcw as ArrowCounterClockwise, Search} from "lucide-react"
+
+import {useMediaQuery} from "../hooks/useMediaQuery"
 
 import {cn} from "../components/ui/utils"
 
+import {FilterMenuOptionList} from "./FilterMenuOptionList"
 import {FilterMenuRow, selectedValues, summaryLabel} from "./FilterMenuRow"
 import type {FilterMenuPlacementProps, FilterMenuSection} from "./types"
+
+/**
+ * Under this width the panel drills in rather than fanning out. 640 is the point where a 188px
+ * flyout beside a 248px panel stops fitting beside the thing it belongs to.
+ */
+export const DRILLDOWN_QUERY = "(max-width: 639.98px)"
 
 /**
  * Reset reads as one more thing you can pick, not as fine print under the list — it is the same
@@ -83,6 +92,10 @@ export const FilterMenuPanel = ({
 } & Pick<FilterMenuPlacementProps, "flyoutSide" | "flyoutAlign" | "flyoutSideOffset">) => {
     const [query, setQuery] = useState(defaultSearch)
     const [openKey, setOpenKey] = useState<string | null>(null)
+    // Below this there is no room beside the panel for a flyout, and one opened there covers the
+    // list it came from — so a row drills IN and the panel carries a way back.
+    const drilldown = useMediaQuery(DRILLDOWN_QUERY)
+    const [drillKey, setDrillKey] = useState<string | null>(null)
     // How the open flyout was opened. A keyboard reader wants focus inside it; a pointer reader
     // is often still typing in the search field above, so a hover must not take the caret.
     const [openedByKeyboard, setOpenedByKeyboard] = useState(false)
@@ -109,6 +122,7 @@ export const FilterMenuPanel = ({
     }, [query, sections])
 
     const visible = matched.filter((entry) => entry.visible)
+    const drilled = drilldown ? (matched.find((e) => e.section.key === drillKey) ?? null) : null
     const blocks: {key: string; entries: typeof visible}[] = [
         {key: "filter", entries: visible.filter((e) => (e.section.block ?? "filter") === "filter")},
         {key: "sort", entries: visible.filter((e) => e.section.block === "sort")},
@@ -180,6 +194,55 @@ export const FilterMenuPanel = ({
         }
     }
 
+    if (drilled) {
+        const {section, options} = drilled
+        const back = () => setDrillKey(null)
+        return (
+            <div
+                className={cn("flex w-[248px] flex-col", className)}
+                onKeyDown={(event) => {
+                    // Escape steps back to the rows before it closes the panel — the reader is
+                    // one level in, and losing the whole menu is not what "back" means.
+                    if (event.key !== "Escape") return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    back()
+                }}
+            >
+                <div className="flex items-center gap-1 border-0 border-b border-solid border-border p-1">
+                    <button
+                        type="button"
+                        onClick={back}
+                        aria-label={`Back to filters`}
+                        className={cn(
+                            "box-border cursor-pointer appearance-none border-0 bg-transparent font-[inherit]",
+                            "flex min-w-0 flex-1 items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
+                            "text-[13px] font-medium text-foreground outline-none transition-colors",
+                            "hover:bg-accent focus-visible:bg-accent",
+                        )}
+                    >
+                        <ArrowLeft size={14} aria-hidden className="shrink-0" />
+                        <span className="truncate">{section.label}</span>
+                    </button>
+                </div>
+                <div className="flex max-h-[280px] flex-col overflow-y-auto p-1">
+                    <FilterMenuOptionList
+                        options={options}
+                        selected={selectedValues(section)}
+                        emptyText={section.emptyText ?? `No ${section.label.toLowerCase()} options`}
+                        onDismiss={back}
+                        onSelect={(value) => {
+                            section.onChange(value)
+                            // A single answer is done, so the panel returns to the rows; a multi
+                            // row stays put so a reader can tick several.
+                            if (!section.multi) back()
+                        }}
+                    />
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className={cn("flex w-[248px] flex-col", className)}>
             {searchable ? (
@@ -231,6 +294,8 @@ export const FilterMenuPanel = ({
                                 options={entry.options}
                                 open={openKey === entry.section.key}
                                 autoFocusOptions={openedByKeyboard}
+                                inline={drilldown}
+                                onActivate={() => setDrillKey(entry.section.key)}
                                 onHoverOpen={() => openByHover(entry.section.key)}
                                 onHoverLeave={scheduleClose}
                                 onOpenChange={(next) =>
