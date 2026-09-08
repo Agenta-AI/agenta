@@ -78,7 +78,7 @@ export const AutomationRunsScreen = ({
                 <ScreenScaffold
                     fill
                     header={
-                        <div className="mx-auto w-full max-w-[1180px] shrink-0 px-8 pb-2 pt-[30px]">
+                        <div className="w-full shrink-0 px-5 pb-2 pt-[30px]">
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <AutomationBackLink
@@ -89,14 +89,14 @@ export const AutomationRunsScreen = ({
                         </div>
                     }
                 >
-                    <div className="mx-auto flex min-h-0 w-full max-w-[1180px] min-w-0 flex-1 overflow-hidden px-8 pb-6">
+                    <div className="flex min-h-0 w-full min-w-0 flex-1 overflow-hidden">
                         {showList ? (
                             <div
                                 className={cn(
                                     "flex min-h-0 flex-col",
                                     showPane
-                                        ? "min-w-[240px] max-w-[380px] flex-[1_1_240px] border-0 border-r border-solid border-border pr-4"
-                                        : "mx-auto w-full min-w-0 max-w-[760px] flex-1",
+                                        ? "min-w-[240px] max-w-[380px] flex-[1_1_240px] border-0 border-r border-solid border-border pb-6 pl-5 pr-4"
+                                        : "mx-auto w-full min-w-0 max-w-[760px] flex-1 px-5 pb-6",
                                 )}
                             >
                                 <div className="flex shrink-0 items-center gap-2">
@@ -132,7 +132,6 @@ export const AutomationRunsScreen = ({
                                     workspaceId={workspaceId}
                                     agentId={automation?.agentId ?? null}
                                     onBack={canSplit ? undefined : onBack}
-                                    onClose={onBack}
                                 />
                             </div>
                         ) : null}
