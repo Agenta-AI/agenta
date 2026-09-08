@@ -5,12 +5,14 @@ import {
     AUTOMATION_STATUS_LABEL,
     AutomationListEmpty,
     AutomationListError,
+    AutomationListNoMatch,
     AutomationListSkeleton,
     automationStatus,
     type AutomationStatus,
     type AutomationListView,
     DEFAULT_AUTOMATION_LIST_VIEW,
     deriveAutomationList,
+    isDefaultAutomationListView,
     runsWhenLabel,
     useAutomations,
 } from "@agenta/automation-ui"
@@ -151,11 +153,16 @@ export const AutomationListScreen = ({
                         </div>
 
                         {matchCount === 0 ? (
-                            <p className="m-0 p-[34px] text-center text-[13px] text-muted-foreground">
-                                {term
-                                    ? `Nothing matches “${term}”.`
-                                    : "No automation matches these filters."}
-                            </p>
+                            <AutomationListNoMatch
+                                term={term || undefined}
+                                onClear={
+                                    term
+                                        ? () => setSearch("")
+                                        : isDefaultAutomationListView(view)
+                                          ? undefined
+                                          : () => setView(DEFAULT_AUTOMATION_LIST_VIEW)
+                                }
+                            />
                         ) : (
                             groups.map((group) => (
                                 <Fragment key={group.key}>
@@ -353,3 +360,4 @@ export const AutomationListScreen = ({
         </>
     )
 }
+

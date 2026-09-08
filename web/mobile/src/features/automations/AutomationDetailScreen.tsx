@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     AutomationBackLink,
@@ -9,13 +9,15 @@ import {
     useAutomationEditor,
 } from "@agenta/automation-ui"
 
+import {useRouter} from "next/router"
+
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
-import {useConfirmSheet} from "../settings/useConfirmSheet"
+import {useConfirmModal} from "../settings/useConfirmModal"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationRunConversation} from "./AutomationRunConversation"
@@ -47,6 +49,7 @@ export const AutomationDetailScreen = ({
     automationId: string
 }) => {
     useBindProjectContext(projectId)
+    const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
 
     const {
@@ -69,12 +72,23 @@ export const AutomationDetailScreen = ({
         save,
     } = useAutomationEditor(automationId)
 
-    // One sheet for both questions this screen can ask (leave without saving, delete) would mean
+    // One modal for both questions this screen can ask (leave without saving, delete) would mean
     // one of them waiting on the other; the menu owns its own.
-    const {confirm, sheet} = useConfirmSheet()
+    const {confirm, modal} = useConfirmModal()
     const leave = useUnsavedGuard({dirty, confirm})
 
-    const [showRuns, setShowRuns] = useState(false)
+    // `?view=runs` opens straight on the history — a list row that promises runs should not
+    // land the reader on the config to find them.
+    const [showRuns, setShowRuns] = useState(() => router.query.view === "runs")
+    // On a cold load of a dynamic route the query is empty until the router is ready, so the
+    // initialiser above misses it; `applied` makes this a seed rather than a binding, or closing
+    // the history would reopen it on the next render.
+    const applied = useRef(false)
+    useEffect(() => {
+        if (applied.current || !router.isReady) return
+        applied.current = true
+        if (router.query.view === "runs") setShowRuns(true)
+    }, [router.isReady, router.query.view])
     const openRuns = useCallback(() => setShowRuns(true), [])
     const closeRuns = useCallback(() => setShowRuns(false), [])
 
@@ -172,7 +186,7 @@ export const AutomationDetailScreen = ({
                 </ScreenScaffold>
             </AppShell>
             <AutomationTriggerDrawers />
-            {sheet}
+            {modal}
         </>
     )
 }

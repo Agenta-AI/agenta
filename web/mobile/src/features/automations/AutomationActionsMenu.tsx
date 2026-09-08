@@ -1,12 +1,7 @@
-import {useCallback, useState} from "react"
+import {useCallback} from "react"
 
-import {
-    type Automation,
-    automationInputsFields,
-    buildAutomationCreate,
-    useAutomation,
-} from "@agenta/automation-ui"
-import {getScheduleMessagePreview, type TriggerSubscription} from "@agenta/entities/gatewayTrigger"
+import {type Automation, useAutomation} from "@agenta/automation-ui"
+import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
 import {message} from "@agenta/ui/app-message"
 import {
     DropdownMenu,
@@ -15,30 +10,20 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {
-    ClockCounterClockwise,
-    Copy,
-    DotsThreeVertical,
-    Pause,
-    Play,
-    Trash,
-} from "@phosphor-icons/react"
+import {ClockCounterClockwise, DotsThreeVertical, Pause, Play, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {Button} from "@/components/ui/button"
 
 import {useStartBlankSession} from "../chat/useStartBlankSession"
-import {useConfirmSheet} from "../settings/useConfirmSheet"
+import {useConfirmModal} from "../settings/useConfirmModal"
 
 /**
  * The automation's own actions — everything that acts on the row rather than on a field.
  *
- * A kebab, because none of these is a thing to do often and two of them are one keystroke from
- * being irreversible. Delete goes through the same confirm sheet every destructive action on this
- * surface uses, and names the automation, so the sheet is never a generic "are you sure".
- *
- * A duplicate arrives OFF. Copying a schedule that runs at 09:00 should not add a second 09:00 run
- * nobody asked for; the copy opens ready to be edited and switched on.
+ * A kebab, because none of these is a thing to do often and one of them is one keystroke from
+ * being irreversible. Delete goes through the same confirm modal every destructive action on
+ * this surface uses, and names the automation, so it is never a generic "are you sure".
  *
  * On a list row the kebab is the row's only control, so it also carries the three things the
  * detail screen exposes as its own controls — test run, run history, and the on/off switch.
@@ -68,47 +53,7 @@ export const AutomationActionsMenu = ({
     const router = useRouter()
     const {create, remove, setActive} = useAutomation(automation.id, automation.kind)
     const startSession = useStartBlankSession(base)
-    const {confirm, sheet} = useConfirmSheet()
-    const [duplicating, setDuplicating] = useState(false)
-
-    const onDuplicate = useCallback(async () => {
-        if (duplicating) return
-        setDuplicating(true)
-        try {
-            const copy = await create(
-                buildAutomationCreate(
-                    {
-                        kind: automation.kind,
-                        name: `${automation.name} (copy)`,
-                        description: automation.description,
-                        cron: automation.cron ?? "",
-                        eventKey: automation.eventKey,
-                        connectionId: automation.connectionId,
-                        triggerConfig:
-                            (automation.raw as TriggerSubscription).data?.trigger_config ??
-                            undefined,
-                        inputsFields: automationInputsFields(automation),
-                        isActive: false,
-                    },
-                    // The same agent, bound the same way — a copy that runs a different agent
-                    // than the thing it was copied from is not a copy.
-                    automation.raw.data?.references,
-                ),
-            )
-            if (!copy?.id) {
-                message.error("Couldn't duplicate this automation")
-                return
-            }
-            message.success("Duplicated — the copy is off until you switch it on")
-            // Not awaited inside the try: unsaved edits here make the guard abort this push, and
-            // that abort is not a failed duplicate.
-            void router.push(`${base}/automations/${copy.id}`).catch(() => undefined)
-        } catch {
-            message.error("Couldn't duplicate this automation")
-        } finally {
-            setDuplicating(false)
-        }
-    }, [automation, base, create, duplicating, router])
+    const {confirm, modal} = useConfirmModal()
 
     const onToggle = useCallback(async () => {
         const next = !automation.isActive
@@ -183,13 +128,14 @@ export const AutomationActionsMenu = ({
                             <DropdownMenuItem
                                 onSelect={() =>
                                     void router
-                                        .push(`${base}/automations/${automation.id}`)
+                                        .push(`${base}/automations/${automation.id}?view=runs`)
                                         .catch(() => undefined)
                                 }
                             >
                                 <ClockCounterClockwise aria-hidden size={14} />
-                                {/* The history lives on the automation now, so this is the
-                                    automation's own screen rather than a page of its own. */}
+                                {/* The history is a view of the automation rather than a route,
+                                    so the screen is asked to open on it. The row promises runs;
+                                    landing on the config would make the reader find them. */}
                                 View run history
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => void onToggle()}>
@@ -203,18 +149,13 @@ export const AutomationActionsMenu = ({
                             <DropdownMenuSeparator />
                         </>
                     ) : null}
-                    <DropdownMenuItem disabled={duplicating} onSelect={() => void onDuplicate()}>
-                        <Copy aria-hidden size={14} />
-                        Duplicate
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onSelect={onDelete}>
                         <Trash aria-hidden size={14} />
                         Delete automation
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-            {sheet}
+            {modal}
         </>
     )
 }
