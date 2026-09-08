@@ -532,7 +532,9 @@ posthog:
 # ================================================================== #
 # store:
 #   enabled: false
-#   endpointUrl:
+#   endpointUrl:       # wins over the internal Service URL even with SeaweedFS bundled.
+#                      # Set it to the ingress host below so a Daytona sandbox, which runs
+#                      # outside the cluster, can reach the store.
 #   stsEndpointUrl:
 #   accessKey:
 #   secretKey:

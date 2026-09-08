@@ -936,11 +936,19 @@ imagePullSecrets:
       key: AGENTA_CRYPT_KEY
 {{- if eq (include "agenta.store.enabled" .) "true" }}
 {{- $store := default dict .Values.store }}
+{{- /* An explicit store.endpointUrl always wins, even with SeaweedFS bundled. A Daytona
+       sandbox runs outside the cluster and cannot resolve the in-cluster Service name, so
+       it needs a public URL. Expose the bundled store through store.seaweedfs.ingress and
+       set store.endpointUrl to that hostname. Compose does the same with
+       AGENTA_STORE_TRAEFIK_ENABLE plus AGENTA_STORE_DOMAIN. The internal Service URL stays
+       the fallback for a cluster-only deployment. */}}
 - name: AGENTA_STORE_ENDPOINT_URL
-  {{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
+  {{- if $store.endpointUrl }}
+  value: {{ $store.endpointUrl | quote }}
+  {{- else if eq (include "agenta.seaweedfs.enabled" .) "true" }}
   value: {{ printf "http://%s-seaweedfs:%v" (include "agenta.fullname" .) (include "agenta.seaweedfs.port" .) | quote }}
   {{- else }}
-  value: {{ default "" $store.endpointUrl | quote }}
+  value: ""
   {{- end }}
 {{- if $store.stsEndpointUrl }}
 - name: AGENTA_STORE_STS_ENDPOINT_URL
