@@ -11,6 +11,7 @@ import {useAtom, useAtomValue} from "jotai"
 
 import {AutomationCreateBody} from "./AutomationCreateBody"
 import {AutomationDetailBody} from "./AutomationDetailBody"
+import {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 import {type AutomationKind} from "./automationModel"
 import {AutomationSaveBar} from "./AutomationSaveBar"
 import {AutomationDetailSkeleton} from "./states/AutomationStates"
@@ -129,6 +130,10 @@ const AutomationDrawerShell = ({
             }}
         >
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">{children}</div>
+            {/* The event picker's "Connect another app…" opens the catalog by atom, so the
+                catalog has to be mounted wherever this drawer is — the screens mount their own,
+                and this shell renders nothing when closed, so the two never collide. */}
+            <AutomationTriggerDrawers />
         </EnhancedDrawer>
     )
 }
