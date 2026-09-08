@@ -25,6 +25,7 @@ from oss.src.core.secrets.subscription_service import (
     SubscriptionLoginService,
 )
 from oss.src.core.secrets.types import (
+    ServerOwnedFieldNotWritable,
     SubscriptionLoginAttemptNotFound,
     SubscriptionLoginRunnerNotConfigured,
     SubscriptionLoginRunnerUnavailable,
@@ -246,6 +247,10 @@ class VaultRouter:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=e.message
             ) from e
+        except ServerOwnedFieldNotWritable as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.message
+            ) from e
 
         return self._for_caller(request, vault_secret)
 
@@ -343,6 +348,10 @@ class VaultRouter:
             # what forbids the change.
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=e.message
+            ) from e
+        except ServerOwnedFieldNotWritable as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.message
             ) from e
         if secrets_dto is None:
             raise HTTPException(

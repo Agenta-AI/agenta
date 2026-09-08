@@ -7,7 +7,7 @@ so each route's required permissions are asserted, not assumed.
 
 from base64 import urlsafe_b64encode
 from datetime import datetime, timedelta, timezone
-from json import dumps as json_dumps
+from json import dumps as json_dumps, loads as json_loads
 from uuid import uuid4
 
 import pytest
@@ -110,10 +110,13 @@ class _FakeSecretsDAO:
         if dbe is None:
             return None
         if resolve_update is not None:
-            update_secret_dto = resolve_update(
+            resolved = resolve_update(
                 map_secrets_dbe_to_dto(secrets_dbe=dbe),
                 update_secret_dto,
             )
+            if resolved is None:
+                return map_secrets_dbe_to_dto(secrets_dbe=dbe)
+            update_secret_dto = resolved
         map_secrets_dto_to_dbe_update(
             secrets_dbe=dbe,
             update_secret_dto=update_secret_dto,
@@ -149,10 +152,11 @@ class _FakeRunner:
 
 
 class _Harness:
-    def __init__(self, client, runner, asked):
+    def __init__(self, client, runner, asked, dao):
         self.client = client
         self.runner = runner
         self.asked = asked
+        self.dao = dao
 
 
 @pytest.fixture(name="harness")
@@ -186,7 +190,7 @@ def _harness(monkeypatch):
         ).router
     )
 
-    return _Harness(TestClient(app), runner, asked)
+    return _Harness(TestClient(app), runner, asked, dao)
 
 
 def _create(client, data=None):
@@ -201,16 +205,90 @@ def _create(client, data=None):
     return response.json()
 
 
+def _seed(harness, secret_id, data: dict) -> None:
+    """Put server-owned login state straight on the stored row.
+
+    Create and update refuse these fields, so a test that needs a signed-in connection
+    writes the row itself instead of posting a state the routes would reject.
+    """
+    dbe = harness.dao.rows[str(secret_id)]
+    stored = json_loads(dbe.data)
+    stored.update(data)
+    dbe.data = json_dumps(stored)
+
+
+def _signed_in(harness, data: dict | None = None) -> str:
+    """A connection id whose row already holds a login."""
+    secret_id = _create(harness.client)["id"]
+    _seed(harness, secret_id, {"login": LOGIN, "login_state": "ready", **(data or {})})
+    return secret_id
+
+
 class TestCreateAndRead:
-    def test_a_created_connection_hides_the_login_and_shows_its_models(self, harness):
-        created = _create(harness.client, {"login": LOGIN, "login_state": "ready"})
+    def test_a_signed_in_connection_hides_the_login_and_shows_its_models(self, harness):
+        secret_id = _signed_in(harness)
+
+        read = harness.client.get(f"/secrets/{secret_id}").json()
 
         # The vault routes exclude nulls, so a redacted login is an absent key.
-        assert "login" not in created["data"]
-        assert created["data"]["login_state"] == "ready"
-        assert created["data"]["model_keys"][0] == "chatgpt/gpt-5.6-sol"
-        assert created["value_status"]["configured"] is True
+        assert "login" not in read["data"]
+        assert read["data"]["login_state"] == "ready"
+        assert read["data"]["model_keys"][0] == "chatgpt/gpt-5.6-sol"
+        assert read["value_status"]["configured"] is True
         assert LOGIN["access"] not in harness.client.get("/secrets/").text
+
+    def test_a_create_that_states_a_server_owned_field_is_refused(self, harness):
+        response = harness.client.post(
+            "/secrets/",
+            json={
+                "header": {"name": "ChatGPT"},
+                "secret": {
+                    "kind": "subscription_provider",
+                    "data": {"login": LOGIN, "login_state": "ready"},
+                },
+            },
+        )
+
+        assert response.status_code == 422
+        assert "login_state" in response.json()["detail"]
+        assert LOGIN["access"] not in response.text
+
+    def test_an_update_cannot_rewind_the_login_state(self, harness):
+        secret_id = _signed_in(harness, {"login_version": 4, "login_generation": 2})
+
+        response = harness.client.put(
+            f"/secrets/{secret_id}",
+            json={
+                "header": {"name": "ChatGPT"},
+                "secret": {
+                    "kind": "subscription_provider",
+                    "data": {"login_version": 0, "login_generation": 0},
+                },
+            },
+        )
+
+        assert response.status_code == 422
+        read = harness.client.get(f"/secrets/{secret_id}").json()
+        assert read["data"]["login_version"] == 4
+        assert read["data"]["login_generation"] == 2
+
+    def test_a_rename_keeps_the_stored_sign_in(self, harness):
+        secret_id = _signed_in(harness, {"login_version": 4})
+
+        response = harness.client.put(
+            f"/secrets/{secret_id}",
+            json={
+                "header": {"name": "My ChatGPT"},
+                "secret": {"kind": "subscription_provider", "data": {}},
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        read = harness.client.get(f"/secrets/{secret_id}").json()
+        assert read["header"]["name"] == "My ChatGPT"
+        assert read["data"]["login_state"] == "ready"
+        assert read["data"]["login_version"] == 4
+        assert read["value_status"]["configured"] is True
 
     def test_a_second_chatgpt_connection_is_a_conflict(self, harness):
         _create(harness.client)
@@ -228,7 +306,7 @@ class TestCreateAndRead:
 
 class TestLoginAttemptRoutes:
     def test_start_returns_the_user_code_and_needs_edit_secret(self, harness):
-        created = _create(harness.client)
+        secret_id = _create(harness.client)["id"]
         harness.runner.next_attempt = RunnerLoginAttempt(
             attempt_id="att-1",
             state="pending",
@@ -239,7 +317,7 @@ class TestLoginAttemptRoutes:
         )
         harness.asked.clear()
 
-        response = harness.client.post(f"/secrets/{created['id']}/login-attempts")
+        response = harness.client.post(f"/secrets/{secret_id}/login-attempts")
 
         assert response.status_code == 200, response.text
         body = response.json()
@@ -251,22 +329,22 @@ class TestLoginAttemptRoutes:
         assert harness.asked == [Permission.EDIT_SECRET]
 
     def test_a_succeeded_poll_stores_the_login_without_returning_it(self, harness):
-        created = _create(harness.client)
+        secret_id = _create(harness.client)["id"]
         harness.runner.next_attempt = RunnerLoginAttempt(
             attempt_id="att-1", state="pending", expires_at=_later()
         )
-        harness.client.post(f"/secrets/{created['id']}/login-attempts")
+        harness.client.post(f"/secrets/{secret_id}/login-attempts")
 
         harness.runner.next_attempt = RunnerLoginAttempt(
             attempt_id="att-1", state="succeeded", login=LOGIN
         )
-        response = harness.client.get(f"/secrets/{created['id']}/login-attempts/att-1")
+        response = harness.client.get(f"/secrets/{secret_id}/login-attempts/att-1")
 
         assert response.status_code == 200, response.text
         assert response.json()["state"] == "succeeded"
         assert LOGIN["access"] not in response.text
 
-        read_back = harness.client.get(f"/secrets/{created['id']}").json()
+        read_back = harness.client.get(f"/secrets/{secret_id}").json()
         assert "login" not in read_back["data"]
         assert "login_attempt" not in read_back["data"]
         assert read_back["data"]["login_state"] == "ready"
@@ -274,23 +352,23 @@ class TestLoginAttemptRoutes:
         assert read_back["data"]["login_generation"] == 1
 
     def test_polling_an_attempt_this_connection_never_started_is_404(self, harness):
-        created = _create(harness.client)
+        secret_id = _create(harness.client)["id"]
 
         response = harness.client.get(
-            f"/secrets/{created['id']}/login-attempts/att-someone-else"
+            f"/secrets/{secret_id}/login-attempts/att-someone-else"
         )
 
         assert response.status_code == 404
 
     def test_cancel_returns_the_cancelled_state(self, harness):
-        created = _create(harness.client)
+        secret_id = _create(harness.client)["id"]
         harness.runner.next_attempt = RunnerLoginAttempt(
             attempt_id="att-1", state="pending", expires_at=_later()
         )
-        harness.client.post(f"/secrets/{created['id']}/login-attempts")
+        harness.client.post(f"/secrets/{secret_id}/login-attempts")
 
         response = harness.client.post(
-            f"/secrets/{created['id']}/login-attempts/att-1/cancel"
+            f"/secrets/{secret_id}/login-attempts/att-1/cancel"
         )
 
         assert response.status_code == 200, response.text
@@ -298,19 +376,19 @@ class TestLoginAttemptRoutes:
         assert harness.runner.deleted == ["att-1"]
 
     def test_no_runner_configured_is_a_503(self, harness):
-        created = _create(harness.client)
+        secret_id = _create(harness.client)["id"]
         harness.runner.raises = SubscriptionLoginRunnerNotConfigured()
 
-        response = harness.client.post(f"/secrets/{created['id']}/login-attempts")
+        response = harness.client.post(f"/secrets/{secret_id}/login-attempts")
 
         assert response.status_code == 503
         assert "runner" in response.json()["detail"]
 
     def test_an_unreachable_runner_is_a_502(self, harness):
-        created = _create(harness.client)
+        secret_id = _create(harness.client)["id"]
         harness.runner.raises = SubscriptionLoginRunnerUnavailable()
 
-        response = harness.client.post(f"/secrets/{created['id']}/login-attempts")
+        response = harness.client.post(f"/secrets/{secret_id}/login-attempts")
 
         assert response.status_code == 502
 
@@ -322,14 +400,14 @@ class TestLoginAttemptRoutes:
 
 class TestRunnerFacingRoutes:
     def test_a_refreshed_login_is_stored_under_the_run_permissions(self, harness):
-        created = _create(
-            harness.client,
+        secret_id = _signed_in(
+            harness,
             {"login": LOGIN, "login_version": 3, "login_generation": 1},
         )
         harness.asked.clear()
 
         response = harness.client.post(
-            f"/secrets/{created['id']}/subscription-login",
+            f"/secrets/{secret_id}/subscription-login",
             json={
                 "login": {**LOGIN, "refresh": "refresh-2", "expires": _expires_in(2)},
                 "version": 3,
@@ -349,8 +427,8 @@ class TestRunnerFacingRoutes:
     def test_an_unusable_login_is_refused_with_a_reason_and_changes_nothing(
         self, harness
     ):
-        created = _create(
-            harness.client,
+        secret_id = _signed_in(
+            harness,
             {
                 "login": LOGIN,
                 "login_version": 3,
@@ -360,7 +438,7 @@ class TestRunnerFacingRoutes:
         )
 
         response = harness.client.post(
-            f"/secrets/{created['id']}/subscription-login",
+            f"/secrets/{secret_id}/subscription-login",
             json={
                 # What a run sends when its own refresh went wrong: not a token, but a
                 # later expiry, so every ordering rule would have ranked it first.
@@ -384,18 +462,18 @@ class TestRunnerFacingRoutes:
             "reason": "invalid_login",
         }
 
-        read_back = harness.client.get(f"/secrets/{created['id']}").json()
+        read_back = harness.client.get(f"/secrets/{secret_id}").json()
         assert read_back["data"]["login_version"] == 3
         assert read_back["data"]["login_state"] == "ready"
 
     def test_the_same_refresh_token_is_an_idempotent_no_op(self, harness):
-        created = _create(
-            harness.client,
+        secret_id = _signed_in(
+            harness,
             {"login": LOGIN, "login_version": 3, "login_generation": 1},
         )
 
         response = harness.client.post(
-            f"/secrets/{created['id']}/subscription-login",
+            f"/secrets/{secret_id}/subscription-login",
             json={
                 "login": {**LOGIN, "expires": _expires_in(9)},
                 "version": 3,
@@ -411,13 +489,13 @@ class TestRunnerFacingRoutes:
         }
 
     def test_an_older_generation_gets_the_current_login_back(self, harness):
-        created = _create(
-            harness.client,
+        secret_id = _signed_in(
+            harness,
             {"login": LOGIN, "login_version": 3, "login_generation": 4},
         )
 
         response = harness.client.post(
-            f"/secrets/{created['id']}/subscription-login",
+            f"/secrets/{secret_id}/subscription-login",
             json={
                 "login": {**LOGIN, "refresh": "refresh-old", "expires": _expires_in(9)},
                 "version": 3,
@@ -432,13 +510,13 @@ class TestRunnerFacingRoutes:
         assert body["login"]["refresh"] == "refresh-1"
 
     def test_a_login_for_another_account_is_not_stored(self, harness):
-        created = _create(
-            harness.client,
+        secret_id = _signed_in(
+            harness,
             {"login": LOGIN, "login_version": 3, "login_generation": 1},
         )
 
         response = harness.client.post(
-            f"/secrets/{created['id']}/subscription-login",
+            f"/secrets/{secret_id}/subscription-login",
             json={
                 "login": {
                     **LOGIN,
@@ -455,28 +533,28 @@ class TestRunnerFacingRoutes:
         assert "login" not in response.json()
 
     def test_an_empty_login_is_refused(self, harness):
-        created = _create(harness.client, {"login": LOGIN, "login_version": 3})
+        secret_id = _signed_in(harness, {"login_version": 3})
 
         response = harness.client.post(
-            f"/secrets/{created['id']}/subscription-login",
+            f"/secrets/{secret_id}/subscription-login",
             json={"login": {}, "version": 3, "generation": 0},
         )
 
         assert response.status_code == 422
 
     def test_a_push_without_a_generation_is_refused(self, harness):
-        created = _create(harness.client, {"login": LOGIN, "login_version": 3})
+        secret_id = _signed_in(harness, {"login_version": 3})
 
         response = harness.client.post(
-            f"/secrets/{created['id']}/subscription-login",
+            f"/secrets/{secret_id}/subscription-login",
             json={"login": LOGIN, "version": 3},
         )
 
         assert response.status_code == 422
 
     def test_a_failure_report_marks_the_login_dead(self, harness):
-        created = _create(
-            harness.client,
+        secret_id = _signed_in(
+            harness,
             {
                 "login": LOGIN,
                 "login_version": 3,
@@ -487,7 +565,7 @@ class TestRunnerFacingRoutes:
         harness.asked.clear()
 
         response = harness.client.post(
-            f"/secrets/{created['id']}/subscription-login/failure",
+            f"/secrets/{secret_id}/subscription-login/failure",
             json={"version": 3, "generation": 1, "reason": "refresh_rejected"},
         )
 
@@ -495,13 +573,13 @@ class TestRunnerFacingRoutes:
         assert response.json() == {"stale": False, "version": 3, "generation": 1}
         assert harness.asked == [Permission.RUN_SESSIONS, Permission.USE_MOUNTS]
 
-        read_back = harness.client.get(f"/secrets/{created['id']}").json()
+        read_back = harness.client.get(f"/secrets/{secret_id}").json()
         assert read_back["data"]["login_state"] == "needs_login"
         assert read_back["data"]["login_error"] == "refresh_rejected"
 
     def test_a_stale_failure_report_returns_the_current_login(self, harness):
-        created = _create(
-            harness.client,
+        secret_id = _signed_in(
+            harness,
             {
                 "login": LOGIN,
                 "login_version": 5,
@@ -511,7 +589,7 @@ class TestRunnerFacingRoutes:
         )
 
         response = harness.client.post(
-            f"/secrets/{created['id']}/subscription-login/failure",
+            f"/secrets/{secret_id}/subscription-login/failure",
             json={"version": 3, "generation": 1, "reason": "refresh_rejected"},
         )
 
@@ -520,5 +598,230 @@ class TestRunnerFacingRoutes:
         assert body["version"] == 5
         assert body["login"]["refresh"] == "refresh-1"
 
-        read_back = harness.client.get(f"/secrets/{created['id']}").json()
+        read_back = harness.client.get(f"/secrets/{secret_id}").json()
         assert read_back["data"]["login_state"] == "ready"
+
+
+def _device_login(**overrides) -> dict:
+    """A login shaped like the one the device flow hands back, with its own refresh token.
+
+    A fresh token per call on purpose: the refresh token is what the store treats as the
+    identity of a login, so reusing one turns a push into a no-op and hides a lost write.
+    """
+    return {
+        **LOGIN,
+        "refresh": f"refresh-{uuid4().hex}",
+        "expires": _expires_in(1),
+        **overrides,
+    }
+
+
+def _sign_in(harness):
+    """Create a connection and carry it through a device login. Steps 1 to 4, compactly.
+
+    Returns the connection id and the login the flow stored, so a caller can push against
+    what the row actually holds instead of against a value it invented.
+    """
+    secret_id = _create(harness.client)["id"]
+
+    harness.runner.next_attempt = RunnerLoginAttempt(
+        attempt_id="att-lifecycle",
+        state="pending",
+        user_code="WXYZ-1234",
+        expires_at=_later(),
+    )
+    started = harness.client.post(f"/secrets/{secret_id}/login-attempts")
+    assert started.status_code == 200, started.text
+    attempt_id = started.json()["attempt_id"]
+
+    login = _device_login()
+    harness.runner.next_attempt = RunnerLoginAttempt(
+        attempt_id=attempt_id, state="succeeded", login=login
+    )
+    finished = harness.client.get(f"/secrets/{secret_id}/login-attempts/{attempt_id}")
+    assert finished.status_code == 200, finished.text
+    assert finished.json()["state"] == "succeeded"
+
+    return secret_id, login
+
+
+class TestTheWholeLifecycle:
+    """One connection walked end to end, each step against what the step before it left.
+
+    The other classes above check each route on a row they fabricate. These walk the row
+    forward: created, signed in, refreshed, failed, deleted. What they pin is the ORDER
+    and the state carried between the steps, which is what survives no refactor by
+    accident. Routes only; nothing here names a function inside the service.
+    """
+
+    def test_a_new_connection_signs_in_and_reads_back_ready_and_redacted(self, harness):
+        # 1. A fresh connection holds no login at all.
+        created = _create(harness.client)
+        secret_id = created["id"]
+        assert created["data"]["login_state"] == "pending_login"
+
+        # 2. Starting the device login hands the browser a code to type at the provider.
+        harness.runner.next_attempt = RunnerLoginAttempt(
+            attempt_id="att-lifecycle",
+            state="pending",
+            user_code="WXYZ-1234",
+            verification_uri="https://example.test/device",
+            expires_at=_later(),
+            poll_after_ms=5000,
+        )
+        started = harness.client.post(f"/secrets/{secret_id}/login-attempts")
+        assert started.status_code == 200, started.text
+        attempt_id = started.json()["attempt_id"]
+        user_code = started.json()["user_code"]
+        assert started.json()["state"] == "pending"
+        assert user_code
+
+        # 3. The user is still at the provider. The runner is scripted to answer with the
+        # credential early, so "no login material here" is a refusal, not an empty runner.
+        login = _device_login()
+        harness.runner.next_attempt = RunnerLoginAttempt(
+            attempt_id=attempt_id,
+            state="pending",
+            user_code=user_code,
+            expires_at=_later(),
+            login=login,
+        )
+        pending = harness.client.get(
+            f"/secrets/{secret_id}/login-attempts/{attempt_id}"
+        )
+
+        assert pending.status_code == 200, pending.text
+        assert pending.json()["state"] == "pending"
+        assert pending.json()["user_code"] == user_code
+        assert "login" not in pending.json()
+        assert login["access"] not in pending.text
+        assert login["refresh"] not in pending.text
+
+        # ... and the row took nothing from an attempt that has not finished.
+        waiting = harness.client.get(f"/secrets/{secret_id}").json()
+        assert waiting["data"]["login_state"] == "pending_login"
+        assert waiting["data"]["login_version"] == 0
+
+        # 4. The next poll finds it done, and the login lands on the row.
+        harness.runner.next_attempt = RunnerLoginAttempt(
+            attempt_id=attempt_id, state="succeeded", login=login
+        )
+        finished = harness.client.get(
+            f"/secrets/{secret_id}/login-attempts/{attempt_id}"
+        )
+
+        assert finished.status_code == 200, finished.text
+        assert finished.json()["state"] == "succeeded"
+        assert harness.runner.deleted == [attempt_id]
+
+        # 5. What the browser may see of a connection that now holds a credential.
+        read_back = harness.client.get(f"/secrets/{secret_id}")
+
+        assert read_back.status_code == 200, read_back.text
+        data = read_back.json()["data"]
+        assert data["login_state"] == "ready"
+        assert data["login_version"] == 1
+        assert data["login_generation"] == 1
+        assert "login" not in data
+        assert "login_attempt" not in data
+        assert login["access"] not in read_back.text
+        assert login["refresh"] not in read_back.text
+        assert data["model_keys"]
+        assert all(
+            key.startswith(f"{data['provider_slug']}/") for key in data["model_keys"]
+        )
+
+    def test_a_signed_in_connection_takes_a_refresh_and_refuses_a_broken_one(
+        self, harness
+    ):
+        secret_id, _ = _sign_in(harness)
+
+        # 6. A run refreshed the login mid-turn and pushes it back on the lineage it was
+        # handed by the device login above.
+        refreshed = _device_login(expires=_expires_in(4))
+        accepted = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login",
+            json={"login": refreshed, "version": 1, "generation": 1},
+        )
+
+        assert accepted.status_code == 200, accepted.text
+        assert accepted.json()["updated"] is True
+        assert accepted.json()["version"] == 2
+        assert accepted.json()["generation"] == 1
+
+        # 7. A later run whose own refresh went wrong pushes what it wrote instead.
+        broken = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login",
+            json={
+                "login": _device_login(access="not-a-jwt", expires=_expires_in(9)),
+                "version": 2,
+                "generation": 1,
+            },
+        )
+
+        assert broken.status_code == 200, broken.text
+        assert broken.json()["updated"] is False
+        assert broken.json()["reason"]
+        assert broken.json()["version"] == 2
+
+        after = harness.client.get(f"/secrets/{secret_id}").json()["data"]
+        assert after["login_version"] == 2
+        assert after["login_state"] == "ready"
+
+    def test_a_stale_failure_leaves_it_ready_and_a_current_one_ends_it(self, harness):
+        secret_id, _ = _sign_in(harness)
+        refreshed = _device_login(expires=_expires_in(4))
+        assert (
+            harness.client.post(
+                f"/secrets/{secret_id}/subscription-login",
+                json={"login": refreshed, "version": 1, "generation": 1},
+            ).json()["version"]
+            == 2
+        )
+
+        # 8. A run that started before that refresh reports its older login as dead.
+        stale = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login/failure",
+            json={"version": 1, "generation": 1, "reason": "refresh_rejected"},
+        )
+
+        assert stale.status_code == 200, stale.text
+        assert stale.json()["stale"] is True
+        assert stale.json()["version"] == 2
+        # It gets the current login back, so it can retry the turn in one hop.
+        assert stale.json()["login"]["refresh"] == refreshed["refresh"]
+        assert (
+            harness.client.get(f"/secrets/{secret_id}").json()["data"]["login_state"]
+            == "ready"
+        )
+
+        # 9. It rematerializes, retries on the current login, and that one really is dead.
+        dead = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login/failure",
+            json={"version": 2, "generation": 1, "reason": "refresh_rejected"},
+        )
+
+        assert dead.status_code == 200, dead.text
+        assert dead.json()["stale"] is False
+        assert (
+            harness.client.get(f"/secrets/{secret_id}").json()["data"]["login_state"]
+            == "needs_login"
+        )
+
+    def test_a_deleted_connection_is_gone_for_reads_and_for_new_logins(self, harness):
+        secret_id, _ = _sign_in(harness)
+
+        # 10. Disconnecting takes the row and everything hanging off it.
+        deleted = harness.client.delete(f"/secrets/{secret_id}")
+
+        assert deleted.status_code == 204
+
+        assert harness.client.get(f"/secrets/{secret_id}").status_code == 404
+
+        harness.runner.next_attempt = RunnerLoginAttempt(
+            attempt_id="att-after-delete", state="pending", expires_at=_later()
+        )
+        assert (
+            harness.client.post(f"/secrets/{secret_id}/login-attempts").status_code
+            == 404
+        )

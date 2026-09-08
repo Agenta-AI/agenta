@@ -19,7 +19,10 @@ from oss.src.core.secrets.redaction import (
     CREDENTIAL_EXTRAS_KEYS,
     PRIMARY_CREDENTIAL_FIELDS,
 )
-from oss.src.core.secrets.types import SubscriptionProviderConflict
+from oss.src.core.secrets.types import (
+    ServerOwnedFieldNotWritable,
+    SubscriptionProviderConflict,
+)
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     subscription_provider_slug,
@@ -86,10 +89,9 @@ def _secret_format(data: Any) -> Optional[str]:
     return str(getattr(fmt, "value", fmt))
 
 
-# Fields the server owns on a subscription connection. None of them are editable from the
-# settings drawer, and a payload that never mentions one keeps the stored value: a rename
-# must not reset the connection to "never signed in", and the redacted read the browser
-# works from cannot echo the login back.
+# Fields the server owns on a subscription connection. The sign-in routes are the only
+# writers: a create or an update that states one is refused, and one that omits it keeps
+# the stored value, so a rename does not reset the connection to "never signed in".
 SERVER_OWNED_DATA_FIELDS = {
     SecretKind.SUBSCRIPTION_PROVIDER.value: (
         "login",
@@ -100,6 +102,22 @@ SERVER_OWNED_DATA_FIELDS = {
         "login_error",
     ),
 }
+
+
+def reject_server_owned_fields(*, secret: Any) -> None:
+    """Refuse a payload that states a field only the sign-in routes may write."""
+    if secret is None:
+        return
+
+    kind = getattr(secret, "kind", None)
+    owned = SERVER_OWNED_DATA_FIELDS.get(str(getattr(kind, "value", kind)), ())
+    if not owned:
+        return
+
+    stated = getattr(secret.data, "model_fields_set", set())
+    written = [field for field in owned if field in stated]
+    if written:
+        raise ServerOwnedFieldNotWritable(fields=written)
 
 
 def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) -> None:
@@ -353,6 +371,8 @@ class VaultService:
         create_secret_dto: CreateSecretDTO,
         management: SecretManagementDTO | None,
     ):
+        reject_server_owned_fields(secret=create_secret_dto.secret)
+
         # custom_secret and custom_provider are addressed by slug; derive one from the name when
         # absent so the record keeps its identity when the display name later changes.
         if (
@@ -558,6 +578,8 @@ class VaultService:
         organization_id: UUID | None = None,
         user_id: UUID | None = None,
     ):
+        reject_server_owned_fields(secret=update_secret_dto.secret)
+
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
@@ -581,14 +603,26 @@ class VaultService:
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
         user_id: UUID | None = None,
-        resolve_update: Callable[[SecretResponseDTO], UpdateSecretDTO],
+        resolve_update: Callable[[SecretResponseDTO], Optional[UpdateSecretDTO]],
     ):
         """Apply an update computed from the stored row under the DAO's write lock.
 
         The subscription login writes decide WHAT to store by comparing the pushed login
         with the stored one. Two runners can push at the same time, so that comparison has
         to read the row the write commits, not a snapshot taken before it.
+
+        A resolver that returns None means the row already holds what the caller wanted.
+        Nothing is written and the project cache keeps its entry, so a device login poll
+        every two seconds does not evict every reader's view of the vault.
         """
+        changed = False
+
+        def resolve(stored: SecretResponseDTO, _requested: UpdateSecretDTO):
+            nonlocal changed
+            update = resolve_update(stored)
+            changed = update is not None
+            return update
+
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
@@ -598,10 +632,10 @@ class VaultService:
                 project_id=project_id,
                 organization_id=organization_id,
                 user_id=user_id,
-                resolve_update=lambda stored, _requested: resolve_update(stored),
+                resolve_update=resolve,
             )
 
-        if project_id is not None:
+        if changed and project_id is not None:
             await invalidate_cache(project_id=str(project_id))
         return secret_dto
 

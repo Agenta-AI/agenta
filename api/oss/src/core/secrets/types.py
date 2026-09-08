@@ -65,3 +65,20 @@ class SubscriptionLoginRunnerUnavailable(SecretsError):
         message: str = "The agent runner is not reachable. Try the sign-in again.",
     ):
         super().__init__(message)
+
+
+class ServerOwnedFieldNotWritable(SecretsError):
+    """A create or update stated a field only the subscription login routes may set.
+
+    Preservation on omission keeps a rename from resetting the sign-in state. It is not a
+    write guard: an explicit value still reached the row and could rewind the generation
+    or the state past the ordering rules.
+    """
+
+    def __init__(self, *, fields):
+        self.fields = list(fields)
+        listed = ", ".join(self.fields)
+        super().__init__(
+            f"These fields are set by the sign-in routes and cannot be written here: "
+            f"{listed}. Omit them to keep the stored values."
+        )

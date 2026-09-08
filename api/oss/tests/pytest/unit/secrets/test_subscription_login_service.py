@@ -8,7 +8,7 @@ below stores through the real postgres mappings, so the JSON round trip is exerc
 import asyncio
 from base64 import urlsafe_b64encode
 from datetime import datetime, timedelta, timezone
-from json import dumps as json_dumps
+from json import dumps as json_dumps, loads as json_loads
 from typing import Optional
 from uuid import uuid4
 
@@ -79,6 +79,9 @@ class _FakeSecretsDAO:
 
     def __init__(self):
         self.rows: dict = {}
+        # Counts the updates that actually reached the row, so a test can prove a poll
+        # wrote nothing.
+        self.writes = 0
 
     async def create(
         self, project_id, organization_id, create_secret_dto, management=None
@@ -120,11 +123,16 @@ class _FakeSecretsDAO:
 
         # Production resolves against the locked row at exactly this point.
         if resolve_update is not None:
-            update_secret_dto = resolve_update(
+            resolved = resolve_update(
                 map_secrets_dbe_to_dto(secrets_dbe=dbe),
                 update_secret_dto,
             )
+            # None means nothing to change: production returns before it maps or commits.
+            if resolved is None:
+                return map_secrets_dbe_to_dto(secrets_dbe=dbe)
+            update_secret_dto = resolved
 
+        self.writes += 1
         map_secrets_dto_to_dbe_update(
             secrets_dbe=dbe,
             update_secret_dto=update_secret_dto,
@@ -145,17 +153,27 @@ class _FakeRunner:
         self.configured = configured
         self.next_attempt: Optional[RunnerLoginAttempt] = None
         self.next_start: Optional[RunnerLoginAttempt] = None
+        # One entry per start, taken in order, for the tests that start twice at once.
+        self.starts: list = []
         self.raises: Optional[Exception] = None
         self.deleted: list = []
         self.reads = 0
+        self.started = 0
+        # Set it to hold both starts inside the runner call, so two tabs reach the row
+        # with an attempt each.
+        self.start_gate: Optional[asyncio.Event] = None
         # Set it to hold a poll inside the runner call, so the test can move the row on
         # underneath a poll that is already in flight.
         self.read_gate: Optional[asyncio.Event] = None
 
     async def start_attempt(self, *, provider):
+        self.started += 1
         if self.raises is not None:
             raise self.raises
-        return self.next_start or self.next_attempt
+        answer = self.starts.pop(0) if self.starts else None
+        if self.start_gate is not None:
+            await self.start_gate.wait()
+        return answer or self.next_start or self.next_attempt
 
     async def read_attempt(self, *, attempt_id):
         self.reads += 1
@@ -187,15 +205,29 @@ def _service(vault, runner):
 
 
 async def _make_secret(vault: VaultService, data: dict | None = None):
-    return await vault.create_secret(
+    secret = await vault.create_secret(
         project_id=PROJECT_ID,
         create_secret_dto=CreateSecretDTO.model_validate(
             {
                 "header": {"name": "ChatGPT"},
-                "secret": {"kind": "subscription_provider", "data": data or {}},
+                "secret": {"kind": "subscription_provider", "data": {}},
             }
         ),
     )
+    return _seed(vault, secret.id, data) if data else secret
+
+
+def _seed(vault: VaultService, secret_id, data: dict):
+    """Put server-owned login state straight on the stored row.
+
+    Create and update refuse these fields now, so a test that needs a signed-in connection
+    writes the row itself instead of posting a state the API would reject.
+    """
+    dbe = vault.secrets_dao.rows[str(secret_id)]
+    stored = json_loads(dbe.data)
+    stored.update(data)
+    dbe.data = json_dumps(stored)
+    return map_secrets_dbe_to_dto(secrets_dbe=dbe)
 
 
 async def _read(vault: VaultService, secret_id):
@@ -492,6 +524,100 @@ class TestAttemptLifecycle:
 
         with pytest.raises(SubscriptionLoginRunnerUnavailable):
             await service.start_attempt(project_id=PROJECT_ID, secret_id=secret.id)
+
+    async def test_a_pending_poll_writes_nothing(self, vault, runner, service):
+        """A browser polls every couple of seconds for up to fifteen minutes.
+
+        Nothing about the attempt changes while it is pending, so a poll that learns
+        nothing must not touch the row: the write would move the lifecycle columns and
+        evict the project's vault cache on every tick.
+        """
+        secret = await _make_secret(
+            vault,
+            {
+                "login_attempt": {
+                    "id": "att-1",
+                    "expires_at": _later(),
+                    "user_code": "ABCD-EFGH",
+                    "verification_uri": "https://example.test/device",
+                    "poll_after_ms": 5000,
+                }
+            },
+        )
+        runner.next_attempt = RunnerLoginAttempt(
+            attempt_id="att-1",
+            state="pending",
+            user_code="ABCD-EFGH",
+            verification_uri="https://example.test/device",
+            expires_at=_later(),
+            poll_after_ms=5000,
+        )
+        vault.secrets_dao.writes = 0
+
+        for _ in range(3):
+            view = await service.read_attempt(
+                project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
+            )
+
+        assert vault.secrets_dao.writes == 0
+        assert view.state == "pending"
+        assert view.user_code == "ABCD-EFGH"
+        assert view.verification_uri == "https://example.test/device"
+        assert view.poll_after_ms == 5000
+
+
+class TestTwoTabsStartAtOnce:
+    """Both tabs reach the runner. Only one code can be redeemed, so both are shown it.
+
+    The row binds one attempt at a time. Before the recheck under the lock, the second
+    start overwrote the binding and left the first browser showing a code that could
+    never complete.
+    """
+
+    async def test_the_second_start_keeps_the_bound_attempt_and_cancels_its_own(
+        self, vault, runner, service
+    ):
+        secret = await _make_secret(vault)
+        runner.start_gate = asyncio.Event()
+        runner.starts = [
+            RunnerLoginAttempt(
+                attempt_id="att-first",
+                state="pending",
+                user_code="FIRST-CODE",
+                expires_at=_later(),
+            ),
+            RunnerLoginAttempt(
+                attempt_id="att-second",
+                state="pending",
+                user_code="SECOND-CODE",
+                expires_at=_later(),
+            ),
+        ]
+
+        first = asyncio.create_task(
+            service.start_attempt(project_id=PROJECT_ID, secret_id=secret.id)
+        )
+        second = asyncio.create_task(
+            service.start_attempt(project_id=PROJECT_ID, secret_id=secret.id)
+        )
+        for _ in range(100):
+            if runner.started == 2:
+                break
+            await asyncio.sleep(0)
+        assert runner.started == 2, "both starts must reach the runner"
+        runner.start_gate.set()
+
+        views = [await first, await second]
+
+        # Both callers hold the one attempt the row is bound to.
+        assert views[0].attempt_id == views[1].attempt_id
+        assert views[0].user_code == views[1].user_code
+        stored = await _read(vault, secret.id)
+        assert stored.data.login_attempt.id == views[0].attempt_id
+
+        # The redundant attempt is cancelled on the runner rather than left to expire.
+        loser = "att-second" if views[0].attempt_id == "att-first" else "att-first"
+        assert runner.deleted == [loser]
 
 
 class TestAPollThatOutlivesItsAttempt:
