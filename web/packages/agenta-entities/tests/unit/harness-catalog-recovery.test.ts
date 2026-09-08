@@ -50,8 +50,9 @@ let client: QueryClient
 beforeEach(() => {
     client = new QueryClient({defaultOptions: {queries: {retry: false}}})
     store.set(queryClientAtom, client)
-    fetchVaultSecretMock.mockResolvedValue(VAULT_ROWS)
-    fetchSubscriptionStatusMock.mockResolvedValue(null)
+    // Reset before arming: `mockResolvedValue` alone leaves the call counts these tests assert on.
+    fetchVaultSecretMock.mockReset().mockResolvedValue(VAULT_ROWS)
+    fetchSubscriptionStatusMock.mockReset().mockResolvedValue(null)
     fetchHarnessCapabilitiesMock.mockReset()
 })
 
@@ -113,6 +114,23 @@ describe("loadAgentModelCandidates with an unreadable subscription answer cached
     it("refetches it instead of serving the null forever", async () => {
         client.setQueryData(CATALOG_KEY, CAPABILITIES)
         client.setQueryData(SUBSCRIPTION_KEY, null)
+        fetchSubscriptionStatusMock.mockResolvedValue({
+            runner: "connected",
+            checked_at: null,
+            harnesses: {},
+        })
+
+        const state = await loadWithSubscriptions()
+
+        expect(fetchSubscriptionStatusMock).toHaveBeenCalledTimes(1)
+        expect(state.subscriptionUnknown).toBe(false)
+    })
+
+    it("refetches a cached incompatible runner too", async () => {
+        // The service answers `incompatible` for a runner it could not read. Serving that from
+        // cache would keep a recovered runner invisible to every retry.
+        client.setQueryData(CATALOG_KEY, CAPABILITIES)
+        client.setQueryData(SUBSCRIPTION_KEY, {runner: "incompatible", checked_at: null})
         fetchSubscriptionStatusMock.mockResolvedValue({
             runner: "connected",
             checked_at: null,

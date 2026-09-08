@@ -57,6 +57,17 @@ interface CandidateSourceState {
     showSubscriptions: boolean
 }
 
+/**
+ * Whether the runner's answer leaves the subscription pairs unknown. `null` is the boundary
+ * schema's fallback for an answer we could not read, and `incompatible` is the service's word for a
+ * runner it could not read. `unavailable` is NOT here: it is also what a deployment with no runner
+ * configured answers, which is the common self-hosted case, and reading that as unknown would
+ * silence the add-a-key prompt for exactly the users who need it.
+ */
+const subscriptionAnswerUnknown = (
+    status: SubscriptionStatusResponse | null | undefined,
+): boolean => status === null || status?.runner === "incompatible"
+
 export const resolveAgentModelCandidateSources = ({
     vaultRows,
     vaultError,
@@ -114,12 +125,9 @@ export const resolveAgentModelCandidateSources = ({
     // The sources that DID resolve are still authoritative, so this stays `ready`: creation, the
     // model picker and the slash commands keep working off the routes we do know about. Only the
     // reading of an EMPTY list changes, which is why the flag travels with the state.
-    // `incompatible` is the service's word for a runner it could not read, so it belongs here too.
-    // `unavailable` does not: a runner that is not there really does offer no subscription route.
     const subscriptionUnknown =
         showSubscriptions &&
-        (subscriptionStatus === null ||
-            subscriptionStatus?.runner === "incompatible" ||
+        (subscriptionAnswerUnknown(subscriptionStatus) ||
             (subscriptionStatus === undefined && !!subscriptionError))
     return {
         status: "ready",
@@ -187,8 +195,8 @@ const subscriptionStatusQuery = (projectId: string) =>
 
 /**
  * The runner's subscription status for an imperative load, refetched once when the cache holds an
- * answer we could not read. `null` is that answer, and `ensureQueryData` would serve it forever, so
- * a retry after the runner recovered would make no request at all.
+ * answer we could not read. `ensureQueryData` would serve that answer forever, so a retry after the
+ * runner recovered would make no request at all.
  */
 const loadSubscriptionStatus = (
     queryClient: ReturnType<typeof getHostQueryClient>,
@@ -197,7 +205,7 @@ const loadSubscriptionStatus = (
     queryClient
         .ensureQueryData<SubscriptionStatusResponse | null>(subscriptionStatusQuery(projectId))
         .then((data) =>
-            data === null
+            subscriptionAnswerUnknown(data)
                 ? queryClient.fetchQuery<SubscriptionStatusResponse | null>({
                       ...subscriptionStatusQuery(projectId),
                       staleTime: 0,

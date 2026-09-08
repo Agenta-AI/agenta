@@ -230,8 +230,11 @@ describe("resolveAgentModelCandidateSources", () => {
     })
 
     it("treats a runner it could not read as unknown, but an absent runner as none", () => {
-        // The service answers `incompatible` for a runner whose shape it cannot read, and
-        // `unavailable` for one that is not there. Only the first leaves the pairs unknown.
+        // `incompatible` means the runner answered something we could not read, so its pairs are
+        // unknown. `unavailable` is also what a deployment with NO runner configured answers, and
+        // that is the common self-hosted case: reading it as unknown would silence the add-a-key
+        // prompt for exactly the users who need it. The service cannot yet tell an absent runner
+        // from an unreachable one, so this side of the split is a product choice, not a fact.
         const unreadable = resolveAgentModelCandidateSources({
             vaultRows: [],
             capabilities,
@@ -249,5 +252,22 @@ describe("resolveAgentModelCandidateSources", () => {
 
         expect(unreadable.subscriptionUnknown).toBe(true)
         expect(absent.subscriptionUnknown).toBe(false)
+    })
+
+    it("keeps a connected runner authoritative when a harness reports no support", () => {
+        // `unsupported` is a real answer about that harness, not a failure to read one.
+        const state = resolveAgentModelCandidateSources({
+            vaultRows: [],
+            capabilities,
+            subscriptionStatus: {
+                runner: "connected",
+                checked_at: null,
+                harnesses: {claude: {state: "unsupported", provider: "anthropic"}},
+            },
+            subscriptionSettled: true,
+            showSubscriptions: true,
+        })
+
+        expect(state).toMatchObject({status: "ready", subscriptionUnknown: false})
     })
 })
