@@ -111,3 +111,12 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
 - Still to do WITH Mahmoud: dark mode + phone widths, the manage/behavior/advanced panel and the
   Telegram link-waiting state (not screenshotted), real data wiring, reconcile with existing
   channels components, Storybook.
+
+## Mobile (/m) visual test done (2026-09-09)
+- Rendered the first-pass UI on the /m app via a throwaway demo page at a 390px phone viewport,
+  screenshotted with chrome-devtools, then reverted (branch pristine).
+- The Channels card and the Telegram connect flow render correctly in the /m bottom sheet,
+  responsive and on-design. Screenshots: ~/agenta-qa-evidence/2026-09-09-channels-ui/
+  (ui-m1-card, ui-m2-telegram-sheet). Both desktop and mobile now visually verified.
+- Remaining UI (with Mahmoud): dark mode, the manage/behavior/advanced panel, the Telegram
+  link-waiting state, real data wiring, reconcile with existing channels components, Storybook.
