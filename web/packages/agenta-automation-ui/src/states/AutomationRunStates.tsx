@@ -42,14 +42,21 @@ export const AutomationRunListSkeleton = ({
  * Not an error and not a defect: a paused automation, or one whose schedule has not come round
  * yet, is in a perfectly good state — so this says what will happen rather than what is missing.
  */
-export const AutomationRunHistoryEmpty = () => (
+export const AutomationRunHistoryEmpty = ({filtered = false}: {filtered?: boolean}) => (
     <div className="flex flex-col items-center justify-center gap-2.5 px-8 py-14 text-center">
         <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted">
             <ClockCounterClockwise aria-hidden size={19} className="text-muted-foreground" />
         </span>
-        <p className="m-0 text-[14px] font-medium text-foreground">No runs yet</p>
+        {/* An automation that has never run and one whose runs are hidden behind a filter are
+            different facts, and telling a reader "no runs yet" while a filter is on sends them
+            looking for a fault in the automation. */}
+        <p className="m-0 text-[14px] font-medium text-foreground">
+            {filtered ? "No runs match these filters" : "No runs yet"}
+        </p>
         <p className="m-0 max-w-[38ch] text-[13px] leading-snug text-muted-foreground">
-            The first time this automation runs, it shows up here with the conversation it had.
+            {filtered
+                ? "Reset the filters to see everything this automation has done."
+                : "The first time this automation runs, it shows up here with the conversation it had."}
         </p>
     </div>
 )

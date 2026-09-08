@@ -2,11 +2,13 @@ import {useCallback, useMemo, useState, type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 
+import {AutomationRunFilterMenu} from "./AutomationRunFilterMenu"
 import {AutomationRunList} from "./AutomationRunList"
 import {AutomationRunPane} from "./AutomationRunPane"
 import {type Automation} from "./automationModel"
 import {useMediaQuery} from "./lib/useMediaQuery"
 import {cn} from "./lib/utils"
+import {DEFAULT_RUN_LIST_VIEW, deriveRunList, isDefaultRunListView} from "./runListView"
 import {useAutomationRuns} from "./useAutomationRuns"
 
 /**
@@ -34,7 +36,11 @@ export const AutomationRunHistoryView = ({
     /** The run's transcript, given its session — the host's chat surface. */
     renderConversation: (sessionId: string) => ReactNode
 }) => {
-    const {runs, caption, isLoading, error, refetch} = useAutomationRuns(automation)
+    const {runs: allRuns, caption, isLoading, error, refetch} = useAutomationRuns(automation)
+
+    const [view, setView] = useState(DEFAULT_RUN_LIST_VIEW)
+    const runs = useMemo(() => deriveRunList(allRuns, view), [allRuns, view])
+    const filtered = !isDefaultRunListView(view)
 
     const [selectedId, setSelectedId] = useState<string | null>(null)
     // The newest run answers "did it work?", which is the question that opened this, so the view
@@ -75,9 +81,12 @@ export const AutomationRunHistoryView = ({
                                 : "w-full min-w-0 max-w-[760px] flex-1 pb-6 pl-5 pr-5",
                         )}
                     >
-                        <h1 className="m-0 shrink-0 pl-2.5 text-[16px] font-semibold text-foreground">
-                            Run history
-                        </h1>
+                        <div className="flex shrink-0 items-center gap-2 pl-2.5">
+                            <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold text-foreground">
+                                Run history
+                            </h1>
+                            <AutomationRunFilterMenu view={view} onChange={setView} />
+                        </div>
                         {/* Empty until the deliveries land — the hook withholds the caption
                             rather than claiming "0 runs" off a query that has not run. The line
                             keeps its height so the list does not jump. */}
@@ -86,6 +95,7 @@ export const AutomationRunHistoryView = ({
                         </p>
                         <AutomationRunList
                             runs={runs}
+                            filtered={filtered}
                             selectedId={selected?.id ?? null}
                             isLoading={isLoading}
                             error={error}
