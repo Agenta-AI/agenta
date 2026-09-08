@@ -261,7 +261,7 @@ export const AutomationListScreen = ({
                         // width: page column, 16px gutters on a phone, 64px and a deeper top
                         // from `lg`.
                         <div
-                            className={`box-border flex shrink-0 flex-col gap-3 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
+                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
                         >
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
@@ -280,27 +280,29 @@ export const AutomationListScreen = ({
                                     <span className="hidden sm:inline">New automation</span>
                                 </Button>
                             </div>
-
-                            <div className="flex items-center gap-2.5">
-                                <label className="flex min-w-[200px] max-w-[340px] flex-1 items-center gap-2 rounded-lg border border-solid border-border px-2.5 py-[7px] focus-within:border-ring">
-                                    <MagnifyingGlass
-                                        size={14}
-                                        className="shrink-0 text-muted-foreground"
-                                        aria-hidden
-                                    />
-                                    <Input
-                                        value={search}
-                                        onChange={(event) => setSearch(event.target.value)}
-                                        placeholder="Search automations"
-                                        aria-label="Search automations"
-                                        className="h-auto rounded-none border-0 bg-transparent p-0 text-[13px] shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-[13px] dark:bg-transparent"
-                                    />
-                                </label>
-                            </div>
                         </div>
                     }
                 >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>{body}</div>
+                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
+                        {/* Search belongs to the list, not to the page: it sits on the table's
+                            own left edge so it reads as the control that narrows what is below
+                            it. */}
+                        <label className="mb-3 flex max-w-[340px] items-center gap-2 rounded-lg border border-solid border-border px-2.5 py-[7px] focus-within:border-ring">
+                            <MagnifyingGlass
+                                size={14}
+                                className="shrink-0 text-muted-foreground"
+                                aria-hidden
+                            />
+                            <Input
+                                value={search}
+                                onChange={(event) => setSearch(event.target.value)}
+                                placeholder="Search automations"
+                                aria-label="Search automations"
+                                className="h-auto rounded-none border-0 bg-transparent p-0 text-[13px] shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-[13px] dark:bg-transparent"
+                            />
+                        </label>
+                        {body}
+                    </div>
                 </ScreenScaffold>
             </AppShell>
         </>
