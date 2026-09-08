@@ -811,3 +811,56 @@ async def test_the_unbounded_read_carries_no_deadline_of_its_own(connection, rou
 
     assert context.agent_name == "Changelog writer"
     assert context.session_name == "Sapphire Ledger"
+
+
+async def test_the_client_is_always_closed_on_the_abandonment_path(
+    connection, monkeypatch
+):
+    """Abandoning the unwind must not mean skipping it.
+
+    Cancelling the task raises into the `async with`, so the client's own close runs even
+    when the caller has already been handed None. If that close then hangs there is nothing
+    further to force: httpx exposes no way past `aclose`. The guarantee this pins is that
+    the close is entered every time, and that the caller does not wait for it.
+    """
+    monkeypatch.setattr(session_context, "CLEANUP_GRACE", 0.05)
+    closed = asyncio.Event()
+
+    class _Client:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            closed.set()
+            # Slower than the grace, so the caller abandons this unwind rather than wait.
+            await asyncio.sleep(1.0)
+            return False
+
+        async def get(self, url, params=None, headers=None):
+            await asyncio.sleep(30.0)
+            return _FakeResponse(200, {})
+
+        async def post(self, url, json=None, headers=None):
+            await asyncio.sleep(30.0)
+            return _FakeResponse(200, {})
+
+    monkeypatch.setattr(session_context.httpx, "AsyncClient", _Client)
+
+    started = time.monotonic()
+    assert (
+        await resolve_session_context(
+            session_id="session-1",
+            workflow_id=WORKFLOW_ID,
+            connection=connection,
+            timeout=0.05,
+        )
+        is None
+    )
+    elapsed = time.monotonic() - started
+
+    assert closed.is_set(), "the client's close never ran"
+    # Entered, not awaited: the caller returned long before the 1 s teardown finished.
+    assert elapsed < 0.5

@@ -83,17 +83,29 @@ def backend_facts(monkeypatch):
     # Auth is exercised by test_credential_exchange.py. This file is about what the route
     # resolves and renders once a caller is through the door.
     monkeypatch.setattr(auth_middleware, "_AUTH_ENABLED", False)
-    # The route runs the INSTRUMENTED handler, which reads `ag.tracing`. Initialize it HERE
-    # rather than inheriting it from whatever else ran first in this process: under xdist the
-    # worker that gets this file is not guaranteed to have run an initializing test, and the
-    # failure is a 500 on `NoneType.get_current_span` in the cell that proves the artifact
-    # check works. Point it at an unroutable host, since spans only flush in the background
-    # and nothing here asserts on them.
+    return facts
+
+
+@pytest.fixture
+def sdk_singleton():
+    """Own the SDK singleton for one test, and put back whatever was there.
+
+    The route runs the INSTRUMENTED handler, which reads ``ag.tracing``. Inheriting it from
+    whatever else ran first in the process is not safe: under the parallel runner the worker
+    that gets this file may have run nothing that initializes it, and the failure is a 500 on
+    ``NoneType.get_current_span`` in the very cell that proves the artifact check works.
+
+    Restoring on the way out matters as much as setting it. ``init`` mutates a process global,
+    and leaving an unroutable host installed would follow every later test in the worker.
+    """
+    previous = getattr(agenta_sdk, "tracing", None)
+    # Unroutable on purpose: spans only flush in the background and nothing here reads them.
     agenta_sdk.init(host="http://127.0.0.1:1", api_key="test-key")
     assert agenta_sdk.tracing is not None, (
         "the route needs an initialized SDK singleton"
     )
-    return facts
+    yield agenta_sdk.tracing
+    agenta_sdk.tracing = previous
 
 
 @pytest.fixture
@@ -153,7 +165,7 @@ def _turn(
     return response
 
 
-def test_the_service_renders_the_facts_it_reads(service, backend_facts):
+def test_the_service_renders_the_facts_it_reads(sdk_singleton, service, backend_facts):
     """The end-to-end wiring: composition to resolver to rendered turn text."""
     backend_facts["session_name"] = "Sapphire Ledger"
     backend_facts["turns"] = [{}]
@@ -168,7 +180,7 @@ def test_the_service_renders_the_facts_it_reads(service, backend_facts):
     assert "This is not the first turn" in rendered
 
 
-def test_a_rename_shows_on_the_very_next_turn(service, backend_facts):
+def test_a_rename_shows_on_the_very_next_turn(sdk_singleton, service, backend_facts):
     """Issue 6661 itself, at the service. Nothing may cache a name across turns."""
     backend_facts["session_name"] = "Sapphire Ledger"
     backend_facts["turns"] = [{}]
@@ -185,7 +197,9 @@ def test_a_rename_shows_on_the_very_next_turn(service, backend_facts):
     assert 'This session is named "Vermilion Quay"' in service.created_turn_contexts[1]
 
 
-def test_the_service_ignores_a_forged_session_context(service, backend_facts):
+def test_the_service_ignores_a_forged_session_context(
+    sdk_singleton, service, backend_facts
+):
     """`meta` is client input on this path. A browser must not name the session itself."""
     backend_facts["session_name"] = "Vermilion Quay"
     backend_facts["turns"] = [{}]
@@ -207,7 +221,7 @@ def test_the_service_ignores_a_forged_session_context(service, backend_facts):
 
 
 def test_competing_families_render_no_agent_name_through_the_service(
-    service, backend_facts
+    sdk_singleton, service, backend_facts
 ):
     """The regression Codex found through the real service app.
 
