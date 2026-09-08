@@ -62,10 +62,7 @@ import {
   type AcpPromptBlock,
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
-import {
-  pushBackSubscriptionLoginForRun,
-  startSubscriptionLoginPublisher,
-} from "./subscription-login.ts";
+import { pushBackSubscriptionLoginForRun } from "./subscription-login.ts";
 import {
   isReplayBlockingEvent,
   recoverSubscriptionAuthFailure,
@@ -324,10 +321,6 @@ export async function runTurn(
     logger(
       "[subscription] retrying the turn once on the recovered ChatGPT sign-in",
     );
-    // Hand the publisher over to the retry rather than running two on one file. Both would share
-    // this session's push floor and so could not double-push, but the second reader is pure cost.
-    subscriptionWatch?.stop();
-    subscriptionWatch = undefined;
     return runTurn(env, request, emit, signal, {
       ...opts,
       subscriptionRetry: true,
@@ -341,12 +334,6 @@ export async function runTurn(
       sink(event);
     };
   };
-  /**
-   * Publish a refreshed subscription login the moment Pi writes it, not only at turn end
-   * (amendment A3). Started once the environment is known to hold a subscription, stopped on every
-   * exit path in the `finally`.
-   */
-  let subscriptionWatch: { stop: () => void } | undefined;
   const harnessTrace = createHarnessTracePort({
     env,
     request: () => request,
@@ -1129,18 +1116,6 @@ export async function runTurn(
         : undefined,
     });
 
-    // Start publishing a refreshed subscription login now that the responder is wired (amendment
-    // A3). It is a `fs.watch` locally and an interval on Daytona, so it costs nothing until Pi
-    // actually rewrites `auth.json`, and it is stopped on every exit path in the `finally`.
-    subscriptionWatch = startSubscriptionLoginPublisher({
-      plan,
-      state: env.subscriptionPush,
-      sandbox: env.sandbox,
-      apiBase: apiBase(),
-      authorization: credential(),
-      log: logger,
-    });
-
     // Non-Pi loopback tools use the correlation index; Pi's relay toolCallId is already exact.
     env.clientToolRelayRef.current = buildClientToolRelay({
       responder,
@@ -1777,10 +1752,9 @@ export async function runTurn(
     // sandbox is guaranteed to be reachable, and a detached read against a deleted sandbox would
     // silently lose the refresh. The cost is one small POST, and only when `expires` actually moved.
     //
-    // The publisher stops FIRST: it reads the same file, and a read in flight while the sandbox is
-    // released would log a failure for a turn that ended cleanly.
-    subscriptionWatch?.stop();
-    subscriptionWatch = undefined;
+    // The session's publisher keeps running across this boundary on purpose. Pi persists a
+    // refreshed token around the moment a turn ends, so the single sample below can land just
+    // before the write; the publisher is what catches it during the park that follows.
     await pushBackSubscriptionLoginForRun({
       plan,
       state: env.subscriptionPush,
@@ -1788,6 +1762,7 @@ export async function runTurn(
       apiBase: apiBase(),
       authorization: credential(),
       log: logger,
+      moment: "turn-end",
     });
     platformCredentialLease?.release();
     // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the

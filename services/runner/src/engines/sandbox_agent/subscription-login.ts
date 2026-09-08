@@ -896,15 +896,35 @@ export async function pushBackSubscriptionLogin(input: {
   isDaytona: boolean;
   api: SubscriptionApiDeps;
   fileDeps?: LocalSubscriptionFileDeps;
+  /** Which of the publish moments this is, so the log says WHICH one decided what. */
+  moment?: string;
 }): Promise<void> {
   const log = input.api.log ?? defaultLog;
+  const moment = input.moment ?? "unknown";
   try {
     const login = input.isDaytona
       ? input.sandbox
         ? await readDaytonaSubscriptionLogin(input.sandbox, input.home)
         : undefined
       : await readLocalSubscriptionLogin(input.home, input.fileDeps);
-    if (!shouldPushSubscriptionLogin(input.state, login)) return;
+    if (!shouldPushSubscriptionLogin(input.state, login)) {
+      // EVERY NO-PUSH OUTCOME SAYS SO, WITH THE NUMBERS THAT DECIDED IT.
+      //
+      // This used to return in silence, and the silence cost a whole debugging round: a live cell
+      // showed Pi refreshing and nothing being published, and the log could not distinguish "the
+      // file had not been rewritten yet" from "the read found nothing" from "the floor was already
+      // above it" from "this path never ran". Five outcomes, one absence of evidence.
+      //
+      // The three values are epoch milliseconds. A token's expiry is not a credential and cannot
+      // identify an account; it is the only thing that makes this decision reproducible.
+      log(
+        `subscription login read-back skip moment=${moment} ` +
+          `disk=${loginExpires(login) ?? "none"} ` +
+          `delivered=${input.state.deliveredExpires ?? "none"} ` +
+          `pushed=${input.state.pushedExpires ?? "none"}`,
+      );
+      return;
+    }
     await pushSubscriptionLogin(
       input.subscription,
       input.state,
@@ -912,7 +932,9 @@ export async function pushBackSubscriptionLogin(input: {
       input.api,
     );
   } catch (err) {
-    log(`subscription login read-back failed ${describeThrown(err)}`);
+    log(
+      `subscription login read-back failed moment=${moment} ${describeThrown(err)}`,
+    );
   }
 }
 
@@ -1014,18 +1036,36 @@ export async function pushBackSubscriptionLoginForRun(input: {
   /** Test seam, matching `SubscriptionApiDeps`; production passes nothing and uses global fetch. */
   fetchImpl?: typeof fetch;
   log?: Log;
+  /** Which publish moment this is: `materialize`, `turn-end`, `session-end`. */
+  moment?: string;
 }): Promise<void> {
+  const log = input.log ?? defaultLog;
+  const moment = input.moment ?? "unknown";
   const subscription = input.plan.credentials.subscription;
   const home = input.plan.credentials.subscriptionHome;
-  if (!subscription || !home || !input.state) return;
-  // Without a credential the API would refuse the push anyway, and calling it would only log noise.
-  if (!input.authorization) return;
+  // A run with no subscription is not interesting and must not fill the log.
+  if (!subscription) return;
+  // These three ARE interesting: the run carries a subscription, so a missing home, a missing
+  // push state, or a missing credential is a wiring fault, and it used to be invisible.
+  if (!home || !input.state) {
+    log(
+      `subscription login read-back skip moment=${moment} reason=not-wired ` +
+        `home=${home ? "yes" : "no"} state=${input.state ? "yes" : "no"}`,
+    );
+    return;
+  }
+  if (!input.authorization) {
+    // Without a credential the API would refuse the push anyway; say so rather than vanish.
+    log(`subscription login read-back skip moment=${moment} reason=no-credential`);
+    return;
+  }
   await pushBackSubscriptionLogin({
     subscription,
     state: input.state,
     home,
     sandbox: input.sandbox as SubscriptionSandboxFs | undefined,
     isDaytona: input.plan.isDaytona,
+    moment,
     api: {
       apiBase: input.apiBase,
       authorization: input.authorization,

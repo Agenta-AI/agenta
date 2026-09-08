@@ -65,7 +65,10 @@ import {
 } from "./daytona.ts";
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { classifyRunError, conciseError, type RunErrorCode } from "./errors.ts";
-import { pushBackSubscriptionLoginForRun } from "./subscription-login.ts";
+import {
+  pushBackSubscriptionLoginForRun,
+  startSubscriptionLoginPublisher,
+} from "./subscription-login.ts";
 import { recoverSubscriptionAuthFailure } from "./subscription-recovery.ts";
 import {
   awaitCredentialSubstitution,
@@ -520,6 +523,12 @@ async function acquireEnvironmentOnce(
     // Session end, and the LAST moment a Daytona sandbox is still reachable. The turn path already
     // pushed after every turn, so this is the backstop for a session torn down without one — an
     // acquire that failed after the login was written, or an eviction between turns.
+    //
+    // The publisher stops FIRST: it reads the same file, and a read in flight while the sandbox is
+    // released would log a failure for a session that ended cleanly. The one-shot read below is
+    // what covers anything written since its last poll.
+    environment.subscriptionWatch?.stop();
+    environment.subscriptionWatch = undefined;
     await pushBackSubscriptionLoginForRun({
       plan,
       state: environment.subscriptionPush,
@@ -527,6 +536,7 @@ async function acquireEnvironmentOnce(
       apiBase: apiBase(),
       authorization: runCred,
       log: logger,
+      moment: "session-end",
     });
     inFlightSandboxes.delete(environment);
     // Graceful `session/cancel` BEFORE tearing down the daemon, or the ACP adapter subprocess
@@ -1416,6 +1426,21 @@ async function acquireEnvironmentOnce(
     // home, one run late instead of never. The floor in `subscriptionPush` makes it a no-op on
     // every ordinary run, where the file holds exactly what was delivered.
     await pushBackSubscriptionLoginForRun({
+      plan,
+      state: environment.subscriptionPush,
+      sandbox: environment.sandbox,
+      apiBase: apiBase(),
+      authorization: runCred,
+      log: logger,
+      moment: "materialize",
+    });
+
+    // The publisher runs for the LIFE OF THE SESSION, not of a turn (amendment A3). Started here
+    // so it is already watching before the first prompt, and stopped in the teardown below, it
+    // covers the gaps a turn-scoped watcher left open: between turns, through a park, and from the
+    // last turn until eviction. Pi persists a refreshed token around the end of a turn, which is
+    // exactly when a turn-scoped watcher was already gone.
+    environment.subscriptionWatch = startSubscriptionLoginPublisher({
       plan,
       state: environment.subscriptionPush,
       sandbox: environment.sandbox,

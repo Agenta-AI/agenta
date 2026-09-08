@@ -339,6 +339,18 @@ export interface SessionEnvironment {
    * run that carries no subscription.
    */
   subscriptionPush?: import("./subscription-login.ts").SubscriptionPushState;
+  /**
+   * The running publisher for this session's subscription login, stopped at teardown.
+   *
+   * IT BELONGS TO THE SESSION, NOT THE TURN, and that was a real defect rather than a preference.
+   * Owned by the turn, it started when a prompt began and stopped in the turn's `finally`, so the
+   * file was unwatched between turns, for the whole of a park, and from the last turn until
+   * eviction. Pi streams its answer and persists the refreshed token around the end of a turn, so
+   * the single sample the turn-end read takes can land just before the write and miss it — after
+   * which nothing looks again until teardown. Observed on a live cell on 2026-09-08: Pi refreshed,
+   * the file on disk held the new token, and not one of the publish paths reported anything.
+   */
+  subscriptionWatch?: { stop: () => void };
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is

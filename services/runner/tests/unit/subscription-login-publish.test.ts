@@ -18,6 +18,7 @@ import {
   LOCAL_WATCH_DEBOUNCE_MS,
   LOCAL_WATCH_POLL_INTERVAL_MS,
   pollDaytonaSubscriptionLogin,
+  pushBackSubscriptionLoginForRun,
   startSubscriptionLoginPublisher,
   subscriptionPushState,
   watchLocalSubscriptionLogin,
@@ -382,6 +383,226 @@ describe("pollDaytonaSubscriptionLogin", () => {
     content = JSON.stringify({ "openai-codex": DELIVERED });
     await new Promise((resolve) => setTimeout(resolve, 60));
     assert.equal(seen.length, after, "a stopped poll makes no further reads");
+  });
+});
+
+/**
+ * The stale-session cell, end to end, as a timeline.
+ *
+ * What happened live on 2026-09-08: the STORED login was expired, so an expired login was
+ * delivered; the runner materialized it; Pi refreshed with the real provider during the turn and
+ * rewrote `auth.json`; the turn ended about four seconds later; the session parked and was evicted
+ * sixty seconds after that. The store still held the expired copy afterwards, and not one of the
+ * publish paths had logged anything at all.
+ *
+ * The delivered login being ALREADY EXPIRED is the part that makes this a real case rather than a
+ * contrived one: it is what a re-login or a long idle produces, and every "is it newer" comparison
+ * on the publish path is measured against it.
+ */
+describe("the stale-session cell timeline", () => {
+  it("publishes the token Pi wrote mid-turn, once, when the turn ends four seconds later", async () => {
+    const home = tempHome();
+    // The delivered login is expired: the store had fallen behind.
+    const expired = makeLogin({ expires: Date.now() - 60_000 });
+    const subscription: ModelConnectionSubscription = {
+      ...SUBSCRIPTION,
+      version: 4,
+      login: expired,
+    };
+    writeLogin(home, expired);
+    const state = subscriptionPushState(subscription);
+
+    const bodies: Array<Record<string, unknown>> = [];
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ version: 5 }), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const plan = {
+      isDaytona: false,
+      credentials: { subscription, subscriptionHome: home },
+    };
+    const api = {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey secret",
+      fetchImpl,
+      log: () => {},
+    };
+
+    // Materialize-time self-heal: the file holds exactly what was delivered, so nothing to send.
+    await pushBackSubscriptionLoginForRun({
+      plan,
+      state,
+      sandbox: undefined,
+      ...api,
+      moment: "materialize",
+    });
+    assert.deepEqual(bodies, [], "the delivered login is not echoed back");
+
+    // The session's publisher starts and keeps running across the whole session.
+    const fake = fakeWatch();
+    const watch = startSubscriptionLoginPublisher({
+      plan,
+      state,
+      sandbox: undefined,
+      ...api,
+      debounceMs: 10,
+      pollIntervalMs: 15,
+      watchImpl: fake.watchImpl,
+    });
+    stops.push(watch.stop);
+
+    // Pi refreshes with the provider mid-turn and rewrites the file.
+    const refreshed = makeLogin({
+      refresh: "pi-refreshed",
+      expires: Date.parse("2026-09-18T13:54:56Z"),
+    });
+    writeLogin(home, refreshed);
+
+    // The turn ends. Whichever observer gets there first, the login must reach the API exactly
+    // once: the publisher and the turn-end read share one floor.
+    await pushBackSubscriptionLoginForRun({
+      plan,
+      state,
+      sandbox: undefined,
+      ...api,
+      moment: "turn-end",
+    });
+    fake.fire();
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    assert.equal(bodies.length, 1, "exactly one push, never two");
+    assert.deepEqual(bodies[0], {
+      login: refreshed,
+      version: 4,
+      generation: 1,
+    });
+  });
+
+  it("catches a token Pi persists just AFTER the turn ended", async () => {
+    // The turn-end read is one sample. Pi streams its answer and then writes, so the sample can
+    // land just before the write — which is when the turn-scoped watcher used to be gone already
+    // and nothing looked again until eviction.
+    const home = tempHome();
+    const expired = makeLogin({ expires: Date.now() - 60_000 });
+    const subscription: ModelConnectionSubscription = { ...SUBSCRIPTION, login: expired };
+    writeLogin(home, expired);
+    const state = subscriptionPushState(subscription);
+
+    const bodies: unknown[] = [];
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ version: 5 }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const plan = {
+      isDaytona: false,
+      credentials: { subscription, subscriptionHome: home },
+    };
+    const api = {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey secret",
+      fetchImpl,
+      log: () => {},
+    };
+
+    const fake = fakeWatch();
+    const watch = startSubscriptionLoginPublisher({
+      plan,
+      state,
+      sandbox: undefined,
+      ...api,
+      debounceMs: 10,
+      pollIntervalMs: 15,
+      watchImpl: fake.watchImpl,
+    });
+    stops.push(watch.stop);
+
+    // The turn ends BEFORE Pi has written anything.
+    await pushBackSubscriptionLoginForRun({
+      plan,
+      state,
+      sandbox: undefined,
+      ...api,
+      moment: "turn-end",
+    });
+    assert.deepEqual(bodies, [], "nothing to send yet");
+
+    // Pi writes during the park that follows.
+    writeLogin(home, makeLogin({ expires: Date.now() + 7_200_000 }));
+    fake.fire();
+    await eventually(() => bodies.length >= 1);
+    assert.equal(bodies.length, 1);
+  });
+
+  it("says WHY it is not publishing, so a silent skip is never ambiguous again", async () => {
+    const home = tempHome();
+    const delivered = makeLogin({ expires: Date.now() + 3_600_000 });
+    const subscription: ModelConnectionSubscription = { ...SUBSCRIPTION, login: delivered };
+    writeLogin(home, delivered);
+    const lines: string[] = [];
+
+    await pushBackSubscriptionLoginForRun({
+      plan: {
+        isDaytona: false,
+        credentials: { subscription, subscriptionHome: home },
+      },
+      state: subscriptionPushState(subscription),
+      sandbox: undefined,
+      apiBase: "http://api:8000",
+      authorization: "ApiKey secret",
+      fetchImpl: (async () => new Response("{}")) as unknown as typeof fetch,
+      log: (line) => lines.push(line),
+      moment: "turn-end",
+    });
+
+    const joined = lines.join("\n");
+    assert.match(joined, /read-back skip moment=turn-end/);
+    assert.match(joined, new RegExp(`disk=${delivered.expires}`));
+    assert.match(joined, new RegExp(`delivered=${delivered.expires}`));
+    assert.match(joined, /pushed=none/);
+  });
+
+  it("names the wiring fault when a subscription run has no home or no credential", async () => {
+    const subscription = { ...SUBSCRIPTION };
+    const lines: string[] = [];
+    await pushBackSubscriptionLoginForRun({
+      plan: { isDaytona: false, credentials: { subscription } },
+      state: subscriptionPushState(subscription),
+      sandbox: undefined,
+      apiBase: "http://api:8000",
+      authorization: "ApiKey secret",
+      log: (line) => lines.push(line),
+      moment: "turn-end",
+    });
+    await pushBackSubscriptionLoginForRun({
+      plan: {
+        isDaytona: false,
+        credentials: { subscription, subscriptionHome: "/nowhere" },
+      },
+      state: subscriptionPushState(subscription),
+      sandbox: undefined,
+      apiBase: "http://api:8000",
+      authorization: "",
+      log: (line) => lines.push(line),
+      moment: "session-end",
+    });
+    const joined = lines.join("\n");
+    assert.match(joined, /skip moment=turn-end reason=not-wired home=no/);
+    assert.match(joined, /skip moment=session-end reason=no-credential/);
+  });
+
+  it("stays quiet for a run that carries no subscription at all", async () => {
+    const lines: string[] = [];
+    await pushBackSubscriptionLoginForRun({
+      plan: { isDaytona: false, credentials: {} },
+      state: undefined,
+      sandbox: undefined,
+      apiBase: "http://api:8000",
+      authorization: "ApiKey secret",
+      log: (line) => lines.push(line),
+      moment: "turn-end",
+    });
+    assert.deepEqual(lines, [], "every ordinary run would otherwise log this");
   });
 });
 
