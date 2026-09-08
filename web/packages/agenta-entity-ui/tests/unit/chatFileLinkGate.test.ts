@@ -91,6 +91,23 @@ describe("isProtocolRelativeHref", () => {
         expect(isProtocolRelativeHref("\u0000//evil.com/x")).toBe(true)
     })
 
+    it("refuses a target split by the tab and newline the URL parser removes", () => {
+        // The URL parser deletes these from ANYWHERE in the input, not just the ends, so a
+        // browser reads each of these as `//evil.com`.
+        expect(isProtocolRelativeHref("/\t/evil.com")).toBe(true)
+        expect(isProtocolRelativeHref("/\n/evil.com")).toBe(true)
+        expect(isProtocolRelativeHref("/\r/evil.com")).toBe(true)
+        expect(isProtocolRelativeHref("/\t\\evil.com")).toBe(true)
+        expect(isProtocolRelativeHref("%2F\t%2Fevil.com")).toBe(true)
+        expect(isProtocolRelativeHref("//evil.com/x  ")).toBe(true)
+    })
+
+    it("does not treat an ordinary space inside a path as a slash", () => {
+        // A space is percent-encoded by the parser, not removed, so this stays a path.
+        expect(isProtocolRelativeHref("/ /evil.com")).toBe(false)
+        expect(isProtocolRelativeHref("/agent-files/my report.md")).toBe(false)
+    })
+
     it("does not care how the host is cased", () => {
         expect(isProtocolRelativeHref("//EVIL.com/x")).toBe(true)
         expect(isProtocolRelativeHref("%2F%2FEVIL.com")).toBe(true)

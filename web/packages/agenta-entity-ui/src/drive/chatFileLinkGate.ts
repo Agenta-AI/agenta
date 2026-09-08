@@ -13,13 +13,18 @@
 export const isExternalHref = (href?: string): boolean =>
     !href || /^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)
 
-/** Drop the leading and trailing C0 controls and spaces a browser drops before it parses an href. */
-const trimHref = (value: string): string => {
+/**
+ * What the URL parser sees. It removes every ASCII tab, newline and carriage return from the whole
+ * input, then ignores leading and trailing C0 controls and spaces. So `/<tab>/host` is `//host` to a
+ * browser, and this has to be the shape the checks below run on.
+ */
+const asBrowserReadsIt = (value: string): string => {
+    const stripped = value.replace(/[\t\n\r]/g, "")
     let start = 0
-    let end = value.length
-    while (start < end && value[start] <= " ") start += 1
-    while (end > start && value[end - 1] <= " ") end -= 1
-    return value.slice(start, end)
+    let end = stripped.length
+    while (start < end && stripped[start] <= " ") start += 1
+    while (end > start && stripped[end - 1] <= " ") end -= 1
+    return stripped.slice(start, end)
 }
 
 /** Resolving against this tells a same-document path apart from one that names another host. */
@@ -38,9 +43,9 @@ const PROBE_HOST = "link-gate.invalid"
  * The test is deliberately wider than a literal `//` prefix, because several spellings reach the
  * same place. A browser reads a backslash as a slash in an http(s) URL, so `/\host` is `//host`.
  * Percent-encoding hides the slashes from a prefix test but not from the browser, so the check
- * decodes until the value stops changing. A leading control character or space is dropped by the
- * browser before it parses, so it is dropped here first. And a target harden did not resolve can
- * still resolve to another host, so the last step resolves it and compares.
+ * decodes until the value stops changing. Tabs, newlines and surrounding controls are dropped by
+ * the URL parser, so {@link asBrowserReadsIt} drops them here first. And a target harden did not
+ * resolve can still resolve to another host, so the last step resolves it and compares.
  *
  * A `scheme:` URL is not this function's business and returns false: `rehype-sanitize` drops a
  * dangerous scheme and `rehype-harden` gates the rest, and an `https://` link is a link a reply is
@@ -53,7 +58,7 @@ export const isProtocolRelativeHref = (href?: string | null): boolean => {
     // Four rounds covers `%252f`-style double encoding with room to spare. The loop stops as soon
     // as decoding is a no-op, so an ordinary path costs one pass.
     for (let round = 0; round < 4; round += 1) {
-        value = trimHref(value)
+        value = asBrowserReadsIt(value)
         if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return false
         if (value.replace(/\\/g, "/").startsWith("//")) return true
         let decoded: string
