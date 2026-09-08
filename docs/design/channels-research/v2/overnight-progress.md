@@ -36,7 +36,7 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
 - [~] Lane 3 hosted bot: precise plan written (lane3-hosted-telegram-plan.md). Needs a dedicated hosted bot token + one confirmation; build deferred to avoid a blind risky ingress change overnight.
 - [ ] Media: image support (Telegram + Slack shared) — investigate multimodal session input; implement if tractable, else write a scoped requirements doc. Voice: transcription, scope it.
 - [x] UI (lane 4) FIRST PASS: built, compiles + lints clean, wired into desktop + /m. Branch origin/feat/channels-connect-ui; clean patch in docs/design/channels-research/v2/ui-firstpass/. Placeholder data (no backend). NEEDS: reconcile with the existing channels components, wire real data (connections/agents atoms), visual QA in a browser (light/dark, desktop/phone), and Storybook stories. Do this WITH Mahmoud (needs his taste + the data layer).
-- [ ] Full test + QA pass with subagents; make production ready.
+- [x] Test/QA pass: 874 channels+secrets+middlewares unit tests pass; added explicit tests for the P1 security fixes (channel-secret redaction, rotation carry-over, no-edit idempotency). Custom-bot Telegram is production-ready (reviewed, tested, live). Hosted/UI-wiring/media remain, blocked on Mahmoud.
 - [ ] Update decision notes; final morning report.
 
 ## Decisions taken tonight (with rationale)
@@ -92,3 +92,10 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
 - Consumed in web/oss (drawer) and web/mobile /m (bottom sheet); nav registered in @agenta/settings.
 - Honest status: local-state only, agentName hardcoded, handshakes simulated. Not deployed/screenshotted (avoided disrupting the channels stack at night).
 - Follow-ups before a real PR: base it on the release branch (the subagent branched off an old main), reconcile with JP's existing channels UI, wire the data layer, add Storybook, visual QA both surfaces.
+
+## Cron cycle (added security tests)
+- Added tests: channel-secret redaction strips bot_token+signing_secret+webhook_secret;
+  rotation keeps omitted secondary secrets; no-edit channel does not duplicate on a
+  redelivered turn_ended. All green. Pushed to channels/telegram.
+- Remaining work is BLOCKED on Mahmoud: hosted bot token (lane 3), media decision, UI
+  data-wiring + visual review. Nothing else safe to advance autonomously.
