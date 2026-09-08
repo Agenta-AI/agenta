@@ -29,6 +29,7 @@ opposite prompts, and only one of them is safe to guess at.
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 from typing import Any, Optional, Tuple
 from urllib.parse import quote
@@ -48,7 +49,17 @@ log = get_module_logger(__name__)
 # and it is per-operation anyway, so a server that trickles bytes stays under every httpx
 # timeout while the elapsed time grows without bound. These reads are optional. The turn is
 # correct without them, so a slow backend must cost the user a prompt section, not a wait.
-DEFAULT_SESSION_CONTEXT_TIMEOUT = 0.5
+#
+# Two seconds, not a few hundred milliseconds: a fresh client per turn pays connection and TLS
+# setup, and the stream read does Redis work before its Postgres lookup. A tighter bound buys
+# nothing against runs that take seconds, and it turns an ordinary slow day into silently
+# missing facts.
+DEFAULT_SESSION_CONTEXT_TIMEOUT = 2.0
+
+# How long the cancelled operation gets to unwind after the budget expires. `wait_for` awaits
+# that unwind, so a teardown that hangs would extend the turn past the budget it was given.
+# Past this grace the operation is abandoned to finish on its own and the turn moves on.
+CLEANUP_GRACE = 0.25
 
 
 def session_context_timeout() -> float:
@@ -59,9 +70,70 @@ def session_context_timeout() -> float:
             parsed = float(raw)
         except ValueError:
             return DEFAULT_SESSION_CONTEXT_TIMEOUT
-        if parsed > 0:
+        if parsed > 0 and math.isfinite(parsed):
             return parsed
     return DEFAULT_SESSION_CONTEXT_TIMEOUT
+
+
+async def run_optional(coroutine, *, budget: float, label: str):
+    """Await ``coroutine`` under one deadline, and turn every failure into ``None``.
+
+    The one deadline owner for optional work. It runs the coroutine as its OWN task, which is
+    what makes the two guarantees below hold; a bare ``wait_for`` gives neither.
+
+    The unwind is bounded. ``wait_for`` awaits the cancelled coroutine's cleanup, so a slow
+    teardown extends the turn past the budget. Here the cancelled task gets ``CLEANUP_GRACE``
+    to finish and is otherwise abandoned to complete on its own.
+
+    A cancellation from OUTSIDE always propagates. In a bare ``wait_for`` a teardown that
+    raises REPLACES the in-flight ``CancelledError`` with an ordinary exception, which a
+    broad ``except`` then swallows, and the caller's cancel is lost. A failing teardown inside
+    a child task cannot reach this frame, so nothing can overwrite the cancel here.
+    """
+    task = asyncio.ensure_future(coroutine)
+    try:
+        done, _ = await asyncio.wait({task}, timeout=budget)
+    except asyncio.CancelledError:
+        task.cancel()
+        _abandon(task)
+        raise
+
+    if not done:
+        task.cancel()
+        try:
+            settled, _ = await asyncio.wait({task}, timeout=CLEANUP_GRACE)
+        except asyncio.CancelledError:
+            _abandon(task)
+            raise
+        if not settled:
+            log.warning("agent: %s did not unwind within %.3fs", label, CLEANUP_GRACE)
+        _abandon(task)
+        log.warning("agent: %s timed out after %.3fs", label, budget)
+        return None
+
+    try:
+        return task.result()
+    except asyncio.CancelledError:
+        # Cancelled by something other than this frame, so there is no caller cancel to
+        # honour here. The facts are simply unavailable.
+        log.warning("agent: %s was cancelled", label)
+        return None
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: %s failed", label, exc_info=True)
+        return None
+
+
+def _abandon(task: "asyncio.Future") -> None:
+    """Retrieve an abandoned task's outcome so asyncio does not log it as never retrieved."""
+
+    def _consume(finished: "asyncio.Future") -> None:
+        if not finished.cancelled():
+            finished.exception()
+
+    if task.done():
+        _consume(task)
+    else:
+        task.add_done_callback(_consume)
 
 
 async def resolve_session_context(
@@ -82,32 +154,22 @@ async def resolve_session_context(
     connection per turn, which is worth revisiting for the package as a whole rather than
     here alone. Never cache the FACTS: a rename has to show on the very next turn.
 
-    The whole operation shares one deadline, including client construction and teardown.
-    When it expires the outstanding reads are cancelled and the turn goes on with no facts.
-    A cancellation from OUTSIDE is not swallowed: the caller is going away, so this optional
-    work must go with it rather than absorb the cancel and keep running.
+    The deadline covers the whole operation, client construction and teardown included, and
+    bounds the unwind too. See :func:`run_optional`. A direct caller of this function gets
+    that bound; ``make_agent_handler`` applies its own around whatever resolver it was given,
+    and that outer one starts first and so reports the timeout.
     """
     budget = timeout if timeout is not None else session_context_timeout()
-    try:
-        return await asyncio.wait_for(
-            _resolve(
-                session_id=session_id,
-                workflow_id=workflow_id,
-                connection=connection,
-                budget=budget,
-            ),
-            timeout=budget,
-        )
-    except asyncio.TimeoutError:
-        log.warning("agent: session context timed out after %.3fs", budget)
-        return None
-    except asyncio.CancelledError:
-        raise
-    except Exception:  # pylint: disable=broad-except
-        # Client construction and teardown live in here too, not only the reads. A resolver
-        # that raises on the way in must still cost only the prompt section.
-        log.warning("agent: session context unavailable", exc_info=True)
-        return None
+    return await run_optional(
+        _resolve(
+            session_id=session_id,
+            workflow_id=workflow_id,
+            connection=connection,
+            budget=budget,
+        ),
+        budget=budget,
+        label="session context",
+    )
 
 
 async def _resolve(

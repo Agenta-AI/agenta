@@ -1134,3 +1134,80 @@ async def test_an_injected_resolver_that_raises_costs_only_the_prompt_section():
 
     assert result is not None
     assert backend.created_turn_contexts == [None]
+
+
+async def test_a_run_context_does_not_rescue_competing_families():
+    """The case that hid the bug: the ambiguity check must run BEFORE the run context.
+
+    The run context is built from these same references and prefers the `workflow` family, so
+    an ambiguous request produces a run context holding one of the two. Consulting it first
+    hands back exactly the silent preference the check exists to refuse, and a bare-handler
+    test cannot see that, because it has no ambient run context.
+    """
+    backend = _FakeBackend()
+    seen: Dict[str, Any] = {}
+
+    async def resolve(*, session_id, workflow_id):
+        seen["workflow_id"] = workflow_id
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+            run_context=lambda: RunContext(
+                workflow=RunContextWorkflow(
+                    artifact=RunContextReference(
+                        id="0199e0d0-0000-7000-8000-0000000000bb"
+                    )
+                )
+            ),
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            references={
+                "application": {"id": "0199e0d0-0000-7000-8000-0000000000aa"},
+                "workflow": {"id": "0199e0d0-0000-7000-8000-0000000000bb"},
+            },
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert seen["workflow_id"] is None
+
+
+async def test_the_same_artifact_spelled_two_ways_is_not_ambiguous():
+    """Agreement is not a disagreement, whatever spelling each family used."""
+    backend = _FakeBackend()
+    seen: Dict[str, Any] = {}
+
+    async def resolve(*, session_id, workflow_id):
+        seen["workflow_id"] = workflow_id
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            references={
+                "application": {"id": "0199E0D0-0000-7000-8000-0000000000AA"},
+                "workflow": {"id": "0199e0d0-0000-7000-8000-0000000000aa"},
+            },
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert seen["workflow_id"] == "0199e0d0-0000-7000-8000-0000000000aa"

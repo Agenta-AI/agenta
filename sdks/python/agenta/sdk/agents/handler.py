@@ -9,10 +9,10 @@ composition override) gets them for free instead of a permissive fallback.
 
 from __future__ import annotations
 
-import asyncio
 import os
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
+from uuid import UUID
 
 from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig, to_messages
 from agenta.sdk.agents.interfaces import Backend, Environment
@@ -45,6 +45,7 @@ from agenta.sdk.agents.platform import resolve_mcp as _platform_resolve_mcp
 from agenta.sdk.agents.platform import resolve_tools as _platform_resolve_tools
 from agenta.sdk.agents.platform import (
     resolve_session_context as _platform_resolve_session_context,
+    run_optional,
     session_context_timeout,
 )
 
@@ -137,33 +138,27 @@ async def _bounded_session_context(
 
     The facts are optional: the turn is correct without them, and the renderer says nothing
     about a fact it does not have. So no resolver may delay or break a turn. The deadline
-    covers the WHOLE call, and its expiry cancels whatever the resolver still has in flight.
+    covers the WHOLE call, bounds the unwind, and propagates a caller's cancellation. It is
+    the same helper the default resolver uses, so both paths behave identically.
 
-    The default resolver carries the same budget internally and finishes first; this bound
-    exists for an INJECTED resolver, which has no budget of its own. A cancellation from
-    outside propagates: the caller is going away and this work must go with it.
+    This is the outer bound, and it starts first, so it is the one that reports a timeout.
+    The default resolver's own bound is for a caller that reaches past this handler. An
+    INJECTED resolver has no bound of its own, and this is the only thing that gives it one.
     """
-    budget = session_context_timeout()
-    try:
-        return await asyncio.wait_for(
-            resolve(session_id=session_id, workflow_id=workflow_id),
-            timeout=budget,
-        )
-    except asyncio.TimeoutError:
-        log.warning("agent: session context resolver exceeded %.3fs", budget)
-        return None
-    except asyncio.CancelledError:
-        raise
-    except Exception:  # pylint: disable=broad-except
-        log.warning("agent: session context resolver failed", exc_info=True)
-        return None
+    return await run_optional(
+        resolve(session_id=session_id, workflow_id=workflow_id),
+        budget=session_context_timeout(),
+        label="session context resolver",
+    )
 
 
 def _reference_id(references, name: str) -> Optional[str]:
     """The id of one entry in ``request.references``, whatever shape it arrived in.
 
     A reference is a ``Reference`` model or the raw dict it was parsed from, depending on the
-    caller, so read both.
+    caller, so read both. The id is canonicalized as a UUID when it parses as one, so two
+    families that name the same artifact in different spellings compare equal rather than
+    reading as a disagreement.
     """
     reference = (references or {}).get(name)
     identifier = (
@@ -171,7 +166,12 @@ def _reference_id(references, name: str) -> Optional[str]:
         if isinstance(reference, dict)
         else getattr(reference, "id", None)
     )
-    return str(identifier) if identifier else None
+    if not identifier:
+        return None
+    try:
+        return str(UUID(str(identifier)))
+    except (ValueError, AttributeError, TypeError):
+        return str(identifier)
 
 
 def _agent_artifact_id(run_context, references) -> Optional[str]:
@@ -197,10 +197,6 @@ def _agent_artifact_id(run_context, references) -> Optional[str]:
     one of them would put a name in the prompt that the run may not belong to, so an ambiguous
     identity reports no name at all.
     """
-    artifact = getattr(getattr(run_context, "workflow", None), "artifact", None)
-    identifier = getattr(artifact, "id", None)
-    if identifier:
-        return str(identifier)
     found = {
         identifier
         for identifier in (
@@ -209,12 +205,20 @@ def _agent_artifact_id(run_context, references) -> Optional[str]:
         )
         if identifier
     }
+    # The ambiguity check runs FIRST, before the run context is consulted. The run context is
+    # built from these same references and prefers the `workflow` family, so a request that
+    # names two artifacts produces a run context holding one of them. Reading it first would
+    # hand back the silent preference this check exists to refuse.
     if len(found) > 1:
         log.warning(
             "agent: the run names %d competing workflow artifacts; reporting no agent name",
             len(found),
         )
         return None
+    artifact = getattr(getattr(run_context, "workflow", None), "artifact", None)
+    identifier = getattr(artifact, "id", None)
+    if identifier:
+        return str(identifier)
     return next(iter(found), None)
 
 

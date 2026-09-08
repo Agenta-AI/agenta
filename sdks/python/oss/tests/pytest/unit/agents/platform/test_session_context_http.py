@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import time
 from typing import Any, Dict, List, Optional
 
@@ -435,6 +436,9 @@ async def test_an_outside_cancellation_is_not_swallowed(connection, monkeypatch)
         ("nonsense", session_context.DEFAULT_SESSION_CONTEXT_TIMEOUT),
         ("0", session_context.DEFAULT_SESSION_CONTEXT_TIMEOUT),
         ("-3", session_context.DEFAULT_SESSION_CONTEXT_TIMEOUT),
+        ("inf", session_context.DEFAULT_SESSION_CONTEXT_TIMEOUT),
+        ("1e999", session_context.DEFAULT_SESSION_CONTEXT_TIMEOUT),
+        ("nan", session_context.DEFAULT_SESSION_CONTEXT_TIMEOUT),
     ],
 )
 def test_the_budget_reads_its_env_override(monkeypatch, raw, expected):
@@ -511,7 +515,7 @@ async def test_a_malformed_turns_answer_reports_unknown(connection, routed, turn
 async def test_an_omitted_stream_is_a_legitimately_unnamed_session(
     connection, routed, stream_body
 ):
-    """The response model omits null fields, and a session with no row yet has no name.
+    """A session with no row yet has no name, however the backend spells that.
 
     This is the case the strictness above must NOT swallow: a real unnamed session still has
     to get its naming instruction.
@@ -574,3 +578,132 @@ async def test_a_malformed_workflow_answer_reports_no_agent_name(
     assert context.agent_name is None
     assert context.session_name == "Sapphire Ledger"
     assert context.first_turn is False
+
+
+async def test_an_infinite_budget_is_refused(monkeypatch):
+    """An unbounded override would remove the one guarantee this module makes."""
+    monkeypatch.setenv("AGENTA_AGENT_SESSION_CONTEXT_TIMEOUT", "inf")
+    assert math.isfinite(session_context.session_context_timeout())
+
+
+async def test_a_slow_teardown_cannot_run_past_the_grace(connection, monkeypatch):
+    """`wait_for` awaits the cancelled coroutine's cleanup, which this must not inherit.
+
+    The operation runs as its own task, so a teardown that outlives the grace is abandoned
+    and the turn moves on rather than waiting for it.
+    """
+    monkeypatch.setattr(session_context, "CLEANUP_GRACE", 0.1)
+
+    class _Client:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            await asyncio.sleep(10.0)
+            return False
+
+        async def get(self, url, params=None, headers=None):
+            await asyncio.sleep(10.0)
+            return _FakeResponse(200, {})
+
+        async def post(self, url, json=None, headers=None):
+            await asyncio.sleep(10.0)
+            return _FakeResponse(200, {})
+
+    monkeypatch.setattr(session_context.httpx, "AsyncClient", _Client)
+
+    started = time.monotonic()
+    context = await resolve_session_context(
+        session_id="session-1",
+        workflow_id=WORKFLOW_ID,
+        connection=connection,
+        timeout=0.1,
+    )
+    elapsed = time.monotonic() - started
+
+    assert context is None
+    assert elapsed < 1.0
+
+
+async def test_a_failing_teardown_cannot_swallow_an_outside_cancel(
+    connection, monkeypatch
+):
+    """The regression a bare `wait_for` introduces.
+
+    Cleanup that raises REPLACES the in-flight CancelledError with an ordinary exception,
+    which a broad except then absorbs, and the caller's cancel is silently lost. Running the
+    operation as its own task keeps that failure off this frame.
+    """
+
+    class _Client:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            raise RuntimeError("teardown exploded")
+
+        async def get(self, url, params=None, headers=None):
+            await asyncio.sleep(30.0)
+            return _FakeResponse(200, {})
+
+        async def post(self, url, json=None, headers=None):
+            await asyncio.sleep(30.0)
+            return _FakeResponse(200, {})
+
+    monkeypatch.setattr(session_context.httpx, "AsyncClient", _Client)
+
+    task = asyncio.ensure_future(
+        resolve_session_context(
+            session_id="session-1",
+            workflow_id=WORKFLOW_ID,
+            connection=connection,
+            timeout=30.0,
+        )
+    )
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert task.cancelled()
+
+
+async def test_a_failing_teardown_after_the_budget_still_yields_no_facts(
+    connection, monkeypatch
+):
+    """The same failure on the timeout path costs the prompt section, nothing more."""
+
+    class _Client:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            raise RuntimeError("teardown exploded")
+
+        async def get(self, url, params=None, headers=None):
+            await asyncio.sleep(30.0)
+            return _FakeResponse(200, {})
+
+        async def post(self, url, json=None, headers=None):
+            await asyncio.sleep(30.0)
+            return _FakeResponse(200, {})
+
+    monkeypatch.setattr(session_context.httpx, "AsyncClient", _Client)
+
+    assert (
+        await resolve_session_context(
+            session_id="session-1",
+            workflow_id=WORKFLOW_ID,
+            connection=connection,
+            timeout=0.1,
+        )
+        is None
+    )
