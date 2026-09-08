@@ -104,7 +104,10 @@ export const AutomationRunsWhenField = ({
                                             : "An automation's trigger type is fixed once it's created."
                                     }
                                     onClick={() => onChangeKind?.(value)}
-                                    className="min-w-0 flex-1 font-normal"
+                                    // The two modes are the picker's first choice, not a
+                                    // toolbar's: a taller target reads as a decision rather
+                                    // than a control tucked above the panel.
+                                    className="h-8 min-w-0 flex-1 font-normal"
                                 >
                                     <KindIcon aria-hidden size={14} />
                                     <span className="min-w-0 truncate">{kindLabel}</span>
