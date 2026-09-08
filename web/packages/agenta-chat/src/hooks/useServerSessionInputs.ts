@@ -57,7 +57,13 @@ const emptyView = reduceSessionPendingInputs(null)
 
 const RUN_ERROR_FRAME_TYPES = new Set(["error", "data-agent-error"])
 
-type RunFrame = {kind: "accepted"; executionId: string} | {kind: "error"} | null
+/**
+ * The first frames of an answer. Their arrival proves the request was admitted and a turn began,
+ * whatever happens to that turn afterwards.
+ */
+const RUN_STARTED_FRAME_TYPES = new Set(["start", "start-step"])
+
+type RunFrame = {kind: "accepted"; executionId: string} | {kind: "error"} | {kind: "started"} | null
 
 const runFrameFromLine = (line: string): RunFrame => {
     const payload = line.startsWith("data:") ? line.slice(5).trim() : line.trim()
@@ -66,6 +72,7 @@ const runFrameFromLine = (line: string): RunFrame => {
         const frame = JSON.parse(payload) as {type?: unknown; data?: {executionId?: unknown}}
         if (typeof frame.type !== "string") return null
         if (RUN_ERROR_FRAME_TYPES.has(frame.type)) return {kind: "error"}
+        if (RUN_STARTED_FRAME_TYPES.has(frame.type)) return {kind: "started"}
         if (frame.type !== "data-session-accepted") return null
         const id = frame.data?.executionId
         return typeof id === "string" && id ? {kind: "accepted", executionId: id} : null
@@ -77,11 +84,18 @@ const runFrameFromLine = (line: string): RunFrame => {
 /**
  * Drain the run stream and report only what it actually says about this send.
  *
- * An HTTP 200 proves the request was taken, nothing more, so an error frame before acceptance is
- * reported as a failure. Silence is NOT: the runner emits the acceptance frame only for a detached
- * request, and this adapter also sends ordinary ones, so a stream that ends without acceptance is
- * usually a perfectly good turn. Those fall back to the count, exactly as before identity existed.
- * After acceptance the turn exists and its failure is the transcript's to render.
+ * An HTTP 200 proves the request was taken, nothing more, so an error frame before the turn begins
+ * is reported as a failure. Silence is NOT: the runner emits the acceptance frame only for a
+ * detached request, and this adapter also sends ordinary ones, so a stream that ends without
+ * acceptance is usually a perfectly good turn. Those fall back to the count, exactly as before
+ * identity existed.
+ *
+ * "Before the turn begins" is the whole of it, and an ordinary request needs the `start` frame to
+ * say so, because it never gets an acceptance frame. Live evidence: a run whose model call failed
+ * mid-turn ("no credits remaining") emitted its error 13 s after `start`, by which time the user's
+ * row was saved and rendered. Reading that as a refused send put a second copy of a delivered
+ * message on screen under "Message wasn't sent", and handed the text back to the composer. Once a
+ * turn exists its failure is the transcript's to render, on the assistant row where it belongs.
  */
 export const readRunAdmission = async (
     response: Response,
@@ -95,6 +109,7 @@ export const readRunAdmission = async (
     const decoder = new TextDecoder()
     let buffer = ""
     let accepted = false
+    let started = false
     const scan = (chunk: string): "error" | "accepted" | null => {
         buffer += chunk
         // CR-only and CRLF framing are both valid SSE.
@@ -103,7 +118,16 @@ export const readRunAdmission = async (
         for (const line of lines) {
             const frame = runFrameFromLine(line)
             if (!frame) continue
-            if (frame.kind === "error") return "error"
+            // Scanning continues past a start frame, because a detached run names its turn AFTER
+            // the answer's first frame, and that id is what retires the echo on identity.
+            if (frame.kind === "started") {
+                started = true
+                continue
+            }
+            if (frame.kind === "error") {
+                if (started) continue
+                return "error"
+            }
             accepted = true
             watcher?.onAccepted?.(frame.executionId)
             return "accepted"

@@ -119,6 +119,60 @@ describe("readRunAdmission", () => {
         await readRunAdmission(new Response(null, {status: 200}), w)
         expect(w.onFailed).toHaveBeenCalledTimes(1)
     })
+
+    // An ordinary request never gets an acceptance frame, so `start` is the only thing that says
+    // the turn began. Live evidence on the EE dev stack: a run whose model call failed 13 s in
+    // ("no credits remaining") was read as a refused send, which put a second copy of the
+    // delivered message on screen under "Message wasn't sent".
+    it("does not read a mid-run failure as a refused send", async () => {
+        const w = watcher()
+        const result = await readRunAdmission(
+            streamOf([
+                'data: {"type":"start","messageId":"a1"}\n',
+                'data: {"type":"start-step"}\n',
+                'data: {"type":"text-delta","id":"t1","delta":"partial"}\n',
+                'data: {"type":"data-agent-error","data":{"code":"runner_error","errorText":"no credits"}}\n',
+                'data: {"type":"error","errorText":"no credits"}\n',
+                'data: {"type":"finish"}\n',
+            ]),
+            w,
+        )
+        expect(w.onFailed).not.toHaveBeenCalled()
+        expect(result).toBe(false)
+    })
+
+    it("still reads an error before the turn begins as a refusal", async () => {
+        const w = watcher()
+        await readRunAdmission(streamOf(['data: {"type":"error","errorText":"refused"}\n']), w)
+        expect(w.onFailed).toHaveBeenCalledTimes(1)
+    })
+
+    it("still names the turn when acceptance follows the answer's first frame", async () => {
+        // The runner emits `start` BEFORE `data-session-accepted`, so scanning has to continue
+        // past a start frame or a detached send would lose the id it retires on.
+        const w = watcher()
+        const result = await readRunAdmission(
+            streamOf([
+                'data: {"type":"start","messageId":"a1"}\n',
+                'data: {"type":"start-step"}\n',
+                accepted("turn-9"),
+                'data: {"type":"finish"}\n',
+            ]),
+            w,
+        )
+        expect(w.onAccepted).toHaveBeenCalledWith("turn-9")
+        expect(w.onFailed).not.toHaveBeenCalled()
+        expect(result).toBe(true)
+    })
+
+    it("does not read a failure after acceptance as a refused send", async () => {
+        const w = watcher()
+        await readRunAdmission(
+            streamOf([accepted("turn-10"), 'data: {"type":"error","errorText":"ran out"}\n']),
+            w,
+        )
+        expect(w.onFailed).not.toHaveBeenCalled()
+    })
 })
 
 describe("parkedInputIdFromBody", () => {
