@@ -11,6 +11,7 @@ export * from "./state"
 export * from "./reorder"
 export * from "./dynamic"
 export * from "./banners"
+export * from "./releases"
 
 export {useSidebarResize} from "./useSidebarResize"
 

@@ -9,7 +9,7 @@ import type {ReactNode} from "react"
  * 2. Add its priority to PRIORITY_ORDER in banners/state.ts
  * 3. Register it in the appropriate atom (activeBannersAtom here, eeBannersAtom in EE)
  */
-export type BannerType = "trial" | "upgrade" | "changelog" | "star-repo"
+export type BannerType = "trial" | "upgrade" | "star-repo"
 
 export interface BannerAction {
     label: string
@@ -18,7 +18,7 @@ export interface BannerAction {
 }
 
 export interface BannerConfig {
-    /** Unique ID for persistence (e.g., "changelog-2024-12-16-feature") */
+    /** Unique ID for persistence (e.g., "star-repo-v1") */
     id: string
     /** Determines priority order */
     type: BannerType

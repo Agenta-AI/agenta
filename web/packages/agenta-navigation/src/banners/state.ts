@@ -1,28 +1,25 @@
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
-import changelogData from "./changelog.json"
 import {BannerConfig, BannerType} from "./types"
 
 /**
  * Priority order for banner types.
  * Lower number = higher priority (shown first).
  *
- * Order: star-repo → changelog → upgrade → trial
- * This ensures new users see community/changelog banners first,
- * and billing-related banners only after engaging with the product.
+ * Order: star-repo → upgrade → trial
+ * Community first; billing-related banners only after engaging with the product.
  */
 export const PRIORITY_ORDER: Record<BannerType, number> = {
     "star-repo": 0, // Highest priority - show first for new users
-    changelog: 1,
-    upgrade: 2,
-    trial: 3, // Lowest priority - show after other banners are dismissed
+    upgrade: 1,
+    trial: 2, // Lowest priority - show after other banners are dismissed
 }
 
 /**
  * Maximum number of dismissible sidebar banners a user should have to clear.
- * Apply this before dismissal filtering so older changelog entries do not
- * backfill the sidebar after each close.
+ * Apply this before dismissal filtering so older entries do not backfill the
+ * sidebar after each close.
  */
 export const MAX_DISMISSIBLE_SIDEBAR_BANNERS = 2
 
@@ -60,28 +57,6 @@ const starRepoBanner: BannerConfig = {
 }
 
 /**
- * Get changelog banners from the JSON data file.
- * Each changelog entry becomes a separate dismissible banner.
- */
-const getChangelogBanners = (): BannerConfig[] => {
-    return (changelogData as {id: string; title: string; description: string; link?: string}[]).map(
-        (entry) => ({
-            id: entry.id,
-            type: "changelog" as BannerType,
-            dismissible: true,
-            title: entry.title,
-            description: entry.description,
-            action: entry.link
-                ? {
-                      label: "Learn more",
-                      href: entry.link,
-                  }
-                : undefined,
-        }),
-    )
-}
-
-/**
  * Base atom for additional banners.
  * OSS keeps this empty; EE overrides it with subscription-based banners.
  */
@@ -89,13 +64,11 @@ export const additionalBannersAtom = atom<BannerConfig[]>([])
 
 /**
  * Computed atom that collects all active banners.
- * Combines changelog, star-repo, and any additional banners (from EE).
+ * Combines star-repo and any additional banners (from EE). A release is NOT a banner:
+ * releases read as the "What's new?" list in the help menu.
  */
 export const activeBannersAtom = atom((get) => {
     const banners: BannerConfig[] = []
-
-    // Changelog banners (from JSON, always active until dismissed)
-    banners.push(...getChangelogBanners())
 
     // Star repo banner (always active until dismissed)
     banners.push(starRepoBanner)
