@@ -6,6 +6,7 @@ import {
     explicitRelativeHref,
     isExternalHref,
     rehypeExplicitRelativeLinks,
+    withExplicitRelativeLinks,
 } from "../../src/drive/chatFileLinkGate"
 
 describe("explicitRelativeHref", () => {
@@ -21,6 +22,13 @@ describe("explicitRelativeHref", () => {
         expect(explicitRelativeHref("/tmp/agenta/report.md")).toBeNull()
         expect(explicitRelativeHref("./agent-files/report.md")).toBeNull()
         expect(explicitRelativeHref("../report.md")).toBeNull()
+    })
+
+    it("refuses a dot segment that climbs to a host, which would become an off-site link", () => {
+        // `./a/..//evil.com/x` has the pathname `//evil.com/x`; a browser reads that as a host.
+        expect(explicitRelativeHref("a/..//evil.com/x")).toBeNull()
+        expect(explicitRelativeHref("a/%2e%2e//evil.com/x")).toBeNull()
+        expect(explicitRelativeHref("a/../b/report.md")).toBe("./a/../b/report.md")
     })
 
     it("leaves every non-path target to the gate", () => {
@@ -93,5 +101,23 @@ describe("decodeDriveHref", () => {
 
     it("returns a malformed escape unchanged rather than throwing", () => {
         expect(decodeDriveHref("/agent-files/100%.md")).toBe("/agent-files/100%.md")
+    })
+})
+
+describe("withExplicitRelativeLinks", () => {
+    it("keeps every default and puts the respelling immediately before harden", () => {
+        const defaults = {raw: "raw", sanitize: "sanitize", harden: "harden"}
+        expect(withExplicitRelativeLinks(defaults)).toEqual([
+            "raw",
+            "sanitize",
+            rehypeExplicitRelativeLinks,
+            "harden",
+        ])
+    })
+
+    it("carries a default this code has never heard of", () => {
+        // Hand-listing the keys dropped any plugin Streamdown adds later.
+        const defaults = {raw: "raw", sanitize: "sanitize", harden: "harden", future: "future"}
+        expect(withExplicitRelativeLinks(defaults)).toContain("future")
     })
 })

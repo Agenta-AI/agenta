@@ -64,7 +64,8 @@ const recordIndexAtomFamily = atomFamily((sessionId: string) =>
 
 /** True when the record log proves this mention names a written file (tail match). */
 export const knownFromRecords = (byBasename: Map<string, string[]>, candidate: string): boolean => {
-    if (!candidate.includes("/")) return false
+    // Count segments WITHOUT the leading slash: `/README.md` is still a bare basename (#6004).
+    if (!candidate.replace(/^\/+/, "").includes("/")) return false
     const base = candidate.split("/").pop() ?? candidate
     return Boolean(byBasename.get(base)?.some((t) => mountPathMatchesToolPath(candidate, t)))
 }

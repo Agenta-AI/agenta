@@ -1,22 +1,16 @@
 /** Which link shapes survive Streamdown's harden gate, and in what spelling (#6659). */
-import {rehypeExplicitRelativeLinks} from "@agenta/entity-ui/drive"
 import {renderToStaticMarkup} from "react-dom/server"
 import {defaultRehypePlugins, Streamdown, type Components} from "streamdown"
 import {describe, expect, it} from "vitest"
 
-const REHYPE_PLUGINS = [
-    defaultRehypePlugins.raw,
-    defaultRehypePlugins.sanitize,
-    rehypeExplicitRelativeLinks,
-    defaultRehypePlugins.harden,
-]
+import Markdown, {MD_REHYPE_PLUGINS} from "./markdown"
 
 const components: Components = {
     a: ({href, children}) => <a data-href={String(href)}>{children}</a>,
 }
 
 /** The href the anchor slot receives, or "[blocked]" when the gate dropped it. */
-const gate = (markdown: string, plugins = REHYPE_PLUGINS): string => {
+const gate = (markdown: string, plugins = MD_REHYPE_PLUGINS): string => {
     const html = renderToStaticMarkup(
         <Streamdown components={components} rehypePlugins={plugins} mode="static">
             {markdown}
@@ -61,6 +55,25 @@ describe("chat markdown link gate", () => {
 
     it("still blocks a javascript: URL", () => {
         expect(gate(link("javascript:alert(1)"))).toBe("[blocked]")
+    })
+
+    it("never turns a path into an off-site link, dot segments included", () => {
+        // `a/..//evil.com/x` resolves to the pathname `//evil.com/x`, which a browser reads as a
+        // host. Rendered through the app's own anchor, no anchor may come out of it.
+        for (const target of ["a/..//evil.com/x", "a/%2e%2e//evil.com/x"]) {
+            const html = renderToStaticMarkup(<Markdown content={link(target)} />)
+            expect(html).not.toContain("<a ")
+            expect(html).not.toContain('href="//evil.com')
+            expect(html).toContain("[blocked]")
+        }
+    })
+
+    it("still renders an ordinary web link as a real anchor", () => {
+        const html = renderToStaticMarkup(
+            <Markdown content={link("https://example.com/report.md")} />,
+        )
+        expect(html).toContain('href="https://example.com/report.md"')
+        expect(html).toContain('target="_blank"')
     })
 
     it("blocked every relative shape before the fix", () => {

@@ -1,16 +1,11 @@
 import {useTypewriter} from "@agenta/chat/hooks"
-import {isExternalHref, rehypeExplicitRelativeLinks} from "@agenta/entity-ui/drive"
+import {isExternalHref, withExplicitRelativeLinks} from "@agenta/entity-ui/drive"
 import {defaultRehypePlugins, Streamdown, type Components} from "streamdown"
 
 import {DriveLink} from "./DriveLink"
 
 // Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults.
-const rehypePlugins = [
-    defaultRehypePlugins.raw,
-    defaultRehypePlugins.sanitize,
-    rehypeExplicitRelativeLinks,
-    defaultRehypePlugins.harden,
-]
+const rehypePlugins = withExplicitRelativeLinks(defaultRehypePlugins)
 
 export const markdownComponents: Components = {
     // Streamdown's own anchor already sets target=_blank + rel=noreferrer; make the
