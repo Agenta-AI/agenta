@@ -23,7 +23,7 @@ import {AutomationAgentField} from "./AutomationAgentField"
 import {AutomationBackLink} from "./AutomationBackLink"
 import {buildAutomationCreate, SCHEDULE_EVENT_KEY} from "./automationEdit"
 import {AutomationInstructionField} from "./AutomationInstructionField"
-import type {Automation, AutomationKind} from "./automationModel"
+import {generatedAutomationName, type Automation, type AutomationKind} from "./automationModel"
 import {AutomationRunsWhenField} from "./AutomationRunsWhenField"
 import {AutomationTitle} from "./AutomationTitle"
 import {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
@@ -161,7 +161,7 @@ export const AutomationDraftScreen = ({
         return {
             id: DRAFT_ID,
             kind: draft.kind,
-            name: draft.name.trim() || "Untitled automation",
+            name: draft.name,
             // Never rendered on a draft — the title stands alone until the row exists.
             description: "",
             agentId: draft.agentId,
@@ -173,6 +173,13 @@ export const AutomationDraftScreen = ({
             raw,
         }
     }, [draft])
+
+    // What an unnamed automation is called: built from the two things already chosen, so the
+    // heading previews the saved name rather than a placeholder that turns into something else.
+    const generatedName = useMemo(
+        () => generatedAutomationName(preview, agentName),
+        [agentName, preview],
+    )
 
     const {create} = useAutomation(undefined, draft.kind)
 
@@ -207,7 +214,14 @@ export const AutomationDraftScreen = ({
         if (blockedReason || saving) return
         setSaving(true)
         try {
-            const created = await create(buildAutomationCreate(draft, references))
+            // The name is optional: an unnamed automation is saved under the name the heading
+            // has been previewing, not under a blank.
+            const created = await create(
+                buildAutomationCreate(
+                    {...draft, name: draft.name.trim() || generatedName},
+                    references,
+                ),
+            )
             if (!created?.id) {
                 message.error("Couldn't create this automation")
                 return
@@ -219,7 +233,7 @@ export const AutomationDraftScreen = ({
         } finally {
             setSaving(false)
         }
-    }, [base, blockedReason, create, draft, references, router, saving])
+    }, [base, blockedReason, create, draft, generatedName, references, router, saving])
 
     return (
         <>
@@ -242,6 +256,7 @@ export const AutomationDraftScreen = ({
                             onRename={onRename}
                             autoEdit={!template}
                             placeholder="Automation name"
+                            fallback={generatedName}
                         />
 
                         <div className="mt-[26px] flex flex-col gap-[22px]">

@@ -118,6 +118,20 @@ export function runsWhenLabel(a: Automation): string {
 }
 
 /**
+ * The name an unnamed automation gets: "Mon at 09:00 UTC — Teach me".
+ *
+ * The two facts a reader needs to tell one row from another are when it runs and which agent it
+ * runs, and both are already chosen by the time this is asked for — so a name can be built rather
+ * than demanded. Without an agent there is nothing to build from and the generic name stands.
+ */
+export function generatedAutomationName(a: Automation, agentName: string | null): string {
+    const runsWhen = runsWhenLabel(a).trim()
+    const agent = (agentName ?? "").trim()
+    if (!agent || !runsWhen) return "Untitled automation"
+    return `${runsWhen} — ${agent}`
+}
+
+/**
  * Whether a delivery worked.
  *
  * Reads `status.message`, which is where the backend writes "success" / "failed" / "dispatched".

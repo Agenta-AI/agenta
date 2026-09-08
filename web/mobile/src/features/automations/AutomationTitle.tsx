@@ -19,14 +19,17 @@ export const AutomationTitle = ({
     onRename,
     autoEdit = false,
     placeholder,
+    fallback,
 }: {
     name: string
     description: string
     onRename: (next: string) => Promise<boolean>
     /** Open in the editing state on mount — a new automation lands with its name to be typed. */
     autoEdit?: boolean
-    /** Shown while the name is empty, in the input and in place of the heading. */
+    /** The input's placeholder while the name is empty. */
     placeholder?: string
+    /** Shown as the heading while the name is empty — the name this would be saved under. */
+    fallback?: string
 }) => {
     const rename = useInlineRename({
         current: name,
@@ -67,9 +70,9 @@ export const AutomationTitle = ({
                         if (event.key === "Enter") void rename.commit()
                         if (event.key === "Escape") rename.cancel()
                     }}
-                    // The stock input, except for type: matching the heading's size and weight is
-                    // what stops the swap into editing from resetting the text under the cursor.
-                    className="text-[18px] font-semibold focus-visible:border-input focus-visible:ring-0 md:text-[18px]"
+                    // A notch under the heading while editing, and a medium placeholder: a bold
+                    // hint reads as a name already typed.
+                    className="text-[16px] font-semibold placeholder:font-medium placeholder:text-muted-foreground focus-visible:border-input focus-visible:ring-0 md:text-[16px]"
                 />
             ) : (
                 <button
@@ -85,7 +88,7 @@ export const AutomationTitle = ({
                             name ? "" : "text-muted-foreground"
                         }`}
                     >
-                        {name || placeholder}
+                        {name || fallback || placeholder}
                     </h1>
                     {/* Only on hover or keyboard focus: the name is the control, and a pencil
                         parked beside it permanently reads as part of the title. */}
