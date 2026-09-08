@@ -74,9 +74,20 @@ export interface TriggerManagementSectionProps {
     entityId: string | null
     /** Read-only mode (e.g. a non-editable revision). */
     disabled?: boolean
+    /**
+     * The create/edit drawer, when the app supplies its own. This package cannot import the
+     * unified automation drawer (that package depends on this one), so the app passes it in and
+     * the two kind-specific drawers below stand down — mounting both would leave two shells
+     * listening to the same atom.
+     */
+    automationDrawer?: ReactNode
 }
 
-export function TriggerManagementSection({entityId, disabled}: TriggerManagementSectionProps) {
+export function TriggerManagementSection({
+    entityId,
+    disabled,
+    automationDrawer,
+}: TriggerManagementSectionProps) {
     const {scopedSubscriptions, scopedSchedules, defaultReferences, defaultBoundLabel} =
         useAgentTriggers(entityId)
 
@@ -423,8 +434,12 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 visibility. App browsing + connecting now happens inside the subscription
                 drawer (no separate catalog drawer in the playground). When a
                 subscription/schedule is created here it default-binds to this agent. */}
-            <TriggerSubscriptionDrawer />
-            <TriggerScheduleDrawer />
+            {automationDrawer ?? (
+                <>
+                    <TriggerSubscriptionDrawer />
+                    <TriggerScheduleDrawer />
+                </>
+            )}
             <TriggerDeliveriesDrawer />
         </div>
     )

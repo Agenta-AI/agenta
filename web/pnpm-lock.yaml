@@ -575,6 +575,9 @@ importers:
       '@agenta/auth-ui':
         specifier: workspace:../packages/agenta-auth-ui
         version: link:../packages/agenta-auth-ui
+      '@agenta/automation-ui':
+        specifier: workspace:../packages/agenta-automation-ui
+        version: link:../packages/agenta-automation-ui
       '@agenta/chat':
         specifier: workspace:../packages/agenta-chat
         version: link:../packages/agenta-chat
@@ -983,7 +986,7 @@ importers:
         version: 3.1.0(tailwindcss@3.4.19(tsx@4.22.4)(yaml@2.8.4))
       vitest:
         specifier: ^4.1.4
-        version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(jsdom@26.1.0)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
+        version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(jsdom@26.1.0)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@1.21.7)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
 
   packages/agenta-annotation:
     dependencies:
@@ -16494,7 +16497,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(jsdom@26.1.0)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
+      vitest: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(jsdom@26.1.0)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@1.21.7)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
 
   '@vitest/expect@3.2.4':
     dependencies:
@@ -16520,6 +16523,14 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 8.1.5(@types/node@20.19.39)(esbuild@0.25.12)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4)
+
+  '@vitest/mocker@4.1.6(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@1.21.7)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))':
+    dependencies:
+      '@vitest/spy': 4.1.6
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@1.21.7)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4)
 
   '@vitest/mocker@4.1.6(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))':
     dependencies:
@@ -22301,6 +22312,22 @@ snapshots:
       yaml: 2.8.4
     optional: true
 
+  vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@1.21.7)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4):
+    dependencies:
+      lightningcss: 1.33.0
+      picomatch: 4.0.5
+      postcss: 8.5.24
+      rolldown: 1.1.5
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 20.19.39
+      esbuild: 0.28.1
+      fsevents: 2.3.3
+      jiti: 1.21.7
+      terser: 5.47.0
+      tsx: 4.22.4
+      yaml: 2.8.4
+
   vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4):
     dependencies:
       lightningcss: 1.33.0
@@ -22316,6 +22343,36 @@ snapshots:
       terser: 5.47.0
       tsx: 4.22.4
       yaml: 2.8.4
+
+  vitest@4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(jsdom@26.1.0)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@1.21.7)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4)):
+    dependencies:
+      '@vitest/expect': 4.1.6
+      '@vitest/mocker': 4.1.6(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@1.21.7)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
+      '@vitest/pretty-format': 4.1.6
+      '@vitest/runner': 4.1.6
+      '@vitest/snapshot': 4.1.6
+      '@vitest/spy': 4.1.6
+      '@vitest/utils': 4.1.6
+      es-module-lexer: 2.1.0
+      expect-type: 1.3.0
+      magic-string: 0.30.21
+      obug: 2.1.1
+      pathe: 2.0.3
+      picomatch: 4.0.4
+      std-env: 4.1.0
+      tinybench: 2.9.0
+      tinyexec: 1.1.2
+      tinyglobby: 0.2.17
+      tinyrainbow: 3.1.0
+      vite: 8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@1.21.7)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+      '@types/node': 20.19.39
+      '@vitest/coverage-v8': 4.1.6(vitest@4.1.6)
+      jsdom: 26.1.0
+    transitivePeerDependencies:
+      - msw
 
   vitest@4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(jsdom@26.1.0)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4)):
     dependencies:
