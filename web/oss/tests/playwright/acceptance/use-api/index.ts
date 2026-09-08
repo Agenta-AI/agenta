@@ -107,11 +107,7 @@ const deployFirstVariantToDevelopment = async (
     })
 }
 
-/**
- * Reports whether an element keeps the same bounding box across two animation
- * frames. Runs in the page so both samples come from real frames, which a
- * Playwright-side poll interval cannot guarantee.
- */
+// Reports whether the element keeps the same bounding box across two frames.
 const hasStableBoxAcrossFrames = (element: Element): Promise<boolean> =>
     new Promise((resolve) => {
         const first = element.getBoundingClientRect()
@@ -128,14 +124,7 @@ const hasStableBoxAcrossFrames = (element: Element): Promise<boolean> =>
         })
     })
 
-/**
- * Waits until the drawer finishes its slide-in animation.
- * The Sheet panel translates in over about 333ms, so every control inside it
- * moves while it opens. Playwright's actionability check needs a stable
- * bounding box, and it cannot settle inside that window: a click that starts
- * during the slide fails with "element is not stable". Wait for the panel's
- * own box to stop moving before any caller clicks inside it.
- */
+// Waits out the drawer slide-in; a click during it fails "element is not stable".
 const waitForDrawerAnimationToSettle = async (drawer: any) => {
     await expect
         .poll(() => pollLocatorState(() => drawer.evaluate(hasStableBoxAcrossFrames)), {
