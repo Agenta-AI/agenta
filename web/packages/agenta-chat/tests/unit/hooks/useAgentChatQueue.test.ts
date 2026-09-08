@@ -65,6 +65,7 @@ interface HarnessProps {
     continuationExecutionId?: string | null
     sessionId?: string
     server?: ServerQueueAdapter
+    restoreRefusedSend?: (message: QueuedMessage) => boolean
 }
 
 const setup = (initial: HarnessProps) => {
@@ -1432,5 +1433,39 @@ describe("useAgentChatQueue echo settlement", () => {
             ],
         })
         expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+})
+
+describe("useAgentChatQueue late refusal recovery", () => {
+    it("hands the text back to the composer and drops the row", async () => {
+        // One event, one recovery: a refusal after the promise resolved lands in the composer
+        // exactly like one that rejected it.
+        const {server, watchers} = durableServer()
+        const restoreRefusedSend = vi.fn(() => true)
+        const {result} = setup({...settledEmpty, server, restoreRefusedSend})
+
+        await act(async () => {
+            await result.current.submit({text: "refused late"})
+        })
+        await act(async () => watchers[0].onFailed?.())
+
+        expect(restoreRefusedSend).toHaveBeenCalledWith(
+            expect.objectContaining({text: "refused late"}),
+        )
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+
+    it("keeps the flagged row when no composer can take the text", async () => {
+        const {server, watchers} = durableServer()
+        const restoreRefusedSend = vi.fn(() => false)
+        const {result} = setup({...settledEmpty, server, restoreRefusedSend})
+
+        await act(async () => {
+            await result.current.submit({text: "nowhere to go"})
+        })
+        await act(async () => watchers[0].onFailed?.())
+
+        expect(echoText(result)).toEqual(["nowhere to go"])
+        expect(result.current.pendingSendRows[0].metadata).toMatchObject({pendingSendFailed: true})
     })
 })

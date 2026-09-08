@@ -147,6 +147,8 @@ export interface UseAgentConversationArgs {
     sharedReaderRunning?: boolean
     /** Timestamp of the liveness snapshot behind `sharedReaderRunning`. */
     sharedReaderLivenessUpdatedAt?: number
+    /** Hand a late-refused send back to the composer; return whether it took the text. */
+    restoreRefusedSend?: (message: {text: string}) => boolean
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
      * silently folded every client tool into the plain "used N tools" group, leaving the run
@@ -245,6 +247,7 @@ export const useAgentConversation = ({
     sharedReaderAdvertised = false,
     sharedReaderRunning = false,
     sharedReaderLivenessUpdatedAt = 0,
+    restoreRefusedSend,
     isClientToolPart,
 }: UseAgentConversationArgs): AgentConversation => {
     const store = useStore()
@@ -745,6 +748,10 @@ export const useAgentConversation = ({
         retryContinuation: retryRecoverableContinuation,
         continuationExecutionId,
         markRunOwned,
+        // Not wired on this host yet: the composer lives below this hook and has no handle here,
+        // so a late refusal keeps its flagged row instead of restoring the draft. Pass a restorer
+        // in to unify it with the desktop.
+        restoreRefusedSend,
         sendQueued,
         sessionId,
         server: serverInputs,

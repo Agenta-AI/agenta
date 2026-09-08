@@ -428,6 +428,18 @@ const AgentConversation = ({
         [sessionId, setSessionStatus],
     )
 
+    // A refusal that arrived after the send promise resolved. Hand the text back through the same
+    // channel a rejected send uses, so both refusal shapes recover identically.
+    const setRejectionsRef = useRef(attachments.setRejections)
+    setRejectionsRef.current = attachments.setRejections
+    const restoreLateRefusedSend = useCallback((message: QueuedMessage) => {
+        const editor = richInputRef.current
+        if (!editor) return false
+        editor.setMarkdown(message.text)
+        setRejectionsRef.current([{name: "Message", reason: "wasn't sent — try again."}])
+        return true
+    }, [])
+
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
     // one-by-one once the turn truly settles (never mid-approval). A user stop is the exception —
     // it voids the pending gate, so `stopped` lets a fresh send go immediately (not queue). An
@@ -459,6 +471,7 @@ const AgentConversation = ({
         retryContinuation: retryRecoverableContinuation,
         continuationExecutionId,
         markRunOwned,
+        restoreRefusedSend: restoreLateRefusedSend,
         sendQueued,
         sessionId,
         server: serverInputs,

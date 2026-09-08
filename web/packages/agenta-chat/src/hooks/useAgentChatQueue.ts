@@ -83,6 +83,12 @@ interface UseAgentChatQueueArgs {
     continuationExecutionId?: string | null
     /** Mark this tab as the next run's owner before a released send reaches the transport. */
     markRunOwned: () => void
+    /**
+     * Hand a refused send back to the composer. Returns whether the composer took it: if it did,
+     * the message lives there and its echo row goes; if it could not (no mounted editor), the row
+     * stays as the one place the text survives.
+     */
+    restoreRefusedSend?: (message: QueuedMessage) => boolean
     /** Send one released message into the conversation (wraps `useChat`'s `sendMessage`). Must be
      * referentially stable so the release effect doesn't churn on every streamed token. */
     sendQueued: (item: QueuedMessage) => void
@@ -129,6 +135,7 @@ export const useAgentChatQueue = ({
     retryContinuation,
     continuationExecutionId = null,
     markRunOwned,
+    restoreRefusedSend,
     sendQueued,
     sessionId,
     server,
@@ -212,6 +219,9 @@ export const useAgentChatQueue = ({
     useEffect(() => {
         queuedRef.current = queued
     }, [queued])
+
+    const restoreRefusedSendRef = useRef(restoreRefusedSend)
+    restoreRefusedSendRef.current = restoreRefusedSend
 
     // Echo rows for durable sends, which the AI SDK chat never receives. Owned by its own hook so
     // this one keeps to admission, queueing, and editing.
@@ -330,11 +340,28 @@ export const useAgentChatQueue = ({
                             onAccepted: (executionId) =>
                                 echoes.markAccepted(message.id, executionId),
                             onParked: (inputId) => echoes.markParked(message.id, inputId),
-                            onFailed: () => echoes.markFailed(message.id),
+                            // One event, one recovery. A refusal that arrives after the promise
+                            // resolved goes back to the composer exactly like one that rejected
+                            // it, so there is a single place the message lives and a single
+                            // wording for it. The row is the fallback only when no composer can
+                            // take the text.
+                            onFailed: () => {
+                                if (restoreRefusedSendRef.current?.(message)) {
+                                    echoes.drop(message.id)
+                                } else {
+                                    echoes.markFailed(message.id)
+                                }
+                            },
                             // The turn ended and its records were re-read. An echo still on
                             // screen is one whose row was never persisted, so it stops waiting
                             // silently; a row that arrives later still retires it.
-                            onSettled: () => echoes.markFailed(message.id),
+                            onSettled: () => {
+                                if (restoreRefusedSendRef.current?.(message)) {
+                                    echoes.drop(message.id)
+                                } else {
+                                    echoes.markFailed(message.id)
+                                }
+                            },
                         })
                         .then(undefined, (error: unknown) => {
                             echoes.drop(message.id)

@@ -85,11 +85,11 @@ const runFrameFromLine = (line: string): RunFrame => {
 export const readRunAdmission = async (
     response: Response,
     watcher?: ServerInputWatcher,
-): Promise<void> => {
+): Promise<boolean> => {
     const reader = response.body?.getReader()
     if (!reader) {
         watcher?.onFailed?.()
-        return
+        return false
     }
     const decoder = new TextDecoder()
     let buffer = ""
@@ -117,14 +117,18 @@ export const readRunAdmission = async (
             if (scan(decoder.decode(value, {stream: true})) === "error") {
                 watcher?.onFailed?.()
                 await reader.cancel().catch(() => undefined)
-                return
+                return false
             }
         }
-        // A last frame with no trailing newline is still a frame.
-        if (!accepted && buffer.trim()) scan("\n")
+        // A last frame with no trailing newline is still a frame, and it can be the refusal.
+        if (!accepted && buffer.trim() && scan("\n") === "error") {
+            watcher?.onFailed?.()
+            return false
+        }
     } catch {
         // A dropped connection says nothing about the turn either way, so it reports nothing.
     }
+    return accepted
 }
 
 export const parkedInputIdFromBody = (body: unknown): string | null => {
@@ -286,10 +290,13 @@ export const useServerSessionInputs = ({
             // A 200 only proves the request was taken: the turn is accepted when the stream's
             // first frame names it, and a stream that ends without one never started a turn.
             void readRunAdmission(response, watcher)
-                .then(async () => {
+                .then(async (accepted) => {
                     await refresh()
                     onExecutedRef.current?.()
-                    watcher?.onSettled?.()
+                    // ONLY for a turn this stream actually named. Silence means the runner never
+                    // emits acceptance on this path, not that nothing was sent, and settling on
+                    // it would put "wasn't sent" under a message that was.
+                    if (accepted) watcher?.onSettled?.()
                 })
                 .catch(() => undefined)
             return "running"

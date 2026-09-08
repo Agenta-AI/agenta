@@ -54,8 +54,28 @@ describe("readRunAdmission", () => {
 
     it("reads a final frame with no trailing newline", async () => {
         const w = watcher()
-        await readRunAdmission(streamOf([accepted("turn-4").trimEnd()]), w)
+        await expect(readRunAdmission(streamOf([accepted("turn-4").trimEnd()]), w)).resolves.toBe(
+            true,
+        )
         expect(w.onAccepted).toHaveBeenCalledWith("turn-4")
+    })
+
+    it("reads a final REFUSAL with no trailing newline", async () => {
+        // The trailing-frame rescan used to throw away an error verdict, so the same refusal
+        // reported nothing without a newline and onFailed with one.
+        const w = watcher()
+        const frame = `data: ${JSON.stringify({type: "error", errorText: "refused"})}`
+        await expect(readRunAdmission(streamOf([frame]), w)).resolves.toBe(false)
+        expect(w.onFailed).toHaveBeenCalledTimes(1)
+    })
+
+    it("reports whether the turn was named, which is what gates settlement", async () => {
+        const ok = watcher()
+        await expect(readRunAdmission(streamOf([accepted("turn-7")]), ok)).resolves.toBe(true)
+        const silent = watcher()
+        await expect(
+            readRunAdmission(streamOf(['data: {"type":"start"}\n']), silent),
+        ).resolves.toBe(false)
     })
 
     it("reports failure for an error frame before acceptance", async () => {
