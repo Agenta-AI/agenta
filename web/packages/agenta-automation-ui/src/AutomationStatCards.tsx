@@ -16,7 +16,12 @@ import {STATS_WINDOW_DAYS, type AutomationStats} from "./useAutomationStats"
  */
 export const AutomationStatCards = ({stats}: {stats: AutomationStats}) => (
     <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-        <StatCard label="Total automations" value={stats.total} ready />
+        <StatCard
+            label="Total automations"
+            value={stats.total}
+            note={`${stats.working} working`}
+            ready
+        />
         <StatCard
             label={`Successful · ${STATS_WINDOW_DAYS}d`}
             value={stats.succeeded}
@@ -35,11 +40,18 @@ export const AutomationStatCards = ({stats}: {stats: AutomationStats}) => (
 const StatCard = ({
     label,
     value,
+    note,
     ready,
     atLeast = false,
 }: {
     label: string
     value: number
+    /**
+     * A second, smaller fact on the number's own line — how many of the total are on.
+     * Beside the number rather than under it, so one card carrying it does not make all three
+     * taller.
+     */
+    note?: string
     ready: boolean
     /** The real number is this or higher — the window was capped. */
     atLeast?: boolean
@@ -47,9 +59,16 @@ const StatCard = ({
     <div className="min-w-0 rounded-lg border border-solid border-border bg-card px-4 py-3">
         <p className="m-0 truncate text-[13px] text-muted-foreground">{label}</p>
         {ready ? (
-            <p className="m-0 mt-1.5 text-[26px] font-medium leading-none text-foreground">
-                {value}
-                {atLeast ? <span className="text-muted-foreground">+</span> : null}
+            <p className="m-0 mt-1.5 flex items-baseline gap-2 text-[26px] font-medium leading-none text-foreground">
+                <span>
+                    {value}
+                    {atLeast ? <span className="text-muted-foreground">+</span> : null}
+                </span>
+                {note ? (
+                    <span className="truncate text-[13px] font-normal text-muted-foreground">
+                        {note}
+                    </span>
+                ) : null}
             </p>
         ) : (
             <Skeleton className="mt-1.5 h-[26px] w-12" />

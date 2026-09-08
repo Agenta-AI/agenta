@@ -89,7 +89,7 @@ export const AutomationListScreen = ({
     // The unfiltered list is what "total" counts — `useAutomations(search)` narrows in place, and
     // a headline that drops as you type is a search result, not a total.
     const {automations: allAutomations} = useAutomations()
-    const stats = useAutomationStats(allAutomations.length)
+    const stats = useAutomationStats(allAutomations)
 
     // Same roster `useAutomations` already reads for its search, so the name in a row and the
     // name it matched on can never disagree.

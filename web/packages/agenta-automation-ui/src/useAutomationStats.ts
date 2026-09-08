@@ -2,7 +2,7 @@ import {useMemo} from "react"
 
 import {useProjectTriggerDeliveries} from "@agenta/entities/gatewayTrigger"
 
-import {deliveryOutcome} from "./automationModel"
+import {automationStatus, deliveryOutcome, type Automation} from "./automationModel"
 
 /** The window the outcome counts are taken over, and the only one the cards claim. */
 export const STATS_WINDOW_DAYS = 7
@@ -10,6 +10,8 @@ export const STATS_WINDOW_DAYS = 7
 export interface AutomationStats {
     /** All automations that exist, of either kind — not windowed. */
     total: number
+    /** How many of them are on. The rest are stopped, which is a choice, not a fault. */
+    working: number
     succeeded: number
     failed: number
     /**
@@ -24,9 +26,13 @@ export interface AutomationStats {
 /**
  * The three numbers above the automations list.
  *
- * They come from two places on purpose: how many automations exist is a fact about the list
- * already on screen, so it is passed in rather than refetched, while the outcome counts need the
- * project's deliveries — one windowed query, counted here.
+ * They come from two places on purpose: how many automations exist — and how many of those are
+ * on — is a fact about the list already on screen, so the rows are passed in rather than
+ * refetched, while the outcome counts need the project's deliveries — one windowed query,
+ * counted here.
+ *
+ * "Working" is read through `automationStatus`, the same call the table's Status column makes, so
+ * the headline and the column below it can never disagree about what is running.
  *
  * Counting is client-side because the split is not queryable: an outcome lives in
  * `status.message` ("success" / "failed" / "dispatched") and the endpoint filters only on
@@ -36,8 +42,15 @@ export interface AutomationStats {
  * The two halves do not share a denominator — the total is all-time and the outcomes are the last
  * seven days — which is why every card states its own window in its label.
  */
-export const useAutomationStats = (total: number): AutomationStats => {
+export const useAutomationStats = (automations: Automation[]): AutomationStats => {
     const {deliveries, truncated, isLoading, error} = useProjectTriggerDeliveries(STATS_WINDOW_DAYS)
+
+    const working = useMemo(
+        // No delivery history is read per row here, so nothing claims a recent failure: this
+        // separates on from stopped, which is the only split the card states.
+        () => automations.filter((a) => automationStatus(a, false) === "working").length,
+        [automations],
+    )
 
     const {succeeded, failed} = useMemo(() => {
         let ok = 0
@@ -52,7 +65,8 @@ export const useAutomationStats = (total: number): AutomationStats => {
     }, [deliveries])
 
     return {
-        total,
+        total: automations.length,
+        working,
         succeeded,
         failed,
         truncated,
