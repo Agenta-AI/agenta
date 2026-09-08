@@ -948,10 +948,10 @@ subscription row would flow through it with two changes:
 | `web/packages/agenta-entities/src/secret/core/connections.ts:83-118` | map the new kind in `toProviderConnections` |
 | `web/packages/agenta-entities/src/secret/core/agentModelCandidates.ts:142-197` | emit `mode: "self_managed"` with a real `slug` for the new kind |
 
-One blocker to fix either way: `Connection._reject_slug_for_self_managed` at
-`sdks/python/agenta/sdk/agents/connections/models.py:67-74` **rejects a self-managed connection that
-carries a slug**. A hosted connection needs both, so that validator must change. This is the single
-smallest edit that unblocks the whole design, and it is worth doing first.
+This blocker is now fixed. `Connection._reject_slug_for_self_managed` in
+`sdks/python/agenta/sdk/agents/connections/models.py` **rejected a self-managed connection that
+carried a slug**, and a hosted connection needs both. The validator was removed on 2026-09-08, so a
+`self_managed` connection may now name a slug.
 
 Also worth fixing while here: the `openai-codex` family never reaches the picker because the runner
 flattens it to `openai` at `services/runner/src/subscription-status.ts:91`, so the seven real codex

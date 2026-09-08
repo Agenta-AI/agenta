@@ -292,6 +292,14 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                     for server in resolved_mcp
                     for credential in server.credentials
                 ),
+                # A hosted subscription login is secret-bearing but rides its own block, not
+                # `credentials`, so seed its tokens here or they stay loggable.
+                *(
+                    resolved_connection.subscription.secret_values()
+                    if resolved_connection
+                    and resolved_connection.subscription is not None
+                    else []
+                ),
             ]
         )
 

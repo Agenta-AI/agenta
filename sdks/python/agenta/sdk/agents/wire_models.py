@@ -108,6 +108,23 @@ class WireCredential(_WireModel):
     usage: Literal["opaque_http", "local_use"]
 
 
+class WireSubscription(_WireModel):
+    """The hosted subscription login delivered with a runtime-provided connection.
+
+    Not a credential binding: ``login`` is the harness's own OAuth credential file, which the
+    runner writes to disk before the session starts and reads back after a turn. ``version``
+    and ``generation`` order two logins; the runner pushes a newer login home against
+    ``version`` and folds ``generation`` into the warm-session fingerprint.
+    """
+
+    id: str
+    slug: str
+    provider: str
+    version: int = 0
+    generation: int = 0
+    login: Dict[str, Any] = Field(default_factory=dict)
+
+
 class WireModelConnection(_WireModel):
     """Resolved model routing, non-secret environment, and credentials for one run."""
 
@@ -119,6 +136,7 @@ class WireModelConnection(_WireModel):
     )
     environment: Optional[Dict[str, str]] = None
     credentials: List[WireCredential] = Field(default_factory=list)
+    subscription: Optional[WireSubscription] = None
 
 
 class WireModelCapabilities(_WireModel):

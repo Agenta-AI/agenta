@@ -1183,6 +1183,72 @@ def test_request_to_wire_carries_consumer_owned_model_connection():
         assert removed not in payload
 
 
+def test_request_to_wire_carries_the_hosted_subscription_block():
+    # A hosted subscription run: the harness still owns authentication (runtime_provided, no
+    # credentials), and Agenta delivers the login the harness signs in with.
+    from agenta.sdk.agents.connections import Connection, ResolvedSubscription
+    from agenta.sdk.agents.dtos import ModelRef
+
+    login = {
+        "type": "oauth",
+        "access": "access-token",
+        "refresh": "refresh-token",
+        "expires": 1789000000000,
+        "accountId": "acct-1",
+    }
+    config = PiAgentTemplate(
+        model="openai-codex/gpt-5.5",
+        model_ref=ModelRef(
+            model="gpt-5.5",
+            provider="openai-codex",
+            connection=Connection(mode="self_managed", slug="chatgpt"),
+        ),
+        resolved_connection=ResolvedConnection(
+            provider="openai-codex",
+            model="gpt-5.5",
+            credential_mode="runtime_provided",
+            subscription=ResolvedSubscription(
+                id="0199-secret-id",
+                slug="chatgpt",
+                provider="chatgpt",
+                version=3,
+                generation=1,
+                login=login,
+            ),
+        ),
+    )
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["model"] == "openai-codex/gpt-5.5"
+    # The author's choice still rides `connection`; the resolved login rides `modelConnection`.
+    assert payload["connection"] == {"mode": "self_managed", "slug": "chatgpt"}
+    assert payload["modelConnection"] == {
+        "provider": "openai-codex",
+        "deployment": "direct",
+        "credentialMode": "runtime_provided",
+        "credentials": [],
+        "subscription": {
+            "id": "0199-secret-id",
+            "slug": "chatgpt",
+            "provider": "chatgpt",
+            "version": 3,
+            "generation": 1,
+            "login": login,
+        },
+    }
+    # The schema must describe what the producer emits, or the runner mirror drifts.
+    parsed = WireRunRequest.model_validate(payload)
+    assert parsed.model_connection is not None
+    assert parsed.model_connection.subscription is not None
+    assert parsed.model_connection.subscription.login == login
+
+
 @pytest.mark.parametrize(
     ("provider", "model", "expected"),
     [

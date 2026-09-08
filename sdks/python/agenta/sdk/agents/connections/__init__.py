@@ -16,6 +16,7 @@ from .errors import (
     MissingCredentialError,
     MissingProviderError,
     ProviderMismatchError,
+    SubscriptionLoginRequiredError,
     UnsupportedConnectionModeError,
     UnsupportedDeploymentError,
     UnsupportedProviderError,
@@ -32,6 +33,7 @@ from .models import (
     ModelRef,
     ResolvedConnection,
     ResolvedCredential,
+    ResolvedSubscription,
     RuntimeAuthContext,
 )
 from .resolver import EnvConnectionResolver, StaticConnectionResolver
@@ -44,6 +46,7 @@ __all__ = [
     "ModelRef",
     "ResolvedConnection",
     "ResolvedCredential",
+    "ResolvedSubscription",
     "RuntimeAuthContext",
     "CredentialMode",
     "CredentialUsage",
@@ -62,6 +65,7 @@ __all__ = [
     "MissingProviderError",
     "AmbiguousConnectionError",
     "ProviderMismatchError",
+    "SubscriptionLoginRequiredError",
     "UnsupportedProviderError",
     "UnsupportedConnectionModeError",
     "UnsupportedDeploymentError",
