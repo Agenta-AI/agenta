@@ -55,12 +55,34 @@ class MissingCredentialError(ConnectionResolutionError):
         self.slug = slug
 
 
+class SubscriptionConnectionMissingError(ConnectionResolutionError):
+    """Raised when the config names a subscription connection the project does not hold.
+
+    A typo, or a ``self_managed`` slug that names a provider-key secret instead. Nothing is
+    wrong with any sign-in, so this must NOT reach the browser as
+    :class:`SubscriptionLoginRequiredError` did: telling a user to sign in again answers a
+    question they did not ask, and signing in cannot fix the name in the config.
+    """
+
+    # A config naming a connection the project does not hold is a client error.
+    status_code = 422
+    failure_code = "subscription_connection_missing"
+
+    def __init__(self, *, slug: str) -> None:
+        # The message names ChatGPT because `chatgpt` is the only subscription provider today.
+        super().__init__(
+            f"No ChatGPT connection named '{slug}'. Check the agent's model connection."
+        )
+        self.slug = slug
+
+
 class SubscriptionLoginRequiredError(ConnectionResolutionError):
     """Raised when a hosted subscription connection has no login a run can use.
 
-    Three cases, one answer: the named subscription secret does not exist, its
-    ``login_state`` is not ``ready``, or it holds no login. All three mean the same thing to
-    the person running the agent, so they share one message and one code.
+    Two cases, one answer: the row's ``login_state`` is not ``ready``, or it holds no login.
+    Both mean the same thing to the person running the agent, so they share one message and
+    one code. A connection that does not exist at all is
+    :class:`SubscriptionConnectionMissingError`: no sign-in would fix it.
 
     ``failure_code`` is the stable slug a client keys its "Sign in again" affordance on. The
     runner emits the same slug when a live turn's login is rejected, so the client handles one

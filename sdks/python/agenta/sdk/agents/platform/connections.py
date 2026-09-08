@@ -40,6 +40,7 @@ from ..connections import (
     ResolvedConnection,
     ResolvedSubscription,
     RuntimeAuthContext,
+    SubscriptionConnectionMissingError,
     SubscriptionLoginRequiredError,
     SubscriptionNotSupportedError,
     UnsupportedConnectionModeError,
@@ -654,12 +655,15 @@ def _resolve_subscription(
             harness=harness, provider=chosen.provider if chosen else ""
         )
 
-    if chosen is None or not chosen.is_ready():
-        # One error for a missing record, a not-ready state, and an absent login: the person
-        # takes the same action in all three cases. Never name the login or its state here.
-        raise SubscriptionLoginRequiredError(
-            slug=slug, provider=chosen.provider if chosen else ""
-        )
+    if chosen is None:
+        # The config names a connection this project does not hold. Signing in cannot fix a
+        # name, so this is not the sign-in prompt.
+        raise SubscriptionConnectionMissingError(slug=slug)
+
+    if not chosen.is_ready():
+        # One error for a not-ready state and an absent login: the person takes the same
+        # action in both cases. Never name the login or its state here.
+        raise SubscriptionLoginRequiredError(slug=slug, provider=chosen.provider)
 
     if chosen.provider not in _SUBSCRIPTION_PROVIDERS:
         raise SubscriptionNotSupportedError(harness=harness, provider=chosen.provider)

@@ -88,6 +88,25 @@ describe("RunErrorBody", () => {
         expect(rendered).not.toContain("Try again")
     })
 
+    it("offers no verb at all when the config names a connection that does not exist", () => {
+        // Signing in again cannot fix a name, and neither can re-running the same config, so
+        // the message stands on its own. `subscription_connection_missing` must never join
+        // the sign-in codes.
+        const rendered = text(
+            <RunErrorBody
+                text="No ChatGPT connection named 'chatgpt-personal'. Check the agent's model connection."
+                stateKey="turn-sub-3"
+                code="subscription_connection_missing"
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("No ChatGPT connection named")
+        expect(rendered).not.toContain("Sign in again")
+        expect(rendered).not.toContain("Try again")
+        expect(rendered).not.toContain("Add your key")
+    })
+
     it("offers Try again when another session already refreshed the sign-in", () => {
         const rendered = text(
             <RunErrorBody

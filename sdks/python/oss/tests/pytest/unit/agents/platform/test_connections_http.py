@@ -14,6 +14,7 @@ from agenta.sdk.agents.connections import (
     ModelRef,
     ProviderMismatchError,
     RuntimeAuthContext,
+    SubscriptionConnectionMissingError,
     SubscriptionLoginRequiredError,
     SubscriptionNotSupportedError,
 )
@@ -1218,13 +1219,28 @@ async def test_subscription_without_a_ready_login_fails_loud(
     )
 
 
-async def test_subscription_with_an_unknown_slug_fails_loud(fake_http, connection):
+async def test_subscription_with_an_unknown_slug_names_the_connection(
+    fake_http, connection
+):
+    """A name the project does not hold is a config problem, not a sign-in problem.
+
+    It used to raise the sign-in error, which sent a user with a typo to the AI providers
+    page to sign in again. No sign-in can fix a name.
+    """
     fake_http(connections, payload=[_subscription_secret(slug="other")])
 
-    with pytest.raises(SubscriptionLoginRequiredError):
+    with pytest.raises(SubscriptionConnectionMissingError) as raised:
         await VaultConnectionResolver(connection).resolve(
             model=_subscription_model(), context=_context()
         )
+
+    assert raised.value.failure_code == "subscription_connection_missing"
+    assert raised.value.status_code == 422
+    assert str(raised.value) == (
+        "No ChatGPT connection named 'chatgpt'. Check the agent's model connection."
+    )
+    # Not the sign-in error: a client keys its "Sign in again" verb on that one.
+    assert not isinstance(raised.value, SubscriptionLoginRequiredError)
 
 
 async def test_subscription_error_never_names_the_login(fake_http, connection):
