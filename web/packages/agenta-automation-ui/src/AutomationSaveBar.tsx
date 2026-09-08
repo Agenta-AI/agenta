@@ -32,9 +32,8 @@ export const AutomationSaveBar = ({
     >
         <Button
             type="button"
-            size={bare ? "default" : "sm"}
             variant="outline"
-            className={bare ? "font-normal" : "text-xs font-normal"}
+            className="font-normal"
             disabled={saving || !dirty}
             onClick={onDiscard}
         >
@@ -42,8 +41,7 @@ export const AutomationSaveBar = ({
         </Button>
         <Button
             type="button"
-            size={bare ? "default" : "sm"}
-            className={bare ? "font-normal" : "text-xs font-normal"}
+            className="font-normal"
             disabled={saving || !dirty}
             onClick={onSave}
         >
