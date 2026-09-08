@@ -1087,7 +1087,16 @@ class ChannelsDAO(ChannelsDAOInterface):
                     ChannelThreadDBE.project_id == project_id,
                     ChannelThreadDBE.space_id == space_id,
                     ChannelThreadDBE.external_key == external_key,
-                    ChannelThreadDBE.data["pending_choice"].isnot(None),
+                    # JSON `null` passes a bare IS NOT NULL, and a cleared choice
+                    # is written as JSON null; exclude it, and inactive rows,
+                    # BEFORE the limit, or a newer cleared/closed row can hide an
+                    # older thread that is genuinely still waiting.
+                    # a cleared choice is stored as JSON null, which passes a
+                    # bare IS NOT NULL; compare the text form, which `json`
+                    # supports where `<>` on the json value itself does not.
+                    ChannelThreadDBE.data["pending_choice"].astext.isnot(None),
+                    ChannelThreadDBE.data["pending_choice"].astext != "null",
+                    ChannelThreadDBE.flags["is_active"].astext == "true",
                 )
                 .order_by(ChannelThreadDBE.created_at.desc())
                 .limit(1)
@@ -1096,8 +1105,7 @@ class ChannelsDAO(ChannelsDAOInterface):
             thread_dbe = result.scalars().first()
             if not thread_dbe:
                 return None
-            thread = map_thread_dbe_to_dto(thread_dbe=thread_dbe)
-            return thread if thread.flags.is_active else None
+            return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
 
     async def query_threads(
         self,

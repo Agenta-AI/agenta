@@ -164,7 +164,9 @@ class InboxDispatcher:
             interaction_id=UUID(interaction_id),
             answer={"approved": approved, "message": resolution.resolved_choice},
         )
-        # the question is answered: a second click must not answer it again
+        # clear the question so the common case (a later card supersedes it) has
+        # nothing stale to resolve against; this is not a concurrency guard --
+        # two clicks racing before either clears is a known follow-up (F101).
         await self.channels_service.channels_dao.set_pending_choice(
             project_id=project_id,
             thread_id=resolution.thread.id,
