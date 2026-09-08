@@ -356,3 +356,295 @@ Do not build Claude through Pi. Section 1b is the reason.
 
 ## Open questions for Mahmoud
 
+
+## Survey: subscription logins across coding agents
+
+Research only, read on 2026-09-08. No code changed. The earlier pass looked only at the OAuth
+exports of the installed pi-ai. This pass reads the whole `/login` code path in the installed
+package, the current upstream Pi repository, the Hermes Agent source, and fourteen other coding
+agents. The goal is one list of every subscription login that a coding agent can sign in with, so
+Agenta can choose which subscriptions to host. No token value and no credential value is recorded
+here.
+
+### Method and sources
+
+| Source | What was read |
+| --- | --- |
+| Installed Pi 0.80.6 | `services/runner/node_modules/.pnpm/@earendil-works+pi-coding-agent@0.80.6_*/node_modules/@earendil-works/pi-coding-agent` and the matching `pi-ai` package, `dist` with source maps, and the bundled `docs/`. |
+| Pi upstream | [github.com/earendil-works/pi](https://github.com/earendil-works/pi) at commit `6160683a4a8012f0d1cd30c145df18b4ca6f5176`, dated 2026-09-08. |
+| Hermes Agent | [github.com/NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) at commit `c8aa5608c24e3636e77c267650c0f1f52e44adb0`, dated 2026-09-08, version 0.21.1. |
+| Fourteen other agents | Source files on `raw.githubusercontent.com` and vendor documentation. Each claim below carries its URL. |
+
+### 6. What Pi's `/login` really offers
+
+The earlier pass was correct about OAuth, and incomplete about `/login`. The `/login` command is a
+two step selector, and only the first branch is a subscription.
+
+`showLoginAuthTypeSelector` in
+`dist/modes/interactive/interactive-mode.js` line 4044 offers two options, "Use a subscription" and
+"Use an API key". `getLoginProviderOptions` at line 3967 builds each branch differently:
+
+- The subscription branch is `authStorage.getOAuthProviders()`. In 0.80.6 that is exactly three
+  entries: `anthropic`, `github-copilot`, `openai-codex`.
+- The API key branch is every model provider in the registry that passes `isApiKeyLoginProvider`
+  at line 130. That is 37 providers, and it includes OpenRouter, Z.AI, Kimi For Coding, MiniMax,
+  Cerebras, Groq, Mistral, Vercel AI Gateway, and OpenCode Zen.
+
+`formatAuthSelectorProviderType` in `dist/modes/interactive/components/oauth-selector.js` line 4
+prints the label: `authType === "oauth"` shows `[subscription]`, everything else shows `[API key]`.
+So an entry such as OpenRouter is in the `/login` list, but it is an API key that the user types in,
+not a subscription that Pi logs in to.
+
+The full API key list in 0.80.6, read from `dist/providers/`, is: Anthropic, Ant Ling, AWS
+credentials, Azure OpenAI, Cerebras, Cloudflare AI Gateway, Cloudflare Workers AI, DeepSeek,
+Fireworks, GitHub Copilot, Google, Google Cloud credentials, Groq, Hugging Face, Kimi For Coding,
+MiniMax, MiniMax CN, Mistral, Moonshot AI, Moonshot AI CN, NVIDIA, OpenAI, OpenAI Codex, OpenCode
+Zen, OpenCode Zen Go, OpenRouter, Together, Vercel AI Gateway, xAI, Xiaomi, three Xiaomi Token Plan
+regions, Z.AI, and Z.AI Coding CN.
+
+The bundled `docs/providers.md` agrees. Its "Subscriptions" section lists three items, ChatGPT
+Plus/Pro (Codex), Claude Pro/Max, and GitHub Copilot, and its "API Keys" section lists the rest.
+
+### 6a. "cai" is not a provider
+
+There is no provider with the id `cai` in Pi 0.80.6, in Pi upstream, in Hermes Agent, in OpenCode,
+or in the models.dev catalog that OpenCode, Cline, and Kilo Code all read. A search of the Pi
+repository for `cai` returns only base64 fragments inside lock file integrity hashes and one
+contributor handle.
+
+The entry Mahmoud saw is a fuzzy filter artifact. `filterProviders` in `oauth-selector.js` line 68
+matches the query against `` `${provider.name} ${provider.id} ${provider.authType}` ``, and
+`fuzzyFilter` in the Pi TUI package is a subsequence match. The letters c, a, and i in that order
+match 17 of the 36 rows. The top two hits are **Vercel AI Gateway** and **Cloudflare AI Gateway**.
+Many of the other hits match only because the literal string `api_key` supplies the a and the i.
+Nothing is hidden. Typing `cai` selects a real provider from that list, and never a provider called
+`cai`.
+
+### 6b. Pi upstream 0.85.1 adds four more subscription logins
+
+Pi is now at 0.85.1, published 2026-09-05, for both `@earendil-works/pi-coding-agent` and
+`@earendil-works/pi-ai`. The runner is 14 releases behind. The OAuth code moved from
+`packages/ai/src/utils/oauth/` to
+[`packages/ai/src/auth/oauth/`](https://github.com/earendil-works/pi/tree/6160683a4a8012f0d1cd30c145df18b4ca6f5176/packages/ai/src/auth/oauth),
+and each provider now owns its login through an `auth.oauth` field.
+
+| Pi OAuth provider | Added in | Flow | Subscription |
+| --- | --- | --- | --- |
+| `anthropic` | before 0.80.6 | PKCE, local callback, paste fallback | Yes, Claude Pro/Max |
+| `openai-codex` | before 0.80.6 | Device code, and a browser callback | Yes, ChatGPT Plus/Pro |
+| `github-copilot` | before 0.80.6 | Device code | Yes, a Copilot seat |
+| `xai` | 0.80.8 | Device code, labelled "Sign in with SuperGrok or X Premium" | Yes, `isSubscription: true` |
+| `openrouter` | 0.82.0 | OAuth PKCE that mints an API key | No, prepaid credits |
+| `kimi-coding` | 0.82.0 | Device authorization | Yes, `isSubscription: true` |
+| `radius` | 0.80.8 | Device authorization against a configured gateway | No, a gateway |
+
+Three upstream changes matter to the design:
+
+1. **`registerOAuthProvider()` is gone.** 0.80.8 removed the registry and stopped exporting
+   `AuthStorage`. A custom OAuth provider is now registered through
+   `pi.registerProvider(id, { oauth: { name, login, refreshToken, getApiKey, isSubscription } })`,
+   documented in
+   [`packages/coding-agent/docs/custom-provider.md`](https://github.com/earendil-works/pi/blob/6160683a4a8012f0d1cd30c145df18b4ca6f5176/packages/coding-agent/docs/custom-provider.md).
+   `refreshToken` must accept and honour an `AbortSignal` since 0.84.0. This is the extension point
+   Agenta would use to add a provider Pi does not ship.
+2. **0.83.0 added `pi auth print-api-key` and `pi auth print-bearer-token`.** Both export the
+   resolved credential and refresh it first. That is a clean way for the runner to hand a live
+   token to another process.
+3. **0.83.0 made OpenRouter login headless** by accepting a pasted redirect URL or auth code.
+
+### 6c. Pi bills Claude subscription use as extra usage
+
+`docs/providers.md` in the installed 0.80.6 package states it plainly: "Third-party harness usage
+draws from extra usage and is billed per token, not against Claude plan limits." A user who
+connects Claude through Pi therefore pays per token on top of the plan. That is a product fact for
+the connect card.
+run Claude through Pi.
+
+### 7. Hermes Agent by Nous Research
+
+Hermes Agent is the most complete subscription login surface of any agent in this survey. It is
+public, MIT licensed, Python, and at version 0.21.1. The registries are `PROVIDER_REGISTRY` and
+`OAUTH_PROVIDER_FLOWS` in
+[`hermes_cli/auth.py`](https://github.com/NousResearch/hermes-agent/blob/c8aa5608c24e3636e77c267650c0f1f52e44adb0/hermes_cli/auth.py),
+and `_OAUTH_CAPABLE_PROVIDERS` in
+[`hermes_cli/auth_commands.py`](https://github.com/NousResearch/hermes-agent/blob/c8aa5608c24e3636e77c267650c0f1f52e44adb0/hermes_cli/auth_commands.py).
+
+| Hermes provider | Flow | Stored at | Refresh | Subscription |
+| --- | --- | --- | --- | --- |
+| `anthropic` | PKCE, paste the code, no local server | `~/.hermes/.anthropic_oauth.json` | Yes, rotating | Yes, Claude Pro/Max |
+| `openai-codex` | Device code at `auth.openai.com` | `~/.hermes/auth.json` | Yes, rotating | Yes, ChatGPT Plus/Pro |
+| `nous` | Device code at the Nous Portal | `~/.hermes/auth.json` | Yes | Yes, 20 to 200 dollars per month |
+| `xai-oauth` | Device code, OIDC discovery at `auth.x.ai` | `~/.hermes/auth.json` | Yes, rotating | Yes, SuperGrok or X Premium+ |
+| `minimax-oauth` | User code plus PKCE | `~/.hermes/auth.json` | Yes | A portal account, not a paid tier |
+| `qwen-oauth` | No login of its own. It reads and refreshes the Qwen Code CLI file. | `~/.qwen/oauth_creds.json` | Yes, writes back | A Qwen portal account |
+| `copilot` | GitHub device flow | An environment variable or `gh auth token` | The Copilot JWT exchange | Yes, a Copilot seat |
+
+Every model provider login in Hermes is headless. None uses a local callback. Hermes documents this
+in
+[`website/docs/guides/oauth-over-ssh.md`](https://github.com/NousResearch/hermes-agent/blob/c8aa5608c24e3636e77c267650c0f1f52e44adb0/website/docs/guides/oauth-over-ssh.md),
+and `_is_remote_session()` in `hermes_cli/auth_device_flow.py` suppresses the browser when it sees
+an SSH or cloud IDE environment. The only loopback flows are Spotify and remote MCP servers.
+
+Hermes refuses several providers that people assume it has. OpenRouter, Google Gemini, Z.ai, Kimi,
+plain MiniMax, and Vercel are API key only. Cerebras and Groq are absent from the repository.
+
+Two Hermes details are worth copying and one is worth avoiding:
+
+- Copy the paste flow. `run_hermes_oauth_login_pure` in `agent/anthropic_credentials.py` line 512
+  is a complete, headless Claude Pro/Max login that needs no local server.
+- Copy the quarantine. An `invalid_grant` result quarantines the credential and asks the user to
+  sign in again, rather than retrying forever.
+- Avoid a concurrent refresh. `REFRESHABLE_OAUTH_PROVIDERS` in `agent/credential_pool.py` line 890
+  covers `anthropic`, `nous`, `openai-codex`, and `xai-oauth`, and the Nous refresh token is single
+  use. Two workers that refresh at the same time revoke the user's session.
+
+### 8. Every other coding agent, one line each
+
+| Agent | Source | Subscription logins | Headless or device flow |
+| --- | --- | --- | --- |
+| OpenCode | `sst/opencode`, now [anomalyco/opencode](https://github.com/anomalyco/opencode), branch `dev` | ChatGPT Plus/Pro, GitHub Copilot, GitLab Duo, Poe, DigitalOcean, Azure Entra ID, Snowflake, xAI SuperGrok, OpenCode Console. Claude Pro/Max was removed in 1.3.0. | Yes, four device flows |
+| Crush | [charmbracelet/crush](https://github.com/charmbracelet/crush) | Charm Hyper, GitHub Copilot | Yes, both device flows |
+| Cline | [cline/cline](https://github.com/cline/cline) | A Cline account through WorkOS, ChatGPT Codex, plus pass through to the `claude-code`, `codex`, and `opencode` CLIs | Yes for the Cline account. ChatGPT is `localhost:1455` only. |
+| Kilo Code | [Kilo-Org/kilocode](https://github.com/Kilo-Org/kilocode), now an OpenCode fork | ChatGPT, GitHub Copilot, xAI, a Kilo Gateway account, DigitalOcean, Snowflake, Cloudflare, GitLab, Poe | Yes, four device flows, labelled headless |
+| Roo Code | [RooCodeInc/Roo-Code](https://github.com/RooCodeInc/Roo-Code), archived 2026-05-15 | ChatGPT PKCE, Qwen Code credential import, OpenRouter | No, every flow needs a browser callback |
+| Continue | [continuedev/continue](https://github.com/continuedev/continue) | None. The hub login is a stub that throws. | Not applicable |
+| Aider | [Aider-AI/aider](https://github.com/Aider-AI/aider) | OpenRouter PKCE only, which yields an API key | No, it binds ports 8484 to 8584 |
+| Goose | [block/goose](https://github.com/block/goose) | GitHub Copilot, Kimi for Coding, ChatGPT, Gemini Code Assist, plus pass through to other CLIs | Yes for Copilot and Kimi. No for ChatGPT and Gemini. |
+| Amp | Sourcegraph, `@ampcode/cli` | An Amp account. The web account can link ChatGPT and Grok. No Claude Pro/Max. | No. Headless means pasting an `AMP_API_KEY`. |
+| Factory Droid | `@factory/cli` | A Factory account through WorkOS | Yes, RFC 8628 device code |
+| Cursor CLI | `cursor-agent` | The Cursor Pro or Business subscription | Yes in effect. It prints a URL and long polls, with no local callback. |
+| Gemini CLI | [google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli) | A Google account through Gemini Code Assist | Partly. `NO_BROWSER=true` gives a paste flow, but it needs a TTY. |
+| Codex CLI | [openai/codex](https://github.com/openai/codex) | ChatGPT Plus, Pro, and Business | Yes, `codex login --device-auth`, plus `--with-access-token` on stdin |
+| Claude Code | Anthropic, closed source | Claude Pro, Max, Team, Enterprise | Partly. The browser flow has a paste fallback, and `claude setup-token` mints a one year token. |
+| Grok CLI | `xai-org/grok-build` | SuperGrok and X Premium+ | Yes, `grok login --device-auth`, and it is documented |
+
+Three of these show a flow Agenta could reuse, so they get more detail.
+
+**OpenCode, the ChatGPT device flow.** The file is
+[`packages/opencode/src/plugin/openai/codex.ts`](https://raw.githubusercontent.com/anomalyco/opencode/dev/packages/opencode/src/plugin/openai/codex.ts),
+and the method is labelled "ChatGPT Pro/Plus (headless)". It posts to
+`https://auth.openai.com/api/accounts/deviceauth/usercode` with the public client id
+`app_EMoamEEZ73f0CkXaXp7hrann`, sends the user to `https://auth.openai.com/codex/device`, polls
+`/api/accounts/deviceauth/token`, and treats 403 and 404 as "keep polling". It then exchanges the
+authorization code at `/oauth/token`. These are the same endpoints and the same client id that Pi
+0.80.6 uses in `dist/utils/oauth/openai-codex.js` lines 22 to 30, that Codex CLI uses, and that
+Hermes uses. Agenta already implements this flow.
+
+The important part for us is storage.
+[`packages/opencode/src/auth/index.ts`](https://raw.githubusercontent.com/anomalyco/opencode/dev/packages/opencode/src/auth/index.ts)
+reads the whole credential file from the environment variable `OPENCODE_AUTH_CONTENT`. Kilo Code
+has the same escape hatch as `KILO_AUTH_CONTENT`. That is exactly the injection shape the shipped
+Agenta design needs, and it removes the need to write a file into the sandbox.
+
+**GitHub Copilot, the device flow that four agents share.** The flow is GitHub's own documented
+device flow. The second step is not documented: the GitHub token must be exchanged at
+`https://api.github.com/copilot_internal/v2/token` for a Copilot JWT that lives about 30 minutes.
+Pi 0.80.6 hides its client id from secret scanners by base64 encoding it in
+`dist/utils/oauth/github-copilot.js` line 7. Decoded, it is `Iv1.b507a08c87ecfe98`, which is the
+Visual Studio Code Copilot application id. Crush and Goose use the same value. OpenCode and Kilo
+Code use `Ov23li8tweQw6odWQebz`. A caller that registers its own GitHub application gets a 404 from
+the exchange endpoint, so there is no compliant client id to use. The durable credential is the
+GitHub token, which never rotates.
+
+**Claude, the two headless paths.** The browser flow has a documented paste fallback for exactly
+our case: "This happens when the browser can't reach Claude Code's local callback server, which is
+common in WSL2, SSH sessions, and containers"
+([code.claude.com/docs/en/authentication](https://code.claude.com/docs/en/authentication)). Separately,
+`claude setup-token` mints a one year token that the user exports as `CLAUDE_CODE_OAUTH_TOKEN`, and
+that token can only make model requests. This confirms section 1e.
+
+### 9. The provider side
+
+This table answers one question per provider: can a user connect a plan they already pay for, and
+may they.
+
+| Provider | Paid plan behind the login | Headless login | Credential |
+| --- | --- | --- | --- |
+| OpenAI ChatGPT Codex | Plus, Pro, Business | Yes, device code, but the account or the workspace admin must enable it | Access, refresh, and id tokens |
+| Anthropic Claude | Pro, Max, Team | Paste a code, or a one year `setup-token` | Access and refresh, opaque |
+| GitHub Copilot | Pro, Pro+, Max, Business, Enterprise | Yes, GitHub device flow | A GitHub token, exchanged for a 30 minute JWT |
+| Google Gemini | AI Pro, Ultra, Code Assist | No. Loopback only. Headless means an API key. | OAuth tokens |
+| xAI SuperGrok | SuperGrok, X Premium+ | Yes, device code at `auth.x.ai` | Access and refresh |
+| Kimi, Moonshot | Kimi membership | Yes, RFC 8628, documented and MIT licensed | Access and refresh |
+| MiniMax | A token plan | Yes, RFC 8628 with PKCE | Access and refresh |
+| Z.ai GLM | Lite, Pro, Max | An undocumented poll flow only | Opaque, no refresh |
+| Qwen | Coding Plan | OAuth was discontinued on 2026-04-15 | An `sk-sp-` API key |
+| Mistral | Pro, Team | A poll flow with no local callback | A plain API key |
+| Cursor | Pro, Business | Yes, but the flow is reverse engineered | Access and refresh JWT |
+| Windsurf | Pro, Max | Yes, a paste flow | An opaque session key, no refresh |
+| Amazon Kiro, Q Developer | Kiro Pro to Power | Yes, first party AWS OIDC device code | Access and refresh |
+| Nous Portal | 20, 100, 200 dollars per month | Yes, RFC 8628 | JWT with a single use rotating refresh |
+| OpenRouter | **No.** Prepaid credits. | Yes, a documented no callback mode | An API key |
+| Vercel v0, AI Gateway | v0 per user, Gateway credits | A device flow for the account, not the model | `vck_` and similar |
+| Cerebras Code | Pro, Max | No OAuth at all | An API key |
+| Groq | No subscription | No OAuth at all | An API key |
+| Poe | 4.99 to 249.99 dollars per month | No device flow, but a documented hosted HTTPS callback | An API key with an optional expiry, no refresh |
+| GitLab Duo | Pro, Enterprise, per seat | Yes, RFC 8628, generally available since 17.9 | Access and refresh |
+
+Three findings from this table change the plan.
+
+**Poe is the only subscription in the table whose vendor documents the hosted pattern.** "Sign in
+with Poe" is a first party PKCE flow with a hosted HTTPS redirect as the production path, scope
+`apikey:create`, and Poe publishes the client library. The credential is an API key with no refresh
+token. The risk is spend: the key exposes the whole point balance, so Agenta owns the guard.
+
+**A green login does not prove a working connection.** xAI has been seen to return 403 to standard
+SuperGrok subscribers on its OAuth API surface, and Copilot returns 404 from the token exchange
+unless the caller presents the legacy editor client id. Any connect card must test one real request
+before it says "connected".
+
+### 10. Fit with the shipped design
+
+"Reuse" means the login attempt routes in section 2 of
+[implementation-contract.md](../implementation-contract.md) work unchanged. "Small change" means one
+added route or one generalized field, from the four listed in section 5 above. Effort is one
+engineer, including QA on a live stack.
+
+| Provider | Paid plan | Headless login | Harness | Fit | Days |
+| --- | --- | --- | --- | --- | --- |
+| GitHub Copilot | Yes | Yes, device code | `pi_core`, already installed | Reuse. It forces the four generalizations in section 5. | 3 to 5 |
+| Claude, pasted `CLAUDE_CODE_OAUTH_TOKEN` | Yes | Not a login. The user pastes. | `claude` | Small change. A write only secret. | 1 to 2 |
+| xAI SuperGrok | Yes | Yes, device code | `pi_core`, needs 0.85.1 | Small change, plus a Pi upgrade. | 4 to 6, plus the upgrade |
+| Kimi for Coding | Yes | Yes, device code | `pi_core`, needs 0.85.1 | Small change, plus a Pi upgrade. | Not now |
+| OpenRouter | No, credits | Yes | `pi_core`, needs 0.85.1 | Reuse. It is prepaid credits, not a subscription. | 2 to 3 |
+| Claude through the stock binary | Yes | Paste a code | `claude` | New harness work. Agenta must not hold the token. | 6 to 9 |
+| Poe | Yes | A hosted callback, not device code | New. Poe is OpenAI compatible. | New harness, sanctioned by the vendor. | 8 to 12 |
+| Amazon Kiro | Yes | Yes, AWS OIDC device code | New | New harness. | 10 to 15 |
+| Nous Portal | Yes | Yes, device code | New, or Hermes | New harness. | Not now |
+| Google Gemini | Yes | No | None | No headless flow. | Not now |
+| Cursor, Windsurf, Z.ai, GitLab Duo, Vercel | Yes | Mixed | None | Mixed flows; no open client Agenta runs today. | Not now |
+| Cerebras, Groq, Qwen, Mistral | Mixed | No OAuth | Any | No. There is nothing to connect. An API key is not a subscription. | Not applicable |
+
+### 11. Recommended order
+
+1. **Claude with a pasted `CLAUDE_CODE_OAUTH_TOKEN`, 1 to 2 days.** A normal write-only secret
+   that the user mints once with `claude setup-token`. No login machinery, and the existing
+   `claude` harness reads it.
+2. **GitHub Copilot through Pi, 3 to 5 days.** The only device-code flow Agenta can ship on the
+   harness it already runs. It forces the four generalizations in section 5 that every later
+   provider needs. Two known traps: the refresh token never rotates, so the idempotency rule must
+   compare access tokens, and the model list arrives inside the credential.
+3. **Upgrade Pi to 0.85.1 before any further provider, 2 to 4 days.** Four subscription logins
+   arrive with it, `registerOAuthProvider()` is gone, and `pi auth print-bearer-token` gives a clean
+   handoff. Doing this after Copilot means one migration, not two.
+4. **xAI SuperGrok through Pi, 4 to 6 days after the upgrade.** A device-code flow and a consumer
+   plan, with no code to write beyond the picker. Confirm live that a standard SuperGrok account is
+   accepted by the endpoint Pi uses.
+5. **OpenRouter through Pi, 2 to 3 days after the upgrade.** Prepaid credits, not a subscription,
+   but one login covers many models.
+6. **Poe, 8 to 12 days, if wanted.** The vendor publishes the hosted pattern and a library for it.
+   It needs a new harness and a spend guard.
+7. **Later or not at all:** Google Gemini (no headless flow), Cursor, Windsurf, Z.ai, GitLab Duo,
+   Vercel (no open client Agenta runs), Kimi and Nous Portal (device flows exist; Kimi through Pi
+   0.85.1, Nous through a new harness).
+8. **Hosted Claude login through the stock Claude Code binary** stays the shape for a full Claude
+   connector: the runner hosts the unmodified binary and the user signs in to it (sections 1c, 1d).
+
+### 12. Gaps in this survey
+
+These could not be closed and should not be treated as answered.
+
+- Google's own documentation still lists the consumer login, while several secondary sources say it
+  was retired on 2026-06-18.
+- Nothing here was tested against a live account. Every flow above is read from source or from
+  vendor documentation.
