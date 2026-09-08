@@ -16,7 +16,7 @@ interface AgentFormValues {
     slug: string
     name?: string
     connection_id: string
-    workflow_id: string
+    workflow_variant_id: string
     is_active: boolean
 }
 
@@ -70,7 +70,8 @@ export default function AgentFormDrawer({open, onClose, agentId, onSaved}: Agent
                         slug: agent.slug ?? "",
                         name: agent.name ?? undefined,
                         connection_id: agent.connection_id,
-                        workflow_id: Object.values(agent.data.references ?? {})[0]?.id ?? "",
+                        workflow_variant_id:
+                            Object.values(agent.data.references ?? {})[0]?.id ?? "",
                         is_active: agent.flags?.is_active ?? true,
                     })
                     setPolicy(agent.data.policy ?? {})
@@ -84,11 +85,7 @@ export default function AgentFormDrawer({open, onClose, agentId, onSaved}: Agent
         setIsSaving(true)
         try {
             const data: AgentaApi.ChannelAgentData = {
-                // The workflows service resolves the workflow / variant / revision
-                // families only. A made-up key hydrates nothing, and the agent fails
-                // on its first turn with "no runnable service URL". The field holds
-                // a variant id, so it is filed under that family key.
-                references: {workflow_variant: {id: values.workflow_id}},
+                references: {workflow_variant: {id: values.workflow_variant_id}},
                 policy,
             }
             const flags: AgentaApi.ChannelAgentFlags = {
@@ -168,7 +165,7 @@ export default function AgentFormDrawer({open, onClose, agentId, onSaved}: Agent
                     />
                 </Form.Item>
                 <Form.Item
-                    name="workflow_id"
+                    name="workflow_variant_id"
                     label="Agent variant"
                     rules={[{required: true, message: "An agent variant id is required"}]}
                     extra="The id of the agent variant this channel agent runs. It follows the variant's latest revision."

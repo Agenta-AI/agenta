@@ -14,7 +14,22 @@ from oss.src.core.channels.dtos import (
 )
 
 
-@pytest.mark.parametrize("key", sorted(RESOLVABLE_AGENT_REFERENCE_KEYS))
+# The contract, spelled out: the families the workflows service resolves.
+RESOLVABLE = [
+    "workflow",
+    "workflow_variant",
+    "workflow_revision",
+    "application",
+    "application_variant",
+    "application_revision",
+]
+
+
+def test_the_resolvable_families_are_exactly_these():
+    assert set(RESOLVABLE_AGENT_REFERENCE_KEYS) == set(RESOLVABLE)
+
+
+@pytest.mark.parametrize("key", RESOLVABLE)
 def test_every_resolvable_family_key_is_accepted(key):
     data = ChannelAgentData(references={key: {"id": uuid4()}})
 

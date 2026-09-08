@@ -587,3 +587,34 @@ async def test_an_unrelated_integrity_error_names_the_constraint_not_a_duplicate
 
     assert "already exists" not in str(caught.value)
     assert "slug" in str(caught.value)
+
+
+async def test_a_failed_secret_cleanup_still_surfaces_the_conflict():
+    dao = _fake_dao()
+    dao.create_connection = AsyncMock(
+        side_effect=_integrity_error(
+            'duplicate key value violates unique constraint "uq_channel_connections_external_key"'
+        )
+    )
+    vault = _FakeVaultService()
+
+    async def _refuse(**kwargs):
+        raise RuntimeError("vault down")
+
+    vault.delete_secret = _refuse
+    service = _service(
+        dao=dao, adapter=_FakeAdapter(discovered={"team_id": "T1"}), vault=vault
+    )
+
+    connection = ChannelConnectionCreate(
+        channel="slack",
+        slug="acme",
+        data={"api_app_id": "A1", "enterprise_id": ""},
+        credentials={"bot_token": _CANARY_TOKEN, "signing_secret": "sec"},
+    )
+
+    # the cleanup is best effort: the caller sees the real error, never the cleanup's
+    with pytest.raises(EntityCreationConflict):
+        await service.create_connection(
+            project_id=uuid4(), user_id=uuid4(), connection=connection
+        )

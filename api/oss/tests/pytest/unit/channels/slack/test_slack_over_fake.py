@@ -221,10 +221,8 @@ async def test_discover_spaces_pages_across_more_than_one_cursor_page(monkeypatc
     adapter, workspace, transport = make_adapter_and_workspace(channels=channels)
     connection = _connection()
 
-    # discover_spaces itself issues a single conversations.list call with no
-    # paging loop, so drive the fake's paging directly to prove the fake's
-    # cursor semantics, then confirm a single unpaged call still returns
-    # everything the adapter asked for in that one call.
+    # drive the fake's paging directly to prove its cursor semantics; the
+    # adapter-level paging is covered by the cursor test further down
     first_page = await transport.handle_async_request(_list_request(limit=2, cursor=""))
     first_body = json.loads(first_page.content)
     assert [c["id"] for c in first_body["channels"]] == ["C0", "C1"]
@@ -244,11 +242,12 @@ async def test_discover_spaces_pages_across_more_than_one_cursor_page(monkeypatc
 
 
 def _list_request(*, limit: int, cursor: str):
+    # a read method's arguments ride the query string, as Slack reads them
     return httpx.Request(
         "POST",
         "https://slack.com/api/conversations.list",
+        params={"limit": limit, "cursor": cursor},
         headers={"authorization": "Bearer xoxb-fake"},
-        content=json.dumps({"limit": limit, "cursor": cursor}).encode(),
     )
 
 
@@ -508,4 +507,7 @@ async def test_discover_spaces_follows_the_listing_cursor_past_the_first_page():
     listing_calls = [
         r for r in transport.requests if r.url.path.endswith("conversations.list")
     ]
-    assert len(listing_calls) == 3
+    # the first page asks for none; every later page carries the cursor Slack returned
+    assert "cursor" not in listing_calls[0].url.params
+    assert all("cursor" in r.url.params for r in listing_calls[1:])
+    assert len(listing_calls) > 1

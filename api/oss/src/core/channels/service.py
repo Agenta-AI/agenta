@@ -151,7 +151,7 @@ class ChannelsService:
         connection.external_key = compose_external_key(
             capabilities, ChannelKeyGrain.CONNECTION, locator_input
         )
-        _fill_connection_identity_fields(connection, discovered=discovered)
+        _fill_connection_name_and_slug(connection, discovered=discovered)
 
         credential_secret_id = None
         if connection.credentials:
@@ -297,7 +297,7 @@ class ChannelsService:
             return edited
 
         connection.external_key = external_key
-        _fill_connection_identity_fields(connection, discovered=discovered)
+        _fill_connection_name_and_slug(connection, discovered=discovered)
         connection.data = data
 
         try:
@@ -1595,7 +1595,7 @@ def _compose_connection_data(
 _SLUG_SUFFIX_HEX = 6
 
 
-def _fill_connection_identity_fields(
+def _fill_connection_name_and_slug(
     connection: ChannelConnectionCreate, *, discovered: Dict[str, Any]
 ) -> None:
     """Give a connection a name and a slug when the caller sent none.

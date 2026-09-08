@@ -46,10 +46,8 @@ log = get_module_logger(__name__)
 
 _SLACK_API_BASE = "https://slack.com/api"
 
-# conversations.list paging: Slack caps a page at 1000; 200 keeps responses small,
-# and 50 pages (10,000 channels) bounds a runaway cursor.
+# conversations.list page size. Slack caps a page at 1000; 200 keeps responses small.
 _LISTING_PAGE_SIZE = 200
-_MAX_LISTING_PAGES = 50
 
 # Default page size for backfill; clamped further to the install's own rate
 # tier at fetch time.
@@ -380,11 +378,12 @@ class SlackAdapter(ChannelAdapterInterface):
         self, *, connection: ChannelConnection
     ) -> List[ChannelSpaceCandidate]:
         candidates: List[ChannelSpaceCandidate] = []
-        # Slack pages the listing (100 per call by default) and returns only
-        # public channels unless asked. A workspace with more channels than
-        # one page silently hid the rest, so follow the cursor to the end.
+        # Slack pages the listing (100 per call by default), filters AFTER
+        # paging, and returns only public channels unless asked. A workspace
+        # with more channels than one page silently hid the rest, so follow
+        # the cursor until Slack returns none.
         cursor = ""
-        for _ in range(_MAX_LISTING_PAGES):
+        while True:
             params: Dict[str, Any] = {
                 "types": "public_channel,private_channel",
                 "exclude_archived": True,

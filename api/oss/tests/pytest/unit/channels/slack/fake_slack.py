@@ -141,6 +141,9 @@ class FakeSlackWorkspace:
         return ordered[:limit] if limit else ordered
 
 
+_READ_METHODS = {"conversations.list", "conversations.history", "conversations.replies"}
+
+
 class FakeSlackTransport(httpx.AsyncBaseTransport):
     """Routes each request to the endpoint it names, rejecting a request
     Slack would reject rather than answering it. `force_error` lets a test
@@ -189,7 +192,12 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
         if handler is None:
             return _error_response("unknown_method", status_code=404)
 
-        payload = _json_body(request)
+        # Slack reads a read method's arguments from the query string and a
+        # write method's from the JSON body; the fake keeps that split.
+        if method in _READ_METHODS:
+            payload = _query_args(request)
+        else:
+            payload = _json_body(request)
         return handler(self, payload)
 
     # --- endpoints --- #
@@ -290,14 +298,20 @@ def _bearer_token(header_value: Optional[str]) -> Optional[str]:
 
 
 def _json_body(request: httpx.Request) -> Dict[str, Any]:
-    """The call's arguments: read methods send them as query parameters, write
-    methods as a JSON body. Numeric query values come back as ints so the
-    handlers can page the same way for both."""
+    """A write method's arguments: the JSON body, as Slack reads them."""
+    if not request.content:
+        return {}
+    return json.loads(request.content)
+
+
+def _query_args(request: httpx.Request) -> Dict[str, Any]:
+    """A read method's arguments: the query string ONLY, as Slack reads them.
+    A JSON body on a read method is ignored here exactly as Slack ignores it,
+    so an adapter that sends one gets the defaults and the test sees it.
+    Numeric values come back as ints so handlers page the same way."""
     args: Dict[str, Any] = {}
     for key, value in request.url.params.multi_items():
         args[key] = int(value) if value.isdigit() else value
-    if request.content:
-        args.update(json.loads(request.content))
     return args
 
 
