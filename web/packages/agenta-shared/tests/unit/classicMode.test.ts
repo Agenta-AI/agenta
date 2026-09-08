@@ -25,6 +25,7 @@ import {
     classicModeEnabledAtom,
     navSimplifiedDefaultAtom,
     navSimplifiedOverrideAtom,
+    readSettledAdvancedNavHidden,
 } from "../../src/state/classicMode"
 import {activeUserIdAtom} from "../../src/state/featureFlags"
 import {userAtom} from "../../src/state/user"
@@ -170,5 +171,91 @@ describe("simplified cohort, derived from the account", () => {
         expect(store.get(classicModeEnabledAtom)).toBe(true)
         store.set(classicModeEnabledAtom, false)
         expect(Object.keys(entries)).toHaveLength(0)
+    })
+})
+
+/**
+ * The resolver the two side-effecting hooks use, which must never guess.
+ *
+ * `advancedNavHiddenAtom` reports the signup default during the tick before its override atom
+ * hydrates, because a not-yet-hydrated override and a genuine "no choice" are both `null`. The
+ * redirect and the cookie write cannot take that back, so they read this instead.
+ */
+describe("readSettledAdvancedNavHidden", () => {
+    const CUTOFF_AFTER = "2026-08-25 14:28:44.210343+00:00"
+    const CUTOFF_BEFORE = "2026-07-01 09:00:00.000000+00:00"
+
+    let seq = 0
+    const setUp = (stored: Record<string, string> = {}) => {
+        const userId = `settled-${++seq}`
+        localStorage.setItem("agenta:onboarding:active-user-id", userId)
+        if (stored.base !== undefined) {
+            localStorage.setItem(`agenta:onboarding:${userId}:nav-simplified`, stored.base)
+        }
+        if (stored.override !== undefined) {
+            localStorage.setItem(
+                `agenta:onboarding:${userId}:nav-simplified-override`,
+                stored.override,
+            )
+        }
+        return userId
+    }
+    const profile = (createdAt?: string) => ({
+        id: "u",
+        uid: "u",
+        username: "u",
+        email: "u@example.com",
+        ...(createdAt ? {created_at: createdAt} : {}),
+    })
+
+    beforeEach(() => {
+        localStorage.clear()
+    })
+
+    it("honours an explicit Classic mode over the cohort default", () => {
+        // The regression. This user chose Classic mode, and signed up inside the simplified
+        // cohort. Falling through to the default here is what bounced them back to /m.
+        setUp({override: "false"})
+        expect(readSettledAdvancedNavHidden(profile(CUTOFF_AFTER))).toBe(false)
+    })
+
+    it("disagrees with the atom during the window the atom cannot see", () => {
+        // Proves the reason this resolver exists. Unsubscribed atoms reproduce the pre-hydration
+        // tick: the override reads `null`, the cohort default wins, and the atom says "hide the
+        // advanced nav" for a user who explicitly asked for it. The resolver says otherwise.
+        const userId = setUp({override: "false"})
+        const store = createStore()
+        store.set(activeUserIdAtom, userId)
+        store.set(userAtom, profile(CUTOFF_AFTER))
+
+        expect(store.get(advancedNavHiddenAtom)).toBe(true)
+        expect(readSettledAdvancedNavHidden(profile(CUTOFF_AFTER))).toBe(false)
+    })
+
+    it("honours an explicit simplified choice", () => {
+        setUp({override: "true"})
+        expect(readSettledAdvancedNavHidden(profile(CUTOFF_BEFORE))).toBe(true)
+    })
+
+    it("answers from the stored signup flag without waiting for the profile", () => {
+        setUp({base: "true"})
+        expect(readSettledAdvancedNavHidden(null)).toBe(true)
+    })
+
+    it("withholds an answer while only the profile could give one", () => {
+        setUp()
+        expect(readSettledAdvancedNavHidden(null)).toBeNull()
+    })
+
+    it("falls back to the cohort once the profile lands", () => {
+        setUp()
+        expect(readSettledAdvancedNavHidden(profile(CUTOFF_AFTER))).toBe(true)
+        setUp()
+        expect(readSettledAdvancedNavHidden(profile(CUTOFF_BEFORE))).toBe(false)
+    })
+
+    it("withholds an answer when no user is known", () => {
+        localStorage.clear()
+        expect(readSettledAdvancedNavHidden(profile(CUTOFF_AFTER))).toBeNull()
     })
 })

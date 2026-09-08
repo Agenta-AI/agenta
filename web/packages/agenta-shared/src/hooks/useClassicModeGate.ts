@@ -8,8 +8,9 @@ import {useEffect} from "react"
 import {useAtomValue} from "jotai"
 
 import {getEnv} from "../api/env"
-import {advancedNavHiddenAtom} from "../state/classicMode"
+import {advancedNavHiddenAtom, readSettledAdvancedNavHidden} from "../state/classicMode"
 import {activeUserIdAtom} from "../state/featureFlags"
+import {userAtom} from "../state/user"
 import {
     CLASSIC_MODE_COOKIE,
     GATE_COOKIE_MAX_AGE,
@@ -55,6 +56,22 @@ export const writeClassicModeCookie = (classicModeEnabled: boolean) => {
 }
 
 /**
+ * The settled preference, or `null` while it is still unknown.
+ *
+ * The three atoms are subscribed for their re-renders, not their values: they fire when the user
+ * changes, when the profile lands, and when the switch is flipped. The VALUE comes from storage,
+ * which answers exactly. Cheap enough to read per render, and it returns a primitive, so the
+ * effects below still only re-run when the answer actually changes.
+ */
+const useSettledAdvancedNavHidden = (): boolean | null => {
+    useAtomValue(activeUserIdAtom)
+    useAtomValue(advancedNavHiddenAtom)
+    const user = useAtomValue(userAtom)
+
+    return readSettledAdvancedNavHidden(user)
+}
+
+/**
  * Publish the signed-in user's Classic mode preference as a cookie the middleware can read.
  *
  * Written only once a user is known — the preference is scoped by user id, and a cookie written
@@ -63,7 +80,7 @@ export const writeClassicModeCookie = (classicModeEnabled: boolean) => {
  */
 export const useClassicModeCookieSync = () => {
     const userId = useAtomValue(activeUserIdAtom)
-    const advancedNavHidden = useAtomValue(advancedNavHiddenAtom)
+    const advancedNavHidden = useSettledAdvancedNavHidden()
 
     useEffect(() => {
         if (typeof document === "undefined") return
@@ -71,6 +88,9 @@ export const useClassicModeCookieSync = () => {
             clearCookie(CLASSIC_MODE_COOKIE)
             return
         }
+        // Publishing an unsettled value would park the WRONG answer where the middleware reads
+        // it, and the next load acts on the cookie before any of this runs.
+        if (advancedNavHidden === null) return
         writeCookie(CLASSIC_MODE_COOKIE, advancedNavHidden ? "0" : "1")
     }, [userId, advancedNavHidden])
 }
@@ -88,12 +108,13 @@ export const useClassicModeCookieSync = () => {
  */
 export const useClassicModeRedirect = (enabled = true) => {
     const userId = useAtomValue(activeUserIdAtom)
-    const advancedNavHidden = useAtomValue(advancedNavHiddenAtom)
+    const advancedNavHidden = useSettledAdvancedNavHidden()
 
     useEffect(() => {
         if (!enabled || typeof window === "undefined") return
         if (!classicGateEnabled()) return
-        // No user means no preference to read — the atom reports the default, not a choice.
+        // No user means no preference to read, and `null` means it is not known yet. Redirecting
+        // on either is a navigation this effect cannot take back.
         if (!userId || !advancedNavHidden) return
 
         const {pathname, search} = window.location

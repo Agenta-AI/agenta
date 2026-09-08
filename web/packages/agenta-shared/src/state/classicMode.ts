@@ -12,7 +12,9 @@ import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
-import {activeUserIdAtom} from "./featureFlags"
+import type {User} from "../types/user"
+
+import {ACTIVE_USER_ID_KEY, activeUserIdAtom} from "./featureFlags"
 import {userAtom} from "./user"
 
 /**
@@ -46,12 +48,14 @@ const parseBackendTimestamp = (raw: string): number =>
  *
  * Unknown or unparseable is "no", which lands on classic mode — the full app, and the status quo.
  */
-const simplifiedCohortAtom = atom((get) => {
-    const createdAt = get(userAtom)?.created_at
+const isSimplifiedCohort = (user: User | null): boolean => {
+    const createdAt = user?.created_at
     if (!createdAt) return false
     const created = parseBackendTimestamp(createdAt)
     return Number.isNaN(created) ? false : created >= SIMPLIFIED_SIGNUP_CUTOFF
-})
+}
+
+const simplifiedCohortAtom = atom((get) => isSimplifiedCohort(get(userAtom)))
 
 /**
  * The `agenta:onboarding:` prefix is load-bearing — these keys predate this module and hold every
@@ -59,6 +63,18 @@ const simplifiedCohortAtom = atom((get) => {
  * silently resets everyone to their signup-era default.
  */
 const onboardingScopedKey = (userId: string, key: string) => `agenta:onboarding:${userId}:${key}`
+
+/** `atomWithStorage` persists via JSON, so a stored boolean reads back as `"true"` / `"false"`. */
+const readStoredBoolean = (key: string): boolean | null => {
+    const raw = localStorage.getItem(key)
+    if (raw === null) return null
+    try {
+        const parsed = JSON.parse(raw)
+        return typeof parsed === "boolean" ? parsed : null
+    } catch {
+        return null
+    }
+}
 
 /**
  * Deliberately NOT `getOnInit`. It would read storage during the first render, which diverges
@@ -116,6 +132,33 @@ export const advancedNavHiddenAtom = atom((get) => {
     const override = get(navSimplifiedOverrideAtom)
     return override ?? get(navSimplifiedDefaultAtom)
 })
+
+/**
+ * The SETTLED preference, or `null` while it is still unknown. For effects that act on it.
+ *
+ * {@link advancedNavHiddenAtom} cannot answer this. Its override atom hydrates a tick after it
+ * mounts, and until then reports `null` — the same value a user with no explicit choice has. So
+ * during that tick an explicit "Classic mode on" is misread as "no choice", falls through to the
+ * signup-era default, and reads `true` for anyone in the simplified cohort. Both callers act
+ * irreversibly on that: one navigates to `/m`, the other writes the cookie the middleware reads
+ * on the next load. Neither survives to see the corrected value.
+ *
+ * Reading storage directly is exact instead. Effects run client-side and after hydration, so the
+ * `getOnInit` concern that shapes the atoms above does not apply here.
+ */
+export const readSettledAdvancedNavHidden = (user: User | null): boolean | null => {
+    if (typeof window === "undefined") return null
+    const userId = localStorage.getItem(ACTIVE_USER_ID_KEY)
+    if (!userId) return null
+
+    const override = readStoredBoolean(onboardingScopedKey(userId, "nav-simplified-override"))
+    if (override !== null) return override
+
+    if (readStoredBoolean(onboardingScopedKey(userId, "nav-simplified")) === true) return true
+
+    // Only the signup cohort is left to check, and that answer lives on the profile.
+    return user ? isSimplifiedCohort(user) : null
+}
 
 /** The one atom both apps' Preferences pages bind their "Classic mode" switch to. */
 export const classicModeEnabledAtom = atom(
