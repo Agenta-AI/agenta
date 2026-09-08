@@ -159,17 +159,43 @@ describe("subscription candidates", () => {
 })
 
 describe("subscriptionStatusLine", () => {
-    it("names each state, and quotes the reason a run reported", () => {
+    const needsLogin = (loginError?: string) =>
+        subscriptionStatusLine({provider: "chatgpt", loginState: "needs_login", loginError})
+
+    it("names each state", () => {
         expect(subscriptionStatusLine({provider: "chatgpt", loginState: "ready"})).toBe("Connected")
         expect(subscriptionStatusLine({provider: "chatgpt", loginState: "pending_login"})).toBe(
             "Not signed in",
         )
+        expect(needsLogin()).toBe("Sign in needed")
+    })
+
+    it("explains a dead sign-in in a sentence, never in the server's own word", () => {
+        // The card used to print "Sign in needed — refresh_rejected". The slug is safe to show,
+        // no token and no path, but it is a log line: it tells the user nothing to do.
+        for (const reason of ["login_unreadable", "refresh_rejected", "refresh_status_401"]) {
+            expect(needsLogin(reason)).toBe(
+                "Sign in needed. The ChatGPT sign-in is no longer valid.",
+            )
+            expect(needsLogin(reason)).not.toContain(reason)
+        }
+    })
+
+    it("falls back to the general case for a reason it does not know", () => {
+        // A new server reason must never reach the card as raw text.
+        expect(needsLogin("something_new")).toBe(
+            "Sign in needed. The ChatGPT sign-in needs to be renewed.",
+        )
+        expect(needsLogin("something_new")).not.toContain("something_new")
+    })
+
+    it("names the product the row is for, not ChatGPT by default", () => {
         expect(
             subscriptionStatusLine({
-                provider: "chatgpt",
+                provider: "grok",
                 loginState: "needs_login",
                 loginError: "refresh_rejected",
             }),
-        ).toBe("Sign in needed — refresh_rejected")
+        ).toBe("Sign in needed. The grok sign-in is no longer valid.")
     })
 })

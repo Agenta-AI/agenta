@@ -64,11 +64,39 @@ export const subscriptionIsReady = (
     subscription: SubscriptionLoginFacts | null | undefined,
 ): boolean => subscription?.loginState === "ready"
 
+/** The hint a not-ready subscription row shows in the model picker, and the card's status word. */
+export const SUBSCRIPTION_SIGN_IN_HINT = "Sign in needed"
+
+/**
+ * The reasons that mean the stored sign-in is dead rather than merely stale.
+ *
+ * `login_unreadable` is a file the runner could not parse. `refresh_rejected` is the provider
+ * refusing the refresh token. `refresh_status_*` carries an HTTP status from the same exchange.
+ */
+const DEAD_LOGIN_REASONS = new Set(["login_unreadable", "refresh_rejected"])
+const DEAD_LOGIN_REASON_PREFIX = "refresh_status_"
+
+/**
+ * The reason in a sentence a user can act on.
+ *
+ * The server's reason is a machine slug (`refresh_rejected`). It is safe to print, no token and no
+ * path, but it is a log line, not an explanation: it tells the user nothing they can do. So the
+ * known slugs map to one sentence each, and an unrecognized one falls back to the honest general
+ * case rather than leaking a word the product never taught.
+ */
+const subscriptionFailureSentence = (provider: string, reason: string): string => {
+    const product = subscriptionProviderName(provider)
+    const isDead = DEAD_LOGIN_REASONS.has(reason) || reason.startsWith(DEAD_LOGIN_REASON_PREFIX)
+    return isDead
+        ? `The ${product} sign-in is no longer valid.`
+        : `The ${product} sign-in needs to be renewed.`
+}
+
 /**
  * What the row says about itself under its name — one short line per state.
  *
- * `needs_login` carries the API's own reason when it has one. The reason is a short server string
- * (`refresh_rejected`), never a token or a path, so it is safe to print.
+ * `needs_login` keeps "Sign in needed" as the status word and adds the reason as a sentence. A row
+ * that reports no reason says only the status word: there is nothing to explain.
  */
 export const subscriptionStatusLine = (
     subscription: SubscriptionLoginFacts | null | undefined,
@@ -77,9 +105,9 @@ export const subscriptionStatusLine = (
     if (subscription.loginState === "ready") return "Connected"
     if (subscription.loginState === "pending_login") return "Not signed in"
     return subscription.loginError
-        ? `Sign in needed — ${subscription.loginError}`
-        : "Sign in needed"
+        ? `${SUBSCRIPTION_SIGN_IN_HINT}. ${subscriptionFailureSentence(
+              subscription.provider,
+              subscription.loginError,
+          )}`
+        : SUBSCRIPTION_SIGN_IN_HINT
 }
-
-/** The hint a not-ready subscription row shows in the model picker. */
-export const SUBSCRIPTION_SIGN_IN_HINT = "Sign in needed"
