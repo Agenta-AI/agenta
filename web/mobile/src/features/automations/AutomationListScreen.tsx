@@ -251,7 +251,7 @@ export const AutomationListScreen = ({
                                         onChange={(event) => setSearch(event.target.value)}
                                         placeholder="Search automations"
                                         aria-label="Search automations"
-                                        className="h-auto rounded-none border-0 bg-transparent p-0 text-[13px] shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-[13px]"
+                                        className="h-auto rounded-none border-0 bg-transparent p-0 text-[13px] shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-[13px] dark:bg-transparent"
                                     />
                                 </label>
                             </div>
