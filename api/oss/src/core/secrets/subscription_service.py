@@ -246,18 +246,29 @@ class SubscriptionLoginService:
         `build_changes` returns the subscription fields to write, or None to leave the row
         alone. None writes nothing at all: no lifecycle column moves, no commit, and the
         project's vault cache keeps its entry.
+
+        A row that is gone by the time the lock is taken raises, because `build_changes`
+        never runs and every caller reads its own result out of what that callback set. The
+        row can disappear between the load and the write: a user disconnects the connection
+        while a run is pushing. Answering 404 beats validating an empty push result into a
+        500, and beats reporting a device login as stored when nothing was written.
         """
 
         def resolve(stored: SecretResponseDTO) -> Optional[UpdateSecretDTO]:
             changes = build_changes(_subscription_data(stored))
             return None if changes is None else _update_with(stored, changes)
 
-        return await self.vault_service.update_secret_atomically(
+        secret = await self.vault_service.update_secret_atomically(
             secret_id=secret_id,
             project_id=project_id,
             user_id=user_id,
             resolve_update=resolve,
         )
+
+        if secret is None:
+            raise SubscriptionSecretNotFound()
+
+        return secret
 
     # -- browser-facing device login ------------------------------------------------
 
