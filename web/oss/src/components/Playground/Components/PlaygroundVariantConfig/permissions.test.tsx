@@ -153,6 +153,15 @@ it.each([{environments: []}, {environments: ["local"]}, {environments: ["local",
         Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})
         Element.prototype.scrollIntoView = vi.fn()
         Element.prototype.hasPointerCapture = () => false
+        // idleReadyAtom gates the deferred bootstrap queries (trigger subscriptions and
+        // schedules). jsdom has no requestIdleCallback, so the atom falls back to a 1.5s
+        // timer and those queries start to fetch mid-test on a slow machine. Their explicit
+        // `enabled` overrides the disabled query default below. Stub an idle callback that
+        // never runs, so the deferral holds for the whole test.
+        Object.assign(globalThis, {
+            requestIdleCallback: vi.fn(() => 1),
+            cancelIdleCallback: vi.fn(),
+        })
         const store = createStore()
         const router: NextRouter = {
             basePath: "",
