@@ -199,9 +199,6 @@ export const AutomationListScreen = ({
                                                 aria-hidden
                                                 className={`shrink-0 transition-transform ${collapsed.has(group.key) ? "-rotate-90" : ""}`}
                                             />
-                                            <span className="opacity-60">
-                                                {group.automations.length}
-                                            </span>
                                         </button>
                                     )}
                                     {(collapsed.has(group.key) ? [] : group.automations).map((automation) => {
