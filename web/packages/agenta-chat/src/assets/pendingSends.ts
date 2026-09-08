@@ -23,6 +23,12 @@ export interface PendingSend {
      * when the same text is sent twice, which a text match does not.
      */
     coveredAtUserCount: number
+    /**
+     * How many durable user messages the transcript held when this echo was created. A transcript
+     * that falls BELOW it was rewound past the point this echo belongs to, so the echo can never
+     * be covered and is dropped rather than left on screen.
+     */
+    createdAtUserCount: number
 }
 
 export const countUserMessages = (messages: readonly UIMessage[]): number =>
@@ -37,12 +43,17 @@ export const nextPendingSendCoverage = (
     pending: readonly PendingSend[],
 ): number => Math.max(userCount, ...pending.map((item) => item.coveredAtUserCount)) + 1
 
-/** Drop every echo the durable transcript has caught up with. */
+/**
+ * Drop every echo the durable transcript has caught up with, and every echo a rewind has stranded
+ * below its own origin.
+ */
 export const retirePendingSends = (
     pending: readonly PendingSend[],
     userCount: number,
 ): readonly PendingSend[] => {
-    const next = pending.filter((item) => userCount < item.coveredAtUserCount)
+    const next = pending.filter(
+        (item) => userCount < item.coveredAtUserCount && userCount >= item.createdAtUserCount,
+    )
     return next.length === pending.length ? pending : next
 }
 

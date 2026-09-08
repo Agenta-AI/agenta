@@ -353,18 +353,19 @@ export const useAgentChatQueue = ({
                     // moment something else in the UI owns the message: the dock on a 202, the
                     // durable user row on a 200, the composer restore on a refusal (both hosts put
                     // the text back there), so it is never shown twice and never lost.
-                    updatePendingSends((current) => [
-                        ...current,
-                        {
-                            id: message.id,
-                            text: message.text,
-                            fileParts: message.fileParts,
-                            coveredAtUserCount: nextPendingSendCoverage(
-                                countUserMessages(messagesRef.current),
-                                current,
-                            ),
-                        },
-                    ])
+                    updatePendingSends((current) => {
+                        const userCount = countUserMessages(messagesRef.current)
+                        return [
+                            ...current,
+                            {
+                                id: message.id,
+                                text: message.text,
+                                fileParts: message.fileParts,
+                                coveredAtUserCount: nextPendingSendCoverage(userCount, current),
+                                createdAtUserCount: userCount,
+                            },
+                        ]
+                    })
                     return server.submit(message, "queue").then(
                         (admission) => {
                             if (admission === "queued") dropPendingSend(message.id)

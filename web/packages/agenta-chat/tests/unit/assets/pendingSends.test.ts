@@ -15,10 +15,16 @@ const user = (id: string, text: string): UIMessage =>
 const assistant = (id: string, text: string): UIMessage =>
     ({id, role: "assistant", parts: [{type: "text", text}]}) as UIMessage
 
-const echo = (id: string, text: string, coveredAtUserCount: number): PendingSend => ({
+const echo = (
+    id: string,
+    text: string,
+    coveredAtUserCount: number,
+    createdAtUserCount = coveredAtUserCount - 1,
+): PendingSend => ({
     id,
     text,
     coveredAtUserCount,
+    createdAtUserCount,
 })
 
 describe("countUserMessages", () => {
@@ -62,12 +68,24 @@ describe("retirePendingSends", () => {
 
     it("returns the same array when nothing retires, so the render memo does not churn", () => {
         const pending = [echo("m1", "one", 3)]
-        expect(retirePendingSends(pending, 1)).toBe(pending)
+        expect(retirePendingSends(pending, 2)).toBe(pending)
     })
 
-    it("keeps an echo after a rewind shortens the transcript", () => {
-        const pending = [echo("m1", "one", 5)]
-        expect(retirePendingSends(pending, 2)).toEqual(pending)
+    it("keeps an echo while the transcript is still at or above its origin", () => {
+        const pending = [echo("m1", "one", 5, 4)]
+        expect(retirePendingSends(pending, 4)).toEqual(pending)
+    })
+
+    it("drops an echo a rewind stranded below its own origin", () => {
+        // Rewinding past the point the send belongs to means its row can never be counted, so the
+        // echo would otherwise sit on screen until an unrelated send happened to raise the count.
+        const pending = [echo("m1", "one", 5, 4)]
+        expect(retirePendingSends(pending, 2)).toEqual([])
+    })
+
+    it("drops a whole burst a rewind stranded, not only its head", () => {
+        const pending = [echo("m1", "one", 5, 4), echo("m2", "two", 6, 4)]
+        expect(retirePendingSends(pending, 1)).toEqual([])
     })
 })
 
@@ -88,7 +106,7 @@ describe("pendingSendMessages", () => {
             mediaType: "image/png",
         }
         const rows = pendingSendMessages([
-            {id: "m2", text: "", fileParts: [file], coveredAtUserCount: 1},
+            {id: "m2", text: "", fileParts: [file], coveredAtUserCount: 1, createdAtUserCount: 0},
         ])
         expect(rows[0].parts).toEqual([file])
     })
