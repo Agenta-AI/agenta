@@ -93,8 +93,9 @@ export const SkillListScreen = ({
 
             {/* Toolbar shape mirrors the desktop pages: [create] [search] ... [archived link].
                 Skills' archived view is inline (Archived tags in the same grid), so the link
-                toggles rather than routes. */}
-            <div className="flex min-w-0 items-center gap-3">
+                toggles rather than routes. Phone: the row wraps instead of overflowing, with
+                the search taking its own full-width line. */}
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
                 <NewSkillMenuButton
                     onWrite={openWrite}
                     onUpload={openUpload}
@@ -104,7 +105,7 @@ export const SkillListScreen = ({
                     value={search}
                     onValueChange={setSearch}
                     placeholder="Search skills by name…"
-                    className="max-w-80"
+                    className="order-last w-full min-w-0 sm:order-none sm:max-w-80"
                 />
                 <button
                     type="button"
