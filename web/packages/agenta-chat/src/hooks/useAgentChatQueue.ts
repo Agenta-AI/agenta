@@ -329,7 +329,7 @@ export const useAgentChatQueue = ({
                             onAccepted: (executionId) =>
                                 echoes.markAccepted(message.id, executionId),
                             onParked: (inputId) => echoes.markParked(message.id, inputId),
-                            onFailed: () => echoes.drop(message.id),
+                            onFailed: () => echoes.markFailed(message.id),
                         })
                         .then(undefined, (error: unknown) => {
                             echoes.drop(message.id)

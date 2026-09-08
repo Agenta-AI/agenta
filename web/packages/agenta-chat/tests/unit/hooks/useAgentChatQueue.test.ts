@@ -1350,17 +1350,19 @@ describe("useAgentChatQueue durable send echoes", () => {
         expect(result.current.pendingSendRows).toHaveLength(0)
     })
 
-    it("drops it when the run stream never accepts a turn", async () => {
+    it("keeps the row, flagged, when the run stream reports a failure", async () => {
+        // The composer cleared on submit, so deleting the row here would lose the user's text.
         const {server, watchers} = durableServer()
         const {result} = setup({...settledEmpty, server})
 
         await act(async () => {
-            await result.current.submit({text: "never started"})
+            await result.current.submit({text: "refused late"})
         })
-        expect(echoText(result)).toEqual(["never started"])
+        expect(echoText(result)).toEqual(["refused late"])
 
         await act(async () => watchers[0].onFailed?.())
-        expect(result.current.pendingSendRows).toHaveLength(0)
+        expect(echoText(result)).toEqual(["refused late"])
+        expect(result.current.pendingSendRows[0].metadata).toMatchObject({pendingSendFailed: true})
     })
 
     it("drops it when the send is refused, so the composer restore is not doubled", async () => {

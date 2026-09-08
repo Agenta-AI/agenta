@@ -69,14 +69,15 @@ const runFrameFromLine = (line: string): RunFrame => {
 }
 
 /**
- * Drain the run stream and report what it says about this send.
+ * Drain the run stream and report only what it actually says about this send.
  *
- * An HTTP 200 only proves the request was taken. The runner can refuse inside the stream, so an
- * error frame BEFORE acceptance, or an end with no acceptance at all, means no turn ever carried
- * the message. After acceptance the turn exists and its failure is the transcript's to render, so
- * the echo is left to retire on its saved row.
+ * An HTTP 200 proves the request was taken, nothing more, so an error frame before acceptance is
+ * reported as a failure. Silence is NOT: the runner emits the acceptance frame only for a detached
+ * request, and this adapter also sends ordinary ones, so a stream that ends without acceptance is
+ * usually a perfectly good turn. Those fall back to the count, exactly as before identity existed.
+ * After acceptance the turn exists and its failure is the transcript's to render.
  */
-const readRunAdmission = async (
+export const readRunAdmission = async (
     response: Response,
     watcher?: ServerInputWatcher,
 ): Promise<void> => {
@@ -88,36 +89,40 @@ const readRunAdmission = async (
     const decoder = new TextDecoder()
     let buffer = ""
     let accepted = false
+    const scan = (chunk: string): "error" | "accepted" | null => {
+        buffer += chunk
+        // CR-only and CRLF framing are both valid SSE.
+        const lines = buffer.split(/\r\n|\r|\n/)
+        buffer = lines.pop() ?? ""
+        for (const line of lines) {
+            const frame = runFrameFromLine(line)
+            if (!frame) continue
+            if (frame.kind === "error") return "error"
+            accepted = true
+            watcher?.onAccepted?.(frame.executionId)
+            return "accepted"
+        }
+        return null
+    }
     try {
         for (;;) {
             const {done, value} = await reader.read()
             if (done) break
             if (accepted) continue
-            buffer += decoder.decode(value, {stream: true})
-            const lines = buffer.split("\n")
-            buffer = lines.pop() ?? ""
-            for (const line of lines) {
-                const frame = runFrameFromLine(line)
-                if (!frame) continue
-                if (frame.kind === "error") {
-                    watcher?.onFailed?.()
-                    await reader.cancel().catch(() => undefined)
-                    return
-                }
-                accepted = true
-                watcher?.onAccepted?.(frame.executionId)
-                break
+            if (scan(decoder.decode(value, {stream: true})) === "error") {
+                watcher?.onFailed?.()
+                await reader.cancel().catch(() => undefined)
+                return
             }
         }
+        // A last frame with no trailing newline is still a frame.
+        if (!accepted && buffer.trim()) scan("\n")
     } catch {
-        // A dropped connection after acceptance says nothing: the runner owns the turn either way.
-        if (!accepted) watcher?.onFailed?.()
-        return
+        // A dropped connection says nothing about the turn either way, so it reports nothing.
     }
-    if (!accepted) watcher?.onFailed?.()
 }
 
-const parkedInputIdFromBody = (body: unknown): string | null => {
+export const parkedInputIdFromBody = (body: unknown): string | null => {
     if (!body || typeof body !== "object") return null
     const input = (body as {input?: unknown}).input
     if (!input || typeof input !== "object") return null

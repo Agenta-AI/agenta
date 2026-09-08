@@ -27,7 +27,9 @@ export interface PendingSendEchoes {
     markAccepted: (id: string, executionId: string) => void
     /** The server parked it; from here it retires when the dock is OBSERVED to list that input. */
     markParked: (id: string, inputId: string) => void
-    /** The send will never produce a row. The host takes the text back. */
+    /** The send failed after the composer cleared. The row STAYS, flagged, so no text is lost. */
+    markFailed: (id: string) => void
+    /** The caller will restore the text itself, so the row can go. */
     drop: (id: string) => void
 }
 
@@ -113,8 +115,9 @@ export const usePendingSendEchoes = ({
         (id: string, inputId: string) => mark(id, {parkedInputId: inputId}),
         [mark],
     )
+    const markFailed = useCallback((id: string) => mark(id, {failed: true}), [mark])
 
     const rows = useMemo(() => pendingSendEchoMessages(visible), [visible])
 
-    return {rows, add, markAccepted, markParked, drop}
+    return {rows, add, markAccepted, markParked, markFailed, drop}
 }

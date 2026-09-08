@@ -136,8 +136,17 @@ describe("retirePendingSendEchoes and the dock", () => {
         expect(retire(pending, 2, [], ["input-2"])).toEqual(pending)
     })
 
-    it("drops an echo marked failed", () => {
-        expect(retire([echo("m1", "gone", 3, {failed: true})], 2)).toEqual([])
+    it("KEEPS an echo marked failed, so the text is not silently lost", () => {
+        // The composer has already cleared by then. Dropping the row would delete what the user
+        // wrote and show nothing in its place, which is worse than the gap this PR fixes.
+        const pending = [echo("m1", "refused", 3, {failed: true})]
+        expect(retire(pending, 2)).toEqual(pending)
+        expect(retire(pending, 99, ["any-turn"], ["any-input"])).toEqual(pending)
+    })
+
+    it("flags a failed row so a host can render it as failed", () => {
+        const rows = pendingSendEchoMessages([echo("m1", "refused", 3, {failed: true})])
+        expect(rows[0].metadata).toEqual({pendingSend: true, pendingSendFailed: true})
     })
 })
 
@@ -218,6 +227,32 @@ describe("mergePendingSendEchoRows", () => {
             "live-preview-turn-1",
             "pending-send-m1",
             "live-preview-turn-2",
+        ])
+    })
+})
+
+describe("mergePendingSendEchoRows before acknowledgement", () => {
+    const durable = [user("u1", "saved")]
+
+    it("keeps an unacknowledged echo below a preview it cannot attribute", () => {
+        // Guessing would put an answer above its own question. With no execution id to match on,
+        // the echo goes last: wrong for at most the previous answer, never for the new one.
+        const echoes = pendingSendEchoMessages([echo("m1", "asked", 2)])
+        const merged = mergePendingSendEchoRows(durable, echoes, [preview("turn-1")])
+        expect(merged.map((m) => m.id)).toEqual(["u1", "live-preview-turn-1", "pending-send-m1"])
+    })
+
+    it("falls back for the whole group when only one echo is unacknowledged", () => {
+        const echoes = pendingSendEchoMessages([
+            echo("m1", "one", 2, {executionId: "turn-1"}),
+            echo("m2", "two", 3),
+        ])
+        const merged = mergePendingSendEchoRows(durable, echoes, [preview("turn-1")])
+        expect(merged.map((m) => m.id)).toEqual([
+            "u1",
+            "live-preview-turn-1",
+            "pending-send-m1",
+            "pending-send-m2",
         ])
     })
 })

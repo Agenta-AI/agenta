@@ -21,7 +21,7 @@ export interface PendingSendEcho {
     executionId?: string | null
     /** Durable input id from a 202 body; the dock owns the row once it reports this id. */
     parkedInputId?: string | null
-    /** The send is known to have failed. The host takes the text back; the row goes. */
+    /** The send is known to have failed. The row STAYS, so the text is never silently lost. */
     failed?: boolean
     /** Fallback user-row count, used only while this send has no identity of its own yet. */
     coveredAtUserCount: number
@@ -94,7 +94,9 @@ export const retirePendingSendEchoes = (
 ): readonly PendingSendEcho[] => {
     const next = pending.filter((item) => {
         if (userCount < item.createdAtUserCount) return false
-        if (item.failed) return false
+        // A failed send outlives everything else here. The composer has already cleared, so
+        // dropping the row would delete the user's text with nothing to show for it.
+        if (item.failed) return true
         if (item.parkedInputId) return !dockedIds.has(item.parkedInputId)
         if (item.executionId) return !durableTurnIds.has(item.executionId)
         return userCount < item.coveredAtUserCount
@@ -117,6 +119,7 @@ export const pendingSendEchoMessages = (pending: readonly PendingSendEcho[]): UI
                 metadata: {
                     pendingSend: true,
                     ...(item.executionId ? {pendingSendExecutionId: item.executionId} : {}),
+                    ...(item.failed ? {pendingSendFailed: true} : {}),
                 },
             }) as unknown as UIMessage,
     )
@@ -126,12 +129,21 @@ const previewExecutionId = (message: UIMessage): string | null => {
     return typeof metadata?.executionId === "string" ? metadata.executionId : null
 }
 
+const echoExecutionId = (message: UIMessage): string | null => {
+    const metadata = message.metadata as {pendingSendExecutionId?: unknown} | undefined
+    return typeof metadata?.pendingSendExecutionId === "string"
+        ? metadata.pendingSendExecutionId
+        : null
+}
+
 /**
  * Order the tail of the transcript: saved rows, then any answer already streaming, then the
- * echoes, then the answer to those echoes.
+ * echoes, then the answers to those echoes.
  *
- * A preview belongs to an execution. One no echo owns is an EARLIER turn's answer still on screen,
- * so a newly sent question must go below it, not above.
+ * Splitting the previews needs every echo to name its own execution. While one is still
+ * unacknowledged, a preview cannot be attributed, and guessing puts an answer above its own
+ * question. So the split applies only when all of them are acknowledged; otherwise the echoes go
+ * last, which is wrong for at most the previous answer and never for the new one.
  */
 export const mergePendingSendEchoRows = (
     durable: UIMessage[],
@@ -141,14 +153,9 @@ export const mergePendingSendEchoRows = (
     if (echoes.length === 0 && preview.length === 0) return durable
     if (echoes.length === 0) return [...durable, ...preview]
     if (preview.length === 0) return [...durable, ...echoes]
-    const owned = new Set(
-        echoes.flatMap((echo) => {
-            const metadata = echo.metadata as {pendingSendExecutionId?: unknown} | undefined
-            return typeof metadata?.pendingSendExecutionId === "string"
-                ? [metadata.pendingSendExecutionId]
-                : []
-        }),
-    )
+    const ids = echoes.map(echoExecutionId)
+    if (ids.some((id) => id === null)) return [...durable, ...preview, ...echoes]
+    const owned = new Set(ids as string[])
     const earlier: UIMessage[] = []
     const answers: UIMessage[] = []
     for (const message of preview) {
