@@ -28,6 +28,8 @@ BASE_ARGS = [
     "--set",
     "agenta.cryptKey=test-crypt-key",
     "--set",
+    "agenta.servicesInternalKey=test-services-internal-key",
+    "--set",
     "agenta.runnerToken=test-runner-token",
     "--set",
     "postgres.password=test-postgres-password",
