@@ -45,8 +45,13 @@ class _FakeResponse:
 
 
 @pytest.fixture
-def backend_facts(monkeypatch):
-    """Stub the three backend reads the resolver makes. Returns the mutable answers."""
+def backend_facts(monkeypatch, sdk_singleton):
+    """Stub the three backend reads the resolver makes. Returns the mutable answers.
+
+    Depends on ``sdk_singleton`` to make the order real rather than assumed. Two
+    function-scoped fixtures with no dependency between them have no guaranteed order, and
+    this one sets an environment variable the other reads.
+    """
     facts: Dict[str, Any] = {
         "names": {ARTIFACT_A: "Agent A", ARTIFACT_B: "Agent B"},
         "session_name": None,
@@ -105,11 +110,13 @@ def sdk_singleton():
     before the yield.
     """
     previous = getattr(agenta_sdk, "tracing", None)
-    # This fixture sets up BEFORE `backend_facts`, so no AGENTA_API_URL is in place yet and the
-    # exporter targets the loopback host below. An AGENTA_API_URL already in the environment
-    # would still win, so this is not exporter isolation. It does not need to be: nothing here
-    # reads a span, and the exporter flushes off the request path, so a failed export cannot
-    # change a result.
+    # The host below is a preference, not isolation. `init` prefers AGENTA_API_INTERNAL_URL,
+    # then AGENTA_API_URL, over anything passed here, and either may be ambient in the
+    # process. `backend_facts` depends on this fixture so at least it cannot be the one that
+    # sets the variable first, but that is ordering, not a guarantee about the target.
+    #
+    # Isolation is not needed. Nothing here reads a span, and the exporter flushes off the
+    # request path, so wherever it points, a failed export cannot change a result.
     agenta_sdk.init(host="http://127.0.0.1:1", api_key="test-key")
     assert agenta_sdk.tracing is not None, (
         "the route needs an initialized SDK singleton"
