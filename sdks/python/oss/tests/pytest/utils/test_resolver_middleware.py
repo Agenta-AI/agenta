@@ -74,7 +74,8 @@ class TestHasEmbedMarkers:
         assert _has_embed_markers(config) is True
 
     # -------------------------------------------------------------------------
-    # String embed (snippet token). Literal "@ag.embed" is documentation.
+    # String embed (snippet token or @ag.embed[ form).
+    # Literal "@ag.embed" without "[" is documentation.
     # -------------------------------------------------------------------------
 
     def test_snippet_token_in_value(self):
@@ -99,11 +100,19 @@ class TestHasEmbedMarkers:
         }
         assert _has_embed_markers(config) is False
 
-    def test_legacy_bracket_string_is_not_a_marker(self):
+    def test_bracket_string_embed_is_a_marker(self):
         config = {
             "text": "Use this: @ag.embed[@ag.references[workflow_revision.version=v1]]"
         }
-        assert _has_embed_markers(config) is False
+        assert _has_embed_markers(config) is True
+
+    def test_bracket_string_embed_at_root(self):
+        assert (
+            _has_embed_markers(
+                "@ag.embed[@ag.references[workflow_revision.version=v1]]"
+            )
+            is True
+        )
 
     # -------------------------------------------------------------------------
     # Configs without embeds
@@ -237,6 +246,54 @@ class TestResolverMiddlewareEmbedGate:
                 await mw(request, call_next)
 
         mock_resolve_embeds.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_calls_resolve_when_bracket_string_embed_present(self):
+        """
+        A request whose only embed is the supported @ag.embed[...] string form
+        must still call resolve_embeds. Plain @ag.embed prose is ignored; the
+        @ag.embed[ prefix is not.
+        """
+        from agenta.sdk.middlewares.running.resolver import ResolverMiddleware
+        from agenta.sdk.models.workflows import (
+            WorkflowInvokeRequest,
+            WorkflowRequestData,
+        )
+
+        params_with_embed = {
+            "text": "Use this: @ag.embed[@ag.references[workflow_revision.version=v1]]"
+        }
+
+        request = WorkflowInvokeRequest(
+            credentials="test-creds",
+            flags={"resolve": True},
+            data=WorkflowRequestData(parameters=params_with_embed),
+        )
+
+        resolved_params = {"text": "Use this: resolved-value"}
+
+        with (
+            patch(
+                "agenta.sdk.middlewares.running.resolver.resolve_handler",
+                new_callable=AsyncMock,
+                return_value=MagicMock(),
+            ),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.resolve_embeds",
+                new_callable=AsyncMock,
+                return_value=resolved_params,
+            ) as mock_resolve_embeds,
+        ):
+            mw = ResolverMiddleware()
+            call_next = AsyncMock(return_value="result")
+            with tracing_context_manager(TracingContext()):
+                await mw(request, call_next)
+
+        mock_resolve_embeds.assert_called_once_with(
+            parameters=params_with_embed,
+            credentials="test-creds",
+        )
+        assert request.data.parameters == resolved_params
 
     @pytest.mark.asyncio
     async def test_calls_resolve_when_markers_present(self):
