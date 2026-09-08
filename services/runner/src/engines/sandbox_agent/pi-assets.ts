@@ -587,11 +587,29 @@ export function writeSystemPromptLocal(
   }
 }
 
-/**
- * The names Pi discovers in its agent dir. Both are rewritten on every run so a run with no
- * prompt of its own can never read the previous run's.
- */
+/** The two names Pi discovers in its agent dir. */
 const PI_PROMPT_FILES = ["SYSTEM.md", "APPEND_SYSTEM.md"] as const;
+
+/**
+ * Clear the prompt files out of a per-connection agent dir the RUNNER owns.
+ *
+ * Nothing writes them there any more, and the wrapper's empty flags already stop Pi reading them,
+ * so this is the second lock on the same door: it clears what an earlier runner build left behind
+ * and keeps the dir honest for anyone reading it. Best effort — the wrapper is the guarantee.
+ *
+ * Only for the runner-owned dir. An operator's own mounted agent dir may hold a `SYSTEM.md` that
+ * the operator put there on purpose, and deleting someone's configuration is not this function's
+ * business; the empty flags neutralize it without touching it.
+ */
+function clearSharedPiPrompts(agentDir: string, log: Log = () => {}): void {
+  for (const name of PI_PROMPT_FILES) {
+    try {
+      rmSync(join(agentDir, name), { force: true });
+    } catch (err) {
+      log(`stale pi prompt not removed: ${(err as Error).message}`);
+    }
+  }
+}
 
 /**
  * The per-run dir that carries this run's Pi prompts, and the `pi` wrapper that delivers them.
@@ -600,12 +618,18 @@ const PI_PROMPT_FILES = ["SYSTEM.md", "APPEND_SYSTEM.md"] as const;
  * Pi's `auth.json` and the lock that serializes its OAuth refresh both live there and both must
  * be shared. Prompt files written into that dir are read by every other session on the same
  * connection, and two sessions that start at once race on them. Pi has no per-session prompt
- * file, but it does take `--system-prompt` and `--append-system-prompt`, and those SUPPRESS the
- * agent-dir discovery entirely. pi-acp spawns `pi` with a fixed argument list, so the flags ride
- * a one-line wrapper that `PI_ACP_PI_COMMAND` points at. The wrapper is per run, so the prompts
- * are per run.
+ * file, but it does take `--system-prompt` and `--append-system-prompt`, and those suppress the
+ * agent-dir discovery. pi-acp spawns `pi` with a fixed argument list, so the flags ride a small
+ * wrapper that `PI_ACP_PI_COMMAND` points at. The wrapper is per run, so the prompts are per run.
  *
- * The wrapper tests each file rather than baking the flags in: the agent-mount guidance rewrites
+ * BOTH FLAGS ARE ALWAYS PASSED, empty when this run has no such prompt. An omitted flag is not
+ * neutral: pinned 0.80.6 resolves `systemPromptSource ?? discoverSystemPromptFile()`, so with no
+ * flag Pi falls back to the shared dir and reads whatever another writer left there. An empty
+ * value is not nullish, so the discovery is skipped, and `resolvePromptInput("")` then returns
+ * undefined, which is exactly the no-prompt case. An empty FILE would not do: the loader reads it
+ * and hands Pi an empty prompt instead of its default.
+ *
+ * The wrapper tests each file rather than baking the choice in: the agent-mount guidance rewrites
  * the prompts after the wrapper exists and can add an append prompt that was not there before.
  *
  * `undefined` means the channel could not be built. The caller treats that as terminal: the only
@@ -631,11 +655,14 @@ export function preparePiPromptChannel(
     const lines = [
       "#!/bin/sh",
       "# Agenta: deliver this run's Pi prompts as arguments, never through the shared agent dir.",
+      "# The empty branches are load-bearing: they stop Pi discovering a prompt file in that dir.",
       ...flags.flatMap(([file, flag]) => {
         const path = shellQuote(join(dir, file));
         return [
           `if [ -f ${path} ]; then`,
           `  set -- ${flag} ${path} "$@"`,
+          "else",
+          `  set -- ${flag} '' "$@"`,
           "fi",
         ];
       }),
@@ -912,6 +939,7 @@ export function prepareLocalPiAssets({
     // probe and the extension install both write into it.
     if (subscriptionHome) {
       mkdirSync(subscriptionHome, { recursive: true, mode: 0o700 });
+      clearSharedPiPrompts(subscriptionHome, log);
     }
     // A custom-provider plan cannot reach here (it requires credentialMode "env"). A model
     // REGISTRATION plan can, and it is deliberately dropped: this dir is the operator's own Pi

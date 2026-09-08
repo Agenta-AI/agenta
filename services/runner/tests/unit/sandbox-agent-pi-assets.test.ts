@@ -1051,26 +1051,34 @@ describe("prepareLocalPiAssets (per-session prompts on a shared connection dir)"
   function loadedPrompts(
     env: Record<string, string>,
     argvFile: string,
-    agentDir: string,
   ): { system?: string; append?: string } {
     spawnSync(env.PI_ACP_PI_COMMAND, ["--mode", "rpc", "--no-themes"], {
       encoding: "utf-8",
     });
     const argv = readFileSync(argvFile, "utf-8").split("\n").slice(0, -1);
+    // THE AGENT DIR IS THE DAEMON ENV'S, exactly as Pi resolves it. Reading the run's own prompt
+    // dir instead would hide the whole defect: production points Pi at the shared connection dir.
+    const agentDir = env.PI_CODING_AGENT_DIR as string;
     const read = (path: string): string =>
       existsSync(path) ? readFileSync(path, "utf-8") : path;
-    const flagValue = (flag: string): string | undefined => {
-      const at = argv.indexOf(flag);
-      return at >= 0 ? read(argv[at + 1] as string) : undefined;
-    };
     const discovered = (name: string): string | undefined => {
       const path = join(agentDir, name);
       return existsSync(path) ? readFileSync(path, "utf-8") : undefined;
     };
+    /**
+     * `systemPromptSource ?? discoverSystemPromptFile()`. A flag VALUE that is present, even an
+     * empty one, is not nullish, so it suppresses the discovery; `resolvePromptInput("")` then
+     * yields undefined, which is Pi's own default. Only an absent flag falls back to the dir.
+     */
+    const resolve = (flag: string, name: string): string | undefined => {
+      const at = argv.indexOf(flag);
+      if (at < 0) return discovered(name);
+      const value = argv[at + 1] as string;
+      return value === "" ? undefined : read(value);
+    };
     return {
-      system: flagValue("--system-prompt") ?? discovered("SYSTEM.md"),
-      append:
-        flagValue("--append-system-prompt") ?? discovered("APPEND_SYSTEM.md"),
+      system: resolve("--system-prompt", "SYSTEM.md"),
+      append: resolve("--append-system-prompt", "APPEND_SYSTEM.md"),
     };
   }
 
@@ -1120,11 +1128,11 @@ describe("prepareLocalPiAssets (per-session prompts on a shared connection dir)"
       appendSystemPrompt: "agent B extra framing",
     });
 
-    assert.deepEqual(loadedPrompts(a.env, a.argvFile, connectionDir), {
+    assert.deepEqual(loadedPrompts(a.env, a.argvFile), {
       system: "you are agent A",
       append: undefined,
     });
-    assert.deepEqual(loadedPrompts(b.env, b.argvFile, connectionDir), {
+    assert.deepEqual(loadedPrompts(b.env, b.argvFile), {
       system: undefined,
       append: "agent B extra framing",
     });
@@ -1135,18 +1143,63 @@ describe("prepareLocalPiAssets (per-session prompts on a shared connection dir)"
     assert.ok(existsSync(join(connectionDir, "auth.json")));
   });
 
-  it("gives a run with no prompt of its own no prompt at all", () => {
+  it("does not read a prompt file another writer left in the shared dir", () => {
     const connectionDir = tempDir("agenta-pi-connection-");
-    // A stale file from an older runner, and a session that asks for no prompt.
+    // What an earlier runner build wrote, or anything else with access to the dir.
     writeFileSync(join(connectionDir, "SYSTEM.md"), "you are agent A", "utf-8");
+    writeFileSync(join(connectionDir, "APPEND_SYSTEM.md"), "stale extra", "utf-8");
 
     const run = subscriptionRun(connectionDir, { hasSystemPrompt: false });
 
-    // The wrapper passes no prompt flag, and the run's own dir holds no prompt file, so Pi's own
-    // default stands. The stale file in the shared dir is not this run's to read.
-    assert.deepEqual(loadedPrompts(run.env, run.argvFile, run.promptDir!), {
+    assert.deepEqual(loadedPrompts(run.env, run.argvFile), {
       system: undefined,
       append: undefined,
+    });
+    // Both were also cleared out of the dir the runner owns, so nothing is left to find.
+    assert.equal(existsSync(join(connectionDir, "SYSTEM.md")), false);
+    assert.equal(existsSync(join(connectionDir, "APPEND_SYSTEM.md")), false);
+  });
+
+  /**
+   * The sequence the wrapper's empty flags exist for. Suppose the clearing step above had not run,
+   * or another writer put the file back between the two runs: run B must still see nothing.
+   */
+  it("gives run B no prompt after run A had one, even with a file back in the shared dir", () => {
+    const connectionDir = tempDir("agenta-pi-connection-");
+
+    const a = subscriptionRun(connectionDir, {
+      hasSystemPrompt: true,
+      systemPrompt: "you are agent A",
+      appendSystemPrompt: "agent A framing",
+    });
+    assert.deepEqual(loadedPrompts(a.env, a.argvFile), {
+      system: "you are agent A",
+      append: "agent A framing",
+    });
+
+    // Put both files back, as a writer this runner does not control would.
+    writeFileSync(join(connectionDir, "SYSTEM.md"), "you are agent A", "utf-8");
+    writeFileSync(join(connectionDir, "APPEND_SYSTEM.md"), "agent A framing", "utf-8");
+
+    const b = subscriptionRun(connectionDir, { hasSystemPrompt: false });
+    assert.deepEqual(loadedPrompts(b.env, b.argvFile), {
+      system: undefined,
+      append: undefined,
+    });
+  });
+
+  it("keeps an appended prompt from picking up a shared base prompt", () => {
+    const connectionDir = tempDir("agenta-pi-connection-");
+    const run = subscriptionRun(connectionDir, {
+      hasSystemPrompt: true,
+      appendSystemPrompt: "only framing",
+    });
+    // Between the wrapper being written and Pi starting, as a concurrent writer would.
+    writeFileSync(join(connectionDir, "SYSTEM.md"), "you are agent A", "utf-8");
+
+    assert.deepEqual(loadedPrompts(run.env, run.argvFile), {
+      system: undefined,
+      append: "only framing",
     });
   });
 
