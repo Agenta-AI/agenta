@@ -94,9 +94,7 @@ describe("rehypeExplicitRelativeLinks", () => {
 
 describe("decodeDriveHref", () => {
     it("undoes the percent-encoding harden's URL round-trip adds", () => {
-        expect(decodeDriveHref("/agent-files/my report.md".replace(" ", "%20"))).toBe(
-            "/agent-files/my report.md",
-        )
+        expect(decodeDriveHref("/agent-files/my%20report.md")).toBe("/agent-files/my report.md")
     })
 
     it("returns a malformed escape unchanged rather than throwing", () => {
