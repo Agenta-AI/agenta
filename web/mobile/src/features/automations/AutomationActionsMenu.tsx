@@ -16,7 +16,6 @@ import {
     ClockCounterClockwise,
     Copy,
     DotsThreeVertical,
-    Hash,
     Pause,
     Play,
     Trash,
@@ -112,16 +111,6 @@ export const AutomationActionsMenu = ({
         }
     }, [automation, base, create, duplicating, router])
 
-    const onCopyId = useCallback(async () => {
-        try {
-            // `navigator.clipboard` is undefined outside a secure context.
-            await navigator.clipboard.writeText(automation.id)
-            message.success("Automation ID copied")
-        } catch {
-            message.error("Couldn't copy the ID")
-        }
-    }, [automation.id])
-
     const onToggle = useCallback(async () => {
         const next = !automation.isActive
         try {
@@ -203,10 +192,6 @@ export const AutomationActionsMenu = ({
                     <DropdownMenuItem disabled={duplicating} onSelect={() => void onDuplicate()}>
                         <Copy aria-hidden size={14} />
                         Duplicate
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => void onCopyId()}>
-                        <Hash aria-hidden size={14} />
-                        Copy automation ID
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onSelect={onDelete}>
