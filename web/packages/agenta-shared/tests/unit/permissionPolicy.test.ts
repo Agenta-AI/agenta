@@ -1,9 +1,4 @@
-/**
- * The Permissions selector's sub-lines. One of them called `Allow reads` the default while the
- * standard template creates an agent on `Allow all`, and an agent with no stored policy runs on
- * `Allow reads` (#6662). No sub-line can say which of those it means, so none of them claims a
- * default. The copy lives in one list, so pin that here rather than in each host's render.
- */
+/** No option claims to be the default, because "the default" is two policies here (#6662). */
 import {describe, expect, it} from "vitest"
 
 import {
@@ -14,7 +9,7 @@ import {
 describe("permission policy option copy", () => {
     it("does not call any option the default (#6662)", () => {
         for (const option of PERMISSION_POLICY_OPTIONS) {
-            expect(option.help, option.value).not.toMatch(/\bdefaults?\b/i)
+            expect(`${option.label} ${option.help}`, option.value).not.toMatch(/\bdefaults?\b/i)
         }
     })
 
