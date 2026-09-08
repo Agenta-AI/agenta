@@ -39,7 +39,8 @@ GATEWAY_TOOLS = ("matrix_gw1_gateway_tools.py",)
 # The hosted-subscription connection: one login, signed in through the product, stored by the
 # API and delivered to whichever sandbox runs the turn. H1 is the local cell, so it is the one a
 # change to this chain must run; H2 adds the remote delivery and is worth running beside it.
-HOSTED_SUBSCRIPTION = ("H1",)
+# Both hosted cells: H1 proves the local delivery path, H2 the Daytona one (in-VM file, read-back).
+HOSTED_SUBSCRIPTION = ("H1", "H2")
 
 # Glob -> cells. Matching is fnmatch over the whole repo-relative path, so `*` crosses directory
 # separators: `a/b/*` and `a/b/**` behave the same, and both mean "anything under a/b". Write
@@ -79,6 +80,13 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     # two fields the hosted journeys assert on, and they are read here as well as written by the
     # API, so a shape change on this side breaks the sign-in path with no server-side diff.
     "web/packages/agenta-entities/src/secret/**": HOSTED_SUBSCRIPTION,
+    # The rest of the delivery chain: the SDK resolves the connection and puts the login on the
+    # wire, the secrets storage layer holds the row, and the Daytona module puts the file in the VM.
+    "sdks/python/agenta/sdk/agents/connections/**": HOSTED_SUBSCRIPTION,
+    "sdks/python/agenta/sdk/agents/platform/connections.py": HOSTED_SUBSCRIPTION,
+    "sdks/python/agenta/sdk/agents/wire_models.py": HOSTED_SUBSCRIPTION,
+    "api/oss/src/dbs/postgres/secrets/**": HOSTED_SUBSCRIPTION,
+    "services/runner/src/engines/sandbox_agent/daytona.ts": HOSTED_SUBSCRIPTION,
 }
 
 
