@@ -863,8 +863,22 @@ export async function pushSubscriptionLogin(
     // Record the push BEFORE reading the body: the API has it either way, and a body we cannot
     // parse must not make the next turn send the same login again.
     state.pushedExpires = loginExpires(login);
-    const body = (await res.json().catch(() => ({}))) as { version?: unknown };
+    const body = (await res.json().catch(() => ({}))) as {
+      version?: unknown;
+      updated?: unknown;
+      stale?: unknown;
+      reason?: unknown;
+    };
     if (typeof body.version === "number") state.version = body.version;
+    if (body.updated === false) {
+      // The API kept its own login: an older generation, an older expiry, the same token, or a
+      // token that failed its shape check. Say which, so a refused push is visible in the log.
+      log(
+        `subscription login push refused version=${state.version} stale=${body.stale === true}` +
+          (typeof body.reason === "string" ? ` reason=${body.reason}` : ""),
+      );
+      return;
+    }
     log(`subscription login push ok version=${state.version}`);
   } catch (err) {
     log(`subscription login push failed ${describeThrown(err)}`);
