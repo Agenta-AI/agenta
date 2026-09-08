@@ -18,6 +18,7 @@ import {
 } from "@agenta/automation-ui"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
+import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {
     CaretDown,
@@ -96,7 +97,13 @@ export const AutomationListScreen = ({
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const [search, setSearch] = useState("")
-    const [view, setView] = useState<AutomationListView>(DEFAULT_AUTOMATION_LIST_VIEW)
+    // Grouping is a display preference a reader sets once; the filters are a question they were
+    // asking at the time, so only the first survives a reload.
+    const [view, setView] = useFilterMenuView<AutomationListView>({
+        key: "agenta:automations:view",
+        fallback: DEFAULT_AUTOMATION_LIST_VIEW,
+        persist: ["group"],
+    })
     // Group headings carry a chevron, so it has to do something: collapsed keys, not a flag per
     // group, because the groups themselves come and go as the view changes.
     const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
@@ -363,7 +370,9 @@ export const AutomationListScreen = ({
                         <div className="mb-3 flex items-center gap-2">
                             {/* h-8 matches the filter button beside it; the group's own 36 is a
                                 form field's height, not a toolbar's. */}
-                            <InputGroup className="h-8 min-w-0 max-w-[340px] flex-1">
+                            {/* The group's own tinted fill sits a shade off the page; this field is part of the
+                                page, not a raised control on it. */}
+                            <InputGroup className="h-8 min-w-0 max-w-[340px] flex-1 bg-transparent dark:bg-transparent">
                                 <InputGroupAddon>
                                     <MagnifyingGlass size={14} aria-hidden />
                                 </InputGroupAddon>
