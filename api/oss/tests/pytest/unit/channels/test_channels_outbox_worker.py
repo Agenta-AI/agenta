@@ -413,12 +413,27 @@ def records_dao():
     return FakeRecordsDAO()
 
 
+class _FakeInteractionsService:
+    """Maps the fold's ACP token to the SessionInteraction row id the respond
+    path answers by -- one open approval per turn in these tests."""
+
+    def __init__(self, *, token="int-1", row_id="row-int-1"):
+        self._token = token
+        self._row_id = row_id
+
+    async def fetch_turn_interactions(self, *, project_id, session_id, turn_id):
+        from types import SimpleNamespace
+
+        return [SimpleNamespace(id=self._row_id, token=self._token)]
+
+
 @pytest.fixture
 def worker(channels_service, turns_dao, records_dao):
     return ChannelsOutboxWorker(
         channels_service=channels_service,
         turns_service=SessionTurnsService(turns_dao=turns_dao),
         records_service=RecordsService(records_dao),
+        interactions_service=_FakeInteractionsService(),
     )
 
 
@@ -651,7 +666,8 @@ async def test_pending_interaction_writes_the_thread_s_pending_choice(
     labels = {c.label for c in stored.data.pending_choice.choices}
     assert labels == {"Approve", "Deny"}
     # the parked interaction the answer must go to, so the click can resume it
-    assert stored.data.pending_choice.interaction_id == "int-1"
+    # the row id the sessions respond path answers by, resolved from the token
+    assert stored.data.pending_choice.interaction_id == "row-int-1"
 
 
 @pytest.mark.asyncio

@@ -200,6 +200,11 @@ async def _build_sessions_worker(redis_client: Redis) -> StreamConsumer:
         records_service=RecordsService(
             records_dao=RecordsDAO(engine=get_analytics_engine())
         ),
+        # resolves an approval card's real SessionInteraction row id, which the
+        # sessions respond path answers by
+        interactions_service=SessionInteractionsService(
+            interactions_dao=SessionInteractionsDAO(engine=transactions_engine),
+        ),
     )
 
     return ChannelsOutboxStreamWorker(

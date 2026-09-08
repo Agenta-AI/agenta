@@ -24,6 +24,7 @@ from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelConnectionNotFound, ChannelSpaceNotFound
 from oss.src.core.channels.utils import compose_outbox_key
 from oss.src.core.sessions.records.service import RecordsService
+from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.tasks.asyncio.sessions.streaming import deserialize_turn_event
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
@@ -58,10 +59,16 @@ class ChannelsOutboxWorker:
         channels_service: ChannelsService,
         turns_service: SessionTurnsService,
         records_service: RecordsService,
+        interactions_service: Optional[SessionInteractionsService] = None,
     ) -> None:
         self.channels_service = channels_service
         self.turns_service = turns_service
         self.records_service = records_service
+        # Resolves the real SessionInteraction row id for an approval card. The
+        # fold carries the runner's ACP token, not the row id the sessions
+        # respond path answers by; None means approvals render but cannot be
+        # answered (the click is logged and dropped downstream).
+        self.interactions_service = interactions_service
 
     # --- driven by the session-turn stream ---------------------------------#
 
@@ -220,6 +227,12 @@ class ChannelsOutboxWorker:
             if item.choice:
                 # written here, not at send time -- a choice is state on the
                 # thread from the moment it renders, independent of delivery.
+                interaction_id = await self._resolve_interaction_row_id(
+                    project_id=project_id,
+                    session_id=session_id,
+                    turn_id=turn_id,
+                    token=item.interaction_id,
+                )
                 await self.channels_service.channels_dao.set_pending_choice(
                     project_id=project_id,
                     thread_id=thread.id,
@@ -229,7 +242,7 @@ class ChannelsOutboxWorker:
                             for o in item.choice
                         ],
                         posted_at=datetime.now(timezone.utc),
-                        interaction_id=item.interaction_id,
+                        interaction_id=interaction_id,
                     ),
                 )
 
@@ -241,6 +254,27 @@ class ChannelsOutboxWorker:
                 item=item,
                 thread=thread,
             )
+
+    async def _resolve_interaction_row_id(
+        self, *, project_id, session_id: str, turn_id: str, token: Optional[str]
+    ) -> Optional[str]:
+        """The SessionInteraction row id for this turn's open approval, which the
+        sessions respond path answers by. The fold carries the ACP `token`;
+        match on it, else take the turn's single open interaction."""
+        if self.interactions_service is None:
+            return None
+        try:
+            rows = await self.interactions_service.fetch_turn_interactions(
+                project_id=project_id, session_id=session_id, turn_id=turn_id
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            return None
+        if not rows:
+            return None
+        for row in rows:
+            if token and row.token == token:
+                return str(row.id)
+        return str(rows[0].id)
 
     # --- send: post or edit, then record the receipt ------------------------#
 
