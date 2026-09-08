@@ -819,6 +819,59 @@ def test_a_refused_rename_answers_409_with_the_agent_actionable_envelope():
     assert "replacing_name" in detail["next_step"]
 
 
+def test_the_route_reads_the_transitional_author_spelling():
+    # A warm agent session holds the tool descriptors it opened with, so a sandbox started
+    # under an earlier build of this change can still send `?author=auto` after the service
+    # has moved on. That call has to stay on the guarded path.
+    service = AsyncMock()
+    service.set_header.return_value = _row(name=_AGENT_NAME)
+
+    with patch(
+        "oss.src.apis.fastapi.sessions.router.check_action_access",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        response = _client(service).post(
+            f"{_HEADER_PATH}&author=auto", json={"name": _AGENT_NAME}
+        )
+
+    assert response.status_code == 200
+    assert (
+        service.set_header.await_args.kwargs["name_source"]
+        is SessionNameSource.automatic
+    )
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        # The current spelling always wins, so the alias can never override a caller that
+        # speaks it.
+        ("&author=auto&name_source=manual", SessionNameSource.manual),
+        ("&author=user", SessionNameSource.manual),
+        # Nothing we ship produces any other value, and refusing the whole rename over one
+        # would be worse than the protection the default already gives.
+        ("&author=nonsense", SessionNameSource.manual),
+        ("", SessionNameSource.manual),
+    ],
+)
+def test_the_transitional_spelling_never_beats_the_current_one(query, expected):
+    service = AsyncMock()
+    service.set_header.return_value = _row(name=_AGENT_NAME)
+
+    with patch(
+        "oss.src.apis.fastapi.sessions.router.check_action_access",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        response = _client(service).post(
+            f"{_HEADER_PATH}{query}", json={"name": _AGENT_NAME}
+        )
+
+    assert response.status_code == 200
+    assert service.set_header.await_args.kwargs["name_source"] is expected
+
+
 def test_the_route_forwards_the_replaced_name():
     service = AsyncMock()
     service.set_header.return_value = _row(name=_AGENT_NAME)
