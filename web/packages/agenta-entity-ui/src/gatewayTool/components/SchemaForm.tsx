@@ -456,7 +456,9 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                       <AccordionItem value="optional">
                                           <AccordionTrigger className="py-2 text-xs">
                                               <span className="text-xs text-colorTextDescription">
-                                                  {optionalLabel ? optionalLabel(optionalFields.length) : `Optional (${optionalFields.length})`}
+                                                  {optionalLabel
+                                                      ? optionalLabel(optionalFields.length)
+                                                      : `Optional (${optionalFields.length})`}
                                               </span>
                                           </AccordionTrigger>
                                           {/* forceMount: collapsed fields must stay registered

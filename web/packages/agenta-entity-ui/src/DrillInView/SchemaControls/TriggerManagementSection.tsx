@@ -45,8 +45,6 @@ import {
 import {useSetAtom} from "jotai"
 
 import TriggerDeliveriesDrawer from "../../gatewayTrigger/drawers/TriggerDeliveriesDrawer"
-import TriggerScheduleDrawer from "../../gatewayTrigger/drawers/TriggerScheduleDrawer"
-import TriggerSubscriptionDrawer from "../../gatewayTrigger/drawers/TriggerSubscriptionDrawer"
 
 import {AddTextLink} from "./AddTextLink"
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
@@ -62,12 +60,10 @@ export interface TriggerManagementSectionProps {
     /** Read-only mode (e.g. a non-editable revision). */
     disabled?: boolean
     /**
-     * The create/edit drawer, when the app supplies its own. This package cannot import the
-     * unified automation drawer (that package depends on this one), so the app passes it in and
-     * the two kind-specific drawers below stand down — mounting both would leave two shells
-     * listening to the same atom.
+     * The unified create/edit automation drawer, mounted once by this section. This package
+     * cannot import it directly (that package depends on this one), so the host passes it in.
      */
-    automationDrawer?: ReactNode
+    automationDrawer: ReactNode
 }
 
 export function TriggerManagementSection({
@@ -364,12 +360,7 @@ export function TriggerManagementSection({
                 visibility. App browsing + connecting now happens inside the subscription
                 drawer (no separate catalog drawer in the playground). When a
                 subscription/schedule is created here it default-binds to this agent. */}
-            {automationDrawer ?? (
-                <>
-                    <TriggerSubscriptionDrawer />
-                    <TriggerScheduleDrawer />
-                </>
-            )}
+            {automationDrawer}
             <TriggerDeliveriesDrawer />
         </div>
     )

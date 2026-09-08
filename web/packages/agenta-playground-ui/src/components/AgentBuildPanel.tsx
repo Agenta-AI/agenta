@@ -36,10 +36,9 @@ export interface AgentBuildPanelProps {
     sticky?: boolean
     /**
      * The automations create/edit drawer. Slotted like `storage`: the unified drawer lives in a
-     * package that depends on entity-ui, so the app mounts it and the sections stand their own
-     * kind-specific drawers down.
+     * package that depends on entity-ui, so the app mounts it and passes it down.
      */
-    automationDrawer?: ReactNode
+    automationDrawer: ReactNode
     className?: string
 }
 
