@@ -30,9 +30,6 @@ import {
     GatewayToolsSection,
     OrganizationsPage,
     SsoProvidersSection,
-    TriggerConnectionsSection,
-    TriggerSchedulesSection,
-    TriggerSubscriptionsSection,
     SettingsPageShell,
     useEntitlements,
 } from "@agenta/settings-ui"
@@ -134,7 +131,7 @@ const TabBody = ({
         projectId,
         enabled: access.isEE && (tab === "organization" || tab === "auditLog"),
     })
-    // Destructive actions in the shared tool/trigger sections ask for confirmation through an
+    // Destructive actions in the shared tool sections ask for confirmation through an
     // imperative callback (the desktop hands them antd's AlertPopup); this is the sheet version.
     const {confirm, sheet: confirmSheet, close: closeConfirm} = useConfirmSheet()
     // A confirmation is about the section that raised it. Leaving the tab abandons that context,
@@ -219,16 +216,6 @@ const TabBody = ({
                     <GatewayToolsSection confirm={confirm} />
                     {confirmSheet}
                 </>
-            )
-        case "triggers":
-            if (!access.canShowTriggers) return null
-            return (
-                <div className="flex flex-col gap-8">
-                    <TriggerConnectionsSection confirm={confirm} />
-                    <TriggerSubscriptionsSection confirm={confirm} />
-                    <TriggerSchedulesSection confirm={confirm} />
-                    {confirmSheet}
-                </div>
             )
         case "projects":
             return (
