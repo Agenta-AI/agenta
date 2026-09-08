@@ -1102,3 +1102,61 @@ def test_primary_credential_fields_cover_every_secret_kind():
         "custom_secret",
         "channel_secret",
     }
+
+
+# --- channel secret redaction + rotation (Codex review P1 fixes) ------------------------
+
+
+def _channel_secret_response(write_only=True):
+    return SecretResponseDTO(
+        id=uuid4(),
+        slug="tg-bot",
+        kind="channel_secret",
+        data={
+            "kind": "telegram",
+            "channel": {
+                "bot_token": "123:abc",
+                "signing_secret": "sign-xyz",
+                "webhook_secret": "whk-xyz",
+            },
+        },
+        header={"name": "Telegram"},
+        write_only=write_only,
+    )
+
+
+def test_channel_secret_redacts_every_credential_field():
+    # bot_token is the primary; signing_secret and webhook_secret are secondary
+    # secrets on the same container that authenticate inbound platform requests.
+    # All three must be stripped from a public response.
+    public = redact_secret_response(_channel_secret_response())
+    channel = public.data.channel
+    assert channel.bot_token is None
+    assert channel.signing_secret is None
+    assert channel.webhook_secret is None
+
+
+def test_channel_secret_rotation_keeps_omitted_secondary_secrets():
+    from oss.src.core.secrets.dtos import ChannelSecretDTO
+    from oss.src.core.secrets.services import _carry_over_saved_value
+
+    stored = ChannelSecretDTO.model_validate(
+        {
+            "kind": "telegram",
+            "channel": {
+                "bot_token": "old-token",
+                "signing_secret": "old-sign",
+                "webhook_secret": "whk-keep",
+            },
+        }
+    )
+    # A token-only rotation: the secondary secrets are omitted.
+    update = ChannelSecretDTO.model_validate(
+        {"kind": "telegram", "channel": {"bot_token": "new-token"}}
+    )
+    _carry_over_saved_value(
+        kind="channel_secret", stored_data=stored, update_data=update
+    )
+    assert update.channel.bot_token == "new-token"
+    assert update.channel.webhook_secret == "whk-keep"
+    assert update.channel.signing_secret == "old-sign"
