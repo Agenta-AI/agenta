@@ -141,6 +141,33 @@ describe("buildRunPlan with a hosted subscription", () => {
     );
   });
 
+  /**
+   * `.` and `..` pass every character test and then collapse the home into its parent: `..` makes
+   * the local home the runner state dir itself, so the login would land in a directory shared with
+   * every other connection and the prompt clearing would run there.
+   */
+  it("refuses a dot-only subscription id, which would name the parent directory", () => {
+    for (const id of [".", ".."]) {
+      const result = buildRunPlan(
+        request({ subscription: { ...SUBSCRIPTION, id } }),
+        { createLocalCwd: () => "/tmp/agenta-test-cwd" },
+      );
+      assert.equal(result.ok, false, id);
+      if (result.ok) return;
+      assert.equal(result.error, SUBSCRIPTION_INVALID_MESSAGE, id);
+    }
+  });
+
+  it("still accepts an id that merely contains dots", () => {
+    for (const id of ["...", "a.b", "..x"]) {
+      const result = buildRunPlan(
+        request({ subscription: { ...SUBSCRIPTION, id } }),
+        { createLocalCwd: () => "/tmp/agenta-test-cwd" },
+      );
+      assert.equal(result.ok, true, id);
+    }
+  });
+
   it("refuses a subscription whose id is not a plain path segment", () => {
     const result = buildRunPlan(
       request({ subscription: { ...SUBSCRIPTION, id: "../../etc" } }),

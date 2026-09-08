@@ -125,8 +125,15 @@ export const SUBSCRIPTION_UNSUPPORTED_MESSAGE =
   "A subscription connection is supported only for the ChatGPT provider on a Pi harness. " +
   "Use a managed API key (credentialMode 'env') for anything else.";
 
-/** The id doubles as a directory name, so it must be one plain path segment and nothing else. */
-const SUBSCRIPTION_ID_PATTERN = /^[A-Za-z0-9._-]{1,128}$/;
+/**
+ * The id doubles as a directory name, so it must be one plain path segment and nothing else.
+ *
+ * `.` and `..` are spelled out of the character class because they pass every other test and then
+ * collapse the per-connection home into its own parent: `..` makes the local home the runner state
+ * dir itself and the Daytona home `/home/sandbox/agenta`. A run on such an id would write its
+ * login into a directory shared with every other connection and clear prompt files there.
+ */
+const SUBSCRIPTION_ID_PATTERN = /^(?!\.{1,2}$)[A-Za-z0-9._-]{1,128}$/;
 
 /**
  * Where this runner keeps state that outlives a single run but is not session data.
