@@ -25,10 +25,11 @@ import {
     sessionRecordFileRecencyAtomFamily,
     type Mount,
 } from "@agenta/entities/session"
-import {DriveFileInlineRef} from "@agenta/entity-ui/drive"
-import {useDriveArtifactId, useDriveSessionId} from "@agenta/entity-ui/drive"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
+
+import {DriveFileInlineRef} from "./DriveFileCard"
+import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 
 /** A span that could NAME a file; strip a leading `./` and require a path-ish shape: a slash, or a
  * letter-led trailing extension (`.ts`, `.tar.gz`). A bare `/[./]/` matched any dotted token —
@@ -63,7 +64,8 @@ const recordIndexAtomFamily = atomFamily((sessionId: string) =>
 
 /** True when the record log proves this mention names a written file (tail match). */
 export const knownFromRecords = (byBasename: Map<string, string[]>, candidate: string): boolean => {
-    if (!candidate.includes("/")) return false
+    // Count segments WITHOUT the leading slash: `/README.md` is still a bare basename (#6004).
+    if (!candidate.replace(/^\/+/, "").includes("/")) return false
     const base = candidate.split("/").pop() ?? candidate
     return Boolean(byBasename.get(base)?.some((t) => mountPathMatchesToolPath(candidate, t)))
 }

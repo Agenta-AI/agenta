@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {fileCandidate, knownFromRecords} from "./chatFileRefs"
+import {fileCandidate, knownFromRecords} from "../../src/drive/chatFileRefs"
 
 describe("fileCandidate", () => {
     it("preserves an absolute sandbox path for mount-tail resolution (#5983)", () => {
@@ -38,6 +38,13 @@ describe("knownFromRecords", () => {
         // it with a real read instead, which is the only way to tell the two cases apart.
         const byBasename = new Map([["README.md", ["/tmp/agenta/mounts/p/m/README.md"]]])
         expect(knownFromRecords(byBasename, "README.md")).toBe(false)
+    })
+
+    it("treats a slash-prefixed basename as bare, not as a qualified path (#6004)", () => {
+        // Every relative link reaches the resolver with a leading slash now.
+        const byBasename = new Map([["README.md", ["/tmp/agenta/mounts/p/m/src/README.md"]]])
+        expect(knownFromRecords(byBasename, "/README.md")).toBe(false)
+        expect(knownFromRecords(byBasename, "/src/README.md")).toBe(true)
     })
 
     it("is false for a mention that was never written", () => {
