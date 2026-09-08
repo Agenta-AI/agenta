@@ -35,10 +35,7 @@ export interface SkillSourceInfo {
     label: string
     repoUrl?: string
     commitSha?: string
-    /** Humanized last-sync age, e.g. "5m ago". */
-    syncedAgo?: string
-    syncEnabled?: boolean
-    /** A local edit detached it from sync (kept, no longer updated). */
+    /** A local edit detached it from updates (kept, never overwritten). */
     detached?: boolean
 }
 

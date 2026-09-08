@@ -2,7 +2,7 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface SkillSourcesResponse {
+export interface SkillRevisionsResponse {
     count?: number | undefined;
-    sources?: AgentaApi.SkillSource[] | undefined;
+    revisions?: AgentaApi.SkillRevisionRow[] | undefined;
 }

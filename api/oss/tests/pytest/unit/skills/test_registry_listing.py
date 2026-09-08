@@ -54,6 +54,12 @@ class _StubWorkflowsService:
     async def fetch_workflow(self, *, project_id, workflow_ref, include_archived=None):
         return self._workflows_by_id.get(workflow_ref.id)
 
+    async def query_workflows(
+        self, *, project_id, workflow_refs=None, include_archived=None, **_
+    ):
+        ids = {ref.id for ref in (workflow_refs or [])}
+        return [w for wid, w in self._workflows_by_id.items() if wid in ids]
+
 
 @pytest.mark.asyncio
 async def test_registry_lists_db_skills_with_artifact_identity():

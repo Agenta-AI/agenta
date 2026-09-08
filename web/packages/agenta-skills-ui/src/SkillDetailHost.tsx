@@ -7,7 +7,7 @@
 import {useMemo} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {registrySourcesAtom, skillsResolveDataAtom} from "@agenta/skills/state"
+import {skillsResolveDataAtom} from "@agenta/skills/state"
 import {useAtomValue} from "jotai"
 
 import {toSkillListItem, toSourceInfo} from "./registrySections"
@@ -26,7 +26,6 @@ export function SkillDetailHost({
     const projectId = useAtomValue(projectIdAtom) ?? ""
     // Archived-inclusive: a config row referencing an archived skill still opens here.
     const projectSkills = useAtomValue(skillsResolveDataAtom)
-    const registrySources = useAtomValue(registrySourcesAtom)
 
     const item = useMemo<SkillListItem | null>(() => {
         if (!slug) return null
@@ -34,12 +33,9 @@ export function SkillDetailHost({
             (skill) => skill.workflow_slug === slug || skill.skill_name === slug,
         )
         if (!match) return null
-        const mapped = toSkillListItem(match, match.source_id ? "imported" : "project")
-        const source = match.source_id
-            ? registrySources.find((s) => s.id === match.source_id)
-            : undefined
-        return source ? {...mapped, source: toSourceInfo(source, match.source_detached)} : mapped
-    }, [projectSkills, registrySources, slug])
+        const mapped = toSkillListItem(match, match.origin ? "imported" : "project")
+        return match.origin ? {...mapped, source: toSourceInfo(match.origin)} : mapped
+    }, [projectSkills, slug])
 
     return (
         <SkillDetailDrawer

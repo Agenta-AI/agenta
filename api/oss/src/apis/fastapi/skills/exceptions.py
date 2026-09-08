@@ -9,6 +9,8 @@ from oss.src.core.skills.exceptions import (
     SkillSourceNotFoundError,
     SkillSourceTooLargeError,
     SkillNameCollisionError,
+    SkillNotFoundError,
+    SkillOriginMissingError,
 )
 
 _STATUS_BY_TYPE = {
@@ -16,6 +18,8 @@ _STATUS_BY_TYPE = {
     SkillSourceTooLargeError: 413,
     SkillSourceFetchError: 502,
     SkillSourceNotFoundError: 404,
+    SkillNotFoundError: 404,
+    SkillOriginMissingError: 409,
     SkillNameCollisionError: 409,
 }
 

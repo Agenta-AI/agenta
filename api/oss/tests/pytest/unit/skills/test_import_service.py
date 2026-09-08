@@ -1,9 +1,9 @@
-"""Unit tests for WP-A5: SkillImportService with an injected local fetcher.
+"""Unit tests for the meta-first import service (plan-meta-provenance.md).
 
-No network, no DB — the fetcher copies a fixture tree, the workflows service
-and the sources DAO are in-memory stubs."""
+No network, no DB — the fetcher copies a fixture tree and the workflows
+service is an in-memory stub that stores artifacts (with meta) and heads.
+"""
 
-import re
 import shutil
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,9 +12,17 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.skills.exceptions import SkillOriginMissingError
 from oss.src.core.skills.fetcher import FetchedSource
-from oss.src.core.skills.import_service import SkillImportService
-from oss.src.core.skills.sources_dtos import SkillSource, SkillSourceLink
+from oss.src.core.skills.import_service import (
+    SkillImportService,
+    skill_content_hash,
+)
+from oss.src.core.skills.provenance import (
+    merge_ag_meta,
+    read_origin,
+)
+from oss.src.core.workflows.service import RevisionConflictError
 
 PROJECT_ID = uuid4()
 USER_ID = uuid4()
@@ -33,114 +41,114 @@ class LocalFetcher:
         return FetchedSource(root=root, commit_sha=self.commit_sha)
 
 
-class _StubCreated:
-    def __init__(self):
+class _Workflow:
+    """One stored skill workflow: artifact fields + the current head."""
+
+    def __init__(self, *, slug, name, meta, payload):
         self.id = uuid4()
+        self.slug = slug
+        self.name = name
+        self.meta = meta
+        # The head revision's own (immutable) meta — what checkpoint recovery reads.
+        self.revision_meta = meta
+        self.payload = payload
+        self.variant_id = uuid4()
+        self.revision_id = uuid4()
 
 
 class _StubWorkflowsService:
-    def __init__(self, existing_slugs: Optional[set] = None):
-        self.existing_slugs = existing_slugs or set()
-        self.created = []
+    def __init__(self, store):
+        self.store = store  # workflow_id -> _Workflow
         self.commits = []
+        self.edits = []
+        self.conflict_next_commit = False
 
-    async def fetch_workflow(self, *, project_id, workflow_ref):
-        if workflow_ref.slug in self.existing_slugs:
-            return object()
-        return None
+    async def query_workflow_head_revisions(
+        self, *, project_id, workflow_revision_query
+    ):
+        return [
+            SimpleNamespace(artifact_id=w.id, artifact_slug=w.slug)
+            for w in self.store.values()
+        ]
+
+    async def query_workflows(self, *, project_id, workflow_refs=None, **_):
+        ids = {ref.id for ref in (workflow_refs or [])}
+        return [w for w in self.store.values() if w.id in ids]
+
+    async def fetch_workflow_revision(self, *, project_id, workflow_ref, **_):
+        workflow = self.store.get(workflow_ref.id)
+        if workflow is None:
+            return None
+        return SimpleNamespace(id=workflow.revision_id, meta=workflow.revision_meta)
 
     async def commit_workflow_revision_checked(
-        self, *, project_id, user_id, workflow_revision_commit
+        self, *, project_id, user_id, workflow_revision_commit, platform_meta=False
     ):
+        if self.conflict_next_commit:
+            self.conflict_next_commit = False
+            raise RevisionConflictError(
+                base_revision_id=uuid4(), current_revision_id=uuid4()
+            )
         self.commits.append(workflow_revision_commit)
+        workflow = self.store[workflow_revision_commit.workflow_id]
+        workflow.payload = dict(workflow_revision_commit.data.parameters["skill"])
+        workflow.revision_meta = workflow_revision_commit.meta
+        workflow.revision_id = uuid4()
         return SimpleNamespace(
-            revision=SimpleNamespace(id=uuid4()),
+            revision=SimpleNamespace(id=workflow.revision_id),
             status="committed",
             warnings=[],
         )
 
+    async def edit_workflow(
+        self, *, project_id, user_id, workflow_edit, platform_meta=False
+    ):
+        self.edits.append(workflow_edit)
+        workflow = self.store[workflow_edit.id]
+        if "meta" in workflow_edit.model_fields_set:
+            workflow.meta = workflow_edit.meta
+        if "name" in workflow_edit.model_fields_set:
+            workflow.name = workflow_edit.name
+        return workflow
+
 
 class _StubSimpleWorkflowsService:
-    def __init__(self, existing_slugs: Optional[set] = None):
-        self.workflows_service = _StubWorkflowsService(existing_slugs)
+    def __init__(self, *, reject_first_create: int = 0):
+        self.store = {}
+        self.workflows_service = _StubWorkflowsService(self.store)
         self.created = []
-        # workflow_id -> current head payload (what `fetch` answers with)
-        self.heads = {}
+        self._reject = reject_first_create
 
-    async def create(self, *, project_id, user_id, simple_workflow_create):
+    async def create(
+        self, *, project_id, user_id, simple_workflow_create, platform_meta=False
+    ):
+        self.last_create_trusted = platform_meta
+        if self._reject > 0:
+            self._reject -= 1
+            from oss.src.core.shared.exceptions import EntityCreationConflict
+
+            raise EntityCreationConflict("slug taken")
         self.created.append(simple_workflow_create)
-        created = _StubCreated()
-        self.heads[created.id] = SimpleNamespace(
-            data=SimpleNamespace(
-                parameters=dict(simple_workflow_create.data.parameters)
-            ),
-            variant_id=uuid4(),
-            revision_id=uuid4(),
+        workflow = _Workflow(
+            slug=simple_workflow_create.slug,
+            name=simple_workflow_create.name,
+            meta=simple_workflow_create.meta,
+            payload=dict(simple_workflow_create.data.parameters["skill"]),
         )
-        return created
+        self.store[workflow.id] = workflow
+        return workflow
 
     async def fetch(self, *, project_id, workflow_id):
-        return self.heads.get(workflow_id)
-
-
-class _StubSourcesDAO:
-    def __init__(self):
-        self.sources = []
-        self.links = []
-
-    async def create_source(self, *, project_id, user_id, source_create):
-        source = SkillSource(
-            id=uuid4(),
-            slug=source_create.slug,
-            repo_url=source_create.repo_url,
-            ref=source_create.ref,
-            last_seen_commit_sha=source_create.last_seen_commit_sha,
-            sync_enabled=source_create.sync_enabled,
+        workflow = self.store.get(workflow_id)
+        if workflow is None:
+            return None
+        return SimpleNamespace(
+            id=workflow.id,
+            meta=workflow.meta,
+            data=SimpleNamespace(parameters={"skill": dict(workflow.payload)}),
+            variant_id=workflow.variant_id,
+            revision_id=workflow.revision_id,
         )
-        self.sources.append(source)
-        return source
-
-    async def fetch_source(self, *, project_id, source_id):
-        return next((s for s in self.sources if s.id == source_id), None)
-
-    async def fetch_source_by_slug(self, *, project_id, slug):
-        return next((s for s in self.sources if s.slug == slug), None)
-
-    async def update_source(self, *, project_id, source_id, **updates):
-        source = await self.fetch_source(project_id=project_id, source_id=source_id)
-        if source is None:
-            return None
-        for key, value in updates.items():
-            if value is not None:
-                setattr(source, key, value)
-        return source
-
-    async def create_links(self, *, project_id, user_id, link_creates):
-        links = [
-            SkillSourceLink(
-                id=uuid4(),
-                source_id=link.source_id,
-                workflow_id=link.workflow_id,
-                path_in_repo=link.path_in_repo,
-                imported_commit_sha=link.imported_commit_sha,
-                content_hash=link.content_hash,
-            )
-            for link in link_creates
-        ]
-        self.links.extend(links)
-        return links
-
-    async def list_links(self, *, project_id, source_id):
-        return [x for x in self.links if x.source_id == source_id]
-
-    async def update_link(self, *, project_id, link_id, **updates):
-        link = next((x for x in self.links if x.id == link_id), None)
-        if link is None:
-            return None
-        for key, value in updates.items():
-            if value is not None:
-                setattr(link, key, value)
-        return link
 
 
 def _write_skill(root: Path, dirname: str, name: str, *, body: str = "Do the thing."):
@@ -164,20 +172,33 @@ def fixture_tree(tmp_path: Path) -> Path:
     return root
 
 
-def _service(fixture_tree: Path, *, existing_slugs: Optional[set] = None):
-    simple = _StubSimpleWorkflowsService(existing_slugs)
-    dao = _StubSourcesDAO()
+def _service(fixture_tree: Path, **kwargs):
+    simple = _StubSimpleWorkflowsService(**kwargs)
     service = SkillImportService(
         simple_workflows_service=simple,
-        sources_dao=dao,
         fetcher=LocalFetcher(fixture_tree),
     )
-    return service, simple, dao
+    return service, simple
+
+
+async def _import_all(service):
+    return await service.import_from_source(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        repo_url="github.com/acme/skills",
+    )
+
+
+def _workflow_named(simple, name):
+    return next(w for w in simple.store.values() if w.name == name)
+
+
+# --- scan ---------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_scan_source_reports_candidates(fixture_tree):
-    service, _, _ = _service(fixture_tree)
+    service, _ = _service(fixture_tree)
     result = await service.scan_source(repo_url="github.com/acme/skills")
 
     assert result.commit_sha == "abc1234"
@@ -189,8 +210,7 @@ async def test_scan_source_reports_candidates(fixture_tree):
 
 @pytest.mark.asyncio
 async def test_scan_marks_already_imported_paths(fixture_tree):
-    service, _, _ = _service(fixture_tree)
-    # Before any import, a project-scoped scan marks nothing.
+    service, _ = _service(fixture_tree)
     fresh = await service.scan_source(
         repo_url="github.com/acme/skills", project_id=PROJECT_ID
     )
@@ -212,290 +232,41 @@ async def test_scan_marks_already_imported_paths(fixture_tree):
     assert anonymous.already_imported_paths == []
 
 
+# --- import -------------------------------------------------------------------
+
+
 @pytest.mark.asyncio
-async def test_import_creates_workflows_and_links(fixture_tree):
-    service, simple, dao = _service(fixture_tree)
-    result = await service.import_from_source(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        repo_url="github.com/acme/skills",
-    )
+async def test_import_creates_workflows_with_provenance_meta(fixture_tree):
+    service, simple = _service(fixture_tree)
+    result = await _import_all(service)
 
     assert {i.name for i in result.imported} == {"alpha", "beta"}
     assert {s.path_in_repo for s in result.skipped} == {"skills/broken"}
 
-    assert len(simple.created) == 2
-    create = next(c for c in simple.created if c.slug.startswith("alpha-"))
-    # Display name stays exactly the skill name; the slug carries a unique suffix.
-    assert re.fullmatch(r"alpha-[0-9a-f]{4}", create.slug)
-    assert create.flags.is_skill is True
-    assert create.flags.is_snippet is True
-    assert create.data.parameters["skill"]["name"] == "alpha"
-    assert "Do the thing." in create.data.parameters["skill"]["body"]
-
-    assert len(dao.links) == 2
-    link = next(x for x in dao.links if x.path_in_repo == "skills/alpha")
-    assert link.source_id == result.source.id
-    assert link.imported_commit_sha == "abc1234"
-    assert len(link.content_hash) == 64
-
-
-@pytest.mark.asyncio
-async def test_reimport_reuses_the_existing_source_row(fixture_tree):
-    # A second import from the same repo must not insert a second source
-    # (uq_skill_sources_project_id_slug made it a 500 in the drawer flow).
-    service, _, dao = _service(fixture_tree)
-    first = await service.import_from_source(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        repo_url="github.com/acme/skills",
-        paths=["skills/alpha"],
-    )
-    second = await service.import_from_source(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        repo_url="github.com/acme/skills",
-        paths=["skills/beta"],
-        sync_enabled=True,
-    )
-
-    assert len(dao.sources) == 1
-    assert second.source.id == first.source.id
-    assert second.source.sync_enabled is True
-    assert [i.name for i in second.imported] == ["beta"]
-
-
-@pytest.mark.asyncio
-async def test_import_respects_path_selection(fixture_tree):
-    service, simple, _ = _service(fixture_tree)
-    result = await service.import_from_source(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        repo_url="github.com/acme/skills",
-        paths=["skills/alpha"],
-    )
-
-    assert [i.name for i in result.imported] == ["alpha"]
-    assert len(simple.created) == 1
-
-
-@pytest.mark.asyncio
-async def test_reimport_skips_already_linked_paths(fixture_tree):
-    service, simple, dao = _service(fixture_tree)
-    first = await service.import_from_source(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        repo_url="github.com/acme/skills",
-    )
-    assert len(first.imported) == 2
-
-    second = await service.import_from_source(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        repo_url="github.com/acme/skills",
-    )
-    # Idempotency rides the link table: the same paths skip, nothing duplicates.
-    assert second.imported == []
-    assert {s.path_in_repo for s in second.skipped} >= {"skills/alpha", "skills/beta"}
-    assert all(
-        s.issues and s.issues[0].code == "already_imported"
-        for s in second.skipped
-        if s.path_in_repo in {"skills/alpha", "skills/beta"}
-    )
-    assert len(dao.links) == 2
-
-
-@pytest.mark.asyncio
-async def test_name_collision_creates_with_suffixed_slug(fixture_tree):
-    # An unrelated skill already using the name is NOT a blocker: display names may
-    # collide (like agents); the new workflow just gets its own suffixed slug.
-    service, simple, dao = _service(fixture_tree, existing_slugs={"alpha"})
-    result = await service.import_from_source(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        repo_url="github.com/acme/skills",
-    )
-
-    assert {i.name for i in result.imported} == {"alpha", "beta"}
-    alpha_create = next(c for c in simple.created if c.name == "alpha")
-    assert re.fullmatch(r"alpha-[0-9a-f]{4}", alpha_create.slug)
-    assert alpha_create.data.parameters["skill"]["name"] == "alpha"
-    assert len(dao.links) == 2
-
-
-@pytest.mark.asyncio
-async def test_import_includes_extra_files(fixture_tree):
-    service, simple, _ = _service(fixture_tree)
-    await service.import_from_source(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        repo_url="github.com/acme/skills",
-        paths=["skills/beta"],
-    )
-
-    create = simple.created[0]
-    files = create.data.parameters["skill"]["files"]
-    assert [f["path"] for f in files] == ["reference.md"]
-
-
-# --- refresh (WP-A6) ---------------------------------------------------------
-
-
-async def _import_then(fixture_tree: Path, service, **kwargs):
-    kwargs.setdefault("sync_enabled", True)
-    result = await service.import_from_source(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        repo_url="github.com/acme/skills",
-        **kwargs,
-    )
-    return result.source
-
-
-def _statuses(result):
-    return {x.path_in_repo: x.status for x in result.links}
-
-
-@pytest.mark.asyncio
-async def test_refresh_commits_changed_skills(fixture_tree):
-    service, simple, dao = _service(fixture_tree)
-    source = await _import_then(fixture_tree, service)
-
-    (fixture_tree / "skills/alpha/SKILL.md").write_text(
-        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nDo the NEW thing.\n"
-    )
-    service.fetcher.commit_sha = "def5678"
-
-    result = await service.refresh_source(
-        project_id=PROJECT_ID, user_id=USER_ID, source_id=source.id
-    )
-
-    assert _statuses(result) == {
-        "skills/alpha": "updated",
-        "skills/beta": "unchanged",
+    alpha = _workflow_named(simple, "alpha")
+    origin = read_origin(alpha.meta)
+    assert origin["kind"] == "catalog"
+    assert origin["provider"] == "github"
+    assert origin["locator"] == {
+        "repository": "acme/skills",
+        "ref": None,
+        "path": "skills/alpha",
     }
-    assert len(simple.workflows_service.commits) == 1
-    commit = simple.workflows_service.commits[0]
-    assert commit.base_revision_id is not None
-    assert commit.meta["skill_sync"]["source_id"] == str(source.id)
-    assert commit.meta["skill_sync"]["commit_sha"] == "def5678"
-    assert "Do the NEW thing." in commit.data.parameters["skill"]["body"]
-
-    link = next(x for x in dao.links if x.path_in_repo == "skills/alpha")
-    assert link.imported_commit_sha == "def5678"
-    assert dao.sources[0].last_seen_commit_sha == "def5678"
-
-
-@pytest.mark.asyncio
-async def test_refresh_detaches_locally_edited_skills(fixture_tree):
-    service, simple, dao = _service(fixture_tree)
-    source = await _import_then(fixture_tree, service)
-
-    # Hand-edit the workflow head after import.
-    alpha_id = next(
-        wid
-        for wid, head in simple.heads.items()
-        if head.data.parameters["skill"]["name"] == "alpha"
-    )
-    simple.heads[alpha_id].data.parameters["skill"]["body"] = "Edited by hand."
-
-    (fixture_tree / "skills/alpha/SKILL.md").write_text(
-        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
-    )
-
-    result = await service.refresh_source(
-        project_id=PROJECT_ID, user_id=USER_ID, source_id=source.id
-    )
-
-    assert _statuses(result)["skills/alpha"] == "detached"
-    assert not simple.workflows_service.commits
-    link = next(x for x in dao.links if x.path_in_repo == "skills/alpha")
-    assert link.detached is True
-
-
-@pytest.mark.asyncio
-async def test_refresh_marks_paths_missing_in_source(fixture_tree):
-    service, _, dao = _service(fixture_tree)
-    source = await _import_then(fixture_tree, service)
-
-    shutil.rmtree(fixture_tree / "skills/beta")
-
-    result = await service.refresh_source(
-        project_id=PROJECT_ID, user_id=USER_ID, source_id=source.id
-    )
-
-    assert _statuses(result)["skills/beta"] == "missing_in_source"
-    link = next(x for x in dao.links if x.path_in_repo == "skills/beta")
-    assert link.missing_in_source is True
-    # The workflow itself is untouched.
-    assert not any(
-        x.status == "updated" for x in result.links if x.path_in_repo == "skills/beta"
-    )
-
-
-@pytest.mark.asyncio
-async def test_refresh_skips_detached_links(fixture_tree):
-    service, simple, dao = _service(fixture_tree)
-    source = await _import_then(fixture_tree, service)
-
-    link = next(x for x in dao.links if x.path_in_repo == "skills/alpha")
-    link.detached = True
-    (fixture_tree / "skills/alpha/SKILL.md").write_text(
-        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
-    )
-
-    result = await service.refresh_source(
-        project_id=PROJECT_ID, user_id=USER_ID, source_id=source.id
-    )
-
-    assert _statuses(result)["skills/alpha"] == "detached"
-    assert not simple.workflows_service.commits
-
-
-@pytest.mark.asyncio
-async def test_refresh_with_sync_off_reports_without_committing(fixture_tree):
-    service, simple, dao = _service(fixture_tree)
-    source = await _import_then(fixture_tree, service, sync_enabled=False)
-
-    (fixture_tree / "skills/alpha/SKILL.md").write_text(
-        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
-    )
-
-    result = await service.refresh_source(
-        project_id=PROJECT_ID, user_id=USER_ID, source_id=source.id
-    )
-
-    # Sync is off: the change is OFFERED, never applied.
-    assert _statuses(result)["skills/alpha"] == "update_available"
-    assert not simple.workflows_service.commits
-    link = next(x for x in dao.links if x.path_in_repo == "skills/alpha")
-    assert link.imported_commit_sha == "abc1234"  # untouched
-
-
-@pytest.mark.asyncio
-async def test_refresh_apply_overrides_sync_off(fixture_tree):
-    service, simple, dao = _service(fixture_tree)
-    source = await _import_then(fixture_tree, service, sync_enabled=False)
-
-    (fixture_tree / "skills/alpha/SKILL.md").write_text(
-        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
-    )
-    service.fetcher.commit_sha = "def5678"
-
-    result = await service.refresh_source(
-        project_id=PROJECT_ID, user_id=USER_ID, source_id=source.id, apply=True
-    )
-
-    # The explicit one-off Apply commits even though the source stays sync-off.
-    assert _statuses(result)["skills/alpha"] == "updated"
-    assert len(simple.workflows_service.commits) == 1
-    link = next(x for x in dao.links if x.path_in_repo == "skills/alpha")
-    assert link.imported_commit_sha == "def5678"
+    checkpoint = origin["last_imported"]
+    assert checkpoint["resolved_version"] == "abc1234"
+    assert checkpoint["content_hash"] == skill_content_hash(alpha.payload)
+    # The v1 revision carries flat immutable provenance (same meta on create).
+    provenance = alpha.meta["_ag"]["provenance"]
+    assert provenance["operation"] == "import"
+    assert provenance["content_hash"] == checkpoint["content_hash"]
+    # The create must be a TRUSTED platform write, or the DAO guard strips this
+    # very meta on the real chain (stubs cannot see the strip — assert the flag).
+    assert simple.last_create_trusted is True
 
 
 @pytest.mark.asyncio
 async def test_import_with_empty_paths_imports_nothing(fixture_tree):
-    service, simple, _ = _service(fixture_tree)
+    service, simple = _service(fixture_tree)
     result = await service.import_from_source(
         project_id=PROJECT_ID,
         user_id=USER_ID,
@@ -503,19 +274,239 @@ async def test_import_with_empty_paths_imports_nothing(fixture_tree):
         paths=[],
     )
     assert result.imported == []
-    assert not simple.workflows_service.created
+    assert not simple.created
 
 
 @pytest.mark.asyncio
-async def test_reimport_persists_the_requested_ref(fixture_tree):
-    service, _, dao = _service(fixture_tree)
-    source = await _import_then(fixture_tree, service)
-    await service.import_from_source(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        repo_url="github.com/acme/skills",
-        ref="release-2",
-        paths=[],
+async def test_reimport_skips_already_imported_paths(fixture_tree):
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    result = await _import_all(service)
+
+    assert result.imported == []
+    codes = {s.path_in_repo: [i.code for i in s.issues] for s in result.skipped}
+    assert codes["skills/alpha"] == ["already_imported"]
+    assert codes["skills/beta"] == ["already_imported"]
+    assert len(simple.created) == 2
+
+
+@pytest.mark.asyncio
+async def test_slug_collision_retries_with_fresh_suffix(fixture_tree):
+    service, simple = _service(fixture_tree, reject_first_create=1)
+    result = await _import_all(service)
+    # The first create attempt conflicted; the retry made it through.
+    assert {i.name for i in result.imported} == {"alpha", "beta"}
+
+
+# --- updates/check ------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_check_reports_up_to_date(fixture_tree):
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    alpha = _workflow_named(simple, "alpha")
+
+    check = await service.check_update(project_id=PROJECT_ID, workflow_id=alpha.id)
+    assert check.status == "up_to_date"
+
+
+@pytest.mark.asyncio
+async def test_check_reports_update_available(fixture_tree):
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    alpha = _workflow_named(simple, "alpha")
+
+    (fixture_tree / "skills/alpha/SKILL.md").write_text(
+        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
     )
-    updated = next(x for x in dao.sources if x.id == source.id)
-    assert updated.ref == "release-2"
+    check = await service.check_update(project_id=PROJECT_ID, workflow_id=alpha.id)
+    assert check.status == "update_available"
+    # Read-only: nothing was committed or edited.
+    assert not simple.workflows_service.commits
+    assert not simple.workflows_service.edits
+
+
+@pytest.mark.asyncio
+async def test_check_derives_detached_from_local_edit(fixture_tree):
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    alpha = _workflow_named(simple, "alpha")
+
+    # A local edit changes the head WITHOUT any provenance stamp (absence-as-
+    # signal): the content hash walks away from the checkpoint.
+    alpha.payload = {**alpha.payload, "body": "Edited in Agenta."}
+    alpha.revision_meta = None
+
+    (fixture_tree / "skills/alpha/SKILL.md").write_text(
+        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
+    )
+    check = await service.check_update(project_id=PROJECT_ID, workflow_id=alpha.id)
+    assert check.status == "detached"
+
+
+@pytest.mark.asyncio
+async def test_check_reports_missing_in_source(fixture_tree):
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    alpha = _workflow_named(simple, "alpha")
+
+    shutil.rmtree(fixture_tree / "skills/alpha")
+    check = await service.check_update(project_id=PROJECT_ID, workflow_id=alpha.id)
+    assert check.status == "missing_in_source"
+
+
+@pytest.mark.asyncio
+async def test_check_without_origin_raises(fixture_tree):
+    service, simple = _service(fixture_tree)
+    local = _Workflow(
+        slug="local-1", name="local", meta=None, payload={"name": "local"}
+    )
+    simple.store[local.id] = local
+
+    with pytest.raises(SkillOriginMissingError):
+        await service.check_update(project_id=PROJECT_ID, workflow_id=local.id)
+
+
+# --- updates/apply ------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_apply_commits_and_advances_the_checkpoint(fixture_tree):
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    alpha = _workflow_named(simple, "alpha")
+    # A foreign meta key must survive the checkpoint advance (merge, not replace).
+    alpha.meta = {**alpha.meta, "user_note": "keep me"}
+
+    (fixture_tree / "skills/alpha/SKILL.md").write_text(
+        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
+    )
+    service.fetcher.commit_sha = "def5678"
+
+    outcome = await service.apply_update(
+        project_id=PROJECT_ID, user_id=USER_ID, workflow_id=alpha.id
+    )
+    assert outcome.status == "updated"
+    assert outcome.revision_id is not None
+
+    commit = simple.workflows_service.commits[-1]
+    assert commit.meta["_ag"]["provenance"]["operation"] == "update"
+    assert commit.meta["_ag"]["provenance"]["resolved_version"] == "def5678"
+    assert commit.base_revision_id is not None
+
+    origin = read_origin(alpha.meta)
+    assert origin["last_imported"]["resolved_version"] == "def5678"
+    assert origin["last_imported"]["content_hash"] == skill_content_hash(alpha.payload)
+    assert alpha.meta["user_note"] == "keep me"
+
+
+@pytest.mark.asyncio
+async def test_apply_is_a_noop_when_up_to_date(fixture_tree):
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    alpha = _workflow_named(simple, "alpha")
+
+    outcome = await service.apply_update(
+        project_id=PROJECT_ID, user_id=USER_ID, workflow_id=alpha.id
+    )
+    assert outcome.status == "up_to_date"
+    assert not simple.workflows_service.commits
+
+
+@pytest.mark.asyncio
+async def test_apply_never_overwrites_a_detached_skill(fixture_tree):
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    alpha = _workflow_named(simple, "alpha")
+    alpha.payload = {**alpha.payload, "body": "Edited in Agenta."}
+    alpha.revision_meta = None
+
+    (fixture_tree / "skills/alpha/SKILL.md").write_text(
+        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
+    )
+    outcome = await service.apply_update(
+        project_id=PROJECT_ID, user_id=USER_ID, workflow_id=alpha.id
+    )
+    assert outcome.status == "detached"
+    assert not simple.workflows_service.commits
+
+
+@pytest.mark.asyncio
+async def test_apply_reports_conflict_on_moved_head(fixture_tree):
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    alpha = _workflow_named(simple, "alpha")
+
+    (fixture_tree / "skills/alpha/SKILL.md").write_text(
+        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
+    )
+    simple.workflows_service.conflict_next_commit = True
+    outcome = await service.apply_update(
+        project_id=PROJECT_ID, user_id=USER_ID, workflow_id=alpha.id
+    )
+    assert outcome.status == "conflict"
+    assert not simple.workflows_service.edits
+
+
+# --- provenance helpers -------------------------------------------------------
+
+
+def test_merge_ag_meta_preserves_foreign_keys():
+    existing = {"theme": "dark", "_ag": {"origin": {"a": 1}, "extra": True}}
+    merged = merge_ag_meta(existing, {"origin": {"a": 2}})
+    assert merged["theme"] == "dark"
+    assert merged["_ag"]["extra"] is True
+    assert merged["_ag"]["origin"] == {"a": 2}
+    # The input dicts are not mutated.
+    assert existing["_ag"]["origin"] == {"a": 1}
+
+
+@pytest.mark.asyncio
+async def test_check_recovers_from_a_lost_checkpoint_write(fixture_tree):
+    """Apply commits the revision and writes the checkpoint separately. If the
+    checkpoint write is lost, the head still carries immutable provenance proving
+    sync wrote it — so the skill reconciles instead of stranding as detached."""
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    alpha = _workflow_named(simple, "alpha")
+
+    (fixture_tree / "skills/alpha/SKILL.md").write_text(
+        "---\nname: alpha\ndescription: A test skill named alpha.\n---\n\nUpstream change.\n"
+    )
+    service.fetcher.commit_sha = "def5678"
+    await service.apply_update(
+        project_id=PROJECT_ID, user_id=USER_ID, workflow_id=alpha.id
+    )
+
+    # Simulate the crash window: the commit landed, the checkpoint write did not.
+    alpha.meta = merge_ag_meta(
+        alpha.meta,
+        {
+            "origin": {
+                **read_origin(alpha.meta),
+                "last_imported": {
+                    **read_origin(alpha.meta)["last_imported"],
+                    "content_hash": "stale-checkpoint",
+                },
+            }
+        },
+    )
+
+    check = await service.check_update(project_id=PROJECT_ID, workflow_id=alpha.id)
+    assert check.status == "up_to_date"
+
+
+@pytest.mark.asyncio
+async def test_recovery_never_rescues_a_hand_edited_head(fixture_tree):
+    """The reconciliation is not a blanket 'trust the head': content that no
+    provenance stamp vouches for still reads as detached."""
+    service, simple = _service(fixture_tree)
+    await _import_all(service)
+    alpha = _workflow_named(simple, "alpha")
+
+    # Provenance stays from the import, but the content moved underneath it.
+    alpha.payload = {**alpha.payload, "body": "Edited in Agenta."}
+
+    check = await service.check_update(project_id=PROJECT_ID, workflow_id=alpha.id)
+    assert check.status == "detached"

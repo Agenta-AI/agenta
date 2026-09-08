@@ -20,6 +20,7 @@ from oss.src.core.git.types import (
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.types import VariantForkError
+from oss.src.core.git.platform_meta import guard_platform_meta
 from oss.src.core.git.dtos import (
     Artifact,
     ArtifactCreate,
@@ -111,6 +112,8 @@ class GitDAO(GitDAOInterface):
         artifact_create: ArtifactCreate,
         #
         artifact_id: Optional[UUID] = None,
+        #
+        platform_meta: bool = False,
     ) -> Optional[Artifact]:
         artifact = Artifact(
             project_id=project_id,
@@ -123,7 +126,9 @@ class GitDAO(GitDAOInterface):
             #
             flags=artifact_create.flags,
             tags=artifact_create.tags,
-            meta=artifact_create.meta,
+            meta=guard_platform_meta(
+                artifact_create.meta, None, trusted=platform_meta, preserve=False
+            ),
             #
             name=artifact_create.name,
             description=artifact_create.description,
@@ -206,6 +211,8 @@ class GitDAO(GitDAOInterface):
         user_id: UUID,
         #
         artifact_edit: ArtifactEdit,
+        #
+        platform_meta: bool = False,
     ) -> Optional[Artifact]:
         async with self.engine.session() as session:
             stmt = select(self.ArtifactDBE).filter(
@@ -236,7 +243,12 @@ class GitDAO(GitDAOInterface):
             if "tags" in _set:
                 artifact_dbe.tags = artifact_edit.tags  # type: ignore
             if "meta" in _set:
-                artifact_dbe.meta = artifact_edit.meta  # type: ignore
+                artifact_dbe.meta = guard_platform_meta(  # type: ignore
+                    artifact_edit.meta,
+                    artifact_dbe.meta,
+                    trusted=platform_meta,
+                    preserve=True,
+                )
             if "name" in _set:
                 artifact_dbe.name = artifact_edit.name  # type: ignore
             if "description" in _set:
@@ -479,7 +491,9 @@ class GitDAO(GitDAOInterface):
             #
             flags=variant_create.flags,
             tags=variant_create.tags,
-            meta=variant_create.meta,
+            meta=guard_platform_meta(
+                variant_create.meta, None, trusted=False, preserve=False
+            ),
             #
             # Temporary default until the SDK can send variant display names;
             # without it SDK-created variants surface as NULL and break entity labels.
@@ -633,7 +647,12 @@ class GitDAO(GitDAOInterface):
             #
             variant_dbe.flags = variant_edit.flags
             variant_dbe.tags = variant_edit.tags
-            variant_dbe.meta = variant_edit.meta
+            variant_dbe.meta = guard_platform_meta(
+                variant_edit.meta,
+                variant_dbe.meta,
+                trusted=False,
+                preserve=True,
+            )
             #
             variant_dbe.name = variant_edit.name
             variant_dbe.description = variant_edit.description
@@ -1059,7 +1078,9 @@ class GitDAO(GitDAOInterface):
             #
             flags=revision_create.flags,
             tags=revision_create.tags,
-            meta=revision_create.meta,
+            meta=guard_platform_meta(
+                revision_create.meta, None, trusted=False, preserve=False
+            ),
             #
             name=revision_create.name,
             description=revision_create.description,
@@ -1230,7 +1251,12 @@ class GitDAO(GitDAOInterface):
             #
             revision_dbe.flags = revision_edit.flags
             revision_dbe.tags = revision_edit.tags
-            revision_dbe.meta = revision_edit.meta
+            revision_dbe.meta = guard_platform_meta(
+                revision_edit.meta,
+                revision_dbe.meta,
+                trusted=False,
+                preserve=True,
+            )
             #
             revision_dbe.name = revision_edit.name
             revision_dbe.description = revision_edit.description
@@ -1747,6 +1773,8 @@ class GitDAO(GitDAOInterface):
         expected_head_revision_id: Optional[UUID] = None,
         #
         no_change_check: Optional[Callable[[Optional[Revision]], bool]] = None,
+        #
+        platform_meta: bool = False,
     ) -> Optional[Revision]:
         """Append a revision to a variant's history.
 
@@ -1770,7 +1798,9 @@ class GitDAO(GitDAOInterface):
             #
             flags=revision_commit.flags,
             tags=revision_commit.tags,
-            meta=revision_commit.meta,
+            meta=guard_platform_meta(
+                revision_commit.meta, None, trusted=platform_meta, preserve=False
+            ),
             #
             name=revision_commit.name,
             description=revision_commit.description,

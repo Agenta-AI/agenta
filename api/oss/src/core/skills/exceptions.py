@@ -47,6 +47,32 @@ class SkillSourceNotFoundError(SkillsError):
     retryable = False
 
 
+class SkillNotFoundError(SkillsError):
+    code = "skill_not_found"
+    retryable = False
+
+
+class SkillOriginMissingError(SkillsError):
+    """Update check/apply on a skill that was never imported from a source."""
+
+    code = "skill_origin_missing"
+    retryable = False
+
+
 class SkillNameCollisionError(SkillsError):
     code = "name_collision"
+    retryable = False
+
+
+class SkillContentInvalidError(SkillsError):
+    """The submitted skill payload fails the SkillTemplate contract."""
+
+    code = "skill_invalid"
+    retryable = False
+
+
+class SkillRevisionConflictError(SkillsError):
+    """The commit was built on a base that is no longer the head."""
+
+    code = "revision_conflict"
     retryable = False

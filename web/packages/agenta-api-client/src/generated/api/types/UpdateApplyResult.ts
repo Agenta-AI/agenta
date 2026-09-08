@@ -2,10 +2,10 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface RefreshedLink {
-    path_in_repo: string;
-    workflow_id?: (string | null) | undefined;
+export interface UpdateApplyResult {
+    workflow_id: string;
     status: string;
     revision_id?: (string | null) | undefined;
+    resolved_version?: (string | null) | undefined;
     issues?: AgentaApi.SkillIssue[] | undefined;
 }
