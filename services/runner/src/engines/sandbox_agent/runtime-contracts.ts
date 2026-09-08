@@ -331,26 +331,20 @@ export interface SessionEnvironment {
    */
   codexSqliteHome: string | undefined;
   /**
-   * How far this session has pushed its hosted subscription login back to the API.
+   * Which hosted subscription login this session runs on, and which one the API has acknowledged.
    *
    * It lives on the ENVIRONMENT rather than in a module map so two sessions on one runner cannot
-   * suppress each other's push, and so a warm session that spans many turns keeps one moving
-   * floor instead of re-sending the same refreshed login after every turn. Undefined for every
-   * run that carries no subscription.
+   * suppress each other's publication. Undefined for every run that carries no subscription.
    */
-  subscriptionPush?: import("./subscription-login.ts").SubscriptionPushState;
+  subscriptionPublish?: import("./subscription-login/publisher.ts").SubscriptionPublishState;
   /**
-   * The running publisher for this session's subscription login, stopped at teardown.
+   * The one operation that publishes this session's login, drained at teardown.
    *
-   * IT BELONGS TO THE SESSION, NOT THE TURN, and that was a real defect rather than a preference.
-   * Owned by the turn, it started when a prompt began and stopped in the turn's `finally`, so the
-   * file was unwatched between turns, for the whole of a park, and from the last turn until
-   * eviction. Pi streams its answer and persists the refreshed token around the end of a turn, so
-   * the single sample the turn-end read takes can land just before the write and miss it — after
-   * which nothing looks again until teardown. Observed on a live cell on 2026-09-08: Pi refreshed,
-   * the file on disk held the new token, and not one of the publish paths reported anything.
+   * IT BELONGS TO THE SESSION, NOT THE TURN. Owned by a turn it would stop between turns, through
+   * a park, and from the last turn until eviction, and Pi persists a refreshed token around the
+   * moment a turn ends.
    */
-  subscriptionWatch?: { stop: () => void };
+  subscriptionPublisher?: import("./subscription-login/publisher.ts").SubscriptionPublisher;
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is

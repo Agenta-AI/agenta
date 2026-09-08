@@ -26,9 +26,9 @@ import {
   type RunPlanWorkspace,
 } from "./run-plan.ts";
 import {
-  materializeDaytonaSubscriptionLogin,
+  materializeSubscriptionLoginForRun,
   type SubscriptionSandboxFs,
-} from "./subscription-login.ts";
+} from "./subscription-login/files.ts";
 
 type Log = (message: string) => void;
 
@@ -284,12 +284,13 @@ export async function prepareDaytonaPiAssets({
   // the geesefs cwd.
   const subscription = plan.credentials.subscription;
   if (subscription && plan.credentials.subscriptionHome) {
-    await materializeDaytonaSubscriptionLogin(
-      sandbox as SubscriptionSandboxFs,
-      plan.credentials.subscriptionHome,
+    await materializeSubscriptionLoginForRun({
+      home: plan.credentials.subscriptionHome,
+      isDaytona: true,
+      sandbox: sandbox as SubscriptionSandboxFs,
       subscription,
       log,
-    );
+    });
   }
   const extensionInstalled = await uploadPiExtensionToSandbox(
     sandbox,

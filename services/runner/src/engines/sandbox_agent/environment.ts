@@ -65,10 +65,7 @@ import {
 } from "./daytona.ts";
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { classifyRunError, conciseError, type RunErrorCode } from "./errors.ts";
-import {
-  pushBackSubscriptionLoginForRun,
-  startSubscriptionLoginPublisher,
-} from "./subscription-login.ts";
+import { startSubscriptionPublisher } from "./subscription-login/publisher.ts";
 import { recoverSubscriptionAuthFailure } from "./subscription-recovery.ts";
 import {
   awaitCredentialSubstitution,
@@ -520,24 +517,11 @@ async function acquireEnvironmentOnce(
       mcpAbort: environment.mcpAbort,
       closeToolMcp: environment.closeToolMcp,
     });
-    // Session end, and the LAST moment a Daytona sandbox is still reachable. The turn path already
-    // pushed after every turn, so this is the backstop for a session torn down without one — an
-    // acquire that failed after the login was written, or an eviction between turns.
-    //
-    // The publisher stops FIRST: it reads the same file, and a read in flight while the sandbox is
-    // released would log a failure for a session that ended cleanly. The one-shot read below is
-    // what covers anything written since its last poll.
-    environment.subscriptionWatch?.stop();
-    environment.subscriptionWatch = undefined;
-    await pushBackSubscriptionLoginForRun({
-      plan,
-      state: environment.subscriptionPush,
-      sandbox: environment.sandbox,
-      apiBase: apiBase(),
-      authorization: runCred,
-      log: logger,
-      moment: "session-end",
-    });
+    // Session end, and the LAST moment a Daytona sandbox is still reachable. The drain awaits the
+    // pass in flight and takes one final sample, so a token Pi wrote after the last interval still
+    // reaches the API before the sandbox goes.
+    await environment.subscriptionPublisher?.stop();
+    environment.subscriptionPublisher = undefined;
     inFlightSandboxes.delete(environment);
     // Graceful `session/cancel` BEFORE tearing down the daemon, or the ACP adapter subprocess
     // reparents to PID 1 and never exits. Skip if the pause path already sent it.
@@ -676,6 +660,20 @@ async function acquireEnvironmentOnce(
     if (localModelOverrideUnenforceable) {
       throw new Error(PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE);
     }
+    // The one publisher for this session, started BEFORE the harness so the acquire path can
+    // publish too, and drained in the teardown above. Its first pass repairs a publication a
+    // previous session lost: the agent dir can already hold a login newer than the delivered one,
+    // whose push never reached the API. The sandbox is read at each pass because a Daytona run
+    // acquires one further down.
+    environment.subscriptionPublisher = startSubscriptionPublisher({
+      plan,
+      state: environment.subscriptionPublish,
+      sandbox: () => environment.sandbox,
+      apiBase: apiBase(),
+      authorization: runCred,
+      log: logger,
+    });
+
     // Structural + SSRF validation of user MCP servers BEFORE any sandbox (or Daytona Secret) is
     // created, so an invalid credentialed server never triggers remote side effects.
     await validateUserMcpServers(request.mcpServers);
@@ -1419,36 +1417,6 @@ async function acquireEnvironmentOnce(
 
     throwIfAcquireAborted(signal);
 
-    // SELF-HEAL AT MATERIALIZE (contract amendment A3). The agent dir can already hold a login
-    // NEWER than the one this run was delivered: a previous turn refreshed it and its push never
-    // reached the API — the runner restarted, the sandbox was evicted, the network dropped. The
-    // materialize above deliberately kept that newer file, and this push is what finally gets it
-    // home, one run late instead of never. The floor in `subscriptionPush` makes it a no-op on
-    // every ordinary run, where the file holds exactly what was delivered.
-    await pushBackSubscriptionLoginForRun({
-      plan,
-      state: environment.subscriptionPush,
-      sandbox: environment.sandbox,
-      apiBase: apiBase(),
-      authorization: runCred,
-      log: logger,
-      moment: "materialize",
-    });
-
-    // The publisher runs for the LIFE OF THE SESSION, not of a turn (amendment A3). Started here
-    // so it is already watching before the first prompt, and stopped in the teardown below, it
-    // covers the gaps a turn-scoped watcher left open: between turns, through a park, and from the
-    // last turn until eviction. Pi persists a refreshed token around the end of a turn, which is
-    // exactly when a turn-scoped watcher was already gone.
-    environment.subscriptionWatch = startSubscriptionLoginPublisher({
-      plan,
-      state: environment.subscriptionPush,
-      sandbox: environment.sandbox,
-      apiBase: apiBase(),
-      authorization: runCred,
-      log: logger,
-    });
-
     timingLog("acquire_total", acquireStartedAt);
     emit?.({
       type: "data",
@@ -1490,17 +1458,19 @@ async function acquireEnvironmentOnce(
     if (
       subscriptionForError &&
       subscriptionHomeForError &&
-      environment.subscriptionPush
+      environment.subscriptionPublish
     ) {
+      const publisher = environment.subscriptionPublisher;
       const recovery = await recoverSubscriptionAuthFailure({
         err,
         subscription: subscriptionForError,
-        state: environment.subscriptionPush,
+        state: environment.subscriptionPublish,
         home: subscriptionHomeForError,
         isDaytona: plan.isDaytona,
         sandbox: environment.sandbox as never,
         replayable: false,
         api: { apiBase: apiBase(), authorization: runCred, log: logger },
+        ...(publisher ? { publish: publisher.reconcile } : {}),
         log: logger,
       });
       if (recovery?.action === "fail") classified = recovery.classified;
