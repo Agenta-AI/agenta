@@ -48,7 +48,11 @@ export const AutomationDetailBody = ({
     /** The saved row with the unsaved config written over it — what the fields render. */
     preview: Automation
     agentName: string | null
-    runsHref: string
+    /**
+     * Where the run history lives. Null on a surface that has no route for it (a drawer opened
+     * over the agent that owns the runs), which hides the card rather than linking nowhere.
+     */
+    runsHref: string | null
     failureReason?: string | null
     runHistoryCaption?: string
     /** The draft differs from what is saved, so the footer has something to offer. */
@@ -100,7 +104,7 @@ export const AutomationDetailBody = ({
                 onCommit={onChangeInputs}
             />
         </div>
-        <AutomationRunHistoryCard href={runsHref} caption={runHistoryCaption} />
+        {runsHref ? <AutomationRunHistoryCard href={runsHref} caption={runHistoryCaption} /> : null}
         {/* Last on the page: the bar commits the whole screen, so it reads as the end of the
             form rather than a divider halfway down it. */}
         {dirty ? <AutomationSaveBar saving={saving} onDiscard={onDiscard} onSave={onSave} /> : null}
