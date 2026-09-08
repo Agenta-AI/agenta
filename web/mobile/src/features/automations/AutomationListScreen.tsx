@@ -339,7 +339,9 @@ export const AutomationListScreen = ({
                         {/* One control beside the field, not three: sort and group are rows
                             inside it, so the bar stays a search bar. */}
                         <div className="mb-3 flex items-center gap-2">
-                            <label className="flex min-w-0 max-w-[340px] flex-1 items-center gap-2 rounded-lg border border-solid border-border px-2.5 py-[7px] focus-within:border-ring">
+                            {/* h-8 is the filter button's height: the field's own padding put
+                                it 3.5px taller than the control beside it. */}
+                            <label className="flex h-8 min-w-0 max-w-[340px] flex-1 items-center gap-2 rounded-lg border border-solid border-border px-2.5 focus-within:border-ring">
                                 <MagnifyingGlass
                                     size={14}
                                     className="shrink-0 text-muted-foreground"
