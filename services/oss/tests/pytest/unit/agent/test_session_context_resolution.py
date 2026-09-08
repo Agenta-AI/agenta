@@ -88,20 +88,28 @@ def backend_facts(monkeypatch):
 
 @pytest.fixture
 def sdk_singleton():
-    """Own the SDK singleton for one test, and put back whatever was there.
+    """Give one test an initialized ``ag.tracing``, and put back the one it replaced.
 
     The route runs the INSTRUMENTED handler, which reads ``ag.tracing``. Inheriting it from
     whatever else ran first in the process is not safe: under the parallel runner the worker
     that gets this file may have run nothing that initializes it, and the failure is a 500 on
     ``NoneType.get_current_span`` in the very cell that proves the artifact check works.
 
-    Restoring on the way out matters as much as setting it. ``init`` mutates a process global,
-    and leaving an unroutable host installed would follow every later test in the worker.
+    Restoring on the way out matters as much as setting it, so a host meant for this file does
+    not follow every later test in the worker. Be clear about how far that goes: this puts back
+    the ``ag.tracing`` alias and nothing else. ``init`` also replaces the SDK singleton's api,
+    async_api and tracer, and installs a provider and exporter, and those stay. It is a
+    narrower guarantee than owning the singleton, and it is the part later tests read.
+
+    Pytest also unwinds this fixture after a failing test, but not after a failure raised
+    before the yield.
     """
     previous = getattr(agenta_sdk, "tracing", None)
-    # `host` does NOT isolate the exporter here: the AGENTA_API_URL set above wins, so the
-    # background exporter really does reach for that host. Nothing in this file reads a span,
-    # and the exporter flushes off the request path, so its failures do not affect a result.
+    # This fixture sets up BEFORE `backend_facts`, so no AGENTA_API_URL is in place yet and the
+    # exporter targets the loopback host below. An AGENTA_API_URL already in the environment
+    # would still win, so this is not exporter isolation. It does not need to be: nothing here
+    # reads a span, and the exporter flushes off the request path, so a failed export cannot
+    # change a result.
     agenta_sdk.init(host="http://127.0.0.1:1", api_key="test-key")
     assert agenta_sdk.tracing is not None, (
         "the route needs an initialized SDK singleton"

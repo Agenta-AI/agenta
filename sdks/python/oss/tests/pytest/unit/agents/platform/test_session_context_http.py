@@ -814,15 +814,16 @@ async def test_the_unbounded_read_carries_no_deadline_of_its_own(connection, rou
     assert context.session_name == "Sapphire Ledger"
 
 
-async def test_the_client_is_always_closed_on_the_abandonment_path(
+async def test_the_clients_close_is_entered_on_the_abandonment_path(
     connection, monkeypatch
 ):
     """Abandoning the unwind must not mean skipping it.
 
-    Cancelling the task raises into the `async with`, so the client's own close runs even
-    when the caller has already been handed None. If that close then hangs there is nothing
-    further to force: httpx exposes no way past `aclose`. The guarantee this pins is that
-    the close is entered every time, and that the caller does not wait for it.
+    Cancelling the task raises into the `async with`, so the client's own close is ENTERED
+    even when the caller has already been handed None. Entered is the whole claim. This does
+    not prove the close completes, and it cannot: if `aclose` hangs there is nothing further
+    to force, because httpx exposes no way past it. So the two things pinned here are that
+    the close runs at all, and that the caller does not wait for it to finish.
     """
     monkeypatch.setattr(session_context, "CLEANUP_GRACE", 0.05)
     closed = asyncio.Event()
