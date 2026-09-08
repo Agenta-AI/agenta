@@ -411,6 +411,11 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{/* ================================================================
    Alembic job defaults.
    ================================================================ */}}
+{{- /* Which Helm hook phase the migration Job runs in. "post" (the default) keeps the
+       behavior the chart always had, which the bundled PostgreSQL StatefulSet needs. "pre"
+       runs the migrations before the app pods start, which is what an external database
+       wants. See alembic-job.yaml. */ -}}
+{{- define "agenta.alembic.hookPhase" -}}{{ default "post" (default dict .Values.alembic).hookPhase }}{{- end }}
 {{- define "agenta.alembic.activeDeadlineSeconds" -}}{{ default 600 (default dict .Values.alembic).activeDeadlineSeconds }}{{- end }}
 {{- define "agenta.alembic.backoffLimit" -}}{{ default 3 (default dict .Values.alembic).backoffLimit }}{{- end }}
 {{- define "agenta.alembic.ttlSecondsAfterFinished" -}}{{ default 300 (default dict .Values.alembic).ttlSecondsAfterFinished }}{{- end }}

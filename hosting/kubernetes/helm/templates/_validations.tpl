@@ -236,6 +236,28 @@ redisDurable.persistence.enabled in your values file (was: %v).
 {{- end }}
 
 {{/* ================================================================
+   Validate the Alembic hook phase. A typo would silently fall back to
+   "post", so an operator who asked for "pre" would keep the behavior
+   they tried to change and never learn why.
+   ================================================================ */}}
+{{- define "agenta.validateAlembicHookPhase" -}}
+{{- $phase := include "agenta.alembic.hookPhase" . -}}
+{{- if not (has $phase (list "post" "pre")) -}}
+{{- fail (printf `
+
+CONFIGURATION ERROR: alembic.hookPhase=%q is not a valid phase.
+
+Allowed values:
+
+  post   (default) run the migrations after the release is applied. Required with
+         the bundled PostgreSQL, which does not exist yet at pre-install time.
+  pre              run the migrations before the app pods start. Use this with an
+         external database (postgresql.enabled=false).
+` $phase) -}}
+{{- end -}}
+{{- end }}
+
+{{/* ================================================================
    Validate license value is in the allowed set. Catches typos like
    `agenta.license: enterprise` that would otherwise fall through to
    the OSS code paths and silently disable EE features.

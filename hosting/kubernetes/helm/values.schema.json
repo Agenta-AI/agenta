@@ -406,6 +406,7 @@
         "autoMigrations":          { "type": ["boolean", "string"], "description": "ALEMBIC_AUTO_MIGRATIONS." },
         "cfgPathCore":             { "type": "string", "description": "ALEMBIC_CFG_PATH_CORE." },
         "cfgPathTracing":          { "type": "string", "description": "ALEMBIC_CFG_PATH_TRACING." },
+        "hookPhase":               { "type": "string", "enum": ["post", "pre"], "description": "Helm hook phase for the migration Job. 'post' (default) renders post-install,post-upgrade and is required with the bundled PostgreSQL, which does not exist yet at pre-install time. 'pre' renders pre-install,pre-upgrade so the migrations finish before the app pods start; use it with an external database." },
         "activeDeadlineSeconds":   { "type": "integer" },
         "backoffLimit":            { "type": "integer" },
         "ttlSecondsAfterFinished": { "type": "integer" },
