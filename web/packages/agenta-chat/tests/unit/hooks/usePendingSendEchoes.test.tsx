@@ -183,3 +183,41 @@ describe("usePendingSendEchoes", () => {
         expect(result.current.rows).toHaveLength(0)
     })
 })
+
+describe("usePendingSendEchoes before a send is acknowledged", () => {
+    it("is retired early by a history adoption, which is the known limit", () => {
+        // PINNED, not endorsed. An unacknowledged send has no identity, so it falls back to the
+        // count, and a batch of previously unread history raises that count for reasons nothing
+        // to do with this send. The echo goes, and comes back when its own row is adopted.
+        //
+        // The alternative is worse. Holding an unacknowledged echo until its turn settles would
+        // leave it beside its own durable row for the whole turn on any send whose stream never
+        // carries an acceptance frame, which is a persistent duplicate rather than a brief gap.
+        // A short re-vanish that self-heals is the safer of the two failures.
+        const {result, rerender} = setup()
+
+        act(() => result.current.add({id: "m1", text: "mine"}))
+        expect(texts(result.current.rows)).toEqual(["mine"])
+
+        rerender({
+            messages: [user("h1", "old one", "turn-a"), user("h2", "old two", "turn-b")],
+            dockedInputIds: NO_DOCK,
+        })
+        expect(result.current.rows).toHaveLength(0)
+    })
+
+    it("is NOT retired by a foreign row once the send has been acknowledged", () => {
+        // The same adoption, after acknowledgement, leaves it alone. Acknowledgement is what
+        // closes the window, so anything shortening it shrinks the limit above.
+        const {result, rerender} = setup()
+
+        act(() => result.current.add({id: "m1", text: "mine"}))
+        act(() => result.current.markAccepted("m1", "turn-mine"))
+
+        rerender({
+            messages: [user("h1", "old one", "turn-a"), user("h2", "old two", "turn-b")],
+            dockedInputIds: NO_DOCK,
+        })
+        expect(texts(result.current.rows)).toEqual(["mine"])
+    })
+})
