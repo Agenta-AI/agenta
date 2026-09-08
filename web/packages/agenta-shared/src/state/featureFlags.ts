@@ -20,8 +20,10 @@ import {stringStorage} from "./stringStorage"
  * first paint, before any request settles. Apps push into it once they know who is signed in
  * (OSS from onboarding, mobile from its profile query).
  */
+export const ACTIVE_USER_ID_KEY = "agenta:onboarding:active-user-id"
+
 export const activeUserIdAtom = atomWithStorage<string | null>(
-    "agenta:onboarding:active-user-id",
+    ACTIVE_USER_ID_KEY,
     null,
     stringStorage,
 )

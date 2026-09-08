@@ -331,8 +331,15 @@ export function decideDesktopGate(input: GateInput): GateDecision {
         if (isDesktopOnlyLink(input.pathname, input.search)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTOUT_COOKIE)) return {kind: "pass"}
 
+        // Classic mode ON is the user asking for the desktop app in as many words, through a
+        // switch that exists to bring them here. It outranks the device heuristic, which is only
+        // ever a guess about what they want. Without this the two fight and /m wins every time:
+        // the switch sends them to /w, the device check sends them back, and on a phone there is
+        // no way out of `/m` at all.
+        const wantsClassic = classicGateEnabled && input.cookie(CLASSIC_MODE_COOKIE) === "1"
+
         // Device: a phone gets /m for anything, mapped or not.
-        if (input.gateEnabled && isMobileDevice(input.header)) {
+        if (input.gateEnabled && !wantsClassic && isMobileDevice(input.header)) {
             return {kind: "redirect", location: mapDesktopToMobile(input.pathname, input.search)}
         }
 
