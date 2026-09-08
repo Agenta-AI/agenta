@@ -13,6 +13,7 @@
 
 // The model: what an automation is, and how an edit becomes a request body.
 export * from "./automationModel"
+export * from "./automationListView"
 export * from "./automationEdit"
 export * from "./runModel"
 export * from "./templates"

@@ -38,6 +38,7 @@
         "./drill-in": "./src/drill-in/index.ts",
         "./editor": "./src/Editor/index.ts",
         "./editor-theme.css": "./src/styles/editor-theme.css",
+        "./filter-menu": "./src/filter-menu/index.ts",
         "./height-collapse": "./src/components/HeightCollapse.tsx",
         "./hooks": "./src/hooks/index.ts",
         "./llm-icons": "./src/LLMIcons/index.ts",
