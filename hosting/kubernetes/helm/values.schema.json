@@ -425,9 +425,10 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "api":      { "$ref": "#/$defs/ingressPath" },
-            "services": { "$ref": "#/$defs/ingressPath" },
-            "web":      { "$ref": "#/$defs/ingressPath" }
+            "api":       { "$ref": "#/$defs/ingressPath" },
+            "services":  { "$ref": "#/$defs/ingressPath" },
+            "webMobile": { "$ref": "#/$defs/ingressPath", "description": "Mobile web route. The mobile image is built with basePath /m, so keep path at /m unless you rebuild it; pathType is free to change (a managed ingress may need ImplementationSpecific)." },
+            "web":       { "$ref": "#/$defs/ingressPath" }
           }
         }
       }

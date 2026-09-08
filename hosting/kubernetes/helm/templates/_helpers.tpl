@@ -433,8 +433,19 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- $svc := default dict $paths.services -}}
 {{- default "Prefix" $svc.pathType -}}
 {{- end }}
-{{- define "agenta.ingress.paths.webMobile.path" -}}/m{{- end }}
-{{- define "agenta.ingress.paths.webMobile.pathType" -}}Prefix{{- end }}
+{{- /* The mobile image is built with basePath /m, so the path must stay /m unless the image
+       is rebuilt. pathType is still worth overriding: a managed ingress (GKE) may need
+       ImplementationSpecific. */ -}}
+{{- define "agenta.ingress.paths.webMobile.path" -}}
+{{- $paths := default dict (default dict .Values.ingress).paths -}}
+{{- $m := default dict $paths.webMobile -}}
+{{- default "/m" $m.path -}}
+{{- end }}
+{{- define "agenta.ingress.paths.webMobile.pathType" -}}
+{{- $paths := default dict (default dict .Values.ingress).paths -}}
+{{- $m := default dict $paths.webMobile -}}
+{{- default "Prefix" $m.pathType -}}
+{{- end }}
 {{- define "agenta.ingress.paths.web.path" -}}
 {{- $paths := default dict (default dict .Values.ingress).paths -}}
 {{- $w := default dict $paths.web -}}
