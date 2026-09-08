@@ -644,6 +644,21 @@ async function acquireEnvironmentOnce(
     if (localSubscriptionError) {
       throw localSubscriptionError;
     }
+    // The one publisher for this session, started as soon as the login is on disk and
+    // BEFORE the remaining fail-closed gates, so an acquire that fails later still publishes
+    // through the teardown drain. Its first pass repairs a publication a
+    // previous session lost: the agent dir can already hold a login newer than the delivered one,
+    // whose push never reached the API. The sandbox is read at each pass because a Daytona run
+    // acquires one further down.
+    environment.subscriptionPublisher = startSubscriptionPublisher({
+      plan,
+      state: environment.subscriptionPublish,
+      sandbox: () => environment.sandbox,
+      apiBase: apiBase(),
+      authorization: runCred,
+      log: logger,
+    });
+
     // Fail closed before any sandbox/mount infra spins up: a local Pi run whose policy could gate a
     // built-in tool cannot proceed without the permission extension installed (Decision 2).
     if (localBuiltinGatingUnenforceable) {
@@ -660,20 +675,6 @@ async function acquireEnvironmentOnce(
     if (localModelOverrideUnenforceable) {
       throw new Error(PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE);
     }
-    // The one publisher for this session, started BEFORE the harness so the acquire path can
-    // publish too, and drained in the teardown above. Its first pass repairs a publication a
-    // previous session lost: the agent dir can already hold a login newer than the delivered one,
-    // whose push never reached the API. The sandbox is read at each pass because a Daytona run
-    // acquires one further down.
-    environment.subscriptionPublisher = startSubscriptionPublisher({
-      plan,
-      state: environment.subscriptionPublish,
-      sandbox: () => environment.sandbox,
-      apiBase: apiBase(),
-      authorization: runCred,
-      log: logger,
-    });
-
     // Structural + SSRF validation of user MCP servers BEFORE any sandbox (or Daytona Secret) is
     // created, so an invalid credentialed server never triggers remote side effects.
     await validateUserMcpServers(request.mcpServers);
