@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
         "@agenta/ui",
         "@agenta/entities",
         "@agenta/entity-ui",
+        "@agenta/automation-ui",
         "@agenta/navigation",
         "@agenta/navigation-ui",
         "@agenta/sessions",

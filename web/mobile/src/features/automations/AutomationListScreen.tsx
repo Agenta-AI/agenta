@@ -1,5 +1,16 @@
 import {useMemo, useState} from "react"
 
+import {
+    agentLabel,
+    AUTOMATION_STATUS_LABEL,
+    AutomationListEmpty,
+    AutomationListError,
+    AutomationListSkeleton,
+    automationStatus,
+    type AutomationStatus,
+    runsWhenLabel,
+    useAutomations,
+} from "@agenta/automation-ui"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
@@ -18,19 +29,6 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
-import {
-    agentLabel,
-    AUTOMATION_STATUS_LABEL,
-    automationStatus,
-    runsWhenLabel,
-    type AutomationStatus,
-} from "./automationModel"
-import {
-    AutomationListEmpty,
-    AutomationListError,
-    AutomationListSkeleton,
-} from "./states/AutomationStates"
-import {useAutomations} from "./useAutomations"
 
 /**
  * The status cell's colour. A bare dot and a coloured word, never a pill: the status column is

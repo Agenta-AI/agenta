@@ -2,9 +2,8 @@ import {useEffect, useRef} from "react"
 
 import {useInlineRename} from "@agenta/sessions-ui"
 import {message} from "@agenta/ui/app-message"
+import {Input} from "@agenta/ui/ui"
 import {PencilSimple} from "@phosphor-icons/react"
-
-import {Input} from "@/components/ui/input"
 
 /**
  * The automation's identity: its name, renamed in place, and the description under it.

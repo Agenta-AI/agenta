@@ -1,7 +1,7 @@
 import {ArrowLeft} from "@phosphor-icons/react"
 import Link from "next/link"
 
-import {ICON_LINK} from "@/lib/interactive"
+import {ICON_LINK} from "./lib/interactive"
 
 /**
  * Back up one level.

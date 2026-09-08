@@ -43,7 +43,7 @@ export const useUnsavedGuard = ({
                 message: "This automation has changes you haven't saved. Leaving discards them.",
                 onOk: () => {
                     bypass.current = true
-                    void router.push(url).catch(() => {})
+                    void router.push(url).catch(() => undefined)
                 },
             })
             router.events.emit("routeChangeError")
@@ -59,7 +59,7 @@ export const useUnsavedGuard = ({
         (url: string) => {
             bypass.current = true
             // An aborted route change rejects the push; nothing here has anything to add to it.
-            void router.push(url).catch(() => {})
+            void router.push(url).catch(() => undefined)
         },
         [router],
     )

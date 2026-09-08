@@ -1,13 +1,12 @@
 import {useMemo} from "react"
 
+import type {Automation} from "@agenta/automation-ui"
 import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
 import {Play} from "@phosphor-icons/react"
 
 import {Button} from "@/components/ui/button"
 
 import {useStartBlankSession} from "../chat/useStartBlankSession"
-
-import type {Automation} from "./automationModel"
 
 /**
  * Try this automation now, without waiting for its trigger.

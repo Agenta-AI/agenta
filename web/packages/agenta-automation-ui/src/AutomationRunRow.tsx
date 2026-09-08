@@ -1,8 +1,7 @@
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 
-import {FOCUS_RING} from "@/lib/interactive"
-import {cn} from "@/lib/utils"
-
+import {FOCUS_RING} from "./lib/interactive"
+import {cn} from "./lib/utils"
 import {runDotClass, runLabel, runOutcomeLabel, runTimeOfDay} from "./runModel"
 
 /**

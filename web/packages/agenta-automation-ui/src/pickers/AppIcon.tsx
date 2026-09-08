@@ -1,4 +1,4 @@
-import {Skeleton} from "@/components/ui/skeleton"
+import {Skeleton} from "@agenta/ui/ui"
 
 /**
  * An app's mark at row size.

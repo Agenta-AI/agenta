@@ -33,6 +33,7 @@
    wrong" — one line per package is the cheap insurance. */
 @source "../../node_modules/@agenta/ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/entity-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/automation-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/playground-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/playground/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/chat/src/**/*.{ts,tsx}";

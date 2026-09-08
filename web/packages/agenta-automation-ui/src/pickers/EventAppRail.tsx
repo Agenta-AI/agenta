@@ -1,9 +1,9 @@
 import {useMemo} from "react"
 
 import {useTriggerCatalogIntegrations} from "@agenta/entities/gatewayTrigger"
+import {Skeleton} from "@agenta/ui/ui"
 
-import {Skeleton} from "@/components/ui/skeleton"
-import {cn} from "@/lib/utils"
+import {cn} from "../lib/utils"
 
 import {AppIcon} from "./AppIcon"
 import type {ConnectedApp} from "./connectedApps"
@@ -31,7 +31,7 @@ export const EventAppRail = ({
     // Name as well as logo: a connection is named for the account it authorises ("gmail-main"),
     // and this rail lists apps.
     const catalog = useMemo(() => {
-        const map = new Map<string, {name?: string; logo?: string}>()
+        const map = new Map<string, {name?: string | null; logo?: string | null}>()
         integrations.forEach((integration) => {
             map.set(integration.key, {name: integration.name, logo: integration.logo})
         })

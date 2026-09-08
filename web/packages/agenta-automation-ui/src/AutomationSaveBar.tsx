@@ -1,4 +1,4 @@
-import {Button} from "@/components/ui/button"
+import {Button} from "@agenta/ui/ui"
 
 /**
  * The detail screen's unsaved-changes footer — the same bar the draft screen creates from, so
@@ -27,7 +27,13 @@ export const AutomationSaveBar = ({
         >
             Discard
         </Button>
-        <Button type="button" size="sm" className="text-xs font-normal" disabled={saving} onClick={onSave}>
+        <Button
+            type="button"
+            size="sm"
+            className="text-xs font-normal"
+            disabled={saving}
+            onClick={onSave}
+        >
             {saving ? "Saving…" : "Save"}
         </Button>
     </div>

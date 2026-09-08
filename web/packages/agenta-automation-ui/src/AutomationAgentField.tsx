@@ -1,12 +1,17 @@
 import {useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    Skeleton,
+} from "@agenta/ui/ui"
 import {Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
-
-import {Skeleton} from "@/components/ui/skeleton"
 
 import {AutomationField} from "./AutomationField"
 
