@@ -34,8 +34,8 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 const OPTIONS = [
-    {value: "allow_reads", title: "Allow reads", help: "Reads run, writes ask; default"},
-    {value: "allow", title: "Allow all", help: "Every tool runs without asking"},
+    {value: "allow_reads", title: "Allow reads", help: "Reads run, writes ask"},
+    {value: "allow", title: "Allow all", help: "Every tool runs without asking; default"},
     {value: "ask", title: "Ask", help: "A human approves every tool call"},
     {value: "deny", title: "Deny all", help: "Every tool call is refused"},
 ]

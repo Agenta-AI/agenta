@@ -352,7 +352,7 @@ it must ask."*
 
 | Field | Exact label | Options / behaviour |
 |---|---|---|
-| Policy | `Policy` | Exactly four options, each with a sub-line: **`Allow reads`** — *Reads run, writes ask; default*; **`Allow all`** — *Every tool runs without asking*; **`Ask`** — *A human approves every tool call*; **`Deny all`** — *Every tool call is refused* |
+| Policy | `Policy` | Exactly four options, each with a sub-line: **`Allow reads`** — *Reads run, writes ask*; **`Allow all`** — *Every tool runs without asking; default*; **`Ask`** — *A human approves every tool call*; **`Deny all`** — *Every tool call is refused* |
 | Harness label | `Pi harness` (a small pill above the next field) | Names the harness whose built-ins the next field lists |
 | Built-in tools | `Built-in tools` | Multi-select tags: `Read`, `Bash`, `Edit`, `Write` |
 | Auto-approve | `Auto-approve` | When empty: `Nothing auto-approved — every gated tool asks each time.` Otherwise lists the granted tool patterns. Tooltip: *"Tools that run without asking. Added from an approval card's "Always allow". Everything else still prompts, and commit stays gated."* |
