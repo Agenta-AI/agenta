@@ -1100,4 +1100,5 @@ def test_primary_credential_fields_cover_every_secret_kind():
         "webhook_provider",
         "sso_provider",
         "custom_secret",
+        "channel_secret",
     }
