@@ -1,5 +1,5 @@
 import {Button, Skeleton} from "@agenta/ui/ui"
-import {Lightning} from "@phosphor-icons/react"
+import {Lightning, MagnifyingGlass, Funnel} from "@phosphor-icons/react"
 import {RefreshCw, TriangleAlert} from "lucide-react"
 
 import {AutomationTemplateCard} from "../AutomationTemplateCard"
@@ -10,6 +10,9 @@ import {AUTOMATION_TEMPLATES, type AutomationTemplate} from "../templates"
  *
  * The list skeleton mirrors the real table — the same shell, the same four-column grid, the same
  * 13/14 row padding — so the rows do not shift when the two trigger queries land.
+ *
+ * None of these carries a top margin: each stands where the table would, so the search bar sits
+ * the same distance above whatever is showing.
  */
 
 const GRID =
@@ -43,6 +46,53 @@ export const AutomationListSkeleton = ({rows = 5}: {rows?: number}) => (
 )
 
 /**
+ * The table has rows, but none the reader asked for.
+ *
+ * Distinct from {@link AutomationListEmpty}: a project with automations that a filter has hidden
+ * must not be told it has none, and the way out is the control that narrowed it — so the state
+ * carries that action rather than leaving the reader to find which of five rows is set.
+ *
+ * It sits INSIDE the table, under the header row, because the columns are still true — what is
+ * missing is rows, not the table.
+ */
+export const AutomationListNoMatch = ({
+    term,
+    onClear,
+}: {
+    /** The search that matched nothing. Absent ⇒ the filters are what narrowed it. */
+    term?: string
+    onClear?: () => void
+}) => (
+    <div className="flex flex-col items-center justify-center gap-2.5 px-8 py-14 text-center">
+        <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted text-muted-foreground">
+            {term ? (
+                <MagnifyingGlass size={19} aria-hidden />
+            ) : (
+                <Funnel size={19} aria-hidden />
+            )}
+        </span>
+        <p className="m-0 text-[14px] font-medium text-foreground">
+            {term ? `Nothing matches \u201C${term}\u201D` : "No automation matches these filters"}
+        </p>
+        <p className="m-0 max-w-[42ch] text-[13px] leading-snug text-muted-foreground">
+            {term
+                ? "Try a shorter search, or check the filters — they narrow this list too."
+                : "Every automation is hidden by the filters on this list."}
+        </p>
+        {onClear ? (
+            <Button
+                size="sm"
+                variant="outline"
+                className="mt-1 text-xs font-normal"
+                onClick={onClear}
+            >
+                {term ? "Clear search" : "Reset filters"}
+            </Button>
+        ) : null}
+    </div>
+)
+
+/**
  * No automations at all — the one screen where the reader has to be told what an automation IS
  * before a "New automation" button means anything. The three examples do that work: each names
  * a job rather than a trigger type, and picking one seeds the draft (W5).
@@ -52,7 +102,7 @@ export const AutomationListEmpty = ({
 }: {
     onSelectTemplate: (template: AutomationTemplate) => void
 }) => (
-    <div className="mt-7 rounded-md border border-solid border-border bg-card p-10 text-center">
+    <div className="rounded-md border border-solid border-border bg-card p-10 text-center">
         <span className="mb-3.5 inline-flex size-11 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
             <Lightning size={22} weight="fill" aria-hidden />
         </span>
@@ -80,7 +130,7 @@ export const AutomationListError = ({
     message?: string
     onRetry?: () => void
 }) => (
-    <div className="mt-7 flex flex-col items-center justify-center gap-3 rounded-md border border-solid border-border p-10 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-solid border-border p-10 text-center">
         <TriangleAlert className="size-6 text-destructive" />
         <p className="m-0 text-[14px] font-medium text-foreground">{message}</p>
         {onRetry ? (
