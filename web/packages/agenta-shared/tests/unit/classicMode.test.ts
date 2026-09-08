@@ -26,8 +26,9 @@ import {
     navSimplifiedDefaultAtom,
     navSimplifiedOverrideAtom,
     readSettledAdvancedNavHidden,
+    readSettledClassicModeCookie,
 } from "../../src/state/classicMode"
-import {activeUserIdAtom} from "../../src/state/featureFlags"
+import {ACTIVE_USER_ID_KEY, activeUserIdAtom} from "../../src/state/featureFlags"
 import {userAtom} from "../../src/state/user"
 
 /**
@@ -257,5 +258,80 @@ describe("readSettledAdvancedNavHidden", () => {
     it("withholds an answer when no user is known", () => {
         localStorage.clear()
         expect(readSettledAdvancedNavHidden(profile(CUTOFF_AFTER))).toBeNull()
+    })
+})
+
+describe("the gate cookie", () => {
+    // A user, as the cookie reader sees one: it reads storage itself, so only the active-user
+    // key and the scoped preference keys matter.
+    const browser = (userId: string | null, stored: Record<string, string> = {}) => {
+        if (userId === null) localStorage.removeItem(ACTIVE_USER_ID_KEY)
+        else localStorage.setItem(ACTIVE_USER_ID_KEY, userId)
+        for (const [key, value] of Object.entries(stored)) {
+            localStorage.setItem(`agenta:onboarding:${userId}:${key}`, value)
+        }
+    }
+    const profile = (createdAt?: string) => ({
+        id: "u",
+        uid: "u",
+        username: "u",
+        email: "u@example.com",
+        ...(createdAt ? {created_at: createdAt} : {}),
+    })
+    const OLD = "2026-07-01 00:00:00.000000+00:00"
+    const NEW = "2026-08-02 00:00:00.000000+00:00"
+
+    it("publishes classic mode on only from an explicit choice", () => {
+        browser("u", {"nav-simplified-override": "false"})
+        expect(readSettledClassicModeCookie(profile(OLD))).toBe("1")
+    })
+
+    it("says nothing for an account that merely defaulted to classic mode", () => {
+        // The regression this exists for: an account older than the switch has classic mode on
+        // because nobody turned it off. Publishing "1" tells both gates the user asked for the
+        // desktop app, which outranks the device check and takes /m away from every phone.
+        browser("u")
+        expect(readSettledClassicModeCookie(profile(OLD))).toBeNull()
+    })
+
+    it("publishes simplified from a choice, the signup seed, or the cohort", () => {
+        browser("a", {"nav-simplified-override": "true"})
+        expect(readSettledClassicModeCookie(profile(OLD))).toBe("0")
+
+        localStorage.clear()
+        browser("b", {"nav-simplified": "true"})
+        expect(readSettledClassicModeCookie(profile(OLD))).toBe("0")
+
+        localStorage.clear()
+        browser("c")
+        expect(readSettledClassicModeCookie(profile(NEW))).toBe("0")
+    })
+
+    it("lets an explicit choice outrank the cohort in both directions", () => {
+        browser("a", {"nav-simplified-override": "false"})
+        expect(readSettledClassicModeCookie(profile(NEW))).toBe("1")
+
+        localStorage.clear()
+        browser("b", {"nav-simplified-override": "true"})
+        expect(readSettledClassicModeCookie(profile(OLD))).toBe("0")
+    })
+
+    it("leaves the cookie alone until the profile lands", () => {
+        // Only the cohort branch needs the profile. Clearing while it is in flight would drop a
+        // correct answer on every reload, and the gate would fall back to the device heuristic.
+        browser("u")
+        expect(readSettledClassicModeCookie(null)).toBeUndefined()
+    })
+
+    it("answers from storage before the profile, when storage is enough", () => {
+        browser("u", {"nav-simplified-override": "true"})
+        expect(readSettledClassicModeCookie(null)).toBe("0")
+    })
+
+    it("clears on sign-out, and only on sign-out", () => {
+        // The active-user key is what a sign-out empties. `activeUserIdAtom` reading null on a
+        // first render is NOT that, which is why this reads storage rather than the atom.
+        browser(null)
+        expect(readSettledClassicModeCookie(profile(OLD))).toBeNull()
     })
 })

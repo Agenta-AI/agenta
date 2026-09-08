@@ -1,7 +1,7 @@
 import {useEffect} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
-import {useClassicModeCookieSync, useDesktopModeRedirect} from "@agenta/shared/hooks"
+import {useClassicModeCookieSync} from "@agenta/shared/hooks"
 import {activeUserIdAtom, setProjectIdAtom, setSessionAtom, setUserAtom} from "@agenta/shared/state"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -39,11 +39,6 @@ export const ContextSync = () => {
 
     // Publish Classic mode as a cookie here too, or a switch flipped on /m would not stick.
     useClassicModeCookieSync()
-
-    // The other half: Classic mode ON belongs on the desktop app, and the device gate can land a
-    // user here before any cookie exists for the proxy to read. Held until the profile settles —
-    // a pending query is not a signed-out user, and the preference is scoped by user id.
-    useDesktopModeRedirect(!profilePending)
 
     // The auth half of the same context, and the other half of the desktop's `SessionListener`.
     // `sessionAtom` defaults to FALSE and every entity query gates on it, so a host that never

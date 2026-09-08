@@ -8,13 +8,16 @@ import {useEffect} from "react"
 import {useAtomValue} from "jotai"
 
 import {getEnv} from "../api/env"
-import {advancedNavHiddenAtom, readSettledAdvancedNavHidden} from "../state/classicMode"
+import {
+    advancedNavHiddenAtom,
+    readSettledAdvancedNavHidden,
+    readSettledClassicModeCookie,
+} from "../state/classicMode"
 import {activeUserIdAtom} from "../state/featureFlags"
 import {userAtom} from "../state/user"
 import {
     CLASSIC_MODE_COOKIE,
     GATE_COOKIE_MAX_AGE,
-    MOBILE_OPTIN_COOKIE,
     MOBILE_OPTOUT_COOKIE,
     desktopRouteFor,
     isDesktopOnlyLink,
@@ -77,23 +80,28 @@ const useSettledAdvancedNavHidden = (): boolean | null => {
  *
  * Written only once a user is known — the preference is scoped by user id, and a cookie written
  * under nobody would decide which app the NEXT person on this browser gets. Cleared on sign-out
- * for the same reason.
+ * for the same reason, and cleared again when the answer is a bare default rather than a choice.
+ * `readSettledClassicModeCookie` draws that line and explains why the gates need it drawn.
  */
 export const useClassicModeCookieSync = () => {
-    const userId = useAtomValue(activeUserIdAtom)
-    const advancedNavHidden = useSettledAdvancedNavHidden()
+    useAtomValue(activeUserIdAtom)
+    useAtomValue(advancedNavHiddenAtom)
+    const user = useAtomValue(userAtom)
+    // A primitive, so the effect still runs only when the answer actually changes.
+    const value = readSettledClassicModeCookie(user)
 
     useEffect(() => {
         if (typeof document === "undefined") return
-        if (!userId) {
+        // `undefined` is "nothing new to say" — leave whatever is there. `null` is a real
+        // answer: this browser has no preference to publish, so the gates fall back to the
+        // device heuristic.
+        if (value === undefined) return
+        if (value === null) {
             clearCookie(CLASSIC_MODE_COOKIE)
             return
         }
-        // Publishing an unsettled value would park the WRONG answer where the middleware reads
-        // it, and the next load acts on the cookie before any of this runs.
-        if (advancedNavHidden === null) return
-        writeCookie(CLASSIC_MODE_COOKIE, advancedNavHidden ? "0" : "1")
-    }, [userId, advancedNavHidden])
+        writeCookie(CLASSIC_MODE_COOKIE, value)
+    }, [value])
 }
 
 /**
@@ -106,6 +114,12 @@ export const useClassicModeCookieSync = () => {
  * `location.replace`, not the router: `/m` is a different Next app behind the same origin, so
  * this is a document navigation whichever way it is spelled — and replace keeps the desktop URL
  * out of history, where Back would bounce off it.
+ *
+ * DELIBERATELY ONE-WAY. `/m` must not grow a mirror of this hook. The two apps are separate JS
+ * contexts sharing only storage, so each would redirect on a value the other cannot see, with
+ * nothing to arbitrate and nothing to break the cycle: any disagreement becomes an endless
+ * `/w` ↔ `/m` bounce instead of a stop. Leaving `/m` is the proxy's job — one cookie, and the
+ * desktop gate yields to it through `wantsClassic`.
  */
 export const useClassicModeRedirect = (enabled = true) => {
     const userId = useAtomValue(activeUserIdAtom)
@@ -128,7 +142,13 @@ export const useClassicModeRedirect = (enabled = true) => {
         if (readCookie(MOBILE_OPTOUT_COOKIE)) return
 
         const target = mobileRouteFor(pathname, search)
-        if (target) window.location.replace(target)
+        if (!target) return
+        // Publish before navigating, exactly as the Classic mode switch does. Relying on the
+        // sync effect above having already run makes this correct only by hook order; if the
+        // cookie is missing when `/m` is asked for, its proxy sees no preference, falls through
+        // to the device check, and bounces a desktop UA straight back here. That is a loop.
+        writeClassicModeCookie(false)
+        window.location.replace(target)
     }, [enabled, userId, advancedNavHidden])
 }
 
@@ -142,31 +162,4 @@ export const desktopEscapeHref = (): string => {
     const {pathname, search} = window.location
     const stripped = pathname === "/m" ? "/" : pathname.replace(/^\/m(?=\/)/, "")
     return desktopRouteFor(stripped, search) ?? "/w"
-}
-
-/**
- * `/m`-only: send a Classic-mode-ON user back to the desktop app. Mirror of
- * {@link useClassicModeRedirect}, and needed for the same reason — the proxy reads only cookies,
- * and the device gate can land a user here before one exists. Bounces a phone too, because
- * Classic mode outranks the device heuristic on both sides of the gate.
- */
-export const useDesktopModeRedirect = (enabled = true) => {
-    const userId = useAtomValue(activeUserIdAtom)
-    const advancedNavHidden = useSettledAdvancedNavHidden()
-
-    useEffect(() => {
-        if (!enabled || typeof window === "undefined") return
-        if (!classicGateEnabled()) return
-        // `null` is "not known yet", and `true` is Classic mode OFF — both stay put.
-        if (!userId || advancedNavHidden !== false) return
-
-        const {pathname} = window.location
-        // Sign-in and the OAuth landing finish where they are: the mobile flow's state lives in
-        // this origin's sessionStorage, and bouncing the callback drops the one-time code.
-        if (/^\/m\/auth(\/|$)/.test(pathname)) return
-        // "Open mobile version" is an explicit request for this app; it outranks the preference.
-        if (readCookie(MOBILE_OPTIN_COOKIE)) return
-
-        window.location.replace(desktopEscapeHref())
-    }, [enabled, userId, advancedNavHidden])
 }

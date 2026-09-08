@@ -16,9 +16,16 @@ import {stringStorage} from "./stringStorage"
  * The signed-in user's id, as the browser last saw it — the scope for every per-user
  * preference below.
  *
- * Storage-backed rather than derived from the profile query so a preference resolves on the
- * first paint, before any request settles. Apps push into it once they know who is signed in
- * (OSS from onboarding, mobile from its profile query).
+ * Storage-backed rather than derived from the profile query, so a preference survives a reload
+ * without waiting on a request. Apps push into it once they know who is signed in (OSS from
+ * onboarding, mobile from its profile query).
+ *
+ * It does NOT resolve on the first paint. Deliberately no `getOnInit`: this atom scopes values
+ * that render (the Classic mode switch, the sidebar's nav areas), and reading storage during
+ * the first render would diverge from prerendered HTML and break hydration on `/m`. So it reads
+ * `null` on every first render and settles a tick later. Anything that ACTS on a preference —
+ * writing a cookie, navigating — must therefore read storage directly rather than treat that
+ * first `null` as "signed out"; see `readSettledClassicModeCookie` in `./classicMode`.
  */
 export const ACTIVE_USER_ID_KEY = "agenta:onboarding:active-user-id"
 
