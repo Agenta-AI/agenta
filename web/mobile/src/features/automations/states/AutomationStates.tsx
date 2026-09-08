@@ -18,7 +18,7 @@ const GRID =
     "grid gap-3 [grid-template-columns:minmax(120px,1.7fr)_118px_minmax(120px,1.5fr)_minmax(80px,1fr)]"
 
 export const AutomationListSkeleton = ({rows = 5}: {rows?: number}) => (
-    <div className="overflow-hidden rounded-xl border border-solid border-border" aria-hidden>
+    <div className="overflow-hidden rounded-md border border-solid border-border" aria-hidden>
         <div className="overflow-x-auto">
             <div className="min-w-[544px]">
                 <div
@@ -54,7 +54,7 @@ export const AutomationListEmpty = ({
 }: {
     onSelectTemplate: (template: AutomationTemplate) => void
 }) => (
-    <div className="mt-7 rounded-xl border border-solid border-border bg-card p-10 text-center">
+    <div className="mt-7 rounded-md border border-solid border-border bg-card p-10 text-center">
         <span className="mb-3.5 inline-flex size-11 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
             <Lightning size={22} weight="fill" aria-hidden />
         </span>
@@ -82,7 +82,7 @@ export const AutomationListError = ({
     message?: string
     onRetry?: () => void
 }) => (
-    <div className="mt-7 flex flex-col items-center justify-center gap-3 rounded-xl border border-solid border-border p-10 text-center">
+    <div className="mt-7 flex flex-col items-center justify-center gap-3 rounded-md border border-solid border-border p-10 text-center">
         <TriangleAlert className="size-6 text-destructive" />
         <p className="m-0 text-[14px] font-medium text-foreground">{message}</p>
         {onRetry ? (
