@@ -275,9 +275,14 @@ a client must not be able to tell the agent an unnamed session is already named.
 service believed the forgery.
 
 ```bash
-uv run resources/matrix_n1_session_context.py                 # pi_core, the default harness
+uv run resources/matrix_n1_session_context.py                 # pi_core on a local sandbox
+uv run resources/matrix_n1_session_context.py --sandbox daytona   # the shape staging accepts
 uv run resources/matrix_n1_session_context.py --harness-all   # all three harnesses
 ```
+
+The sandbox is not what this cell tests: the facts are resolved in the agent service, before any
+sandbox exists. It is a flag because a deployment can refuse one. Staging enables Daytona only and
+answers 403 for a local sandbox, so a cell pinned to local cannot run there at all.
 
 **Verifying a fix before it is deployed.** `AGENTA_SERVICE_BASE` moves the TURNS to an agent
 service run by hand, while every API read and write still goes to `AGENTA_BASE`. That is how this

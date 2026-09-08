@@ -60,7 +60,15 @@ The rename uses `PUT /sessions/streams/header`, which is the same route the UI u
 rename in `AgentChatSlice` sets `renameSessionAtomFamily`, which calls `setSessionHeader`, which
 is the generated client's `sessions/streams/header` PUT.
 
-  uv run matrix_n1_session_context.py                      # pi_core, the default harness
+SANDBOX. The facts are resolved in the agent service, before any sandbox exists, so the sandbox
+is not what this cell tests. It is still a flag, because a deployment can refuse one: staging
+enables Daytona only and answers 403 for a local sandbox, so a cell pinned to local cannot run on
+the stage that matters. Pass `--sandbox daytona` there. The claude harness authenticates from a
+subscription, which Daytona rejects by design, so that combination SKIPs on the credential rather
+than reporting anything about the session facts.
+
+  uv run matrix_n1_session_context.py                      # pi_core on a local sandbox
+  uv run matrix_n1_session_context.py --sandbox daytona    # the shape staging accepts
   uv run matrix_n1_session_context.py --only claude        # one harness
   uv run matrix_n1_session_context.py --harness-all        # all three
   uv run matrix_n1_session_context.py --model gpt-4.1-mini --provider openrouter
@@ -128,12 +136,17 @@ ASK_NAME_THIS_TURN = (
 ASK_AGENT_NAME = "What is your name? Answer with only the name, nothing else."
 
 
-def harness_agent_config(spec: dict) -> dict:
+def harness_agent_config(spec: dict, sandbox: str) -> dict:
     """No tools. The agent must ANSWER with the facts, never act on them.
 
     A `rename_session` tool in the catalog would let a turn change the stored name underneath the
     next assertion, so the cell would be reading its own side effect rather than the rename it
     made.
+
+    `sandbox` is where the turn runs. The facts are resolved in the agent service, before any
+    sandbox exists, so the sandbox is not what this cell is testing. It is a parameter because a
+    deployment can refuse one: staging enables Daytona only and answers 403 for a local sandbox,
+    so a cell pinned to local cannot run on the stage that matters.
     """
     return {
         "instructions": {
@@ -149,7 +162,7 @@ def harness_agent_config(spec: dict) -> dict:
         "mcps": [],
         "skills": [],
         "harness": {"kind": spec["kind"]},
-        "sandbox": {"kind": "local"},
+        "sandbox": {"kind": sandbox},
         "runner": {"permissions": {"default": "allow"}},
     }
 
@@ -193,8 +206,8 @@ def _step(name: str, token: str, reply: str, *, absent: str | None = None) -> di
     return step
 
 
-def n1_for(harness_name: str, spec: dict) -> dict:
-    """Run the whole N1 sequence on one harness and return its PASS/FAIL/SKIP verdict."""
+def n1_for(harness_name: str, spec: dict, sandbox: str = "local") -> dict:
+    """Run the whole N1 sequence on one harness and sandbox, and return its verdict."""
     hexid = uuid.uuid4().hex[:8]
     # Every token below is minted here and spoken nowhere, so a reply that carries one can only
     # have got it from a fact delivered this turn.
@@ -219,7 +232,7 @@ def n1_for(harness_name: str, spec: dict) -> dict:
         # failure instead of escaping and killing the remaining harnesses under --harness-all.
         wf, var = create_workflow(hexid, "qa-n1-session-context", name=agent_name)
 
-        cfg = harness_agent_config(spec)
+        cfg = harness_agent_config(spec, sandbox)
         rev_id, _ = seed_and_baseline(wf, var, cfg, hexid)
         params = {"agent": cfg}
         references = refs(wf, var, rev_id)
@@ -384,6 +397,7 @@ def n1_for(harness_name: str, spec: dict) -> dict:
                 )
             ),
             "harness": harness_name,
+            "sandbox": sandbox,
             # Where the turns actually went. `{AGENTA_BASE}/services` for a real run; anything
             # else means `AGENTA_SERVICE_BASE` moved them to a hand-run service.
             "service_base": SERVICE_BASE,
@@ -435,6 +449,15 @@ def main() -> int:
         action="store_true",
         help="run every harness instead of the default one",
     )
+    p.add_argument(
+        "--sandbox",
+        default="local",
+        choices=["local", "daytona"],
+        help=(
+            "where the turn runs (default local). Staging enables daytona only and answers 403 "
+            "for a local sandbox, so pass --sandbox daytona there."
+        ),
+    )
     p.add_argument("--model", help="override the model id for the selected harness")
     p.add_argument(
         "--provider", help="override the provider slug for the selected harness"
@@ -453,8 +476,8 @@ def main() -> int:
             spec["model"] = args.model
         if args.provider:
             spec["provider"] = args.provider
-        print(f"\n=== N1 x {harness_name} ===", file=sys.stderr)
-        results[harness_name] = n1_for(harness_name, spec)
+        print(f"\n=== N1 x {harness_name} x {args.sandbox} ===", file=sys.stderr)
+        results[harness_name] = n1_for(harness_name, spec, args.sandbox)
         print(
             f"  {results[harness_name]['status']}: {results[harness_name]['why'][:200]}",
             file=sys.stderr,
