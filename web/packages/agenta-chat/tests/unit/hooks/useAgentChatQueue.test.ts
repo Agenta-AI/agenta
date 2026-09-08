@@ -1470,6 +1470,83 @@ describe("useAgentChatQueue late refusal recovery", () => {
     })
 })
 
+describe("useAgentChatQueue late refusal recovery, asynchronous composer", () => {
+    // The live defect on staging at 66ed5a6c57: on /w, a refusal arriving as a 200 whose stream
+    // errors left the message in BOTH places, a flagged row AND the text in the composer, so it
+    // could be sent twice. The restorer places the text into Lexical, which commits on a later
+    // tick, so a restorer that can only answer on the next tick was read as a refusal to take it.
+    it("drops the row once a composer that answers LATE confirms it took the text", async () => {
+        const {server, watchers} = durableServer()
+        let settle: ((took: boolean) => void) | undefined
+        const restoreRefusedSend = vi.fn(
+            () =>
+                new Promise<boolean>((resolve) => {
+                    settle = resolve
+                }),
+        )
+        const {result} = setup({...settledEmpty, server, restoreRefusedSend})
+
+        await act(async () => {
+            await result.current.submit({text: "refused late"})
+        })
+        await act(async () => watchers[0].onFailed?.())
+
+        // The row is up while the composer has not answered: the message must never be in
+        // NEITHER place, so the row is the safe side to fail to.
+        expect(echoText(result)).toEqual(["refused late"])
+        expect(result.current.pendingSendRows[0].metadata).toMatchObject({pendingSendFailed: true})
+
+        await act(async () => {
+            settle!(true)
+            await Promise.resolve()
+        })
+
+        // ...and it comes down once the composer confirms, so the message ends in exactly one.
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+
+    it("keeps the row when a composer that answers LATE says it could not take the text", async () => {
+        const {server, watchers} = durableServer()
+        let settle: ((took: boolean) => void) | undefined
+        const restoreRefusedSend = vi.fn(
+            () =>
+                new Promise<boolean>((resolve) => {
+                    settle = resolve
+                }),
+        )
+        const {result} = setup({...settledEmpty, server, restoreRefusedSend})
+
+        await act(async () => {
+            await result.current.submit({text: "nowhere to go"})
+        })
+        await act(async () => watchers[0].onFailed?.())
+        await act(async () => {
+            settle!(false)
+            await Promise.resolve()
+        })
+
+        expect(echoText(result)).toEqual(["nowhere to go"])
+        expect(result.current.pendingSendRows[0].metadata).toMatchObject({pendingSendFailed: true})
+    })
+
+    it("still drops the row for a composer that answers immediately", async () => {
+        // Both hosts' restorers may report synchronously; that path must not regress.
+        const {server, watchers} = durableServer()
+        const restoreRefusedSend = vi.fn(() => true)
+        const {result} = setup({...settledEmpty, server, restoreRefusedSend})
+
+        await act(async () => {
+            await result.current.submit({text: "taken at once"})
+        })
+        await act(async () => {
+            watchers[0].onFailed?.()
+            await Promise.resolve()
+        })
+
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+})
+
 describe("useAgentChatQueue settlement never touches the composer", () => {
     it("does not restore a delivered message when its echo has already retired", async () => {
         // The normal accepted path: row adopted, echo retired, stream ends. Restoring here wrote

@@ -3,12 +3,34 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 export const canRestoreRefusedSend = (editor: RichChatInputHandle | null): boolean =>
     Boolean(editor && editor.getMarkdown() === "")
 
-export const restoreRefusedDraft = (editor: RichChatInputHandle | null, text: string): boolean => {
+/**
+ * Turns of the microtask queue the composer gets to commit the text before we call it a failure.
+ *
+ * The editor is Lexical, and `setMarkdown` schedules an update rather than applying one: the state
+ * `getMarkdown` reads is the COMMITTED state, which has not changed yet in the calling tick. A
+ * microtask loop is what that costs, and it is proof against a test that fakes timers.
+ */
+const PLACEMENT_CONFIRM_TICKS = 12
+
+/**
+ * Write the text and wait for the composer to actually hold it.
+ *
+ * Reading it back in the same tick answers "no" for a placement that is on its way, which is how a
+ * refused message ended up in the transcript AND the composer at the same time: the caller kept the
+ * flagged row on that answer while the text arrived a moment later, and the user could send it
+ * twice (staging, `66ed5a6c57`). Reporting success without reading it back at all is the opposite
+ * failure and loses the message, so the read-back stays; it just gets the ticks it needs.
+ */
+export const restoreRefusedDraft = async (
+    editor: RichChatInputHandle | null,
+    text: string,
+): Promise<boolean> => {
     if (!editor || !text || !canRestoreRefusedSend(editor)) return false
     editor.setMarkdown(text)
-    // `setMarkdown` returns void and does nothing at all when the handle's internal ref is gone,
-    // so the only way to know it took the text is to read it back. Reporting success falsely tells
-    // the caller the message is safe in the composer when it is nowhere.
+    for (let tick = 0; tick < PLACEMENT_CONFIRM_TICKS; tick += 1) {
+        if (editor.getMarkdown() === text) return true
+        await Promise.resolve()
+    }
     return editor.getMarkdown() === text
 }
 
@@ -43,12 +65,12 @@ interface RefusedSendSlot<TAttachment> {
  * this caller does not: its echo row is already gone, so placing the words is better than placing
  * nothing, and refusing would leave the message in no visible place at all.
  */
-export const restoreRefusedSend = <TAttachment>(
+export const restoreRefusedSend = async <TAttachment>(
     editor: RichChatInputHandle | null,
     sent: RefusedSend<TAttachment>,
     restoreAttachments: (files: TAttachment[]) => void,
     {partial = false}: {partial?: boolean} = {},
-): boolean => {
+): Promise<boolean> => {
     if (!canRestoreRefusedSend(editor)) return false
     const staged = sent.stagedFiles ?? []
     // Absent `fileParts` means the caller does not track them separately, so the staged entries are
@@ -56,7 +78,7 @@ export const restoreRefusedSend = <TAttachment>(
     const carried = sent.fileParts?.length ?? staged.length
     if (!partial && carried > staged.length) return false
     if (!sent.text && staged.length === 0) return false
-    if (sent.text && !restoreRefusedDraft(editor, sent.text)) return false
+    if (sent.text && !(await restoreRefusedDraft(editor, sent.text))) return false
     if (staged.length) restoreAttachments(staged)
     return true
 }
@@ -66,15 +88,17 @@ export const restoreRefusedSend = <TAttachment>(
  * composer is the ONLY place this message can be. Hence `partial` — there is no row to leave it
  * on, and a refusal here would leave it nowhere.
  */
-export const restoreHeldRefusedSend = <TAttachment>(
+export const restoreHeldRefusedSend = async <TAttachment>(
     slot: RefusedSendSlot<TAttachment>,
     editor: RichChatInputHandle | null,
     restoreAttachments: (files: TAttachment[]) => void,
-): boolean => {
+): Promise<boolean> => {
     const sent = slot.current
     if (!sent) return false
+    // Cleared before the await, so a second caller arriving while the composer commits does not
+    // place the same message twice. It goes back if the composer turns out not to have taken it.
     slot.current = undefined
-    if (restoreRefusedSend(editor, sent, restoreAttachments, {partial: true})) return true
+    if (await restoreRefusedSend(editor, sent, restoreAttachments, {partial: true})) return true
     slot.current = sent
     return false
 }
