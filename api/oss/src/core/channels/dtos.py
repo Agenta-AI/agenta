@@ -498,6 +498,12 @@ class ChannelConnectionCreate(Slug, Header, Metadata):
 
 
 class ChannelConnectionEdit(Identifier, Header, Metadata):
+    """An edit names what changes. Every field is optional, and an omitted
+    field keeps its stored value: the service layers the fields the caller
+    sent over the existing row (`data` merges key by key) before the write.
+    A plain rename once nulled the whole data blob and bricked the connection
+    (F98)."""
+
     # channel and external_key are dropped: repointing a connection at a
     # different installation is a different row, not an edit of this one.
     slug: Optional[str] = None
@@ -505,7 +511,7 @@ class ChannelConnectionEdit(Identifier, Header, Metadata):
     # present only to rotate: re-verified, then replaces the secret row's
     # contents without moving external_key
     credentials: Optional[Dict[str, Any]] = None
-    flags: ChannelConnectionFlags = Field(default_factory=ChannelConnectionFlags)
+    flags: Optional[ChannelConnectionFlags] = None
 
 
 class ChannelConnectionQuery(BaseModel):
@@ -538,8 +544,12 @@ class ChannelAgentCreate(Slug, Header, Metadata):
 
 
 class ChannelAgentEdit(Identifier, Header, Metadata):
-    data: ChannelAgentData
-    flags: ChannelAgentFlags = Field(default_factory=ChannelAgentFlags)
+    """Same contract as the connection edit: an omitted field keeps its stored
+    value. A policy-only edit once reset `is_default` and muted the whole
+    connection (F91)."""
+
+    data: Optional[ChannelAgentData] = None
+    flags: Optional[ChannelAgentFlags] = None
 
 
 class ChannelAgentQuery(BaseModel):

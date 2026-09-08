@@ -27,6 +27,7 @@ from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.tasks.asyncio.sessions.streaming import deserialize_turn_event
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
+from oss.src.core.shared.dtos import Status
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -260,33 +261,46 @@ class ChannelsOutboxWorker:
         has_receipt = bool(event.data.external_locator)
         can_edit = capabilities.rendering.controls.update
 
-        if has_receipt and can_edit:
-            receipt = await adapter.edit_message(
-                connection=connection,
-                external_locator=event.data.external_locator,
-                content=content,
-                idempotency_key=idempotency_key,
+        try:
+            if has_receipt and can_edit:
+                receipt = await adapter.edit_message(
+                    connection=connection,
+                    external_locator=event.data.external_locator,
+                    content=content,
+                    idempotency_key=idempotency_key,
+                )
+            elif has_receipt:
+                # controls.update is false: post a NEW message rather than an
+                # edit — the old receipt is superseded.
+                receipt = await adapter.post_message(
+                    connection=connection,
+                    locator=event.data.external_locator,
+                    content=content,
+                    idempotency_key=idempotency_key,
+                )
+            else:
+                # First post for this item: no receipt exists yet, so the target
+                # comes from the THREAD's locator (team/channel/thread_ts). An
+                # empty locator here KeyError'd inside the Slack adapter and the
+                # first-ever reply on any thread silently never reached Slack.
+                receipt = await adapter.post_message(
+                    connection=connection,
+                    locator=thread.data.external_locator or {},
+                    content=content,
+                    idempotency_key=idempotency_key,
+                )
+        except Exception as exc:
+            # The row said CREATED forever after a rejected post, which reads
+            # as "not attempted yet" from outside (F87). Write the failure
+            # down with the platform's reason, then let the caller's retry
+            # and logging see the error as before.
+            await self.channels_service.channels_dao.transition_outbox_event(
+                project_id=project_id,
+                event_id=event.id,
+                state=ChannelDeliveryState.FAILED,
+                status=Status(code="delivery_failed", message=str(exc)[:500]),
             )
-        elif has_receipt:
-            # controls.update is false: post a NEW message rather than an
-            # edit — the old receipt is superseded.
-            receipt = await adapter.post_message(
-                connection=connection,
-                locator=event.data.external_locator,
-                content=content,
-                idempotency_key=idempotency_key,
-            )
-        else:
-            # First post for this item: no receipt exists yet, so the target
-            # comes from the THREAD's locator (team/channel/thread_ts). An
-            # empty locator here KeyError'd inside the Slack adapter and the
-            # first-ever reply on any thread silently never reached Slack.
-            receipt = await adapter.post_message(
-                connection=connection,
-                locator=thread.data.external_locator or {},
-                content=content,
-                idempotency_key=idempotency_key,
-            )
+            raise
 
         await self.channels_service.channels_dao.transition_outbox_event(
             project_id=project_id,

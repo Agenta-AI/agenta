@@ -125,6 +125,7 @@ class FakeChannelsDAO(ChannelsDAOInterface):
                 updated = row.model_copy(
                     update={
                         "state": state,
+                        "status": status if status is not None else row.status,
                         "data": data if data is not None else row.data,
                         "updated_at": datetime.now(timezone.utc),
                     }
@@ -1087,3 +1088,43 @@ async def test_a_fold_still_empty_after_the_re_reads_leaves_the_indicator_alone(
         "empty" in record.message and record.levelname == "ERROR"
         for record in caplog.records
     )
+
+
+class _RefusingAdapter(WellBehavedFakeAdapter):
+    """The platform rejects every post, the way Slack answers `channel_not_found`."""
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        raise RuntimeError("channel_not_found")
+
+
+@pytest.mark.asyncio
+async def test_a_rejected_post_is_written_down_as_failed_with_the_reason():
+    """The row said CREATED forever after a rejected post, indistinguishable
+    from one the worker had not reached yet (F87)."""
+    channels_dao = FakeChannelsDAO()
+    service = ChannelsService(
+        channels_dao=channels_dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={"fake": _RefusingAdapter()}),
+    )
+    worker = ChannelsOutboxWorker(
+        channels_service=service,
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(FakeRecordsDAO()),
+    )
+    connection = channels_dao.seed_connection(channel="fake")
+    space = channels_dao.seed_space(connection_id=connection.id)
+    thread = channels_dao.seed_thread(
+        space_id=space.id,
+        session_id="s-failed",
+        external_locator={"channel": "C1", "thread_ts": "42.1"},
+    )
+
+    with pytest.raises(RuntimeError):
+        await worker.on_turn_started(
+            project_id=PROJECT_ID, thread=thread, turn_id="turn-failed"
+        )
+
+    (row,) = channels_dao.outbox.values()
+    assert row.state is ChannelDeliveryState.FAILED
+    assert row.status is not None and row.status.code == "delivery_failed"
+    assert "channel_not_found" in (row.status.message or "")
