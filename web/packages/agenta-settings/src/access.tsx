@@ -26,6 +26,7 @@ export const CLOSED_SETTINGS_ACCESS: SettingsAccess = {
     canShowTriggers: false,
     canViewApiKeys: false,
     canViewEvents: false,
+    canShowChannels: false,
     isEE: false,
     isOwner: false,
 }

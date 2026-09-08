@@ -58,3 +58,6 @@ export const playgroundInspectorEnabledAtom = userScopedFlagAtom("playground-ins
 
 /** Temporary channel probe page, kept separate from the permanent Channels settings tab. */
 export const agentaChannelSurfaceEnabledAtom = userScopedFlagAtom("agenta-channel-surface")
+
+/** Per-user opt-in for the Channels settings tab, on top of the deployment flag. */
+export const channelsSettingsEnabledAtom = userScopedFlagAtom("channels-settings")

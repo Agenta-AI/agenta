@@ -130,6 +130,10 @@ export const isEE = (): boolean => {
 /** Gates BOTH the Tools and Triggers settings tabs. */
 export const isToolsEnabled = (): boolean => getEnv("NEXT_PUBLIC_AGENTA_TOOLS_ENABLED") === "true"
 
+/** Gates the Channels settings tab (with the per-user switch on top). */
+export const isChannelsEnabled = (): boolean =>
+    getEnv("NEXT_PUBLIC_AGENTA_CHANNELS_ENABLED") === "true"
+
 export const isBillingEnabled = (): boolean =>
     getEnv("NEXT_PUBLIC_AGENTA_BILLING_ENABLED") === "true"
 

@@ -25,6 +25,7 @@ export interface SettingsAccess {
     canShowTriggers: boolean
     canViewApiKeys: boolean
     canViewEvents: boolean
+    canShowChannels: boolean
     isEE: boolean
     isOwner: boolean
 }
@@ -208,6 +209,8 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.canShowTools
         case "triggers":
             return access.canShowTriggers
+        case "channels":
+            return access.canShowChannels
         case "organization":
             return access.isEE && access.isOwner
         case "auditLog":
