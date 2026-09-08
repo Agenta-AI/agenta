@@ -58,6 +58,7 @@ import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
 import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
 import ModelPickerControl from "./ModelPickerControl"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
+import {shouldPromptForProviderKey} from "./providerKeyPrompt"
 import {RevertGroupButton} from "./RevertGroupButton"
 import {useBuildKit} from "./useBuildKit"
 
@@ -226,15 +227,13 @@ export function useModelHarness({
             ) ?? null
         )
     }, [standardSecrets, selectedProviderFamily])
-    // Self-managed agents never need a vault key — the harness signs itself in. Neither does a
-    // named custom-provider connection (agenta mode with a slug): it carries its own credentials,
-    // so a missing STANDARD vault key for the family is not this connection's problem.
-    const providerNeedsKey =
-        connection.mode !== "self_managed" &&
-        !(connection.mode === "agenta" && !!connection.slug) &&
-        vaultLoaded &&
-        !!providerVaultEntry &&
-        !providerVaultEntry.key
+    // Presence goes through `hasStoredKey`, never the row's value (see the module for the rule).
+    const providerNeedsKey = shouldPromptForProviderKey({
+        connectionMode: connection.mode,
+        connectionSlug: connection.slug,
+        vaultLoaded,
+        standardProviderEntry: providerVaultEntry,
+    })
 
     // The "Add custom provider" footer + drawer come from context, same source as the completion picker.
     const {llmProviderConfig, permissions, onWorkflowRevisionCommitted} = useDrillInUI()
@@ -701,8 +700,8 @@ export function useModelHarness({
     return {
         hasModelOrHarness,
         mcpSupported,
-        // The selected model's provider has a standard vault slot but no key yet — the config panel
-        // highlights the Model section and the chat gates on it until it's connected.
+        // Standard vault slot, no key yet: the config panel highlights the Model section. The chat
+        // composer gates on its own project-wide `gateActive`, not on this.
         needsProviderKey: providerNeedsKey,
         // A model is selected but its harness can't run it — a *model* problem, so the config panel
         // flags the Model section as invalid.
