@@ -12,7 +12,9 @@ import type {FileUIPart, UIMessage} from "ai"
 
 import {latestTurnId} from "../assets/agentTurn"
 import {
+    compactPendingSendCoverage,
     countUserMessages,
+    durableUserTurnIds,
     nextPendingSendCoverage,
     pendingSendMessages,
     retirePendingSends,
@@ -41,6 +43,7 @@ export interface ServerQueueAdapter {
     submit: (
         message: QueuedMessage,
         policy: "queue" | "steer",
+        watcher?: {onAccepted?: (executionId: string) => void; onFailed?: () => void},
     ) => Promise<"queued" | "running" | void>
     remove: (id: string) => Promise<void>
     sendNow?: (id: string) => Promise<void>
@@ -227,10 +230,21 @@ export const useAgentChatQueue = ({
         [],
     )
     const userMessageCount = countUserMessages(messages)
+    const userMessageCountRef = useRef(userMessageCount)
+    userMessageCountRef.current = userMessageCount
+    const durableTurnIds = useMemo(() => durableUserTurnIds(messages), [messages])
+    const dockedIds = useMemo(
+        () => new Set((server?.queued ?? []).map((item) => item.id)),
+        [server?.queued],
+    )
     // Retire DURING render, never in an effect: an effect runs after the paint, so the frame that
     // first carries an adopted durable row would also carry its echo — one duplicate-bubble flash
     // per send. Setting state here makes React re-run this render before painting anything.
-    const retiredPendingSends = retirePendingSends(pendingSendsRef.current, userMessageCount)
+    const retiredPendingSends = retirePendingSends(pendingSendsRef.current, {
+        userCount: userMessageCount,
+        durableTurnIds,
+        dockedIds,
+    })
     if (retiredPendingSends !== pendingSendsRef.current) {
         pendingSendsRef.current = retiredPendingSends
         setPendingSends(retiredPendingSends)
@@ -239,7 +253,23 @@ export const useAgentChatQueue = ({
         (id: string) => {
             updatePendingSends((current) => {
                 const next = current.filter((item) => item.id !== id)
-                return next.length === current.length ? current : next
+                // Renumber what is left: an echo behind a dropped one reserved a count that is now
+                // one too high, and would never retire.
+                return next.length === current.length
+                    ? current
+                    : compactPendingSendCoverage(next, userMessageCountRef.current)
+            })
+        },
+        [updatePendingSends],
+    )
+    const markPendingSendAccepted = useCallback(
+        (id: string, executionId: string) => {
+            updatePendingSends((current) => {
+                const index = current.findIndex((item) => item.id === id)
+                if (index < 0 || current[index].executionId === executionId) return current
+                const next = [...current]
+                next[index] = {...next[index], executionId}
+                return next
             })
         },
         [updatePendingSends],
@@ -361,7 +391,14 @@ export const useAgentChatQueue = ({
                             },
                         ]
                     })
-                    return server.submit(message, "queue").then(
+                    const watcher = {
+                        // The turn id from the response's first frame is what the saved user row
+                        // carries, so from here the echo retires on identity, not on a count.
+                        onAccepted: (executionId: string) =>
+                            markPendingSendAccepted(message.id, executionId),
+                        onFailed: () => dropPendingSend(message.id),
+                    }
+                    return server.submit(message, "queue", watcher).then(
                         (admission) => {
                             if (admission === "queued") dropPendingSend(message.id)
                         },
@@ -405,6 +442,7 @@ export const useAgentChatQueue = ({
             dropPendingSend,
             recoverable,
             retryContinuation,
+            markPendingSendAccepted,
             markRunOwned,
             sendQueued,
             server,

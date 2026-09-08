@@ -7,7 +7,7 @@ import {
     messageText,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
-import {getMessageTraceId} from "@agenta/chat/assets"
+import {getMessageTraceId, mergePendingSendRows} from "@agenta/chat/assets"
 import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {AttachmentDropOverlay, ConnectionFocusProvider} from "@agenta/chat/components"
 import {
@@ -469,9 +469,7 @@ const AgentConversation = ({
         const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
         const live =
             turnDeliverySource === "legacy" || previewMessages.length === 0 ? [] : previewMessages
-        // A just-sent message sits after everything saved and before the answer streaming under it.
-        if (pendingSendRows.length === 0 && live.length === 0) return durableMessages
-        return [...durableMessages, ...pendingSendRows, ...live]
+        return mergePendingSendRows(durableMessages, pendingSendRows, live)
     }, [messages, pendingSendRows, previewMessages, turnDeliverySource])
 
     // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision made

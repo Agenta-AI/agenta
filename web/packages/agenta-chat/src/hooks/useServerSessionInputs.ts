@@ -20,12 +20,22 @@ import type {QueuedMessage} from "./useAgentChatQueue"
 /** "queued" parks the input and the dock owns it; "running" starts a turn the transcript adopts. */
 export type ServerInputAdmission = "queued" | "running"
 
+/** Reports the accepted turn, and a terminal failure when no turn was ever accepted. */
+export interface ServerInputWatcher {
+    onAccepted?: (executionId: string) => void
+    onFailed?: () => void
+}
+
 export interface ServerSessionInputs {
     capabilities: SessionPendingInputView["capabilities"]
     executionState: SessionPendingInputView["executionState"]
     busy: boolean
     queued: QueuedMessage[]
-    submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<ServerInputAdmission>
+    submit: (
+        message: QueuedMessage,
+        policy: "queue" | "steer",
+        watcher?: ServerInputWatcher,
+    ) => Promise<ServerInputAdmission>
     remove: (id: string) => Promise<void>
     sendNow: (id: string) => Promise<void>
     edit: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
@@ -34,6 +44,61 @@ export interface ServerSessionInputs {
 }
 
 const emptyView = reduceSessionPendingInputs(null)
+
+const acceptedExecutionIdFromLine = (line: string): string | null => {
+    const payload = line.startsWith("data:") ? line.slice(5).trim() : line.trim()
+    if (!payload || payload === "[DONE]") return null
+    try {
+        const frame = JSON.parse(payload) as {type?: unknown; data?: {executionId?: unknown}}
+        if (frame.type !== "data-session-accepted") return null
+        const id = frame.data?.executionId
+        return typeof id === "string" && id ? id : null
+    } catch {
+        return null
+    }
+}
+
+/**
+ * Drain the run stream, reporting the accepted turn id from its first frame.
+ *
+ * The body is consumed either way so the connection closes; only the acceptance is read out of it.
+ * Reaching the end without an acceptance is a refusal carried inside a 200, so it reports failure.
+ */
+const readAcceptedExecutionId = async (
+    response: Response,
+    watcher?: ServerInputWatcher,
+): Promise<void> => {
+    const reader = response.body?.getReader()
+    if (!reader) {
+        watcher?.onFailed?.()
+        return
+    }
+    const decoder = new TextDecoder()
+    let buffer = ""
+    let accepted = false
+    try {
+        for (;;) {
+            const {done, value} = await reader.read()
+            if (done) break
+            if (accepted) continue
+            buffer += decoder.decode(value, {stream: true})
+            const lines = buffer.split("\n")
+            buffer = lines.pop() ?? ""
+            for (const line of lines) {
+                const id = acceptedExecutionIdFromLine(line)
+                if (!id) continue
+                accepted = true
+                watcher?.onAccepted?.(id)
+                break
+            }
+        }
+    } catch {
+        // A dropped connection says nothing about the turn: the runner owns it either way.
+        if (!accepted) watcher?.onFailed?.()
+        return
+    }
+    if (!accepted) watcher?.onFailed?.()
+}
 
 export const useServerSessionInputs = ({
     entityId,
@@ -134,6 +199,7 @@ export const useServerSessionInputs = ({
         async (
             message: QueuedMessage,
             policy: "queue" | "steer",
+            watcher?: ServerInputWatcher,
         ): Promise<ServerInputAdmission> => {
             const outbound: UIMessage = {
                 id: message.id,
@@ -175,9 +241,9 @@ export const useServerSessionInputs = ({
 
             // Admission succeeded when the response headers arrived. Keep consuming a fresh 200
             // run in the background so the composer can admit Queue/Steer while that run streams.
-            void response
-                .arrayBuffer()
-                .catch(() => undefined)
+            // A 200 only proves the request was taken: the turn is accepted when the stream's
+            // first frame names it, and a stream that ends without one never started a turn.
+            void readAcceptedExecutionId(response, watcher)
                 .then(async () => {
                     await refresh()
                     onExecutedRef.current?.()

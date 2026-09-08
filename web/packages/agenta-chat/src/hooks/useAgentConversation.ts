@@ -54,6 +54,7 @@ import {
     loadSessionMessages,
     type SessionTranscript,
 } from "../assets/loadSession"
+import {mergePendingSendRows} from "../assets/pendingSends"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {submitApprovalForCapability} from "../assets/serverOwnedApproval"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
@@ -1077,9 +1078,7 @@ export const useAgentConversation = ({
     const displayMessages = useMemo(() => {
         const transcriptMessages = withoutSharedSenderAcceptanceMessages(messages)
         const live = includePreview && previewMessages.length ? previewMessages : []
-        // A just-sent message sits after everything saved and before the answer streaming under it.
-        if (pendingSendRows.length === 0 && live.length === 0) return transcriptMessages
-        return [...transcriptMessages, ...pendingSendRows, ...live]
+        return mergePendingSendRows(transcriptMessages, pendingSendRows, live)
     }, [includePreview, messages, pendingSendRows, previewMessages])
 
     const applyInteractionStates = useCallback(
