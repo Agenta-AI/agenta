@@ -5,6 +5,7 @@ import {Group} from "lucide-react"
 import {Popover, PopoverContent} from "../components/ui/popover"
 
 import {FilterMenuOptionList} from "./FilterMenuOptionList"
+import {ResetRow} from "./FilterMenuPanel"
 import {FilterMenuTrigger} from "./FilterMenuTrigger"
 import type {FilterMenuOption, FilterMenuPlacementProps, FilterMenuTriggerProps} from "./types"
 
@@ -24,9 +25,11 @@ export interface GroupMenuProps<Value extends string = string>
     defaultSearch?: string
     /** What the panel says when `options` is empty. */
     emptyText?: string
-    /** Absent hides the footer's reset; the Esc hint stays either way. */
+    /** Absent hides the reset row entirely — there is nothing else in that footer. */
     onReset?: () => void
     resetLabel?: string
+    /** The view is already at its defaults: the row stays, greyed, rather than disappearing. */
+    resetDisabled?: boolean
     open?: boolean
     onOpenChange?: (open: boolean) => void
     className?: string
@@ -50,6 +53,7 @@ export const GroupMenu = <Value extends string = string>({
     emptyText = "Nothing to group by",
     onReset,
     resetLabel = "Reset to defaults",
+    resetDisabled,
     open: openProp,
     onOpenChange,
     side = "bottom",
@@ -132,21 +136,7 @@ export const GroupMenu = <Value extends string = string>({
                     onDismiss={() => setOpen(false)}
                 />
                 {onReset ? (
-                    <div className="flex items-center justify-between gap-2 border-0 border-t border-solid border-border px-3 py-2">
-                        <button
-                            type="button"
-                            onClick={onReset}
-                            className="box-border cursor-pointer appearance-none rounded-control-sm border-0 bg-transparent p-0 font-[inherit] text-[12px] text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline"
-                        >
-                            {resetLabel}
-                        </button>
-                        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                            close
-                            <kbd className="box-border rounded-control-sm border border-solid border-border bg-muted px-1 py-px font-[inherit] text-[10px] leading-[1.4] text-muted-foreground">
-                                Esc
-                            </kbd>
-                        </span>
-                    </div>
+                    <ResetRow label={resetLabel} onReset={onReset} disabled={resetDisabled} />
                 ) : null}
             </PopoverContent>
         </Popover>

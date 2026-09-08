@@ -20,9 +20,11 @@ export interface FilterMenuProps extends FilterMenuTriggerProps, FilterMenuPlace
     searchPlaceholder?: string
     /** Seeds the search field — a story or a restored view can land on a narrowed panel. */
     defaultSearch?: string
-    /** Absent hides the footer's reset; the Esc hint stays either way. */
+    /** Absent hides the reset row entirely — there is nothing else in that footer. */
     onReset?: () => void
     resetLabel?: string
+    /** The view is already at its defaults: the row stays, greyed, rather than disappearing. */
+    resetDisabled?: boolean
     /** Controlled open state. Leave both off for an uncontrolled menu. */
     open?: boolean
     onOpenChange?: (open: boolean) => void
@@ -44,6 +46,7 @@ export const FilterMenu = ({
     defaultSearch,
     onReset,
     resetLabel,
+    resetDisabled,
     open: openProp,
     onOpenChange,
     side = "bottom",
@@ -95,6 +98,7 @@ export const FilterMenu = ({
                     defaultSearch={defaultSearch}
                     onReset={onReset}
                     resetLabel={resetLabel}
+                    resetDisabled={resetDisabled}
                     flyoutSide={flyoutSide}
                     flyoutAlign={flyoutAlign}
                     flyoutSideOffset={flyoutSideOffset}
