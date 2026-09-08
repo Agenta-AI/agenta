@@ -1,6 +1,6 @@
 import {ChevronRight} from "lucide-react"
 
-import {Popover, PopoverContent, PopoverTrigger} from "../components/ui/popover"
+import {Popover, PopoverAnchor, PopoverContent} from "../components/ui/popover"
 import {cn} from "../components/ui/utils"
 
 import {FilterMenuOptionList} from "./FilterMenuOptionList"
@@ -23,6 +23,11 @@ export const summaryLabel = (section: FilterMenuSection, options: FilterMenuOpti
  *
  * The flyout is a nested Popover rather than a Radix submenu because the panel above carries a
  * search field, and a menu's built-in typeahead competes with it for every keystroke.
+ *
+ * It opens on HOVER, which is why the row is a `PopoverAnchor` and not a `PopoverTrigger`: a
+ * trigger toggles on click, so a click on a row the pointer had already opened would shut it
+ * again. Pointing at a row is the whole gesture; clicking one does the same thing rather than
+ * undoing it.
  */
 export const FilterMenuRow = ({
     section,
@@ -54,7 +59,10 @@ export const FilterMenuRow = ({
 
     return (
         <Popover open={open} onOpenChange={onOpenChange}>
-            <PopoverTrigger asChild>
+            {/* Hovering another row opens that one, which closes this: the panel holds a single
+                open key, so the flyout follows the pointer without either row knowing about the
+                other. A click does the same as a hover rather than undoing it. */}
+            <PopoverAnchor asChild>
                 <button
                     ref={rowRef}
                     type="button"
@@ -63,6 +71,8 @@ export const FilterMenuRow = ({
                     tabIndex={tabIndex}
                     onFocus={onRowFocus}
                     onKeyDown={onKeyDown}
+                    onMouseEnter={() => onOpenChange(true)}
+                    onClick={() => onOpenChange(true)}
                     className={cn(
                         // Preflight is off app-wide, so the <button> reset is restated here.
                         "box-border cursor-pointer appearance-none border-0 bg-transparent font-[inherit]",
@@ -88,13 +98,13 @@ export const FilterMenuRow = ({
                         aria-hidden
                     />
                 </button>
-            </PopoverTrigger>
+            </PopoverAnchor>
             <PopoverContent
                 side={flyoutSide}
                 align={flyoutAlign}
                 sideOffset={flyoutSideOffset}
                 aria-label={section.label}
-                className="flex max-h-[280px] w-[200px] flex-col overflow-y-auto p-1"
+                className="flex max-h-[280px] w-[188px] flex-col overflow-y-auto p-1"
                 onOpenAutoFocus={(event) => event.preventDefault()}
             >
                 <FilterMenuOptionList
