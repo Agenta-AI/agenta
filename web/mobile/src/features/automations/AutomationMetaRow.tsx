@@ -61,10 +61,15 @@ export const AutomationMetaRow = ({
                 />
                 <span className="text-[14px] text-foreground">{active ? "On" : "Off"}</span>
             </span>
-            <span aria-hidden className="h-4 w-px shrink-0 bg-border" />
-            <span className="min-w-0 truncate text-[13px] text-muted-foreground">
-                {agentName ? `Runs ${agentName}` : "No agent yet"}
-                {edited ? ` · edited ${edited}` : ""}
+            <span className="flex min-w-0 items-center gap-3.5">
+                {/* The row wraps at phone width, where a divider is either dangling at the end
+                    of one line or leading the next. It only separates when both parts share a
+                    line. */}
+                <span aria-hidden className="hidden h-4 w-px shrink-0 bg-border sm:block" />
+                <span className="min-w-0 truncate text-[13px] text-muted-foreground">
+                    {agentName ? `Runs ${agentName}` : "No agent yet"}
+                    {edited ? ` · edited ${edited}` : ""}
+                </span>
             </span>
         </div>
     )

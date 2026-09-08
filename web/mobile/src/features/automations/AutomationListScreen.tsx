@@ -226,16 +226,19 @@ export const AutomationListScreen = ({
                         <div className="mx-auto w-full max-w-[1180px] shrink-0 px-8 pb-3 pt-7">
                             <div className="mb-1.5 flex min-w-0 items-center gap-4">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[26px] font-semibold leading-[1.2] tracking-[-0.02em] text-foreground">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-[20px] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[26px] text-foreground">
                                     Automations
                                 </h1>
                                 <Button
                                     size="sm"
+                                    aria-label="New automation"
                                     className="font-normal"
                                     onClick={() => void router.push(`${base}/automations/new`)}
                                 >
                                     <Plus />
-                                    New automation
+                                    {/* The label costs more than it earns at phone width: it
+                                        pushed the page's own title into an ellipsis. */}
+                                    <span className="hidden sm:inline">New automation</span>
                                 </Button>
                             </div>
 
