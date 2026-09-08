@@ -46,20 +46,19 @@ export const AutomationRunList = ({
             ) : groups.length ? (
                 groups.map((group) => (
                     <section key={group.key} className="mb-1 last:mb-0">
-                        <h2 className="m-0 flex items-center gap-1.5 px-2.5 pb-1 pt-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                        <h2 className="m-0 flex items-center gap-1.5 pb-1 pl-2.5 pt-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
                             {group.label}
-                            <span className="font-normal normal-case tracking-normal text-muted-foreground/60">
-                                {group.runs.length}
-                            </span>
                         </h2>
-                        {group.runs.map((delivery) => (
-                            <AutomationRunRow
-                                key={delivery.id ?? delivery.event_id}
-                                delivery={delivery}
-                                selected={delivery.id === selectedId}
-                                onSelect={() => onSelect(delivery)}
-                            />
-                        ))}
+                        <div className="flex flex-col gap-0.5">
+                            {group.runs.map((delivery) => (
+                                <AutomationRunRow
+                                    key={delivery.id ?? delivery.event_id}
+                                    delivery={delivery}
+                                    selected={delivery.id === selectedId}
+                                    onSelect={() => onSelect(delivery)}
+                                />
+                            ))}
+                        </div>
                     </section>
                 ))
             ) : (
