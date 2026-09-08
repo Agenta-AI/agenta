@@ -851,7 +851,11 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
         })
         // Sync to the durable header so other devices/tabs see the label (mirrors rename).
         const projectId = get(projectIdAtom)
-        if (projectId) void setSessionHeader({sessionId: id, projectId, name: title})
+        // `author: "auto"` — this title is derived from the first message, not typed by the
+        // person, so it must not be remembered as a name they chose. The agent renames the
+        // session over it on the next turn, and that rename has to be allowed through.
+        if (projectId)
+            void setSessionHeader({sessionId: id, projectId, name: title, author: "auto"})
     }),
 )
 

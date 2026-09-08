@@ -279,18 +279,40 @@ async def test_rename_session_emits_a_bound_direct_call(connection):
     assert spec.call_ref is None
     assert isinstance(spec.call, ToolCall)
     assert spec.call.method == "POST"
-    assert spec.call.path == "/api/sessions/streams/header?session_id={session_id}"
+    # `author=auto` is fixed in the catalog path, so the endpoint can refuse a rename that
+    # would replace a name a person typed. The model fills only the body, so it cannot claim
+    # a person chose the name it is writing.
+    assert (
+        spec.call.path
+        == "/api/sessions/streams/header?session_id={session_id}&author=auto"
+    )
     assert spec.call.context == {"session_id": "$ctx.session.id"}
     assert spec.read_only is False
 
     schema = get_platform_op("rename_session").resolved_input_schema()
-    assert set(schema["properties"]) == {"name", "description"}
+    assert set(schema["properties"]) == {"name", "description", "override_user_name"}
     assert schema["required"] == ["name"]
     assert spec.input_schema == schema
 
     wire = spec.to_wire()
     assert wire["call"]["path"] == spec.call.path
     assert wire["call"]["context"] == {"session_id": "$ctx.session.id"}
+
+
+def test_rename_session_offers_the_override_for_a_requested_rename():
+    # "Rename this session to X" stays possible after the person named it themselves: the
+    # refusal names the field, and the schema accepts it.
+    schema = get_platform_op("rename_session").resolved_input_schema()
+
+    jsonschema.validate({"name": "A new name", "override_user_name": True}, schema)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"name": "A new name", "override_user_name": "yes"}, schema)
+
+
+def test_rename_session_tells_the_agent_to_adopt_a_person_name():
+    description = get_platform_op("rename_session").description
+
+    assert "override_user_name" in description
 
 
 def test_rename_session_rejects_whitespace_only_name():

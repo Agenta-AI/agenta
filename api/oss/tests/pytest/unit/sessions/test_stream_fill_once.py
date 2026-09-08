@@ -19,6 +19,7 @@ import pytest
 import pytest_asyncio
 
 from oss.src.core.sessions.streams.dtos import (
+    SessionHeaderAuthor,
     SessionHeartbeatRequest,
     SessionStream,
     SessionStreamCommandRequest,
@@ -87,7 +88,15 @@ class _FakeStreamsDAO:
         )
         return self.row
 
-    async def update_header(self, *, project_id, user_id, session_id, header):
+    async def update_header(
+        self,
+        *,
+        project_id,
+        user_id,
+        session_id,
+        header,
+        author=SessionHeaderAuthor.user,
+    ):
         if self.row is None:
             return None
         prior = self.row

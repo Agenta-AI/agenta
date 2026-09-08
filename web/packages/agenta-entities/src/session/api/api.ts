@@ -796,6 +796,9 @@ export async function querySessions({
     return page?.sessions ?? null
 }
 
+/** Who chose the name: a person typing one, or a program proposing one. */
+export type SessionHeaderAuthor = "user" | "auto"
+
 export interface SetSessionHeaderParams {
     sessionId: string
     projectId: string
@@ -803,6 +806,13 @@ export interface SetSessionHeaderParams {
     description?: string
     appId?: string
     abortSignal?: AbortSignal
+    /**
+     * Defaults to `"user"`, so every deliberate rename is protected without saying so. Pass
+     * `"auto"` for a name a program proposed, such as the auto-title from a first message:
+     * the server refuses an `"auto"` name that would replace one a person typed, and only a
+     * `"user"` name is remembered as a person's.
+     */
+    author?: SessionHeaderAuthor
 }
 
 /**
@@ -817,6 +827,7 @@ export async function setSessionHeader({
     description,
     appId,
     abortSignal,
+    author,
 }: SetSessionHeaderParams): Promise<boolean> {
     if (!projectId || !sessionId) return false
 
@@ -824,11 +835,13 @@ export async function setSessionHeader({
     if (name !== undefined) body.name = name
     if (description !== undefined) body.description = description
 
+    // `author` rides in the query string because that is where the endpoint reads it: the
+    // agent's rename tool has it fixed in its own path, so a model cannot put it in a body.
+    const request = projectScopedRequest(projectId, appId, abortSignal)
+    if (author) request.queryParams.author = author
+
     const data = await callFern("[setSessionHeader]", () =>
-        getSessionsClient().setSessionStreamHeader(
-            {session_id: sessionId, body},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
+        getSessionsClient().setSessionStreamHeader({session_id: sessionId, body}, request),
     )
     return data !== null
 }

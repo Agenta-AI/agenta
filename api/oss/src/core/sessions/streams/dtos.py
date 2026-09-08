@@ -16,6 +16,71 @@ from oss.src.core.sessions.types import (
 )
 
 
+class SessionHeaderAuthor(str, Enum):
+    """Who chose the name a header edit carries.
+
+    ``user`` is a person typing a name, and it is the default: an unmarked caller (a
+    script, an older SDK) is treated as a person, which is the safe reading because a
+    person's name is the one this distinction exists to protect. ``auto`` is a name a
+    program proposed — the agent's own ``rename_session``, or the browser's auto-title
+    from a first message.
+
+    It travels as a query parameter, never in the body, so a model cannot claim to be a
+    person: the ``rename_session`` catalog entry fixes ``author=auto`` inside its path and
+    the model only ever fills the body.
+    """
+
+    user = "user"
+    auto = "auto"
+
+
+# Who chose the session's CURRENT name. Stamped "user" by a header edit a person authored,
+# and removed by an automatic one, so the row always answers "did a person type this name?".
+# A reserved tag rather than a column: it needs no migration, it is stripped from every client
+# read by the streams mapper, and no live writer sends `tags` on the flag-mirror edit, so a
+# heartbeat cannot erase it.
+SESSION_NAME_AUTHOR_TAG_KEY = "ag.name.author"
+
+
+def name_author_tags(
+    *,
+    author: SessionHeaderAuthor,
+    name: Optional[str],
+    tags: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """`tags` with the name-author stamp brought in line with an edit that sets `name`.
+
+    Returns the tags unchanged when the edit sets no name, because an edit that changes only
+    the description leaves the question "who named this session?" alone. A person's name is
+    stamped; an automatic name, and a cleared name, remove the stamp — an automatic name is
+    exactly the thing the guard must let the next automatic caller replace.
+    """
+    if name is None:
+        return tags
+    current = dict(tags) if isinstance(tags, dict) else {}
+    if author is SessionHeaderAuthor.user and name.strip():
+        current[SESSION_NAME_AUTHOR_TAG_KEY] = SessionHeaderAuthor.user.value
+    else:
+        current.pop(SESSION_NAME_AUTHOR_TAG_KEY, None)
+    return current or None
+
+
+def decode_name_author(
+    tags: Optional[Dict[str, Any]],
+) -> Optional[SessionHeaderAuthor]:
+    """The stamped author of the row's current name, or None when nothing stamped it.
+
+    A junk value reads as None rather than raising: this decides how a rename behaves, and a
+    row nobody can parse must not make every read of the session fail.
+    """
+    if not isinstance(tags, dict):
+        return None
+    try:
+        return SessionHeaderAuthor(tags.get(SESSION_NAME_AUTHOR_TAG_KEY))
+    except (TypeError, ValueError):
+        return None
+
+
 class SessionStreamFlags(BaseModel):
     """The nest as primitive bools (alive ⊇ running ⊇ attached).
 
@@ -63,6 +128,10 @@ class SessionStream(Identifier, Header, Lifecycle):
     origin: Optional[SessionOrigin] = None
     trigger: Optional[SessionTrigger] = None
     delivery: Optional[SessionDelivery] = None
+    # Who chose `name`, decoded from the reserved tag the header edit stamps. Read by the
+    # rename guard, which is why it rides on the row a caller already fetches rather than
+    # needing a second read. Null on every row written before the stamp existed.
+    name_author: Optional[SessionHeaderAuthor] = None
 
 
 class SessionStreamReadOptions(BaseModel):
@@ -108,6 +177,12 @@ class SessionStreamHeaderEdit(Header):
     while the row still holds a value, a state no caller ever means. The LLM-facing
     ``rename_session`` schema already rejects both; this closes the direct-API hole.
     """
+
+    # Set by a caller whose name a person asked for, so an `auto` edit may replace a name
+    # that person typed. Body-carried on purpose: this one IS the model's decision to make,
+    # unlike `author`. Defaults false, so a stale replay never gets past the guard by
+    # accident.
+    override_user_name: bool = False
 
     @field_validator("name")
     @classmethod

@@ -11,12 +11,16 @@ from oss.src.core.sessions.types import (
     SessionTriggerAttribution,
 )
 from oss.src.core.sessions.streams.dtos import (
+    SESSION_NAME_AUTHOR_TAG_KEY,
+    SessionHeaderAuthor,
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
     SessionStreamFlags,
     SessionStreamHeaderEdit,
     SessionStreamQueryResult,
+    decode_name_author,
+    name_author_tags,
 )
 from oss.src.dbs.postgres.sessions.references import (
     references_from_json,
@@ -42,6 +46,7 @@ SESSION_RESERVED_TAG_KEYS = frozenset(
         SESSION_TRIGGER_KIND_TAG_KEY,
         SESSION_TRIGGER_DELIVERY_ID_TAG_KEY,
         SESSION_TRIGGER_NAME_TAG_KEY,
+        SESSION_NAME_AUTHOR_TAG_KEY,
     }
 )
 
@@ -174,6 +179,7 @@ def map_stream_dbe_to_dto(
         origin=origin,
         trigger=trigger,
         delivery=delivery,
+        name_author=decode_name_author(stream_dbe.tags),
     )
 
 
@@ -219,10 +225,18 @@ def map_stream_dto_to_dbe_header_edit(
     stream_dbe: SessionStreamDBE,
     user_id: Optional[UUID],
     header: SessionStreamHeaderEdit,
+    author: SessionHeaderAuthor = SessionHeaderAuthor.user,
 ) -> None:
-    """The rename edit: only ever touches name/description — never flags/turn_id."""
+    """The rename edit: only ever touches name/description and the name-author stamp —
+    never flags/turn_id. The stamp is reassigned rather than mutated in place, because
+    SQLAlchemy does not track a mutation inside a JSONB dict."""
     stream_dbe.updated_by_id = user_id
     if header.name is not None:
         stream_dbe.name = header.name
+        stream_dbe.tags = name_author_tags(
+            author=author,
+            name=header.name,
+            tags=stream_dbe.tags,
+        )
     if header.description is not None:
         stream_dbe.description = header.description

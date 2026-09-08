@@ -81,3 +81,28 @@ class ConcurrencyLimitExceeded(SessionStreamError):
             f"Concurrency limit of {limit} concurrent runs reached for this project."
         )
         super().__init__(self.message)
+
+
+class SessionNameProtected(SessionStreamError):
+    """Raised when an automatic rename would replace a name a person typed.
+
+    The agent's `rename_session` decides its arguments at one moment and can run them at a
+    later one: a parked approval holds a call while the person renames the session by hand,
+    and the deferred call then writes the name the agent chose before the rename. The agent
+    reports that stale name afterwards, so the person sees their name silently reverted.
+
+    The current name rides on the exception because the caller is usually a model, and the
+    useful answer is not "refused" but "the session is already called this" — the agent
+    adopts the name from the message instead of retrying.
+    """
+
+    def __init__(self, session_id: str, current_name: str):
+        self.session_id = session_id
+        self.current_name = current_name
+        self.message = (
+            f'This session is named "{current_name}", and a person named it.'
+            " Keep that name and do not rename the session."
+            " Send override_user_name=true only if the person asked you for a"
+            " different name."
+        )
+        super().__init__(self.message)

@@ -23,6 +23,7 @@ from oss.src.core.sessions.dtos import (
     SessionTriggerKind,
 )
 from oss.src.core.sessions.streams.dtos import (
+    SessionHeaderAuthor,
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
@@ -691,6 +692,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         user_id: Optional[UUID],
         session_id: str,
         header: SessionStreamHeaderEdit,
+        author: SessionHeaderAuthor = SessionHeaderAuthor.user,
     ) -> Optional[SessionStream]:
         async with self.engine.session() as session:
             stmt = select(SessionStreamDBE).where(
@@ -706,6 +708,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                 stream_dbe=dbe,
                 user_id=user_id,
                 header=header,
+                author=author,
             )
             # `updated_at` is deliberately not bumped: it is the last-ACTIVITY sort key, and
             # renaming a session is not activity — bumping it teleports the row you just

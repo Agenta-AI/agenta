@@ -1452,6 +1452,8 @@ _RENAME_SESSION_DESCRIPTION = """Name and describe the session you are running i
 
 `description` is the current state: a short recap of what has happened and what is open, one to one and a half sentences, short enough to read inside a table cell.
 
+If the person named the session themselves, this tool refuses and gives you their name. Adopt that name and move on. Set `override_user_name` to true only when the person asks you for a different name.
+
 This renames the session you are in and no other one. It works only inside a session."""
 
 _RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
@@ -1467,6 +1469,9 @@ _RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
         "description": {
             "type": "string",
             "maxLength": 300,
+        },
+        "override_user_name": {
+            "type": "boolean",
         },
     },
     "required": ["name"],
@@ -1570,7 +1575,11 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             op="rename_session",
             description=_RENAME_SESSION_DESCRIPTION,
             method="POST",
-            path="/api/sessions/streams/header?session_id={session_id}",
+            # `author=auto` is fixed here, in code, and the model fills only the body, so an
+            # agent cannot claim a person chose the name. The endpoint refuses an `auto`
+            # rename over a name a person typed, which is what stops a call the agent decided
+            # before the person renamed from replacing their name when it finally runs.
+            path="/api/sessions/streams/header?session_id={session_id}&author=auto",
             input_schema=_RENAME_SESSION_INPUT_SCHEMA,
             context_bindings={"session_id": "$ctx.session.id"},
             read_only=False,
