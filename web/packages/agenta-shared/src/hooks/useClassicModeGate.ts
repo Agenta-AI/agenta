@@ -9,7 +9,7 @@ import {useAtomValue} from "jotai"
 
 import {getEnv} from "../api/env"
 import {advancedNavHiddenAtom, readSettledAdvancedNavHidden} from "../state/classicMode"
-import {activeUserIdAtom} from "../state/featureFlags"
+import {ACTIVE_USER_ID_KEY, activeUserIdAtom} from "../state/featureFlags"
 import {userAtom} from "../state/user"
 import {
     CLASSIC_MODE_COOKIE,
@@ -85,6 +85,11 @@ export const useClassicModeCookieSync = () => {
     useEffect(() => {
         if (typeof document === "undefined") return
         if (!userId) {
+            // Storage, not the atom: `activeUserIdAtom` has no `getOnInit`, so it reads null on
+            // every first render and only then hydrates. Clearing on that would drop the cookie
+            // at the start of EVERY page load, and a redirect landing in that window arrives at
+            // a gate with no preference to read. Only a real sign-out empties the key.
+            if (localStorage.getItem(ACTIVE_USER_ID_KEY)) return
             clearCookie(CLASSIC_MODE_COOKIE)
             return
         }
@@ -106,11 +111,11 @@ export const useClassicModeCookieSync = () => {
  * this is a document navigation whichever way it is spelled — and replace keeps the desktop URL
  * out of history, where Back would bounce off it.
  *
- * DELIBERATELY ONE-WAY. `/m` has no mirror of this hook, and must not grow one: the two hosts
- * write `activeUserIdAtom` from different sources (`Session.getUserId()` here, the profile's
- * `uid` on `/m`), so they can scope the preference to different keys and disagree about it. With
- * a redirect on both sides that disagreement is an infinite `/w` ↔ `/m` loop rather than a stop.
- * Leaving `/m` is the proxy's job — it reads one cookie, and the desktop gate yields to it.
+ * DELIBERATELY ONE-WAY. `/m` must not grow a mirror of this hook. The two apps are separate JS
+ * contexts sharing only storage, so each would redirect on a value the other cannot see, with
+ * nothing to arbitrate and nothing to break the cycle: any disagreement becomes an endless
+ * `/w` ↔ `/m` bounce instead of a stop. Leaving `/m` is the proxy's job — one cookie, and the
+ * desktop gate yields to it through `wantsClassic`.
  */
 export const useClassicModeRedirect = (enabled = true) => {
     const userId = useAtomValue(activeUserIdAtom)
@@ -133,7 +138,13 @@ export const useClassicModeRedirect = (enabled = true) => {
         if (readCookie(MOBILE_OPTOUT_COOKIE)) return
 
         const target = mobileRouteFor(pathname, search)
-        if (target) window.location.replace(target)
+        if (!target) return
+        // Publish before navigating, exactly as the Classic mode switch does. Relying on the
+        // sync effect above having already run makes this correct only by hook order; if the
+        // cookie is missing when `/m` is asked for, its proxy sees no preference, falls through
+        // to the device check, and bounces a desktop UA straight back here. That is a loop.
+        writeClassicModeCookie(false)
+        window.location.replace(target)
     }, [enabled, userId, advancedNavHidden])
 }
 
