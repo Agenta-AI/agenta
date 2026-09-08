@@ -86,6 +86,10 @@ FORBIDDEN_PREFIXES = (
 REQUIRED = {
     "AGENTA_RUNNER_PORT",
     "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS",
+    # The runner binds 127.0.0.1 unless told otherwise. In a pod that makes every health
+    # probe fail with connection refused and the pod never becomes ready, which is what
+    # happened on a live GKE cluster. See runner_bind_address() below for the value check.
+    "AGENTA_RUNNER_HOST",
 }
 
 
@@ -117,6 +121,28 @@ def runner_container_env_names(docs: list[dict]) -> list[str]:
         containers = doc["spec"]["template"]["spec"]["containers"]
         runner = next(c for c in containers if c["name"] == "runner")
         return [entry["name"] for entry in runner.get("env", [])]
+    raise AssertionError("no runner Deployment found in the rendered chart")
+
+
+def runner_bind_address(docs: list[dict]) -> str:
+    """The AGENTA_RUNNER_HOST value on the runner container, and how many times it is set."""
+    for doc in docs:
+        if doc.get("kind") != "Deployment":
+            continue
+        if (
+            doc.get("metadata", {}).get("labels", {}).get("app.kubernetes.io/component")
+            != "runner"
+        ):
+            continue
+        containers = doc["spec"]["template"]["spec"]["containers"]
+        runner = next(c for c in containers if c["name"] == "runner")
+        values = [
+            entry.get("value")
+            for entry in runner.get("env", [])
+            if entry["name"] == "AGENTA_RUNNER_HOST"
+        ]
+        assert len(values) == 1, f"AGENTA_RUNNER_HOST set {len(values)} times"
+        return values[0]
     raise AssertionError("no runner Deployment found in the rendered chart")
 
 
@@ -181,6 +207,24 @@ def main() -> int:
     # Operator supplies their own secret ref: same narrow env, token sourced from their Secret.
     names_with_token = runner_container_env_names(render(TOKEN_ARGS))
     failures += check(names_with_token)
+
+    # The runner must bind every interface, or the kubelet cannot reach its health endpoint
+    # over the pod IP and the pod never becomes ready.
+    bind = runner_bind_address(docs)
+    if bind != "0.0.0.0":
+        failures.append(f"runner binds {bind!r}, expected '0.0.0.0'")
+
+    # Both override paths still win, and neither produces a duplicate entry.
+    for args, expected in (
+        (DEFAULT_TOKEN_ARGS + ["--set", "agentRunner.host=127.0.0.1"], "127.0.0.1"),
+        (
+            DEFAULT_TOKEN_ARGS + ["--set", "agentRunner.env.AGENTA_RUNNER_HOST=10.0.0.5"],
+            "10.0.0.5",
+        ),
+    ):
+        got = runner_bind_address(render(args))
+        if got != expected:
+            failures.append(f"runner bind override gave {got!r}, expected {expected!r}")
 
     if failures:
         print("FAIL: runner environment is not narrow:", file=sys.stderr)

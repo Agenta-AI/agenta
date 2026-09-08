@@ -63,6 +63,16 @@ spec:
             - name: AGENTA_API_INTERNAL_URL
               value: {{ $agentaVals.agenta.apiInternalUrl | quote }}
             {{- end }}
+            {{- /* The runner binds 127.0.0.1 by default, which is right for a laptop and wrong
+                   in a pod: kubelet reaches the container over the pod IP, so every probe on
+                   :<port>/health got connection refused and the pod never became ready.
+                   Bind all interfaces. Override with agentRunner.host, or through the
+                   agentRunner.env map below, which suppresses this entry the same way
+                   AGENTA_RUNNER_REPLICA_ID and PI_CODING_AGENT_DIR do. */}}
+            {{- if not (hasKey (default dict $runner.env) "AGENTA_RUNNER_HOST") }}
+            - name: AGENTA_RUNNER_HOST
+              value: {{ include "agenta.agentRunner.host" . | quote }}
+            {{- end }}
             - name: AGENTA_RUNNER_PORT
               value: {{ include "agenta.agentRunner.port" . | quote }}
             - name: AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS

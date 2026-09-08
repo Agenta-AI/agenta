@@ -162,6 +162,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.webMobile.port" -}}{{ default 3000 (default dict .Values.webMobile).port }}{{- end }}
 {{- define "agenta.services.port" -}}{{ default 80 (default dict .Values.services).port }}{{- end }}
 {{- define "agenta.agentRunner.port" -}}{{ default 8765 (default dict .Values.agentRunner).port }}{{- end }}
+{{- /* Bind address for the runner (AGENTA_RUNNER_HOST). The runner defaults to 127.0.0.1,
+       which no probe and no other pod can reach. Always 0.0.0.0 here unless overridden. */ -}}
+{{- define "agenta.agentRunner.host" -}}{{ default "0.0.0.0" (default dict .Values.agentRunner).host }}{{- end }}
 {{- define "agenta.supertokens.port" -}}{{ default 3567 (default dict (include "agenta.values" . | fromYaml).supertokens).port }}{{- end }}
 {{- define "agenta.redisVolatile.port" -}}{{ default 6379 (default dict .Values.redisVolatile).port }}{{- end }}
 {{- define "agenta.redisDurable.port" -}}{{ default 6381 (default dict .Values.redisDurable).port }}{{- end }}

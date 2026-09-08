@@ -320,6 +320,9 @@
         "externalUrl": { "type": "string", "description": "AGENTA_RUNNER_INTERNAL_URL override pointing at an external runner." },
         "piAgentDir":  { "type": "string", "description": "PI_CODING_AGENT_DIR for local Pi runs (default /pi-agent); unset means no Agenta extension for the run (the runner logs a warning)." },
         "logLevel":    { "type": "string", "description": "AGENTA_RUNNER_LOG_LEVEL read by the runner service." },
+        "host":        { "type": "string", "description": "AGENTA_RUNNER_HOST, the runner's bind address. Default 0.0.0.0. The runner itself defaults to 127.0.0.1, which the kubelet cannot reach, so the probes would fail forever." },
+        "port":        { "type": ["integer", "string"], "description": "AGENTA_RUNNER_PORT and the container port. Default 8765." },
+        "replicas":    { "type": "integer", "minimum": 0 },
         "fuse": {
           "type": "object",
           "additionalProperties": false,

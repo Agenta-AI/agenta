@@ -221,6 +221,14 @@ The Ingress renders only when the bundled SeaweedFS is deployed, and `host` is
 required once you enable it. Compose does the same thing with
 `AGENTA_STORE_TRAEFIK_ENABLE` and `AGENTA_STORE_DOMAIN`.
 
+## The runner bind address
+
+The runner binds `127.0.0.1` on its own. In a pod the kubelet connects over the
+pod IP, so a runner bound to loopback refuses every health probe and never
+becomes ready. The chart sets `AGENTA_RUNNER_HOST=0.0.0.0` for you. Change it
+with `agentRunner.host`, or through the `agentRunner.env` map, which suppresses
+the chart's entry rather than adding a second one.
+
 ## Checking a values file before you install
 
 ```bash

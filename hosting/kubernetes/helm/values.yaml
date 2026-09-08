@@ -141,6 +141,9 @@ redisDurable:
 # ================================================================== #
 # agentRunner:
 #   enabled: true
+#   host: "0.0.0.0"            # AGENTA_RUNNER_HOST, the bind address. Leave it alone: the runner
+#                              # itself defaults to 127.0.0.1, which the kubelet cannot reach, so
+#                              # the health probes fail forever and the pod never becomes ready.
 #   liveFrames: true           # AGENTA_RUNNER_LIVE_FRAMES; set false to disable live-frame relay
 #   providers:
 #     enabled: [local]        # AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS (rendered comma-joined)
