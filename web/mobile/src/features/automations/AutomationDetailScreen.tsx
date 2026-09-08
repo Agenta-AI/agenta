@@ -17,6 +17,7 @@ import {agentLabel} from "./automationModel"
 import {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 import {AutomationDetailSkeleton} from "./states/AutomationStates"
 import {useAutomation} from "./useAutomation"
+import {useAutomationRuns} from "./useAutomationRuns"
 import {useAutomations} from "./useAutomations"
 
 /**
@@ -31,15 +32,10 @@ export const AutomationDetailScreen = ({
     workspaceId,
     projectId,
     automationId,
-    /** W6 supplies these from delivery data; without them neither surface claims anything. */
-    failureReason = null,
-    runHistoryCaption = "",
 }: {
     workspaceId: string
     projectId: string
     automationId: string
-    failureReason?: string | null
-    runHistoryCaption?: string
 }) => {
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
@@ -56,6 +52,11 @@ export const AutomationDetailScreen = ({
         setActive,
     } = useAutomation(listed ? automationId : undefined, listed?.kind ?? "schedule")
     const automation = fetched ?? listed ?? null
+
+    // The runs answer two questions this screen asks: how many there have been, and whether the
+    // last one failed. Same hook and same cache the run history reads, so the caption on the card
+    // is the caption on the screen it opens.
+    const {caption: runHistoryCaption, failureReason} = useAutomationRuns(automation)
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agentName = useMemo(() => {
