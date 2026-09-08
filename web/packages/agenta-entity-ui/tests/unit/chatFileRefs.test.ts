@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {fileCandidate, knownFromRecords} from "./chatFileRefs"
+import {fileCandidate, knownFromRecords} from "../../src/drive/chatFileRefs"
 
 describe("fileCandidate", () => {
     it("preserves an absolute sandbox path for mount-tail resolution (#5983)", () => {

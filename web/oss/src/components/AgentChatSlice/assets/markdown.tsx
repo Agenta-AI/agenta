@@ -1,10 +1,15 @@
 import {memo, type ReactNode} from "react"
 
-import {useDriveSessionId} from "@agenta/entity-ui/drive"
+import {
+    decodeDriveHref,
+    isExternalHref,
+    rehypeExplicitRelativeLinks,
+    useDriveSessionId,
+} from "@agenta/entity-ui/drive"
 import {code} from "@streamdown/code"
 import {math} from "@streamdown/math"
 import {useAtomValue} from "jotai"
-import {Streamdown, type Components, type ThemeInput} from "streamdown"
+import {defaultRehypePlugins, Streamdown, type Components, type ThemeInput} from "streamdown"
 
 import {chatFileLinkAtomFamily} from "../state/fileLinks"
 
@@ -137,12 +142,6 @@ const InlineCode = ({className, children}: {className?: string; children?: React
     return fallback
 }
 
-/** A link target that must stay a plain external link: any `scheme:` URL (http, https, mailto, tel,
- * data, …), a protocol-relative `//host`, or an in-page `#fragment`. Everything else is a RELATIVE
- * path, which might name a file in this conversation's drive. */
-const isExternalHref = (href?: string): boolean =>
-    !href || /^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)
-
 /** Only real anchor attributes — Streamdown also passes renderer internals (`node`, …) that would
  * leak onto the DOM element, so we never spread the incoming props. */
 interface AnchorProps {
@@ -173,7 +172,9 @@ const DriveLink = ({href, ...rest}: AnchorProps) => {
     ) : (
         <ExternalLink href={href} {...rest} />
     )
-    if (link && href) return <>{link.renderCode(href, fallback)}</>
+    // Harden rebuilt the href through `new URL()`, so a name with a space arrives percent-encoded
+    // while the drive stores it raw — decode before asking the resolver about it.
+    if (link && href) return <>{link.renderCode(decodeDriveHref(href), fallback)}</>
     return fallback
 }
 
@@ -205,6 +206,20 @@ const MD_COMPONENTS: Components = {
         </Anchor>
     ),
 }
+
+/** Streamdown's own rehype list (`rehype-raw → rehype-sanitize → rehype-harden`) with ONE plugin
+ * inserted before the harden gate: it respells a bare relative link target (`agent-files/report.md`
+ * — the form the platform prompt tells the agent to write) as `./agent-files/report.md`, which is
+ * the only relative shape harden can parse. Without it harden drops the anchor and leaves inert
+ * "[blocked]" text, so no file link the agent wrote ever opened (#6659). Harden still runs, and
+ * still gates the result. Passing this prop REPLACES the defaults, so the defaults are re-listed
+ * explicitly and in their original order. */
+const MD_REHYPE_PLUGINS = [
+    defaultRehypePlugins.raw,
+    defaultRehypePlugins.sanitize,
+    rehypeExplicitRelativeLinks,
+    defaultRehypePlugins.harden,
+]
 
 /** KaTeX math ($…$ / $$…$$) + Shiki-highlighted fences; both tree-shaken plugin packages. */
 const MD_PLUGINS = {math, code}
@@ -242,6 +257,7 @@ const Markdown = ({
     <Streamdown
         className={className ? `${MD_CLASS} ${className}` : MD_CLASS}
         components={MD_COMPONENTS}
+        rehypePlugins={MD_REHYPE_PLUGINS}
         plugins={MD_PLUGINS}
         controls={MD_CONTROLS}
         shikiTheme={SHIKI_THEMES}
