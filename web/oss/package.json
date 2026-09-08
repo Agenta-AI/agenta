@@ -27,6 +27,7 @@
         "@agenta/annotation-ui": "workspace:../packages/agenta-annotation-ui",
         "@agenta/auth": "workspace:../packages/agenta-auth",
         "@agenta/auth-ui": "workspace:../packages/agenta-auth-ui",
+        "@agenta/automation-ui": "workspace:../packages/agenta-automation-ui",
         "@agenta/chat": "workspace:../packages/agenta-chat",
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",

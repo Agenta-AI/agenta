@@ -79,7 +79,7 @@ export const AutomationDrawer = () => {
             }}
         >
             {rendered ? (
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5">
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
                     {automationId ? (
                         <AutomationEditDrawerBody
                             key={automationId}
@@ -127,6 +127,8 @@ const AutomationEditDrawerBody = ({
             // The drawer opens over the agent that owns the run history, so a link out of it
             // would be a link to the surface the reader is already standing on.
             runsHref={null}
+            // The drawer owns the gutters, so the body drops the page column it uses on a screen.
+            className="flex min-w-0 flex-col"
             failureReason={editor.failureReason}
             runHistoryCaption={editor.runHistoryCaption}
             dirty={editor.dirty}

@@ -90,6 +90,7 @@ export function AgentOperationsSections({
     sticky = true,
     storage,
     storageHeader,
+    automationDrawer,
 }: {
     /** The open agent's revision id (the playground's variantId). */
     revisionId: string | null
@@ -103,6 +104,8 @@ export function AgentOperationsSections({
      * layer for the same reason as `storage`. Follows the shared `ConfigRowTrailing` convention so
      * its folder glyph lands on the panel's affordance axis. */
     storageHeader?: ReactNode
+    /** The automations create/edit drawer, passed down to the Automations section. */
+    automationDrawer?: ReactNode
 }) {
     const {count: triggerCount} = useAgentTriggers(revisionId)
 
@@ -117,7 +120,11 @@ export function AgentOperationsSections({
                     </ConfigRowTrailing>
                 </AgentRegionHeaderBar>
                 <div className={sectionsBodyClass}>
-                    <TriggerManagementSection entityId={revisionId} disabled={disabled} />
+                    <TriggerManagementSection
+                        entityId={revisionId}
+                        disabled={disabled}
+                        automationDrawer={automationDrawer}
+                    />
                 </div>
             </section>
 

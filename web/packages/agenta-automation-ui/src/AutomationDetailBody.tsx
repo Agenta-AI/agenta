@@ -29,6 +29,7 @@ export const AutomationDetailBody = ({
     preview,
     agentName,
     runsHref,
+    className,
     failureReason = null,
     runHistoryCaption = "",
     dirty,
@@ -53,6 +54,11 @@ export const AutomationDetailBody = ({
      * over the agent that owns the runs), which hides the card rather than linking nowhere.
      */
     runsHref: string | null
+    /**
+     * The frame this body sits in. Defaults to the page column a screen wants; a drawer passes
+     * its own, because the drawer already owns the gutters.
+     */
+    className?: string
     failureReason?: string | null
     runHistoryCaption?: string
     /** The draft differs from what is saved, so the footer has something to offer. */
@@ -69,7 +75,7 @@ export const AutomationDetailBody = ({
     /** Test run and the actions menu — on the title's line, not the page header. */
     actions?: ReactNode
 }) => (
-    <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px]">
+    <div className={className ?? "mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px]"}>
         <div className="flex min-w-0 items-start gap-2">
             <AutomationTitle
                 name={automation.name}
