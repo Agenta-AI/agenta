@@ -121,6 +121,10 @@ class ChannelSecretSettingsDTO(BaseModel):
 
     bot_token: Optional[str] = None
     signing_secret: Optional[str] = None
+    # Telegram sets this on the webhook and echoes it back on every update; the
+    # ingress verifies against the hydrated value, so it must survive the vault
+    # round trip rather than being dropped as an unknown key.
+    webhook_secret: Optional[str] = None
 
 
 class ChannelSecretDTO(BaseModel):

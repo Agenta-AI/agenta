@@ -136,6 +136,18 @@ class ChannelsService:
                 "signing_secret": one_time_secret,
             }
 
+        # Telegram verifies each webhook by a secret token it echoes back. We
+        # mint it here, so it is vaulted with the bot token and hydrated on
+        # every ingress for verify_signature to check. A caller-supplied one
+        # (rotation, tests) is kept as given.
+        if connection.channel == "telegram" and not (connection.credentials or {}).get(
+            "webhook_secret"
+        ):
+            connection.credentials = {
+                **(connection.credentials or {}),
+                "webhook_secret": token_secrets.token_urlsafe(32),
+            }
+
         discovered = await adapter.verify_connection(
             connection=connection,
             credentials=connection.credentials or {},
@@ -171,6 +183,10 @@ class ChannelsService:
             locator_input=locator_input,
             credential_secret_id=credential_secret_id,
         )
+        # The plaintext is about to be discarded from the row; keep it in hand
+        # for the post-store activation, which is the only place a WRITE-time
+        # platform call (Telegram's setWebhook) can run against a stored row.
+        activation_credentials = dict(connection.credentials or {})
         connection.credentials = None
 
         try:
@@ -190,6 +206,24 @@ class ChannelsService:
             raise _connection_conflict(
                 channel=connection.channel, slug=connection.slug, error=e
             ) from e
+
+        # Register the connection with the platform now that the row exists.
+        # No-op for every channel whose setup is read-only; Telegram points its
+        # webhook at our per-bot ingress here. A failure leaves the row in place
+        # but inactive rather than half-rolling-back a stored row and its vault
+        # secret; re-activation is a follow-up. It is logged, not swallowed.
+        try:
+            await adapter.activate_connection(
+                connection=created,
+                credentials=activation_credentials,
+            )
+        except Exception as e:  # noqa: BLE001 - activation must not 500 the create
+            log.warning(
+                "channels: activate_connection failed for channel=%s slug=%s: %s",
+                connection.channel,
+                connection.slug,
+                e,
+            )
 
         if one_time_secret is None:
             return created

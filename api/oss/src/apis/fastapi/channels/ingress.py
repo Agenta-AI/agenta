@@ -89,6 +89,19 @@ class ChannelsIngressRouter:
             status_code=status.HTTP_202_ACCEPTED,
         )
 
+        # Telegram carries no bot identity in the update body, so the bot rides
+        # the path: one webhook URL per bot. The token segment is read by the
+        # adapter's connection_locator from request.url.path; the path
+        # parameter here only makes the route match.
+        self.router.add_api_route(
+            "/telegram/events/{routing_token}/",
+            self.ingest_telegram_event,
+            methods=["POST"],
+            operation_id="ingest_telegram_event",
+            response_model=ChannelEventAck,
+            status_code=status.HTTP_202_ACCEPTED,
+        )
+
         # Bridges share one route -- their channel key is unknown at build time.
         self.router.add_api_route(
             "/bridge/events/",
@@ -126,6 +139,13 @@ class ChannelsIngressRouter:
     @handle_channel_adapter_exceptions()
     async def ingest_agenta_event(self, request: Request) -> Any:
         return await self._ingest(channel="agenta", request=request)
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def ingest_telegram_event(self, request: Request, routing_token: str) -> Any:
+        # routing_token is captured so the route matches; the adapter reads the
+        # bot id from request.url.path itself, so nothing here uses it directly.
+        return await self._ingest(channel="telegram", request=request)
 
     @intercept_exceptions()
     @handle_channel_adapter_exceptions()
