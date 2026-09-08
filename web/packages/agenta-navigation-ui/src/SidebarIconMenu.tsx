@@ -31,7 +31,7 @@ const SidebarIconMenu = ({item}: {item: SidebarConfig}) => (
                             aria-label={item.title as string}
                             // [font-family:inherit]: preflight is off, so a bare <button>
                             // renders Arial while the rows around it render Inter.
-                            className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText"
+                            className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary [font-family:inherit] hover:bg-colorFillTertiary hover:text-colorText"
                         >
                             {item.icon}
                         </button>

@@ -283,8 +283,11 @@ export const ProjectOrgSwitcherView = ({
                 // Same 300ms the rail itself uses (SidebarShell): without it this box jumps to its
                 // collapsed geometry on the first frame while the rail is still sliding, and the
                 // switcher reads as a separate, badly-timed element rather than part of the rail.
-                "flex gap-1 px-2 pb-1.5 pt-1 transition-all duration-300",
-                collapsed ? "flex-col items-center" : "w-full items-center",
+                "flex gap-1 px-2 pb-1.5 transition-all duration-300",
+                // No top pad collapsed: the bottom nav already ends with its own 4px, and the
+                // two together left Settings further from the help button than the help button
+                // is from the switcher under it.
+                collapsed ? "flex-col items-center" : "w-full items-center pt-1",
             )}
         >
             {/* Collapsed, the rail is one icon wide: the trailing control stacks above the
@@ -302,7 +305,7 @@ export const ProjectOrgSwitcherView = ({
                             "flex cursor-pointer items-center rounded-md border-0 bg-transparent transition-all duration-300 hover:bg-colorFillTertiary",
                             // pl-3 puts the avatar on the nav rows' icon column instead of 6px inside it.
                             collapsed
-                                ? "h-8 w-8 justify-center p-1"
+                                ? "size-7 justify-center p-0"
                                 : "h-8 min-w-0 flex-1 gap-[10px] pl-3 pr-1",
                         )}
                         title={`${projectLabel} · ${orgLabel}`}

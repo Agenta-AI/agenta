@@ -400,7 +400,9 @@ const NavMenuImpl = ({
                     <Tip key={item.key} title={item.tooltip || item.title}>
                         <div
                             className={clsx(
-                                "relative mx-auto flex size-8 items-center justify-center rounded-md",
+                                // size-7, not size-8: on a 48px rail a 32px hit box leaves 8px a
+                                // side and the icons read as tiles rather than as a nav.
+                                "relative mx-auto flex size-7 items-center justify-center rounded-md",
                                 item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                                 selected && ROW_SELECTED,
                             )}
@@ -431,7 +433,7 @@ const NavMenuImpl = ({
                                 item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                                 selected && ROW_SELECTED,
                                 collapsed
-                                    ? "size-8 justify-center"
+                                    ? "size-7 justify-center"
                                     : `${ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] px-3`,
                             )}
                         >
@@ -575,6 +577,9 @@ const NavMenuImpl = ({
             role="menu"
             className={clsx(
                 "flex w-full flex-col pt-1",
+                // Collapsed rows carry no margin of their own (ROW_BASE's `mb-1` belongs to the
+                // expanded rail), so without this the icon buttons touch edge to edge.
+                collapsed && "gap-1",
                 // A scrolling group only shrinks if its own line can: claim the section's height
                 // and allow shrinking past the content.
                 items.some((item) => item.scrollChildren) && "min-h-0 flex-1",
