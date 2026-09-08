@@ -155,10 +155,7 @@ it.each([{environments: []}, {environments: ["local"]}, {environments: ["local",
         Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})
         Element.prototype.scrollIntoView = vi.fn()
         Element.prototype.hasPointerCapture = () => false
-        // Hold the deferred bootstrap work before idle for the whole test. jsdom has no
-        // requestIdleCallback, so idleReadyAtom falls back to a timer once it mounts, and
-        // a slow case lets the idle-gated queries fetch. This test covers the pre-idle
-        // render only.
+        // Keep idle-gated queries deferred; jsdom's fallback timer would fetch mid-test.
         vi.stubGlobal(
             "requestIdleCallback",
             vi.fn(() => 1),
