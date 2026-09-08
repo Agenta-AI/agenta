@@ -8,6 +8,7 @@ import {
 } from "@agenta/entities/workflow"
 import {buildTriggerReferences} from "@agenta/entity-ui/gatewayTrigger"
 import {message} from "@agenta/ui/app-message"
+import {Switch} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -53,6 +54,8 @@ interface AutomationDraft {
     connectionId: string | null
     eventKey: string | null
     triggerConfig?: Record<string, unknown>
+    /** Whether it starts running the moment it is created. */
+    isActive: boolean
 }
 
 /**
@@ -98,6 +101,7 @@ export const AutomationDraftScreen = ({
         inputsFields: {},
         connectionId: null,
         eventKey: null,
+        isActive: true,
     }))
     const [saving, setSaving] = useState(false)
 
@@ -165,7 +169,7 @@ export const AutomationDraftScreen = ({
             // Never rendered on a draft — the title stands alone until the row exists.
             description: "",
             agentId: draft.agentId,
-            isActive: true,
+            isActive: draft.isActive,
             cron: draft.cron,
             eventKey: draft.eventKey,
             connectionId: draft.connectionId,
@@ -200,6 +204,10 @@ export const AutomationDraftScreen = ({
         setDraft((current) => ({...current, agentId}))
     }, [])
 
+    const onToggleActive = useCallback((isActive: boolean) => {
+        setDraft((current) => ({...current, isActive}))
+    }, [])
+
     // A draft's kind is still free: nothing has been created, so switching is a local change of
     // which half of the "Runs when" control is showing.
     const onChangeKind = useCallback((kind: AutomationKind) => {
@@ -226,7 +234,11 @@ export const AutomationDraftScreen = ({
                 message.error("Couldn't create this automation")
                 return
             }
-            message.success("Automation created — it's on and will run at its next time")
+            message.success(
+                draft.isActive
+                    ? "Automation created — it's on and will run at its next time"
+                    : "Automation created — it stays off until you switch it on",
+            )
             await router.push(`${base}/automations/${created.id}`)
         } catch {
             message.error("Couldn't create this automation")
@@ -250,14 +262,36 @@ export const AutomationDraftScreen = ({
                     }
                 >
                     <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px]">
-                        <AutomationTitle
-                            name={draft.name}
-                            description=""
-                            onRename={onRename}
-                            autoEdit={!template}
-                            placeholder="Automation name"
-                            fallback={generatedName}
-                        />
+                        {/* The switch sits where the saved screen puts Test run — the title
+                            line's right end — so the same corner always carries the automation's
+                            own control. */}
+                        <div className="flex min-w-0 items-center gap-3">
+                            <div className="min-w-0 flex-1">
+                                <AutomationTitle
+                                    name={draft.name}
+                                    description=""
+                                    onRename={onRename}
+                                    autoEdit={!template}
+                                    placeholder="Automation name"
+                                    fallback={generatedName}
+                                />
+                            </div>
+                            <span className="flex shrink-0 items-center gap-[9px]">
+                                <Switch
+                                    size="sm"
+                                    checked={draft.isActive}
+                                    onCheckedChange={onToggleActive}
+                                    aria-label={
+                                        draft.isActive
+                                            ? "Create this automation switched off"
+                                            : "Create this automation switched on"
+                                    }
+                                />
+                                <span className="text-[14px] text-foreground">
+                                    {draft.isActive ? "On" : "Off"}
+                                </span>
+                            </span>
+                        </div>
 
                         <div className="mt-[26px] flex flex-col gap-[22px]">
                             <AutomationAgentField
