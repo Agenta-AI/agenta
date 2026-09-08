@@ -18,6 +18,7 @@ from .gateway import AgentaGatewayToolResolver
 from .op_catalog import PLATFORM_OPS, PlatformOp, get_platform_op
 from .platform_tools import AgentaPlatformToolResolver
 from .resolve import resolve_connection, resolve_mcp, resolve_secrets, resolve_tools
+from .session_context import resolve_session_context
 from .secrets import (
     AgentaNamedSecretProvider,
     resolve_named_secrets,
@@ -42,4 +43,5 @@ __all__ = [
     "resolve_mcp",
     "resolve_secrets",
     "resolve_connection",
+    "resolve_session_context",
 ]

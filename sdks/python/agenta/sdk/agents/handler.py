@@ -13,8 +13,6 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from pydantic import ValidationError
-
 from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig, to_messages
 from agenta.sdk.agents.interfaces import Backend, Environment
 from agenta.sdk.agents.capabilities import (
@@ -44,6 +42,9 @@ from agenta.sdk.agents.platform import (
 )
 from agenta.sdk.agents.platform import resolve_mcp as _platform_resolve_mcp
 from agenta.sdk.agents.platform import resolve_tools as _platform_resolve_tools
+from agenta.sdk.agents.platform import (
+    resolve_session_context as _platform_resolve_session_context,
+)
 
 from agenta.sdk.agents.fold import fold, trim_to_trailing_unit
 from agenta.sdk.agents.tracing import (
@@ -72,6 +73,7 @@ ResolveToolsFn = Callable[..., Awaitable[ResolvedToolSet]]
 ResolveMCPFn = Callable[..., Awaitable[List[ResolvedMCPServer]]]
 ResolveConnectionFn = Callable[..., Awaitable[ResolvedConnection]]
 ResolveSandboxCredentialsFn = Callable[..., Awaitable[List[Any]]]
+ResolveSessionContextFn = Callable[..., Awaitable[Optional[SessionContext]]]
 ResolveSessionConnectionFn = Callable[
     [ModelRef, RuntimeAuthContext], Awaitable[ResolvedConnection]
 ]
@@ -113,6 +115,53 @@ async def _default_resolve_mcp_servers(
 
 async def _default_resolve_connection(*, model, context) -> ResolvedConnection:
     return await _platform_resolve_connection(model=model, context=context)
+
+
+async def _default_resolve_session_context(
+    *, session_id, workflow_id
+) -> Optional[SessionContext]:
+    return await _platform_resolve_session_context(
+        session_id=session_id, workflow_id=workflow_id
+    )
+
+
+def _reference_id(references, name: str) -> Optional[str]:
+    """The id of one entry in ``request.references``, whatever shape it arrived in.
+
+    A reference is a ``Reference`` model or the raw dict it was parsed from, depending on the
+    caller, so read both.
+    """
+    reference = (references or {}).get(name)
+    identifier = (
+        reference.get("id")
+        if isinstance(reference, dict)
+        else getattr(reference, "id", None)
+    )
+    return str(identifier) if identifier else None
+
+
+def _agent_artifact_id(run_context, references) -> Optional[str]:
+    """The workflow artifact this run belongs to. That is what ``rename_agent`` renames.
+
+    Prefer the run context: it is built from the RESOLVED tracing references, and it already
+    normalizes the three artifact families a caller may send. A playground turn labels the
+    artifact ``application``, a native workflow invocation labels it ``workflow``, and an
+    evaluator labels it ``evaluator``; all three are workflow-backed and name the same row.
+    Reading only ``workflow`` would report no name for every playground turn.
+
+    Fall back to the request's own references when the run has no tracing context, which is
+    the bare-SDK case. Returns ``None`` for a run with no artifact at all: a draft has no name
+    to report.
+    """
+    artifact = getattr(getattr(run_context, "workflow", None), "artifact", None)
+    identifier = getattr(artifact, "id", None)
+    if identifier:
+        return str(identifier)
+    for name in ("workflow", "application", "evaluator"):
+        identifier = _reference_id(references, name)
+        if identifier:
+            return identifier
+    return None
 
 
 def _check_harness_pre_resolve(model_ref: ModelRef, harness: Optional[str]) -> None:
@@ -202,6 +251,11 @@ class AgentComposition:
     resolve_connection: ResolveConnectionFn = field(default=_default_resolve_connection)
     resolve_sandbox_credentials: ResolveSandboxCredentialsFn = field(
         default=_resolve_sandbox_credentials
+    )
+    # The per-turn session facts. Resolved here, never read off the wire: see
+    # `agenta.sdk.agents.platform.session_context`.
+    resolve_session_context: ResolveSessionContextFn = field(
+        default=_default_resolve_session_context
     )
     # capability gating + fail-closed resolution policy; override to replace, not just add to.
     resolve_session_connection: Optional[ResolveSessionConnectionFn] = field(
@@ -330,25 +384,16 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             value = request_meta.get(name)
             return value.strip() if isinstance(value, str) and value.strip() else None
 
-        def _meta_session_context() -> Optional[SessionContext]:
-            """Read the service-supplied session facts off ``meta``, or return ``None``.
-
-            Best-effort by design. These facts only shape prompt text, so a malformed or
-            unexpected blob must degrade to the pre-change prompt rather than fail the turn.
-            Unknown keys are dropped instead of raising: a newer service may send a field this
-            SDK does not know yet."""
-            raw = request_meta.get("session_context")
-            if not isinstance(raw, dict):
-                return None
-            known = {
-                key: value
-                for key, value in raw.items()
-                if key in SessionContext.model_fields
-            }
-            try:
-                return SessionContext(**known)
-            except ValidationError:
-                return None
+        # The per-turn session facts. Resolved HERE, from the backend, and never read off
+        # `request.meta`: the playground posts a turn straight to this service, so `meta` is
+        # client input on the path the browser uses. A client must not be able to tell the
+        # agent it is already named. The API stamps `meta.session_context` for the runs it
+        # proxies; that stamp is deliberately ignored, because a service cannot tell it apart
+        # from a forged one in its own request body.
+        session_context = await comp.resolve_session_context(
+            session_id=session_id,
+            workflow_id=_agent_artifact_id(rc, request.references),
+        )
 
         session_config = SessionConfig(
             agent=agent_template,
@@ -356,7 +401,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             permission_default=agent_template.permission_default,
             trace=comp.trace_context(),
             run_context=rc,
-            session_context=_meta_session_context(),
+            session_context=session_context,
             session_id=session_id,
             detached=bool(flags.detached),
             turn_id=_meta_string("run_id"),
