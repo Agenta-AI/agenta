@@ -183,8 +183,9 @@ export const ProjectOrgSwitcherView = ({
                     <span className="flex-1">Switch {orgNoun}</span>
                 </Row>
                 {onCreateProject && (
+                    // A row like the rest: accent-yellow and bolder made a create action look
+                    // like the panel's answer, when it is the least likely thing you came for.
                     <Row
-                        className="font-medium !text-colorPrimary"
                         onClick={() => {
                             close()
                             onCreateProject()
@@ -238,7 +239,6 @@ export const ProjectOrgSwitcherView = ({
                 <div className="my-1 h-px bg-colorBorderSecondary" />
                 {onCreateOrg && (
                     <Row
-                        className="font-medium !text-colorPrimary"
                         onClick={() => {
                             close()
                             onCreateOrg()
