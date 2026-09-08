@@ -22,6 +22,7 @@ import {
  */
 export const AutomationRunList = ({
     runs,
+    filtered = false,
     selectedId,
     isLoading,
     error,
@@ -29,6 +30,8 @@ export const AutomationRunList = ({
     onRetry,
 }: {
     runs: TriggerDelivery[]
+    /** The runs were narrowed by the menu — an empty list is a filter's doing, not a new automation. */
+    filtered?: boolean
     selectedId: string | null
     isLoading: boolean
     error?: unknown
@@ -62,7 +65,7 @@ export const AutomationRunList = ({
                     </section>
                 ))
             ) : (
-                <AutomationRunHistoryEmpty />
+                <AutomationRunHistoryEmpty filtered={filtered} />
             )}
         </div>
     )
