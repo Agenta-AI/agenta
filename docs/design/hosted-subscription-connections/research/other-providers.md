@@ -371,8 +371,8 @@ here.
 | Source | What was read |
 | --- | --- |
 | Installed Pi 0.80.6 | `services/runner/node_modules/.pnpm/@earendil-works+pi-coding-agent@0.80.6_*/node_modules/@earendil-works/pi-coding-agent` and the matching `pi-ai` package, `dist` with source maps, and the bundled `docs/`. |
-| Pi upstream | [github.com/earendil-works/pi](https://github.com/earendil-works/pi) at commit `6160683a4a8012f0d1cd30c145df18b4ca6f5176`, dated 2026-09-08. |
-| Hermes Agent | [github.com/NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) at commit `c8aa5608c24e3636e77c267650c0f1f52e44adb0`, dated 2026-09-08, version 0.21.1. |
+| Pi upstream | [github.com/earendil-works/pi](https://github.com/earendil-works/pi) at commit `6160683a4a`, dated 2026-09-08. |
+| Hermes Agent | [github.com/NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) at commit `c8aa5608c2`, dated 2026-09-08, version 0.21.1. |
 | Fourteen other agents | Source files on `raw.githubusercontent.com` and vendor documentation. Each claim below carries its URL. |
 
 ### 6. What Pi's `/login` really offers
