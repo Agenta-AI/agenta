@@ -8,8 +8,8 @@ import {AUTOMATION_TEMPLATES, type AutomationTemplate} from "../templates"
 /**
  * Designed states for the automations screens.
  *
- * The list skeleton mirrors the real table — the same shell, the same four-column grid, the same
- * 13/14 row padding — so the rows do not shift when the two trigger queries land.
+ * The list skeleton mirrors the real table — the same grid, the same hairline rows, the same
+ * padding — so the rows do not shift when the two trigger queries land.
  *
  * None of these carries a top margin: each stands where the table would, so the search bar sits
  * the same distance above whatever is showing.
@@ -19,28 +19,24 @@ const GRID =
     "grid gap-3 [grid-template-columns:minmax(120px,1.7fr)_118px_minmax(120px,1.5fr)_minmax(80px,1fr)]"
 
 export const AutomationListSkeleton = ({rows = 5}: {rows?: number}) => (
-    <div className="overflow-hidden rounded-md border border-solid border-border" aria-hidden>
-        <div className="overflow-x-auto">
-            <div className="min-w-[544px]">
-                <div
-                    className={`${GRID} border-0 border-b border-solid border-border bg-muted/40 px-3.5 py-[9px]`}
-                >
-                    {Array.from({length: 4}, (_, i) => (
-                        <Skeleton key={i} className="h-3 w-16" />
-                    ))}
-                </div>
-                {Array.from({length: rows}, (_, i) => (
-                    <div
-                        key={i}
-                        className={`${GRID} items-center border-0 border-b border-solid border-border px-3.5 py-[13px] last:border-b-0`}
-                    >
-                        <Skeleton className="h-3.5 w-4/5" />
-                        <Skeleton className="h-3.5 w-16" />
-                        <Skeleton className="h-3.5 w-3/5" />
-                        <Skeleton className="h-3.5 w-2/3" />
-                    </div>
+    <div className="overflow-x-auto" aria-hidden>
+        <div className="min-w-[544px]">
+            <div className={`${GRID} border-0 border-b border-solid border-border px-2 py-2`}>
+                {Array.from({length: 4}, (_, i) => (
+                    <Skeleton key={i} className="h-3 w-16" />
                 ))}
             </div>
+            {Array.from({length: rows}, (_, i) => (
+                <div
+                    key={i}
+                    className={`${GRID} items-center border-0 border-b border-solid border-border/60 px-2 py-[15px]`}
+                >
+                    <Skeleton className="h-3.5 w-4/5" />
+                    <Skeleton className="h-3.5 w-16" />
+                    <Skeleton className="h-3.5 w-3/5" />
+                    <Skeleton className="h-3.5 w-2/3" />
+                </div>
+            ))}
         </div>
     </div>
 )

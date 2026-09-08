@@ -1,4 +1,4 @@
-import {Fragment, useMemo, useState} from "react"
+import {Fragment, useCallback, useMemo, useState} from "react"
 
 import {
     agentLabel,
@@ -19,7 +19,14 @@ import {
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
-import {ClockClockwise, Lightning, MagnifyingGlass, Plus, Robot} from "@phosphor-icons/react"
+import {
+    CaretDown,
+    ClockClockwise,
+    Lightning,
+    MagnifyingGlass,
+    Plus,
+    Robot,
+} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -90,6 +97,18 @@ export const AutomationListScreen = ({
     const base = `/w/${workspaceId}/p/${projectId}`
     const [search, setSearch] = useState("")
     const [view, setView] = useState<AutomationListView>(DEFAULT_AUTOMATION_LIST_VIEW)
+    // Group headings carry a chevron, so it has to do something: collapsed keys, not a flag per
+    // group, because the groups themselves come and go as the view changes.
+    const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
+    const toggleGroup = useCallback(
+        (key: string) =>
+            setCollapsed((current) => {
+                const next = new Set(current)
+                if (!next.delete(key)) next.add(key)
+                return next
+            }),
+        [],
+    )
     const {automations, isLoading, error, refetch} = useAutomations(search)
 
     // Same roster `useAutomations` already reads for its search, so the name in a row and the
@@ -139,11 +158,10 @@ export const AutomationListScreen = ({
             )
 
         return (
-            <div className="overflow-hidden rounded-md border border-solid border-border">
-                <div className="overflow-x-auto">
+            <div className="overflow-x-auto">
                     <div className="min-w-[572px]">
                         <div
-                            className={`${GRID} border-0 border-b border-solid border-border bg-muted/40 px-3.5 py-[9px] text-[12px] text-muted-foreground`}
+                            className={`${GRID} border-0 border-b border-solid border-border px-2 py-2 text-[12px] font-medium text-muted-foreground`}
                         >
                             <span>Automation</span>
                             <span>Status</span>
@@ -169,14 +187,24 @@ export const AutomationListScreen = ({
                                     {/* `Group by: None` returns one unlabelled group, so the
                                         table is byte-for-byte what it was before grouping. */}
                                     {group.label === null ? null : (
-                                        <div className="border-0 border-b border-solid border-border bg-muted/25 px-3.5 py-[7px] text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground">
-                                            {group.label}
-                                            <span className="ml-1.5 font-normal normal-case tracking-normal opacity-70">
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleGroup(group.key)}
+                                            aria-expanded={!collapsed.has(group.key)}
+                                            className={`box-border flex w-full cursor-pointer appearance-none items-center gap-1.5 border-0 bg-transparent px-2 pb-1.5 pt-3.5 text-left font-[inherit] text-[13px] text-muted-foreground hover:text-foreground ${FOCUS_RING}`}
+                                        >
+                                            <span>{group.label}</span>
+                                            <CaretDown
+                                                size={12}
+                                                aria-hidden
+                                                className={`shrink-0 transition-transform ${collapsed.has(group.key) ? "-rotate-90" : ""}`}
+                                            />
+                                            <span className="opacity-60">
                                                 {group.automations.length}
                                             </span>
-                                        </div>
+                                        </button>
                                     )}
-                                    {group.automations.map((automation) => {
+                                    {(collapsed.has(group.key) ? [] : group.automations).map((automation) => {
                                         // Run outcomes land in W6; until then nothing here has failed.
                                         const status = automationStatus(automation, false)
                                         const color = STATUS_COLOR[status]
@@ -206,7 +234,7 @@ export const AutomationListScreen = ({
                                                     event.preventDefault()
                                                     open()
                                                 }}
-                                                className={`${GRID} w-full cursor-pointer items-center border-0 border-b border-solid border-border bg-transparent px-3.5 py-[13px] text-left last:border-b-0 hover:bg-accent ${FOCUS_RING}`}
+                                                className={`${GRID} w-full cursor-pointer items-center border-0 border-b border-solid border-border/60 bg-transparent px-2 py-[15px] text-left hover:bg-accent/60 ${FOCUS_RING}`}
                                             >
                                                 <span className="flex min-w-0 items-center gap-2">
                                                     {automation.kind === "event" ? (
@@ -292,7 +320,6 @@ export const AutomationListScreen = ({
                                 </Fragment>
                             ))
                         )}
-                    </div>
                 </div>
             </div>
         )
