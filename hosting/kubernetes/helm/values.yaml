@@ -162,6 +162,15 @@ redisDurable:
 #     tokenSecretRef:          # AGENTA_RUNNER_TOKEN; Services sends it, the runner verifies it
 #       name: agenta-runner
 #       key: token
+#   fuse:
+#     enabled: true            # default true. With store.enabled=true the runner container gets
+#                              # the SYS_ADMIN capability and a hostPath mount of /dev/fuse, which
+#                              # geesefs needs for a local sandbox.
+#                              # GKE Autopilot rejects both, so set this to false there and run
+#                              # sandboxes on the Daytona provider:
+#                              #   agentRunner.fuse.enabled: false
+#                              #   agentRunner.providers.enabled: [daytona]
+#                              #   agentRunner.providers.default: daytona
 
 # ================================================================== #
 # workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md

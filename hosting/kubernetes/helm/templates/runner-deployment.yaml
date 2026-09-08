@@ -34,12 +34,14 @@ spec:
           image: {{ include "agenta.agentRunnerImage" . }}
           imagePullPolicy: {{ include "agenta.agentRunner.pullPolicy" . }}
           {{- /* FUSE for the durable session cwd: geesefs mounts the store prefix on-host for
-                 local sandboxes, which needs SYS_ADMIN + /dev/fuse. Only granted when mounts is
-                 on; an explicit runner.securityContext (if set) overrides this default. */ -}}
+                 local sandboxes, which needs SYS_ADMIN + /dev/fuse. Only granted when the store
+                 is on AND agentRunner.fuse.enabled is true; an explicit runner.securityContext
+                 (if set) overrides this default. Set agentRunner.fuse.enabled=false on a cluster
+                 that rejects SYS_ADMIN or a hostPath, such as GKE Autopilot. */ -}}
           {{- if $runner.securityContext }}
           securityContext:
             {{- toYaml $runner.securityContext | nindent 12 }}
-          {{- else if eq (include "agenta.store.enabled" .) "true" }}
+          {{- else if and (eq (include "agenta.store.enabled" .) "true") (eq (include "agenta.agentRunner.fuse.enabled" .) "true") }}
           securityContext:
             capabilities:
               add: ["SYS_ADMIN"]
@@ -185,12 +187,12 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if and (eq (include "agenta.store.enabled" .) "true") (not $runner.securityContext) }}
+          {{- if and (eq (include "agenta.store.enabled" .) "true") (eq (include "agenta.agentRunner.fuse.enabled" .) "true") (not $runner.securityContext) }}
           volumeMounts:
             - name: fuse
               mountPath: /dev/fuse
           {{- end }}
-      {{- if and (eq (include "agenta.store.enabled" .) "true") (not $runner.securityContext) }}
+      {{- if and (eq (include "agenta.store.enabled" .) "true") (eq (include "agenta.agentRunner.fuse.enabled" .) "true") (not $runner.securityContext) }}
       volumes:
         - name: fuse
           hostPath:

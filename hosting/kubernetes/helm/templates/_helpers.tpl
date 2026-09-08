@@ -112,6 +112,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.store).seaweedfs).image).pullPolicy }}{{- end }}
 {{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.store).seaweedfs).port }}{{- end }}
+{{- /* FUSE for the runner's local sandboxes. Default true, which is the behavior the chart
+       always had. Set agentRunner.fuse.enabled=false on a cluster that forbids SYS_ADMIN or
+       a hostPath mount of /dev/fuse, such as GKE Autopilot; use the Daytona provider there. */ -}}
+{{- define "agenta.agentRunner.fuse.enabled" -}}
+{{- $v := (default dict (default dict .Values.agentRunner).fuse).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
 {{- define "agenta.workerStreams.enabled" -}}
 {{- $v := (default dict .Values.workerStreams).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
