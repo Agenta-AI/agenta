@@ -231,13 +231,15 @@ const MD_CONTROLS = {code: {copy: true, download: false}, mermaid: false, table:
 /** Light/dark pair — Shiki dual themes track the app theme instead of the old always-dark Prism. */
 const SHIKI_THEMES: [ThemeInput, ThemeInput] = ["one-light", "one-dark-pro"]
 
-/** Shared markdown renderer for the slice — used by message bubbles and the composer live
- * preview, so both render identically. `className` appends to `MD_CLASS` so callers can tweak
- * size/color (e.g. the muted reasoning block) without forking the renderer.
+/** Shared markdown renderer for the slice — used by the streaming message bubble and the
+ * inspector's context lens, so both render identically. The composer has its own Lexical
+ * renderer and does NOT come through here. `className` appends to `MD_CLASS` so callers can
+ * tweak size/color (e.g. the muted reasoning block) without forking the renderer.
  *
  * Sanitization: Streamdown's default rehype pipeline (`rehype-raw → rehype-sanitize (GitHub
  * schema) → rehype-harden`) replaces the old DOMPurify FORBID_TAGS config — document-affecting
- * tags, handlers, and javascript: URLs are stripped by default.
+ * tags, handlers, and javascript: URLs are stripped by default. `Anchor` adds the one gate
+ * harden does not apply, on a target that resolves to a host (#6666).
  *
  * Memoized on `content`/`className`: within the one message that re-renders per streamed token
  * (the streaming one), its already-settled parts — a reasoning block, text before a tool call —

@@ -5,8 +5,10 @@
  * href is all this module does. `rehype-sanitize`, upstream of it, is what strips a dangerous
  * scheme, and harden still gates every href this module rewrites.
  *
- * It also owns the one shape harden lets through that it should not: a target that resolves to a
- * host instead of a path. See {@link isProtocolRelativeHref}, which the chat anchor calls first.
+ * The module now holds two things, both about which link targets the chat will render. The
+ * respelling above gets a bare relative path THROUGH harden. {@link isProtocolRelativeHref} is the
+ * opposite: the one shape harden lets through that it should not, a target that resolves to a host
+ * instead of a path. Both hosts' anchors call it first.
  */
 
 /** True for a `scheme:` URL, a protocol-relative `//host` or a `#fragment`; false for a path. */
@@ -40,23 +42,33 @@ const PROBE_HOST = "link-gate.invalid"
  * link text the markdown author chose. Model output is markdown an agent can be steered into
  * writing, so the anchor refuses the shape instead of trusting the target.
  *
- * The test is deliberately wider than a literal `//` prefix, because several spellings reach the
- * same place. A browser reads a backslash as a slash in an http(s) URL, so `/\host` is `//host`.
- * Percent-encoding hides the slashes from a prefix test but not from the browser, so the check
- * decodes until the value stops changing. Tabs, newlines and surrounding controls are dropped by
- * the URL parser, so {@link asBrowserReadsIt} drops them here first. And a target harden did not
- * resolve can still resolve to another host, so the last step resolves it and compares.
+ * Two normalizations are what a browser really does, and the check has to match them or it can be
+ * spelled around. It removes every ASCII tab, newline and carriage return from the whole href and
+ * ignores the surrounding C0 controls and spaces, so `/<tab>/host` is `//host` to it
+ * ({@link asBrowserReadsIt}). And it reads a backslash as a slash in an http(s) URL, so `/\host`,
+ * `\/host` and `\\host` are all `//host`.
+ *
+ * The percent-decoding rounds are NOT that. A browser leaves `%2F` encoded, so `%2F%2Fhost` is a
+ * same-origin path to it. They are here because a target that decodes to a host is never a link
+ * this chat wants to render, and because {@link decodeDriveHref} downstream does decode one layer.
+ * Four rounds is a bounded belt-and-braces limit, not a model of anything; a deeper encoding is
+ * still just an encoded path. The cost is refusing a filename that literally contains `%2F%2F`,
+ * which is why {@link fileCandidate} uses the literal prefix test instead of this one.
+ *
+ * The last step resolves what is left against a probe origin, which catches a target harden did not
+ * resolve. `link-gate.invalid` is a reserved TLD, so nothing can name it on purpose, and every
+ * host-naming spelling already opens with `//` after the normalizations above.
  *
  * A `scheme:` URL is not this function's business and returns false: `rehype-sanitize` drops a
  * dangerous scheme and `rehype-harden` gates the rest, and an `https://` link is a link a reply is
- * allowed to contain. The cost of the rule is a legitimate `//host` spelling of a web link in a
+ * allowed to contain. That also keeps `https://example.com//deep/path` working, whose own pathname
+ * starts with `//`. The cost of the rule is a legitimate `//host` spelling of a web link in a
  * reply, which renders blocked. That trade is the decision recorded on #6666.
  */
 export const isProtocolRelativeHref = (href?: string | null): boolean => {
     if (typeof href !== "string" || !href) return false
     let value = href
-    // Four rounds covers `%252f`-style double encoding with room to spare. The loop stops as soon
-    // as decoding is a no-op, so an ordinary path costs one pass.
+    // The loop stops as soon as decoding is a no-op, so an ordinary path costs one pass.
     for (let round = 0; round < 4; round += 1) {
         value = asBrowserReadsIt(value)
         if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return false

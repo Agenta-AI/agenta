@@ -134,17 +134,44 @@ describe("isProtocolRelativeHref", () => {
     it("survives a malformed escape and a missing href instead of throwing", () => {
         expect(isProtocolRelativeHref("/agent-files/100%.md")).toBe(false)
         expect(isProtocolRelativeHref("%")).toBe(false)
+        expect(isProtocolRelativeHref("%FF%2F%2Fevil.com")).toBe(false)
         expect(isProtocolRelativeHref("")).toBe(false)
         expect(isProtocolRelativeHref(undefined)).toBe(false)
         expect(isProtocolRelativeHref(null)).toBe(false)
+        expect(isProtocolRelativeHref(42 as unknown as string)).toBe(false)
+        expect(isProtocolRelativeHref({} as unknown as string)).toBe(false)
+    })
+
+    it("does not treat a unicode look-alike slash as a slash", () => {
+        // The URL parser percent-encodes these as ordinary path text. Blocking them would refuse
+        // real filenames for no gain.
+        expect(isProtocolRelativeHref("⁄⁄evil.com")).toBe(false)
+        expect(isProtocolRelativeHref("／／evil.com")).toBe(false)
+        expect(isProtocolRelativeHref("⧸⧸evil.com")).toBe(false)
+    })
+
+    it("refuses a target that names the probe host itself", () => {
+        // The probe origin is a reserved TLD nobody can register, but the answer must not depend
+        // on that: a host-naming spelling is caught by the prefix test, before any resolution.
+        expect(isProtocolRelativeHref("//link-gate.invalid/x")).toBe(true)
+        expect(isProtocolRelativeHref("/\\link-gate.invalid/x")).toBe(true)
+        expect(isProtocolRelativeHref("/\tlink-gate.invalid/x")).toBe(false)
     })
 })
 
 describe("fileCandidate", () => {
-    it("refuses a mention that names a host, so the resolver never treats it as a file (#6666)", () => {
+    it("refuses a mention that opens with two slashes, which names a host (#6666)", () => {
         expect(fileCandidate("//evil.com/x")).toBeNull()
         expect(fileCandidate("\\\\evil.com")).toBeNull()
-        expect(fileCandidate("%2F%2Fevil.com")).toBeNull()
+        expect(fileCandidate("/\\evil.com")).toBeNull()
+    })
+
+    it("keeps a literal filename that only LOOKS like an encoded host", () => {
+        // Deliberately narrower than the anchor's check. Nothing here navigates, so a name that
+        // decodes to `//host` is still just a name and must resolve or fail on its own merits.
+        expect(fileCandidate("%2F%2Freport.md")).toBe("%2F%2Freport.md")
+        expect(fileCandidate("a/..//report.md")).toBe("a/..//report.md")
+        expect(fileCandidate("dir\\report.md")).toBe("dir\\report.md")
     })
 
     it("still accepts an ordinary file mention", () => {

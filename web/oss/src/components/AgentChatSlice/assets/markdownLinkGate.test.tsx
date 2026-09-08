@@ -98,19 +98,22 @@ describe("chat markdown link gate", () => {
         }
     })
 
-    it("is the anchor that refuses the shape harden hands over as a host (#6666)", () => {
-        // `..//evil.com/x` starts with `../`, so harden parses it and returns its pathname,
-        // `//evil.com/x`. The browser fills in the page scheme and leaves the app, so the anchor
-        // has to be the one to say no. These are the targets that reach it in that shape.
-        for (const target of ["..//evil.com/x", "a/..//evil.com/x", ".././/evil.com/x"]) {
-            const html = renderToStaticMarkup(<Markdown content={link(target)} />)
-            expect(html, target).toContain("[blocked]")
+    it("is the anchor, not harden, that refuses a resolved host (#6666)", () => {
+        // Which layer catches what, stated separately from the rendered result. `gate` reports the
+        // href the anchor slot receives, so it shows harden's own verdict first.
+        for (const target of ["..//evil.com/x", ".././/evil.com/x"]) {
+            // Harden parses it (it starts with `../`) and returns its pathname, a live host.
+            expect(gate(link(target)), target).toBe("//evil.com/x")
+            // The anchor is therefore the only thing standing between that href and a click.
+            expect(renderToStaticMarkup(<Markdown content={link(target)} />), target).toContain(
+                "[blocked]",
+            )
         }
-        // Written with no dot segment, harden drops the host itself and hands over a bare path.
-        // Nothing to block, and still not a link.
-        const bare = renderToStaticMarkup(<Markdown content={link("//evil.com/x")} />)
-        expect(bare).not.toContain("<a ")
-        expect(bare).not.toContain("evil.com")
+        // Harden already refuses this one: the pre-harden respelling declines a dot segment that
+        // climbs to a host, and the bare form left over does not parse.
+        expect(gate(link("a/..//evil.com/x"))).toBe("[blocked]")
+        // And written with no dot segment, harden drops the host itself and hands over a path.
+        expect(gate(link("//evil.com/x"))).toBe("/x")
     })
 
     it("refuses it the same way harden refuses a bad scheme, so both read alike", () => {
@@ -135,7 +138,9 @@ describe("chat markdown link gate", () => {
         const doubled = renderToStaticMarkup(<Markdown content={link("https://example.com//a")} />)
         expect(doubled).toContain('href="https://example.com//a"')
 
-        // The file link the platform prompt prescribes still reaches the drive resolver.
+        // The file link the platform prompt prescribes still reaches the anchor as the
+        // leading-slash form the drive resolver handles, not as a blocked span.
+        expect(gate(link("agent-files/report.md"))).toBe("/agent-files/report.md")
         const file = renderToStaticMarkup(<Markdown content={link("agent-files/report.md")} />)
         expect(file).not.toContain("[blocked]")
         expect(file).toContain("report.md")
