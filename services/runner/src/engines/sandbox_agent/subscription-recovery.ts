@@ -356,8 +356,14 @@ export async function recoverSubscriptionAuthFailure(input: {
   }
   // The session now runs on the recovered login. Move the floor so the push-back does not send it
   // straight back to the API that just handed it over.
+  //
+  // The DELIVERED pair moves too, and only here. This is the one event that genuinely changes what
+  // this run is running on, so a later failure report should ask about the recovered login rather
+  // than the dead one it started with. A push never moves these; see `deliveredVersion`.
   input.state.generation = generation;
   input.state.version = version;
+  input.state.deliveredVersion = version;
+  input.state.deliveredGeneration = generation;
   input.state.deliveredExpires = loginExpires(report.login);
   input.state.pushedExpires = loginExpires(report.login);
 

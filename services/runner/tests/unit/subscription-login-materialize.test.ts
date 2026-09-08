@@ -23,21 +23,12 @@ import {
   subscriptionPushState,
 } from "../../src/engines/sandbox_agent/subscription-login.ts";
 import type { ModelConnectionSubscription } from "../../src/protocol.ts";
+import { makeLogin } from "../utils/subscription-login.ts";
 
-const OLD = {
-  type: "oauth",
-  access: "old-access",
-  refresh: "old-refresh",
-  expires: 1_000,
-  accountId: "acct_1",
-};
-const NEW = {
-  type: "oauth",
-  access: "new-access",
-  refresh: "new-refresh",
-  expires: 2_000,
-  accountId: "acct_1",
-};
+// Real-shaped logins, because the runner refuses to publish anything it cannot recognize as a
+// ChatGPT credential. `expires` is in the future for the same reason. See tests/utils.
+const OLD = makeLogin({ refresh: "old-refresh", expires: Date.now() + 3_600_000 });
+const NEW = makeLogin({ refresh: "new-refresh", expires: Date.now() + 7_200_000 });
 
 const SUBSCRIPTION: ModelConnectionSubscription = {
   id: "conn-1",
@@ -94,7 +85,7 @@ describe("mergeSubscriptionAuth", () => {
     const next = mergeSubscriptionAuth(current, NEW);
     const parsed = JSON.parse(next!) as Record<string, { access: string }>;
     assert.equal(parsed.anthropic.access, "a");
-    assert.equal(parsed["openai-codex"].access, "new-access");
+    assert.equal(parsed["openai-codex"].access, NEW.access);
   });
 
   it("replaces a half-written file rather than reading it as a newer login", () => {
@@ -193,7 +184,7 @@ describe("shouldPushSubscriptionLogin", () => {
     state.pushedExpires = NEW.expires;
     assert.equal(shouldPushSubscriptionLogin(state, NEW), false);
     assert.equal(
-      shouldPushSubscriptionLogin(state, { ...NEW, expires: 3_000 }),
+      shouldPushSubscriptionLogin(state, { ...NEW, expires: NEW.expires + 1 }),
       true,
     );
   });
@@ -328,6 +319,81 @@ describe("pushBackSubscriptionLoginForRun", () => {
       log: () => {},
     });
     assert.equal(bodies.length, 1);
+  });
+
+  /**
+   * THE LIVE DEFECT, pinned. On Daytona the read-back goes through the sandbox file API, which
+   * answers with BYTES. This module's own type said `Promise<string>`, so `subscriptionLoginFrom`
+   * ran `raw?.trim()` on a Buffer and threw `TypeError: raw?.trim is not a function` — inside the
+   * one catch that exists to keep a push failure from failing a finished turn. The turn stayed
+   * green and the token Pi had just refreshed inside the sandbox was silently dropped. Observed on
+   * three real product turns on 2026-09-08.
+   *
+   * The fake therefore returns bytes. A string fake is what let this through every earlier test.
+   */
+  it("pushes a login the sandbox returns as BYTES, not text", async () => {
+    const home = "/home/sandbox/agenta/subscriptions/conn-1";
+    const bodies: unknown[] = [];
+    const lines: string[] = [];
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ version: 4 }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const sandbox = {
+      mkdirFs: async () => undefined,
+      writeFsFile: async () => undefined,
+      readFsFile: async ({ path }: { path: string }) =>
+        path.endsWith("auth.json")
+          ? Buffer.from(JSON.stringify({ "openai-codex": NEW }), "utf-8")
+          : Buffer.from("{}", "utf-8"),
+    };
+
+    await pushBackSubscriptionLoginForRun({
+      plan: {
+        isDaytona: true,
+        credentials: { subscription: SUBSCRIPTION, subscriptionHome: home },
+      },
+      state: subscriptionPushState(SUBSCRIPTION),
+      sandbox,
+      apiBase: "http://api:8000",
+      authorization: "ApiKey secret",
+      fetchImpl,
+      log: (line) => lines.push(line),
+    });
+
+    assert.deepEqual(bodies, [{ login: NEW, version: 3, generation: 1 }]);
+    assert.ok(
+      !lines.join("\n").includes("read-back failed"),
+      "the read-back must not throw on bytes",
+    );
+  });
+
+  it("survives a sandbox whose read answers something undecodable", async () => {
+    // Not a crash and not a coercion: `String(someObject)` would hand plausible garbage to the
+    // parser. A miss costs one publish; the turn-end and next-run pushes still cover it.
+    const bodies: unknown[] = [];
+    const fetchImpl = (async () =>
+      new Response("{}", { status: 200 })) as unknown as typeof fetch;
+    await pushBackSubscriptionLoginForRun({
+      plan: {
+        isDaytona: true,
+        credentials: {
+          subscription: SUBSCRIPTION,
+          subscriptionHome: "/home/sandbox/agenta/subscriptions/conn-1",
+        },
+      },
+      state: subscriptionPushState(SUBSCRIPTION),
+      sandbox: {
+        mkdirFs: async () => undefined,
+        writeFsFile: async () => undefined,
+        readFsFile: async () => ({ unexpected: true }),
+      },
+      apiBase: "http://api:8000",
+      authorization: "ApiKey secret",
+      fetchImpl,
+      log: () => {},
+    });
+    assert.deepEqual(bodies, []);
   });
 
   it("does nothing for a run that carries no subscription", async () => {

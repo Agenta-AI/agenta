@@ -19,6 +19,8 @@ import {
   materializeDaytonaSubscriptionLogin,
   materializeLocalSubscriptionLogin,
   parseSubscriptionMeta,
+  sandboxFileText,
+  subscriptionLoginFrom,
   subscriptionMetaText,
   type SubscriptionSandboxFs,
 } from "../../src/engines/sandbox_agent/subscription-login.ts";
@@ -265,6 +267,43 @@ describe("materializeLocalSubscriptionLogin with a sidecar", () => {
   });
 });
 
+/**
+ * The sandbox file API answers with BYTES. This module's own type said `Promise<string>`, which
+ * the compiler could not catch and which cost a live defect: every Daytona read-back threw
+ * `raw?.trim is not a function`, so a token Pi refreshed inside a sandbox never reached the API,
+ * and a warm sandbox that already held a login crashed its own materialize. These pin the decode.
+ */
+describe("sandboxFileText", () => {
+  const text = '{"openai-codex":{"expires":1}}';
+
+  it("decodes every shape the sandbox file API returns", () => {
+    assert.equal(sandboxFileText(text), text);
+    assert.equal(sandboxFileText(Buffer.from(text, "utf-8")), text);
+    assert.equal(sandboxFileText(new TextEncoder().encode(text)), text);
+    assert.equal(
+      sandboxFileText(new TextEncoder().encode(text).buffer as ArrayBuffer),
+      text,
+    );
+  });
+
+  it("refuses to coerce anything else, rather than parsing plausible garbage", () => {
+    for (const value of [undefined, null, 42, {}, [], { type: "Buffer" }]) {
+      assert.equal(sandboxFileText(value), undefined, String(value));
+    }
+  });
+});
+
+describe("the parsers survive a boundary slip", () => {
+  it("treat a non-string as a miss, never a crash", () => {
+    // A crash here loses a refreshed credential; a miss only skips one publish.
+    const bytes = Buffer.from('{"openai-codex":{"expires":1}}') as unknown as string;
+    assert.doesNotThrow(() => subscriptionLoginFrom(bytes));
+    assert.equal(subscriptionLoginFrom(bytes), undefined);
+    assert.doesNotThrow(() => parseSubscriptionMeta(bytes));
+    assert.equal(parseSubscriptionMeta(bytes), undefined);
+  });
+});
+
 describe("materializeDaytonaSubscriptionLogin with a sidecar", () => {
   function fakeSandbox(files: Record<string, string>): {
     sandbox: SubscriptionSandboxFs;
@@ -275,10 +314,12 @@ describe("materializeDaytonaSubscriptionLogin with a sidecar", () => {
       writeFsFile: async ({ path }, content) => {
         files[path] = content;
       },
+      // BYTES, exactly as the Daytona SDK answers. A fake that returns a string would have let
+      // the live defect through every one of these tests.
       readFsFile: async ({ path }) => {
         const found = files[path];
         if (found === undefined) throw new Error("ENOENT");
-        return found;
+        return Buffer.from(found, "utf-8");
       },
     };
     return { sandbox, files };

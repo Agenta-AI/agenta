@@ -27,21 +27,19 @@ import type {
   ModelConnectionSubscription,
   SubscriptionLogin,
 } from "../../src/protocol.ts";
+import { makeLogin } from "../utils/subscription-login.ts";
 
-const DELIVERED: SubscriptionLogin = {
-  type: "oauth",
-  access: "delivered-access",
+// Real-shaped logins, because the runner refuses to publish anything it cannot recognize as a
+// ChatGPT credential. The two carry payloads of IDENTICAL length, which is what defeated the
+// stat-based poller and is why the poller hashes content. See tests/utils.
+const DELIVERED: SubscriptionLogin = makeLogin({
   refresh: "delivered-refresh",
-  expires: 1_000,
-  accountId: "acct_1",
-};
-const REFRESHED: SubscriptionLogin = {
-  type: "oauth",
-  access: "refreshed-access",
+  expires: Date.now() + 3_600_000,
+});
+const REFRESHED: SubscriptionLogin = makeLogin({
   refresh: "refreshed-refresh",
-  expires: 2_000,
-  accountId: "acct_1",
-};
+  expires: Date.now() + 7_200_000,
+});
 
 const SUBSCRIPTION: ModelConnectionSubscription = {
   id: "conn-1",
@@ -362,7 +360,7 @@ describe("pollDaytonaSubscriptionLogin", () => {
     const sandbox: SubscriptionSandboxFs = {
       mkdirFs: async () => undefined,
       writeFsFile: async () => undefined,
-      readFsFile: async () => content,
+      readFsFile: async () => Buffer.from(content, "utf-8"),
     };
     const seen: SubscriptionLogin[] = [];
     const watch = pollDaytonaSubscriptionLogin({
@@ -487,7 +485,9 @@ describe("startSubscriptionLoginPublisher", () => {
     const sandbox: SubscriptionSandboxFs = {
       mkdirFs: async () => undefined,
       writeFsFile: async () => undefined,
-      readFsFile: async () => JSON.stringify({ "openai-codex": REFRESHED }),
+      // Bytes, as the real sandbox API answers.
+      readFsFile: async () =>
+        Buffer.from(JSON.stringify({ "openai-codex": REFRESHED }), "utf-8"),
     };
 
     const watch = startSubscriptionLoginPublisher({

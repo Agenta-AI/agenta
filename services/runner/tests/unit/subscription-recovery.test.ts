@@ -22,31 +22,32 @@ import {
   refreshFailureReason,
   verifySubscriptionRefresh,
 } from "../../src/engines/sandbox_agent/subscription-recovery.ts";
-import { subscriptionMetaText } from "../../src/engines/sandbox_agent/subscription-login.ts";
+import {
+  subscriptionMetaText,
+  subscriptionPushState,
+  type SubscriptionPushState,
+} from "../../src/engines/sandbox_agent/subscription-login.ts";
 import type {
   ModelConnectionSubscription,
   SubscriptionLogin,
 } from "../../src/protocol.ts";
+import { accessToken, makeLogin } from "../utils/subscription-login.ts";
 
-const LOCAL: SubscriptionLogin = {
-  type: "oauth",
-  access: "local-access",
+// Real-shaped logins: the runner refuses to publish anything it cannot recognize as a ChatGPT
+// credential, so a fixture that expects a push has to look like one. See tests/utils.
+const LOCAL: SubscriptionLogin = makeLogin({
   refresh: "local-refresh",
-  expires: 1_000,
-  accountId: "acct_1",
-};
+  expires: Date.now() + 3_600_000,
+});
 const ROTATED = {
-  access: "rotated-access",
+  access: accessToken("acct_1"),
   refresh: "rotated-refresh",
-  expires: 4_000,
+  expires: Date.now() + 7_200_000,
 };
-const RECOVERED: SubscriptionLogin = {
-  type: "oauth",
-  access: "recovered-access",
+const RECOVERED: SubscriptionLogin = makeLogin({
   refresh: "recovered-refresh",
-  expires: 9_000,
-  accountId: "acct_1",
-};
+  expires: Date.now() + 10_800_000,
+});
 
 const SUBSCRIPTION: ModelConnectionSubscription = {
   id: "conn-1",
@@ -84,18 +85,8 @@ function localLogin(home: string): SubscriptionLogin {
   ];
 }
 
-function pushState(): {
-  deliveredExpires: number | undefined;
-  pushedExpires: number | undefined;
-  version: number;
-  generation: number;
-} {
-  return {
-    deliveredExpires: LOCAL.expires,
-    pushedExpires: undefined,
-    version: 3,
-    generation: 1,
-  };
+function pushState(): SubscriptionPushState {
+  return subscriptionPushState(SUBSCRIPTION);
 }
 
 /** An API stub that records every call and answers each URL from a script. */
