@@ -43,7 +43,10 @@ export const AutomationRunListSkeleton = ({
  * yet, is in a perfectly good state — so this says what will happen rather than what is missing.
  */
 export const AutomationRunHistoryEmpty = ({filtered = false}: {filtered?: boolean}) => (
-    <div className="flex flex-col items-center justify-center gap-2.5 px-8 py-14 text-center">
+    // Centred in the column it fills, not stacked under the heading: the list's own height is
+    // the space this speaks for, and a message pinned to the top of an empty page reads as a
+    // row that failed to render.
+    <div className="flex h-full flex-col items-center justify-center gap-2.5 px-8 py-14 text-center">
         <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted">
             <ClockCounterClockwise aria-hidden size={19} className="text-muted-foreground" />
         </span>
@@ -68,7 +71,7 @@ export const AutomationRunHistoryError = ({
     message?: string
     onRetry?: () => void
 }) => (
-    <div className="flex flex-col items-center justify-center gap-3 px-8 py-14 text-center">
+    <div className="flex h-full flex-col items-center justify-center gap-3 px-8 py-14 text-center">
         <TriangleAlert className="size-6 text-destructive" />
         <p className="m-0 text-[14px] font-medium text-foreground">{message}</p>
         {onRetry ? (

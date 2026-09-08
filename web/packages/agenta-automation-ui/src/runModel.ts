@@ -32,12 +32,12 @@ export function runCountCaption(count: number): string {
     return `${count} ${count === 1 ? "run" : "runs"} in the last ${RUN_WINDOW_DAYS} days`
 }
 
-/** One day's worth of runs, in the shape the list renders. */
+/** One run of rows under one heading — a day by default, whatever the view groups by otherwise. */
 export interface RunDayGroup {
-    /** Stable local-calendar key ("2026-09-08"), and the list's React key. */
+    /** Stable key ("2026-09-08", "ok", "scheduled"), and the list's React key. */
     key: string
-    /** Uppercase day heading — "TODAY", "YESTERDAY", "FRI", "27 AUG". */
-    label: string
+    /** Uppercase heading — "TODAY", "YESTERDAY", "FRI", "27 AUG". `null` draws none. */
+    label: string | null
     runs: TriggerDelivery[]
 }
 

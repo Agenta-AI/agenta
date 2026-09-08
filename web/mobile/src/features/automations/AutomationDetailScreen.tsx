@@ -98,19 +98,9 @@ export const AutomationDetailScreen = ({
                 <ScreenScaffold
                     fill={showRuns}
                     header={
-                        showRuns ? (
-                            // The runs view puts the list on a 240px column, and pl-[30px] lands
-                            // this arrow on the rows' own grid.
-                            <div className="w-full shrink-0 pb-2 pl-[30px] pr-5 pt-5">
-                                <div className="flex min-w-0 max-w-[240px] items-center gap-2">
-                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                    <AutomationBackLink
-                                        onBack={closeRuns}
-                                        label={automation?.name || "Automation"}
-                                    />
-                                </div>
-                            </div>
-                        ) : (
+                        // The runs view carries its own back link, inside the column it centres,
+                        // so the arrow lands on the same grid as "Run history" at either width.
+                        showRuns ? null : (
                             <div className="mx-auto w-full max-w-[760px] shrink-0 px-8 pb-3.5 pt-[30px]">
                                 <div className="flex min-w-0 items-center gap-2">
                                     <NavDrawer workspaceId={workspaceId} projectId={projectId} />
@@ -123,6 +113,20 @@ export const AutomationDetailScreen = ({
                     {showRuns ? (
                         <AutomationRunHistoryView
                             automation={automation}
+                            header={
+                                <div className="w-full shrink-0 pb-2 pl-[30px] pr-5 pt-5">
+                                    <div className="flex min-w-0 max-w-[240px] items-center gap-2">
+                                        <NavDrawer
+                                            workspaceId={workspaceId}
+                                            projectId={projectId}
+                                        />
+                                        <AutomationBackLink
+                                            onBack={closeRuns}
+                                            label={automation?.name || "Automation"}
+                                        />
+                                    </div>
+                                </div>
+                            }
                             renderConversation={renderConversation}
                         />
                     ) : automation && preview ? (
