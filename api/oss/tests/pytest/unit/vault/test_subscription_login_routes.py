@@ -24,6 +24,7 @@ from oss.src.core.secrets.types import (
     SubscriptionLoginRunnerNotConfigured,
     SubscriptionLoginRunnerUnavailable,
 )
+from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
 from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dbe_to_dto,
     map_secrets_dto_to_dbe,
@@ -151,12 +152,27 @@ class _FakeRunner:
         return True
 
 
+# The two routes only a run's own credential may call. Everything else in this file is a
+# browser: a session and an ApiKey carry no grants, which is what keeps a write-only value
+# out of every ordinary read.
+_RUNTIME_ROUTES = ("/subscription-login", "/subscription-login/failure")
+
+
 class _Harness:
-    def __init__(self, client, runner, asked, dao):
+    def __init__(self, client, runner, asked, dao, principal):
         self.client = client
         self.runner = runner
         self.asked = asked
         self.dao = dao
+        self._principal = principal
+
+    def as_an_editor(self) -> None:
+        """Take the runtime grant off every route, leaving permissions only.
+
+        What an editor session or a project ApiKey reaches the API with. It is the caller
+        the two login-upkeep routes must refuse.
+        """
+        self._principal["granted"] = False
 
 
 @pytest.fixture(name="harness")
@@ -164,6 +180,7 @@ def _harness(monkeypatch):
     dao = _FakeSecretsDAO()
     runner = _FakeRunner()
     asked: list = []
+    principal = {"granted": True}
 
     async def _record(**kwargs):
         asked.append(kwargs["permission"])
@@ -177,6 +194,10 @@ def _harness(monkeypatch):
     async def _principal(request, call_next):
         request.state.user_id = USER_ID
         request.state.project_id = PROJECT_ID
+        runtime_route = request.url.path.endswith(_RUNTIME_ROUTES)
+        request.state.token_grants = (
+            (SECRET_RESOLVE_GRANT,) if runtime_route and principal["granted"] else ()
+        )
         return await call_next(request)
 
     vault_service = VaultService(dao)
@@ -190,7 +211,7 @@ def _harness(monkeypatch):
         ).router
     )
 
-    return _Harness(TestClient(app), runner, asked, dao)
+    return _Harness(TestClient(app), runner, asked, dao, principal)
 
 
 def _create(client, data=None):
@@ -600,6 +621,118 @@ class TestRunnerFacingRoutes:
 
         read_back = harness.client.get(f"/secrets/{secret_id}").json()
         assert read_back["data"]["login_state"] == "ready"
+
+
+class TestTheRunnerRoutesRefuseAnEditor:
+    """Only the run's own credential may call the two login-upkeep routes.
+
+    Both answer a stale call with the stored login in plaintext, which is the value every
+    ordinary vault read redacts. RUN_SESSIONS plus USE_MOUNTS is a pair an editor holds, so
+    permissions alone would hand that editor the ChatGPT access and refresh tokens. The
+    `secret-resolve` grant rides only the Secret token a run is dispatched with.
+    """
+
+    def test_a_push_without_the_runtime_grant_is_403_and_writes_nothing(self, harness):
+        secret_id = _signed_in(
+            harness,
+            {"login": LOGIN, "login_version": 3, "login_generation": 1},
+        )
+        harness.as_an_editor()
+        harness.asked.clear()
+
+        response = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login",
+            json={
+                "login": {**LOGIN, "refresh": "refresh-2", "expires": _expires_in(2)},
+                "version": 3,
+                "generation": 1,
+            },
+        )
+
+        assert response.status_code == 403
+        assert LOGIN["access"] not in response.text
+        assert LOGIN["refresh"] not in response.text
+        assert harness.asked == []
+
+        read_back = harness.client.get(f"/secrets/{secret_id}").json()
+        assert read_back["data"]["login_version"] == 3
+
+    def test_a_stale_push_never_hands_an_editor_the_stored_login(self, harness):
+        """The disclosure path itself: an old generation, which answers `stale` with it."""
+        secret_id = _signed_in(
+            harness,
+            {"login": LOGIN, "login_version": 3, "login_generation": 4},
+        )
+        harness.as_an_editor()
+
+        response = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login",
+            json={
+                "login": {**LOGIN, "refresh": "refresh-old", "expires": _expires_in(9)},
+                "version": 0,
+                "generation": 0,
+            },
+        )
+
+        assert response.status_code == 403
+        assert LOGIN["access"] not in response.text
+        assert LOGIN["refresh"] not in response.text
+
+    def test_a_failure_report_without_the_runtime_grant_is_403(self, harness):
+        secret_id = _signed_in(
+            harness,
+            {"login": LOGIN, "login_version": 3, "login_generation": 1},
+        )
+        harness.as_an_editor()
+        harness.asked.clear()
+
+        response = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login/failure",
+            json={"version": 3, "generation": 1, "reason": "unauthorized"},
+        )
+
+        assert response.status_code == 403
+        assert harness.asked == []
+
+        read_back = harness.client.get(f"/secrets/{secret_id}").json()
+        assert read_back["data"]["login_state"] == "ready"
+
+    def test_a_stale_failure_report_never_hands_an_editor_the_stored_login(
+        self, harness
+    ):
+        """The reported P1: version 0 and generation 0 make every report stale."""
+        secret_id = _signed_in(
+            harness,
+            {"login": LOGIN, "login_version": 5, "login_generation": 1},
+        )
+        harness.as_an_editor()
+
+        response = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login/failure",
+            json={"version": 0, "generation": 0, "reason": "unauthorized"},
+        )
+
+        assert response.status_code == 403
+        assert LOGIN["access"] not in response.text
+        assert LOGIN["refresh"] not in response.text
+        assert "login" not in response.json()
+
+    def test_the_browser_routes_still_work_without_the_grant(self, harness):
+        """The device login is the editor's own verb; the grant belongs to the run."""
+        secret_id = _create(harness.client)["id"]
+        harness.as_an_editor()
+        harness.runner.next_attempt = RunnerLoginAttempt(
+            attempt_id="att-1",
+            state="pending",
+            user_code="ABCD-EFGH",
+            verification_uri="https://example.test/device",
+            expires_at=_later(),
+        )
+
+        response = harness.client.post(f"/secrets/{secret_id}/login-attempts")
+
+        assert response.status_code == 200, response.text
+        assert response.json()["user_code"] == "ABCD-EFGH"
 
 
 def _device_login(**overrides) -> dict:

@@ -223,6 +223,27 @@ class VaultRouter:
             reveal_write_only=request_has_grant(request, SECRET_RESOLVE_GRANT),
         )
 
+    @staticmethod
+    def _require_platform_runtime(request: Request) -> None:
+        """Refuse a caller that is not the run's own credential.
+
+        Both login-upkeep routes answer a stale call with the STORED login in plaintext, so
+        they read a write-only value the way `_for_caller` does. RUN_SESSIONS plus
+        USE_MOUNTS is a pair an ordinary editor holds, and permissions alone would hand that
+        editor the access and refresh tokens. The `secret-resolve` grant rides only the
+        Secret token the platform mints for a run (`core/workflows/service.py`), which is the
+        same credential the run's own vault read uses, so a real subscription run keeps
+        working and nobody else reaches these routes.
+        """
+        if not request_has_grant(request, SECRET_RESOLVE_GRANT):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "You do not have access to perform this action. Please contact "
+                    "your organization admin."
+                ),
+            )
+
     @intercept_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
         has_permission = await check_action_access(
@@ -458,7 +479,9 @@ class VaultRouter:
         body: SubscriptionLoginPushRequest,
     ):
         # The caller here is the run's own credential, not an editor, so this is the pair
-        # the mount sign route uses rather than EDIT_SECRET.
+        # the mount sign route uses rather than EDIT_SECRET. The grant is what proves the
+        # caller IS that credential; a stale answer carries the stored login.
+        self._require_platform_runtime(request)
         await self._require(request, Permission.RUN_SESSIONS, Permission.USE_MOUNTS)
 
         result = await self.subscription_login_service.push_login(
@@ -478,6 +501,7 @@ class VaultRouter:
         secret_id: UUID,
         body: SubscriptionLoginFailureRequest,
     ):
+        self._require_platform_runtime(request)
         await self._require(request, Permission.RUN_SESSIONS, Permission.USE_MOUNTS)
 
         result = await self.subscription_login_service.report_login_failure(
