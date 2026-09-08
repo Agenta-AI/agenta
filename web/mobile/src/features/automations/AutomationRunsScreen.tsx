@@ -57,6 +57,7 @@ export const AutomationRunsScreen = ({
     // The newest run answers "did it work?", which is the question that brought you here, so
     // opening the history opens that run rather than a list waiting to be clicked. A pick the
     // user has made wins; only an unresolved selection falls through to the newest.
+    const canSplit = useMediaQuery("(min-width: 700px)")
     // Narrow layout only: going back has to mean "no run", which the fallback would otherwise
     // undo on the next render by re-selecting the newest.
     const [dismissed, setDismissed] = useState(false)
@@ -64,8 +65,10 @@ export const AutomationRunsScreen = ({
         () =>
             dismissed
                 ? null
-                : (runs.find((delivery) => delivery.id === selectedId) ?? runs[0] ?? null),
-        [dismissed, runs, selectedId],
+                : (runs.find((delivery) => delivery.id === selectedId) ??
+                  (canSplit ? runs[0] : null) ??
+                  null),
+        [canSplit, dismissed, runs, selectedId],
     )
     const onSelect = useCallback((delivery: TriggerDelivery) => {
         setSelectedId(delivery.id ?? null)
@@ -77,7 +80,6 @@ export const AutomationRunsScreen = ({
     // 32px gutters — about 700px of window. Below that the two panes share nothing usefully, so
     // the tree changes rather than the widths, which is why this is read in JS and not a
     // Tailwind breakpoint (see `PickerOverlay` for the same idiom).
-    const canSplit = useMediaQuery("(min-width: 700px)")
     const showPane = Boolean(selected)
     const showList = !showPane || canSplit
 
