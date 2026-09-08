@@ -62,3 +62,17 @@ class SkillOriginMissingError(SkillsError):
 class SkillNameCollisionError(SkillsError):
     code = "name_collision"
     retryable = False
+
+
+class SkillContentInvalidError(SkillsError):
+    """The submitted skill payload fails the SkillTemplate contract."""
+
+    code = "skill_invalid"
+    retryable = False
+
+
+class SkillRevisionConflictError(SkillsError):
+    """The commit was built on a base that is no longer the head."""
+
+    code = "revision_conflict"
+    retryable = False

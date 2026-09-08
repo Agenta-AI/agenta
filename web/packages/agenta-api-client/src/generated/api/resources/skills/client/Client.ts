@@ -101,20 +101,34 @@ export class SkillsClient {
     }
 
     /**
+     * Read-only: compare one imported skill against its upstream origin.
+     *
+     * Reports `update_available`, `up_to_date`, `detached` (edited locally —
+     * never overwritten), `missing_in_source`, or `invalid_in_source`.
+     * Nothing is written.
+     *
+     * @param {AgentaApi.CheckSkillUpdateRequest} request
      * @param {SkillsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
      * @example
-     *     await client.skills.listSkillSources()
+     *     await client.skills.checkSkillUpdate({
+     *         skill_id: "skill_id"
+     *     })
      */
-    public listSkillSources(
+    public checkSkillUpdate(
+        request: AgentaApi.CheckSkillUpdateRequest,
         requestOptions?: SkillsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SkillSourcesResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__listSkillSources(requestOptions));
+    ): core.HttpResponsePromise<AgentaApi.UpdateCheckResult> {
+        return core.HttpResponsePromise.fromPromise(this.__checkSkillUpdate(request, requestOptions));
     }
 
-    private async __listSkillSources(
+    private async __checkSkillUpdate(
+        request: AgentaApi.CheckSkillUpdateRequest,
         requestOptions?: SkillsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SkillSourcesResponse>> {
+    ): Promise<core.WithRawResponse<AgentaApi.UpdateCheckResult>> {
+        const { skill_id: skillId } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -126,9 +140,9 @@ export class SkillsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                "skills/sources",
+                `skills/${core.url.encodePathParam(skillId)}/updates/check`,
             ),
-            method: "GET",
+            method: "POST",
             headers: _headers,
             queryParameters: requestOptions?.queryParams,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
@@ -139,18 +153,111 @@ export class SkillsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.SkillSourcesResponse, rawResponse: _response.rawResponse };
+            return { data: _response.body as AgentaApi.UpdateCheckResult, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
-            throw new errors.AgentaApiError({
-                statusCode: _response.error.statusCode,
-                body: _response.error.body,
-                rawResponse: _response.rawResponse,
-            });
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/skills/sources");
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/skills/{skill_id}/updates/check",
+        );
+    }
+
+    /**
+     * Commit the upstream version of one imported skill as a new revision.
+     *
+     * The commit uses the current head as its base, so a concurrent edit
+     * conflicts instead of being overwritten; locally edited skills report
+     * `detached` and are never touched.
+     *
+     * @param {AgentaApi.ApplySkillUpdateRequest} request
+     * @param {SkillsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.skills.applySkillUpdate({
+     *         skill_id: "skill_id"
+     *     })
+     */
+    public applySkillUpdate(
+        request: AgentaApi.ApplySkillUpdateRequest,
+        requestOptions?: SkillsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.UpdateApplyResult> {
+        return core.HttpResponsePromise.fromPromise(this.__applySkillUpdate(request, requestOptions));
+    }
+
+    private async __applySkillUpdate(
+        request: AgentaApi.ApplySkillUpdateRequest,
+        requestOptions?: SkillsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.UpdateApplyResult>> {
+        const { skill_id: skillId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `skills/${core.url.encodePathParam(skillId)}/updates/apply`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.UpdateApplyResult, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/skills/{skill_id}/updates/apply",
+        );
     }
 
     /**
@@ -231,34 +338,36 @@ export class SkillsClient {
     }
 
     /**
-     * Re-scan a source and commit new versions of its linked skills.
+     * Create a registry skill.
      *
-     * Locally edited skills are detached (kept, not overwritten); paths
-     * deleted upstream are marked missing; nothing is ever deleted here.
+     * The server owns the invariants: the payload validates against the
+     * SkillTemplate contract, the storage slug is generated (display names
+     * may collide), and the skill flags + builtin URI are stamped on both
+     * the artifact and the v1 revision.
      *
-     * @param {AgentaApi.RefreshSkillSourceRequest} request
+     * @param {AgentaApi.SkillCreateRequest} request
      * @param {SkillsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.skills.refreshSkillSource({
-     *         source_id: "source_id",
-     *         body: {}
+     *     await client.skills.createSkill({
+     *         skill: {
+     *             "key": "value"
+     *         }
      *     })
      */
-    public refreshSkillSource(
-        request: AgentaApi.RefreshSkillSourceRequest,
+    public createSkill(
+        request: AgentaApi.SkillCreateRequest,
         requestOptions?: SkillsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.RefreshResult> {
-        return core.HttpResponsePromise.fromPromise(this.__refreshSkillSource(request, requestOptions));
+    ): core.HttpResponsePromise<AgentaApi.SkillCreateResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__createSkill(request, requestOptions));
     }
 
-    private async __refreshSkillSource(
-        request: AgentaApi.RefreshSkillSourceRequest,
+    private async __createSkill(
+        request: AgentaApi.SkillCreateRequest,
         requestOptions?: SkillsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.RefreshResult>> {
-        const { source_id: sourceId, body: _body } = request;
+    ): Promise<core.WithRawResponse<AgentaApi.SkillCreateResponse>> {
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -270,7 +379,87 @@ export class SkillsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                `skills/sources/${core.url.encodePathParam(sourceId)}/refresh`,
+                "skills/",
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: request,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.SkillCreateResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/skills/");
+    }
+
+    /**
+     * Commit a new revision of one skill.
+     *
+     * Validated server-side; pass `base_revision_id` so a concurrent edit
+     * answers 409 (`revision_conflict`) instead of being overwritten.
+     *
+     * @param {AgentaApi.SkillCommitRequest} request
+     * @param {SkillsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.skills.commitSkillRevision({
+     *         skill_id: "skill_id",
+     *         skill: {
+     *             "key": "value"
+     *         }
+     *     })
+     */
+    public commitSkillRevision(
+        request: AgentaApi.SkillCommitRequest,
+        requestOptions?: SkillsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SkillCommitResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__commitSkillRevision(request, requestOptions));
+    }
+
+    private async __commitSkillRevision(
+        request: AgentaApi.SkillCommitRequest,
+        requestOptions?: SkillsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SkillCommitResponse>> {
+        const { skill_id: skillId, ..._body } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `skills/${core.url.encodePathParam(skillId)}/revisions/commit`,
             ),
             method: "POST",
             headers: _headers,
@@ -286,7 +475,7 @@ export class SkillsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.RefreshResult, rawResponse: _response.rawResponse };
+            return { data: _response.body as AgentaApi.SkillCommitResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -309,36 +498,35 @@ export class SkillsClient {
             _response.error,
             _response.rawResponse,
             "POST",
-            "/skills/sources/{source_id}/refresh",
+            "/skills/{skill_id}/revisions/commit",
         );
     }
 
     /**
-     * Which agents use this skill, and how.
+     * The skill's revision history, newest first, with stored content per row.
      *
-     * Each row names an agent whose head revision embeds the skill, with
-     * `mode` "latest" (artifact-level reference, follows the head) or
-     * "pinned" (revision-level reference with `pinned_version`).
-     *
-     * @param {AgentaApi.SkillUsageRequest} request
+     * @param {AgentaApi.LogSkillRevisionsRequest} request
      * @param {SkillsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.skills.querySkillUsage()
+     *     await client.skills.logSkillRevisions({
+     *         skill_id: "skill_id"
+     *     })
      */
-    public querySkillUsage(
-        request: AgentaApi.SkillUsageRequest = {},
+    public logSkillRevisions(
+        request: AgentaApi.LogSkillRevisionsRequest,
         requestOptions?: SkillsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SkillUsageResponse> {
-        return core.HttpResponsePromise.fromPromise(this.__querySkillUsage(request, requestOptions));
+    ): core.HttpResponsePromise<AgentaApi.SkillRevisionsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__logSkillRevisions(request, requestOptions));
     }
 
-    private async __querySkillUsage(
-        request: AgentaApi.SkillUsageRequest = {},
+    private async __logSkillRevisions(
+        request: AgentaApi.LogSkillRevisionsRequest,
         requestOptions?: SkillsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SkillUsageResponse>> {
+    ): Promise<core.WithRawResponse<AgentaApi.SkillRevisionsResponse>> {
+        const { skill_id: skillId } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -350,14 +538,11 @@ export class SkillsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                "skills/usage",
+                `skills/${core.url.encodePathParam(skillId)}/revisions/log`,
             ),
             method: "POST",
             headers: _headers,
-            contentType: "application/json",
             queryParameters: requestOptions?.queryParams,
-            requestType: "json",
-            body: request,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -366,7 +551,7 @@ export class SkillsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.SkillUsageResponse, rawResponse: _response.rawResponse };
+            return { data: _response.body as AgentaApi.SkillRevisionsResponse, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
@@ -385,7 +570,231 @@ export class SkillsClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/skills/usage");
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/skills/{skill_id}/revisions/log",
+        );
+    }
+
+    /**
+     * Archive a skill (its slug stays reserved; unarchive restores it).
+     *
+     * @param {AgentaApi.ArchiveSkillRequest} request
+     * @param {SkillsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.skills.archiveSkill({
+     *         skill_id: "skill_id"
+     *     })
+     */
+    public archiveSkill(
+        request: AgentaApi.ArchiveSkillRequest,
+        requestOptions?: SkillsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SkillCreateResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__archiveSkill(request, requestOptions));
+    }
+
+    private async __archiveSkill(
+        request: AgentaApi.ArchiveSkillRequest,
+        requestOptions?: SkillsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SkillCreateResponse>> {
+        const { skill_id: skillId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `skills/${core.url.encodePathParam(skillId)}/archive`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.SkillCreateResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/skills/{skill_id}/archive");
+    }
+
+    /**
+     * Restore an archived skill with its full history.
+     *
+     * @param {AgentaApi.UnarchiveSkillRequest} request
+     * @param {SkillsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.skills.unarchiveSkill({
+     *         skill_id: "skill_id"
+     *     })
+     */
+    public unarchiveSkill(
+        request: AgentaApi.UnarchiveSkillRequest,
+        requestOptions?: SkillsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SkillCreateResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__unarchiveSkill(request, requestOptions));
+    }
+
+    private async __unarchiveSkill(
+        request: AgentaApi.UnarchiveSkillRequest,
+        requestOptions?: SkillsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SkillCreateResponse>> {
+        const { skill_id: skillId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `skills/${core.url.encodePathParam(skillId)}/unarchive`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.SkillCreateResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/skills/{skill_id}/unarchive");
+    }
+
+    /**
+     * The agents referencing this skill, with `mode` "latest" (follows the
+     * head) or "pinned" (revision reference with `pinned_version`).
+     *
+     * @param {AgentaApi.ListSkillReferencedByRequest} request
+     * @param {SkillsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.skills.listSkillReferencedBy({
+     *         skill_id: "skill_id"
+     *     })
+     */
+    public listSkillReferencedBy(
+        request: AgentaApi.ListSkillReferencedByRequest,
+        requestOptions?: SkillsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SkillReferencedByResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__listSkillReferencedBy(request, requestOptions));
+    }
+
+    private async __listSkillReferencedBy(
+        request: AgentaApi.ListSkillReferencedByRequest,
+        requestOptions?: SkillsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SkillReferencedByResponse>> {
+        const { skill_id: skillId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `skills/${core.url.encodePathParam(skillId)}/referenced-by`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.SkillReferencedByResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/skills/{skill_id}/referenced-by",
+        );
     }
 
     /**

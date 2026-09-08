@@ -13,7 +13,7 @@ import {
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Checkbox, Input, Spinner, Switch} from "@agenta/ui/ui"
+import {Button, Checkbox, Input, Spinner} from "@agenta/ui/ui"
 import {ArrowLeft, CheckCircle, GitBranch, WarningCircle} from "@phosphor-icons/react"
 
 export interface SkillImportDrawerProps {
@@ -48,7 +48,6 @@ export function SkillImportDrawer({
     const [candidates, setCandidates] = useState<ScanCandidate[]>([])
     const [alreadyImported, setAlreadyImported] = useState<Set<string>>(new Set())
     const [selected, setSelected] = useState<Set<string>>(new Set())
-    const [syncEnabled, setSyncEnabled] = useState(false)
     const [result, setResult] = useState<SkillSourceImportResponse | null>(null)
 
     const reset = useCallback(() => {
@@ -60,7 +59,6 @@ export function SkillImportDrawer({
         setCandidates([])
         setAlreadyImported(new Set())
         setSelected(new Set())
-        setSyncEnabled(false)
         setResult(null)
     }, [])
 
@@ -113,7 +111,6 @@ export function SkillImportDrawer({
                 projectId,
                 repoUrl: repoUrl.trim(),
                 paths: Array.from(selected),
-                syncEnabled,
             })
             if (!response) {
                 setError("Import failed — the server returned an unexpected response.")
@@ -140,7 +137,7 @@ export function SkillImportDrawer({
         } finally {
             setBusy(false)
         }
-    }, [onImported, projectId, repoUrl, selected, syncEnabled])
+    }, [onImported, projectId, repoUrl, selected])
 
     const toggle = useCallback((path: string) => {
         setSelected((prev) => {
@@ -275,7 +272,7 @@ export function SkillImportDrawer({
                                             </span>
                                             <span className="line-clamp-1 text-xs text-[var(--ag-colorTextSecondary)]">
                                                 {imported
-                                                    ? "Already in this project — use Refresh to pick up upstream changes."
+                                                    ? "Already in this project — check for updates to pick up upstream changes."
                                                     : candidate.valid
                                                       ? (candidate.skill?.description ??
                                                         "No description.")
@@ -286,16 +283,6 @@ export function SkillImportDrawer({
                                 )
                             })}
                         </div>
-
-                        <label className="flex cursor-pointer items-center justify-between gap-2 text-xs">
-                            <span className="flex flex-col gap-0.5">
-                                <span className="font-medium">Keep in sync</span>
-                                <span className="text-[var(--ag-colorTextTertiary)]">
-                                    Refreshing this source updates unedited skills from the repo.
-                                </span>
-                            </span>
-                            <Switch checked={syncEnabled} onCheckedChange={setSyncEnabled} />
-                        </label>
 
                         {validCandidates.length === 0 ? (
                             <span className="text-xs text-[var(--ag-colorTextSecondary)]">

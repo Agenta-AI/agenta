@@ -15,12 +15,7 @@ import {
     type SkillEmbedTarget,
     type SkillRegistryItem,
 } from "@agenta/skills"
-import {
-    builtinSkillsAtom,
-    registrySourcesAtom,
-    skillsListDataAtom,
-    skillsListQueryAtom,
-} from "@agenta/skills/state"
+import {builtinSkillsAtom, skillsListDataAtom, skillsListQueryAtom} from "@agenta/skills/state"
 import type {SkillsPickerHostProps} from "@agenta/ui/drill-in"
 import {useAtomValue} from "jotai"
 
@@ -60,16 +55,9 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)
     const builtinSkills = useAtomValue(builtinSkillsAtom)
-    const registrySources = useAtomValue(registrySourcesAtom)
-
     const addedBySlug = useMemo(
         () => new Map(added.map((entry) => [entry.slug, {pinnedVersion: entry.pinnedVersion}])),
         [added],
-    )
-
-    const sourceById = useMemo(
-        () => new Map(registrySources.filter((s) => s.id).map((s) => [s.id!, s])),
-        [registrySources],
     )
 
     const options = useMemo<SkillListItem[]>(() => {
@@ -77,21 +65,18 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
             .map((item) => {
                 const mapped = toPickerItem(
                     item,
-                    item.source_id && !item.source_detached ? "imported" : "project",
+                    item.origin && !item.origin.detached ? "imported" : "project",
                     addedBySlug,
                 )
                 if (!mapped) return null
-                const source = item.source_id ? sourceById.get(item.source_id) : undefined
-                return source
-                    ? {...mapped, source: toSourceInfo(source, item.source_detached)}
-                    : mapped
+                return item.origin ? {...mapped, source: toSourceInfo(item.origin)} : mapped
             })
             .filter((item): item is SkillListItem => item !== null)
         const builtin = builtinSkills
             .map((item) => toPickerItem(item, "builtin", addedBySlug))
             .filter((item): item is SkillListItem => item !== null)
         return [...project, ...builtin]
-    }, [addedBySlug, builtinSkills, projectSkills, sourceById])
+    }, [addedBySlug, builtinSkills, projectSkills])
 
     const handleAdd = useCallback(
         (choices: SkillAddChoice[]) => {

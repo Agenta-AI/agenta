@@ -5,7 +5,6 @@ import type * as AgentaApi from "../index.js";
 export interface SkillsResponse {
     count?: number | undefined;
     skills?: AgentaApi.SkillRegistryItem[] | undefined;
-    sources?: AgentaApi.SkillSource[] | undefined;
     builtin?: AgentaApi.SkillRegistryItem[] | undefined;
     windowing?: (AgentaApi.Windowing | null) | undefined;
 }

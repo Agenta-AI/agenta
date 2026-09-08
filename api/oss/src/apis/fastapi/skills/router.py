@@ -18,10 +18,15 @@ from oss.src.apis.fastapi.skills.exceptions import handle_skills_exceptions
 from oss.src.apis.fastapi.skills.models import (
     SkillsQueryRequest,
     SkillsResponse,
-    SkillUsageRequest,
-    SkillUsageResponse,
     SkillSourceScanRequest,
     SkillSourceImportRequest,
+    SkillCreateRequest,
+    SkillCreateResponse,
+    SkillCommitRequest,
+    SkillCommitResponse,
+    SkillRevisionsResponse,
+    SkillRevisionRow,
+    SkillReferencedByResponse,
 )
 from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 
@@ -85,12 +90,62 @@ class SkillsRouter:
         )
 
         self.router.add_api_route(
-            "/usage",
-            self.query_skill_usage,
+            "/",
+            self.create_skill,
             methods=["POST"],
-            operation_id="query_skill_usage",
+            operation_id="create_skill",
             status_code=status.HTTP_200_OK,
-            response_model=SkillUsageResponse,
+            response_model=SkillCreateResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{skill_id}/revisions/commit",
+            self.commit_skill_revision,
+            methods=["POST"],
+            operation_id="commit_skill_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=SkillCommitResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{skill_id}/revisions/log",
+            self.log_skill_revisions,
+            methods=["POST"],
+            operation_id="log_skill_revisions",
+            status_code=status.HTTP_200_OK,
+            response_model=SkillRevisionsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{skill_id}/archive",
+            self.archive_skill,
+            methods=["POST"],
+            operation_id="archive_skill",
+            status_code=status.HTTP_200_OK,
+            response_model=SkillCreateResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{skill_id}/unarchive",
+            self.unarchive_skill,
+            methods=["POST"],
+            operation_id="unarchive_skill",
+            status_code=status.HTTP_200_OK,
+            response_model=SkillCreateResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{skill_id}/referenced-by",
+            self.list_skill_referenced_by,
+            methods=["GET"],
+            operation_id="list_skill_referenced_by",
+            status_code=status.HTTP_200_OK,
+            response_model=SkillReferencedByResponse,
             response_model_exclude_none=True,
         )
 
@@ -151,18 +206,148 @@ class SkillsRouter:
         )
 
     @intercept_exceptions()
-    async def query_skill_usage(
+    @handle_skills_exceptions()
+    async def create_skill(
         self,
         request: Request,
         *,
-        skill_usage_request: SkillUsageRequest,
-    ) -> SkillUsageResponse:
+        create_request: SkillCreateRequest,
+    ) -> SkillCreateResponse:
         """
-        Which agents use this skill, and how.
+        Create a registry skill.
 
-        Each row names an agent whose head revision embeds the skill, with
-        `mode` "latest" (artifact-level reference, follows the head) or
-        "pinned" (revision-level reference with `pinned_version`).
+        The server owns the invariants: the payload validates against the
+        SkillTemplate contract, the storage slug is generated (display names
+        may collide), and the skill flags + builtin URI are stamped on both
+        the artifact and the v1 revision.
+        """
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        created = await self.skills_service.create_skill(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            skill=create_request.skill,
+        )
+        return SkillCreateResponse(**created.model_dump())
+
+    @intercept_exceptions()
+    @handle_skills_exceptions()
+    async def commit_skill_revision(
+        self,
+        request: Request,
+        *,
+        skill_id: UUID,
+        commit_request: SkillCommitRequest,
+    ) -> SkillCommitResponse:
+        """
+        Commit a new revision of one skill.
+
+        Validated server-side; pass `base_revision_id` so a concurrent edit
+        answers 409 (`revision_conflict`) instead of being overwritten.
+        """
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        outcome = await self.skills_service.commit_skill_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            workflow_id=skill_id,
+            skill=commit_request.skill,
+            message=commit_request.message,
+            base_revision_id=commit_request.base_revision_id,
+        )
+        return SkillCommitResponse(**outcome.model_dump())
+
+    @intercept_exceptions()
+    @handle_skills_exceptions()
+    async def log_skill_revisions(
+        self,
+        request: Request,
+        *,
+        skill_id: UUID,
+    ) -> SkillRevisionsResponse:
+        """The skill's revision history, newest first, with stored content per row."""
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_WORKFLOWS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        rows = await self.skills_service.log_skill_revisions(
+            project_id=UUID(request.state.project_id),
+            workflow_id=skill_id,
+        )
+        return SkillRevisionsResponse(
+            count=len(rows),
+            revisions=[SkillRevisionRow(**row.model_dump()) for row in rows],
+        )
+
+    @intercept_exceptions()
+    @handle_skills_exceptions()
+    async def archive_skill(
+        self,
+        request: Request,
+        *,
+        skill_id: UUID,
+    ) -> SkillCreateResponse:
+        """Archive a skill (its slug stays reserved; unarchive restores it)."""
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        workflow = await self.skills_service.archive_skill(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            workflow_id=skill_id,
+        )
+        return SkillCreateResponse(workflow_id=str(workflow.id), slug=workflow.slug)
+
+    @intercept_exceptions()
+    @handle_skills_exceptions()
+    async def unarchive_skill(
+        self,
+        request: Request,
+        *,
+        skill_id: UUID,
+    ) -> SkillCreateResponse:
+        """Restore an archived skill with its full history."""
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_WORKFLOWS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        workflow = await self.skills_service.unarchive_skill(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            workflow_id=skill_id,
+        )
+        return SkillCreateResponse(workflow_id=str(workflow.id), slug=workflow.slug)
+
+    @intercept_exceptions()
+    async def list_skill_referenced_by(
+        self,
+        request: Request,
+        *,
+        skill_id: UUID,
+    ) -> SkillReferencedByResponse:
+        """
+        The agents referencing this skill, with `mode` "latest" (follows the
+        head) or "pinned" (revision reference with `pinned_version`).
         """
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
@@ -173,17 +358,9 @@ class SkillsRouter:
 
         usage = await self.skills_service.get_skill_usage(
             project_id=UUID(request.state.project_id),
-            #
-            query=SkillUsageQuery(
-                workflow_id=skill_usage_request.workflow_id,
-                workflow_slug=skill_usage_request.workflow_slug,
-            ),
+            query=SkillUsageQuery(workflow_id=skill_id),
         )
-
-        return SkillUsageResponse(
-            count=len(usage),
-            usage=usage,
-        )
+        return SkillReferencedByResponse(count=len(usage), referenced_by=usage)
 
     @intercept_exceptions()
     @handle_skills_exceptions()

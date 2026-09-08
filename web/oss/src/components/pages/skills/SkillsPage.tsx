@@ -3,7 +3,6 @@ import {useCallback, useMemo, useState} from "react"
 import {projectIdAtom} from "@agenta/shared/state"
 import {
     builtinSkillsAtom,
-    registrySourcesAtom,
     skillsListDataAtom,
     skillsListQueryAtom,
     skillsSearchAtom,
@@ -27,11 +26,10 @@ export default function SkillsPage() {
     const [search, setSearch] = useAtom(skillsSearchAtom)
     const [showArchived, setShowArchived] = useAtom(skillsShowArchivedAtom)
 
-    const registrySources = useAtomValue(registrySourcesAtom)
     const [selectedSource, setSelectedSource] = useState("all")
     const {sections, sources} = useMemo(
-        () => buildRegistrySections(projectSkills, builtinSkills, registrySources, selectedSource),
-        [projectSkills, builtinSkills, registrySources, selectedSource],
+        () => buildRegistrySections(projectSkills, builtinSkills, selectedSource),
+        [projectSkills, builtinSkills, selectedSource],
     )
 
     const projectId = useAtomValue(projectIdAtom)

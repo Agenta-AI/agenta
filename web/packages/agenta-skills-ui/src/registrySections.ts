@@ -1,11 +1,11 @@
 /**
  * ONE mapping from the registry response to gallery sections + source-rail entries,
  * shared by the desktop page and /m so grouping can never drift between hosts:
- * "This project" (skills with no source), one section per imported repo (with the
- * "synced Xd ago" tag), and the Agenta built-ins.
+ * "This project" (skills with no origin), one section per imported repo (grouped
+ * client-side by `origin.repository`), and the Agenta built-ins.
  */
 import {timeAgo} from "@agenta/shared/utils"
-import type {RegistrySource, SkillRegistryItem} from "@agenta/skills"
+import type {SkillOriginInfo, SkillRegistryItem} from "@agenta/skills"
 
 import type {SkillGallerySection} from "./SkillGallerySections"
 import type {SkillSourceNavEntry} from "./SkillsGalleryPage"
@@ -35,27 +35,13 @@ export const toSkillListItem = (
     archived: item.archived ?? undefined,
 })
 
-/** A source section's label: "owner/repo" from the URL, else the slug. */
-const sourceLabel = (source: RegistrySource): string => {
-    const match = source.repo_url?.match(/github\.com\/([^/]+\/[^/?#]+)/)
-    return match?.[1]?.replace(/\.git$/, "") ?? source.slug ?? "Imported"
-}
-
 /** Provenance the drawer and picker rows show for an imported skill. */
-export const toSourceInfo = (
-    source: RegistrySource,
-    detached?: boolean | null,
-): SkillSourceInfo => {
-    const at = toUnixMs(source.updated_at ?? source.created_at)
-    return {
-        label: sourceLabel(source),
-        repoUrl: source.repo_url ?? undefined,
-        commitSha: source.last_seen_commit_sha ?? undefined,
-        syncedAgo: at ? timeAgo(at) || undefined : undefined,
-        syncEnabled: source.sync_enabled ?? undefined,
-        detached: detached ?? undefined,
-    }
-}
+export const toSourceInfo = (origin: SkillOriginInfo): SkillSourceInfo => ({
+    label: origin.repository ?? "Imported",
+    repoUrl: origin.repository ? `https://github.com/${origin.repository}` : undefined,
+    commitSha: origin.resolved_version ?? undefined,
+    detached: origin.detached ?? undefined,
+})
 
 export interface RegistrySections {
     sections: SkillGallerySection[]
@@ -66,52 +52,42 @@ export interface RegistrySections {
 export function buildRegistrySections(
     projectSkills: SkillRegistryItem[],
     builtinSkills: SkillRegistryItem[],
-    registrySources: RegistrySource[],
     /** Rail selection; "all" shows everything. */
     selectedSource = "all",
 ): RegistrySections {
-    const sourceById = new Map(registrySources.filter((s) => s.id).map((s) => [s.id!, s]))
     /** An item's list form with provenance attached, wherever it ends up grouped. */
     const withSource = (
         item: SkillRegistryItem,
         origin: SkillListItem["origin"],
     ): SkillListItem => {
-        const source = item.source_id ? sourceById.get(item.source_id) : undefined
         const mapped = toSkillListItem(item, origin)
-        return source ? {...mapped, source: toSourceInfo(source, item.source_detached)} : mapped
+        return item.origin ? {...mapped, source: toSourceInfo(item.origin)} : mapped
     }
 
-    const bySource = new Map<string, SkillRegistryItem[]>()
+    const byRepository = new Map<string, SkillRegistryItem[]>()
     const unsourced: SkillRegistryItem[] = []
     for (const item of projectSkills) {
         // A detached import is project-owned again for GROUPING; its provenance still
         // rides the item so the drawer can say "modified locally".
-        if (item.source_id && !item.source_detached) {
-            const list = bySource.get(item.source_id) ?? []
+        const repository = item.origin?.repository
+        if (repository && !item.origin?.detached) {
+            const list = byRepository.get(repository) ?? []
             list.push(item)
-            bySource.set(item.source_id, list)
+            byRepository.set(repository, list)
         } else {
             unsourced.push(item)
         }
     }
 
-    const sourceSections: SkillGallerySection[] = registrySources
-        .filter((source) => source.id && bySource.has(source.id))
-        .map((source) => ({
-            key: `source:${source.id}`,
-            label: sourceLabel(source),
-            sourceId: source.id ?? undefined,
-            tag: (() => {
-                const at = toUnixMs(source.updated_at ?? source.created_at)
-                return at ? `synced ${timeAgo(at)}` : undefined
-            })(),
-            skills: (bySource.get(source.id!) ?? []).map((item) => withSource(item, "imported")),
-        }))
-    // Links whose source row is gone still list — under This project, never dropped.
-    const orphaned = [...bySource.keys()].filter(
-        (id) => !registrySources.some((source) => source.id === id),
+    const sourceSections: SkillGallerySection[] = [...byRepository.entries()].map(
+        ([repository, items]) => ({
+            key: `source:${repository}`,
+            label: repository,
+            repository,
+            skillIds: items.map((item) => item.workflow_id ?? "").filter(Boolean) as string[],
+            skills: items.map((item) => withSource(item, "imported")),
+        }),
     )
-    for (const id of orphaned) unsourced.push(...(bySource.get(id) ?? []))
 
     const allSections: SkillGallerySection[] = [
         {
