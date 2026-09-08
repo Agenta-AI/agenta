@@ -14,6 +14,7 @@ import {userAtom} from "../state/user"
 import {
     CLASSIC_MODE_COOKIE,
     GATE_COOKIE_MAX_AGE,
+    MOBILE_OPTIN_COOKIE,
     MOBILE_OPTOUT_COOKIE,
     desktopRouteFor,
     isDesktopOnlyLink,
@@ -141,4 +142,31 @@ export const desktopEscapeHref = (): string => {
     const {pathname, search} = window.location
     const stripped = pathname === "/m" ? "/" : pathname.replace(/^\/m(?=\/)/, "")
     return desktopRouteFor(stripped, search) ?? "/w"
+}
+
+/**
+ * `/m`-only: send a Classic-mode-ON user back to the desktop app. Mirror of
+ * {@link useClassicModeRedirect}, and needed for the same reason — the proxy reads only cookies,
+ * and the device gate can land a user here before one exists. Bounces a phone too, because
+ * Classic mode outranks the device heuristic on both sides of the gate.
+ */
+export const useDesktopModeRedirect = (enabled = true) => {
+    const userId = useAtomValue(activeUserIdAtom)
+    const advancedNavHidden = useSettledAdvancedNavHidden()
+
+    useEffect(() => {
+        if (!enabled || typeof window === "undefined") return
+        if (!classicGateEnabled()) return
+        // `null` is "not known yet", and `true` is Classic mode OFF — both stay put.
+        if (!userId || advancedNavHidden !== false) return
+
+        const {pathname} = window.location
+        // Sign-in and the OAuth landing finish where they are: the mobile flow's state lives in
+        // this origin's sessionStorage, and bouncing the callback drops the one-time code.
+        if (/^\/m\/auth(\/|$)/.test(pathname)) return
+        // "Open mobile version" is an explicit request for this app; it outranks the preference.
+        if (readCookie(MOBILE_OPTIN_COOKIE)) return
+
+        window.location.replace(desktopEscapeHref())
+    }, [enabled, userId, advancedNavHidden])
 }
