@@ -5,9 +5,13 @@
  * THE DEFECT THESE PIN, measured live on 2026-09-08. The runner's local `auth.json` was rewritten
  * with junk `access` and `refresh` strings and a LATER `expires`. Every gate on the publish path
  * asked only "is it newer", `expires` is one number, so the junk sailed through and overwrote the
- * project's good stored login. The failure report that followed quoted a version a push earlier in
- * the same run had learned, so it looked current, the API answered `stale: false`, and the
- * connection was marked `needs_login`. One bad file cost the user their sign-in twice over.
+ * project's good stored login. The failure report that followed then looked current, the API
+ * answered `stale: false`, and the connection was marked `needs_login`. One bad file cost the user
+ * their sign-in twice over.
+ *
+ * The shape check below is what stops it. A push therefore only ever moves the row to a login that
+ * passed the check, which is what makes it safe for the publisher to learn the row version back
+ * from an accepted push (`subscription-login-publish.test.ts`).
  *
  * Run: pnpm exec vitest run tests/unit/subscription-login-validate.test.ts
  */
@@ -121,11 +125,11 @@ describe("validateSubscriptionLogin", () => {
   });
 });
 
-describe("a failure report quotes what this run was DELIVERED", () => {
-  it("quotes the delivered pair, which publication never moves", async () => {
-    // The live sequence: a publication lands and the API answers with a new version, then the turn
-    // fails. Quoting that new version tells the API "I ran on the current login", so a connection
-    // that had simply moved on gets marked needs_login instead of answering stale.
+describe("a failure report quotes the row version this session knows", () => {
+  it("quotes the delivered pair when nothing has moved it", async () => {
+    // A session that never published and never recovered still runs on the delivered login, so the
+    // report asks about that one. The two events that move it are covered in the publish and
+    // recovery suites.
     const state = subscriptionPublishState(SUBSCRIPTION);
     const { calls, fetchImpl } = recordingFetch();
     const api = {
@@ -144,7 +148,7 @@ describe("a failure report quotes what this run was DELIVERED", () => {
       generation: 1,
       reason: "auth_failed",
     });
-    assert.equal(state.version, 3, "only a recovery adoption moves this");
+    assert.equal(state.version, 3, "no push and no adoption, so nothing moved it");
     assert.equal(state.generation, 1);
   });
 

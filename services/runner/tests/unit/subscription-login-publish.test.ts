@@ -17,9 +17,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  reportSubscriptionLoginFailure,
   startSubscriptionPublisher,
   subscriptionPublishState,
   type SubscriptionPublisher,
+  type SubscriptionPublishState,
 } from "../../src/engines/sandbox_agent/subscription-login/publisher.ts";
 import type { SubscriptionSandboxFs } from "../../src/engines/sandbox_agent/subscription-login/files.ts";
 import type {
@@ -107,13 +109,15 @@ function start(input: {
   intervalMs?: number;
   sandbox?: SubscriptionSandboxFs;
   log?: (line: string) => void;
+  /** Pass one in to read it back after the pass; the publisher mutates it in place. */
+  state?: SubscriptionPublishState;
 }): SubscriptionPublisher {
   const publisher = startSubscriptionPublisher({
     plan: {
       isDaytona: input.sandbox !== undefined,
       credentials: { subscription: SUBSCRIPTION, subscriptionHome: input.home },
     },
-    state: subscriptionPublishState(SUBSCRIPTION),
+    state: input.state ?? subscriptionPublishState(SUBSCRIPTION),
     sandbox: () => input.sandbox,
     apiBase: "https://api.test",
     authorization: "ApiKey test",
@@ -125,6 +129,81 @@ function start(input: {
   running.push(publisher);
   return publisher;
 }
+
+/**
+ * A failure report asks "was the login I ran on superseded?". It has to name the version the ROW
+ * holds, not the one this run was handed, or a session that pushed its own refresh gets its own
+ * report called stale, is handed back the login it just reported dead, and spends a turn telling
+ * the user that another session changed the sign-in.
+ *
+ * Learning the version this way is safe because `validateSubscriptionLogin` runs first: the API
+ * only ever moves the row to a login that passed the shape check
+ * (`subscription-login-validate.test.ts`).
+ */
+describe("the version an accepted push teaches this session", () => {
+  it("moves state.version, so a later failure report is not called stale", async () => {
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    const api = fakeApi(() => ({
+      status: 200,
+      body: { version: 5, updated: true },
+    }));
+    const state = subscriptionPublishState(SUBSCRIPTION);
+
+    await start({ home, api, intervalMs: 10, state }).reconcile("interval");
+
+    assert.deepEqual(api.bodies[0], {
+      login: REFRESHED,
+      version: 3,
+      generation: 1,
+    });
+    assert.equal(state.version, 5, "the row moved to 5 and this session knows it");
+
+    const reports: Array<Record<string, unknown>> = [];
+    await reportSubscriptionLoginFailure(SUBSCRIPTION, state, "auth_failed", {
+      apiBase: "https://api.test",
+      authorization: "ApiKey test",
+      fetchImpl: (async (_url: string, init: RequestInit) => {
+        reports.push(JSON.parse(String(init.body)) as Record<string, unknown>);
+        return new Response(JSON.stringify({ stale: false }), { status: 200 });
+      }) as unknown as typeof fetch,
+      log: () => {},
+    });
+
+    assert.deepEqual(reports[0], {
+      version: 5,
+      generation: 1,
+      reason: "auth_failed",
+    });
+  });
+
+  it("leaves state.version alone when the API called the push stale", async () => {
+    // A stale answer names a row this session is behind on. Adopting that version would claim a
+    // login this run never ran on; the recovery path is what adopts a login the API hands back.
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    const api = fakeApi(() => ({
+      status: 200,
+      body: { version: 8, updated: false, stale: true },
+    }));
+    const state = subscriptionPublishState(SUBSCRIPTION);
+
+    await start({ home, api, intervalMs: 10, state }).reconcile("interval");
+
+    assert.equal(state.version, 3);
+  });
+
+  it("leaves state.version alone when the API never answered", async () => {
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    const api = fakeApi(() => ({ status: 503 }));
+    const state = subscriptionPublishState(SUBSCRIPTION);
+
+    await start({ home, api, intervalMs: 10, state }).reconcile("interval");
+
+    assert.equal(state.version, 3);
+  });
+});
 
 describe("the reconciliation pass", () => {
   it("publishes a login Pi wrote mid-turn, exactly once, and never the delivered one", async () => {

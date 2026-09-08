@@ -70,9 +70,14 @@ function credentialIdentity(
 
 export interface SubscriptionPublishState {
   /**
-   * The lineage and the version this run is running on. A push quotes them, and so does a failure
-   * report, which is the only way the API can tell "a refresh I already have" from "a sign-in that
-   * replaced this one". They move only when a recovery adopts a newer login the API handed back.
+   * The lineage and the row version this session knows about. A push quotes them, and so does a
+   * failure report, which is the only way the API can tell "a refresh I already have" from "a
+   * sign-in that replaced this one".
+   *
+   * `version` starts at the delivered one and moves on two events: a recovery adopts a newer login
+   * the API handed back, and an accepted push reports the version it wrote. Without the second the
+   * API would call this session's own report stale, answer it with the login it just refused, and
+   * spend a turn telling the user someone else changed the sign-in.
    */
   generation: number;
   version: number;
@@ -223,8 +228,14 @@ export function startSubscriptionPublisher(input: {
       });
       return;
     }
-    const answered = await pushLogin(subscription, state, login, trigger, api);
-    if (answered) state.acknowledged = identity;
+    const push = await pushLogin(subscription, state, login, trigger, api);
+    if (!push.answered) return;
+    state.acknowledged = identity;
+    // The row now holds this login at this version, so a later failure report asks about what the
+    // row holds rather than about the login this run was delivered.
+    if (push.version !== undefined && push.version > state.version) {
+      state.version = push.version;
+    }
   };
 
   let queue: Promise<void> = Promise.resolve();
@@ -272,13 +283,18 @@ export function startSubscriptionPublisher(input: {
 }
 
 /**
- * Send one login to the API. Answers true when the API judged it, which is what lets the runner
- * stop retrying: a 4xx other than 408 and 429 is the API's decision and repeating the same body
- * cannot change it, while a timeout, a network failure, and a 5xx leave the credential
+ * Send one login to the API. `answered` is true when the API judged it, which is what lets the
+ * runner stop retrying: a 4xx other than 408 and 429 is the API's decision and repeating the same
+ * body cannot change it, while a timeout, a network failure, and a 5xx leave the credential
  * unacknowledged for the next pass.
  *
+ * `version` is the row version the API reports for a push it did not call stale. The caller adopts
+ * it. A stale answer carries the version of a row this session is behind on, which belongs to the
+ * recovery path, so it is not reported here.
+ *
  * A push NEVER fails the turn. The run already succeeded and the harness still holds the working
- * token in its own process; the cost of a lost push is one extra refresh later.
+ * token in its own process. A lost push costs one extra refresh later, unless the runner state dir
+ * is also lost with it; see the state-dir note in `run-plan.ts`.
  */
 async function pushLogin(
   subscription: ModelConnectionSubscription,
@@ -286,7 +302,7 @@ async function pushLogin(
   login: SubscriptionLogin,
   trigger: PublishTrigger,
   deps: SubscriptionApiDeps,
-): Promise<boolean> {
+): Promise<{ answered: boolean; version?: number }> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
   const url = `${deps.apiBase}/secrets/${encodeURIComponent(subscription.id)}/subscription-login`;
@@ -302,8 +318,9 @@ async function pushLogin(
         "content-type": "application/json",
         authorization: deps.authorization,
       },
-      // `version` is what this run was delivered. The API orders by generation and expiry and does
-      // not read it as a precondition; it stays on the wire because the route declares it.
+      // `version` is the newest row version this session knows about. The API orders by generation
+      // and expiry and does not read it as a precondition; it stays on the wire because the route
+      // declares it.
       body: JSON.stringify({
         login,
         version: state.version,
@@ -320,7 +337,7 @@ async function pushLogin(
         decision: retryable ? "unanswered" : "rejected",
         status: res.status,
       });
-      return !retryable;
+      return { answered: !retryable };
     }
     const body = (await res.json().catch(() => ({}))) as {
       version?: unknown;
@@ -328,22 +345,24 @@ async function pushLogin(
       stale?: unknown;
       reason?: unknown;
     };
+    const stale = body.updated === false && body.stale === true;
+    const version = typeof body.version === "number" ? body.version : undefined;
     observeSubscription(log, "subscription.publish", {
       ...event,
       decision:
-        body.updated === false ? (body.stale === true ? "stale" : "refused") : "updated",
-      version: typeof body.version === "number" ? body.version : undefined,
+        body.updated === false ? (stale ? "stale" : "refused") : "updated",
+      version,
       reason: typeof body.reason === "string" ? body.reason : undefined,
       status: res.status,
     });
-    return true;
+    return { answered: true, ...(stale || version === undefined ? {} : { version }) };
   } catch (err) {
     observeSubscription(log, "subscription.publish", {
       ...event,
       decision: "unanswered",
       ...thrownFields(err),
     });
-    return false;
+    return { answered: false };
   }
 }
 
