@@ -860,12 +860,26 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
         // typed by the person, so it must not be remembered as a name they chose. The agent
         // renames the session over it on the next turn, and that rename has to be allowed
         // through.
+        //
+        // The server refuses this write when the person has already named the session on
+        // another device, which the local list has not seen yet. Drop the optimistic title
+        // when that happens, rather than showing a title the server rejected until the next
+        // list poll agrees.
         if (projectId)
             void setSessionHeader({
                 sessionId: id,
                 projectId,
                 name: title,
                 nameSource: "automatic",
+            }).then((ok) => {
+                if (ok) return
+                const latest = get(sessionsByAppAtom)
+                set(sessionsByAppAtom, {
+                    ...latest,
+                    [key]: (latest[key] ?? []).map((s) =>
+                        s.id === id && s.title === title ? {...s, title: undefined} : s,
+                    ),
+                })
             })
     }),
 )

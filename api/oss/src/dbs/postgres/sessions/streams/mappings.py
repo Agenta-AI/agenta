@@ -39,6 +39,11 @@ SESSION_TRIGGER_NAME_TAG_KEY = "ag.trigger.name"
 # `_strip_reserved_tags` already keeps the whole `ag.` namespace out of every client read.
 SESSION_NAME_SOURCE_TAG_KEY = "ag.name.source"
 
+# How many times this row's name has changed. It counts from 1 and only ever goes up, which
+# is what lets an authorization to replace one particular name be spent: restoring an earlier
+# name brings back the string, never the revision it was written at.
+SESSION_NAME_REVISION_TAG_KEY = "ag.name.rev"
+
 # Single source of truth for "which exact tag keys the writer stamps" — used by
 # the writer-side subset assert (P1-7's test) so a future fifth attribution key
 # is caught if it isn't inside the reserved namespace below.
@@ -50,6 +55,7 @@ SESSION_RESERVED_TAG_KEYS = frozenset(
         SESSION_TRIGGER_DELIVERY_ID_TAG_KEY,
         SESSION_TRIGGER_NAME_TAG_KEY,
         SESSION_NAME_SOURCE_TAG_KEY,
+        SESSION_NAME_REVISION_TAG_KEY,
     }
 )
 
@@ -128,11 +134,12 @@ def decode_session_attribution(
     return origin, trigger, delivery
 
 
-def encode_name_source(
+def encode_name_state(
     *,
     tags: Optional[Dict[str, Any]],
     name_source: Optional[SessionNameSource],
     name: Optional[str],
+    current_name: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """`tags` with the name-source stamp brought in line with an edit that sets `name`.
 
@@ -146,14 +153,31 @@ def encode_name_source(
     about who named the session. A cleared name removes the stamp, because a row with no
     name has no source.
     """
-    if name is None or name_source is not SessionNameSource.manual:
+    if name is None:
         return tags
     current = dict(tags) if isinstance(tags, dict) else {}
-    if name:
-        current[SESSION_NAME_SOURCE_TAG_KEY] = SessionNameSource.manual.value
-    else:
-        current.pop(SESSION_NAME_SOURCE_TAG_KEY, None)
+    # The revision counts name CHANGES, from either source, so it is the one value that
+    # separates two visits to the same name.
+    if name != current_name:
+        current[SESSION_NAME_REVISION_TAG_KEY] = decode_name_revision(tags) + 1
+    if name_source is SessionNameSource.manual:
+        if name:
+            current[SESSION_NAME_SOURCE_TAG_KEY] = SessionNameSource.manual.value
+        else:
+            current.pop(SESSION_NAME_SOURCE_TAG_KEY, None)
     return current or None
+
+
+def decode_name_revision(tags: Optional[Dict[str, Any]]) -> int:
+    """The row's name revision, or 0 for a row written before the counter existed.
+
+    0 is a real answer, not a missing one: a legacy row has no revision, so no precondition
+    can match it. It also cannot be protected, because it carries no source stamp either.
+    """
+    if not isinstance(tags, dict):
+        return 0
+    value = tags.get(SESSION_NAME_REVISION_TAG_KEY)
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
 def decode_name_source(
@@ -186,7 +210,7 @@ def map_stream_dto_to_dbe_create(
         name=stream.name,
         description=stream.description,
         flags=stream.flags.model_dump(mode="json") if stream.flags else None,
-        tags=encode_name_source(
+        tags=encode_name_state(
             tags=stream.tags,
             name_source=stream.name_source,
             name=stream.name,
@@ -283,10 +307,11 @@ def map_stream_dto_to_dbe_header_edit(
     SQLAlchemy does not track a mutation inside a JSONB dict."""
     stream_dbe.updated_by_id = user_id
     if header.name is not None:
-        stream_dbe.tags = encode_name_source(
+        stream_dbe.tags = encode_name_state(
             tags=stream_dbe.tags,
             name_source=name_source,
             name=header.name,
+            current_name=stream_dbe.name,
         )
         stream_dbe.name = header.name
     if header.description is not None:

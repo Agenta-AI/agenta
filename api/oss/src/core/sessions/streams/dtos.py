@@ -146,6 +146,13 @@ class SessionStreamHeaderEdit(Header):
     #: The claim it makes is checkable, which is why it is safe to let the model make it.
     replacing_name: Optional[str] = None
 
+    #: The name revision `replacing_name` was read at, from the same refusal. The two are
+    #: checked together and neither is redundant. The name is what a person recognizes and
+    #: cannot be guessed; the revision is what makes the authorization single-use, so a
+    #: person restoring an earlier name does not revive a request that already ran against
+    #: it. A revision alone would be guessable, since it counts from one.
+    replacing_revision: Optional[int] = None
+
     @field_validator("name", "replacing_name")
     @classmethod
     def _trim_a_name(cls, value: Optional[str]) -> Optional[str]:

@@ -33,7 +33,9 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.streams.types import SessionNameProtected
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
+    SESSION_NAME_REVISION_TAG_KEY,
     SESSION_NAME_SOURCE_TAG_KEY,
+    decode_name_revision,
     decode_name_source,
     map_stream_dbe_to_dto,
     map_stream_dto_to_dbe_create,
@@ -48,7 +50,7 @@ _SESSION = "session_rename_guard"
 
 _AGENT_NAME = "Permission test"
 _PERSON_NAME = "QA-6657 parked rename"
-_MANUAL_TAGS = {SESSION_NAME_SOURCE_TAG_KEY: "manual"}
+_MANUAL_TAGS = {SESSION_NAME_SOURCE_TAG_KEY: "manual", SESSION_NAME_REVISION_TAG_KEY: 1}
 
 
 def _edit(**over) -> SessionStreamHeaderEdit:
@@ -64,6 +66,7 @@ def _refuse(
     *,
     current_name: Optional[str] = _PERSON_NAME,
     current_source: Optional[SessionNameSource] = SessionNameSource.manual,
+    current_revision: int = 1,
     name_source: SessionNameSource = SessionNameSource.automatic,
     **edit,
 ) -> None:
@@ -71,6 +74,7 @@ def _refuse(
         session_id=_SESSION,
         current_name=current_name,
         current_source=current_source,
+        current_revision=current_revision,
         header=_edit(**edit),
         name_source=name_source,
     )
@@ -113,31 +117,89 @@ def test_the_same_name_is_not_an_overwrite():
     _refuse(name=f"  {_PERSON_NAME}  ")
 
 
-def test_naming_the_replaced_name_passes():
-    # "Rename this session to X", asked for while the session is still called what the
-    # agent read.
-    _refuse(name="A name the person asked for", replacing_name=_PERSON_NAME)
+def test_naming_the_replaced_state_passes():
+    # "Rename this session to X", asked for while the session is still called and versioned
+    # what the agent read.
+    _refuse(
+        name="A name the person asked for",
+        replacing_name=_PERSON_NAME,
+        replacing_revision=1,
+    )
 
 
 def test_a_stale_replacing_name_is_refused_with_the_current_name():
     # The person asked for a rename, then renamed the session again themselves. The old
     # request was for a name that is no longer there, so it must not take effect now.
     with pytest.raises(SessionNameProtected) as raised:
-        _refuse(name="A name the person asked for", replacing_name="An older name")
+        _refuse(
+            name="A name the person asked for",
+            replacing_name="An older name",
+            replacing_revision=1,
+        )
 
     assert raised.value.current_name == _PERSON_NAME
     assert raised.value.code == "session_name_changed"
     assert raised.value.stale_precondition is True
 
 
-def test_the_refusal_envelope_carries_the_name_and_one_next_step():
-    envelope = SessionNameProtected(_SESSION, _PERSON_NAME).envelope()
+def test_a_spent_authorization_is_refused_after_the_person_restores_the_name():
+    # The replay Codex found. The agent's authorized rename ran once against revision 1.
+    # The person then put the old name back, so the string matches again, but the session is
+    # two changes further on. Replaying the same call must not undo their restore.
+    with pytest.raises(SessionNameProtected) as raised:
+        _refuse(
+            name="A name the person asked for",
+            replacing_name=_PERSON_NAME,
+            replacing_revision=1,
+            current_revision=3,
+        )
+
+    assert raised.value.code == "session_name_changed"
+    assert raised.value.name_revision == 3
+
+
+def test_a_guessed_revision_alone_does_not_authorize():
+    # The revision counts from one, so it is guessable. The name is the half that is not.
+    with pytest.raises(SessionNameProtected):
+        _refuse(name="A guessed rename", replacing_revision=1)
+
+
+def test_an_automatic_caller_cannot_clear_a_person_name():
+    # An empty name walks past every later check, because a row with no name has nothing to
+    # protect. The agent's own schema forbids it; the API has to as well.
+    with pytest.raises(SessionNameProtected) as raised:
+        _refuse(name="", replacing_name=_PERSON_NAME, replacing_revision=1)
+
+    assert raised.value.code == "session_name_clear_is_manual"
+    assert raised.value.clearing is True
+
+
+def test_a_person_may_clear_their_own_name():
+    _refuse(name="", name_source=SessionNameSource.manual)
+
+
+def test_the_refusal_envelope_carries_the_state_and_one_next_step():
+    envelope = SessionNameProtected(_SESSION, _PERSON_NAME, name_revision=2).envelope()
 
     assert envelope["code"] == "session_name_is_manual"
     assert envelope["retryable"] is False
-    assert envelope["details"] == {"current_name": _PERSON_NAME}
+    assert envelope["details"] == {"current_name": _PERSON_NAME, "name_revision": 2}
     assert _PERSON_NAME in envelope["message"]
     assert "replacing_name" in envelope["next_step"]
+    assert "replacing_revision" in envelope["next_step"]
+
+
+def test_the_envelope_bounds_the_name_it_repeats():
+    # The runner cuts a tool error at 2000 characters. An unbounded echo of a long name
+    # would push `details` off the end, which is the half a caller can act on.
+    long_name = "N" * 3000
+    envelope = SessionNameProtected(
+        _SESSION, long_name, name_revision=1, stale_precondition=True
+    ).envelope()
+
+    assert len(envelope["message"]) < 400
+    assert len(envelope["next_step"]) < 600
+    assert envelope["details"]["current_name"] == long_name
 
 
 def test_a_padded_name_is_trimmed_before_it_is_stored():
@@ -204,24 +266,56 @@ def test_an_automatic_rename_never_moves_the_stamp():
     assert decode_name_source(dbe.tags) is SessionNameSource.manual
 
 
-def test_a_rename_the_person_asked_for_keeps_the_stamp():
-    # The name still originates from the person, so they keep control of it.
+def test_a_rename_the_person_asked_for_keeps_the_stamp_and_bumps_the_revision():
+    # The name still originates from the person, so they keep control of it. The revision
+    # moves because the name did, which is what spends the authorization that allowed it.
     dbe = _apply(
         _dbe(name=_PERSON_NAME, tags=dict(_MANUAL_TAGS)),
         SessionNameSource.automatic,
         name="A name the person asked for",
         replacing_name=_PERSON_NAME,
+        replacing_revision=1,
     )
 
     assert dbe.name == "A name the person asked for"
     assert decode_name_source(dbe.tags) is SessionNameSource.manual
+    assert decode_name_revision(dbe.tags) == 2
+
+
+def test_repeating_the_stored_name_does_not_move_the_revision():
+    # Nothing changed, so nothing is spent.
+    dbe = _apply(
+        _dbe(name=_PERSON_NAME, tags=dict(_MANUAL_TAGS)),
+        SessionNameSource.automatic,
+        name=_PERSON_NAME,
+    )
+
+    assert decode_name_revision(dbe.tags) == 1
+
+
+def test_restoring_an_earlier_name_still_moves_the_revision():
+    # The string comes back; the revision does not. That is the whole reason it exists.
+    dbe = _dbe(name=_PERSON_NAME, tags=dict(_MANUAL_TAGS))
+    _apply(dbe, SessionNameSource.manual, name="A second name")
+    _apply(dbe, SessionNameSource.manual, name=_PERSON_NAME)
+
+    assert dbe.name == _PERSON_NAME
+    assert decode_name_revision(dbe.tags) == 3
+
+
+def test_a_junk_revision_reads_as_zero():
+    assert decode_name_revision({SESSION_NAME_REVISION_TAG_KEY: "two"}) == 0
+    assert decode_name_revision({SESSION_NAME_REVISION_TAG_KEY: True}) == 0
+    assert decode_name_revision(None) == 0
 
 
 def test_an_automatic_rename_of_an_unstamped_row_stays_unstamped():
     dbe = _apply(_dbe(name="auto title"), SessionNameSource.automatic, name=_AGENT_NAME)
 
     assert dbe.name == _AGENT_NAME
-    assert dbe.tags is None
+    assert decode_name_source(dbe.tags) is None
+    # The revision counts every name change, whoever made it, so it moves here too.
+    assert decode_name_revision(dbe.tags) == 1
 
 
 def test_a_description_only_edit_leaves_the_stamp_alone():
@@ -244,7 +338,7 @@ def test_clearing_the_title_removes_the_stamp():
     )
 
     assert dbe.name == ""
-    assert dbe.tags is None
+    assert decode_name_source(dbe.tags) is None
 
 
 def test_the_stamp_keeps_the_caller_owned_tags():
@@ -283,7 +377,7 @@ def test_a_create_from_an_automatic_caller_is_unstamped():
         ),
     )
 
-    assert dbe.tags is None
+    assert decode_name_source(dbe.tags) is None
 
 
 def test_the_stamp_never_reaches_a_client():
@@ -358,6 +452,7 @@ class _FakeStreamsDAO:
             session_id=session_id,
             current_name=self.row.name,
             current_source=decode_name_source(self.row.tags),
+            current_revision=decode_name_revision(self.row.tags),
             header=header,
             name_source=name_source,
         )
@@ -384,12 +479,12 @@ def _service(lock_engine, dao) -> SessionStreamsService:
     return SessionStreamsService(streams_dao=dao, lock_engine=lock_engine)
 
 
-async def _rename(service, *, name, source, replacing=None):
+async def _rename(service, *, name, source, replacing=None, revision=None):
     return await service.set_header(
         project_id=_PROJECT,
         user_id=None,
         session_id=_SESSION,
-        header=_edit(name=name, replacing_name=replacing),
+        header=_edit(name=name, replacing_name=replacing, replacing_revision=revision),
         name_source=source,
     )
 
@@ -478,7 +573,7 @@ async def test_an_automatic_rename_on_a_missing_row_is_not_refused(lock_engine):
 
     await _rename(service, name=_AGENT_NAME, source=SessionNameSource.automatic)
 
-    assert dao.row.tags is None
+    assert decode_name_source(dao.row.tags) is None
     assert dao.row.name == _AGENT_NAME
 
 
@@ -521,6 +616,7 @@ async def test_a_rename_the_person_asked_for_does_not_open_the_door(lock_engine)
         name="A name the person asked for",
         source=SessionNameSource.automatic,
         replacing=_PERSON_NAME,
+        revision=decode_name_revision(dao.row.tags),
     )
 
     with pytest.raises(SessionNameProtected):
@@ -545,10 +641,64 @@ async def test_a_pending_asked_for_rename_is_invalidated_by_a_newer_one(lock_eng
             name="A name the person asked for",
             source=SessionNameSource.automatic,
             replacing=_PERSON_NAME,
+            revision=1,
         )
 
     assert raised.value.code == "session_name_changed"
     assert dao.row.name == "A newer name"
+
+
+@pytest.mark.asyncio
+async def test_an_authorization_cannot_be_spent_twice(lock_engine):
+    # The person names it A, asks for B, gets B, then puts A back. Replaying the very same
+    # authorized call must not take B again: the name matches, the revision does not.
+    dao = _FakeStreamsDAO(_dbe(name=None))
+    service = _service(lock_engine, dao)
+
+    await _rename(service, name=_PERSON_NAME, source=SessionNameSource.manual)
+    spent = decode_name_revision(dao.row.tags)
+    await _rename(
+        service,
+        name="A name the person asked for",
+        source=SessionNameSource.automatic,
+        replacing=_PERSON_NAME,
+        revision=spent,
+    )
+    await _rename(service, name=_PERSON_NAME, source=SessionNameSource.manual)
+
+    with pytest.raises(SessionNameProtected) as raised:
+        await _rename(
+            service,
+            name="A name the person asked for",
+            source=SessionNameSource.automatic,
+            replacing=_PERSON_NAME,
+            revision=spent,
+        )
+
+    assert raised.value.code == "session_name_changed"
+    assert dao.row.name == _PERSON_NAME
+
+
+@pytest.mark.asyncio
+async def test_an_automatic_clear_cannot_strip_the_protection(lock_engine):
+    # Clearing the name would leave the row with nothing for the guard to compare against,
+    # and the next automatic rename would sail through.
+    dao = _FakeStreamsDAO(_dbe(name=None))
+    service = _service(lock_engine, dao)
+
+    await _rename(service, name=_PERSON_NAME, source=SessionNameSource.manual)
+    with pytest.raises(SessionNameProtected):
+        await _rename(
+            service,
+            name="",
+            source=SessionNameSource.automatic,
+            replacing=_PERSON_NAME,
+            revision=decode_name_revision(dao.row.tags),
+        )
+
+    with pytest.raises(SessionNameProtected):
+        await _rename(service, name=_AGENT_NAME, source=SessionNameSource.automatic)
+    assert dao.row.name == _PERSON_NAME
 
 
 # ---------------------------------------------------------------------------

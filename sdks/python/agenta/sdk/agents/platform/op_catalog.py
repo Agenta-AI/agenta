@@ -1452,7 +1452,7 @@ _RENAME_SESSION_DESCRIPTION = """Name and describe the session you are running i
 
 `description` is the current state: a short recap of what has happened and what is open, one to one and a half sentences, short enough to read inside a table cell.
 
-If a person named the session themselves, this tool refuses and gives you their name. Adopt that name and move on. Only when the person asks you for a different name, call it again with `replacing_name` set to the exact name the refusal gave you. That rename lands only while the session is still called that, so a request the person has since overtaken cannot take effect later.
+If a person named the session themselves, this tool refuses and gives you their name. Adopt that name and move on. Only when the person asks you for a different name, call it again with `replacing_name` and `replacing_revision` copied from that refusal. Those spend the request on one particular state of the session, so a rename the person has since overtaken or undone cannot take effect later.
 
 This renames the session you are in and no other one. It works only inside a session."""
 
@@ -1472,7 +1472,11 @@ _RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
         },
         "replacing_name": {
             "type": "string",
-            "maxLength": 120,
+            "maxLength": 400,
+        },
+        "replacing_revision": {
+            "type": "integer",
+            "minimum": 1,
         },
     },
     "required": ["name"],

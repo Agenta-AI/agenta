@@ -26,21 +26,26 @@ def refuse_name_change(
     session_id: str,
     current_name: Optional[str],
     current_source: Optional[SessionNameSource],
+    current_revision: int,
     header: SessionStreamHeaderEdit,
     name_source: SessionNameSource,
 ) -> None:
-    """Raise :class:`SessionNameProtected` when this edit must not replace the stored name.
+    """Raise :class:`SessionNameProtected` when this edit must not change the stored name.
 
-    Five things pass, and each one is a case the guard would break if it refused:
+    Four things pass, and each one is a case the guard would break if it refused:
 
     - A manual edit. A person always wins; that is the point.
     - An edit that sets no name. It changes only the description, which no person authored.
     - A row with no name, or a name no person chose. There is nothing to protect.
     - An edit whose name already equals the stored one. It changes nothing, so refusing it
       would teach the agent that a correct call failed.
-    - An edit naming the exact name it replaces. The person asked for this rename and the
-      session has not been renamed since, which is the only state in which that request is
-      still the one the person made.
+
+    And one more, the narrow authorized case: an edit naming the exact name AND revision it
+    replaces. The person asked for this rename, and the session has not moved since, which is
+    the only state in which that request is still the one the person made. Both halves are
+    load-bearing. Without the name, a guessable counter would be enough to get through.
+    Without the revision, restoring an earlier name would revive a request that already ran
+    against it, and the person would watch their name change back a second time.
     """
     if name_source is SessionNameSource.manual:
         return
@@ -52,14 +57,32 @@ def refuse_name_change(
         return
     if header.name == current_name:
         return
-    if header.replacing_name is not None:
-        if header.replacing_name == current_name:
-            return
-        # The caller named a name it is no longer replacing. Its authorization was for the
-        # old name, so it does not carry over to whatever the session is called now.
+    if not header.name:
+        # An automatic caller has no legitimate reason to remove a name, and the `name`
+        # schema the agent sees forbids it. Letting one through would leave the row with an
+        # empty name, which every later automatic rename walks straight past.
         raise SessionNameProtected(
             session_id,
             current_name,
+            name_revision=current_revision,
+            clearing=True,
+        )
+    if header.replacing_name is not None or header.replacing_revision is not None:
+        if (
+            header.replacing_name == current_name
+            and header.replacing_revision == current_revision
+        ):
+            return
+        # The caller named a state this session has left. Its authorization was for that
+        # state, so it does not carry over to wherever the session is now.
+        raise SessionNameProtected(
+            session_id,
+            current_name,
+            name_revision=current_revision,
             stale_precondition=True,
         )
-    raise SessionNameProtected(session_id, current_name)
+    raise SessionNameProtected(
+        session_id,
+        current_name,
+        name_revision=current_revision,
+    )

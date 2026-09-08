@@ -290,7 +290,12 @@ async def test_rename_session_emits_a_bound_direct_call(connection):
     assert spec.read_only is False
 
     schema = get_platform_op("rename_session").resolved_input_schema()
-    assert set(schema["properties"]) == {"name", "description", "replacing_name"}
+    assert set(schema["properties"]) == {
+        "name",
+        "description",
+        "replacing_name",
+        "replacing_revision",
+    }
     assert schema["required"] == ["name"]
     assert spec.input_schema == schema
 

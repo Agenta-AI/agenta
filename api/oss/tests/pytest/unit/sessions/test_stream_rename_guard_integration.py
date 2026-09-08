@@ -21,6 +21,7 @@ from oss.src.core.sessions.streams.dtos import (
 )
 from oss.src.core.sessions.streams.types import SessionNameProtected
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
+from oss.src.dbs.postgres.sessions.streams.mappings import decode_name_revision
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
@@ -120,14 +121,33 @@ async def _seed(scope, *, name=None, name_source=None) -> tuple[SessionStreamsDA
     return dao, session_id
 
 
-async def _rename(dao, scope, session_id, *, name, name_source, replacing=None):
+async def _rename(
+    dao, scope, session_id, *, name, name_source, replacing=None, revision=None
+):
     return await dao.update_header(
         project_id=scope["project_id"],
         user_id=scope["user_id"],
         session_id=session_id,
-        header=SessionStreamHeaderEdit(name=name, replacing_name=replacing),
+        header=SessionStreamHeaderEdit(
+            name=name, replacing_name=replacing, replacing_revision=revision
+        ),
         name_source=name_source,
     )
+
+
+async def _revision(dao, scope, session_id) -> int:
+    """The row's live name revision, read the way the guard reads it."""
+    async with dao.engine.session() as session:
+        row = (
+            await session.execute(
+                text(
+                    "SELECT tags FROM session_streams"
+                    " WHERE project_id = :project_id AND session_id = :session_id"
+                ),
+                {"project_id": scope["project_id"], "session_id": session_id},
+            )
+        ).first()
+    return decode_name_revision(row[0] if row else None)
 
 
 async def _stored(dao, scope, session_id):
@@ -176,7 +196,7 @@ async def test_a_rename_that_commits_mid_flight_is_not_overwritten(rename_scope)
         await holder.execute(
             text(
                 "UPDATE session_streams SET name = :name,"
-                " tags = jsonb_build_object('ag.name.source', 'manual')"
+                " tags = jsonb_build_object('ag.name.source', 'manual', 'ag.name.rev', 1)"
                 " WHERE project_id = :project_id AND session_id = :session_id"
             ),
             {
@@ -253,6 +273,7 @@ async def test_a_rename_the_person_asked_for_lands_and_stays_protected(rename_sc
         name="A name the person asked for",
         name_source=SessionNameSource.automatic,
         replacing=_PERSON_NAME,
+        revision=await _revision(dao, rename_scope, session_id),
     )
 
     stored = await _stored(dao, rename_scope, session_id)
@@ -289,11 +310,83 @@ async def test_a_stale_asked_for_rename_is_refused(rename_scope):
             name="A name the person asked for",
             name_source=SessionNameSource.automatic,
             replacing=_PERSON_NAME,
+            revision=1,
         )
 
     assert raised.value.code == "session_name_changed"
     stored = await _stored(dao, rename_scope, session_id)
     assert stored.name == "A newer name"
+
+
+async def test_an_authorization_cannot_be_spent_twice(rename_scope):
+    # The person names it A, asks for B, gets B, then restores A themselves. Replaying the
+    # identical authorized call must not take B back: the name matches again, the revision
+    # never will.
+    dao, session_id = await _seed(
+        rename_scope, name=_PERSON_NAME, name_source=SessionNameSource.manual
+    )
+    spent = await _revision(dao, rename_scope, session_id)
+
+    await _rename(
+        dao,
+        rename_scope,
+        session_id,
+        name="A name the person asked for",
+        name_source=SessionNameSource.automatic,
+        replacing=_PERSON_NAME,
+        revision=spent,
+    )
+    await _rename(
+        dao,
+        rename_scope,
+        session_id,
+        name=_PERSON_NAME,
+        name_source=SessionNameSource.manual,
+    )
+
+    with pytest.raises(SessionNameProtected) as raised:
+        await _rename(
+            dao,
+            rename_scope,
+            session_id,
+            name="A name the person asked for",
+            name_source=SessionNameSource.automatic,
+            replacing=_PERSON_NAME,
+            revision=spent,
+        )
+
+    assert raised.value.code == "session_name_changed"
+    stored = await _stored(dao, rename_scope, session_id)
+    assert stored.name == _PERSON_NAME
+
+
+async def test_an_automatic_clear_cannot_strip_the_protection(rename_scope):
+    dao, session_id = await _seed(
+        rename_scope, name=_PERSON_NAME, name_source=SessionNameSource.manual
+    )
+
+    with pytest.raises(SessionNameProtected) as raised:
+        await _rename(
+            dao,
+            rename_scope,
+            session_id,
+            name="",
+            name_source=SessionNameSource.automatic,
+            replacing=_PERSON_NAME,
+            revision=await _revision(dao, rename_scope, session_id),
+        )
+    assert raised.value.code == "session_name_clear_is_manual"
+
+    with pytest.raises(SessionNameProtected):
+        await _rename(
+            dao,
+            rename_scope,
+            session_id,
+            name=_AGENT_NAME,
+            name_source=SessionNameSource.automatic,
+        )
+    stored = await _stored(dao, rename_scope, session_id)
+    assert stored.name == _PERSON_NAME
 
 
 async def test_a_heartbeat_never_erases_the_stamp(rename_scope):

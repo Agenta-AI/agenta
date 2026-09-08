@@ -61,6 +61,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
     map_stream_query_result,
     map_stream_dto_to_dbe_create,
     map_stream_dto_to_dbe_edit,
+    decode_name_revision,
     decode_name_source,
     map_stream_dto_to_dbe_header_edit,
 )
@@ -713,7 +714,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                     SessionStreamDBE.session_id == session_id,
                     SessionStreamDBE.deleted_at.is_(None),
                 )
-                .with_for_update()
+                .with_for_update(key_share=True)
             )
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
@@ -723,6 +724,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                 session_id=session_id,
                 current_name=dbe.name,
                 current_source=decode_name_source(dbe.tags),
+                current_revision=decode_name_revision(dbe.tags),
                 header=header,
                 name_source=name_source,
             )
