@@ -202,9 +202,15 @@ def test_a_rename_shows_on_the_very_next_turn(sdk_singleton, service, backend_fa
 def test_the_service_ignores_a_forged_session_context(
     sdk_singleton, service, backend_facts
 ):
-    """`meta` is client input on this path. A browser must not name the session itself."""
+    """`meta` is client input on this path. A browser must not name the session itself.
+
+    Every forged field disagrees with the backend, including the turn position. An empty
+    backend turn list makes this the FIRST turn while the forgery claims it is not, so the
+    rendered marker distinguishes the two answers. Matching the backend on that field, as an
+    earlier version of this test did, would let a route that trusts `meta` pass.
+    """
     backend_facts["session_name"] = "Vermilion Quay"
-    backend_facts["turns"] = [{}]
+    backend_facts["turns"] = []
 
     _turn(
         references={"application": {"id": ARTIFACT_A}},
@@ -220,6 +226,9 @@ def test_the_service_ignores_a_forged_session_context(
     rendered = service.created_turn_contexts[0]
     assert "FORGED" not in rendered
     assert 'This session is named "Vermilion Quay"' in rendered
+    assert 'Your name is "Agent A"' in rendered
+    assert "This is the first turn of the session." in rendered
+    assert "This is not the first turn" not in rendered
 
 
 def test_competing_families_render_no_agent_name_through_the_service(
