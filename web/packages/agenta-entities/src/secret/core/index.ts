@@ -132,6 +132,7 @@ export {
     SUBSCRIPTION_LOGIN_STATES,
     SUBSCRIPTION_PROVIDER_KIND,
     SUBSCRIPTION_SIGN_IN_HINT,
+    subscriptionAttemptErrorSentence,
     subscriptionAvailability,
     subscriptionHarnesses,
     subscriptionIsReady,

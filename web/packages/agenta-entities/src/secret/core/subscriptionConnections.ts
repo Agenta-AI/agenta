@@ -102,6 +102,31 @@ const subscriptionFailureSentence = (provider: string, reason: string): string =
 }
 
 /**
+ * A failed sign-in ATTEMPT in a sentence.
+ *
+ * The attempt's error is a machine slug too, and a different vocabulary from the row's: it
+ * comes from the device flow (`access_denied`, `expired_token`), from the API (the attempt is
+ * gone), or from the runner (`login_failed`). Printing it puts `login_failed` in front of a
+ * user. Every one of them ends the same way — start the sign-in again — so the mapping says
+ * what happened and an unknown slug falls back to the general case.
+ */
+export const subscriptionAttemptErrorSentence = (
+    reason: string | null | undefined,
+    provider = "chatgpt",
+): string => {
+    const product = subscriptionProviderName(provider)
+    if (!reason) return "The sign-in did not complete. Try again."
+    if (reason.startsWith("attempt not found"))
+        return "Agenta lost track of that sign-in. Start it again."
+    if (reason === "invalid_login")
+        return `${product} returned a sign-in Agenta cannot use. Try again.`
+    if (reason === "access_denied") return `The ${product} sign-in was declined.`
+    if (reason === "expired_token" || reason === "expired")
+        return "The sign-in code expired. Start again."
+    return "The sign-in did not complete. Try again."
+}
+
+/**
  * What the row says about itself under its name — one short line per state.
  *
  * `needs_login` keeps "Sign in needed" as the status word and adds the reason as a sentence. A row

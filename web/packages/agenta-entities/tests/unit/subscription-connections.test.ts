@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     buildAgentModelCandidates,
     isSubscriptionConnection,
+    subscriptionAttemptErrorSentence,
     subscriptionAvailability,
     subscriptionStatusLine,
     toProviderConnections,
@@ -217,6 +218,50 @@ describe("subscriptionStatusLine", () => {
                 loginError: "refresh_rejected",
             }),
         ).toBe("Sign in needed. The grok sign-in is no longer valid.")
+    })
+})
+
+describe("subscriptionAttemptErrorSentence", () => {
+    it("says what happened, never the slug the server used", () => {
+        for (const reason of [
+            "login_failed",
+            "access_denied",
+            "expired_token",
+            "invalid_login",
+            "attempt not found; try again",
+            "something_the_runner_invented",
+        ]) {
+            const sentence = subscriptionAttemptErrorSentence(reason)
+            expect(sentence).not.toContain(reason)
+            expect(sentence.endsWith(".")).toBe(true)
+        }
+    })
+
+    it("tells a lost attempt apart from a declined one", () => {
+        expect(subscriptionAttemptErrorSentence("attempt not found; try again")).toBe(
+            "Agenta lost track of that sign-in. Start it again.",
+        )
+        expect(subscriptionAttemptErrorSentence("access_denied")).toBe(
+            "The ChatGPT sign-in was declined.",
+        )
+        expect(subscriptionAttemptErrorSentence("expired_token")).toBe(
+            "The sign-in code expired. Start again.",
+        )
+    })
+
+    it("has a sentence for an attempt that ended with no reason at all", () => {
+        expect(subscriptionAttemptErrorSentence(null)).toBe(
+            "The sign-in did not complete. Try again.",
+        )
+        expect(subscriptionAttemptErrorSentence(undefined)).toBe(
+            "The sign-in did not complete. Try again.",
+        )
+    })
+
+    it("names the product the connection is for", () => {
+        expect(subscriptionAttemptErrorSentence("access_denied", "grok")).toBe(
+            "The grok sign-in was declined.",
+        )
     })
 })
 

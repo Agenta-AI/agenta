@@ -32,6 +32,7 @@ import {
     loginAttemptQueryAtomFamily,
     refreshVaultSecretsAtom,
     startSubscriptionLoginAtom,
+    subscriptionAttemptErrorSentence,
     subscriptionProviderName,
     subscriptionStatusLine,
     type ProviderConnection,
@@ -129,7 +130,7 @@ const SubscriptionConnectionCard = ({
     const outcome = pending
         ? loginAttemptOutcome({
               state: attemptState,
-              unreadable: Boolean(attemptQuery.error),
+              error: attemptQuery.error,
               startedAt: pending.startedAt,
               now,
           })
@@ -178,11 +179,12 @@ const SubscriptionConnectionCard = ({
             setError("The sign-in did not finish in time. Start it again.")
             return
         }
+        // The server's reason is a slug (`login_failed`, `access_denied`), which is a log line
+        // rather than an explanation, so it is said in words here.
         setError(
-            attemptQuery.data?.error ||
-                (attemptState === "expired"
-                    ? "The sign-in code expired. Start again."
-                    : "The sign-in did not complete. Try again."),
+            attemptState === "expired"
+                ? "The sign-in code expired. Start again."
+                : subscriptionAttemptErrorSentence(attemptQuery.data?.error, provider),
         )
     }, [
         attemptQuery.data?.error,
@@ -191,6 +193,7 @@ const SubscriptionConnectionCard = ({
         closeAttempt,
         outcome,
         pending,
+        provider,
         refreshVault,
     ])
 

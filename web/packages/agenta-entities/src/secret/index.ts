@@ -103,6 +103,7 @@ export {
     connectedRowSubtitle,
     connectionModelCount,
     mountedSubscriptionName,
+    subscriptionAttemptErrorSentence,
     subscriptionAvailability,
     subscriptionConnectionCandidates,
     subscriptionHarnesses,

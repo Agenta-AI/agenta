@@ -81,6 +81,17 @@ export const loginAttemptPollInterval = ({
 }
 
 /**
+ * Whether a failed poll means the ATTEMPT is gone, rather than that the request failed.
+ *
+ * Only a 404 says the server no longer knows this attempt, which is the recoverable ending. A
+ * network failure, a 502, or a 500 says nothing about the attempt at all: the sign-in may still
+ * be redeemable, so the poll keeps running. Reading every error as "gone" turned one dropped
+ * request into an abandoned sign-in.
+ */
+const attemptIsGone = (error: unknown): boolean =>
+    (error as {response?: {status?: number}} | null)?.response?.status === 404
+
+/**
  * What a card should DO about an attempt, given the last poll and the clock.
  *
  * The poll answers three ways and the clock answers a fourth, and each needs a different move, so
@@ -95,16 +106,17 @@ export type LoginAttemptOutcome = "waiting" | "succeeded" | "failed" | "unreadab
 
 export const loginAttemptOutcome = ({
     state,
-    unreadable = false,
+    error = null,
     startedAt,
     now = Date.now(),
 }: {
     state?: string | null
-    unreadable?: boolean
+    /** What the last poll threw, if it threw. Only a 404 ends the attempt. */
+    error?: unknown
     startedAt?: number
     now?: number
 }): LoginAttemptOutcome => {
-    if (unreadable) return "unreadable"
+    if (attemptIsGone(error)) return "unreadable"
     if (state === "succeeded") return "succeeded"
     if (isTerminalLoginAttemptState(state)) return "failed"
     if (startedAt && now - startedAt >= LOGIN_ATTEMPT_BACKSTOP_MS) return "timed_out"

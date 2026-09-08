@@ -135,12 +135,44 @@ describe("loginAttemptOutcome", () => {
      * the binding, so the next poll reads 404 exactly like a stranger's attempt id. The card must
      * ask the vault rather than show a failure over a connection that is ready.
      */
-    it("calls a poll it could not read unreadable, ahead of every other ending", () => {
-        expect(outcome({unreadable: true})).toBe("unreadable")
-        expect(outcome({unreadable: true, state: "failed"})).toBe("unreadable")
-        expect(outcome({unreadable: true, now: STARTED_AT + LOGIN_ATTEMPT_BACKSTOP_MS + 1})).toBe(
+    it("calls a poll whose attempt is gone unreadable, ahead of every other ending", () => {
+        const gone = {response: {status: 404}}
+        expect(outcome({error: gone})).toBe("unreadable")
+        expect(outcome({error: gone, state: "failed"})).toBe("unreadable")
+        expect(outcome({error: gone, now: STARTED_AT + LOGIN_ATTEMPT_BACKSTOP_MS + 1})).toBe(
             "unreadable",
         )
+    })
+
+    /**
+     * A dropped request and a 502 say nothing about the attempt: the code the user is typing may
+     * still be redeemable. Ending the sign-in on one of them threw away a working attempt, so the
+     * poll keeps running and the backstop is still the only clock that ends it.
+     */
+    it("keeps waiting through a request that failed for any other reason", () => {
+        for (const error of [
+            new Error("Network Error"),
+            {response: {status: 500}},
+            {response: {status: 502}},
+            {response: {status: 429}},
+            {message: "timeout of 0ms exceeded"},
+        ]) {
+            expect(outcome({error})).toBe("waiting")
+        }
+    })
+
+    it("still ends a transiently failing poll at the backstop", () => {
+        expect(
+            outcome({
+                error: {response: {status: 502}},
+                now: STARTED_AT + LOGIN_ATTEMPT_BACKSTOP_MS,
+            }),
+        ).toBe("timed_out")
+    })
+
+    it("still reports an ending the server gave while a later poll failed transiently", () => {
+        expect(outcome({error: {response: {status: 500}}, state: "succeeded"})).toBe("succeeded")
+        expect(outcome({error: {response: {status: 500}}, state: "cancelled"})).toBe("failed")
     })
 
     it("times out an attempt the server never ended, on the poll's own backstop", () => {
