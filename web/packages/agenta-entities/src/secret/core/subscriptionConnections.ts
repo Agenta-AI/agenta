@@ -1,24 +1,9 @@
-/**
- * Hosted subscription connections — the `subscription_provider` vault kind.
- *
- * A hosted subscription is a stored vault record like any other connection, but its credential is a
- * provider SIGN-IN rather than a key: the user signs in once with a device code and the login lives
- * encrypted on the row. The login never comes back to the browser, so a row reports only how usable
- * it is (`login_state`) and what it can run.
- *
- * This module holds the pure rules: the wire kind, the family and plan names, which harness names
- * which provider on a run, and the picker candidates a ready connection contributes. No React, no
- * atoms, no HTTP.
- *
- * Design: docs/design/hosted-subscription-connections/implementation-contract.md §1 and §4.
- */
+// Pure rules for the `subscription_provider` vault kind, whose credential is a sign-in the browser
+// never sees. Design: docs/design/hosted-subscription-connections/implementation-contract.md §1.
 
 import type {SubscriptionLoginFacts} from "@agenta/shared/types"
 
-/**
- * The vault kind. Not read off Fern's `SecretKind`: the generated client is regenerated from the
- * backend spec on its own cadence, and the picker must not go dark for a release because of it.
- */
+// Not read off Fern's `SecretKind`: a regenerated client must not take the picker dark.
 export const SUBSCRIPTION_PROVIDER_KIND = "subscription_provider"
 
 /** The three states the API publishes for a stored sign-in. */
@@ -35,17 +20,7 @@ const NAME_BY_SUBSCRIPTION_PROVIDER: Record<string, string> = {
     chatgpt: "ChatGPT",
 }
 
-/**
- * What a harness calls the provider when it runs on a subscription login.
- *
- * Pi drives a ChatGPT login through its own `openai-codex` provider id. The run config stores this
- * value as `agent.llm.provider`, and the server checks the (harness, provider, mode) triple, so a
- * wrong name fails the run.
- *
- * Pi is the only entry. Codex refuses a login file without an `id_token`, which the ChatGPT device
- * login never issues, so offering a Codex row would offer a run that cannot authenticate. The SDK
- * refuses the same pair at resolution. Add a harness here once its credential format is supported.
- */
+// The provider id a run carries. Pi only: Codex needs an `id_token` the device login never issues.
 const RUN_PROVIDER_BY_HARNESS: Record<string, string> = {
     pi_core: "openai-codex",
 }
@@ -59,12 +34,7 @@ export const subscriptionProviderFamily = (provider: string): string =>
 export const subscriptionProviderName = (provider: string): string =>
     NAME_BY_SUBSCRIPTION_PROVIDER[provider] ?? provider
 
-/**
- * The provider name a run carries, or `null` when this harness cannot use a subscription login.
- *
- * `null` is what keeps an unusable pair out of the picker: the caller drops the candidate rather
- * than offering a row whose run the server would refuse.
- */
+/** The run's provider name, or `null` to keep a pair the server would refuse out of the picker. */
 export const subscriptionRunProvider = (harness: string, _provider: string): string | null =>
     RUN_PROVIDER_BY_HARNESS[harness] ?? null
 
@@ -76,23 +46,11 @@ export const subscriptionIsReady = (
 /** The hint a not-ready subscription row shows in the model picker, and the card's status word. */
 export const SUBSCRIPTION_SIGN_IN_HINT = "Sign in needed"
 
-/**
- * The reasons that mean the stored sign-in is dead rather than merely stale.
- *
- * `login_unreadable` is a file the runner could not parse. `refresh_rejected` is the provider
- * refusing the refresh token. `refresh_status_*` carries an HTTP status from the same exchange.
- */
+// The reasons that mean the stored sign-in is dead rather than merely stale.
 const DEAD_LOGIN_REASONS = new Set(["login_unreadable", "refresh_rejected"])
 const DEAD_LOGIN_REASON_PREFIX = "refresh_status_"
 
-/**
- * The reason in a sentence a user can act on.
- *
- * The server's reason is a machine slug (`refresh_rejected`). It is safe to print, no token and no
- * path, but it is a log line, not an explanation: it tells the user nothing they can do. So the
- * known slugs map to one sentence each, and an unrecognized one falls back to the honest general
- * case rather than leaking a word the product never taught.
- */
+// The server's reason is a log-line slug, so it never reaches a user: map it to a sentence.
 const subscriptionFailureSentence = (provider: string, reason: string): string => {
     const product = subscriptionProviderName(provider)
     const isDead = DEAD_LOGIN_REASONS.has(reason) || reason.startsWith(DEAD_LOGIN_REASON_PREFIX)
@@ -101,15 +59,7 @@ const subscriptionFailureSentence = (provider: string, reason: string): string =
         : `The ${product} sign-in needs to be renewed.`
 }
 
-/**
- * A failed sign-in ATTEMPT in a sentence.
- *
- * The attempt's error is a machine slug too, and a different vocabulary from the row's: it
- * comes from the device flow (`access_denied`, `expired_token`), from the API (the attempt is
- * gone), or from the runner (`login_failed`). Printing it puts `login_failed` in front of a
- * user. Every one of them ends the same way — start the sign-in again — so the mapping says
- * what happened and an unknown slug falls back to the general case.
- */
+// Same for an attempt's error, which is a different slug vocabulary from the row's.
 export const subscriptionAttemptErrorSentence = (
     reason: string | null | undefined,
     provider = "chatgpt",
@@ -126,12 +76,7 @@ export const subscriptionAttemptErrorSentence = (
     return "The sign-in did not complete. Try again."
 }
 
-/**
- * What the row says about itself under its name — one short line per state.
- *
- * `needs_login` keeps "Sign in needed" as the status word and adds the reason as a sentence. A row
- * that reports no reason says only the status word: there is nothing to explain.
- */
+/** One short line per state, with the reason appended when the row carries one. */
 export const subscriptionStatusLine = (
     subscription: SubscriptionLoginFacts | null | undefined,
 ): string => {
@@ -156,16 +101,7 @@ export interface SubscriptionRowFacts {
 export const subscriptionHarnesses = (row: SubscriptionRowFacts): readonly string[] =>
     row.harnesses?.length ? row.harnesses : DEFAULT_SUBSCRIPTION_HARNESSES
 
-/**
- * What a hosted subscription row is worth to a surface narrowed to `harnessIds`.
- *
- * One rule for every surface that shows the row. `not_applicable` means the row has nothing to say
- * here — a ChatGPT subscription drives Pi, so an agent that runs only Claude gains nothing by
- * signing in, and telling it to sign in would be a false instruction. `sign_in_needed` is the only
- * state that earns a disabled row: it is the one the user can act on.
- *
- * An undefined `harnessIds` means no narrowing at all, so every row applies.
- */
+// `not_applicable` means signing in would not help this surface, so it must not be offered.
 export type SubscriptionAvailability = "ready" | "sign_in_needed" | "not_applicable"
 
 export const subscriptionAvailability = (

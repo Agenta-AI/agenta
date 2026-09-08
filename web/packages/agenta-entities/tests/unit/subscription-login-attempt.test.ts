@@ -130,11 +130,7 @@ describe("loginAttemptOutcome", () => {
         }
     })
 
-    /**
-     * A sign-in whose response was lost has already landed on the row, and the row then cleared
-     * the binding, so the next poll reads 404 exactly like a stranger's attempt id. The card must
-     * ask the vault rather than show a failure over a connection that is ready.
-     */
+    // A lost sign-in has already landed and cleared the binding, so 404 means ask the vault.
     it("calls a poll whose attempt is gone unreadable, ahead of every other ending", () => {
         const gone = {response: {status: 404}}
         expect(outcome({error: gone})).toBe("unreadable")
@@ -144,11 +140,7 @@ describe("loginAttemptOutcome", () => {
         )
     })
 
-    /**
-     * A dropped request and a 502 say nothing about the attempt: the code the user is typing may
-     * still be redeemable. Ending the sign-in on one of them threw away a working attempt, so the
-     * poll keeps running and the backstop is still the only clock that ends it.
-     */
+    // Any other failure says nothing about the attempt, so the backstop stays the only clock.
     it("keeps waiting through a request that failed for any other reason", () => {
         for (const error of [
             new Error("Network Error"),

@@ -1,15 +1,5 @@
-/**
- * Subscription device login — `/secrets/{secret_id}/login-attempts`.
- *
- * The browser never sees the sign-in itself. It starts an attempt, shows the user code the API
- * relays back, polls until the attempt reaches a terminal state, and can cancel it.
- *
- * TODO: move these three onto the Fern client once the generated `@agentaai/api-client` carries the
- * routes. They are new on the API and are not in the current bundle, so they ride the shared axios
- * instance here — the same base every non-Fern call in this package uses (`subscriptionStatus.ts`).
- *
- * Design: docs/design/hosted-subscription-connections/implementation-contract.md §2.
- */
+// Subscription device login. TODO: move onto the Fern client once it carries these routes.
+// Design: docs/design/hosted-subscription-connections/implementation-contract.md §2.
 
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {z} from "zod"
@@ -29,11 +19,7 @@ export type LoginAttemptState = (typeof LOGIN_ATTEMPT_STATES)[number]
 export const isTerminalLoginAttemptState = (state: string | null | undefined): boolean =>
     !!state && state !== "pending"
 
-/**
- * The floor on the poll interval, and what a response that names none falls back to. The device
- * code specification defines a slow-down answer, so polling faster than the server asks is never
- * an improvement.
- */
+// The poll floor: the device code spec answers slow-down, so faster than asked never helps.
 export const MIN_LOGIN_POLL_MS = 2000
 
 /** The attempt is abandoned after this long even if the server keeps answering `pending`. */
@@ -66,12 +52,7 @@ export async function startLoginAttempt({
     return safeParseWithLogging(loginAttemptSchema, response.data, "[startLoginAttempt]")
 }
 
-/**
- * Advance an attempt and read its state.
- *
- * A GET here is not a cache read: the API asks the runner every time, which is what turns a
- * completed browser sign-in into a stored login.
- */
+/** Advance an attempt: this GET asks the runner every time, which is what stores the login. */
 export async function fetchLoginAttempt({
     projectId,
     secretId,

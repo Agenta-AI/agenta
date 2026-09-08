@@ -1,26 +1,5 @@
-/**
- * The ChatGPT subscription card on the AI providers page.
- *
- * A hosted subscription is a connection whose credential is a SIGN-IN. There is nothing to type, so
- * the card is not a form: it has one verb per state, and a pending device login shows the code the
- * user types into ChatGPT.
- *
- * Four states, one line and one verb each:
- *   not connected  Connect ChatGPT
- *   pending        the user code, a copy button, Open ChatGPT, a countdown, Cancel
- *   ready          Connected, with Sign in again and Remove
- *   sign-in needed the reason the last run gave, with Sign in again and Remove
- *
- * Two endings are not the server's to report. A poll that cannot read its attempt asks the vault
- * instead: a sign-in whose response was lost has already landed on the row, so the connection is
- * what answers. A server that keeps saying `pending` past the backstop ends the attempt on screen
- * rather than leaving a countdown that has stopped counting.
- *
- * The poll lives in `@agenta/entities/secret`; this component only starts an attempt, renders what
- * the poll reports, and refetches the vault once the sign-in lands.
- *
- * Design: docs/design/hosted-subscription-connections/implementation-contract.md §4.
- */
+// The ChatGPT subscription card: a connection whose credential is a sign-in, so one verb per state
+// and no form. Design: docs/design/hosted-subscription-connections/implementation-contract.md §4.
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
@@ -119,12 +98,10 @@ const SubscriptionConnectionCard = ({
     const name = connection?.name || subscriptionProviderName(provider)
     const loginState = connection?.subscription?.loginState
     const isReady = loginState === "ready"
-    // A record can exist before any sign-in does, so the verb follows the SIGN-IN, not the record:
-    // "Sign in again" on a row that never held one reads as a failure that never happened.
+    // The verb follows the SIGN-IN, not the record: a row that never held one never failed.
     const hasSignedInBefore = !!loginState && loginState !== "pending_login"
 
-    // The poll only exists while an attempt does. `loginAttemptQueryAtomFamily("")` is disabled,
-    // which is what lets the hook stay unconditional.
+    // An empty key disables the query, which is what lets this hook stay unconditional.
     const attemptQuery = useAtomValue(loginAttemptQueryAtomFamily(pending?.pollKey ?? ""))
     const attemptState = attemptQuery.data?.state
     const outcome = pending
@@ -136,8 +113,7 @@ const SubscriptionConnectionCard = ({
           })
         : "waiting"
 
-    // One tick a second while an attempt is in flight: it drives the countdown, and it is what
-    // makes the backstop happen on screen rather than only inside the query.
+    // One tick a second: it drives the countdown and makes the backstop happen on screen.
     useEffect(() => {
         if (!pending) return
         const timer = window.setInterval(() => setNow(Date.now()), 1000)
@@ -152,14 +128,7 @@ const SubscriptionConnectionCard = ({
         [forgetAttempt],
     )
 
-    /**
-     * One ending per attempt, decided by `loginAttemptOutcome`.
-     *
-     * `unreadable` is the recoverable one: the sign-in most likely landed and the row cleared the
-     * binding, so the vault is asked and the card resolves from the connection. `timed_out` is the
-     * server never ending the attempt; stopping a timer is not an ending a person can see, so the
-     * attempt is closed here and said out loud.
-     */
+    // One ending per attempt: `unreadable` asks the vault, since the sign-in probably landed.
     useEffect(() => {
         if (!pending || outcome === "waiting") return
         const attempt = pending
@@ -179,8 +148,7 @@ const SubscriptionConnectionCard = ({
             setError("The sign-in did not finish in time. Start it again.")
             return
         }
-        // The server's reason is a slug (`login_failed`, `access_denied`), which is a log line
-        // rather than an explanation, so it is said in words here.
+        // The server's reason is a slug, so it is said in words here.
         setError(
             attemptState === "expired"
                 ? "The sign-in code expired. Start again."

@@ -1,18 +1,5 @@
-/**
- * Hosted subscription sign-in — state for the ChatGPT card.
- *
- * Three pieces: the atom that creates the vault record when the project has none, the poll that
- * advances one device login attempt, and the cancel.
- *
- * The poll is an `atomFamily` keyed by attempt id (several attempts can never overlap on one
- * connection, but a project with two connections gets two independent polls), it terminates on the
- * SERVER's state rather than on a client signal, and it refetches neither on focus nor on
- * reconnect — the device code specification defines a slow-down answer, so an extra request costs
- * more than it buys. Copied from `evaluationRunQueryAtomFamily`
- * (`web/oss/src/components/EvalRunDetails/atoms/table/run.ts`).
- *
- * Design: docs/design/hosted-subscription-connections/implementation-contract.md §4.
- */
+// Create, poll, and cancel one device login. The poll terminates on the SERVER's state.
+// Design: docs/design/hosted-subscription-connections/implementation-contract.md §4.
 
 import {getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -34,7 +21,7 @@ import type {CreateSecretDto} from "../core/types"
 
 import {createVaultSecretMutationAtom} from "./atoms"
 
-/** Which attempt a poll addresses. Both halves are needed: an attempt is polled through its own connection. */
+/** Which attempt a poll addresses: an attempt is polled through its own connection. */
 export interface LoginAttemptKey {
     secretId: string
     attemptId: string
@@ -42,13 +29,7 @@ export interface LoginAttemptKey {
     startedAt: number
 }
 
-/**
- * The family's parameter, as one string.
- *
- * `atomFamily` deduplicates by value, so the key has to BE the value — an object parameter would
- * make a fresh poll on every render. `|` separates: a secret id is a uuid and an attempt id carries
- * no pipe.
- */
+// A string, because `atomFamily` dedupes by value: an object would make a poll per render.
 export const loginAttemptKey = ({secretId, attemptId, startedAt}: LoginAttemptKey): string =>
     `${secretId}|${attemptId}|${startedAt}`
 
@@ -58,12 +39,7 @@ const parseLoginAttemptKey = (serialized: string): LoginAttemptKey | null => {
     return {secretId, attemptId, startedAt: Number(startedAt) || 0}
 }
 
-/**
- * The interval a poll should use next, given what the server last answered.
- *
- * Pulled out of the query options so the termination rules are testable without a query client:
- * `false` means stop, a number means poll again after that many milliseconds.
- */
+/** The next interval, or `false` to stop. Outside the query options so it is testable. */
 export const loginAttemptPollInterval = ({
     state,
     pollAfterMs,
@@ -80,28 +56,11 @@ export const loginAttemptPollInterval = ({
     return Math.max(pollAfterMs ?? MIN_LOGIN_POLL_MS, MIN_LOGIN_POLL_MS)
 }
 
-/**
- * Whether a failed poll means the ATTEMPT is gone, rather than that the request failed.
- *
- * Only a 404 says the server no longer knows this attempt, which is the recoverable ending. A
- * network failure, a 502, or a 500 says nothing about the attempt at all: the sign-in may still
- * be redeemable, so the poll keeps running. Reading every error as "gone" turned one dropped
- * request into an abandoned sign-in.
- */
+// Only a 404 says the attempt is gone; every other failure leaves it redeemable, so keep polling.
 const attemptIsGone = (error: unknown): boolean =>
     (error as {response?: {status?: number}} | null)?.response?.status === 404
 
-/**
- * What a card should DO about an attempt, given the last poll and the clock.
- *
- * The poll answers three ways and the clock answers a fourth, and each needs a different move, so
- * the choice lives here rather than in a component's effects — beside `loginAttemptPollInterval`,
- * which stops the poll on the same backstop.
- *
- * `unreadable` comes first because it is the recoverable one: a sign-in whose response was lost has
- * already landed on the row, and the next poll reads 404 exactly like a stranger's attempt id. The
- * caller asks the vault instead of showing a failure.
- */
+// What a card should DO, on the same backstop the poll stops on. `unreadable` wins: it recovers.
 export type LoginAttemptOutcome = "waiting" | "succeeded" | "failed" | "unreadable" | "timed_out"
 
 export const loginAttemptOutcome = ({
@@ -123,12 +82,7 @@ export const loginAttemptOutcome = ({
     return "waiting"
 }
 
-/**
- * The live state of one device login attempt.
- *
- * Refetches at the interval the server asked for, stops the moment the server reports a terminal
- * state, and stops again at the 15 minute backstop.
- */
+/** One attempt's live state: the server's interval, its terminal state, and the backstop. */
 export const loginAttemptQueryAtomFamily = atomFamily((serialized: string) =>
     atomWithQuery<LoginAttemptResponse | null>((get) => {
         const projectId = get(projectIdAtom)
@@ -166,12 +120,7 @@ export const forgetLoginAttemptAtom = atom(null, (_get, _set, serialized: string
     loginAttemptQueryAtomFamily.remove(serialized)
 })
 
-/**
- * The vault payload for a new subscription connection.
- *
- * Header name and provider only. Models, harnesses, and the sign-in state are the API's to fill —
- * the plan fixes the model list, and a browser must not get to state which harnesses may run it.
- */
+// Name and provider only: a browser must not get to state which harnesses may run it.
 export const buildSubscriptionSecretPayload = (provider: string, name: string): CreateSecretDto =>
     ({
         header: {name},

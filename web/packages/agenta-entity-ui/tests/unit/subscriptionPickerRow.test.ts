@@ -1,12 +1,5 @@
-/**
- * The hosted subscription's row in the agent model picker.
- *
- * Two rules the design turns on: a ready connection is a normal row whose models carry the record's
- * slug, and a connection whose sign-in is not usable still SHOWS, disabled, saying why. The second
- * one is the whole reason `buildConnectionPickerRows` looks at the connections and not only at the
- * candidates: a not-ready connection contributes no candidate, so it would otherwise vanish exactly
- * when the user needs to be told.
- */
+// The subscription's picker row: a not-ready connection contributes no candidate, so the rows are
+// built from the connections too, or it would vanish exactly when the user needs to be told.
 import {
     buildAgentModelCandidates,
     SecretKind,
@@ -111,13 +104,7 @@ describe("the hosted subscription row", () => {
     })
 })
 
-/**
- * The row explains a SIGN-IN, so it may only appear where a sign-in is the fix.
- *
- * A subscription can also be absent from the picker because the agent runs a harness it does not
- * drive. "Sign in needed" there is a false instruction: the user signs in and the row still never
- * comes back. `harnessIds` is what tells the two apart.
- */
+// The row may only appear where a sign-in is the fix, which is what `harnessIds` decides.
 describe("the hosted subscription row against the agent's harness", () => {
     const rowsWithoutCandidates = (loginState: string, harnessIds: string[]) =>
         buildConnectionPickerRows({

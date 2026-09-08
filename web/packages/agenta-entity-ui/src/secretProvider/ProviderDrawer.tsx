@@ -134,15 +134,8 @@ const ProviderDrawer = ({
     width = DRAWER_WIDTH,
 }: ProviderDrawerProps) => {
     const [view, setView] = useState<DrawerView>({level: "catalog"})
-    /**
-     * The connections the user actually connected. A manager-only one is not editable
-     * — saving it answers 409 — so it is neither counted nor listed, the same rule the Settings
-     * table applies. It stays in the `connections` prop the card reads, and in the callers' own
-     * lists, so the model picker and the "Connect key" gate keep counting it.
-     *
-     * A hosted subscription drops out of this list for the same reason: its credential is a
-     * sign-in, and the connection card here edits keys. It gets its own card below instead.
-     */
+    // Only what this card can edit: a manager-only connection 409s on save, and a subscription's
+    // credential is a sign-in. Both stay in `connections`, so the picker still counts them.
     const userConnections = useMemo(
         () =>
             connections.filter(
@@ -153,13 +146,7 @@ const ProviderDrawer = ({
         [connections],
     )
     const visibleCount = userConnections.length
-    /**
-     * The project's hosted subscription, when it has one.
-     *
-     * One per project per provider, so the first is the one. A project with none still gets the
-     * card: it is what the "Connect ChatGPT" verb lives on, and the chat's "Sign in again" opens
-     * this drawer expecting to find it.
-     */
+    // One per project, so the first is it. Null still renders the card: it carries the Connect verb.
     const hostedSubscription = useMemo(
         () => connections.find(isSubscriptionConnection) ?? null,
         [connections],
@@ -368,9 +355,8 @@ const ProviderDrawer = ({
                         label={isSettings ? undefined : "Add a provider"}
                         hint={isSettings ? undefined : "several connections per provider are fine"}
                     />
-                    {/* One section for both sign-in sources. The hosted card is not gated on
-                        `showSubscriptions`, which switches off the MOUNTED rows: a deployment that
-                        can mount nothing still runs a hosted subscription. */}
+                    {/* `showSubscriptions` gates the MOUNTED rows only: a deployment that mounts
+                        nothing still runs a hosted subscription. */}
                     {isPlayground ? (
                         <PlaygroundSubscriptionsSection
                             subscriptionDocsUrl={subscriptionDocsUrl}
