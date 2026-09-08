@@ -273,7 +273,11 @@ class SubscriptionLoginService:
                 retained["attempt"] = live
                 return None
 
-            return {"login_attempt": _stored_attempt(attempt), "login_error": None}
+            # `login_error` is not touched here. It says why the stored login stopped
+            # working, and starting a sign-in does not answer that: an attempt the user
+            # abandons leaves the row exactly as the failed run left it. The login that
+            # lands clears it.
+            return {"login_attempt": _stored_attempt(attempt)}
 
         await self._apply(
             project_id=project_id,
@@ -332,7 +336,6 @@ class SubscriptionLoginService:
                 secret_id=secret_id,
                 user_id=user_id,
                 attempt_id=attempt_id,
-                error=_ATTEMPT_NOT_FOUND_ERROR,
             )
             _log_attempt(secret_id, attempt_id, "failed", "not_found")
             return SubscriptionLoginAttemptView(
@@ -356,7 +359,6 @@ class SubscriptionLoginService:
                 secret_id=secret_id,
                 user_id=user_id,
                 attempt_id=attempt_id,
-                error=attempt.error,
             )
             _log_attempt(secret_id, attempt_id, attempt.state, "ended")
             return SubscriptionLoginAttemptView(
@@ -387,7 +389,6 @@ class SubscriptionLoginService:
                 secret_id=secret_id,
                 user_id=user_id,
                 attempt_id=attempt_id,
-                error=_INVALID_LOGIN_REASON,
             )
             log.warning(
                 "subscription.attempt",
@@ -426,7 +427,6 @@ class SubscriptionLoginService:
                 secret_id=secret_id,
                 user_id=user_id,
                 attempt_id=attempt_id,
-                error=None,
             )
 
         outcome = "stored" if attempt.login else "already_stored"
@@ -456,7 +456,6 @@ class SubscriptionLoginService:
             secret_id=secret_id,
             user_id=user_id,
             attempt_id=attempt_id,
-            error=None,
         )
 
         _log_attempt(secret_id, attempt_id, "cancelled", "ended")
@@ -640,19 +639,24 @@ class SubscriptionLoginService:
         secret_id: UUID,
         user_id: Optional[UUID],
         attempt_id: str,
-        error: Optional[str],
     ) -> None:
         """Clear the attempt, but only while the row still waits on this one.
 
         A late answer about an abandoned attempt must not clear the replacement the user
-        already started, and must not report its error against the new login.
+        already started.
+
+        The attempt's own error stays on the attempt view and never reaches `login_error`.
+        That field says why the STORED login stopped working, which is what the card turns
+        into a sentence: writing `login_failed` over `refresh_rejected` would tell a user
+        whose sign-in is dead that it merely needs renewing. Only the failure report writes
+        it, and only a new login clears it.
         """
 
         def build_changes(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
             if not _attempt_matches(stored, attempt_id):
                 return None
 
-            return {"login_attempt": None, "login_error": _clip(error)}
+            return {"login_attempt": None}
 
         await self._apply(
             project_id=project_id,

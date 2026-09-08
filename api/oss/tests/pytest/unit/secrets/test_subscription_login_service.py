@@ -404,12 +404,21 @@ class TestAttemptLifecycle:
         assert stored.data.login_generation == 1
         assert stored.data.login_attempt.id == "att-1"
 
-    async def test_a_failed_attempt_clears_the_attempt_and_records_the_reason(
+    async def test_a_failed_attempt_reports_its_reason_without_touching_the_row(
         self, vault, runner, service
     ):
+        """The attempt's error belongs to the attempt, not to the stored login.
+
+        `login_error` says why the login a run held stopped working. A sign-in the user did
+        not finish says nothing about that, so it must not overwrite it.
+        """
         secret = await _make_secret(
             vault,
-            {"login_attempt": {"id": "att-1", "expires_at": _later()}},
+            {
+                "login_attempt": {"id": "att-1", "expires_at": _later()},
+                "login_state": "needs_login",
+                "login_error": "refresh_rejected",
+            },
         )
         runner.next_attempt = RunnerLoginAttempt(
             attempt_id="att-1", state="failed", error="access_denied"
@@ -420,9 +429,10 @@ class TestAttemptLifecycle:
         )
 
         assert view.state == "failed"
+        assert view.error == "access_denied"
         stored = await _read(vault, secret.id)
         assert stored.data.login_attempt is None
-        assert stored.data.login_error == "access_denied"
+        assert stored.data.login_error == "refresh_rejected"
 
     async def test_an_attempt_the_runner_forgot_reads_as_failed(
         self, vault, runner, service
@@ -621,6 +631,83 @@ class TestTwoTabsStartAtOnce:
         # The redundant attempt is cancelled on the runner rather than left to expire.
         loser = "att-second" if views[0].attempt_id == "att-first" else "att-first"
         assert runner.deleted == [loser]
+
+
+class TestTheRunsReasonSurvivesAnAttempt:
+    """`login_error` says why the STORED login died. Only a run writes it.
+
+    The card turns it into a sentence: `refresh_rejected` reads "no longer valid", anything
+    else reads "needs to be renewed". A sign-in the user starts and abandons must not change
+    that sentence, because it answers a different question.
+    """
+
+    async def _dead_login(self, vault):
+        return await _make_secret(
+            vault,
+            {
+                "login": LOGIN,
+                "login_version": 2,
+                "login_generation": 1,
+                "login_state": "needs_login",
+                "login_error": "refresh_rejected",
+            },
+        )
+
+    async def test_a_cancelled_attempt_leaves_the_runs_reason_in_place(
+        self, vault, runner, service
+    ):
+        secret = await self._dead_login(vault)
+        runner.next_attempt = RunnerLoginAttempt(
+            attempt_id="att-1",
+            state="pending",
+            user_code="ABCD-EFGH",
+            expires_at=_later(),
+        )
+
+        started = await service.start_attempt(
+            project_id=PROJECT_ID, secret_id=secret.id, user_id=USER_ID
+        )
+        # Starting the sign-in does not answer why the old login died either.
+        assert (await _read(vault, secret.id)).data.login_error == "refresh_rejected"
+
+        await service.cancel_attempt(
+            project_id=PROJECT_ID,
+            secret_id=secret.id,
+            attempt_id=started.attempt_id,
+            user_id=USER_ID,
+        )
+
+        stored = (await _read(vault, secret.id)).data
+        assert stored.login_attempt is None
+        assert stored.login_state == SubscriptionLoginState.NEEDS_LOGIN
+        assert stored.login_error == "refresh_rejected"
+
+    async def test_the_sign_in_that_lands_is_what_clears_it(
+        self, vault, runner, service
+    ):
+        secret = await self._dead_login(vault)
+        runner.next_attempt = RunnerLoginAttempt(
+            attempt_id="att-1", state="pending", expires_at=_later()
+        )
+        started = await service.start_attempt(
+            project_id=PROJECT_ID, secret_id=secret.id, user_id=USER_ID
+        )
+
+        runner.next_attempt = RunnerLoginAttempt(
+            attempt_id=started.attempt_id,
+            state="succeeded",
+            login={**LOGIN, "refresh": "refresh-2"},
+        )
+        await service.read_attempt(
+            project_id=PROJECT_ID,
+            secret_id=secret.id,
+            attempt_id=started.attempt_id,
+            user_id=USER_ID,
+        )
+
+        stored = (await _read(vault, secret.id)).data
+        assert stored.login_state == SubscriptionLoginState.READY
+        assert stored.login_error is None
 
 
 class TestAPollThatOutlivesItsAttempt:
@@ -1062,7 +1149,8 @@ class TestAnUnusableDeviceLogin:
         assert stored.login_version == 0
         assert stored.login_generation == 0
         assert stored.login_attempt is None
-        assert stored.login_error == "invalid_login"
+        # The refusal is the attempt's, so it is reported on the attempt and nowhere else.
+        assert stored.login_error is None
 
 
 class TestReportedFailure:
