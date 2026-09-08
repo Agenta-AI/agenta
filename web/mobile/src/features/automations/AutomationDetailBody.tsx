@@ -1,3 +1,5 @@
+import type {ReactNode} from "react"
+
 import {AutomationAgentField} from "./AutomationAgentField"
 import {AutomationFailureBanner} from "./AutomationFailureBanner"
 import {AutomationInstructionField} from "./AutomationInstructionField"
@@ -39,6 +41,7 @@ export const AutomationDetailBody = ({
     onToggle,
     onDiscard,
     onSave,
+    actions,
 }: {
     /** The saved row — the identity half of the screen. */
     automation: Automation
@@ -59,13 +62,20 @@ export const AutomationDetailBody = ({
     onToggle: (next: boolean) => Promise<void>
     onDiscard: () => void
     onSave: () => void
+    /** Test run and the actions menu — on the title's line, not the page header. */
+    actions?: ReactNode
 }) => (
     <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px]">
-        <AutomationTitle
-            name={automation.name}
-            description={automation.description}
-            onRename={onRename}
-        />
+        <div className="flex min-w-0 items-start gap-2">
+            <AutomationTitle
+                name={automation.name}
+                description={automation.description}
+                onRename={onRename}
+            />
+            {actions ? (
+                <span className="ml-auto flex shrink-0 items-center gap-1.5">{actions}</span>
+            ) : null}
+        </div>
         <AutomationMetaRow
             active={automation.isActive}
             agentName={agentName}
