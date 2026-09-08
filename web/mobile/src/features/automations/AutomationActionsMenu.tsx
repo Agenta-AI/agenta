@@ -173,11 +173,13 @@ export const AutomationActionsMenu = ({
                             <DropdownMenuItem
                                 onSelect={() =>
                                     void router
-                                        .push(`${base}/automations/${automation.id}/runs`)
+                                        .push(`${base}/automations/${automation.id}`)
                                         .catch(() => undefined)
                                 }
                             >
                                 <ClockCounterClockwise aria-hidden size={14} />
+                                {/* The history lives on the automation now, so this is the
+                                    automation's own screen rather than a page of its own. */}
                                 View run history
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => void onToggle()}>

@@ -28,11 +28,11 @@ export const AutomationDetailBody = ({
     automation,
     preview,
     agentName,
-    runsHref,
+    runHistoryCaption = "",
+    onOpenRunHistory,
     className,
     hideSaveBar = false,
     failureReason = null,
-    runHistoryCaption = "",
     dirty,
     saving,
     onRename,
@@ -50,11 +50,12 @@ export const AutomationDetailBody = ({
     /** The saved row with the unsaved config written over it — what the fields render. */
     preview: Automation
     agentName: string | null
+    runHistoryCaption?: string
     /**
-     * Where the run history lives. Null on a surface that has no route for it (a drawer opened
-     * over the agent that owns the runs), which hides the card rather than linking nowhere.
+     * Opens the run history over this screen. Absent on a surface that has nowhere to put it
+     * (the drawer), which hides the card rather than offering a dead one.
      */
-    runsHref: string | null
+    onOpenRunHistory?: () => void
     /**
      * The frame this body sits in. Defaults to the page column a screen wants; a drawer passes
      * its own, because the drawer already owns the gutters.
@@ -63,7 +64,6 @@ export const AutomationDetailBody = ({
     /** The host renders the save bar itself — a drawer puts it in its own footer. */
     hideSaveBar?: boolean
     failureReason?: string | null
-    runHistoryCaption?: string
     /** The draft differs from what is saved, so the footer has something to offer. */
     dirty: boolean
     saving: boolean
@@ -117,7 +117,9 @@ export const AutomationDetailBody = ({
                 onCommit={onChangeInputs}
             />
         </div>
-        {runsHref ? <AutomationRunHistoryCard href={runsHref} caption={runHistoryCaption} /> : null}
+        {onOpenRunHistory ? (
+            <AutomationRunHistoryCard onOpen={onOpenRunHistory} caption={runHistoryCaption} />
+        ) : null}
         {/* Last on the page: the bar commits the whole screen, so it reads as the end of the
             form rather than a divider halfway down it. */}
         {dirty && !hideSaveBar ? (
