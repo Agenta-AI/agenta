@@ -594,6 +594,60 @@ describe("subscription-login route shape", () => {
     }
   });
 
+  it("answers 404, not 500, for an id with a malformed escape", async () => {
+    // `decodeURIComponent` throws on `%ZZ`. An id this runner never minted must read as 404, which
+    // the API translates to "expired", rather than as a server fault.
+    const provider = mockProvider();
+    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    try {
+      for (const method of ["GET", "DELETE"]) {
+        const res = await fetch(`${s.url}/subscription-login/attempts/%ZZ`, {
+          method,
+          headers: AUTH,
+        });
+        assert.equal(res.status, 404, `${method} on a malformed id`);
+      }
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("marks every answer no-store, so no cache keeps a code or a login", async () => {
+    const provider = mockProvider();
+    const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));
+    try {
+      const start = await fetch(`${s.url}/subscription-login/attempts`, {
+        method: "POST",
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ provider: PROVIDER }),
+      });
+      assert.equal(start.status, 200);
+      assert.equal(start.headers.get("cache-control"), "no-store");
+      const attemptId = ((await start.json()) as { attemptId: string }).attemptId;
+
+      provider.approve({ ...makeLogin() });
+      const succeeded = await getUntil(s.url, attemptId, "succeeded");
+      assert.notEqual(succeeded.login, undefined);
+
+      // The read that carries the login is the one that must never be cached.
+      const read = await fetch(
+        `${s.url}/subscription-login/attempts/${encodeURIComponent(attemptId)}`,
+        { headers: AUTH },
+      );
+      assert.equal(read.status, 200);
+      assert.equal(read.headers.get("cache-control"), "no-store");
+
+      const removed = await fetch(
+        `${s.url}/subscription-login/attempts/${encodeURIComponent(attemptId)}`,
+        { method: "DELETE", headers: AUTH },
+      );
+      assert.equal(removed.status, 204);
+      assert.equal(removed.headers.get("cache-control"), "no-store");
+    } finally {
+      await s.close();
+    }
+  });
+
   it("ignores a query string when reading the attempt id", async () => {
     const provider = mockProvider();
     const s = await listen(new SubscriptionLoginAttempts(provider.login, () => {}));

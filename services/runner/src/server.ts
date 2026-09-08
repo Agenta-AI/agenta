@@ -1123,7 +1123,13 @@ function subscriptionLoginAttemptId(url: string | undefined): string | undefined
   const path = (url ?? "").split("?")[0];
   if (!path.startsWith(`${SUBSCRIPTION_LOGIN_ROUTE}/`)) return undefined;
   const rest = path.slice(SUBSCRIPTION_LOGIN_ROUTE.length + 1);
-  return rest && !rest.includes("/") ? decodeURIComponent(rest) : undefined;
+  if (!rest || rest.includes("/")) return undefined;
+  try {
+    return decodeURIComponent(rest);
+  } catch {
+    // A malformed escape such as `%ZZ` is not an id this runner minted, so it reads as 404.
+    return undefined;
+  }
 }
 
 /**
@@ -1139,6 +1145,8 @@ async function handleSubscriptionLoginRoute(
 ): Promise<void> {
   const path = (req.url ?? "").split("?")[0];
   const attempts = subscriptionLoginAttempts();
+  // Every answer on this route carries a credential or a user code, so none of them may be cached.
+  res.setHeader("cache-control", "no-store");
 
   if (req.method === "POST" && path === SUBSCRIPTION_LOGIN_ROUTE) {
     let body: { provider?: unknown };
