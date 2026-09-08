@@ -212,13 +212,13 @@ export const FilterMenuPanel = ({
                     Nothing matches “{query.trim()}”.
                 </p>
             ) : (
-                blocks.map((block, blockIndex) => (
+                blocks.map((block) => (
                     <div
                         key={block.key}
-                        className={cn(
-                            "flex flex-col gap-px p-1",
-                            blockIndex > 0 && "border-0 border-t border-solid border-border",
-                        )}
+                        // No rule between the blocks: the sort and group rows are the same kind
+                        // of thing as the filters above them, and a line there read as a break
+                        // in a list that has none.
+                        className="flex flex-col gap-px p-1 pt-0 first:pt-1"
                     >
                         {block.entries.map((entry) => (
                             <FilterMenuRow
