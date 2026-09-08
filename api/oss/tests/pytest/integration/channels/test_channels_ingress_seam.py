@@ -60,6 +60,9 @@ class _FakeSlackAdapter:
 
     channel = "slack"
 
+    async def detect_deactivation(self, *, body: bytes) -> bool:
+        return False
+
     def __init__(self, *, installation_id: str, external_id: str = "Ev1"):
         self.installation_id = installation_id
         self.external_id = external_id

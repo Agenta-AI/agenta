@@ -260,6 +260,9 @@ class ChannelsIngressRouter:
             data=ChannelInboxEventData(
                 external_locator=inbound.external_locator,
                 processed=inbound.processed,
+                # The adapter's classification. Dropping it made every space a
+                # `group`, so a kind-level grant ("allow in DMs") never matched.
+                space_kind=inbound.space_kind,
             ),
         )
 

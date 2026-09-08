@@ -26,6 +26,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentData,
     ChannelConnectionCreate,
+    ChannelConnectionFlags,
     ChannelGrantCreate,
     ChannelGrantData,
     ChannelGrantEffect,
@@ -139,6 +140,9 @@ async def slack_seam(channels_scope):
                 "signing_secret": SIGNING_SECRET,
                 "bot_token": "xoxb-fake",
             },
+            # resolve refuses an unverified connection before it provisions a
+            # space; the service sets this on a real create, the DAO does not
+            flags=ChannelConnectionFlags(is_active=True, is_verified=True),
         ),
     )
 
