@@ -225,6 +225,13 @@ export interface RunTurnOptions {
   settleApprovalsThenPrompt?: {
     decisions: ResumeApprovalInput[];
   };
+  /**
+   * This turn IS the one automatic retry a hosted subscription recovery is allowed (contract
+   * amendment A1). Set only by `runTurn` on its own recursive call, and the flag is what makes the
+   * retry BOUNDED: a second authentication failure on the retried turn fails the turn instead of
+   * recovering again, so a connection that refuses every credential cannot loop.
+   */
+  subscriptionRetry?: boolean;
 }
 
 /**
@@ -323,6 +330,15 @@ export interface SessionEnvironment {
    * SQLite. Undefined when not a local managed Codex run.
    */
   codexSqliteHome: string | undefined;
+  /**
+   * How far this session has pushed its hosted subscription login back to the API.
+   *
+   * It lives on the ENVIRONMENT rather than in a module map so two sessions on one runner cannot
+   * suppress each other's push, and so a warm session that spans many turns keeps one moving
+   * floor instead of re-sending the same refreshed login after every turn. Undefined for every
+   * run that carries no subscription.
+   */
+  subscriptionPush?: import("./subscription-login.ts").SubscriptionPushState;
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is

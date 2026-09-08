@@ -63,6 +63,14 @@ import {
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
 import {
+  pushBackSubscriptionLoginForRun,
+  startSubscriptionLoginPublisher,
+} from "./subscription-login.ts";
+import {
+  isReplayBlockingEvent,
+  recoverSubscriptionAuthFailure,
+} from "./subscription-recovery.ts";
+import {
   classifyRunError,
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
   withinCredentialPropagationWindow,
@@ -240,6 +248,105 @@ export async function runTurn(
   // stop this turn's relay on EVERY exit path (a cleared sink must never orphan it).
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
   let activeTurn: CurrentTurn | undefined;
+  /**
+   * Has this turn produced anything the user has already seen, or anything the harness already did
+   * to the world?
+   *
+   * It is the ONE input to the replay decision on a hosted subscription recovery (contract
+   * amendment A1.3). A turn that has streamed text or run a tool is never replayed, whatever is
+   * wrong with the login, because replaying it would say the same things twice and run the same
+   * tools twice.
+   *
+   * A pure closure over a boolean, set from the single emit seam every harness event flows
+   * through. It is NOT I/O, so it does not touch the responder invariant above.
+   */
+  let emittedOutput = false;
+  /**
+   * Ask the subscription recovery what to do about a failure, or undefined when this run carries
+   * no subscription and when the failure is not about the login.
+   *
+   * Two call sites reach it, and BOTH are load-bearing. Pi does not throw a provider refusal: it
+   * records the refusal in its own transcript and ends the turn cleanly, so the ordinary path is
+   * the swallowed-error branch below and the `catch` is the exception. A live check on 2026-09-08
+   * found the swallowed branch unwired and a dead sign-in surfacing as an HTTP 500 with Pi's
+   * internal sentence in it.
+   */
+  const subscriptionRecovery = async (
+    err: unknown,
+  ): Promise<
+    Awaited<ReturnType<typeof recoverSubscriptionAuthFailure>> | undefined
+  > => {
+    const subscription = plan.credentials.subscription;
+    const home = plan.credentials.subscriptionHome;
+    if (!subscription || !home || !env.subscriptionPush) return undefined;
+    // A ONE-SHOT run has no `emit` sink, so `watchedEmit` never sees anything and the flag above
+    // stays false. Its events still exist — they are collected in the run's own log and returned
+    // in the result — and a tool call among them ran against the real world exactly as a streamed
+    // one did. Consult the log too, or the one-shot path would replay side effects the streaming
+    // path correctly refuses to replay.
+    const loggedOutput =
+      otel?.events().some((event) => isReplayBlockingEvent(event.type)) ?? false;
+    return recoverSubscriptionAuthFailure({
+      err,
+      subscription,
+      state: env.subscriptionPush,
+      home,
+      isDaytona: plan.isDaytona,
+      sandbox: env.sandbox as never,
+      // One retry per turn, and only while nothing has been shown or done. `opts
+      // .subscriptionRetry` is set by the recursive call below, so the retried turn recovers the
+      // login but never replays again.
+      replayable: !emittedOutput && !loggedOutput && !opts.subscriptionRetry,
+      api: {
+        apiBase: apiBase(),
+        authorization: credential(),
+        log: logger,
+      },
+      log: logger,
+    });
+  };
+  /**
+   * Run this turn again on the recovered login. The one automatic retry amendment A1 allows.
+   *
+   * Recursion rather than a loop: a turn owns a great deal of per-attempt state (trace, relay, run
+   * limits, approval store, permission responder) that a loop would have to rebuild by hand, and
+   * `opts.subscriptionRetry` bounds it to one.
+   *
+   * THE OUTER ATTEMPT'S `run` IS ABANDONED, NOT FINISHED, AND THAT IS THE POINT. `finish()` emits
+   * the terminal `done` frame, and a `done` before the retry's frames would end the client's
+   * stream mid-turn and leave the user looking at an empty answer. The abandoned trace costs one
+   * unexported span for an attempt that produced nothing; the retry opens its own.
+   *
+   * The `finally` below still runs for THIS attempt. Every disposal in it is idempotent and the
+   * push-back is floor-guarded, so it cannot undo the retry's work.
+   */
+  const retryTurnOnRecoveredLogin = async (): Promise<AgentRunResult> => {
+    logger(
+      "[subscription] retrying the turn once on the recovered ChatGPT sign-in",
+    );
+    // Hand the publisher over to the retry rather than running two on one file. Both would share
+    // this session's push floor and so could not double-push, but the second reader is pure cost.
+    subscriptionWatch?.stop();
+    subscriptionWatch = undefined;
+    return runTurn(env, request, emit, signal, {
+      ...opts,
+      subscriptionRetry: true,
+    });
+  };
+  const watchedEmit = (sink: EmitEvent): EmitEvent => {
+    return (event) => {
+      if (!emittedOutput && isReplayBlockingEvent(event.type)) {
+        emittedOutput = true;
+      }
+      sink(event);
+    };
+  };
+  /**
+   * Publish a refreshed subscription login the moment Pi writes it, not only at turn end
+   * (amendment A3). Started once the environment is known to hold a subscription, stopped on every
+   * exit path in the `finally`.
+   */
+  let subscriptionWatch: { stop: () => void } | undefined;
   const harnessTrace = createHarnessTracePort({
     env,
     request: () => request,
@@ -408,7 +515,7 @@ export async function runTurn(
       // Every emitted event is a progress signal for the idle/TTFB deadlines (message/thought
       // deltas, tool calls and results, usage, ...) — the one seam every harness's output flows
       // through. Per-tool-call timers are driven separately from `handleUpdate` below.
-      emit: emit && runLimits.wrapEmit(emit),
+      emit: emit && runLimits.wrapEmit(watchedEmit(emit)),
     });
     otel = run;
 
@@ -1022,6 +1129,18 @@ export async function runTurn(
         : undefined,
     });
 
+    // Start publishing a refreshed subscription login now that the responder is wired (amendment
+    // A3). It is a `fs.watch` locally and an interval on Daytona, so it costs nothing until Pi
+    // actually rewrites `auth.json`, and it is stopped on every exit path in the `finally`.
+    subscriptionWatch = startSubscriptionLoginPublisher({
+      plan,
+      state: env.subscriptionPush,
+      sandbox: env.sandbox,
+      apiBase: apiBase(),
+      authorization: credential(),
+      log: logger,
+    });
+
     // Non-Pi loopback tools use the correlation index; Pi's relay toolCallId is already exact.
     env.clientToolRelayRef.current = buildClientToolRelay({
       responder,
@@ -1479,7 +1598,17 @@ export async function runTurn(
         : undefined;
     let swallowedError: string | undefined;
     if (swallowedPiError) {
-      const classified = classifyRunError(
+      // THE ORDINARY PATH FOR A SUBSCRIPTION AUTH FAILURE ON PI. Pi does not throw a provider
+      // refusal; it writes the refusal into its transcript and ends the turn with `end_turn`, so
+      // the `catch` below never sees it. The recovery therefore has to run here as well, and the
+      // branch's own precondition (no visible output, no tool call) is exactly A1's replay rule.
+      const swallowedRecovery = await subscriptionRecovery(
+        new Error(swallowedPiError),
+      );
+      if (swallowedRecovery?.action === "retry") {
+        return await retryTurnOnRecoveredLogin();
+      }
+      const classified = swallowedRecovery?.classified ?? classifyRunError(
         new Error(swallowedPiError),
         plan.harness,
         request.modelConnection?.provider,
@@ -1589,7 +1718,7 @@ export async function runTurn(
       traceId: resultTraceId,
     } as AgentRunResult;
   } catch (err) {
-    const classified = classifyRunError(
+    let classified = classifyRunError(
       err,
       plan.harness,
       request.modelConnection?.provider,
@@ -1602,9 +1731,19 @@ export async function runTurn(
         daytonaCredentialFresh: reportCredentialRace,
       },
     );
+    // A hosted subscription run has no vault key, so the generic "add a key" advice would send the
+    // user after something this run never uses. It also does not have to fail at all: the runner
+    // asks the provider whether the login is really dead, asks the API whether a newer one exists,
+    // and replays the turn on the recovered credential when replaying is safe (contract amendments
+    // A1 and A2). Only when neither is true does a frame go out, and then with subscription copy.
+    const recovery = await subscriptionRecovery(err);
+    if (recovery?.action === "fail") classified = recovery.classified;
     const error = classified.message;
     await harnessTrace.cancelBeforeDrain();
     const traceFinish = await harnessTrace.finish();
+    if (recovery?.action === "retry") {
+      return await retryTurnOnRecoveredLogin();
+    }
     const nativeTraceBatches = traceFinish?.pickedUpBatches;
     // A valid native Pi batch already carries the harness failure. Otherwise preserve the
     // runner-owned error and usage fallback under the caller trace context.
@@ -1629,6 +1768,27 @@ export async function runTurn(
     await otel?.flush().catch(() => {});
     return { ok: false, error };
   } finally {
+    // Pi refreshes its own OAuth token mid-turn and writes the new one into the run's agent dir.
+    // That written file is the ONLY copy: the delivered login's refresh token is spent, and a
+    // sandbox that is torn down or evicted takes the new one with it. So the read-back runs on
+    // EVERY exit path — success, error, cancel — before anything below can release the sandbox.
+    //
+    // It is awaited rather than fired and forgotten. `finally` is the last moment the Daytona
+    // sandbox is guaranteed to be reachable, and a detached read against a deleted sandbox would
+    // silently lose the refresh. The cost is one small POST, and only when `expires` actually moved.
+    //
+    // The publisher stops FIRST: it reads the same file, and a read in flight while the sandbox is
+    // released would log a failure for a turn that ended cleanly.
+    subscriptionWatch?.stop();
+    subscriptionWatch = undefined;
+    await pushBackSubscriptionLoginForRun({
+      plan,
+      state: env.subscriptionPush,
+      sandbox: env.sandbox,
+      apiBase: apiBase(),
+      authorization: credential(),
+      log: logger,
+    });
     platformCredentialLease?.release();
     // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the
     // resolved-token set, so the ordered calls make this a no-op on the paths that took them, and

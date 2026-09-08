@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 
 import {
   type AgentRunRequest,
+  type ModelConnectionSubscription,
   type ResolvedToolSpec,
   type SandboxPermission,
   currentUserTurn,
@@ -100,6 +101,69 @@ export const LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE =
   "(Pi), CLAUDE_CONFIG_DIR (Claude), or CODEX_HOME (Codex) to a read-write mount of your harness login.";
 
 /**
+ * A delivered subscription block the runner cannot act on.
+ *
+ * The block carries the run's only credential, so a malformed one must stop the run rather than
+ * fall through to the operator-mount path — that path would authenticate as the OPERATOR, on
+ * someone else's connection, which is worse than a failed run.
+ */
+export const SUBSCRIPTION_INVALID_MESSAGE =
+  "modelConnection.subscription is invalid: it needs an id (letters, digits, '.', '_' or '-'), " +
+  "and a login with access, refresh, and a numeric expires.";
+
+/** The id doubles as a directory name, so it must be one plain path segment and nothing else. */
+const SUBSCRIPTION_ID_PATTERN = /^[A-Za-z0-9._-]{1,128}$/;
+
+/**
+ * Where this runner keeps state that outlives a single run but is not session data.
+ *
+ * A subscription login lands under it, one directory per connection. It is deliberately NOT the
+ * durable cwd: that is a geesefs mount into object storage, and a credential file there would be
+ * both visible to the agent's own tools and subject to the degraded-symlink and non-atomic-write
+ * hazards the Codex path already fights.
+ */
+export function runnerStateDir(): string {
+  return (
+    process.env.AGENTA_RUNNER_STATE_DIR?.trim() ||
+    join(tmpdir(), "agenta", "runner-state")
+  );
+}
+
+/**
+ * The agent dir holding one subscription's login for this run.
+ *
+ * Local: under the runner's own state dir. Daytona: on the sandbox's in-VM disk, a sibling of the
+ * Codex SQLite home, for the same reason that one is there — the geesefs cwd is the wrong
+ * filesystem for a file the harness rewrites in place.
+ *
+ * Keyed by connection id, so two connections never share a login file and a warm sandbox cannot
+ * serve the second one the first one's token.
+ */
+export function subscriptionHomeDir(id: string, isDaytona: boolean): string {
+  return isDaytona
+    ? `/home/sandbox/agenta/subscriptions/${id}`
+    : join(runnerStateDir(), "subscriptions", id);
+}
+
+/** Whether a delivered subscription block is usable. Shape only; the provider judges the token. */
+export function isUsableSubscription(
+  subscription: ModelConnectionSubscription | undefined,
+): boolean {
+  if (!subscription) return false;
+  if (!SUBSCRIPTION_ID_PATTERN.test(subscription.id ?? "")) return false;
+  const login = subscription.login;
+  if (typeof login !== "object" || login === null) return false;
+  return (
+    typeof login.access === "string" &&
+    !!login.access &&
+    typeof login.refresh === "string" &&
+    !!login.refresh &&
+    typeof login.expires === "number" &&
+    Number.isFinite(login.expires)
+  );
+}
+
+/**
  * How the run authenticates with the model provider. Everything here describes the credential
  * itself and how it is delivered, not where the run executes or what it asks the model to do.
  */
@@ -129,6 +193,21 @@ export interface RunPlanCredentials {
    * that request may still use the harness login. Drives clear-then-apply env (Security rule 5).
    */
   credentialMode?: string;
+  /**
+   * The hosted subscription connection this run authenticates from, when it has one. Present only
+   * alongside `credentialMode: "runtime_provided"`, and its presence is what separates a HOSTED
+   * subscription run (the login rides the request, Daytona allowed) from the OPERATOR-mount run
+   * this runner already served (the login is a mount on this box, local only).
+   *
+   * It holds the login itself. Nothing may put it in a log line, a trace, or an error message.
+   */
+  subscription?: ModelConnectionSubscription;
+  /**
+   * The agent dir this run's subscription login is materialized into. Set together with
+   * `subscription` and never without it. Local runs get a runner-state path; Daytona runs get the
+   * in-VM path the sandbox writes to. See `subscriptionHomeDir`.
+   */
+  subscriptionHome?: string;
 }
 
 /**
@@ -505,20 +584,36 @@ export function buildRunPlan(
   // ships one, and "unknown" must not silently behave like "reachable loopback".
   const isRemoteSandbox = sandboxId !== "local";
 
-  // Subscription (runtime_provided) auth is a LOCAL-only capability: the harness reads and refreshes
-  // its login on a read-write mount that lives in the runner container and is never shipped to a
-  // third-party sandbox. Reject Daytona + runtime_provided here, before any sandbox is created,
-  // rather than silently falling back to an unauthenticated remote run (interface.md sections 5-6).
+  // TWO SHAPES OF `runtime_provided`, told apart by `modelConnection.subscription`.
+  //
+  // HOSTED (the block is present): the API delivers the login with the request and the runner
+  // materializes it into a per-connection agent dir. Nothing is read off an operator mount, so the
+  // mount gate below does not apply, and the login CAN be delivered into a Daytona sandbox because
+  // it belongs to the project rather than to this box — which is what the old Daytona rejection
+  // existed to prevent.
+  //
+  // OPERATOR MOUNT (no block): unchanged. Local only, and the harness config var must name a
+  // read-write mount of the operator's own login.
   const requestCredentialMode = request.modelConnection?.credentialMode;
-  if (isDaytona && requestCredentialMode === "runtime_provided") {
-    return { ok: false, error: DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE };
-  }
-
-  // A local runtime_provided run authenticates from an explicitly mounted subscription; Codex
-  // reads its login from the CODEX_HOME mount too. If the harness config var is unset there is no
-  // mount to read, so fail up front rather than discovering the runner's own home (interface.md
-  // section 6). Managed ("env") / "none" runs are unaffected.
-  if (!isDaytona && requestCredentialMode === "runtime_provided") {
+  const requestSubscription = request.modelConnection?.subscription;
+  if (requestCredentialMode === "runtime_provided" && requestSubscription) {
+    // A malformed block is terminal. Falling through would run on the operator's mount instead,
+    // which authenticates as the wrong account.
+    if (!isUsableSubscription(requestSubscription)) {
+      return { ok: false, error: SUBSCRIPTION_INVALID_MESSAGE };
+    }
+  } else if (requestSubscription) {
+    // A subscription with any other credential mode is a caller that half-migrated. Refuse rather
+    // than pick one of the two credentials it now carries.
+    return {
+      ok: false,
+      error:
+        "modelConnection.subscription requires credentialMode 'runtime_provided'.",
+    };
+  } else if (requestCredentialMode === "runtime_provided") {
+    if (isDaytona) {
+      return { ok: false, error: DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE };
+    }
     const subscriptionEnvVar =
       acpAgent === "claude"
         ? "CLAUDE_CONFIG_DIR"
@@ -529,6 +624,8 @@ export function buildRunPlan(
       return { ok: false, error: LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE };
     }
   }
+  const subscription =
+    requestCredentialMode === "runtime_provided" ? requestSubscription : undefined;
 
   const materializedModel = materializeModelEnvironment(request);
   if (!materializedModel.ok) return materializedModel;
@@ -752,6 +849,10 @@ export function buildRunPlan(
         // delivered as a Secret attachment rather than plaintext env, but the harness still has it.
         hasApiKey: !!materializedModel.environment[harnessApiKeyVar],
         credentialMode: materializedModel.credentialMode,
+        subscription,
+        subscriptionHome: subscription
+          ? subscriptionHomeDir(subscription.id, isDaytona)
+          : undefined,
       },
       workspace: {
         cwd,

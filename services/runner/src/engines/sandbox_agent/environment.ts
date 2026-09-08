@@ -65,6 +65,8 @@ import {
 } from "./daytona.ts";
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { classifyRunError, conciseError, type RunErrorCode } from "./errors.ts";
+import { pushBackSubscriptionLoginForRun } from "./subscription-login.ts";
+import { recoverSubscriptionAuthFailure } from "./subscription-recovery.ts";
 import {
   awaitCredentialSubstitution,
   buildCredentialPreflightInput,
@@ -451,6 +453,7 @@ async function acquireEnvironmentOnce(
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
     localPiAgentDirUnwritable,
+    localSubscriptionError,
     logger,
     mcpAbort,
     piExtEnv,
@@ -513,6 +516,17 @@ async function acquireEnvironmentOnce(
       toolRelay: environment.currentTurn?.toolRelay,
       mcpAbort: environment.mcpAbort,
       closeToolMcp: environment.closeToolMcp,
+    });
+    // Session end, and the LAST moment a Daytona sandbox is still reachable. The turn path already
+    // pushed after every turn, so this is the backstop for a session torn down without one — an
+    // acquire that failed after the login was written, or an eviction between turns.
+    await pushBackSubscriptionLoginForRun({
+      plan,
+      state: environment.subscriptionPush,
+      sandbox: environment.sandbox,
+      apiBase: apiBase(),
+      authorization: runCred,
+      log: logger,
     });
     inFlightSandboxes.delete(environment);
     // Graceful `session/cancel` BEFORE tearing down the daemon, or the ACP adapter subprocess
@@ -630,6 +644,11 @@ async function acquireEnvironmentOnce(
     // also prevent extension installation, but rebuilding the image cannot repair mount ownership.
     if (localPiAgentDirUnwritable) {
       throw new Error(PI_AGENT_DIR_UNWRITABLE_MESSAGE);
+    }
+    // Fail closed before the harness starts: a hosted subscription run whose login could not be
+    // written would come up unauthenticated, and Pi never re-reads the file once it is running.
+    if (localSubscriptionError) {
+      throw localSubscriptionError;
     }
     // Fail closed before any sandbox/mount infra spins up: a local Pi run whose policy could gate a
     // built-in tool cannot proceed without the permission extension installed (Decision 2).
@@ -1390,6 +1409,21 @@ async function acquireEnvironmentOnce(
 
     throwIfAcquireAborted(signal);
 
+    // SELF-HEAL AT MATERIALIZE (contract amendment A3). The agent dir can already hold a login
+    // NEWER than the one this run was delivered: a previous turn refreshed it and its push never
+    // reached the API — the runner restarted, the sandbox was evicted, the network dropped. The
+    // materialize above deliberately kept that newer file, and this push is what finally gets it
+    // home, one run late instead of never. The floor in `subscriptionPush` makes it a no-op on
+    // every ordinary run, where the file holds exactly what was delivered.
+    await pushBackSubscriptionLoginForRun({
+      plan,
+      state: environment.subscriptionPush,
+      sandbox: environment.sandbox,
+      apiBase: apiBase(),
+      authorization: runCred,
+      log: logger,
+    });
+
     timingLog("acquire_total", acquireStartedAt);
     emit?.({
       type: "data",
@@ -1412,12 +1446,40 @@ async function acquireEnvironmentOnce(
     // added to acquire, this site needs BOTH the predicate and that counter.
     // The CLASS as well as the line, because acquire is now a user-facing failure surface: the
     // loop turns a classified code into the error event the client renders a retry state from.
-    const classified = classifyRunError(
+    let classified = classifyRunError(
       err,
       plan.harness,
       request.modelConnection?.provider,
       { authFault: () => describeCodexSubscriptionAuthFault(plan) },
     );
+    // Same substitution as the turn path: a hosted subscription run must never be told to add a
+    // vault key. Acquire itself makes no model call, but the harness starts here and a dead login
+    // can surface as a startup failure.
+    //
+    // `replayable: false` on purpose. There is no turn to replay at acquire, and the automatic
+    // retry of amendment A1 belongs to the turn path. The recovery still runs its provider check
+    // and its failure report, so the connection's own state ends up correct and the user gets the
+    // retry copy rather than a sign-in prompt whenever a newer login already exists.
+    const subscriptionForError = plan.credentials.subscription;
+    const subscriptionHomeForError = plan.credentials.subscriptionHome;
+    if (
+      subscriptionForError &&
+      subscriptionHomeForError &&
+      environment.subscriptionPush
+    ) {
+      const recovery = await recoverSubscriptionAuthFailure({
+        err,
+        subscription: subscriptionForError,
+        state: environment.subscriptionPush,
+        home: subscriptionHomeForError,
+        isDaytona: plan.isDaytona,
+        sandbox: environment.sandbox as never,
+        replayable: false,
+        api: { apiBase: apiBase(), authorization: runCred, log: logger },
+        log: logger,
+      });
+      if (recovery?.action === "fail") classified = recovery.classified;
+    }
     const error = classified.message;
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.

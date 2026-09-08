@@ -6,6 +6,8 @@
  *
  *   GET  /health              -> runner identity ({ status, runner, protocol, engines, harnesses })
  *   GET  /subscription-status -> one login state per harness (no paths, no credentials)
+ *   POST/GET/DELETE /subscription-login/attempts[/{id}] -> device-code login for a hosted
+ *                             subscription connection (the login is handed out once, to the API)
  *   POST /stream              -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
  *   POST /kill                -> best-effort, idempotent teardown, scoped to one { sessionId, projectId }
  *   POST /cancel              -> stop the CURRENT TURN of one session and keep it warm
@@ -78,6 +80,10 @@ import { publicApiBaseConfigured } from "./tracing/otel.ts";
 import { SessionPool } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
 import { subscriptionStatusResponse } from "./subscription-status.ts";
+import {
+  subscriptionLoginAttempts,
+  SUBSCRIPTION_LOGIN_PROVIDER,
+} from "./subscription-login-attempts.ts";
 import {
   assertRunnerToken,
   loadRunnerConfig,
@@ -1100,6 +1106,92 @@ function readBodyCapped(
   });
 }
 
+/** The route prefix every subscription-login request shares. */
+const SUBSCRIPTION_LOGIN_ROUTE = "/subscription-login/attempts";
+
+/** The start body is `{ provider }`. */
+const SUBSCRIPTION_LOGIN_BODY_MAX_BYTES = 4 * 1024;
+
+/**
+ * The attempt id inside a subscription-login URL, or undefined for the collection route.
+ *
+ * Parsed off the pathname with the query string dropped, so `?x=1` cannot smuggle a second
+ * segment, and rejected when it is not a single segment — an id is a uuid this runner minted, and
+ * anything with a slash in it is a caller probing for a different route.
+ */
+function subscriptionLoginAttemptId(url: string | undefined): string | undefined {
+  const path = (url ?? "").split("?")[0];
+  if (!path.startsWith(`${SUBSCRIPTION_LOGIN_ROUTE}/`)) return undefined;
+  const rest = path.slice(SUBSCRIPTION_LOGIN_ROUTE.length + 1);
+  return rest && !rest.includes("/") ? decodeURIComponent(rest) : undefined;
+}
+
+/**
+ * Serve the three device-login routes.
+ *
+ * The response bodies are the runner half of the contract in
+ * `docs/design/hosted-subscription-connections/implementation-contract.md` section 2. The API
+ * translates them for the browser; it is the only caller.
+ */
+async function handleSubscriptionLoginRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const path = (req.url ?? "").split("?")[0];
+  const attempts = subscriptionLoginAttempts();
+
+  if (req.method === "POST" && path === SUBSCRIPTION_LOGIN_ROUTE) {
+    let body: { provider?: unknown };
+    try {
+      const raw = await readBodyCapped(req, SUBSCRIPTION_LOGIN_BODY_MAX_BYTES);
+      body = raw.trim() ? JSON.parse(raw) : {};
+    } catch (err) {
+      if (err instanceof BodyTooLargeError) {
+        return send(res, 413, { ok: false, error: err.message });
+      }
+      return send(res, 400, { ok: false, error: "Invalid JSON" });
+    }
+    const provider =
+      typeof body.provider === "string" ? body.provider.trim() : "";
+    if (provider !== SUBSCRIPTION_LOGIN_PROVIDER) {
+      return send(res, 400, {
+        ok: false,
+        error: `provider must be '${SUBSCRIPTION_LOGIN_PROVIDER}'`,
+      });
+    }
+    try {
+      return send(res, 200, await attempts.start(provider));
+    } catch (err) {
+      // `start` already reduced the provider's message to a short reason word.
+      return send(res, 502, {
+        ok: false,
+        error: err instanceof Error ? err.message : "subscription login failed",
+      });
+    }
+  }
+
+  const attemptId = subscriptionLoginAttemptId(req.url);
+  if (!attemptId) return send(res, 404, { ok: false, error: "Not found" });
+
+  if (req.method === "GET") {
+    const view = attempts.get(attemptId);
+    // A purged or restarted attempt is gone, not broken. The API reads 404 as expired and offers
+    // the user a fresh sign-in rather than a retry against an id nothing holds.
+    if (!view) return send(res, 404, { ok: false, error: "Not found" });
+    return send(res, 200, view);
+  }
+
+  if (req.method === "DELETE") {
+    attempts.cancel(attemptId);
+    // Idempotent: a repeated delete, or one for an id already purged, is still 204.
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  return send(res, 405, { ok: false, error: "Method not allowed" });
+}
+
 /** `/cancel`'s payload is five short strings. */
 const CANCEL_BODY_MAX_BYTES = 16 * 1024;
 
@@ -1238,6 +1330,17 @@ export function createRequestListener(
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
         return send(res, 200, await subscriptionStatusResponse());
+      }
+
+      // Device-code login for a hosted subscription connection. Same token gate as the routes
+      // above: the caller is the API, never a browser, and the login never leaves this hop except
+      // as the API's own stored secret. See `subscription-login-attempts.ts` for why an attempt is
+      // a running promise rather than a stored record.
+      if (req.url?.startsWith(SUBSCRIPTION_LOGIN_ROUTE)) {
+        if (!isAuthorized(req)) {
+          return send(res, 401, { ok: false, error: "Unauthorized" });
+        }
+        return await handleSubscriptionLoginRoute(req, res);
       }
 
       if (req.method === "POST" && req.url === "/kill") {

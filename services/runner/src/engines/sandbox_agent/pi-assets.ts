@@ -671,7 +671,10 @@ export function prepareLocalAgentDir(
 
 export interface PrepareLocalPiAssetsInput {
   plan: Pick<RunPlan, "isPi" | "isDaytona"> & {
-    credentials: Pick<RunPlanCredentials, "credentialMode">;
+    credentials: Pick<
+      RunPlanCredentials,
+      "credentialMode" | "subscriptionHome"
+    >;
     workspace: Pick<RunPlanWorkspace, "skillDirs" | "sourcePiAgentDir">;
     prompt: Pick<
       RunPlanPrompt,
@@ -791,10 +794,18 @@ export function prepareLocalPiAssets({
       agentDirWritable: true,
     };
 
-  // buildRunPlan already rejected a local runtime_provided run with no configured
-  // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount.
+  // Two subscription shapes reach here. A HOSTED connection brings its own per-connection agent
+  // dir (`subscriptionHome`), owned by the runner and holding only this connection's login. An
+  // OPERATOR-mount run has none, and `sourcePiAgentDir` IS the operator's mount — buildRunPlan
+  // already rejected that shape when PI_CODING_AGENT_DIR was unset.
   if (plan.credentials.credentialMode === "runtime_provided") {
-    const agentDir = plan.workspace.sourcePiAgentDir;
+    const subscriptionHome = plan.credentials.subscriptionHome;
+    const agentDir = subscriptionHome ?? plan.workspace.sourcePiAgentDir;
+    // Pi's own mode for an agent dir holding a login. Created here, before the probe, because the
+    // probe and the extension install both write into it.
+    if (subscriptionHome) {
+      mkdirSync(subscriptionHome, { recursive: true, mode: 0o700 });
+    }
     // A custom-provider plan cannot reach here (it requires credentialMode "env"). A model
     // REGISTRATION plan can, and it is deliberately dropped: this dir is the operator's own Pi
     // login, shared by every subscription run and rewritten by Pi's own OAuth refresh, so a

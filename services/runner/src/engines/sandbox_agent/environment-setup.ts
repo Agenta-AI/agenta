@@ -36,6 +36,11 @@ import {
 import { loadPiBuiltinRegistry } from "./pi-builtin-registry.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
 import { buildRunPlan } from "./run-plan.ts";
+import {
+  materializeLocalSubscriptionLogin,
+  subscriptionPushState,
+  SUBSCRIPTION_MATERIALIZE_FAILED_MESSAGE,
+} from "./subscription-login.ts";
 import { configFingerprint } from "./session-identity.ts";
 import type {
   SandboxAgentDeps,
@@ -272,6 +277,33 @@ export async function prepareEnvironmentSetup(
     log: logger,
   });
   let runAgentDir = localPiAssets.dir;
+  // A HOSTED subscription run's login rides the request; write it into this run's per-connection
+  // agent dir BEFORE the daemon starts. Pi caches `auth.json` in memory at construction and never
+  // re-reads it while its cached credential is unexpired (research/pi-auth.md section 8), so a
+  // login that lands after the harness is up is invisible to it for the life of the session.
+  //
+  // A failure here is TERMINAL, like the gates below. Letting the run continue would start Pi
+  // against an empty agent dir, and its "No API key found for openai-codex" would then be
+  // classified as a dead sign-in — telling the user to re-authenticate a connection that is fine.
+  let localSubscriptionError: Error | undefined;
+  const subscriptionForRun = plan.credentials.subscription;
+  if (subscriptionForRun && plan.credentials.subscriptionHome && !plan.isDaytona) {
+    try {
+      await materializeLocalSubscriptionLogin(
+        plan.credentials.subscriptionHome,
+        subscriptionForRun,
+        logger,
+      );
+    } catch (err) {
+      // The message names no path and carries no provider text; the cause goes to the log only.
+      logger(
+        `subscription login materialize failed error=${err instanceof Error ? err.name : "unknown"}`,
+      );
+      localSubscriptionError = new Error(
+        SUBSCRIPTION_MATERIALIZE_FAILED_MESSAGE,
+      );
+    }
+  }
   // Local managed Codex authenticates from `<cwd>/.codex/auth.json`; point CODEX_HOME at that
   // directory now (a path only, safe before the durable cwd mount), and point CODEX_SQLITE_HOME
   // at a local off-mount directory. The auth.json file itself is written after the mount, right
@@ -388,6 +420,9 @@ export async function prepareEnvironmentSetup(
     mcpAbort,
     runAgentDir,
     codexSqliteHome,
+    subscriptionPush: subscriptionForRun
+      ? subscriptionPushState(subscriptionForRun)
+      : undefined,
     mountCreds,
     agentMountCreds,
     mountProjectId: mountCreds?.projectId,
@@ -443,6 +478,7 @@ export async function prepareEnvironmentSetup(
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
     localPiAgentDirUnwritable,
+    localSubscriptionError,
     mcpAbort,
     piExtEnv,
     piModelConfig,
