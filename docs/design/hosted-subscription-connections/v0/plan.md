@@ -158,7 +158,7 @@ the authentication home.
 ### Grok adapter
 
 1. Allocate the authentication home and set `GROK_HOME` for every provider process.
-2. Start the supported structured device-login interface. If SpaceXAI supplies no such interface,
+2. Start the supported structured device-login interface. If xAI supplies no such interface,
    run the pinned `grok login --device-auth` command through a pseudo-terminal and parse only the
    documented URL and one-time code.
 3. Detect success through a supported command or a fresh `grok inspect --json` process. Do not
@@ -168,7 +168,7 @@ the authentication home.
 5. Start inference through `grok agent stdio` with automatic updates disabled. Pin the tested CLI
    version in the runner image.
 
-The Grok login parser is the main release risk until SpaceXAI provides a structured login contract.
+The Grok login parser is the main release risk until xAI provides a structured login contract.
 
 ## API ownership
 

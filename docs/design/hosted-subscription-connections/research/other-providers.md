@@ -311,9 +311,9 @@ Four places assume ChatGPT. Every provider above trips at least one.
    decodes the access token as a JWT and reads
    `https://api.openai.com/auth` then `chatgpt_account_id`. `_login_is_usable` refuses a login with
    no such claim. `validateSubscriptionLogin` in
-   `services/runner/src/engines/sandbox_agent/subscription-login.ts` applies the same rule. Neither
-   Anthropic nor Copilot issues a JWT here, so both need a per provider validator. Keep the two
-   implementations in agreement, as the comment already demands.
+   `services/runner/src/engines/sandbox_agent/subscription-login/validate.ts` applies the same rule.
+   Neither Anthropic nor Copilot issues a JWT here, so both need a per provider validator. Keep
+   the two implementations in agreement, as the comment already demands.
 2. **The account identity rule.** `_classify_push` rejects a push when
    `login.accountId != stored.login.accountId`. Anthropic and Copilot carry no `accountId`, so the
    comparison is null against null and the rule stops protecting anything. Each provider needs its
@@ -353,9 +353,6 @@ provider. They do not survive a paste flow, which needs one added route to submi
 5. **Gemini, blocked upstream.** Nothing to build until Google ships a device flow.
 
 Do not build Claude through Pi. Section 1b is the reason.
-
-## Open questions for Mahmoud
-
 
 ## Survey: subscription logins across coding agents
 
@@ -458,7 +455,6 @@ Three upstream changes matter to the design:
 draws from extra usage and is billed per token, not against Claude plan limits." A user who
 connects Claude through Pi therefore pays per token on top of the plan. That is a product fact for
 the connect card.
-run Claude through Pi.
 
 ### 7. Hermes Agent by Nous Research
 

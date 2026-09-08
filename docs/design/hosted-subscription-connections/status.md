@@ -93,7 +93,7 @@ stores one. Pi is the harness for this slice.
 Known UI gap: the picker shows two identical "ChatGPT · Subscription" rows on a dev runner that
 also mounts an operator login folder. The hosted row needs a distinct label.
 
-Stack: `agenta-ee-dev-hostedsub` on `http://144.76.237.122:8780`, built from this worktree with
+Stack: `agenta-ee-dev-hostedsub` on `http://<dev-box>:8780`, built from this worktree with
 the gitignored override `hosting/docker-compose/ee/docker-compose.dev.hostedsub.local.yml`. The
 runner mounts copies of the operator logins from `~/agenta-hostedsub/` (never the host files).
 Both access tokens were valid at the time, so neither baseline exercised a refresh.

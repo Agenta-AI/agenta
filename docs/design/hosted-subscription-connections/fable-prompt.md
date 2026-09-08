@@ -55,7 +55,7 @@ Use parallel agents or equivalent independent tasks for:
 - Shared-state and concurrent-refresh experiments.
 - UI login, connection persistence/scope, model picker, execution, and re-login integration.
 - Real integration validation and incorporation of Codex review feedback.
-- And any other thing you thing make sense to paralellize (say reserach grok, implement htings)
+- And anything else you think makes sense to parallelize (say, research Grok, implement things).
 
 ## Architecture direction
 

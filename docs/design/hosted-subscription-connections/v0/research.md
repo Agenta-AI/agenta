@@ -102,7 +102,7 @@ existing ACP adapter model, but Agenta does not yet list Grok as a harness.
 
 The public Grok documentation does not describe a machine-readable API for starting or observing
 the device login itself. It documents only the interactive command and human-readable output.
-Before implementation, Agenta should ask SpaceXAI for one of these supported contracts:
+Before implementation, Agenta should ask xAI for one of these supported contracts:
 
 1. A structured login command or local RPC that returns the verification URL, user code, attempt
    ID, expiry, polling interval, completion, and error.

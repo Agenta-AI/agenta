@@ -24,7 +24,7 @@
 1. First release access: only the connecting user can use the connection, and only for interactive
    turns.
 2. First release concurrency: one active run per subscription connection.
-3. Grok login control: obtain a supported machine-readable device-login contract from SpaceXAI, or
+3. Grok login control: obtain a supported machine-readable device-login contract from xAI, or
    accept a pinned Grok CLI terminal parser as a temporary dependency.
 4. Storage: one encrypted persistent volume per connection for the first release.
 5. Service ownership: the main FastAPI API owns public connection records and user checks. The
