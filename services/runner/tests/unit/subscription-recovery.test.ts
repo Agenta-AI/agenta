@@ -1,6 +1,6 @@
 /**
- * Unit tests for contract amendments A1 (automatic recovery) and A2 (classify with the official
- * client before calling a login dead).
+ * Unit tests for the recovery decision: classify with the official client before calling a login
+ * dead, then ask the API whether a newer one exists.
  *
  * The product rule these encode: a hosted subscription run must not send the user to a device
  * sign-in for a connection that is fine. Pi says the same sentence for a dead login, a refresh that
@@ -15,6 +15,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { materializeSubscriptionLoginForRun } from "../../src/engines/sandbox_agent/subscription-login/files.ts";
 import {
   classifyRefreshError,
   isReplayBlockingEvent,
@@ -23,10 +24,10 @@ import {
   verifySubscriptionRefresh,
 } from "../../src/engines/sandbox_agent/subscription-recovery.ts";
 import {
-  subscriptionMetaText,
-  subscriptionPushState,
-  type SubscriptionPushState,
-} from "../../src/engines/sandbox_agent/subscription-login.ts";
+  startSubscriptionPublisher,
+  subscriptionPublishState,
+  type SubscriptionPublishState,
+} from "../../src/engines/sandbox_agent/subscription-login/publisher.ts";
 import type {
   ModelConnectionSubscription,
   SubscriptionLogin,
@@ -71,7 +72,7 @@ function tempHome(withLogin = LOCAL): string {
   );
   writeFileSync(
     join(home, "meta.json"),
-    subscriptionMetaText({ generation: 1, version: 3 }),
+    JSON.stringify({ generation: 1, version: 3 }),
   );
   return home;
 }
@@ -85,8 +86,8 @@ function localLogin(home: string): SubscriptionLogin {
   ];
 }
 
-function pushState(): SubscriptionPushState {
-  return subscriptionPushState(SUBSCRIPTION);
+function pushState(): SubscriptionPublishState {
+  return subscriptionPublishState(SUBSCRIPTION);
 }
 
 /** An API stub that records every call and answers each URL from a script. */
@@ -327,6 +328,7 @@ describe("verifySubscriptionRefresh", () => {
     const verdict = await verifySubscriptionRefresh({
       home,
       isDaytona: false,
+      generation: 1,
       refresh: async (token) => {
         seen.push(token);
         return ROTATED;
@@ -343,6 +345,7 @@ describe("verifySubscriptionRefresh", () => {
     const verdict = await verifySubscriptionRefresh({
       home,
       isDaytona: false,
+      generation: 1,
       refresh: async () => ROTATED,
       log: () => {},
     });
@@ -360,6 +363,7 @@ describe("verifySubscriptionRefresh", () => {
     await verifySubscriptionRefresh({
       home,
       isDaytona: false,
+      generation: 1,
       refresh: async () => ROTATED,
       log: () => {},
     });
@@ -374,6 +378,7 @@ describe("verifySubscriptionRefresh", () => {
     const verdict = await verifySubscriptionRefresh({
       home,
       isDaytona: false,
+      generation: 1,
       refresh: async () => {
         throw new Error(
           'OpenAI Codex token refresh failed (400): {"error":"invalid_grant"}',
@@ -391,6 +396,7 @@ describe("verifySubscriptionRefresh", () => {
     const verdict = await verifySubscriptionRefresh({
       home,
       isDaytona: false,
+      generation: 1,
       refresh: async () => {
         assert.fail("must not call the provider with no token");
       },
@@ -404,6 +410,7 @@ describe("verifySubscriptionRefresh", () => {
     const verdict = await verifySubscriptionRefresh({
       home,
       isDaytona: false,
+      generation: 1,
       refresh: async () => {
         throw new Error("OpenAI Codex token refresh error: fetch failed");
       },
@@ -421,6 +428,7 @@ describe("verifySubscriptionRefresh", () => {
     await verifySubscriptionRefresh({
       home,
       isDaytona: false,
+      generation: 1,
       refresh: async () => ROTATED,
       log: (line) => lines.push(line),
     });
@@ -478,35 +486,30 @@ describe("recoverSubscriptionAuthFailure", () => {
     assert.equal(recovery, undefined);
   });
 
-  it("A2: a refresh that succeeds means the failure was transient, so retry", async () => {
+  it("a refresh that succeeds means the failure was transient, so retry", async () => {
     const home = tempHome();
     const { calls, api } = fakeApi({});
-    const state = pushState();
+    const published: string[] = [];
     const recovery = await recoverSubscriptionAuthFailure({
       err: AUTH_ERROR,
       subscription: SUBSCRIPTION,
-      state,
+      state: pushState(),
       home,
       isDaytona: false,
       api,
+      publish: async (trigger) => {
+        published.push(trigger);
+      },
       replayable: true,
       refresh: async () => ROTATED,
       log: () => {},
     });
 
     assert.deepEqual(recovery, { action: "retry", reason: "refresh-succeeded" });
-    // The new pair is published BEFORE the retry, and no failure is reported.
-    assert.equal(calls.length, 1);
-    assert.equal(
-      calls[0].url,
-      "http://api:8000/secrets/conn-1/subscription-login",
-    );
-    assert.deepEqual(calls[0].body.login, {
-      type: "oauth",
-      accountId: "acct_1",
-      ...ROTATED,
-    });
-    assert.equal(calls[0].body.generation, 1);
+    // The new pair is on disk and published BEFORE the retry, through the session's one
+    // publisher, and no failure is reported.
+    assert.deepEqual(published, ["recovery"]);
+    assert.deepEqual(calls, []);
     assert.deepEqual(localLogin(home), {
       type: "oauth",
       accountId: "acct_1",
@@ -514,7 +517,62 @@ describe("recoverSubscriptionAuthFailure", () => {
     });
   });
 
-  it("A1.3: a turn that already emitted output is never replayed", async () => {
+  it("refuses to spend a refresh token that belongs to a newer sign-in", async () => {
+    // Another session materialized a new sign-in into this connection's dir. Exchanging its token
+    // would rotate it away for the sessions that own it, so the check runs BEFORE the exchange.
+    const home = tempHome();
+    writeFileSync(join(home, "meta.json"), JSON.stringify({ generation: 2, version: 8 }));
+    const verdict = await verifySubscriptionRefresh({
+      home,
+      isDaytona: false,
+      generation: 1,
+      refresh: async () => {
+        assert.fail("must not exchange a token of a newer lineage");
+      },
+      log: () => {},
+    });
+
+    assert.deepEqual(verdict, { verdict: "retryable", reason: "generation_moved" });
+    assert.deepEqual(localLogin(home), LOCAL, "the file is untouched");
+  });
+
+  it("holds the lock across the exchange, so a sign-in that lands during it still wins", async () => {
+    const home = tempHome();
+    let releaseProvider: (() => void) | undefined;
+    const provider = new Promise<void>((resolve) => {
+      releaseProvider = resolve;
+    });
+    const verdict = verifySubscriptionRefresh({
+      home,
+      isDaytona: false,
+      generation: 1,
+      refresh: async () => {
+        await provider;
+        return ROTATED;
+      },
+      log: () => {},
+    });
+    // A new sign-in materializes while the provider is answering. It must queue on the lock, and
+    // it must be what the file holds when both are done.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const signIn = materializeSubscriptionLoginForRun({
+      home,
+      isDaytona: false,
+      subscription: { id: "conn-1", login: RECOVERED, version: 9, generation: 2 },
+      log: () => {},
+    });
+    releaseProvider?.();
+
+    assert.equal((await verdict).verdict, "success");
+    assert.equal((await signIn).write, true);
+    assert.deepEqual(localLogin(home), RECOVERED);
+    assert.deepEqual(JSON.parse(readFileSync(join(home, "meta.json"), "utf-8")), {
+      generation: 2,
+      version: 9,
+    });
+  });
+
+  it("a turn that already emitted output is never replayed", async () => {
     const home = tempHome();
     const { api } = fakeApi({});
     const recovery = await recoverSubscriptionAuthFailure({
@@ -536,7 +594,7 @@ describe("recoverSubscriptionAuthFailure", () => {
     );
   });
 
-  it("A2: a provider that cannot answer marks NOTHING and offers a retry", async () => {
+  it("a provider that cannot answer marks NOTHING and offers a retry", async () => {
     const home = tempHome();
     const { calls, api } = fakeApi({});
     const recovery = await recoverSubscriptionAuthFailure({
@@ -565,7 +623,7 @@ describe("recoverSubscriptionAuthFailure", () => {
     );
   });
 
-  it("A2: a refused refresh with no newer login asks the user to sign in again", async () => {
+  it("a refused refresh with no newer login asks the user to sign in again", async () => {
     const home = tempHome();
     const { calls, api } = fakeApi({ failure: { stale: false, version: 3 } });
     const recovery = await recoverSubscriptionAuthFailure({
@@ -600,7 +658,7 @@ describe("recoverSubscriptionAuthFailure", () => {
     );
   });
 
-  it("A1: a stale answer with a newer login of the same lineage rematerializes and retries", async () => {
+  it("a stale answer with a newer login of the same lineage rematerializes and retries", async () => {
     const home = tempHome();
     const { calls, api } = fakeApi({
       failure: {
@@ -630,13 +688,28 @@ describe("recoverSubscriptionAuthFailure", () => {
     assert.deepEqual(recovery, { action: "retry", reason: "stale-recovered" });
     assert.deepEqual(localLogin(home), RECOVERED);
     assert.equal(calls.length, 1, "the recovered login is not pushed straight back");
-    // The floor moved, so the turn-end push cannot send the API its own login.
-    assert.equal(state.version, 7);
-    assert.equal(state.pushedExpires, RECOVERED.expires);
-    assert.equal(state.deliveredExpires, RECOVERED.expires);
+    assert.equal(state.version, 7, "the run now runs on the recovered login");
+    // And the publisher agrees: the API plainly holds this login, so no pass sends it back.
+    const publisher = startSubscriptionPublisher({
+      plan: {
+        isDaytona: false,
+        credentials: { subscription: SUBSCRIPTION, subscriptionHome: home },
+      },
+      state,
+      sandbox: () => undefined,
+      apiBase: "http://api:8000",
+      authorization: "ApiKey secret",
+      fetchImpl: api.fetchImpl,
+      log: () => {},
+      intervalMs: 60_000,
+    });
+    assert.ok(publisher);
+    await publisher.reconcile("interval");
+    await publisher.stop();
+    assert.equal(calls.length, 1);
   });
 
-  it("A1: a stale answer carrying a NEW generation fails retryably, it does not replay", async () => {
+  it("a stale answer carrying a NEW generation fails retryably, it does not replay", async () => {
     const home = tempHome();
     const { api } = fakeApi({
       failure: {
@@ -673,7 +746,7 @@ describe("recoverSubscriptionAuthFailure", () => {
     assert.equal(state.generation, 2);
   });
 
-  it("A1: a stale answer with no login is retryable, not a sign-in prompt", async () => {
+  it("a stale answer with no login is retryable, not a sign-in prompt", async () => {
     const home = tempHome();
     const { api } = fakeApi({ failure: { stale: true, version: 7 } });
     const recovery = await recoverSubscriptionAuthFailure({

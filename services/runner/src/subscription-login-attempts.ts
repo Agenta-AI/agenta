@@ -13,13 +13,10 @@
  * its settled state. That is also why an attempt cannot survive a runner restart, and why the API
  * treats a missing attempt as expired rather than as an error.
  *
- * THE LOGIN IS HANDED OUT UNTIL THE API SAYS IT IS SAFE TO STOP (contract amendment A5). Every
- * GET on a `succeeded` attempt returns it, and only the DELETE that follows the API's own durable
- * write drops it. The earlier "hand it out once" rule lost logins: the API polls this runner, and
- * a poll whose response was lost in flight, or that raced a second poll, consumed the credential
- * before anything had stored it — the user completed a device sign-in and got nothing. A GET is a
- * token-authenticated call from the API, so re-reading it discloses nothing new; the DELETE and
- * the purge timer below are what bound the credential's residency in this process.
+ * THE LOGIN IS HANDED OUT UNTIL THE API SAYS IT IS SAFE TO STOP. Every GET on a `succeeded`
+ * attempt returns it, and only the DELETE that follows the API's own durable write drops it. A GET
+ * is a token-authenticated call from the API, so re-reading it discloses nothing new; the DELETE
+ * and the purge timer below are what bound the credential's residency in this process.
  *
  * NOTHING HERE IS LOGGED. Not the login, not the user code (it authorizes an account takeover for
  * the length of the flow), not the verification address with its code embedded. The log lines
@@ -27,6 +24,7 @@
  */
 import { randomUUID } from "node:crypto";
 
+import { observeSubscription } from "./subscription-events.ts";
 import type { SubscriptionLogin } from "./protocol.ts";
 
 type Log = (message: string) => void;
@@ -43,7 +41,7 @@ export const DEFAULT_POLL_INTERVAL_SECONDS = 5;
 export type AttemptState =
   /** The device code is out and the flow is waiting for the user to approve it. */
   | "pending"
-  /** The provider returned a login. It is handed out on the first read after this. */
+  /** The provider returned a login. Every read returns it until the API deletes the attempt. */
   | "succeeded"
   /** The flow failed. `error` says why, in words that carry no account detail. */
   | "failed"
@@ -77,12 +75,11 @@ interface Attempt {
   expiresAt?: number;
   error?: string;
   login?: SubscriptionLogin;
-  delivered: boolean;
   abort: AbortController;
   purgeTimer?: ReturnType<typeof setTimeout>;
 }
 
-/** One attempt as a route answers it. `login` appears on the first read after success only. */
+/** One attempt as a route answers it. `login` appears while the attempt is succeeded. */
 export interface AttemptView {
   attemptId: string;
   state: AttemptState;
@@ -90,7 +87,6 @@ export interface AttemptView {
   verificationUri?: string;
   expiresAt?: string;
   intervalSeconds?: number;
-  delivered?: boolean;
   login?: SubscriptionLogin;
   error?: string;
 }
@@ -140,7 +136,6 @@ export class SubscriptionLoginAttempts {
       provider,
       state: "pending",
       createdAt: Date.now(),
-      delivered: false,
       abort,
     };
     this.attempts.set(id, attempt);
@@ -195,7 +190,11 @@ export class SubscriptionLoginAttempts {
         `subscription login could not start: ${safeErrorReason(err)}`,
       );
     }
-    this.log(`attempt=${id} state=pending provider=${provider}`);
+    observeSubscription(this.log, "subscription.attempt", {
+      attempt: id,
+      state: "pending",
+      provider,
+    });
     return this.view(attempt, false);
   }
 
@@ -203,18 +202,19 @@ export class SubscriptionLoginAttempts {
    * Read an attempt, handing out the login on EVERY read while it is succeeded. Undefined when the
    * id is unknown, which includes an attempt that was purged.
    *
-   * `delivered` records that at least one reader has had it, which is what the API's own log needs;
-   * it does not gate the next read. The credential leaves this process at DELETE, which the API
-   * sends after it has stored the login durably.
+   * The credential leaves this process at DELETE, which the API sends after it has stored the login
+   * durably.
    */
   get(id: string): AttemptView | undefined {
     const attempt = this.attempts.get(id);
     if (!attempt) return undefined;
     const deliverNow = attempt.state === "succeeded" && attempt.login !== undefined;
-    // Marked BEFORE the view is built, so the read that delivers already reports `delivered: true`.
-    if (deliverNow && !attempt.delivered) {
-      attempt.delivered = true;
-      this.log(`attempt=${id} state=succeeded delivered=true`);
+    if (deliverNow) {
+      observeSubscription(this.log, "subscription.attempt", {
+        attempt: id,
+        state: attempt.state,
+        delivered: true,
+      });
     }
     return this.view(attempt, deliverNow);
   }
@@ -224,9 +224,9 @@ export class SubscriptionLoginAttempts {
    * no-op, like a repeated DELETE.
    *
    * This is BOTH halves of the DELETE route: the API sends it to abandon a pending login AND to
-   * purge a succeeded one it has now stored. Under amendment A5 the second half is what bounds
-   * the token's residency in this process, so it clears `login` explicitly rather than relying on
-   * the map entry going away.
+   * purge a succeeded one it has now stored. The second half is what bounds the token's residency
+   * in this process, so it clears `login` explicitly rather than relying on the map entry going
+   * away.
    */
   cancel(id: string): void {
     const attempt = this.attempts.get(id);
@@ -235,7 +235,10 @@ export class SubscriptionLoginAttempts {
     attempt.login = undefined;
     if (attempt.purgeTimer) clearTimeout(attempt.purgeTimer);
     this.attempts.delete(id);
-    this.log(`attempt=${id} state=cancelled`);
+    observeSubscription(this.log, "subscription.attempt", {
+      attempt: id,
+      state: "cancelled",
+    });
   }
 
   /** Test seam: how many attempts the map still holds. */
@@ -247,16 +250,19 @@ export class SubscriptionLoginAttempts {
     // A cancel already removed the attempt; the flow settling afterwards must not resurrect it.
     if (!this.attempts.has(attempt.id)) return;
     attempt.state = state;
-    if (state !== "succeeded") this.log(`attempt=${attempt.id} state=${state}`);
+    observeSubscription(this.log, "subscription.attempt", {
+      attempt: attempt.id,
+      state,
+    });
     this.schedulePurge(attempt);
   }
 
   /**
    * Forget the attempt after the purge window, whatever its state.
    *
-   * This is the backstop, not the main path: a delivered login is dropped at delivery, and a cancel
-   * removes the entry outright. The timer covers the caller that starts a login and walks away, so
-   * an unread credential cannot sit in memory for the life of the process.
+   * This is the backstop, not the main path: a cancel removes the entry outright. The timer covers
+   * the caller that starts a login and walks away, so an unread credential cannot sit in memory for
+   * the life of the process.
    */
   private schedulePurge(attempt: Attempt): void {
     if (attempt.purgeTimer) clearTimeout(attempt.purgeTimer);
@@ -277,7 +283,6 @@ export class SubscriptionLoginAttempts {
     if (attempt.verificationUri) view.verificationUri = attempt.verificationUri;
     if (attempt.expiresAt) view.expiresAt = new Date(attempt.expiresAt).toISOString();
     if (attempt.intervalSeconds) view.intervalSeconds = attempt.intervalSeconds;
-    if (attempt.state === "succeeded") view.delivered = attempt.delivered;
     if (withLogin && attempt.login) view.login = attempt.login;
     if (attempt.error) view.error = attempt.error;
     return view;

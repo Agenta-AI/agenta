@@ -7,7 +7,7 @@
  *   GET  /health              -> runner identity ({ status, runner, protocol, engines, harnesses })
  *   GET  /subscription-status -> one login state per harness (no paths, no credentials)
  *   POST/GET/DELETE /subscription-login/attempts[/{id}] -> device-code login for a hosted
- *                             subscription connection (the login is handed out once, to the API)
+ *                             subscription connection (the login goes to the API, never to a user)
  *   POST /stream              -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
  *   POST /kill                -> best-effort, idempotent teardown, scoped to one { sessionId, projectId }
  *   POST /cancel              -> stop the CURRENT TURN of one session and keep it warm

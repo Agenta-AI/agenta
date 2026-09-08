@@ -62,7 +62,6 @@ import {
   type AcpPromptBlock,
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
-import { pushBackSubscriptionLoginForRun } from "./subscription-login.ts";
 import {
   isReplayBlockingEvent,
   recoverSubscriptionAuthFailure,
@@ -275,7 +274,7 @@ export async function runTurn(
   > => {
     const subscription = plan.credentials.subscription;
     const home = plan.credentials.subscriptionHome;
-    if (!subscription || !home || !env.subscriptionPush) return undefined;
+    if (!subscription || !home || !env.subscriptionPublish) return undefined;
     // A ONE-SHOT run has no `emit` sink, so `watchedEmit` never sees anything and the flag above
     // stays false. Its events still exist — they are collected in the run's own log and returned
     // in the result — and a tool call among them ran against the real world exactly as a streamed
@@ -286,7 +285,7 @@ export async function runTurn(
     return recoverSubscriptionAuthFailure({
       err,
       subscription,
-      state: env.subscriptionPush,
+      state: env.subscriptionPublish,
       home,
       isDaytona: plan.isDaytona,
       sandbox: env.sandbox as never,
@@ -299,6 +298,10 @@ export async function runTurn(
         authorization: credential(),
         log: logger,
       },
+      // A recovered login is published by the session's one publisher, never by a second path.
+      ...(env.subscriptionPublisher
+        ? { publish: env.subscriptionPublisher.reconcile }
+        : {}),
       log: logger,
     });
   };
@@ -1743,27 +1746,6 @@ export async function runTurn(
     await otel?.flush().catch(() => {});
     return { ok: false, error };
   } finally {
-    // Pi refreshes its own OAuth token mid-turn and writes the new one into the run's agent dir.
-    // That written file is the ONLY copy: the delivered login's refresh token is spent, and a
-    // sandbox that is torn down or evicted takes the new one with it. So the read-back runs on
-    // EVERY exit path — success, error, cancel — before anything below can release the sandbox.
-    //
-    // It is awaited rather than fired and forgotten. `finally` is the last moment the Daytona
-    // sandbox is guaranteed to be reachable, and a detached read against a deleted sandbox would
-    // silently lose the refresh. The cost is one small POST, and only when `expires` actually moved.
-    //
-    // The session's publisher keeps running across this boundary on purpose. Pi persists a
-    // refreshed token around the moment a turn ends, so the single sample below can land just
-    // before the write; the publisher is what catches it during the park that follows.
-    await pushBackSubscriptionLoginForRun({
-      plan,
-      state: env.subscriptionPush,
-      sandbox: env.sandbox,
-      apiBase: apiBase(),
-      authorization: credential(),
-      log: logger,
-      moment: "turn-end",
-    });
     platformCredentialLease?.release();
     // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the
     // resolved-token set, so the ordered calls make this a no-op on the paths that took them, and

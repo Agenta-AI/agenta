@@ -1,10 +1,12 @@
 /**
- * Unit tests for contract amendment A3: publish a refreshed login AT REFRESH TIME.
+ * Unit tests for the one operation that publishes a refreshed subscription login.
  *
  * What these pin is a data-loss rule, not a convenience. Pi refreshes its OAuth token mid-turn and
  * writes the new pair into `auth.json`. That file is then the ONLY copy of a live credential: the
- * delivered refresh token has been spent and the provider rotated it away. Publishing only at turn
- * end means an hour-long turn that dies takes the credential with it.
+ * delivered refresh token has been spent and the provider rotated it away. So a reconciliation pass
+ * publishes anything the API has not acknowledged, it runs again while the session lives, it
+ * retries what a failed call left unacknowledged, and it takes one last sample before the agent dir
+ * or the sandbox goes.
  *
  * Run: pnpm exec vitest run tests/unit/subscription-login-publish.test.ts
  */
@@ -15,15 +17,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
-  LOCAL_WATCH_DEBOUNCE_MS,
-  LOCAL_WATCH_POLL_INTERVAL_MS,
-  pollDaytonaSubscriptionLogin,
-  pushBackSubscriptionLoginForRun,
-  startSubscriptionLoginPublisher,
-  subscriptionPushState,
-  watchLocalSubscriptionLogin,
-  type SubscriptionSandboxFs,
-} from "../../src/engines/sandbox_agent/subscription-login.ts";
+  startSubscriptionPublisher,
+  subscriptionPublishState,
+  type SubscriptionPublisher,
+} from "../../src/engines/sandbox_agent/subscription-login/publisher.ts";
+import type { SubscriptionSandboxFs } from "../../src/engines/sandbox_agent/subscription-login/files.ts";
 import type {
   ModelConnectionSubscription,
   SubscriptionLogin,
@@ -31,8 +29,8 @@ import type {
 import { makeLogin } from "../utils/subscription-login.ts";
 
 // Real-shaped logins, because the runner refuses to publish anything it cannot recognize as a
-// ChatGPT credential. The two carry payloads of IDENTICAL length, which is what defeated the
-// stat-based poller and is why the poller hashes content. See tests/utils.
+// ChatGPT credential. The two carry payloads of IDENTICAL length, which is what a size-and-mtime
+// change signal could not tell apart. See tests/utils.
 const DELIVERED: SubscriptionLogin = makeLogin({
   refresh: "delivered-refresh",
   expires: Date.now() + 3_600_000,
@@ -40,6 +38,11 @@ const DELIVERED: SubscriptionLogin = makeLogin({
 const REFRESHED: SubscriptionLogin = makeLogin({
   refresh: "refreshed-refresh",
   expires: Date.now() + 7_200_000,
+});
+/** A rotation the provider issued with the SAME expiry. The API accepts it; so must the runner. */
+const ROTATED: SubscriptionLogin = makeLogin({
+  refresh: "rotated-refreshxx",
+  expires: DELIVERED.expires,
 });
 
 const SUBSCRIPTION: ModelConnectionSubscription = {
@@ -52,29 +55,16 @@ const SUBSCRIPTION: ModelConnectionSubscription = {
 };
 
 const homes: string[] = [];
-const stops: Array<() => void> = [];
+const running: SubscriptionPublisher[] = [];
 function tempHome(): string {
-  const home = mkdtempSync(join(tmpdir(), "agenta-subscription-watch-"));
+  const home = mkdtempSync(join(tmpdir(), "agenta-subscription-publish-"));
   homes.push(home);
   return home;
 }
-afterEach(() => {
-  while (stops.length) stops.pop()!();
+afterEach(async () => {
+  while (running.length) await running.pop()!.stop();
   while (homes.length) rmSync(homes.pop()!, { recursive: true, force: true });
 });
-
-/** Poll until `check` passes or the budget runs out. Filesystem events are not instantaneous. */
-async function eventually(
-  check: () => boolean,
-  budgetMs = 3_000,
-): Promise<void> {
-  const deadline = Date.now() + budgetMs;
-  while (Date.now() < deadline) {
-    if (check()) return;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  assert.fail("condition never became true");
-}
 
 function writeLogin(home: string, login: SubscriptionLogin): void {
   writeFileSync(join(home, "auth.json"), JSON.stringify({ "openai-codex": login }), {
@@ -82,652 +72,307 @@ function writeLogin(home: string, login: SubscriptionLogin): void {
   });
 }
 
-/**
- * A stand-in for `fs.watch` whose events the test raises by hand.
- *
- * The real watcher is injected rather than used because an inotify INSTANCE is a per-UID kernel
- * resource (`fs.inotify.max_user_instances`, 128 on this box, shared by every container running as
- * the same uid), and a test suite must not fail because a neighbour exhausted it. The watch
- * plumbing under test is the debounce, the read under the lock, and the stop; none of those is an
- * inotify behavior. The graceful degradation when `fs.watch` DOES throw is covered separately, with
- * the real function.
- */
-function fakeWatch(): {
-  watchImpl: never;
-  fire: () => void;
-  closed: () => boolean;
-  watched: string[];
-} {
-  const listeners: Array<(event: string, filename: string) => void> = [];
-  const watched: string[] = [];
-  let closed = false;
-  const watchImpl = ((path: string, listener: (e: string, f: string) => void) => {
-    watched.push(path);
-    listeners.push(listener);
-    return {
-      close: () => {
-        closed = true;
-      },
-      on: () => {},
-      unref: () => {},
-    };
-  }) as never;
-  return {
-    watchImpl,
-    watched,
-    closed: () => closed,
-    fire: () => {
-      for (const listener of listeners) listener("change", "auth.json");
-    },
-  };
+/** Every body the API sent back, in order, plus the logins it was asked to store. */
+interface FakeApi {
+  fetchImpl: typeof fetch;
+  pushed: SubscriptionLogin[];
+  bodies: Array<Record<string, unknown>>;
 }
 
-describe("watchLocalSubscriptionLogin", () => {
-  it("watches the agent dir, not the file, so a replaced file is still seen", () => {
-    const home = tempHome();
-    const fake = fakeWatch();
-    const watch = watchLocalSubscriptionLogin({
-      home,
-      onLogin: () => {},
-      watchImpl: fake.watchImpl,
-      log: () => {},
-    });
-    stops.push(watch.stop);
-    assert.deepEqual(fake.watched, [home]);
-  });
+function fakeApi(
+  respond: (call: number) => { status: number; body?: unknown } = () => ({
+    status: 200,
+    body: { version: 4, updated: true },
+  }),
+): FakeApi {
+  const pushed: SubscriptionLogin[] = [];
+  const bodies: Array<Record<string, unknown>> = [];
+  const fetchImpl = (async (_url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    bodies.push(body);
+    pushed.push(body.login as SubscriptionLogin);
+    const answer = respond(bodies.length);
+    return {
+      ok: answer.status >= 200 && answer.status < 300,
+      status: answer.status,
+      json: async () => answer.body ?? {},
+    };
+  }) as unknown as typeof fetch;
+  return { fetchImpl, pushed, bodies };
+}
 
-  it("reports the login Pi wrote, once, after the debounce", async () => {
+function start(input: {
+  home: string;
+  api: FakeApi;
+  intervalMs?: number;
+  sandbox?: SubscriptionSandboxFs;
+  log?: (line: string) => void;
+}): SubscriptionPublisher {
+  const publisher = startSubscriptionPublisher({
+    plan: {
+      isDaytona: input.sandbox !== undefined,
+      credentials: { subscription: SUBSCRIPTION, subscriptionHome: input.home },
+    },
+    state: subscriptionPublishState(SUBSCRIPTION),
+    sandbox: () => input.sandbox,
+    apiBase: "https://api.test",
+    authorization: "ApiKey test",
+    fetchImpl: input.api.fetchImpl,
+    log: input.log ?? (() => {}),
+    ...(input.intervalMs !== undefined ? { intervalMs: input.intervalMs } : {}),
+  });
+  assert.ok(publisher, "the publisher must start for a wired subscription run");
+  running.push(publisher);
+  return publisher;
+}
+
+describe("the reconciliation pass", () => {
+  it("publishes a login Pi wrote mid-turn, exactly once, and never the delivered one", async () => {
     const home = tempHome();
     writeLogin(home, DELIVERED);
-    const seen: SubscriptionLogin[] = [];
-    const fake = fakeWatch();
-    const watch = watchLocalSubscriptionLogin({
-      home,
-      onLogin: (login) => {
-        seen.push(login);
-      },
-      debounceMs: 20,
-      watchImpl: fake.watchImpl,
-      log: () => {},
-    });
-    stops.push(watch.stop);
+    const api = fakeApi();
+    const publisher = start({ home, api, intervalMs: 10 });
 
-    // Three events in a burst, as one logical write raises.
-    writeLogin(home, REFRESHED);
-    fake.fire();
-    fake.fire();
-    fake.fire();
-
-    await eventually(() => seen.length >= 1);
-    assert.deepEqual(seen[0], REFRESHED);
-    await new Promise((resolve) => setTimeout(resolve, 80));
-    assert.equal(seen.length, 1, "one burst is one read");
-  });
-
-  it("stops reporting after stop(), and closes the watcher", async () => {
-    const home = tempHome();
-    writeLogin(home, DELIVERED);
-    const seen: SubscriptionLogin[] = [];
-    const fake = fakeWatch();
-    const watch = watchLocalSubscriptionLogin({
-      home,
-      onLogin: (login) => {
-        seen.push(login);
-      },
-      debounceMs: 10,
-      watchImpl: fake.watchImpl,
-      log: () => {},
-    });
-    watch.stop();
-    watch.stop(); // idempotent
-    assert.equal(fake.closed(), true);
+    await publisher.reconcile("interval");
+    assert.deepEqual(api.pushed, [], "the delivered login is already at the API");
 
     writeLogin(home, REFRESHED);
-    fake.fire();
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    assert.deepEqual(seen, []);
-  });
+    await publisher.reconcile("interval");
+    await publisher.reconcile("interval");
+    await publisher.reconcile("interval");
 
-  it("logs the code and the message when fs.watch cannot start", () => {
-    // The real `fs.watch`, on a path that does not exist. `error=Error` alone sent a reader
-    // hunting; the code and the message are what say WHY, and neither can carry the login.
-    const lines: string[] = [];
-    const watch = watchLocalSubscriptionLogin({
-      home: join(tmpdir(), "agenta-does-not-exist-ever"),
-      onLogin: () => {},
-      log: (line) => lines.push(line),
-    });
-    stops.push(watch.stop);
-    const joined = lines.join("\n");
-    assert.match(joined, /watch unavailable/);
-    // ENOENT for the missing path, or EMFILE when the box has already exhausted
-    // `fs.inotify.max_user_instances` for this uid and never gets as far as resolving it. Which
-    // one it is IS the diagnosis, and printing neither is what sent a reader hunting.
-    assert.match(joined, /code=(ENOENT|EMFILE)/);
-    assert.match(joined, /message="/);
-    assert.doesNotThrow(watch.stop);
-  });
-
-  /**
-   * The fallback exists because `fs.watch` is an inotify instance and
-   * `fs.inotify.max_user_instances` is a PER-UID kernel limit shared across the whole host.
-   * Measured on this box on 2026-09-08: uid 0 could not open a single watch while uid 1000 could,
-   * with 69 root containers running. Going silent there would mean a refresh Pi wrote mid-turn
-   * reaches the API only if the turn survives — the exact loss A3 exists to prevent.
-   */
-  it("falls back to polling when fs.watch throws, and still publishes", async () => {
-    const home = tempHome();
-    writeLogin(home, DELIVERED);
-    const seen: SubscriptionLogin[] = [];
-    const lines: string[] = [];
-    const watch = watchLocalSubscriptionLogin({
-      home,
-      onLogin: (login) => {
-        seen.push(login);
-      },
-      debounceMs: 10,
-      pollIntervalMs: 15,
-      // Exactly what an exhausted per-uid inotify limit raises.
-      watchImpl: (() => {
-        const err = new Error("EMFILE: too many open files, watch") as Error & {
-          code: string;
-        };
-        err.code = "EMFILE";
-        throw err;
-      }) as never,
-      log: (line) => lines.push(line),
-    });
-    stops.push(watch.stop);
-
-    const joined = lines.join("\n");
-    assert.match(joined, /watch unavailable/);
-    assert.match(joined, /code=EMFILE/);
-    assert.match(joined, /watch mode=poll/);
-
-    writeLogin(home, REFRESHED);
-    await eventually(() => seen.length >= 1);
-    assert.deepEqual(seen[0], REFRESHED);
-  });
-
-  it("hands over to polling when a live watch dies mid-turn", async () => {
-    const home = tempHome();
-    writeLogin(home, DELIVERED);
-    const seen: SubscriptionLogin[] = [];
-    const lines: string[] = [];
-    let raise: ((err: unknown) => void) | undefined;
-    let closed = false;
-    const watchImpl = (() => ({
-      close: () => {
-        closed = true;
-      },
-      on: (event: string, listener: (err: unknown) => void) => {
-        if (event === "error") raise = listener;
-      },
-      unref: () => {},
-    })) as never;
-
-    const watch = watchLocalSubscriptionLogin({
-      home,
-      onLogin: (login) => {
-        seen.push(login);
-      },
-      debounceMs: 10,
-      pollIntervalMs: 15,
-      watchImpl,
-      log: (line) => lines.push(line),
-    });
-    stops.push(watch.stop);
-    assert.ok(raise, "the watcher registered no error listener");
-
-    const err = new Error("EBADF: bad file descriptor, watch") as Error & {
-      code: string;
-    };
-    err.code = "EBADF";
-    raise?.(err);
-
-    const joined = lines.join("\n");
-    assert.match(joined, /watch stopped .*code=EBADF/);
-    assert.match(joined, /watch mode=poll/);
-    assert.equal(closed, true, "the dead watcher is closed, not leaked");
-
-    writeLogin(home, REFRESHED);
-    await eventually(() => seen.length >= 1);
-    assert.deepEqual(seen[0], REFRESHED);
-  });
-
-  it("a stopped poller makes no further reads", async () => {
-    const home = tempHome();
-    writeLogin(home, DELIVERED);
-    const seen: SubscriptionLogin[] = [];
-    const watch = watchLocalSubscriptionLogin({
-      home,
-      onLogin: (login) => {
-        seen.push(login);
-      },
-      debounceMs: 10,
-      pollIntervalMs: 15,
-      watchImpl: (() => {
-        throw new Error("no watcher for you");
-      }) as never,
-      log: () => {},
-    });
-    watch.stop();
-
-    writeLogin(home, REFRESHED);
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    assert.deepEqual(seen, []);
-  });
-
-  it("polls every 5 s and keeps the same debounce as the inotify path", () => {
-    // The interval and the debounce are a product decision, not an implementation detail: they
-    // set how long a refreshed credential can exist only on local disk. Pinned so a later edit
-    // cannot quietly widen that window.
-    assert.equal(LOCAL_WATCH_POLL_INTERVAL_MS, 5_000);
-    assert.equal(LOCAL_WATCH_DEBOUNCE_MS, 500);
-  });
-
-  it("never logs the login itself, whatever the failure", () => {
-    const home = tempHome();
-    writeLogin(home, DELIVERED);
-    const lines: string[] = [];
-    const watch = watchLocalSubscriptionLogin({
-      home,
-      onLogin: () => {},
-      pollIntervalMs: 15,
-      watchImpl: (() => {
-        const err = new Error(
-          `EMFILE: too many open files, watch '${home}'`,
-        ) as Error & { code: string };
-        err.code = "EMFILE";
-        throw err;
-      }) as never,
-      log: (line) => lines.push(line),
-    });
-    stops.push(watch.stop);
-    const joined = lines.join("\n");
-    for (const secret of [
-      DELIVERED.access,
-      DELIVERED.refresh,
-      DELIVERED.accountId as string,
-    ]) {
-      assert.ok(!joined.includes(secret), `log leaked ${secret}`);
-    }
-  });
-});
-
-describe("pollDaytonaSubscriptionLogin", () => {
-  it("reads the in-VM file on its interval and stops on stop()", async () => {
-    let content = JSON.stringify({ "openai-codex": REFRESHED });
-    const sandbox: SubscriptionSandboxFs = {
-      mkdirFs: async () => undefined,
-      writeFsFile: async () => undefined,
-      readFsFile: async () => Buffer.from(content, "utf-8"),
-    };
-    const seen: SubscriptionLogin[] = [];
-    const watch = pollDaytonaSubscriptionLogin({
-      sandbox,
-      home: "/home/sandbox/agenta/subscriptions/conn-1",
-      onLogin: (login) => {
-        seen.push(login);
-      },
-      intervalMs: 15,
-      log: () => {},
-    });
-    stops.push(watch.stop);
-
-    await eventually(() => seen.length >= 1);
-    assert.deepEqual(seen[0], REFRESHED);
-
-    watch.stop();
-    const after = seen.length;
-    content = JSON.stringify({ "openai-codex": DELIVERED });
-    await new Promise((resolve) => setTimeout(resolve, 60));
-    assert.equal(seen.length, after, "a stopped poll makes no further reads");
-  });
-});
-
-/**
- * The stale-session cell, end to end, as a timeline.
- *
- * What happened live on 2026-09-08: the STORED login was expired, so an expired login was
- * delivered; the runner materialized it; Pi refreshed with the real provider during the turn and
- * rewrote `auth.json`; the turn ended about four seconds later; the session parked and was evicted
- * sixty seconds after that. The store still held the expired copy afterwards, and not one of the
- * publish paths had logged anything at all.
- *
- * The delivered login being ALREADY EXPIRED is the part that makes this a real case rather than a
- * contrived one: it is what a re-login or a long idle produces, and every "is it newer" comparison
- * on the publish path is measured against it.
- */
-describe("the stale-session cell timeline", () => {
-  it("publishes the token Pi wrote mid-turn, once, when the turn ends four seconds later", async () => {
-    const home = tempHome();
-    // The delivered login is expired: the store had fallen behind.
-    const expired = makeLogin({ expires: Date.now() - 60_000 });
-    const subscription: ModelConnectionSubscription = {
-      ...SUBSCRIPTION,
-      version: 4,
-      login: expired,
-    };
-    writeLogin(home, expired);
-    const state = subscriptionPushState(subscription);
-
-    const bodies: Array<Record<string, unknown>> = [];
-    const fetchImpl = (async (_url: string, init: RequestInit) => {
-      bodies.push(JSON.parse(String(init.body)));
-      return new Response(JSON.stringify({ version: 5 }), { status: 200 });
-    }) as unknown as typeof fetch;
-
-    const plan = {
-      isDaytona: false,
-      credentials: { subscription, subscriptionHome: home },
-    };
-    const api = {
-      apiBase: "http://api:8000",
-      authorization: "ApiKey secret",
-      fetchImpl,
-      log: () => {},
-    };
-
-    // Materialize-time self-heal: the file holds exactly what was delivered, so nothing to send.
-    await pushBackSubscriptionLoginForRun({
-      plan,
-      state,
-      sandbox: undefined,
-      ...api,
-      moment: "materialize",
-    });
-    assert.deepEqual(bodies, [], "the delivered login is not echoed back");
-
-    // The session's publisher starts and keeps running across the whole session.
-    const fake = fakeWatch();
-    const watch = startSubscriptionLoginPublisher({
-      plan,
-      state,
-      sandbox: undefined,
-      ...api,
-      debounceMs: 10,
-      pollIntervalMs: 15,
-      watchImpl: fake.watchImpl,
-    });
-    stops.push(watch.stop);
-
-    // Pi refreshes with the provider mid-turn and rewrites the file.
-    const refreshed = makeLogin({
-      refresh: "pi-refreshed",
-      expires: Date.parse("2026-09-18T13:54:56Z"),
-    });
-    writeLogin(home, refreshed);
-
-    // The turn ends. Whichever observer gets there first, the login must reach the API exactly
-    // once: the publisher and the turn-end read share one floor.
-    await pushBackSubscriptionLoginForRun({
-      plan,
-      state,
-      sandbox: undefined,
-      ...api,
-      moment: "turn-end",
-    });
-    fake.fire();
-    await new Promise((resolve) => setTimeout(resolve, 120));
-
-    assert.equal(bodies.length, 1, "exactly one push, never two");
-    assert.deepEqual(bodies[0], {
-      login: refreshed,
-      version: 4,
+    assert.deepEqual(api.pushed, [REFRESHED], "one publication, not one per pass");
+    assert.deepEqual(api.bodies[0], {
+      login: REFRESHED,
+      version: 3,
       generation: 1,
     });
   });
 
-  it("catches a token Pi persists just AFTER the turn ended", async () => {
-    // The turn-end read is one sample. Pi streams its answer and then writes, so the sample can
-    // land just before the write — which is when the turn-scoped watcher used to be gone already
-    // and nothing looked again until eviction.
+  it("publishes a rotation the provider issued with the SAME expiry", async () => {
+    // An expiry floor drops this one silently. The API accepts it, so the runner must send it.
     const home = tempHome();
-    const expired = makeLogin({ expires: Date.now() - 60_000 });
-    const subscription: ModelConnectionSubscription = { ...SUBSCRIPTION, login: expired };
-    writeLogin(home, expired);
-    const state = subscriptionPushState(subscription);
+    writeLogin(home, ROTATED);
+    const api = fakeApi();
+    await start({ home, api, intervalMs: 10 }).reconcile("start");
+    assert.deepEqual(api.pushed, [ROTATED]);
+  });
 
-    const bodies: unknown[] = [];
-    const fetchImpl = (async (_url: string, init: RequestInit) => {
-      bodies.push(JSON.parse(String(init.body)));
-      return new Response(JSON.stringify({ version: 5 }), { status: 200 });
-    }) as unknown as typeof fetch;
-    const plan = {
-      isDaytona: false,
-      credentials: { subscription, subscriptionHome: home },
+  it("retries after a publication the API never answered", async () => {
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    // A timeout, then a 500, then success. The credential stays unacknowledged until it lands.
+    const api = fakeApi((call) => {
+      if (call === 1) throw new Error("fetch failed");
+      if (call === 2) return { status: 503 };
+      return { status: 200, body: { version: 4, updated: true } };
+    });
+    const publisher = start({ home, api, intervalMs: 10 });
+
+    await publisher.reconcile("interval");
+    await publisher.reconcile("interval");
+    await publisher.reconcile("interval");
+    await publisher.reconcile("interval");
+
+    assert.deepEqual(api.pushed, [REFRESHED, REFRESHED, REFRESHED]);
+  });
+
+  it("stops retrying a login the API judged and refused", async () => {
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    const api = fakeApi(() => ({ status: 409 }));
+    const publisher = start({ home, api, intervalMs: 10 });
+
+    await publisher.reconcile("interval");
+    await publisher.reconcile("interval");
+
+    assert.equal(api.pushed.length, 1, "a client error is the API's answer, not a retry");
+  });
+
+  it("refuses to send a login it cannot recognize, and does not re-refuse it every pass", async () => {
+    const home = tempHome();
+    writeLogin(home, {
+      type: "oauth",
+      access: "not-a-jwt",
+      refresh: "junk",
+      expires: Date.now() + 3_600_000,
+    } as SubscriptionLogin);
+    const api = fakeApi();
+    const lines: string[] = [];
+    const publisher = start({ home, api, intervalMs: 10, log: (l) => lines.push(l) });
+
+    await publisher.reconcile("interval");
+    await publisher.reconcile("interval");
+
+    assert.deepEqual(api.pushed, []);
+    const refusals = lines.filter((line) => line.includes("decision=refused"));
+    assert.equal(refusals.length, 1);
+    assert.match(refusals[0]!, /reason=access_not_jwt/);
+  });
+
+  it("runs a pass at start, which is what repairs a publication a previous session lost", async () => {
+    const home = tempHome();
+    // The agent dir already holds a token newer than the delivered one: a refresh whose push
+    // never reached the API before the runner died.
+    writeLogin(home, REFRESHED);
+    const api = fakeApi();
+    start({ home, api, intervalMs: 60_000 });
+
+    const deadline = Date.now() + 2_000;
+    while (api.pushed.length === 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.deepEqual(api.pushed, [REFRESHED]);
+  });
+
+  it("publishes on its interval without anyone asking", async () => {
+    const home = tempHome();
+    writeLogin(home, DELIVERED);
+    const api = fakeApi();
+    start({ home, api, intervalMs: 20 });
+
+    writeLogin(home, REFRESHED);
+    const deadline = Date.now() + 3_000;
+    while (api.pushed.length === 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.deepEqual(api.pushed, [REFRESHED]);
+  });
+});
+
+describe("shutdown", () => {
+  it("drains the pass in flight and takes one final sample", async () => {
+    const home = tempHome();
+    writeLogin(home, DELIVERED);
+    const api = fakeApi();
+    const publisher = start({ home, api, intervalMs: 60_000 });
+
+    // Pi persists a refreshed token around the moment a turn ends, after the last interval.
+    writeLogin(home, REFRESHED);
+    await publisher.stop();
+
+    assert.deepEqual(api.pushed, [REFRESHED]);
+  });
+
+  it("is idempotent and publishes nothing more after it", async () => {
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    const api = fakeApi();
+    const publisher = start({ home, api, intervalMs: 60_000 });
+
+    await publisher.stop();
+    await publisher.stop();
+    writeLogin(home, { ...REFRESHED, refresh: "later-refresh" } as SubscriptionLogin);
+    await publisher.reconcile("interval");
+
+    assert.equal(api.pushed.length, 1);
+  });
+});
+
+describe("a Daytona session", () => {
+  const home = "/home/sandbox/agenta/subscriptions/conn-1";
+
+  function sandboxWith(files: Record<string, string>): SubscriptionSandboxFs {
+    return {
+      mkdirFs: async () => undefined,
+      writeFsFile: async ({ path }, content) => {
+        files[path] = content;
+      },
+      readFsFile: async ({ path }) => {
+        const found = files[path];
+        if (found === undefined) throw new Error("ENOENT");
+        return Buffer.from(found, "utf-8");
+      },
     };
-    const api = {
-      apiBase: "http://api:8000",
-      authorization: "ApiKey secret",
-      fetchImpl,
+  }
+
+  it("reads the in-VM file through the sandbox API and publishes what it finds", async () => {
+    const files: Record<string, string> = {
+      [`${home}/auth.json`]: JSON.stringify({ "openai-codex": REFRESHED }),
+    };
+    const api = fakeApi();
+    const publisher = start({ home, api, sandbox: sandboxWith(files), intervalMs: 60_000 });
+
+    await publisher.reconcile("interval");
+    assert.deepEqual(api.pushed, [REFRESHED]);
+  });
+
+  it("does nothing while the run has no sandbox", async () => {
+    const api = fakeApi();
+    const publisher = startSubscriptionPublisher({
+      plan: {
+        isDaytona: true,
+        credentials: { subscription: SUBSCRIPTION, subscriptionHome: home },
+      },
+      state: subscriptionPublishState(SUBSCRIPTION),
+      sandbox: () => undefined,
+      apiBase: "https://api.test",
+      authorization: "ApiKey test",
+      fetchImpl: api.fetchImpl,
       log: () => {},
-    };
-
-    const fake = fakeWatch();
-    const watch = startSubscriptionLoginPublisher({
-      plan,
-      state,
-      sandbox: undefined,
-      ...api,
-      debounceMs: 10,
-      pollIntervalMs: 15,
-      watchImpl: fake.watchImpl,
+      intervalMs: 60_000,
     });
-    stops.push(watch.stop);
+    assert.ok(publisher);
+    running.push(publisher);
 
-    // The turn ends BEFORE Pi has written anything.
-    await pushBackSubscriptionLoginForRun({
-      plan,
-      state,
-      sandbox: undefined,
-      ...api,
-      moment: "turn-end",
-    });
-    assert.deepEqual(bodies, [], "nothing to send yet");
-
-    // Pi writes during the park that follows.
-    writeLogin(home, makeLogin({ expires: Date.now() + 7_200_000 }));
-    fake.fire();
-    await eventually(() => bodies.length >= 1);
-    assert.equal(bodies.length, 1);
+    await publisher.reconcile("interval");
+    await publisher.stop();
+    assert.deepEqual(api.pushed, []);
   });
+});
 
-  it("says WHY it is not publishing, so a silent skip is never ambiguous again", async () => {
-    const home = tempHome();
-    const delivered = makeLogin({ expires: Date.now() + 3_600_000 });
-    const subscription: ModelConnectionSubscription = { ...SUBSCRIPTION, login: delivered };
-    writeLogin(home, delivered);
+describe("a run that is not wired for publication", () => {
+  it("starts no publisher and says which part is missing", () => {
     const lines: string[] = [];
-
-    await pushBackSubscriptionLoginForRun({
+    const publisher = startSubscriptionPublisher({
       plan: {
         isDaytona: false,
-        credentials: { subscription, subscriptionHome: home },
+        credentials: { subscription: SUBSCRIPTION, subscriptionHome: undefined },
       },
-      state: subscriptionPushState(subscription),
-      sandbox: undefined,
-      apiBase: "http://api:8000",
-      authorization: "ApiKey secret",
-      fetchImpl: (async () => new Response("{}")) as unknown as typeof fetch,
-      log: (line) => lines.push(line),
-      moment: "turn-end",
-    });
-
-    const joined = lines.join("\n");
-    assert.match(joined, /read-back skip moment=turn-end/);
-    assert.match(joined, new RegExp(`disk=${delivered.expires}`));
-    assert.match(joined, new RegExp(`delivered=${delivered.expires}`));
-    assert.match(joined, /pushed=none/);
-  });
-
-  it("names the wiring fault when a subscription run has no home or no credential", async () => {
-    const subscription = { ...SUBSCRIPTION };
-    const lines: string[] = [];
-    await pushBackSubscriptionLoginForRun({
-      plan: { isDaytona: false, credentials: { subscription } },
-      state: subscriptionPushState(subscription),
-      sandbox: undefined,
-      apiBase: "http://api:8000",
-      authorization: "ApiKey secret",
-      log: (line) => lines.push(line),
-      moment: "turn-end",
-    });
-    await pushBackSubscriptionLoginForRun({
-      plan: {
-        isDaytona: false,
-        credentials: { subscription, subscriptionHome: "/nowhere" },
-      },
-      state: subscriptionPushState(subscription),
-      sandbox: undefined,
-      apiBase: "http://api:8000",
+      state: subscriptionPublishState(SUBSCRIPTION),
+      sandbox: () => undefined,
+      apiBase: "https://api.test",
       authorization: "",
       log: (line) => lines.push(line),
-      moment: "session-end",
     });
-    const joined = lines.join("\n");
-    assert.match(joined, /skip moment=turn-end reason=not-wired home=no/);
-    assert.match(joined, /skip moment=session-end reason=no-credential/);
+
+    assert.equal(publisher, undefined);
+    assert.match(lines.join("\n"), /decision=not-wired home=no .*credential=no/);
   });
 
-  it("stays quiet for a run that carries no subscription at all", async () => {
+  it("stays quiet for a run that carries no subscription at all", () => {
     const lines: string[] = [];
-    await pushBackSubscriptionLoginForRun({
+    const publisher = startSubscriptionPublisher({
       plan: { isDaytona: false, credentials: {} },
       state: undefined,
-      sandbox: undefined,
-      apiBase: "http://api:8000",
-      authorization: "ApiKey secret",
+      sandbox: () => undefined,
+      apiBase: "https://api.test",
+      authorization: "ApiKey test",
       log: (line) => lines.push(line),
-      moment: "turn-end",
     });
-    assert.deepEqual(lines, [], "every ordinary run would otherwise log this");
+
+    assert.equal(publisher, undefined);
+    assert.deepEqual(lines, []);
   });
 });
 
-describe("startSubscriptionLoginPublisher", () => {
-  const plan = (isDaytona: boolean) => ({
-    isDaytona,
-    credentials: {
-      subscription: SUBSCRIPTION,
-      subscriptionHome: isDaytona
-        ? "/home/sandbox/agenta/subscriptions/conn-1"
-        : "",
-    },
-  });
-
-  it("pushes the refreshed login a local watch saw, and never the delivered one", async () => {
+describe("the log never carries the credential", () => {
+  it("keeps tokens out of every line, whatever the API answers", async () => {
     const home = tempHome();
-    writeLogin(home, DELIVERED);
-    const bodies: unknown[] = [];
-    const fetchImpl = (async (_url: string, init: RequestInit) => {
-      bodies.push(JSON.parse(String(init.body)));
-      return new Response(JSON.stringify({ version: 4 }), { status: 200 });
-    }) as unknown as typeof fetch;
-
-    const localPlan = plan(false);
-    localPlan.credentials.subscriptionHome = home;
-    const state = subscriptionPushState(SUBSCRIPTION);
-    const fake = fakeWatch();
-    const watch = startSubscriptionLoginPublisher({
-      plan: localPlan,
-      state,
-      sandbox: undefined,
-      apiBase: "http://api:8000",
-      authorization: "ApiKey secret",
-      fetchImpl,
-      log: () => {},
-      debounceMs: 20,
-      watchImpl: fake.watchImpl,
-    });
-    stops.push(watch.stop);
-
-    // The delivered login is already on disk: touching the file must not push it.
-    writeLogin(home, DELIVERED);
-    fake.fire();
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    assert.deepEqual(bodies, [], "the delivered login is never pushed back");
-
     writeLogin(home, REFRESHED);
-    fake.fire();
-    await eventually(() => bodies.length >= 1);
-    assert.deepEqual(bodies[0], {
-      login: REFRESHED,
-      version: 3,
-      generation: 1,
+    const lines: string[] = [];
+    const api = fakeApi((call) => {
+      if (call === 1) throw new Error(`boom ${REFRESHED.refresh}`);
+      return { status: 200, body: { version: 9, updated: false, stale: true } };
     });
-    assert.equal(state.pushedExpires, REFRESHED.expires);
-    assert.equal(state.version, 4);
+    const publisher = start({ home, api, intervalMs: 60_000, log: (l) => lines.push(l) });
 
-    // The same refresh must not be sent twice, however many events the file raises.
-    fake.fire();
-    await new Promise((resolve) => setTimeout(resolve, 120));
-    assert.equal(bodies.length, 1);
-  });
+    await publisher.reconcile("interval");
+    await publisher.reconcile("interval");
 
-  it("does nothing for a run with no subscription, no home, or no credential", () => {
-    const noop = { stop: () => {} };
-    const started = [
-      startSubscriptionLoginPublisher({
-        plan: { isDaytona: false, credentials: {} },
-        state: subscriptionPushState(SUBSCRIPTION),
-        sandbox: undefined,
-        apiBase: "http://api:8000",
-        authorization: "ApiKey secret",
-      }),
-      startSubscriptionLoginPublisher({
-        plan: plan(false),
-        state: undefined,
-        sandbox: undefined,
-        apiBase: "http://api:8000",
-        authorization: "ApiKey secret",
-      }),
-      startSubscriptionLoginPublisher({
-        plan: plan(true),
-        state: subscriptionPushState(SUBSCRIPTION),
-        sandbox: undefined,
-        apiBase: "http://api:8000",
-        authorization: "",
-      }),
-    ];
-    for (const watch of started) {
-      assert.doesNotThrow(watch.stop);
-    }
-    assert.doesNotThrow(noop.stop);
-  });
-
-  it("polls the sandbox on a Daytona run", async () => {
-    const bodies: unknown[] = [];
-    const fetchImpl = (async (_url: string, init: RequestInit) => {
-      bodies.push(JSON.parse(String(init.body)));
-      return new Response(JSON.stringify({ version: 4 }), { status: 200 });
-    }) as unknown as typeof fetch;
-    const sandbox: SubscriptionSandboxFs = {
-      mkdirFs: async () => undefined,
-      writeFsFile: async () => undefined,
-      // Bytes, as the real sandbox API answers.
-      readFsFile: async () =>
-        Buffer.from(JSON.stringify({ "openai-codex": REFRESHED }), "utf-8"),
-    };
-
-    const watch = startSubscriptionLoginPublisher({
-      plan: plan(true),
-      state: subscriptionPushState(SUBSCRIPTION),
-      sandbox,
-      apiBase: "http://api:8000",
-      authorization: "ApiKey secret",
-      fetchImpl,
-      log: () => {},
-      intervalMs: 15,
-    });
-    stops.push(watch.stop);
-
-    await eventually(() => bodies.length >= 1);
-    assert.deepEqual(bodies[0], {
-      login: REFRESHED,
-      version: 3,
-      generation: 1,
-    });
+    const text = lines.join("\n");
+    assert.ok(!text.includes(REFRESHED.refresh), text);
+    assert.ok(!text.includes(REFRESHED.access), text);
+    assert.match(text, /decision=stale/);
   });
 });

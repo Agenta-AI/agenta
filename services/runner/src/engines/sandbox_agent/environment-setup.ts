@@ -37,10 +37,10 @@ import { loadPiBuiltinRegistry } from "./pi-builtin-registry.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
 import { buildRunPlan } from "./run-plan.ts";
 import {
-  materializeLocalSubscriptionLogin,
-  subscriptionPushState,
+  materializeSubscriptionLoginForRun,
   SUBSCRIPTION_MATERIALIZE_FAILED_MESSAGE,
-} from "./subscription-login.ts";
+} from "./subscription-login/files.ts";
+import { subscriptionPublishState } from "./subscription-login/publisher.ts";
 import { configFingerprint } from "./session-identity.ts";
 import type {
   SandboxAgentDeps,
@@ -289,11 +289,12 @@ export async function prepareEnvironmentSetup(
   const subscriptionForRun = plan.credentials.subscription;
   if (subscriptionForRun && plan.credentials.subscriptionHome && !plan.isDaytona) {
     try {
-      await materializeLocalSubscriptionLogin(
-        plan.credentials.subscriptionHome,
-        subscriptionForRun,
-        logger,
-      );
+      await materializeSubscriptionLoginForRun({
+        home: plan.credentials.subscriptionHome,
+        isDaytona: false,
+        subscription: subscriptionForRun,
+        log: logger,
+      });
     } catch (err) {
       // The message names no path and carries no provider text; the cause goes to the log only.
       logger(
@@ -420,8 +421,8 @@ export async function prepareEnvironmentSetup(
     mcpAbort,
     runAgentDir,
     codexSqliteHome,
-    subscriptionPush: subscriptionForRun
-      ? subscriptionPushState(subscriptionForRun)
+    subscriptionPublish: subscriptionForRun
+      ? subscriptionPublishState(subscriptionForRun)
       : undefined,
     mountCreds,
     agentMountCreds,

@@ -15,11 +15,10 @@ import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
-  pushSubscriptionLogin,
   reportSubscriptionLoginFailure,
-  subscriptionPushState,
-  validateSubscriptionLogin,
-} from "../../src/engines/sandbox_agent/subscription-login.ts";
+  subscriptionPublishState,
+} from "../../src/engines/sandbox_agent/subscription-login/publisher.ts";
+import { validateSubscriptionLogin } from "../../src/engines/sandbox_agent/subscription-login/validate.ts";
 import type { ModelConnectionSubscription } from "../../src/protocol.ts";
 import { accessToken, makeLogin } from "../utils/subscription-login.ts";
 
@@ -122,99 +121,21 @@ describe("validateSubscriptionLogin", () => {
   });
 });
 
-describe("pushSubscriptionLogin is the one gate", () => {
-  it("does not send a login that fails validation, and says so", async () => {
+describe("a failure report quotes what this run was DELIVERED", () => {
+  it("quotes the delivered pair, which publication never moves", async () => {
+    // The live sequence: a publication lands and the API answers with a new version, then the turn
+    // fails. Quoting that new version tells the API "I ran on the current login", so a connection
+    // that had simply moved on gets marked needs_login instead of answering stale.
+    const state = subscriptionPublishState(SUBSCRIPTION);
     const { calls, fetchImpl } = recordingFetch();
-    const state = subscriptionPushState(SUBSCRIPTION);
-    const lines: string[] = [];
-    const garbage = {
-      ...GOOD,
-      access: "aaaa",
-      refresh: "bbbb",
-      expires: Date.now() + 86_400_000,
+    const api = {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey secret",
+      fetchImpl,
+      log: () => {},
     };
 
-    await pushSubscriptionLogin(SUBSCRIPTION, state, garbage, {
-      apiBase: "http://api:8000",
-      authorization: "ApiKey secret",
-      fetchImpl,
-      log: (line) => lines.push(line),
-    });
-
-    assert.deepEqual(calls, [], "nothing may reach the API");
-    assert.match(lines.join("\n"), /push skipped reason=unparseable/);
-    assert.match(lines.join("\n"), /check=access_not_jwt/);
-    // The floor must not move either: a skipped push is not a push.
-    assert.equal(state.pushedExpires, undefined);
-    assert.equal(state.version, 3);
-  });
-
-  it("still sends a real login", async () => {
-    const { calls, fetchImpl } = recordingFetch();
-    const state = subscriptionPushState(SUBSCRIPTION);
-    const better = makeLogin({ expires: Date.now() + 7_200_000 });
-
-    await pushSubscriptionLogin(SUBSCRIPTION, state, better, {
-      apiBase: "http://api:8000",
-      authorization: "ApiKey secret",
-      fetchImpl,
-      log: () => {},
-    });
-
-    assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0].body.login, better);
-    assert.equal(state.version, 9);
-  });
-
-  it("never puts the login in the skip log", async () => {
-    const { fetchImpl } = recordingFetch();
-    const lines: string[] = [];
-    const garbage = { ...GOOD, access: "SECRET-JUNK-VALUE", refresh: "SECRET-REFRESH" };
-    await pushSubscriptionLogin(
-      SUBSCRIPTION,
-      subscriptionPushState(SUBSCRIPTION),
-      garbage,
-      {
-        apiBase: "http://api:8000",
-        authorization: "ApiKey secret",
-        fetchImpl,
-        log: (line) => lines.push(line),
-      },
-    );
-    const joined = lines.join("\n");
-    for (const secret of ["SECRET-JUNK-VALUE", "SECRET-REFRESH", "acct_1"]) {
-      assert.ok(!joined.includes(secret), `log leaked ${secret}`);
-    }
-  });
-});
-
-describe("a failure report quotes the DELIVERED version", () => {
-  it("does not quote a version a push in the same run learned", async () => {
-    // The live sequence: a push lands and the API answers with a new version, then the turn fails.
-    // Quoting that new version tells the API "I ran on the current login", so a connection that
-    // had simply moved on gets marked needs_login instead of answering stale.
-    const state = subscriptionPushState(SUBSCRIPTION);
-    const { calls, fetchImpl } = recordingFetch();
-
-    await pushSubscriptionLogin(
-      SUBSCRIPTION,
-      state,
-      makeLogin({ expires: Date.now() + 7_200_000 }),
-      {
-        apiBase: "http://api:8000",
-        authorization: "ApiKey secret",
-        fetchImpl,
-        log: () => {},
-      },
-    );
-    assert.equal(state.version, 9, "the push followed the API");
-
-    await reportSubscriptionLoginFailure(SUBSCRIPTION, state, "auth_failed", {
-      apiBase: "http://api:8000",
-      authorization: "ApiKey secret",
-      fetchImpl,
-      log: () => {},
-    });
+    await reportSubscriptionLoginFailure(SUBSCRIPTION, state, "auth_failed", api);
 
     const report = calls.at(-1);
     assert.match(String(report?.url), /subscription-login\/failure$/);
@@ -223,25 +144,27 @@ describe("a failure report quotes the DELIVERED version", () => {
       generation: 1,
       reason: "auth_failed",
     });
+    assert.equal(state.version, 3, "only a recovery adoption moves this");
+    assert.equal(state.generation, 1);
   });
 
-  it("keeps the delivered pair immutable across several pushes", async () => {
-    const state = subscriptionPushState(SUBSCRIPTION);
+  it("never puts the login or the API body in the log", async () => {
+    const lines: string[] = [];
     const { fetchImpl } = recordingFetch();
-    for (const hours of [2, 3, 4]) {
-      await pushSubscriptionLogin(
-        SUBSCRIPTION,
-        state,
-        makeLogin({ expires: Date.now() + hours * 3_600_000 }),
-        {
-          apiBase: "http://api:8000",
-          authorization: "ApiKey secret",
-          fetchImpl,
-          log: () => {},
-        },
-      );
+    await reportSubscriptionLoginFailure(
+      SUBSCRIPTION,
+      subscriptionPublishState(SUBSCRIPTION),
+      "auth_failed",
+      {
+        apiBase: "http://api:8000",
+        authorization: "ApiKey secret",
+        fetchImpl,
+        log: (line) => lines.push(line),
+      },
+    );
+    const joined = lines.join("\n");
+    for (const secret of [GOOD.access, GOOD.refresh, "ApiKey secret"]) {
+      assert.ok(!joined.includes(String(secret)), `log leaked ${secret}`);
     }
-    assert.equal(state.deliveredVersion, 3);
-    assert.equal(state.deliveredGeneration, 1);
   });
 });
