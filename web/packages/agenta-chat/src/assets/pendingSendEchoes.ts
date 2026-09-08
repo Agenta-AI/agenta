@@ -126,6 +126,13 @@ export const pendingSendEchoMessages = (pending: readonly PendingSendEcho[]): UI
             }) as unknown as UIMessage,
     )
 
+/** True for an echo whose send is known to have failed, so a host can say so on the row. */
+export const isPendingSendFailed = (message: UIMessage): boolean =>
+    (message.metadata as {pendingSendFailed?: unknown} | undefined)?.pendingSendFailed === true
+
+/** Shown on a failed echo. One sentence: what happened, and what to do about it. */
+export const PENDING_SEND_FAILED_NOTE = "Not sent. Copy the text and try again."
+
 const previewExecutionId = (message: UIMessage): string | null => {
     const metadata = message.metadata as {executionId?: unknown} | undefined
     return typeof metadata?.executionId === "string" ? metadata.executionId : null

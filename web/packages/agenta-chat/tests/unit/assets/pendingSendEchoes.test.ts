@@ -5,7 +5,9 @@ import {
     compactPendingSendCoverage,
     countUserMessages,
     durableUserTurnIds,
+    isPendingSendFailed,
     mergePendingSendEchoRows,
+    PENDING_SEND_FAILED_NOTE,
     nextPendingSendCoverage,
     pendingSendEchoMessages,
     retirePendingSendEchoes,
@@ -269,5 +271,19 @@ describe("retirePendingSendEchoes precedence", () => {
     it("keeps a flagged echo whose row never arrives", () => {
         const pending = [echo("m1", "mine", 2, {executionId: "turn-1", failed: true})]
         expect(retire(pending, 99, ["turn-other"])).toEqual(pending)
+    })
+})
+
+describe("isPendingSendFailed", () => {
+    it("is true only for an echo row whose send failed", () => {
+        const [failed] = pendingSendEchoMessages([echo("m1", "hi", 3, {failed: true})])
+        const [pending] = pendingSendEchoMessages([echo("m2", "hi", 3)])
+        expect(isPendingSendFailed(failed)).toBe(true)
+        expect(isPendingSendFailed(pending)).toBe(false)
+        expect(isPendingSendFailed(user("u1", "saved"))).toBe(false)
+    })
+
+    it("carries a note that says what happened and what to do", () => {
+        expect(PENDING_SEND_FAILED_NOTE).toMatch(/not sent/i)
     })
 })

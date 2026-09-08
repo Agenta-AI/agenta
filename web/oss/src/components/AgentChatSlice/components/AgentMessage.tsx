@@ -7,7 +7,13 @@ import {
     getMessageTraceId,
     getMessageUsage,
 } from "@agenta/chat/assets"
-import {attachmentIdForPart, filePartName, isViewable} from "@agenta/chat/assets"
+import {
+    attachmentIdForPart,
+    filePartName,
+    isPendingSendFailed,
+    isViewable,
+    PENDING_SEND_FAILED_NOTE,
+} from "@agenta/chat/assets"
 import {
     ClientToolPart,
     isClientToolPart,
@@ -637,6 +643,18 @@ const AgentMessage = ({
         defaultBody
     )
 
+    // A send the server refused after the composer had already cleared. The row keeps the text so
+    // it is not lost; this says why it is sitting there with no answer coming.
+    const pendingSendFailure = isPendingSendFailed(message) ? (
+        <div
+            data-pending-send-failed="true"
+            role="status"
+            className="mt-1 text-[11px] leading-4 opacity-80"
+        >
+            {PENDING_SEND_FAILED_NOTE}
+        </div>
+    ) : null
+
     // Partial output then failure: show the content AND the error. Answer-less failure: the
     // whole bubble is the error. Otherwise: just the content.
     const body =
@@ -647,6 +665,11 @@ const AgentMessage = ({
             </div>
         ) : isError ? (
             errorBody
+        ) : pendingSendFailure ? (
+            <div className="flex min-w-0 max-w-full flex-col">
+                {contentBody}
+                {pendingSendFailure}
+            </div>
         ) : (
             contentBody
         )
