@@ -21,6 +21,7 @@ import {
   runnerStateDir,
   subscriptionHomeDir,
   SUBSCRIPTION_INVALID_MESSAGE,
+  SUBSCRIPTION_UNSUPPORTED_MESSAGE,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
 import { configFingerprint } from "../../src/engines/sandbox_agent/session-identity.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
@@ -148,6 +149,42 @@ describe("buildRunPlan with a hosted subscription", () => {
     assert.equal(result.ok, false);
     if (result.ok) return;
     assert.equal(result.error, SUBSCRIPTION_INVALID_MESSAGE);
+  });
+
+  /**
+   * The runner's own wire boundary. A direct `/run` caller never passes through the SDK resolver
+   * that already refuses these pairs, and the runner writes a ChatGPT-shaped `auth.json` into a Pi
+   * agent dir: no other harness reads that file, and Pi has no login format for another product.
+   */
+  it("refuses a subscription on a harness that is not Pi", () => {
+    const result = buildRunPlan(
+      {
+        ...request({ subscription: SUBSCRIPTION }),
+        harness: "claude_code",
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/agenta-test-cwd" },
+    );
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SUBSCRIPTION_UNSUPPORTED_MESSAGE);
+  });
+
+  it("refuses a subscription for a product family other than ChatGPT", () => {
+    const result = buildRunPlan(
+      request({ subscription: { ...SUBSCRIPTION, provider: "claude" } }),
+      { createLocalCwd: () => "/tmp/agenta-test-cwd" },
+    );
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, SUBSCRIPTION_UNSUPPORTED_MESSAGE);
+  });
+
+  it("accepts the provider name whatever its case and spacing", () => {
+    const result = buildRunPlan(
+      request({ subscription: { ...SUBSCRIPTION, provider: " ChatGPT " } }),
+      { createLocalCwd: () => "/tmp/agenta-test-cwd" },
+    );
+    assert.equal(result.ok, true);
   });
 
   it("refuses a subscription with an unusable login instead of falling back to the mount", () => {

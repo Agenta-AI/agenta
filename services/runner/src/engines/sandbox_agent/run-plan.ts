@@ -112,6 +112,19 @@ export const SUBSCRIPTION_INVALID_MESSAGE =
   "modelConnection.subscription is invalid: it needs an id (letters, digits, '.', '_' or '-'), " +
   "and a login with access, refresh, and a numeric expires.";
 
+/**
+ * The only harness and product family a hosted subscription run is implemented for.
+ *
+ * The runner materializes a ChatGPT-shaped `auth.json` into a Pi agent dir. Any other pair would
+ * write a credential the harness does not read, and the run would authenticate as nobody while
+ * looking configured. The SDK refuses these on the product path; this is the runner's own wire
+ * boundary, which a direct `/run` caller reaches without passing through the SDK.
+ */
+export const SUBSCRIPTION_SUPPORTED_PROVIDER = "chatgpt";
+export const SUBSCRIPTION_UNSUPPORTED_MESSAGE =
+  "A subscription connection is supported only for the ChatGPT provider on a Pi harness. " +
+  "Use a managed API key (credentialMode 'env') for anything else.";
+
 /** The id doubles as a directory name, so it must be one plain path segment and nothing else. */
 const SUBSCRIPTION_ID_PATTERN = /^[A-Za-z0-9._-]{1,128}$/;
 
@@ -612,6 +625,13 @@ export function buildRunPlan(
     // which authenticates as the wrong account.
     if (!isUsableSubscription(requestSubscription)) {
       return { ok: false, error: SUBSCRIPTION_INVALID_MESSAGE };
+    }
+    if (
+      !isPi ||
+      requestSubscription.provider?.trim().toLowerCase() !==
+        SUBSCRIPTION_SUPPORTED_PROVIDER
+    ) {
+      return { ok: false, error: SUBSCRIPTION_UNSUPPORTED_MESSAGE };
     }
   } else if (requestSubscription) {
     // A subscription with any other credential mode is a caller that half-migrated. Refuse rather
