@@ -1,4 +1,5 @@
 // The `+ New skill ▾` menu, shared by every creation entry point; no default-click action.
+import {cn} from "@agenta/ui/styles"
 import {
     Button,
     DropdownMenu,
@@ -17,6 +18,8 @@ export interface NewSkillMenuButtonProps {
     variant?: "default" | "outline"
     /** Per-entry gating while flows ship incrementally; every entry defaults available. */
     availability?: {write?: boolean; upload?: boolean; import?: boolean}
+    /** Layout classes from the placement — e.g. the toolbar pinning it to the right edge. */
+    className?: string
 }
 
 export function NewSkillMenuButton({
@@ -26,11 +29,12 @@ export function NewSkillMenuButton({
     disabled,
     variant = "default",
     availability,
+    className,
 }: NewSkillMenuButtonProps) {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant={variant} disabled={disabled} className="gap-1.5">
+                <Button variant={variant} disabled={disabled} className={cn("gap-1.5", className)}>
                     <Plus size={14} />
                     New skill
                     <CaretDown size={12} className="opacity-70" />

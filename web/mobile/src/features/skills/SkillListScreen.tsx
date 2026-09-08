@@ -86,34 +86,37 @@ export const SkillListScreen = ({
         >
             <div className="flex min-w-0 items-center gap-2">
                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                <h1 className="text-colorText m-0 min-w-0 flex-1 truncate text-[24px] font-semibold leading-[1.3333333333333333]">
+                {/* 24px is the desktop rung; on a phone it eats the row beside the hamburger,
+                    so the title drops to the 16px ramp the other /m list screens use. */}
+                <h1 className="text-colorText m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] sm:text-[24px] sm:leading-[1.3333333333333333]">
                     Skills
                 </h1>
+                {/* Skills' archived view is inline (Archived tags in the same grid), so this
+                    toggles rather than routes. It rides the title row so the toolbar below
+                    carries only the search and the create action. */}
+                <button
+                    type="button"
+                    onClick={() => setShowArchived(!showArchived)}
+                    className="text-muted-foreground shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs hover:underline"
+                >
+                    {showArchived ? "Hide archived" : "Archived skills"}
+                </button>
             </div>
 
-            {/* Toolbar shape mirrors the desktop pages: [create] [search] ... [archived link].
-                Skills' archived view is inline (Archived tags in the same grid), so the link
-                toggles rather than routes. Phone: the row wraps instead of overflowing, with
-                the search taking its own full-width line. */}
-            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-                <NewSkillMenuButton
-                    onWrite={openWrite}
-                    onUpload={openUpload}
-                    onImport={openImport}
-                />
+            {/* Desktop's toolbar axis (TableShell): search left and growing, action right. */}
+            <div className="flex min-w-0 items-center justify-between gap-3">
                 <SearchInput
                     value={search}
                     onValueChange={setSearch}
                     placeholder="Search skills by name…"
-                    className="order-last w-full min-w-0 sm:order-none sm:max-w-80"
+                    className="min-w-0 grow sm:max-w-80"
                 />
-                <button
-                    type="button"
-                    onClick={() => setShowArchived(!showArchived)}
-                    className="text-muted-foreground ml-auto shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs hover:underline"
-                >
-                    {showArchived ? "Hide archived" : "Archived skills"}
-                </button>
+                <NewSkillMenuButton
+                    className="shrink-0"
+                    onWrite={openWrite}
+                    onUpload={openUpload}
+                    onImport={openImport}
+                />
             </div>
         </div>
     )
