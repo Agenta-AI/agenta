@@ -198,3 +198,15 @@ async def test_an_explicit_null_policy_clears_it():
     written = dao.edit_agent.call_args.kwargs["agent"]
     assert written.data.policy is None
     assert written.data.references == existing.data.references
+
+
+async def test_explicit_null_references_is_refused_on_an_edit():
+    from pydantic import ValidationError
+
+    from oss.src.core.channels.dtos import ChannelAgentDataEdit
+
+    with pytest.raises(ValidationError):
+        ChannelAgentDataEdit(references=None)
+
+    # omitting references is fine (keep-unchanged), and policy: null still clears
+    assert ChannelAgentDataEdit(policy=None).references is None

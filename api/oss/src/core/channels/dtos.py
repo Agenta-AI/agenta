@@ -558,6 +558,19 @@ class ChannelAgentDataEdit(BaseModel):
             return value.model_dump()
         return value
 
+    @model_validator(mode="after")
+    def _reject_explicit_null_references(self) -> "ChannelAgentDataEdit":
+        # omitting references keeps the stored ones; sending `references: null`
+        # would wipe the agent's only runnable target, which the merged
+        # ChannelAgentData then rejects as a confusing downstream error. Refuse
+        # it here, at the edit boundary. `policy: null` stays allowed (it clears).
+        if "references" in self.model_fields_set and self.references is None:
+            raise ValueError(
+                "references cannot be null on an edit; omit it to keep the "
+                "stored workflow, or name a new one"
+            )
+        return self
+
     @field_validator("references")
     @classmethod
     def _references_must_be_resolvable(
