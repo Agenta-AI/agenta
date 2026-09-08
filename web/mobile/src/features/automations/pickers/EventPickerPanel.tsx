@@ -297,7 +297,7 @@ export const EventPickerPanel = ({
                     <Button
                         type="button"
                         size="sm"
-                        className="font-normal"
+                        className="text-xs font-normal"
                         disabled={!ready || saving}
                         onClick={() => void onDone()}
                     >

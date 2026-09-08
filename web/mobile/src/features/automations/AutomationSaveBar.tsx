@@ -21,13 +21,13 @@ export const AutomationSaveBar = ({
             type="button"
             size="sm"
             variant="outline"
-            className="font-normal"
+            className="text-xs font-normal"
             disabled={saving}
             onClick={onDiscard}
         >
             Discard
         </Button>
-        <Button type="button" size="sm" className="font-normal" disabled={saving} onClick={onSave}>
+        <Button type="button" size="sm" className="text-xs font-normal" disabled={saving} onClick={onSave}>
             {saving ? "Saving…" : "Save"}
         </Button>
     </div>

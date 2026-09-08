@@ -260,7 +260,7 @@ export const AutomationDraftScreen = ({
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                className="font-normal"
+                                className="text-xs font-normal"
                                 onClick={() => void router.push(`${base}/automations`)}
                             >
                                 Cancel
@@ -271,7 +271,7 @@ export const AutomationDraftScreen = ({
                                 <Button
                                     type="button"
                                     size="sm"
-                                    className="font-normal"
+                                    className="text-xs font-normal"
                                     disabled={!!blockedReason || saving}
                                     title={blockedReason || undefined}
                                     onClick={() => void onCreate()}

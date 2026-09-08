@@ -232,10 +232,10 @@ export const AutomationListScreen = ({
                                 <Button
                                     size="sm"
                                     aria-label="New automation"
-                                    className="font-normal"
+                                    className="text-xs font-normal"
                                     onClick={() => void router.push(`${base}/automations/new`)}
                                 >
-                                    <Plus />
+                                    <Plus className="size-3" />
                                     {/* The label costs more than it earns at phone width: it
                                         pushed the page's own title into an ellipsis. */}
                                     <span className="hidden sm:inline">New automation</span>
