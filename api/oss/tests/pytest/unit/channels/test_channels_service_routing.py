@@ -9,7 +9,7 @@ rather than a hand-rolled one.
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import ANY, AsyncMock, MagicMock
 
 import pytest
 
@@ -78,6 +78,7 @@ def _make_fake_dao():
     dao.query_matching_grants = AsyncMock(return_value=[])
     dao.count_grants = AsyncMock(return_value=0)
     dao.fetch_current_thread = AsyncMock(return_value=None)
+    dao.fetch_thread_awaiting_choice = AsyncMock(return_value=None)
     dao.create_thread = AsyncMock()
     # resolve() attaches the event to its space before any refusal path
     dao.attach_event_to_space = AsyncMock(return_value=None)
@@ -1536,3 +1537,150 @@ class TestForwardfillScopeOrder:
         )
 
         assert [e.id for e in kept] == [addressing.id]
+
+
+class TestApprovalAnswers:
+    """An approval card's answer goes back to the turn that parked, not into a
+    new turn (F100/F101). The resolution names the interaction, and a typed
+    answer reaches the agent whose question is open, not the room's default."""
+
+    async def test_a_click_on_an_approval_names_the_parked_interaction(self):
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        agent = _make_agent(slug="triage")
+        pending = ChannelPendingChoice(
+            choices=[
+                ChannelPendingChoiceItem(label="Approve", token="approve"),
+                ChannelPendingChoiceItem(label="Deny", token="deny"),
+            ],
+            posted_at=datetime.now(timezone.utc),
+            interaction_id="int-42",
+        )
+        thread = ChannelThread(
+            id=uuid4(),
+            space_id=space.id,
+            agent_id=agent.id,
+            external_key=uuid4(),
+            session_id="sess-1",
+            data=ChannelThreadData(pending_choice=pending),
+            flags=ChannelThreadFlags(),
+        )
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_default_agent = AsyncMock(return_value=agent)
+        dao.fetch_current_thread = AsyncMock(return_value=thread)
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(text="deny")
+        event.kind = ChannelEventKind.ACTION
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        assert result.answered_interaction_id == "int-42"
+        assert result.resolved_token == "deny"
+        assert result.resolved_choice == "Deny"
+
+    async def test_a_typed_answer_reaches_the_agent_whose_question_is_open(self):
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        default_agent = _make_agent(
+            slug="default", flags=ChannelAgentFlags(is_default=True)
+        )
+        asking_agent = _make_agent(slug="deployer")
+        pending = ChannelPendingChoice(
+            choices=[
+                ChannelPendingChoiceItem(label="Approve", token="approve"),
+                ChannelPendingChoiceItem(label="Deny", token="deny"),
+            ],
+            posted_at=datetime.now(timezone.utc),
+            interaction_id="int-7",
+        )
+        waiting = ChannelThread(
+            id=uuid4(),
+            space_id=space.id,
+            agent_id=asking_agent.id,
+            external_key=compose_external_key(
+                capabilities, ChannelKeyGrain.THREAD, _LOCATOR
+            ),
+            session_id="sess-deployer",
+            data=ChannelThreadData(pending_choice=pending),
+            flags=ChannelThreadFlags(is_active=True),
+        )
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_default_agent = AsyncMock(return_value=default_agent)
+        dao.fetch_thread_awaiting_choice = AsyncMock(return_value=waiting)
+        dao.fetch_agent = AsyncMock(return_value=asking_agent)
+        dao.fetch_current_thread = AsyncMock(return_value=waiting)
+        service = _make_service(dao=dao, adapter=adapter)
+        # a plain "Approve", no sigil: before, this went to the default agent
+        event = _make_event(text="Approve", space_kind=ChannelSpaceKind.TOPIC)
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        assert result.agent.id == asking_agent.id
+        assert result.answered_interaction_id == "int-7"
+        dao.fetch_agent.assert_awaited_with(project_id=ANY, agent_id=asking_agent.id)
+        dao.create_thread.assert_not_awaited()
+
+    async def test_ordinary_text_does_not_hijack_the_asking_agent(self):
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        default_agent = _make_agent(
+            slug="default", flags=ChannelAgentFlags(is_default=True)
+        )
+        asking_agent = _make_agent(slug="deployer")
+        waiting = ChannelThread(
+            id=uuid4(),
+            space_id=space.id,
+            agent_id=asking_agent.id,
+            external_key=compose_external_key(
+                capabilities, ChannelKeyGrain.THREAD, _LOCATOR
+            ),
+            session_id="sess-deployer",
+            data=ChannelThreadData(
+                pending_choice=ChannelPendingChoice(
+                    choices=[
+                        ChannelPendingChoiceItem(label="Approve", token="approve")
+                    ],
+                    posted_at=datetime.now(timezone.utc),
+                    interaction_id="int-7",
+                )
+            ),
+            flags=ChannelThreadFlags(is_active=True),
+        )
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_default_agent = AsyncMock(return_value=default_agent)
+        dao.fetch_thread_awaiting_choice = AsyncMock(return_value=waiting)
+        dao.fetch_current_thread = AsyncMock(
+            return_value=_active_thread(
+                space=space,
+                agent=default_agent,
+                external_key=compose_external_key(
+                    capabilities, ChannelKeyGrain.THREAD, _LOCATOR
+                ),
+            )
+        )
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(
+            text="what is the weather",
+            space_kind=ChannelSpaceKind.TOPIC,
+            addressed=True,
+        )
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        assert result.agent.id == default_agent.id
+        assert result.answered_interaction_id is None

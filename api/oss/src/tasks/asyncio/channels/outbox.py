@@ -229,6 +229,7 @@ class ChannelsOutboxWorker:
                             for o in item.choice
                         ],
                         posted_at=datetime.now(timezone.utc),
+                        interaction_id=item.interaction_id,
                     ),
                 )
 

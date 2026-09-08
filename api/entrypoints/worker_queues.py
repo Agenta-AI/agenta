@@ -254,12 +254,42 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
     workflows_service.embeds_service = embeds_service
     environments_service.embeds_service = embeds_service
 
+    async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
+        result = await workflows_service.invoke_workflow_detached(
+            project_id=project_id,
+            user_id=user_id,
+            request=request,
+        )
+        return result.run_id
+
+    # A channel's approval answer resumes the parked session the way a
+    # playground click does: through the interactions dispatcher.
+    interactions_dispatcher = InteractionsDispatcher(
+        workflows_service=workflows_service,
+        interactions_service=SessionInteractionsService(
+            interactions_dao=SessionInteractionsDAO(engine=transactions_engine),
+            watch_publisher=SessionsWatchPublisher(),
+        ),
+        records_service=RecordsService(
+            records_dao=RecordsDAO(engine=get_analytics_engine()),
+        ),
+        dispatch_fn=_dispatch_detached_run,
+    )
+
+    async def _respond_interaction(*, project_id, user_id, interaction_id, answer):
+        await interactions_dispatcher.respond_many(
+            project_id=project_id,
+            user_id=user_id,
+            interaction_answers=[(interaction_id, answer)],
+        )
+
     dispatcher = InboxDispatcher(
         channels_service=_build_channels_service(),
         workflows_service=workflows_service,
         identity_service=ChannelIdentityService(
             identity_dao=ChannelIdentityDAO(engine=transactions_engine),
         ),
+        respond_interaction_fn=_respond_interaction,
     )
     ChannelsInboxWorker(broker=broker, dispatcher=dispatcher)
     return broker, 50  # max_async_tasks

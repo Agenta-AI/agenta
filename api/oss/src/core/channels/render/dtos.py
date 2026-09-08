@@ -42,3 +42,6 @@ class RenderItem(BaseModel):
     # buttons or degraded to numbered text, since the outbox must persist the
     # same pending choice either way.
     choice: Optional[List[RenderChoiceOption]] = None
+    # set when the choice is an approval card for a parked session
+    # interaction; the outbox stores it with the pending choice
+    interaction_id: Optional[str] = None

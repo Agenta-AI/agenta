@@ -55,6 +55,8 @@ def _render_pending_interaction(
 
     tool = pending_interaction.get("tool")
     title = f"Approval needed: {tool}" if tool else "Approval needed"
+    interaction_id = pending_interaction.get("id")
+    interaction_id = str(interaction_id) if interaction_id else None
 
     options = [("Approve", "approve"), ("Deny", "deny")]
     choice = [RenderChoiceOption(label=label, token=value) for label, value in options]
@@ -77,6 +79,7 @@ def _render_pending_interaction(
                 ),
             ],
             choice=choice,
+            interaction_id=interaction_id,
         )
 
     # buttons unsupported, or the option count exceeds the declared max
@@ -94,6 +97,7 @@ def _render_pending_interaction(
             )
         ],
         choice=choice,
+        interaction_id=interaction_id,
     )
 
 

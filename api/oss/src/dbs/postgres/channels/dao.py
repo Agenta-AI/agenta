@@ -1069,6 +1069,36 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
 
+    async def fetch_thread_awaiting_choice(
+        self,
+        *,
+        project_id: UUID,
+        #
+        space_id: UUID,
+        external_key: Optional[UUID],
+    ) -> Optional[ChannelThread]:
+        """The active thread under this key, whichever agent holds it, that has
+        a pending choice. A typed answer carries no agent, so the agent that
+        asked is found through the question it left open."""
+        async with self.engine.session() as session:
+            stmt = (
+                select(ChannelThreadDBE)
+                .where(
+                    ChannelThreadDBE.project_id == project_id,
+                    ChannelThreadDBE.space_id == space_id,
+                    ChannelThreadDBE.external_key == external_key,
+                    ChannelThreadDBE.data["pending_choice"].isnot(None),
+                )
+                .order_by(ChannelThreadDBE.created_at.desc())
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            thread_dbe = result.scalars().first()
+            if not thread_dbe:
+                return None
+            thread = map_thread_dbe_to_dto(thread_dbe=thread_dbe)
+            return thread if thread.flags.is_active else None
+
     async def query_threads(
         self,
         *,

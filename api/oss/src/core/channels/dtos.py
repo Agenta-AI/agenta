@@ -390,6 +390,10 @@ class ChannelPendingChoice(BaseModel):
 
     choices: List[ChannelPendingChoiceItem]
     posted_at: datetime
+    # the parked session interaction this choice answers, when it is an
+    # approval card: the answer goes to the sessions respond path, and no
+    # new turn opens
+    interaction_id: Optional[str] = None
 
 
 class ChannelThreadData(BaseModel):
@@ -876,6 +880,11 @@ class ChannelResolution(BaseModel):
     agent: ChannelAgent
     thread: ChannelThread
     policy: ChannelEffectivePolicy
+    # set when the addressing event answered a pending choice that is a
+    # parked approval: the dispatcher answers the interaction instead of
+    # opening a turn
+    answered_interaction_id: Optional[str] = None
+    resolved_token: Optional[str] = None
     # set when the addressing event answered a pending choice; compose_input
     # substitutes this for the event's own content, so the log is never rewritten
     resolved_choice: Optional[str] = None

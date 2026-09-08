@@ -650,6 +650,8 @@ async def test_pending_interaction_writes_the_thread_s_pending_choice(
     assert tokens == {"approve", "deny"}
     labels = {c.label for c in stored.data.pending_choice.choices}
     assert labels == {"Approve", "Deny"}
+    # the parked interaction the answer must go to, so the click can resume it
+    assert stored.data.pending_choice.interaction_id == "int-1"
 
 
 @pytest.mark.asyncio
