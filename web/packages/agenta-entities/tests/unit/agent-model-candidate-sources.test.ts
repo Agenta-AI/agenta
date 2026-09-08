@@ -98,10 +98,9 @@ describe("resolveAgentModelCandidateSources", () => {
             showSubscriptions: true,
         })
 
-        expect(state).toMatchObject({status: "error", error, candidates: []})
-        // `ready` here is what activated the connect-a-model gate and told the user to add a
-        // provider key when the real fault was that Agenta could not reach the runner.
-        expect(state.status).not.toBe("ready")
+        // The routes we DO know about stay usable, so this remains `ready` for creation and the
+        // picker. The flag is what stops an empty list being read as "you have no key".
+        expect(state).toMatchObject({status: "ready", candidates: [], subscriptionUnknown: true})
     })
 
     it("answers from the vault when the subscription check fails but is not needed", () => {
@@ -201,8 +200,19 @@ describe("resolveAgentModelCandidateSources", () => {
             showSubscriptions: true,
         })
 
-        expect(state.status).not.toBe("ready")
-        expect(state).toMatchObject({status: "error", candidates: []})
+        expect(state).toMatchObject({status: "ready", candidates: [], subscriptionUnknown: true})
+    })
+
+    it("calls the subscription source established when the runner really answers", () => {
+        const state = resolveAgentModelCandidateSources({
+            vaultRows: [],
+            capabilities,
+            subscriptionStatus: RUNNER_WITH_NO_PAIRS,
+            subscriptionSettled: true,
+            showSubscriptions: true,
+        })
+
+        expect(state).toMatchObject({status: "ready", subscriptionUnknown: false})
     })
 
     it("answers from the vault when the subscription answer is unreadable", () => {

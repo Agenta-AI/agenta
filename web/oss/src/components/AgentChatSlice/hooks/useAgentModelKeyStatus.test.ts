@@ -19,4 +19,9 @@ describe("connectModelGate", () => {
     it("does not turn loading into an empty-state claim", () => {
         expect(connectModelGate(facts({loading: true}))).toBe(false)
     })
+
+    it("stands down when the subscription source could not be established", () => {
+        // An empty list is only "no key" once every source answered (#6660).
+        expect(connectModelGate(facts({subscriptionUnknown: true}))).toBe(false)
+    })
 })

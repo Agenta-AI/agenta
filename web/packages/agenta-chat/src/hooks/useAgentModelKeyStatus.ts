@@ -46,14 +46,20 @@ interface HarnessRef {
 /**
  * The connect-a-model gate, as a rule over resolved facts. A stored secret alone is insufficient:
  * at least one exact connection/subscription + harness + model route must be runnable.
+ *
+ * An empty list only means "no key" once every source answered. A subscription source we could not
+ * establish leaves the count a lower bound, so the gate stands down rather than telling the user to
+ * add a provider key on a claim we never made (#6660).
  */
 export const connectModelGate = ({
     loading,
     candidateCount,
+    subscriptionUnknown = false,
 }: {
     loading: boolean
     candidateCount: number
-}): boolean => !loading && candidateCount === 0
+    subscriptionUnknown?: boolean
+}): boolean => !loading && candidateCount === 0 && !subscriptionUnknown
 
 export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
     const config = useAtomValue(
@@ -90,6 +96,7 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
         const gateActive = connectModelGate({
             loading: candidateState.status !== "ready",
             candidateCount: candidateState.candidates.length,
+            subscriptionUnknown: candidateState.subscriptionUnknown,
         })
 
         return {

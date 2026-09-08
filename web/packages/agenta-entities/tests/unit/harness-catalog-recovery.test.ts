@@ -29,6 +29,7 @@ import {loadAgentModelCandidates} from "../../src/workflow/state/agentModelCandi
 import {harnessCatalogIsUsable} from "../../src/workflow/state/inspectMeta"
 
 const CATALOG_KEY = ["workflows", "catalog", "harnesses"]
+const SUBSCRIPTION_KEY = ["workflows", "runtime", "subscription-status", "claude", "proj-1"]
 
 const CAPABILITIES = {
     pi_core: {
@@ -60,6 +61,9 @@ afterEach(() => {
 
 const load = () =>
     loadAgentModelCandidates({projectId: "proj-1", userId: "user-1", showSubscriptions: false})
+
+const loadWithSubscriptions = () =>
+    loadAgentModelCandidates({projectId: "proj-1", userId: "user-1", showSubscriptions: true})
 
 describe("harnessCatalogIsUsable", () => {
     it("accepts a catalog and rejects an empty map", () => {
@@ -102,5 +106,33 @@ describe("loadAgentModelCandidates with an empty catalog in the cache", () => {
 
         expect(fetchHarnessCapabilitiesMock).not.toHaveBeenCalled()
         expect(state.status).toBe("ready")
+    })
+})
+
+describe("loadAgentModelCandidates with an unreadable subscription answer cached", () => {
+    it("refetches it instead of serving the null forever", async () => {
+        client.setQueryData(CATALOG_KEY, CAPABILITIES)
+        client.setQueryData(SUBSCRIPTION_KEY, null)
+        fetchSubscriptionStatusMock.mockResolvedValue({
+            runner: "connected",
+            checked_at: null,
+            harnesses: {},
+        })
+
+        const state = await loadWithSubscriptions()
+
+        expect(fetchSubscriptionStatusMock).toHaveBeenCalledTimes(1)
+        expect(state.subscriptionUnknown).toBe(false)
+    })
+
+    it("reports it as unknown when the refetch is unreadable too", async () => {
+        client.setQueryData(CATALOG_KEY, CAPABILITIES)
+        client.setQueryData(SUBSCRIPTION_KEY, null)
+        fetchSubscriptionStatusMock.mockResolvedValue(null)
+
+        const state = await loadWithSubscriptions()
+
+        expect(state.status).toBe("ready")
+        expect(state.subscriptionUnknown).toBe(true)
     })
 })

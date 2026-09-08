@@ -35,6 +35,12 @@ export interface AgentModelCandidatesState {
     connections: ProviderConnection[]
     capabilities: HarnessCapabilitiesMap | null
     error: unknown | null
+    /**
+     * The subscription source could not be established: the check failed, or its answer could not
+     * be read. The routes listed are still real, but they may not be all of them, so a caller must
+     * not read an empty list as proof that nothing is runnable.
+     */
+    subscriptionUnknown: boolean
 }
 
 interface CandidateSourceState {
@@ -73,11 +79,19 @@ export const resolveAgentModelCandidateSources = ({
             connections,
             capabilities: null,
             error,
+            subscriptionUnknown: false,
         }
     }
     // A failed check never blocks on itself: fall through and answer from the vault alone.
     if (showSubscriptions && !subscriptionSettled && !subscriptionError) {
-        return {status: "loading", candidates: [], connections, capabilities, error: null}
+        return {
+            status: "loading",
+            candidates: [],
+            connections,
+            capabilities,
+            error: null,
+            subscriptionUnknown: false,
+        }
     }
 
     const subscriptionPairs = showSubscriptions
@@ -92,28 +106,25 @@ export const resolveAgentModelCandidateSources = ({
         pairModelSelection,
     })
 
-    // A check we could not MAKE, and an answer we could not READ, are both "unknown". Neither is a
+    // A check we could not MAKE, and an answer we could not READ, are both unknown. Neither is a
     // deployment with no subscription, so neither may stand as the reason the gate tells the user
-    // to add a provider key. `subscriptionStatus === null` is the boundary schema's fallback for an
-    // unreadable answer; the subscription card already calls that a failed check.
+    // to add a provider key. `null` is the boundary schema's fallback for an unreadable answer, and
+    // the subscription card already calls that a failed check.
     //
-    // It only matters when nothing else is runnable: with vault candidates in hand the answer is
-    // already yes, and pairs we could not read would have added more routes, never fewer. So report
-    // it only where it changes the answer, and let the gate stand down there rather than claiming
-    // something we never established.
+    // The sources that DID resolve are still authoritative, so this stays `ready`: creation, the
+    // model picker and the slash commands keep working off the routes we do know about. Only the
+    // reading of an EMPTY list changes, which is why the flag travels with the state.
     const subscriptionUnknown =
         showSubscriptions &&
         (subscriptionStatus === null || (subscriptionStatus === undefined && !!subscriptionError))
-    if (subscriptionUnknown && candidates.length === 0) {
-        return {
-            status: "error",
-            candidates: [],
-            connections,
-            capabilities,
-            error: subscriptionError ?? new Error("[workflows] Unreadable subscription status"),
-        }
+    return {
+        status: "ready",
+        candidates,
+        connections,
+        capabilities,
+        error: null,
+        subscriptionUnknown,
     }
-    return {status: "ready", candidates, connections, capabilities, error: null}
 }
 
 export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boolean) =>
@@ -154,6 +165,43 @@ const HARNESS_CATALOG_QUERY = {
     staleTime: 5 * 60_000,
     retry: false,
 } as const
+
+const subscriptionStatusQuery = (projectId: string) =>
+    ({
+        queryKey: [
+            "workflows",
+            "runtime",
+            "subscription-status",
+            SUBSCRIPTION_STATUS_QUERY_HARNESS,
+            projectId,
+        ],
+        queryFn: () =>
+            fetchSubscriptionStatus({harness: SUBSCRIPTION_STATUS_QUERY_HARNESS, projectId}),
+        staleTime: 10_000,
+        retry: false,
+    }) as const
+
+/**
+ * The runner's subscription status for an imperative load, refetched once when the cache holds an
+ * answer we could not read. `null` is that answer, and `ensureQueryData` would serve it forever, so
+ * a retry after the runner recovered would make no request at all.
+ */
+const loadSubscriptionStatus = (
+    queryClient: ReturnType<typeof getHostQueryClient>,
+    projectId: string,
+): Promise<{data: SubscriptionStatusResponse | null | undefined; error: unknown}> =>
+    queryClient
+        .ensureQueryData<SubscriptionStatusResponse | null>(subscriptionStatusQuery(projectId))
+        .then((data) =>
+            data === null
+                ? queryClient.fetchQuery<SubscriptionStatusResponse | null>({
+                      ...subscriptionStatusQuery(projectId),
+                      staleTime: 0,
+                  })
+                : data,
+        )
+        .then((data) => ({data, error: undefined}))
+        .catch((error: unknown) => ({data: undefined, error}))
 
 /**
  * The catalog for an imperative load, refetched once when the cache holds an unusable map.
@@ -203,25 +251,7 @@ export async function loadAgentModelCandidates({
             .then((data) => ({data, error: undefined}))
             .catch((error: unknown) => ({data: undefined, error})),
         showSubscriptions
-            ? queryClient
-                  .ensureQueryData<SubscriptionStatusResponse | null>({
-                      queryKey: [
-                          "workflows",
-                          "runtime",
-                          "subscription-status",
-                          SUBSCRIPTION_STATUS_QUERY_HARNESS,
-                          projectId,
-                      ],
-                      queryFn: () =>
-                          fetchSubscriptionStatus({
-                              harness: SUBSCRIPTION_STATUS_QUERY_HARNESS,
-                              projectId,
-                          }),
-                      staleTime: 10_000,
-                      retry: false,
-                  })
-                  .then((data) => ({data, error: undefined}))
-                  .catch((error: unknown) => ({data: undefined, error}))
+            ? loadSubscriptionStatus(queryClient, projectId)
             : Promise.resolve({data: null, error: undefined}),
     ])
 
