@@ -1,22 +1,16 @@
 import {createElement} from "react"
 
-import {
-    agentWorkflowsListQueryStateAtom,
-    promptWorkflowsListQueryStateAtom,
-} from "@agenta/entities/workflow"
+import {promptWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {playgroundSessionPath} from "@agenta/sessions/link"
 import {addPendingSessionOpenAtom} from "@agenta/sessions/state"
 import {ChatsCircleIcon, CircleIcon, CircleNotchIcon, LightningIcon} from "@phosphor-icons/react"
-import {RobotIcon} from "@phosphor-icons/react"
 import {atom, getDefaultStore} from "jotai"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
-import {SIDEBAR_AGENT_ORDER_ZONE} from "../reorder"
 
 import {withEntityGroups, withRefsByRecency} from "./groups"
 import {sidebarSessionToggledGroupsAtomFamily} from "./sessionFilters"
 import {
-    sidebarAgentRanksAtomFamily,
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     sidebarSessionScopeLimit,
@@ -33,9 +27,9 @@ import type {
 
 const DEFAULT_SIDEBAR_ENTITY_LIMIT = 5
 
-// Sidebar item keys that own a dynamic entity list. The static row in
-// `useSidebarConfig` and the registry entry below must share the same key —
-// keep the constant the single source of truth.
+// Sidebar item keys shared by the static row in `useSidebarConfig` and any registry entry
+// below — keep the constant the single source of truth. Only Prompts and Sessions own a
+// dynamic list today; the rest are plain rows whose keys are still addressed by name.
 export const PROMPTS_SIDEBAR_KEY = "project-prompts-link"
 export const AGENTS_SIDEBAR_KEY = "project-agents-link"
 export const TESTSETS_SIDEBAR_KEY = "app-testsets-link"
@@ -128,16 +122,16 @@ const ENTITIES: SidebarEntity[] = [
             // bolt for a trigger run, a dot for a chat — and the colour still carries the gate.
             const amber = session.waiting ? "text-[var(--ag-run-status-warning)]" : undefined
             if (session.running)
-                return createElement(CircleNotchIcon, {size: 12, className: "animate-spin"})
+                return createElement(CircleNotchIcon, {size: 10, className: "animate-spin"})
             if (session.isAutomation)
                 return createElement(LightningIcon, {
-                    size: 12,
+                    size: 10,
                     // Fill means LIVE on both glyphs; the bolt shape alone says automation.
                     weight: session.waiting || session.alive ? "fill" : "regular",
                     className: amber,
                 })
             return createElement(CircleIcon, {
-                size: 10,
+                size: 9,
                 weight: session.waiting || session.alive ? "fill" : "regular",
                 className: amber,
             })
@@ -155,27 +149,14 @@ const ENTITIES: SidebarEntity[] = [
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
+        // 12px: a session title is the rail's longest string and reads under the nav rows, not
+        // beside them. It overrides ROW_BASE's 13px because LeafRow merges with tailwind-merge.
         // An archived row is second-class, not hidden: same row, dimmed.
-        getRowClassName: (session) => (session.archived ? "opacity-60" : undefined),
+        getRowClassName: (session) => (session.archived ? "text-[12px] opacity-60" : "text-[12px]"),
         // A heading over one row says nothing, so a grouped list needs the window the source
         // fetches rather than the flat list's seven.
         maxItems: sidebarSessionScopeLimit(MAIN_SIDEBAR_SCOPE_ID),
         showAllPath: "/sessions",
-    }),
-    defineSidebarEntity(MAIN_SIDEBAR_SCOPE_ID, AGENTS_SIDEBAR_KEY, {
-        kind: "app",
-        icon: createElement(RobotIcon, {size: 14}),
-        listAtom: agentWorkflowsListQueryStateAtom,
-        getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
-        // An agent's surface is its overview — its config, sessions and runs live there (#6389).
-        childPath: (workflow) => `/apps/${workflow.id}/overview`,
-        // Busiest agent first, by session count — stable session to session, unlike recency,
-        // which reshuffled on every turn. Frozen per page load. Same rule the mobile rail applies.
-        ranksAtom: sidebarAgentRanksAtomFamily(MAIN_SIDEBAR_SCOPE_ID),
-        // This nav group's own arrangement; the Sessions agent headings carry a separate zone.
-        dragZone: SIDEBAR_AGENT_ORDER_ZONE,
-        emptyLabel: "No agents",
-        showAllPath: "/agents",
     }),
 ]
 

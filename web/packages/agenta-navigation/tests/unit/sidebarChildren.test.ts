@@ -619,10 +619,8 @@ describe("agentSessionCounts", () => {
 describe("registered entity destinations", () => {
     const workflow = ref("01a03ed2-c322-7493-b2a2-29b8ae273530", "Ops Assistant")
 
-    it("opens an agent on its overview, not the playground", () => {
-        expect(SIDEBAR_ENTITIES[AGENTS_SIDEBAR_KEY].childLink(workflow, "/w/w1/p/p1")).toBe(
-            "/w/w1/p/p1/apps/01a03ed2-c322-7493-b2a2-29b8ae273530/overview",
-        )
+    it("registers no list under Agents — the rail draws it as a plain row", () => {
+        expect(SIDEBAR_ENTITIES[AGENTS_SIDEBAR_KEY]).toBeUndefined()
     })
 
     it("still opens a prompt on the playground", () => {

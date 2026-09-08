@@ -91,7 +91,6 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Agents",
                 link: `${projectURL}/agents`,
                 icon: <RobotIcon size={14} />,
-                hideChildrenWhenCollapsed: true,
                 // Only agents reach `/apps/<id>` with this rail up, so the prefix can't over-claim.
                 matchLinks: [`${projectURL}/agents`, `${baseAppURL}/`],
                 // Onboarding IS agent creation — the list page is an empty dead-end until it commits.

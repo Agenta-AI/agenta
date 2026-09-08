@@ -43,12 +43,14 @@ export interface NavMenuProps {
 
 // calc, not 94%: an exact 8px inset each side, so the row's right edge lines up with the
 // 8px-inset collapse toggle in the brand row.
-// h-7 (28px), not h-9: the rail is a dense nav, and 36px rows pushed every item progressively
-// further down the list than the desktop app has ever placed them.
+// h-[26px]/13px, not h-9: the rail is a dense nav, and 36px rows pushed every item
+// progressively further down the list than the desktop app has ever placed them.
 // gap-[10px], not gap-2: antd Menu's icon margin is 10px, and at 8px every label in the
 // rail sat 2px left of where the desktop app has always drawn it.
-const ROW_BASE =
-    "relative box-border mb-1 flex h-7 w-[calc(100%-16px)] mx-auto items-center gap-[10px] rounded-md px-3 text-sm leading-7 select-none"
+// leading-none, not leading-7: at a 26px row the line box has to come from the row's own
+// height, or the text sits 1px low and every icon beside it looks misaligned.
+const ROW_HEIGHT = "h-[26px] text-[13px] leading-none"
+const ROW_BASE = `relative box-border mb-1 flex ${ROW_HEIGHT} w-[calc(100%-16px)] mx-auto items-center gap-[10px] rounded-md px-3 select-none`
 const ROW_INTERACTIVE = "cursor-pointer text-colorText hover:bg-colorFillQuaternary"
 // The rail's own selection tokens, not neutral fills: the pill is accent-washed and the
 // LABEL AND ICON both take the accent (the icon inherits, so no separate rule). The ring
@@ -199,7 +201,7 @@ const GroupLabelRow = ({item}: {item: NavItem}) => {
         return (
             <p
                 {...dragAttrs(item.dragItem)}
-                className="m-0 mx-auto w-[calc(100%-16px)] px-3 pb-0.5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none"
+                className="m-0 mx-auto w-[calc(100%-16px)] px-3 pb-1 pt-0.5 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none"
             >
                 {item.title}
             </p>
@@ -212,7 +214,7 @@ const GroupLabelRow = ({item}: {item: NavItem}) => {
             {...dragAttrs(item.dragItem)}
             // Not uppercase, unlike the static heading above: a collapsible heading labels an
             // ENTITY (an agent), and shouting a proper noun misspells it.
-            className="mx-auto flex w-[calc(100%-16px)] cursor-pointer select-none items-center gap-1 rounded-md pb-0.5 pl-3 pr-0 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText"
+            className="mx-auto flex w-[calc(100%-16px)] cursor-pointer select-none items-center gap-1 rounded-md pb-1 pl-3 pr-0 pt-0.5 text-[12px] text-colorTextTertiary hover:text-colorText"
             onClick={toggle}
             onKeyDown={(event) => {
                 if (onMoveKey(event)) return
@@ -416,7 +418,7 @@ const NavMenuImpl = ({
                                 selected && ROW_SELECTED,
                                 collapsed
                                     ? "size-8 justify-center"
-                                    : "h-7 w-[calc(100%-16px)] justify-start gap-[10px] px-3 text-sm leading-7",
+                                    : `${ROW_HEIGHT} w-[calc(100%-16px)] justify-start gap-[10px] px-3`,
                             )}
                         >
                             {item.icon}
