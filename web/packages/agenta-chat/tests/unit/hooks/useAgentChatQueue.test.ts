@@ -3,7 +3,11 @@ import {act, renderHook} from "@testing-library/react"
 import type {FileUIPart, UIMessage} from "ai"
 import {describe, expect, it, vi} from "vitest"
 
-import {useAgentChatQueue, type ServerQueueAdapter} from "../../../src/hooks/useAgentChatQueue"
+import {
+    useAgentChatQueue,
+    type QueuedMessage,
+    type ServerQueueAdapter,
+} from "../../../src/hooks/useAgentChatQueue"
 
 // The pure release predicates (`canReleaseQueuedMessage`, `isHitlPending`) are unit-tested in
 // the playground package; these tests cover the HOOK's stateful behavior on top of them:
@@ -65,7 +69,12 @@ interface HarnessProps {
     continuationExecutionId?: string | null
     sessionId?: string
     server?: ServerQueueAdapter
-    restoreRefusedSend?: (message: QueuedMessage) => boolean
+    /**
+     * Taken from the hook rather than restated, so the harness cannot drift from the seam it is
+     * meant to exercise. It drifted once: the seam started accepting a host that answers later
+     * than the call, and this stayed synchronous.
+     */
+    restoreRefusedSend?: Parameters<typeof useAgentChatQueue>[0]["restoreRefusedSend"]
 }
 
 const setup = (initial: HarnessProps) => {
