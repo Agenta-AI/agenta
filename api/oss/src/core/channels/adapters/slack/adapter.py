@@ -185,6 +185,9 @@ class SlackAdapter(ChannelAdapterInterface):
             "team_id": team_id,
             "bot_user_id": body.get("user_id"),
             "api_app_id": body.get("api_app_id"),
+            # The workspace's display name. Not part of the identity key; it
+            # gives the connection a human name when the caller sends none.
+            "team_name": body.get("team"),
         }
         return {
             key: value

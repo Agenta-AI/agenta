@@ -84,7 +84,11 @@ export default function AgentFormDrawer({open, onClose, agentId, onSaved}: Agent
         setIsSaving(true)
         try {
             const data: AgentaApi.ChannelAgentData = {
-                references: {main: {id: values.workflow_id}},
+                // The workflows service resolves the workflow / variant / revision
+                // families only. A made-up key hydrates nothing, and the agent fails
+                // on its first turn with "no runnable service URL". The field holds
+                // a variant id, so it is filed under that family key.
+                references: {workflow_variant: {id: values.workflow_id}},
                 policy,
             }
             const flags: AgentaApi.ChannelAgentFlags = {
@@ -165,11 +169,11 @@ export default function AgentFormDrawer({open, onClose, agentId, onSaved}: Agent
                 </Form.Item>
                 <Form.Item
                     name="workflow_id"
-                    label="Bound workflow"
-                    rules={[{required: true, message: "A workflow reference is required"}]}
-                    extra="The workflow/variant/revision this agent runs"
+                    label="Agent variant"
+                    rules={[{required: true, message: "An agent variant id is required"}]}
+                    extra="The id of the agent variant this channel agent runs. It follows the variant's latest revision."
                 >
-                    <Input placeholder="workflow id" />
+                    <Input placeholder="variant id" />
                 </Form.Item>
                 <Form.Item name="is_active" label="Active" valuePropName="checked">
                     <Switch />

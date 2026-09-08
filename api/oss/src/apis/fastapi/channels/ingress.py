@@ -1,4 +1,5 @@
 import asyncio
+import json
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
@@ -110,6 +111,15 @@ class ChannelsIngressRouter:
     @intercept_exceptions()
     @handle_channel_adapter_exceptions()
     async def ingest_slack_event(self, request: Request) -> Any:
+        # Slack registers an events URL only after the endpoint echoes a
+        # `url_verification` challenge. The handshake carries no workspace
+        # locator, so no connection can be selected to signature-check it
+        # against, and echoing grants nothing: the response is the caller's
+        # own string. Anything else on this route stays signed. Starlette
+        # caches the body, so `_ingest` reading it again costs nothing.
+        challenge = _slack_url_verification_challenge(await request.body())
+        if challenge is not None:
+            return JSONResponse({"challenge": challenge})
         return await self._ingest(channel="slack", request=request)
 
     @intercept_exceptions()
@@ -296,3 +306,15 @@ def _connection_owns_identity(connection: ChannelConnection, external_id: str) -
 
     # A declared-but-absent field is stored empty; it identifies nothing.
     return external_id in {value for value in locator.values() if value}
+
+
+def _slack_url_verification_challenge(body: bytes) -> Optional[str]:
+    """The challenge string of a Slack URL-verification handshake, else None."""
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        return None
+    if not isinstance(payload, dict) or payload.get("type") != "url_verification":
+        return None
+    challenge = payload.get("challenge")
+    return challenge if isinstance(challenge, str) and challenge else None

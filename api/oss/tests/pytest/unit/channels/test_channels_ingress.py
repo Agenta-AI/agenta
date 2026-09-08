@@ -670,3 +670,46 @@ def test_an_empty_identity_is_never_owned():
     )
 
     assert _connection_owns_identity(connection, "") is False
+
+
+# ---------------------------------------------------------------------------
+# Slack's URL-verification handshake: echoed unsigned, and only the echo.
+# ---------------------------------------------------------------------------
+
+
+def test_slack_url_verification_challenge_is_echoed_without_a_signature(
+    client, service
+):
+    response = client.post(
+        "/channels/slack/events/",
+        json={
+            "type": "url_verification",
+            "challenge": "3eZbrw1aBm2rZgRNFdxV2595E9CY3gmdALWMmHkvFXO7tYXAYM8P",
+            "token": "x",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "challenge": "3eZbrw1aBm2rZgRNFdxV2595E9CY3gmdALWMmHkvFXO7tYXAYM8P"
+    }
+    # a handshake is not an event: nothing is recorded
+    assert service.recorded == []
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"type": "url_verification"},
+        {"type": "url_verification", "challenge": 42},
+        {"type": "url_verification", "challenge": ""},
+        {"type": "event_callback", "challenge": "abc"},
+    ],
+)
+def test_anything_short_of_a_real_challenge_stays_on_the_signed_path(
+    client, service, payload
+):
+    response = client.post("/channels/slack/events/", json=payload)
+
+    assert response.status_code == 401, response.text
+    assert service.recorded == []

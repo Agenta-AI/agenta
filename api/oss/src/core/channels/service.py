@@ -151,6 +151,7 @@ class ChannelsService:
         connection.external_key = compose_external_key(
             capabilities, ChannelKeyGrain.CONNECTION, locator_input
         )
+        _fill_connection_identity_fields(connection, discovered=discovered)
 
         credential_secret_id = None
         if connection.credentials:
@@ -177,6 +178,12 @@ class ChannelsService:
                 connection=connection,
             )
         except IntegrityError as e:
+            # The credential was written before the row; a failed insert must
+            # not leave an orphaned secret behind for every retry.
+            if credential_secret_id is not None:
+                await self._discard_credential_secret(
+                    project_id=project_id, secret_id=credential_secret_id
+                )
             raise _connection_conflict(
                 channel=connection.channel, slug=connection.slug, error=e
             ) from e
@@ -290,6 +297,7 @@ class ChannelsService:
             return edited
 
         connection.external_key = external_key
+        _fill_connection_identity_fields(connection, discovered=discovered)
         connection.data = data
 
         try:
@@ -637,6 +645,23 @@ class ChannelsService:
                 ),
             ),
         )
+
+    async def _discard_credential_secret(
+        self, *, project_id: UUID, secret_id: UUID
+    ) -> None:
+        """Best effort: the caller is already raising the real error."""
+        if self.vault_service is None:
+            return
+        try:
+            await self.vault_service.delete_secret(
+                secret_id=secret_id, project_id=project_id
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.warning(
+                "[CHANNELS] could not discard the credential secret %s after a "
+                "failed connection insert",
+                secret_id,
+            )
 
     async def _rotate_credential_secret(
         self,
@@ -1567,6 +1592,34 @@ def _compose_connection_data(
     return data
 
 
+_SLUG_SUFFIX_HEX = 6
+
+
+def _fill_connection_identity_fields(
+    connection: ChannelConnectionCreate, *, discovered: Dict[str, Any]
+) -> None:
+    """Give a connection a name and a slug when the caller sent none.
+
+    The setup form asks only for credentials, so most connections arrive
+    with neither. The name comes from what verification discovered about
+    the installation (Slack's workspace name), else the channel. The slug is
+    the slugified name plus a short random suffix, so two installs with the
+    same name never collide and the user never has to type one.
+    """
+    if not connection.name:
+        connection.name = (
+            str(discovered.get("team_name") or "").strip()
+            or connection.channel.capitalize()
+        )
+    if not connection.slug:
+        connection.slug = _derive_connection_slug(connection.name)
+
+
+def _derive_connection_slug(name: str) -> str:
+    base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "connection"
+    return f"{base}-{token_secrets.token_hex(_SLUG_SUFFIX_HEX // 2)}"
+
+
 def _connection_conflict(
     *,
     channel: str,
@@ -1593,9 +1646,14 @@ def _connection_conflict(
             conflict={"channel": channel, "slug": slug},
         )
 
+    # Any other integrity error: name the constraint the database reported,
+    # never claim a duplicate that does not exist.
+    match = re.search(r'(?:constraint|column) "([^"]+)"', text)
+    detail = match.group(1) if match else "a database constraint"
     return EntityCreationConflict(
         entity="ChannelConnection",
-        message="Connection already exists.",
+        message=f"Could not create the {channel} connection: {detail} was violated.",
+        conflict={"channel": channel, "constraint": detail},
     )
 
 
