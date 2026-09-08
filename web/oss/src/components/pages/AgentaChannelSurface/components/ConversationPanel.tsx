@@ -3,7 +3,7 @@ import {useMemo, useState} from "react"
 import {Button, Input, Switch, Typography, message} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
-import {createApiKey} from "@/oss/services/apiKeys/api"
+import {createApiKey} from "@agenta/settings"
 import {useOrgData} from "@/oss/state/org"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {projectIdAtom} from "@/oss/state/project"
@@ -74,8 +74,8 @@ export default function ConversationPanel() {
         if (!workspaceId) return
         setIsMintingKey(true)
         try {
-            const {data} = await createApiKey(workspaceId)
-            setApiKey(data)
+            const key = await createApiKey(workspaceId)
+            setApiKey(key)
             message.success("New API key minted -- kept in memory only, not saved.")
         } catch (err) {
             message.error(err instanceof Error ? err.message : "Failed to create an API key")

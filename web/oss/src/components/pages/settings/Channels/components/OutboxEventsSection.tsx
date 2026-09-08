@@ -6,7 +6,7 @@ import {Input, Table, Tag} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue} from "jotai"
 
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import {formatDay} from "@agenta/shared/utils/dateTime"
 import {channelOutboxEventsQueryAtomFamily} from "@/oss/state/channels"
 
 import {ChannelsEmptyState, ChannelsSectionHeader} from "./ChannelsSection"
