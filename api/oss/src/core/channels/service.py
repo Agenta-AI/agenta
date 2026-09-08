@@ -1,7 +1,7 @@
 import re
 import secrets as token_secrets
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.exc import IntegrityError
 
@@ -1414,7 +1414,6 @@ class ChannelsService:
             policy=policy,
             thread=thread,
             capabilities=capabilities,
-            resolved_choice=resolved_choice,
         ):
             log.info(
                 "[CHANNELS] event=%s is not a trigger in space=%s (kind=%s) -- "
@@ -1433,9 +1432,13 @@ class ChannelsService:
                     space_id=space.id,
                     agent_id=agent.id,
                     external_key=thread_key,
-                    session_id=str(thread_key or space.external_key),
+                    # a new thread row is a new conversation, `!new` included:
+                    # its session must not resume the closed row's
+                    session_id=str(uuid4()),
                     data=ChannelThreadData(
-                        external_locator=_thread_locator(space=space, event=event),
+                        external_locator=_reply_locator(
+                            space=space, event=event, capabilities=capabilities
+                        ),
                     ),
                 ),
             )
@@ -1493,6 +1496,7 @@ class ChannelsService:
         project_id: UUID,
         resolution: ChannelResolution,
         event_id: UUID,
+        capabilities: Optional[ChannelCapabilities] = None,
     ) -> ChannelTurnInput:
         """What the agent sees.
 
@@ -1522,14 +1526,15 @@ class ChannelsService:
             # in a DM, which is one conversation; only those under the same
             # thread key elsewhere; the addressing event alone under message
             # scope, where a thread is one message by definition.
-            connection = await self.channels_dao.fetch_connection(
-                project_id=project_id,
-                connection_id=resolution.space.connection_id,
-            )
-            capabilities = await self.fetch_capabilities(
-                channel=connection.channel, connection=connection
-            )
-            events = _events_of_thread(
+            if capabilities is None:
+                connection = await self.channels_dao.fetch_connection(
+                    project_id=project_id,
+                    connection_id=resolution.space.connection_id,
+                )
+                capabilities = await self.fetch_capabilities(
+                    channel=connection.channel, connection=connection
+                )
+            events = _filter_thread_events(
                 events,
                 event_id=event_id,
                 resolution=resolution,
@@ -1768,14 +1773,13 @@ def _is_trigger(
     policy: ChannelEffectivePolicy,
     thread: Optional[ChannelThread],
     capabilities: ChannelCapabilities,
-    resolved_choice: Optional[str],
 ) -> bool:
-    """Does this stored message open a turn? See the gate in `resolve`."""
+    """Does this stored message open a turn? See the gate in `resolve`. An
+    answer to a pending choice needs no case of its own: a choice is pending
+    only on an active thread, and an active thread admits the message."""
     from oss.src.core.channels.commands import parse_command
 
     if space.kind is ChannelSpaceKind.PRIVATE:
-        return True
-    if resolved_choice is not None:
         return True
     if thread is not None and thread.flags.is_active:
         return True
@@ -1793,27 +1797,50 @@ def _is_trigger(
     return False
 
 
-def _thread_locator(*, space: ChannelSpace, event: ChannelInboxEvent) -> Dict[str, Any]:
+def _reply_locator(
+    *,
+    space: ChannelSpace,
+    event: ChannelInboxEvent,
+    capabilities: ChannelCapabilities,
+) -> Dict[str, Any]:
     """Where the thread's replies go. In a DM the reply is top-level, so the
-    per-message thread field is dropped; elsewhere the event's own locator."""
+    fields that belong to the platform's thread grain and not to its space
+    grain are dropped (Slack's `thread_ts`); elsewhere the event's locator."""
     locator = dict(event.data.external_locator or {})
     if space.kind is ChannelSpaceKind.PRIVATE:
-        locator.pop("thread_ts", None)
+        keys = capabilities.identity.keys
+        thread_only = set(keys.get(ChannelKeyGrain.THREAD) or []) - set(
+            keys.get(ChannelKeyGrain.SPACE) or []
+        )
+        for field in thread_only:
+            locator.pop(field, None)
     return locator
 
 
-def _events_of_thread(
+def _filter_thread_events(
     events: List[ChannelInboxEvent],
     *,
     event_id: UUID,
     resolution: ChannelResolution,
     capabilities: ChannelCapabilities,
 ) -> List[ChannelInboxEvent]:
-    if resolution.space.kind is ChannelSpaceKind.PRIVATE:
-        return events
+    """The thread's own share of the space's range. Message scope first: a
+    thread is one message there, whatever the space kind. A DM keeps what
+    arrived since its current thread began, so `!new` really starts over.
+    Elsewhere, the events under the same thread key."""
     if resolution.policy.session_scope is ChannelSessionScope.MESSAGE:
         return [stored for stored in events if stored.id == event_id]
-    thread_key = resolution.thread.external_key
+    thread = resolution.thread
+    if resolution.space.kind is ChannelSpaceKind.PRIVATE:
+        since = thread.created_at
+        return [
+            stored
+            for stored in events
+            if stored.id == event_id
+            or since is None
+            or (stored.created_at is not None and stored.created_at >= since)
+        ]
+    thread_key = thread.external_key
     kept = []
     for stored in events:
         try:
