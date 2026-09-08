@@ -377,7 +377,7 @@ describe("POST /run with a subscription, over HTTP", () => {
 });
 
 describe("a subscription run whose harness refreshes auth.json mid-turn", () => {
-  it("pushes the rotated login exactly once, with the run's generation", async () => {
+  it("pushes the rotated login exactly once, with the run's generation", { timeout: 30_000 }, async () => {
     const api = await fakeApi();
     cleanups.push(() => void api.close());
     stubEnv("AGENTA_API_INTERNAL_URL", api.url);

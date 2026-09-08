@@ -526,19 +526,25 @@ describe("recoverSubscriptionAuthFailure", () => {
     const provider = new Promise<void>((resolve) => {
       releaseProvider = resolve;
     });
+    let lockHeld: (() => void) | undefined;
+    const holdingLock = new Promise<void>((resolve) => {
+      lockHeld = resolve;
+    });
     const verdict = verifySubscriptionRefresh({
       home,
       isDaytona: false,
       generation: 1,
       refresh: async () => {
+        lockHeld?.();
         await provider;
         return ROTATED;
       },
       log: () => {},
     });
     // A new sign-in materializes while the provider is answering. It must queue on the lock, and
-    // it must be what the file holds when both are done.
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // it must be what the file holds when both are done. The refresh runs only once the lock is
+    // held, so this signal proves the acquisition rather than assuming it.
+    await holdingLock;
     const signIn = materializeSubscriptionLoginForRun({
       home,
       isDaytona: false,

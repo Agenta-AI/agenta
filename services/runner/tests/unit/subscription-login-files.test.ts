@@ -309,19 +309,24 @@ describe("materialize on local disk", () => {
     const provider = new Promise<void>((resolve) => {
       releaseProvider = resolve;
     });
+    let lockHeld: (() => void) | undefined;
+    const holdingLock = new Promise<void>((resolve) => {
+      lockHeld = resolve;
+    });
 
     const writer = mutateSubscriptionLogin<string>({
       home,
       isDaytona: false,
       mutate: async () => {
         order.push("mutate-start");
+        lockHeld?.();
         await provider;
         order.push("mutate-end");
         return { result: "written", login: GEN1_LATER };
       },
     });
-    // Let the writer take the lock before the reader asks for it.
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // The mutation runs only once the lock is held, so this signal proves the writer took it.
+    await holdingLock;
     const reader = readSubscriptionLoginForRun({ home, isDaytona: false }).then(
       (login) => {
         order.push("read");
@@ -399,6 +404,41 @@ describe("materialize on a Daytona sandbox", () => {
     });
 
     assert.equal(outcome.wrote, false);
+    assert.deepEqual(
+      JSON.parse(files[`${home}/auth.json`])["openai-codex"],
+      GEN2_SHORTER,
+    );
+  });
+
+  it("reports a refused write as changed-while-writing", async () => {
+    // The same moved-file scenario, driven through `materializeSubscriptionLoginForRun`. That is
+    // the only caller that maps a decided write which did not land onto its own reason word, and
+    // the word is what a credential-ordering refusal reports to the log.
+    const files: Record<string, string> = { [`${home}/auth.json`]: authText(GEN1) };
+    const inner = fakeSandbox(files);
+    const read = inner.readFsFile!;
+    let reads = 0;
+    const sandbox: SubscriptionSandboxFs = {
+      ...inner,
+      readFsFile: async (target) => {
+        const bytes = await read(target);
+        // Another writer installs a newer login between the decision and the re-read.
+        if (target.path.endsWith("auth.json") && (reads += 1) === 1) {
+          files[`${home}/auth.json`] = authText(GEN2_SHORTER);
+        }
+        return bytes;
+      },
+    };
+
+    const decision = await materializeSubscriptionLoginForRun({
+      home,
+      isDaytona: true,
+      sandbox,
+      subscription: { id: "conn-1", login: GEN1_LATER, version: 5, generation: 1 },
+      log: () => {},
+    });
+
+    assert.deepEqual(decision, { write: false, reason: "changed-while-writing" });
     assert.deepEqual(
       JSON.parse(files[`${home}/auth.json`])["openai-codex"],
       GEN2_SHORTER,
