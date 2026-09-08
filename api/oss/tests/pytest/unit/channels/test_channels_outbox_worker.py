@@ -1210,3 +1210,58 @@ async def test_a_failed_post_retries_with_the_same_token_and_ends_sent():
     assert row.status is not None and row.status.code == "sent"
     assert adapter.calls == 2
     assert adapter.tokens[0] == adapter.tokens[1]
+
+
+class _NoEditPostCounter(WellBehavedFakeAdapter):
+    """A no-edit channel (like Telegram): the answer posts a fresh message, so a
+    duplicate turn_ended would post twice without the delivery idempotency guard."""
+
+    def __init__(self):
+        super().__init__()
+        self._capabilities["rendering"]["controls"]["update"] = False
+        self.post_count = 0
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        self.post_count += 1
+        return await super().post_message(
+            connection=connection,
+            locator=locator,
+            content=content,
+            idempotency_key=idempotency_key,
+        )
+
+
+@pytest.mark.asyncio
+async def test_no_edit_channel_does_not_duplicate_on_redelivered_turn_ended():
+    channels_dao = FakeChannelsDAO()
+    adapter = _NoEditPostCounter()
+    service = ChannelsService(
+        channels_dao=channels_dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={"fake": adapter}),
+    )
+    records_dao = FakeRecordsDAO()
+    worker = ChannelsOutboxWorker(
+        channels_service=service,
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(records_dao),
+        interactions_service=_FakeInteractionsService(),
+    )
+    session_id = "sess-noedit"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+
+    await worker.on_turn_started(project_id=PROJECT_ID, thread=thread, turn_id="turn-x")
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-x",
+        record_type="message",
+        attributes={"text": "answer"},
+    )
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-x", session_id=session_id
+    )
+    # A duplicate turn_ended (both publishers fire) must NOT post a second answer.
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-x", session_id=session_id
+    )
+    # indicator (1) + the answer (1); the duplicate is skipped, not a third post.
+    assert adapter.post_count == 2
