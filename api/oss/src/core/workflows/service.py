@@ -2979,12 +2979,19 @@ class WorkflowsService:
 
         The platform prompt tells the agent to rename itself only while its name is a placeholder
         and to name the session once at the start. It could follow neither rule, because the run
-        carried none of the three facts. The SDK reads this blob off ``meta`` (the same carrier
-        as ``run_id`` / ``project_id``) and renders it as the last prompt section.
+        carried none of the three facts.
 
-        This is the ONE chokepoint: both ``invoke_workflow`` and ``invoke_workflow_detached``
-        share this prelude, so a UI turn, a HITL resume, and a trigger fire are all covered
-        without three separate stamps that can drift.
+        This stamp does NOT cover playground traffic, and never did. The playground posts a turn
+        straight to the agent service at ``{origin}/services/agent/v0/invoke``, which traefik
+        routes past the API, so this prelude never runs for a UI turn (issue #6661). What it
+        covers is the runs the API itself proxies: a HITL resume and a trigger fire, through
+        ``invoke_workflow`` and ``invoke_workflow_detached``.
+
+        The current agent service no longer reads this blob. It resolves the same three facts
+        itself, in ``agenta.sdk.agents.platform.session_context``, because a service cannot tell
+        this stamp apart from a forged copy in its own request body. The stamp remains the wire
+        contract for a workflow service built on an SDK that predates that resolution, so a
+        rolling deploy keeps working; the drop below still applies on every API path.
 
         Server-owned. A caller-supplied ``session_context`` is dropped first and replaced by
         what the server reads, never merged: it names the agent to itself, and a client must

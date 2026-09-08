@@ -111,3 +111,25 @@ Branch `feat/release-1153-build-kit-skill`, stacked on `feat/release-1153-platfo
   embeds it any more, but revisions saved earlier still reference its slug, and an embed the
   catalog cannot resolve fails the run. The slug stays resolvable until a data migration
   drops the embed from stored revisions; then the constant and the catalog entry go.
+
+## 2026-09-08: the session facts reach the agent on the path the browser uses
+
+Branch `fix/release-1153-session-context-path`, on `release/v0.115.3`. Fixes
+[#6661](https://github.com/Agenta-AI/agenta/issues/6661).
+
+- The playground posts a turn straight to `{origin}/services/agent/v0/invoke`, which traefik
+  routes to the agent service. The API's shared invoke prelude never runs on that path, so
+  every playground turn reached the agent with no session facts at all. A renamed session kept
+  reporting its old name because the agent read its own earlier reply, the only place a name
+  appeared.
+- The agent service now resolves the three facts itself, once per turn, in
+  `agenta.sdk.agents.platform.session_context`. It reads the workflow artifact name, the
+  session stream's name, and whether a turn row exists, with the caller's own credential.
+- The service never reads `request.meta.session_context`. That key is request body, and the
+  service's `/invoke` is reachable by a browser, so a client could otherwise tell the agent it
+  is already named and suppress the naming rule.
+- The API keeps stamping `request.meta.session_context`. It is the wire contract for a
+  workflow service built on an SDK that predates service-side resolution.
+- The name and the first-turn flag are one fact pair. If either read fails, both report
+  UNKNOWN, because an unread name beside `first_turn=False` renders "This session has no name
+  yet" and tells a named session to rename itself.

@@ -101,6 +101,8 @@ class FakeBackend(Backend):
         self.created_session_ids: list[Optional[str]] = []
         self.created_secrets: list[Optional[Mapping[str, str]]] = []
         self.created_run_contexts: list = []
+        # The rendered per-turn session facts, as they reach the backend.
+        self.created_turn_contexts: list = []
         self.created_detached: list = []
 
     async def setup(self) -> None:
@@ -136,6 +138,7 @@ class FakeBackend(Backend):
         self.created_session_ids.append(session_id)
         self.created_secrets.append(secrets)
         self.created_run_contexts.append(run_context)
+        self.created_turn_contexts.append(turn_context)
         self.created_detached.append(detached)
         return _FakeSession(self._result)
 

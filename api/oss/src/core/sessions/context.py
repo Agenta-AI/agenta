@@ -8,6 +8,11 @@ puts them on `request.meta` beside the agent's own name.
 It is a free function over the two sessions services rather than a method on either, because it
 spans both and belongs to neither. `WorkflowsService` takes it as an injected callable, the same
 way it takes the continuation resumer.
+
+This serves only the runs the API proxies. A playground turn posts straight to the agent service
+and never reaches this code (issue #6661), and the current agent service resolves the same facts
+for itself over HTTP in `agenta.sdk.agents.platform.session_context`. See
+`WorkflowsService._stamp_session_context` for why both exist.
 """
 
 from typing import Awaitable, Callable, Optional, Tuple
