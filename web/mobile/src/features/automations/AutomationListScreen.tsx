@@ -258,10 +258,10 @@ export const AutomationListScreen = ({
                 <ScreenScaffold
                     header={
                         // The same frame the sessions bar uses, so the two pages line up at every
-                        // width: page column, 16px gutters on a phone, 64px and a deeper top from
-                        // `lg`, and the rule under the header only while it is a pinned bar.
+                        // width: page column, 16px gutters on a phone, 64px and a deeper top
+                        // from `lg`.
                         <div
-                            className={`box-border flex shrink-0 flex-col gap-3 border-x-0 border-t-0 border-b border-solid border-border px-4 pb-3 pt-3 lg:border-b-0 lg:pt-14 ${PAGE_FRAME}`}
+                            className={`box-border flex shrink-0 flex-col gap-3 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
                         >
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
