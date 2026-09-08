@@ -1,12 +1,4 @@
-/**
- * The rule that decides which link targets reach a host's anchor component.
- *
- * `rehype-harden` (the last plugin in Streamdown's rehype pipeline) parses a relative href only
- * when it starts with `/`, `./` or `../`, and drops the anchor otherwise. The platform prompt tells
- * the agent to write the bare working-directory-relative form, so every file link it wrote was
- * dropped (#6659). These cases pin the respelling that gets that form through, and pin the shapes
- * it must NOT touch — a scheme URL keeps its own path through the gate, where harden decides it.
- */
+/** The respelling that gets a bare relative link target past the harden gate (#6659). */
 import {describe, expect, it} from "vitest"
 
 import {

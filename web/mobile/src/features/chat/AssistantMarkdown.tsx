@@ -1,41 +1,16 @@
-import {type ReactNode} from "react"
-
 import {useTypewriter} from "@agenta/chat/hooks"
-import {
-    chatFileResolver,
-    decodeDriveHref,
-    isExternalHref,
-    rehypeExplicitRelativeLinks,
-} from "@agenta/entity-ui/drive"
+import {isExternalHref, rehypeExplicitRelativeLinks} from "@agenta/entity-ui/drive"
 import {defaultRehypePlugins, Streamdown, type Components} from "streamdown"
 
-/**
- * Streamdown ships `rehype-raw → rehype-sanitize (GitHub's default schema) → rehype-harden`
- * as its default rehype pipeline, so raw HTML in model output is parsed but stripped down to
- * the safe subset (no `<script>`/`<style>`/`<iframe>`, no `on*` handlers, no `javascript:`
- * URLs). We keep that default and add ONE plugin in front of the harden gate: it respells a bare
- * relative link target (`agent-files/report.md` — the form the platform prompt tells the agent to
- * write) as `./agent-files/report.md`, the only relative shape harden can parse. Without it harden
- * drops the anchor for inert "[blocked]" text (#6659). Passing the prop REPLACES the defaults, so
- * they are re-listed here explicitly, in their original order.
- */
+import {DriveLink} from "./DriveLink"
+
+// Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults.
 const rehypePlugins = [
     defaultRehypePlugins.raw,
     defaultRehypePlugins.sanitize,
     rehypeExplicitRelativeLinks,
     defaultRehypePlugins.harden,
 ]
-
-/**
- * A link to a path rather than to the web. It names a file in this session's drive, so it opens the
- * file the way the in-thread file card does (Quick Look in the Files pane) instead of navigating
- * the browser to `https://<app-host>/agent-files/report.md`, which is not a page. The shared
- * resolver checks the path against the session's records and mounts, and renders the label as
- * plain text when nothing answers to it.
- */
-const DriveLink = ({href, children}: {href: string; children?: ReactNode}) => (
-    <>{chatFileResolver.renderCode(decodeDriveHref(href), <>{children}</>)}</>
-)
 
 export const markdownComponents: Components = {
     // Streamdown's own anchor already sets target=_blank + rel=noreferrer; make the

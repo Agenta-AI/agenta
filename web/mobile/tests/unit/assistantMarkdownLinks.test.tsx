@@ -1,12 +1,5 @@
 // @vitest-environment jsdom
-/**
- * /m renders assistant markdown with its own component map, so the desktop's file-link behaviour is
- * not inherited — it has to be wired here too. A link to a path is not a web address: navigating to
- * `https://<app-host>/agent-files/report.md` opens a page that does not exist, which is what /m did
- * for every sandbox path (#6535). It now goes to the same drive resolver the desktop uses, which
- * opens the file in the Files pane, so the working-directory-relative form the platform prompt
- * prescribes opens on both hosts (#6659).
- */
+/** /m has its own component map: a path opens the file, a web link still opens a tab (#6659). */
 import {createElement, type ReactNode} from "react"
 
 import {renderToStaticMarkup} from "react-dom/server"
@@ -15,8 +8,7 @@ import {describe, expect, it, vi} from "vitest"
 const resolved: string[] = []
 
 vi.mock("@agenta/entity-ui/drive", async (original) => ({
-    // The real gate helpers; only the drive resolution is stubbed, so this test stays off the
-    // session/mount queries and asserts the wiring instead.
+    // Only the resolution is stubbed; the gate helpers stay real.
     ...(await original<object>()),
     chatFileResolver: {
         renderCode: (text: string, fallback: ReactNode) => {

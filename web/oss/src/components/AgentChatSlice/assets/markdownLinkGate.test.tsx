@@ -1,15 +1,4 @@
-/**
- * The chat's link gate, end to end through the REAL Streamdown rehype pipeline.
- *
- * Streamdown ends its pipeline in `rehype-harden`, which replaces any anchor whose href it cannot
- * parse with an inert `<span>… [blocked]</span>`. It could not parse a bare relative path, which is
- * exactly the form the platform prompt tells the agent to write, so every file link an agent
- * produced rendered as dead grey text (#6659). These cases pin one row each of the link-shape table
- * and, just as importantly, pin what stays blocked.
- *
- * The `a` slot is stubbed to emit the href it receives: what this asserts is which shapes SURVIVE
- * the gate and in what spelling, not how the app renders them afterwards.
- */
+/** Which link shapes survive Streamdown's harden gate, and in what spelling (#6659). */
 import {rehypeExplicitRelativeLinks} from "@agenta/entity-ui/drive"
 import {renderToStaticMarkup} from "react-dom/server"
 import {defaultRehypePlugins, Streamdown, type Components} from "streamdown"
@@ -26,7 +15,7 @@ const components: Components = {
     a: ({href, children}) => <a data-href={String(href)}>{children}</a>,
 }
 
-/** The href the anchor slot receives, or "[blocked]" when the gate dropped the anchor. */
+/** The href the anchor slot receives, or "[blocked]" when the gate dropped it. */
 const gate = (markdown: string, plugins = REHYPE_PLUGINS): string => {
     const html = renderToStaticMarkup(
         <Streamdown components={components} rehypePlugins={plugins} mode="static">
@@ -41,7 +30,6 @@ const link = (target: string) => `Created [report.md](${target}) for you.`
 
 describe("chat markdown link gate", () => {
     it("keeps the working-directory-relative path the platform prompt prescribes (#6659)", () => {
-        // The regression: this exact shape used to come back "[blocked]".
         expect(gate(link("agent-files/report.md"))).toBe("/agent-files/report.md")
     })
 
@@ -59,8 +47,7 @@ describe("chat markdown link gate", () => {
     })
 
     it("keeps a name with a space, percent-encoded on the way through", () => {
-        // Markdown spells a destination with a space in angle brackets. `decodeDriveHref` undoes
-        // the encoding before the drive resolves the path.
+        // Angle brackets are how markdown spells a destination with a space.
         expect(gate(link("<agent-files/my report.md>"))).toBe("/agent-files/my%20report.md")
     })
 
@@ -77,7 +64,7 @@ describe("chat markdown link gate", () => {
     })
 
     it("blocked every relative shape before the fix", () => {
-        // Same pipeline, Streamdown's stock plugin list — the before column of the table.
+        // Streamdown's stock list: the before column of the table.
         const stock = Object.values(defaultRehypePlugins)
         expect(gate(link("agent-files/report.md"), stock)).toBe("[blocked]")
         expect(gate(link("report.md"), stock)).toBe("[blocked]")

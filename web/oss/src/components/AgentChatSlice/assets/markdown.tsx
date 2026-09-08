@@ -172,8 +172,7 @@ const DriveLink = ({href, ...rest}: AnchorProps) => {
     ) : (
         <ExternalLink href={href} {...rest} />
     )
-    // Harden rebuilt the href through `new URL()`, so a name with a space arrives percent-encoded
-    // while the drive stores it raw — decode before asking the resolver about it.
+    // Harden percent-encodes the href through `new URL()`; drive paths are raw.
     if (link && href) return <>{link.renderCode(decodeDriveHref(href), fallback)}</>
     return fallback
 }
@@ -207,13 +206,7 @@ const MD_COMPONENTS: Components = {
     ),
 }
 
-/** Streamdown's own rehype list (`rehype-raw → rehype-sanitize → rehype-harden`) with ONE plugin
- * inserted before the harden gate: it respells a bare relative link target (`agent-files/report.md`
- * — the form the platform prompt tells the agent to write) as `./agent-files/report.md`, which is
- * the only relative shape harden can parse. Without it harden drops the anchor and leaves inert
- * "[blocked]" text, so no file link the agent wrote ever opened (#6659). Harden still runs, and
- * still gates the result. Passing this prop REPLACES the defaults, so the defaults are re-listed
- * explicitly and in their original order. */
+/** Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults. */
 const MD_REHYPE_PLUGINS = [
     defaultRehypePlugins.raw,
     defaultRehypePlugins.sanitize,
