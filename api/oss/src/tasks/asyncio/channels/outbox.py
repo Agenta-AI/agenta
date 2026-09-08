@@ -293,6 +293,17 @@ class ChannelsOutboxWorker:
     ) -> None:
         content = [part.model_dump(exclude_none=True) for part in item.parts]
 
+        # Idempotent delivery. turn_ended is published by two sources
+        # (SessionTurnsService.complete_turn and the records worker post-commit),
+        # so on_turn_ended can run twice for one turn. If this row already went
+        # out with exactly this content, skip it: on a channel that posts a fresh
+        # message per delivery (no in-place edit, e.g. Telegram) a second send is
+        # a duplicate message the user sees, and on an edit channel it is a
+        # wasted "message is not modified" call that overwrites the SENT row.
+        if event.state is ChannelDeliveryState.SENT and event.data is not None:
+            if (event.data.processed or {}).get("content") == content:
+                return
+
         # One wire token per (row, content): a retry of the same content after a
         # FAILED write reuses it, so a post the platform accepted but whose reply
         # timed out is never duplicated; an edit to new content mints a new one.
