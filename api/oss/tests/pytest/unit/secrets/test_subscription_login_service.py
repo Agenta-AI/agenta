@@ -388,7 +388,7 @@ class TestAttemptLifecycle:
             },
         )
 
-        await service._store_new_login(
+        bound = await service._store_new_login(
             project_id=PROJECT_ID,
             secret_id=secret.id,
             user_id=None,
@@ -396,6 +396,9 @@ class TestAttemptLifecycle:
             login=LOGIN,
         )
 
+        # The row still belongs to this attempt, so the login IS installed and the poll
+        # reports the success. Only a binding that moved answers otherwise.
+        assert bound is True
         stored = await _read(vault, secret.id)
         assert stored.data.login_version == 1
         assert stored.data.login_generation == 1
@@ -665,7 +668,11 @@ class TestAPollThatOutlivesItsAttempt:
 
         await self._cancel_then_restart(vault, runner, service, secret)
         runner.read_gate.set()
-        await poll
+
+        # It answers the way a poll of an attempt the row never held answers. Reporting
+        # `succeeded` would show the old tab a sign-in that was never installed.
+        with pytest.raises(SubscriptionLoginAttemptNotFound):
+            await poll
 
         stored = await _read(vault, secret.id)
         assert stored.data.login is None

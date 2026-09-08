@@ -403,13 +403,22 @@ class SubscriptionLoginService:
             )
 
         if attempt.login:
-            await self._store_new_login(
+            installed = await self._store_new_login(
                 project_id=project_id,
                 secret_id=secret_id,
                 user_id=user_id,
                 attempt_id=attempt_id,
                 login=attempt.login,
             )
+            if not installed:
+                # The row moved to another attempt while this poll was in flight: the user
+                # cancelled and started again. Nothing was written, so this poll answers the
+                # way a poll of an attempt the row never held answers, and the browser
+                # reconciles against the connection instead of showing a sign-in that did
+                # not happen.
+                _log_attempt(secret_id, attempt_id, "failed", "superseded")
+                raise SubscriptionLoginAttemptNotFound()
+
             await self.runner_client.delete_attempt(attempt_id=attempt_id)
         else:
             await self._clear_attempt(
@@ -578,13 +587,24 @@ class SubscriptionLoginService:
         user_id: Optional[UUID],
         attempt_id: str,
         login: Dict[str, Any],
-    ) -> None:
+    ) -> bool:
+        """Store the login, and answer whether the row still belongs to this attempt.
+
+        False means the binding moved, so nothing was written and the caller must not report
+        a sign-in. True covers the replayed poll too: the row already holds this login, which
+        is the write having happened rather than a refusal.
+        """
+        bound = True
+
         def build_changes(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
+            nonlocal bound
+
             # A poll can still be in flight when the user cancels and starts another
             # login, and the runner keeps returning the login on every poll until the API
             # deletes the attempt. Both land here on a row waiting for a different
             # attempt, or none, and neither may install a login.
             if not _attempt_matches(stored, attempt_id):
+                bound = False
                 return None
 
             # A replayed poll of the attempt the row still holds. The refresh token is the
@@ -610,6 +630,8 @@ class SubscriptionLoginService:
             user_id=user_id,
             build_changes=build_changes,
         )
+
+        return bound
 
     async def _clear_attempt(
         self,
