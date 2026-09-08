@@ -9,7 +9,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {Copy, DotsThree, Hash, Trash} from "@phosphor-icons/react"
+import {Copy, DotsThreeVertical, Hash, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {Button} from "@/components/ui/button"
@@ -124,7 +124,7 @@ export const AutomationActionsMenu = ({
                         variant="ghost"
                         aria-label="Automation actions"
                     >
-                        <DotsThree aria-hidden size={18} weight="bold" />
+                        <DotsThreeVertical aria-hidden size={18} weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-[220px]">
