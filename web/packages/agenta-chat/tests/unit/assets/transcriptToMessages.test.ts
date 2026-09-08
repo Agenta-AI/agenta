@@ -1346,3 +1346,37 @@ describe("transcriptToMessages user-Stop terminal record", () => {
         ).toBeFalsy()
     })
 })
+
+describe("transcriptToMessages turn ids", () => {
+    it("stamps the record's turn id on a user row so a client can recognise its own send", () => {
+        // The invoke response's acceptance frame carries this same id, which is how a pending-send
+        // echo tells its own saved row from another tab's.
+        const messages = transcriptToMessages(
+            [
+                record("r1", {type: "message", text: "hello"}, "user", "turn-1"),
+                record("r2", {type: "message", text: "hi back"}, "agent", "turn-1"),
+            ],
+            {},
+        )
+        const userRow = messages?.find((message) => message.role === "user")
+        expect((userRow?.metadata as {turnId?: string} | undefined)?.turnId).toBe("turn-1")
+    })
+
+    it("leaves assistant rows without one, so latestTurnId keeps its Stop semantics", () => {
+        const messages = transcriptToMessages(
+            [record("r1", {type: "message", text: "hi back"}, "agent", "turn-1")],
+            {},
+        )
+        const assistantRow = messages?.find((message) => message.role === "assistant")
+        expect((assistantRow?.metadata as {turnId?: string} | undefined)?.turnId).toBeUndefined()
+    })
+
+    it("omits the turn id when the record carries none", () => {
+        const messages = transcriptToMessages(
+            [record("r1", {type: "message", text: "hello"}, "user", null)],
+            {},
+        )
+        const userRow = messages?.find((message) => message.role === "user")
+        expect((userRow?.metadata as {turnId?: string} | undefined)?.turnId).toBeUndefined()
+    })
+})
