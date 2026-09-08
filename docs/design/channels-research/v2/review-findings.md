@@ -2200,6 +2200,7 @@
 - Severity: `P1`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6646 (slug+name derivation, honest conflict, secret cleanup).
 - Category: `Correctness`
 - Summary: `channel_connections.slug` is NOT NULL, the web create form sends no
   slug, and the service derives none. Every UI create dies on the insert. The
@@ -2225,6 +2226,7 @@
 - Severity: `P1`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6646 (unsigned shape-strict url_verification echo).
 - Category: `Correctness`
 - Summary: Slack registers an events URL only after posting a `url_verification`
   challenge that the endpoint must echo. Nothing in the tree handles it. The
@@ -2263,6 +2265,7 @@
 - Severity: `P1`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6646 (workflow_variant key; write-time validation).
 - Category: `Correctness`
 - Summary: `AgentFormDrawer` writes `references: {main: {id}}`. The workflows
   service resolves only the workflow/application/evaluator families, so the
@@ -2378,6 +2381,7 @@
 - Severity: `P2`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6646 (space_kind carried into the stored event).
 - Category: `Correctness`
 - Summary: The adapter classifies the space (`classify_space_kind`), and the
   ingress then omits the field from `ChannelInboxEventCreate`, so `resolve`
@@ -2469,6 +2473,7 @@
 - Severity: `P1`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6647 (trigger gate at dispatch; default triggers).
 - Category: `Correctness`
 - Summary: `resolve_policy` computes a trigger set (`utils.py:153-165`, returned
   at `utils.py:193`) and **no caller ever reads it** — `policy.triggers` and
@@ -2500,6 +2505,7 @@
 - Severity: `P1`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6647 (forwardfill scoped to the thread).
 - Category: `Correctness`
 - Summary: `select_forwardfill_range` takes its offset from
   `fetch_latest_trigger(thread_id=…)` (`fill.py:130-133`) and then reads the
@@ -2592,6 +2598,7 @@
 - Severity: `P1`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6649 (FAILED written with the reason).
 - Category: `Robustness`
 - Summary: `ChannelDeliveryState` already declares `FAILED` and `ABANDONED`
   (`dtos.py:82-89`), and the outbox row already carries a `status` column
@@ -2624,6 +2631,7 @@
 - Severity: `P2`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6647 (a DM is one conversation; reply top-level).
 - Category: `Correctness`
 - Summary: Every reply posts with the inbound message's `thread_ts`
   (`adapter.py:297`). In a channel that is right. In a DM it puts the answer in
@@ -2693,6 +2701,7 @@
 - Severity: `P1`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6649 (omitted-means-unchanged agent edit).
 - Category: `Correctness`
 - Summary: `ChannelAgentEdit.flags` has a `default_factory`
   (`dtos.py:504-506`), so an edit that omits flags means "reset", not
@@ -2771,6 +2780,7 @@
 - Severity: `P2`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6647 (system subtypes dropped in the adapter).
 - Category: `Correctness`
 - Summary: Slack delivers `channel_join` as an ordinary `message` event with a
   real `user` and no `bot_id`, and `parse_event` filters only `block_actions`,
@@ -2883,6 +2893,7 @@
 - Severity: `P0`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6649 (omitted-means-unchanged connection edit; data merges).
 - Category: `Correctness`
 - Summary: `edit_connection` stores the caller's `data` verbatim —
   `connection_dbe.data = connection.data` (`mappings.py:131`) — and
@@ -2939,6 +2950,7 @@
 - Severity: `P0`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] PARTIAL in PR #6650 (the invoke carries the mode; ask refused under message scope is still open).
 - Category: `Security`
 - Summary: A channel turn passes **no permission mode at all** — the request
   built at `inbox.py:492-500` carries references, session id and inputs, and
@@ -2966,6 +2978,7 @@
 - Severity: `P1`
 - Confidence: `high`
 - Status: `open`
+- Resolution: [takeover 2026-09-08] PARTIAL in PR #6650 (inbound answer via the sessions respond path; OUTBOUND card render on a park is blocked on a sessions park signal, see takeover-2026-09-08.md).
 - Category: `Correctness`
 - Summary: Two defects that together make the approval surface unusable.
   (a) Under `session_scope: message`, `resolve` sets `thread = None` and
