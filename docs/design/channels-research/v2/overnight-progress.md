@@ -99,3 +99,15 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
   redelivered turn_ended. All green. Pushed to channels/telegram.
 - Remaining work is BLOCKED on Mahmoud: hosted bot token (lane 3), media decision, UI
   data-wiring + visual review. Nothing else safe to advance autonomously.
+
+## UI visual test done (2026-09-09, cron cycle)
+- Rendered the first-pass UI live on the channels stack via a throwaway demo page, logged in as
+  channels-qa, screenshotted with chrome-devtools, then reverted the demo (branch pristine).
+- Verified on-design and clean: the Channels card (Slack + Telegram rows), the Slack hosted flow
+  (Agenta app default + facts + Add to Slack), the Slack custom flow (New/Existing app), and the
+  Telegram hosted flow (QR + Continue in Telegram + allowed user IDs). Matches the design.
+- Screenshots: ~/agenta-qa-evidence/2026-09-09-channels-ui/ (ui-1-card, ui-2-slack-hosted,
+  ui-3-slack-custom, ui-4-telegram-hosted).
+- Still to do WITH Mahmoud: dark mode + phone widths, the manage/behavior/advanced panel and the
+  Telegram link-waiting state (not screenshotted), real data wiring, reconcile with existing
+  channels components, Storybook.
