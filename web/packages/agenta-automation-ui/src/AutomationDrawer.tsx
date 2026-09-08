@@ -192,7 +192,9 @@ const AutomationEditDrawer = ({
                     dirty={editor.dirty}
                     saving={editor.saving}
                     onRename={editor.onRename}
-                    onSelectAgent={editor.setAgent}
+                    // No rebinding from here: this drawer opens over the agent that owns the
+                    // automation, so the field states which agent runs it and stops there.
+                    onSelectAgent={playgroundEntityId ? undefined : editor.setAgent}
                     onChangeCron={editor.setCron}
                     onSelectEvent={editor.setEvent}
                     onChangeInputs={editor.setInputs}

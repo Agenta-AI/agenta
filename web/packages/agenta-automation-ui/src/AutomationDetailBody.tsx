@@ -68,7 +68,11 @@ export const AutomationDetailBody = ({
     dirty: boolean
     saving: boolean
     onRename: (name: string) => Promise<boolean>
-    onSelectAgent: (agentId: string) => void
+    /**
+     * Absent ⇒ the agent reads as a bound fact. The playground opens this over the agent that
+     * owns it, where rebinding would move the automation off the agent on screen.
+     */
+    onSelectAgent?: (agentId: string) => void
     onChangeCron: (cron: string) => void
     onSelectEvent: (selection: EventSelection) => void
     onChangeInputs: (inputs: Record<string, unknown>) => void
