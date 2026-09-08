@@ -1390,3 +1390,47 @@ describe("useAgentChatQueue durable send echoes", () => {
         expect(result.current.pendingSendRows).toHaveLength(0)
     })
 })
+
+describe("useAgentChatQueue echo settlement", () => {
+    it("stops waiting silently when the turn ends without saving the message", async () => {
+        const {server, watchers} = durableServer()
+        const {result} = setup({...settledEmpty, server})
+
+        await act(async () => {
+            await result.current.submit({text: "never persisted"})
+        })
+        await act(async () => watchers[0].onAccepted?.("turn-1"))
+        expect(result.current.pendingSendRows[0].metadata).not.toMatchObject({
+            pendingSendFailed: true,
+        })
+
+        await act(async () => watchers[0].onSettled?.())
+        expect(echoText(result)).toEqual(["never persisted"])
+        expect(result.current.pendingSendRows[0].metadata).toMatchObject({pendingSendFailed: true})
+    })
+
+    it("retires normally when the row lands after the turn settles", async () => {
+        const {server, watchers} = durableServer()
+        const props: HarnessProps = {...settledEmpty, server}
+        const {result, rerender} = setup(props)
+
+        await act(async () => {
+            await result.current.submit({text: "late row"})
+        })
+        await act(async () => watchers[0].onAccepted?.("turn-1"))
+        await act(async () => watchers[0].onSettled?.())
+
+        rerender({
+            ...props,
+            messages: [
+                {
+                    id: "record-1",
+                    role: "user",
+                    parts: [{type: "text", text: "late row"}],
+                    metadata: {turnId: "turn-1"},
+                } as unknown as UIMessage,
+            ],
+        })
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+})

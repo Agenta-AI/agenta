@@ -28,6 +28,11 @@ export interface ServerInputWatcher {
     onParked?: (inputId: string) => void
     /** No turn will ever carry it: refused, errored, or accepted by nothing. */
     onFailed?: () => void
+    /**
+     * The accepted turn finished and its records have been re-read. If the saved row still has
+     * not arrived by now it never will, so the echo stops waiting silently.
+     */
+    onSettled?: () => void
 }
 
 export interface ServerSessionInputs {
@@ -284,6 +289,7 @@ export const useServerSessionInputs = ({
                 .then(async () => {
                     await refresh()
                     onExecutedRef.current?.()
+                    watcher?.onSettled?.()
                 })
                 .catch(() => undefined)
             return "running"

@@ -94,11 +94,13 @@ export const retirePendingSendEchoes = (
 ): readonly PendingSendEcho[] => {
     const next = pending.filter((item) => {
         if (userCount < item.createdAtUserCount) return false
+        // The saved row is the strongest evidence there is, so it is checked FIRST. A row that
+        // turns up late still retires an echo an earlier guess had already flagged as failed.
+        if (item.executionId) return !durableTurnIds.has(item.executionId)
+        if (item.parkedInputId) return !dockedIds.has(item.parkedInputId)
         // A failed send outlives everything else here. The composer has already cleared, so
         // dropping the row would delete the user's text with nothing to show for it.
         if (item.failed) return true
-        if (item.parkedInputId) return !dockedIds.has(item.parkedInputId)
-        if (item.executionId) return !durableTurnIds.has(item.executionId)
         return userCount < item.coveredAtUserCount
     })
     if (next.length === pending.length) return pending

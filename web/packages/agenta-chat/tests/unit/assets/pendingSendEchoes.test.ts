@@ -256,3 +256,18 @@ describe("mergePendingSendEchoRows before acknowledgement", () => {
         ])
     })
 })
+
+describe("retirePendingSendEchoes precedence", () => {
+    it("lets a late saved row retire an echo already flagged as failed", () => {
+        // The terminal-frame guess fires when the turn ends and the row has not been adopted.
+        // Adoption can still land after that, and the row outranks the guess.
+        const pending = [echo("m1", "mine", 2, {executionId: "turn-1", failed: true})]
+        expect(retire(pending, 1, [])).toEqual(pending)
+        expect(retire(pending, 1, ["turn-1"])).toEqual([])
+    })
+
+    it("keeps a flagged echo whose row never arrives", () => {
+        const pending = [echo("m1", "mine", 2, {executionId: "turn-1", failed: true})]
+        expect(retire(pending, 99, ["turn-other"])).toEqual(pending)
+    })
+})

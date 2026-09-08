@@ -42,6 +42,7 @@ export interface ServerQueueAdapter {
             onAccepted?: (executionId: string) => void
             onParked?: (inputId: string) => void
             onFailed?: () => void
+            onSettled?: () => void
         },
     ) => Promise<"queued" | "running">
     remove: (id: string) => Promise<void>
@@ -330,6 +331,10 @@ export const useAgentChatQueue = ({
                                 echoes.markAccepted(message.id, executionId),
                             onParked: (inputId) => echoes.markParked(message.id, inputId),
                             onFailed: () => echoes.markFailed(message.id),
+                            // The turn ended and its records were re-read. An echo still on
+                            // screen is one whose row was never persisted, so it stops waiting
+                            // silently; a row that arrives later still retires it.
+                            onSettled: () => echoes.markFailed(message.id),
                         })
                         .then(undefined, (error: unknown) => {
                             echoes.drop(message.id)
