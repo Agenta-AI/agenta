@@ -19,7 +19,7 @@ import pytest
 import pytest_asyncio
 
 from oss.src.core.sessions.streams.dtos import (
-    SessionHeaderAuthor,
+    SessionNameSource,
     SessionHeartbeatRequest,
     SessionStream,
     SessionStreamEdit,
@@ -193,7 +193,7 @@ class _FakeStreamsDAO:
         user_id,
         session_id,
         header,
-        author=SessionHeaderAuthor.user,
+        name_source=SessionNameSource.manual,
     ):
         # Mirrors the real DAO: a select-then-update against a missing row returns
         # None rather than creating one — the service's set_header falls back to

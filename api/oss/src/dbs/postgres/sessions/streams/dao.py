@@ -23,7 +23,7 @@ from oss.src.core.sessions.dtos import (
     SessionTriggerKind,
 )
 from oss.src.core.sessions.streams.dtos import (
-    SessionHeaderAuthor,
+    SessionNameSource,
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
@@ -36,6 +36,7 @@ from oss.src.core.sessions.streams.interfaces import (
     SessionStreamsDAOInterface,
     TriggerSessionClaimsDAOInterface,
 )
+from oss.src.core.sessions.streams.naming import refuse_name_change
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.triggers.dtos import TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE
@@ -60,6 +61,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
     map_stream_query_result,
     map_stream_dto_to_dbe_create,
     map_stream_dto_to_dbe_edit,
+    decode_name_source,
     map_stream_dto_to_dbe_header_edit,
 )
 
@@ -692,23 +694,43 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         user_id: Optional[UUID],
         session_id: str,
         header: SessionStreamHeaderEdit,
-        author: SessionHeaderAuthor = SessionHeaderAuthor.user,
+        name_source: SessionNameSource = SessionNameSource.manual,
     ) -> Optional[SessionStream]:
+        """Apply the header edit, refusing an automatic rename over a person's name.
+
+        The refusal is decided HERE, inside the write transaction, against a row this
+        transaction has locked. Deciding it a layer up would be a read-then-write: a person
+        could commit their rename between the read and the write, and the automatic edit
+        would replace a name that did not exist when it was checked. `FOR UPDATE` makes the
+        two header writers queue on the row instead, so the loser re-reads the winner's name
+        and is refused on it. Raises `SessionNameProtected` when the edit must not land.
+        """
         async with self.engine.session() as session:
-            stmt = select(SessionStreamDBE).where(
-                SessionStreamDBE.project_id == project_id,
-                SessionStreamDBE.session_id == session_id,
-                SessionStreamDBE.deleted_at.is_(None),
+            stmt = (
+                select(SessionStreamDBE)
+                .where(
+                    SessionStreamDBE.project_id == project_id,
+                    SessionStreamDBE.session_id == session_id,
+                    SessionStreamDBE.deleted_at.is_(None),
+                )
+                .with_for_update()
             )
             result = await session.execute(stmt)
             dbe = result.scalar_one_or_none()
             if dbe is None:
                 return None
+            refuse_name_change(
+                session_id=session_id,
+                current_name=dbe.name,
+                current_source=decode_name_source(dbe.tags),
+                header=header,
+                name_source=name_source,
+            )
             map_stream_dto_to_dbe_header_edit(
                 stream_dbe=dbe,
                 user_id=user_id,
                 header=header,
-                author=author,
+                name_source=name_source,
             )
             # `updated_at` is deliberately not bumped: it is the last-ACTIVITY sort key, and
             # renaming a session is not activity — bumping it teleports the row you just

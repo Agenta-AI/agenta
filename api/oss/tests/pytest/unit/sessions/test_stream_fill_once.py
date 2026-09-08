@@ -19,7 +19,7 @@ import pytest
 import pytest_asyncio
 
 from oss.src.core.sessions.streams.dtos import (
-    SessionHeaderAuthor,
+    SessionNameSource,
     SessionHeartbeatRequest,
     SessionStream,
     SessionStreamCommandRequest,
@@ -95,7 +95,7 @@ class _FakeStreamsDAO:
         user_id,
         session_id,
         header,
-        author=SessionHeaderAuthor.user,
+        name_source=SessionNameSource.manual,
     ):
         if self.row is None:
             return None

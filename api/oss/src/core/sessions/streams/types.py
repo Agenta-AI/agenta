@@ -84,25 +84,60 @@ class ConcurrencyLimitExceeded(SessionStreamError):
 
 
 class SessionNameProtected(SessionStreamError):
-    """Raised when an automatic rename would replace a name a person typed.
+    """Raised when an automatic rename would replace a name a person controls.
 
-    The agent's `rename_session` decides its arguments at one moment and can run them at a
-    later one: a parked approval holds a call while the person renames the session by hand,
-    and the deferred call then writes the name the agent chose before the rename. The agent
-    reports that stale name afterwards, so the person sees their name silently reverted.
+    The agent decides a `rename_session` call's arguments at one moment and can run them at
+    a later one: an approval card holds the call while the person renames the session by
+    hand, and the deferred call then writes the name the agent chose before that rename. The
+    agent reports the stale name afterwards, so the person sees their name silently
+    reverted.
+
+    Two ways to get here, one meaning: the caller is working from a name that is no longer
+    the session's. Either it named no name it was replacing, or it named one and the session
+    has been renamed again since.
 
     The current name rides on the exception because the caller is usually a model, and the
-    useful answer is not "refused" but "the session is already called this" — the agent
-    adopts the name from the message instead of retrying.
+    useful answer is not "refused" but "the session is already called this".
     """
 
-    def __init__(self, session_id: str, current_name: str):
+    def __init__(
+        self,
+        session_id: str,
+        current_name: str,
+        *,
+        stale_precondition: bool = False,
+    ) -> None:
         self.session_id = session_id
         self.current_name = current_name
-        self.message = (
-            f'This session is named "{current_name}", and a person named it.'
-            " Keep that name and do not rename the session."
-            " Send override_user_name=true only if the person asked you for a"
-            " different name."
-        )
+        self.stale_precondition = stale_precondition
+        if stale_precondition:
+            self.code = "session_name_changed"
+            self.message = (
+                f'This session was renamed to "{current_name}" after you read its name,'
+                " so the rename you asked for was not applied."
+            )
+            self.next_step = (
+                "Tell the person the session is now called"
+                f' "{current_name}". Rename it only if they still want a different name,'
+                " and send replacing_name set to the name above."
+            )
+        else:
+            self.code = "session_name_is_manual"
+            self.message = (
+                f'This session is named "{current_name}", and a person named it.'
+            )
+            self.next_step = (
+                "Keep that name and do not rename the session. Send replacing_name set to"
+                " the name above only if the person asked you for a different one."
+            )
         super().__init__(self.message)
+
+    def envelope(self) -> dict:
+        """The agent-actionable error body (`api/AGENTS.md`, "Agent-actionable errors")."""
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": self.next_step,
+            "details": {"current_name": self.current_name},
+        }

@@ -456,20 +456,21 @@ describe("directCallUrl", () => {
   });
 
   it("keeps a catalog-fixed query flag out of the model's reach", () => {
-    // rename_session pins `author=auto` in its own path so the endpoint can refuse a rename
-    // over a name a person typed. The model fills the body, never the path, and a bound id
-    // that tries to smuggle its own `author` is percent-encoded into one value.
+    // rename_session pins `name_source=automatic` in its own path so the endpoint can
+    // refuse a rename over a name a person controls. The model fills the body, never the
+    // path, and a bound id that tries to smuggle its own `name_source` is percent-encoded
+    // into one value.
     const call: DirectCall = {
       method: "POST",
-      path: "/api/sessions/streams/header?session_id={session_id}&author=auto",
+      path: "/api/sessions/streams/header?session_id={session_id}&name_source=automatic",
     };
     const url = directCallUrl(ENDPOINT, call, {
-      session_id: "session-1&author=user",
+      session_id: "session-1&name_source=manual",
     });
 
     const params = new URL(url).searchParams;
-    assert.deepEqual(params.getAll("author"), ["auto"]);
-    assert.equal(params.get("session_id"), "session-1&author=user");
+    assert.deepEqual(params.getAll("name_source"), ["automatic"]);
+    assert.equal(params.get("session_id"), "session-1&name_source=manual");
   });
 
   it("substitutes rename_session's bound id without weakening URL confinement", () => {

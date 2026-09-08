@@ -11,16 +11,13 @@ from oss.src.core.sessions.types import (
     SessionTriggerAttribution,
 )
 from oss.src.core.sessions.streams.dtos import (
-    SESSION_NAME_AUTHOR_TAG_KEY,
-    SessionHeaderAuthor,
+    SessionNameSource,
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
     SessionStreamFlags,
     SessionStreamHeaderEdit,
     SessionStreamQueryResult,
-    decode_name_author,
-    name_author_tags,
 )
 from oss.src.dbs.postgres.sessions.references import (
     references_from_json,
@@ -36,6 +33,12 @@ SESSION_TRIGGER_DELIVERY_ID_TAG_KEY = "ag.trigger.delivery_id"
 # Legacy: no current writer, but rows stamped before this diff may still carry it.
 SESSION_TRIGGER_NAME_TAG_KEY = "ag.trigger.name"
 
+# Where the session's CURRENT name came from. Stamped "manual" by a header edit a person
+# authored, and left alone by an automatic one, so the row always answers "does a person
+# control this name?". A reserved tag rather than a column: it needs no migration, and
+# `_strip_reserved_tags` already keeps the whole `ag.` namespace out of every client read.
+SESSION_NAME_SOURCE_TAG_KEY = "ag.name.source"
+
 # Single source of truth for "which exact tag keys the writer stamps" — used by
 # the writer-side subset assert (P1-7's test) so a future fifth attribution key
 # is caught if it isn't inside the reserved namespace below.
@@ -46,7 +49,7 @@ SESSION_RESERVED_TAG_KEYS = frozenset(
         SESSION_TRIGGER_KIND_TAG_KEY,
         SESSION_TRIGGER_DELIVERY_ID_TAG_KEY,
         SESSION_TRIGGER_NAME_TAG_KEY,
-        SESSION_NAME_AUTHOR_TAG_KEY,
+        SESSION_NAME_SOURCE_TAG_KEY,
     }
 )
 
@@ -125,6 +128,51 @@ def decode_session_attribution(
     return origin, trigger, delivery
 
 
+def encode_name_source(
+    *,
+    tags: Optional[Dict[str, Any]],
+    name_source: Optional[SessionNameSource],
+    name: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    """`tags` with the name-source stamp brought in line with an edit that sets `name`.
+
+    Only a manual edit ever moves the stamp. An automatic one returns the tags untouched,
+    which is what keeps a person in control of their name through the two edits the guard
+    lets an automatic caller make: repeating the name that is already stored, and applying a
+    rename that same person asked for. Clearing the stamp on either would hand the next
+    stale call a session with nothing left to protect it.
+
+    An edit that sets no name is left alone too: changing only the description says nothing
+    about who named the session. A cleared name removes the stamp, because a row with no
+    name has no source.
+    """
+    if name is None or name_source is not SessionNameSource.manual:
+        return tags
+    current = dict(tags) if isinstance(tags, dict) else {}
+    if name:
+        current[SESSION_NAME_SOURCE_TAG_KEY] = SessionNameSource.manual.value
+    else:
+        current.pop(SESSION_NAME_SOURCE_TAG_KEY, None)
+    return current or None
+
+
+def decode_name_source(
+    tags: Optional[Dict[str, Any]],
+) -> Optional[SessionNameSource]:
+    """The stamped source of the row's current name, or None when nothing stamped it.
+
+    A junk value reads as None rather than raising. It fails open, which is the wrong
+    direction for a guard, but the alternative is a corrupt tag making every read of the
+    session 500, and a name is not worth that. `_strip_reserved_tags` has the same posture.
+    """
+    if not isinstance(tags, dict):
+        return None
+    try:
+        return SessionNameSource(tags.get(SESSION_NAME_SOURCE_TAG_KEY))
+    except (TypeError, ValueError):
+        return None
+
+
 def map_stream_dto_to_dbe_create(
     *,
     project_id: UUID,
@@ -138,7 +186,11 @@ def map_stream_dto_to_dbe_create(
         name=stream.name,
         description=stream.description,
         flags=stream.flags.model_dump(mode="json") if stream.flags else None,
-        tags=stream.tags,
+        tags=encode_name_source(
+            tags=stream.tags,
+            name_source=stream.name_source,
+            name=stream.name,
+        ),
         meta=stream.meta,
         turn_id=stream.turn_id,
         # A create that already names a turn IS that turn's start. Without this, the first row a
@@ -179,7 +231,6 @@ def map_stream_dbe_to_dto(
         origin=origin,
         trigger=trigger,
         delivery=delivery,
-        name_author=decode_name_author(stream_dbe.tags),
     )
 
 
@@ -225,18 +276,18 @@ def map_stream_dto_to_dbe_header_edit(
     stream_dbe: SessionStreamDBE,
     user_id: Optional[UUID],
     header: SessionStreamHeaderEdit,
-    author: SessionHeaderAuthor = SessionHeaderAuthor.user,
+    name_source: SessionNameSource = SessionNameSource.manual,
 ) -> None:
-    """The rename edit: only ever touches name/description and the name-author stamp —
+    """The rename edit: only ever touches name/description and the name-source stamp —
     never flags/turn_id. The stamp is reassigned rather than mutated in place, because
     SQLAlchemy does not track a mutation inside a JSONB dict."""
     stream_dbe.updated_by_id = user_id
     if header.name is not None:
-        stream_dbe.name = header.name
-        stream_dbe.tags = name_author_tags(
-            author=author,
-            name=header.name,
+        stream_dbe.tags = encode_name_source(
             tags=stream_dbe.tags,
+            name_source=name_source,
+            name=header.name,
         )
+        stream_dbe.name = header.name
     if header.description is not None:
         stream_dbe.description = header.description

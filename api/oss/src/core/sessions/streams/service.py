@@ -56,8 +56,7 @@ from oss.src.dbs.redis.sessions.locks import (
 
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
-    SessionHeaderAuthor,
-    name_author_tags,
+    SessionNameSource,
     SessionHeartbeatRequest,
     SessionHeartbeatResult,
     SessionStream,
@@ -73,7 +72,6 @@ from oss.src.core.sessions.streams.dtos import (
 from oss.src.core.sessions.streams.types import (
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
-    SessionNameProtected,
     SessionStreamAlreadyExists,
     SessionTurnInUse,
     SessionTurnMismatch,
@@ -1007,40 +1005,6 @@ class SessionStreamsService:
         """
         return await self.fetch(project_id=project_id, session_id=session_id)
 
-    async def _guard_user_named_session(
-        self,
-        *,
-        project_id: UUID,
-        session_id: str,
-        header: SessionStreamHeaderEdit,
-    ) -> None:
-        """Refuse an automatic rename that would replace a name a person typed.
-
-        The agent decides a `rename_session` call's arguments at one moment and may run them
-        at a later one. A parked approval is the case that made this visible: the call waits,
-        the person renames the session by hand, and the deferred call then writes the name the
-        agent chose before the rename. Nothing in the agent's own view can tell a stale intent
-        from a fresh one, so the row answers instead — it remembers whether a person named it.
-
-        Three things are deliberately NOT refused. An edit that sets no name only touches the
-        description, which no person authored. An edit whose name already matches the stored
-        one changes nothing, so a retry is safe. And `override_user_name` passes, which is how
-        a person who asks the agent for a different name still gets it.
-        """
-        if header.name is None or header.override_user_name:
-            return
-        existing = await self._dao.get_by_session_id(
-            project_id=project_id,
-            session_id=session_id,
-        )
-        if existing is None or not existing.name:
-            return
-        if existing.name_author is not SessionHeaderAuthor.user:
-            return
-        if header.name.strip() == existing.name.strip():
-            return
-        raise SessionNameProtected(session_id, existing.name)
-
     async def set_header(
         self,
         *,
@@ -1048,7 +1012,7 @@ class SessionStreamsService:
         user_id: Optional[UUID],
         session_id: str,
         header: SessionStreamHeaderEdit,
-        author: SessionHeaderAuthor = SessionHeaderAuthor.user,
+        name_source: SessionNameSource = SessionNameSource.manual,
     ) -> Optional[SessionStream]:
         """The rename edit: full-PUT {name, description} onto the merged stream row.
 
@@ -1057,23 +1021,20 @@ class SessionStreamsService:
         yet (a caller may name a session before its first turn), mirroring
         `_start_turn`'s create-or-update pattern.
 
-        `author` says who chose the name. A person's name is stamped on the row and an
-        automatic one is not, which is what `_guard_user_named_session` reads. The guard's
-        pre-read costs one query and runs only for an automatic caller.
+        `name_source` says where the name came from, and it rides all the way down to the
+        DAO rather than being checked here. An automatic rename over a name a person
+        controls is refused, and that refusal has to be decided against the row the write
+        locks; a check at this layer would be a read-then-write with a rename-shaped hole in
+        the middle. The create arm needs no such check, because a row that does not exist
+        holds no name to protect, and the concurrent-create arm re-enters the guarded update.
         """
         _validate_session_id(session_id)
-        if author is not SessionHeaderAuthor.user:
-            await self._guard_user_named_session(
-                project_id=project_id,
-                session_id=session_id,
-                header=header,
-            )
         updated = await self._dao.update_header(
             project_id=project_id,
             user_id=user_id,
             session_id=session_id,
             header=header,
-            author=author,
+            name_source=name_source,
         )
         if updated is None:
             try:
@@ -1084,18 +1045,18 @@ class SessionStreamsService:
                         session_id=session_id,
                         name=header.name,
                         description=header.description,
-                        tags=name_author_tags(author=author, name=header.name),
+                        name_source=name_source,
                     ),
                 )
             except SessionStreamAlreadyExists:
                 # A concurrent first touch (heartbeat/rename) won the race; the row now
-                # exists — apply the header edit onto it.
+                # exists — apply the header edit onto it, under the same guard.
                 updated = await self._dao.update_header(
                     project_id=project_id,
                     user_id=user_id,
                     session_id=session_id,
                     header=header,
-                    author=author,
+                    name_source=name_source,
                 )
 
         if updated is not None:

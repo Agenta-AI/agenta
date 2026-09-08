@@ -796,8 +796,8 @@ export async function querySessions({
     return page?.sessions ?? null
 }
 
-/** Who chose the name: a person typing one, or a program proposing one. */
-export type SessionHeaderAuthor = "user" | "auto"
+/** Where the name came from: a person typing one, or a program proposing one. */
+export type SessionNameSource = "manual" | "automatic"
 
 export interface SetSessionHeaderParams {
     sessionId: string
@@ -807,12 +807,12 @@ export interface SetSessionHeaderParams {
     appId?: string
     abortSignal?: AbortSignal
     /**
-     * Defaults to `"user"`, so every deliberate rename is protected without saying so. Pass
-     * `"auto"` for a name a program proposed, such as the auto-title from a first message:
-     * the server refuses an `"auto"` name that would replace one a person typed, and only a
-     * `"user"` name is remembered as a person's.
+     * Say it on every call rather than leaning on the default. `"manual"` is a person
+     * typing a name and is remembered as theirs. `"automatic"` is a name a program
+     * proposed, such as the auto-title from a first message, and the server refuses one
+     * that would replace a name a person controls.
      */
-    author?: SessionHeaderAuthor
+    nameSource?: SessionNameSource
 }
 
 /**
@@ -827,7 +827,7 @@ export async function setSessionHeader({
     description,
     appId,
     abortSignal,
-    author,
+    nameSource,
 }: SetSessionHeaderParams): Promise<boolean> {
     if (!projectId || !sessionId) return false
 
@@ -835,10 +835,11 @@ export async function setSessionHeader({
     if (name !== undefined) body.name = name
     if (description !== undefined) body.description = description
 
-    // `author` rides in the query string because that is where the endpoint reads it: the
-    // agent's rename tool has it fixed in its own path, so a model cannot put it in a body.
+    // `name_source` rides in the query string because that is where the endpoint reads it:
+    // the agent's rename tool has it fixed in its own path, so a model cannot put it in a
+    // body.
     const request = projectScopedRequest(projectId, appId, abortSignal)
-    if (author) request.queryParams.author = author
+    if (nameSource) request.queryParams.name_source = nameSource
 
     const data = await callFern("[setSessionHeader]", () =>
         getSessionsClient().setSessionStreamHeader({session_id: sessionId, body}, request),

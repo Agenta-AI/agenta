@@ -58,7 +58,7 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 # Core domain imports — new paths
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
-    SessionHeaderAuthor,
+    SessionNameSource,
     SessionHeartbeatRequest,
     SessionHeartbeatResult,
     SessionStreamCommandRequest,
@@ -301,12 +301,13 @@ def _handle_session_exceptions():
                     detail=e.message,
                 ) from e
             except SessionNameProtected as e:
-                # A plain-string detail on purpose: the caller is usually the agent's
-                # `rename_session`, and the runner hands a string `detail` to the model
-                # verbatim. The message carries the current name so the agent adopts it.
+                # The agent-actionable envelope (`api/AGENTS.md`): the caller is usually the
+                # agent's `rename_session`, and the runner passes an object `detail` through
+                # to the model. It carries the current name so the agent adopts it, and one
+                # imperative next step so it knows whether a retry can ever work.
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail=e.message,
+                    detail=e.envelope(),
                 ) from e
 
         return wrapper
@@ -683,18 +684,19 @@ class SessionStreamsRouter:
         *,
         header: SessionStreamHeaderEdit,
         session_id: str = Query(...),
-        author: SessionHeaderAuthor = Query(SessionHeaderAuthor.user),
+        name_source: SessionNameSource = Query(SessionNameSource.manual),
     ) -> SessionStreamResponse:
         """Rename a session.
 
-        `author` says who chose the name: `user` (the default) is a person typing one, and
-        `auto` is a program proposing one — the agent's `rename_session`, or the browser's
-        auto-title. An `auto` edit is refused with 409 when it would replace a name a person
-        typed, unless the body sets `override_user_name`.
+        `name_source` says where the name came from: `manual` (the default) is a person
+        typing one, and `automatic` is a program proposing one — the agent's
+        `rename_session`, or the browser's auto-title. An `automatic` edit is refused with
+        409 when it would replace a name a person controls, unless the body's
+        `replacing_name` still equals the stored name.
 
         It is a query parameter rather than a body field on purpose. The `rename_session`
-        catalog entry fixes `author=auto` inside its path and the model fills only the body,
-        so an agent cannot claim a person chose its name.
+        catalog entry fixes `name_source=automatic` inside its path and the model fills only
+        the body, so an agent cannot claim a person chose its name.
         """
         _validate_session_id_http(session_id)
 
@@ -710,7 +712,7 @@ class SessionStreamsRouter:
             user_id=UUID(request.state.user_id),
             session_id=session_id,
             header=header,
-            author=author,
+            name_source=name_source,
         )
         return SessionStreamResponse(stream=sanitize_session_stream(stream))
 

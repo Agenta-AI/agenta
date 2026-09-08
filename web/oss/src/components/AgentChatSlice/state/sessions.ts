@@ -821,7 +821,12 @@ export const renameSessionAtomFamily = atomFamily((key: string) =>
         // Returned so a caller that revalidates a list next can await the header write first.
         const projectId = get(projectIdAtom)
         return projectId
-            ? setSessionHeader({sessionId: id, projectId, name: title.trim()}).catch(() => {})
+            ? setSessionHeader({
+                  sessionId: id,
+                  projectId,
+                  name: title.trim(),
+                  nameSource: "manual",
+              }).catch(() => {})
             : undefined
     }),
 )
@@ -851,11 +856,17 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
         })
         // Sync to the durable header so other devices/tabs see the label (mirrors rename).
         const projectId = get(projectIdAtom)
-        // `author: "auto"` — this title is derived from the first message, not typed by the
-        // person, so it must not be remembered as a name they chose. The agent renames the
-        // session over it on the next turn, and that rename has to be allowed through.
+        // `nameSource: "automatic"` — this title is derived from the first message, not
+        // typed by the person, so it must not be remembered as a name they chose. The agent
+        // renames the session over it on the next turn, and that rename has to be allowed
+        // through.
         if (projectId)
-            void setSessionHeader({sessionId: id, projectId, name: title, author: "auto"})
+            void setSessionHeader({
+                sessionId: id,
+                projectId,
+                name: title,
+                nameSource: "automatic",
+            })
     }),
 )
 
