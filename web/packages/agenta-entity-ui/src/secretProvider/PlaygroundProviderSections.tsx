@@ -231,9 +231,10 @@ export interface PlaygroundSubscriptionsSectionProps {
     onSelectPair: (pair: SubscriptionPair) => void
     /**
      * The hosted sign-in card. Both sources are subscriptions, so they share one section and one
-     * label; only this one is connected from the drawer, so it comes first.
+     * label; only this one is connected from the drawer, so it comes first. Required: it is what
+     * keeps the section from rendering a border and a label over nothing when nothing is mounted.
      */
-    hostedCard?: ReactNode
+    hostedCard: ReactNode
     /** Whether this deployment can mount an operator login at all. */
     showMounted?: boolean
 }
@@ -247,7 +248,7 @@ export const PlaygroundSubscriptionsSection = ({
 }: PlaygroundSubscriptionsSectionProps) => (
     <div className="shrink-0 border-0 border-t border-solid border-colorSplit">
         <SectionLabel>Subscriptions</SectionLabel>
-        {hostedCard ? <div className="px-6 pb-3 pt-1">{hostedCard}</div> : null}
+        <div className="px-6 pb-3 pt-1">{hostedCard}</div>
         {showMounted ? (
             <MountedSubscriptionRows
                 subscriptionDocsUrl={subscriptionDocsUrl}

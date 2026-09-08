@@ -840,8 +840,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                     }}
                                                     className={clsx(
                                                         ROW_CLASS,
+                                                        // `!` beats ROW_CLASS: stylesheet order gives cursor-pointer the win.
                                                         isDisabled
-                                                            ? "cursor-default opacity-60"
+                                                            ? "!cursor-default opacity-60"
                                                             : "hover:bg-muted",
                                                         isHovered && "bg-muted",
                                                     )}
