@@ -15,6 +15,7 @@ from agenta.sdk.agents.connections import (
     ProviderMismatchError,
     RuntimeAuthContext,
     SubscriptionLoginRequiredError,
+    SubscriptionNotSupportedError,
 )
 from agenta.sdk.agents.platform import PlatformConnection, VaultConnectionResolver
 from agenta.sdk.agents.platform import connections
@@ -1164,20 +1165,31 @@ async def test_subscription_resolves_to_runtime_provided_with_the_login(
     assert capture["url"] == "https://api.x/api/secrets/"
 
 
-async def test_subscription_maps_the_provider_per_harness(fake_http, connection):
+@pytest.mark.parametrize("harness", ["codex", "claude_code", None])
+async def test_a_subscription_on_another_harness_fails_loud(
+    fake_http, connection, harness
+):
+    """Only Pi can consume the ChatGPT login.
+
+    Codex refuses a login file without an `id_token`, which this credential never carries.
+    Handing it over anyway would start a run that authenticates with nothing and reports a
+    provider auth error the person cannot act on.
+    """
     fake_http(connections, payload=[_subscription_secret()])
 
-    resolved = await VaultConnectionResolver(connection).resolve(
-        model=ModelRef(
-            provider="openai",
-            model="gpt-5.5",
-            connection={"mode": "self_managed", "slug": "chatgpt"},
-        ),
-        context=RuntimeAuthContext(harness="codex", backend="local"),
-    )
+    with pytest.raises(SubscriptionNotSupportedError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=ModelRef(
+                provider="openai",
+                model="gpt-5.5",
+                connection={"mode": "self_managed", "slug": "chatgpt"},
+            ),
+            context=RuntimeAuthContext(harness=harness, backend="local"),
+        )
 
-    assert resolved.provider == "openai"
-    assert resolved.subscription is not None
+    assert raised.value.status_code == 422
+    assert "Pi harness" in str(raised.value)
+    assert _READY_LOGIN["access"] not in str(raised.value)
 
 
 @pytest.mark.parametrize(

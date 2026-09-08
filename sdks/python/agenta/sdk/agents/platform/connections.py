@@ -41,6 +41,7 @@ from ..connections import (
     ResolvedSubscription,
     RuntimeAuthContext,
     SubscriptionLoginRequiredError,
+    SubscriptionNotSupportedError,
     UnsupportedConnectionModeError,
     WriteOnlySecretError,
 )
@@ -555,13 +556,18 @@ SUBSCRIPTION_SECRET_KIND = "subscription_provider"
 _SUBSCRIPTION_READY = "ready"
 
 # The provider family a subscription resolves to, per harness. Pi reaches the ChatGPT
-# subscription through its ``openai-codex`` provider; Codex reaches the same login through the
-# plain ``openai`` family. Both are declared in the capability table, so the resolved pair
-# passes the harness check without a new capability.
+# subscription through its ``openai-codex`` provider, which the capability table already
+# declares, so the resolved pair passes the harness check without a new capability.
+#
+# Pi is the only entry. Codex 0.145.0 refuses a login file without an ``id_token`` and the
+# ChatGPT device login never issues one, so the same credential cannot be handed to it. Add
+# a harness here once its credential format is supported end to end.
 _SUBSCRIPTION_HARNESS_PROVIDERS: Dict[str, str] = {
     "pi_core": "openai-codex",
-    "codex": "openai",
 }
+
+# The subscription providers a run can consume. `chatgpt` is the only one today.
+_SUBSCRIPTION_PROVIDERS = frozenset({"chatgpt"})
 
 
 @dataclass
@@ -610,14 +616,12 @@ def _subscription_candidate(secret: Dict[str, Any]) -> Optional[_SubscriptionCan
     )
 
 
-def _subscription_provider(harness: Optional[str], model: ModelRef) -> str:
+def _subscription_provider(harness: Optional[str]) -> str:
     """The provider family this subscription resolves to for ``harness``.
 
-    The harness mapping wins because the same ChatGPT login is reached under two different
-    family names. A harness with no mapping (or no harness at all, in a standalone run) keeps
-    whatever the config declared.
+    Callers check the harness first, so the mapping always holds an entry here.
     """
-    return _SUBSCRIPTION_HARNESS_PROVIDERS.get(harness or "") or (model.provider or "")
+    return _SUBSCRIPTION_HARNESS_PROVIDERS[harness or ""]
 
 
 def _resolve_subscription(
@@ -643,6 +647,13 @@ def _resolve_subscription(
             chosen = candidate
             break
 
+    # The pair is checked before the login state: signing in again would not help a run
+    # that cannot consume the credential in the first place.
+    if (harness or "") not in _SUBSCRIPTION_HARNESS_PROVIDERS:
+        raise SubscriptionNotSupportedError(
+            harness=harness, provider=chosen.provider if chosen else ""
+        )
+
     if chosen is None or not chosen.is_ready():
         # One error for a missing record, a not-ready state, and an absent login: the person
         # takes the same action in all three cases. Never name the login or its state here.
@@ -650,7 +661,10 @@ def _resolve_subscription(
             slug=slug, provider=chosen.provider if chosen else ""
         )
 
-    provider = _subscription_provider(harness, model)
+    if chosen.provider not in _SUBSCRIPTION_PROVIDERS:
+        raise SubscriptionNotSupportedError(harness=harness, provider=chosen.provider)
+
+    provider = _subscription_provider(harness)
     return build_resolved_connection(
         provider=provider,
         model=model.model,

@@ -82,6 +82,29 @@ class SubscriptionLoginRequiredError(ConnectionResolutionError):
         self.provider = provider
 
 
+class SubscriptionNotSupportedError(ConnectionResolutionError):
+    """Raised when a hosted subscription login cannot be delivered to this run.
+
+    Only the ChatGPT subscription on the Pi harness is supported. Codex refuses a login
+    file without an ``id_token``, which the ChatGPT device login never issues, so the same
+    credential cannot be handed to it. Failing here beats starting a run that authenticates
+    with nothing and reports a provider auth error the person cannot act on.
+    """
+
+    # An unsupported pair comes from the config, not from the server.
+    status_code = 422
+    failure_code = "subscription_not_supported"
+
+    def __init__(self, *, harness: Optional[str] = None, provider: str = "") -> None:
+        super().__init__(
+            "A hosted subscription runs a ChatGPT connection on the Pi harness only. "
+            f"This run asked for provider '{provider or 'unknown'}' on harness "
+            f"'{harness or 'none'}'."
+        )
+        self.harness = harness
+        self.provider = provider
+
+
 class WriteOnlySecretError(ConnectionResolutionError):
     """Raised when the chosen connection's key exists but came back redacted.
 
