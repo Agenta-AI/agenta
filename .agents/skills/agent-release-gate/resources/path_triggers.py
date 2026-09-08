@@ -52,6 +52,14 @@ SESSION_CONTROL = ("session_control.py",)
 # would stop every release run that did not pass those flags.
 DAYTONA_CELLS = ("C2", "C4", "X2")
 
+# The per-turn session facts: the agent's display name, the session's name, and the first-turn
+# flag. They reach the harness only as prompt text (`turnContext`), so no SSE frame and no stored
+# row reflects them, and every cell that reads frames alone is blind to them going missing. That
+# is how #6661 shipped through a green gate: the API stamped the facts in its invoke prelude, the
+# SDK and the runner consumed them correctly, and the playground posts to the agent service
+# directly, where the prelude never runs.
+SESSION_CONTEXT = ("matrix_n1_session_context.py",)
+
 # The journeys a rule can demand alongside its cells. A cell without its journey proves nothing:
 # `--release-base ... --only chat` would run `chat` on the mandatory Daytona cells and report a
 # green release while the coverage the rule exists for never ran. Journeys named here are FORCED
@@ -98,7 +106,11 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "api/oss/src/apis/fastapi/workflows/router.py": CUSTOM_SECRETS,
     "api/oss/src/core/workflows/static_catalog.py": CUSTOM_SECRETS,
     "sdks/python/agenta/sdk/agents/sandbox_credentials.py": CUSTOM_SECRETS,
-    "sdks/python/agenta/sdk/agents/handler.py": CUSTOM_SECRETS,
+    # The handler is the seam BOTH rules hang off: it composes the sandbox credentials and it
+    # resolves the per-turn session facts. A dict literal keeps only the last value for a
+    # repeated key, so the two tuples are joined here rather than written as a second entry that
+    # would silently drop the custom-secrets rule.
+    "sdks/python/agenta/sdk/agents/handler.py": CUSTOM_SECRETS + SESSION_CONTEXT,
     "sdks/python/agenta/sdk/agents/wire_models.py": CUSTOM_SECRETS,
     "sdks/python/agenta/sdk/agents/utils/wire.py": CUSTOM_SECRETS,
     "services/runner/src/engines/sandbox_agent/sandbox-credentials.ts": CUSTOM_SECRETS,
@@ -123,6 +135,15 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "api/oss/src/core/sessions/**": SESSION_CONTROL,
     "api/oss/src/tasks/asyncio/sessions/**": SESSION_CONTROL,
     "api/oss/src/apis/fastapi/sessions/**": SESSION_CONTROL,
+    # The per-turn session facts, end to end: the service-side resolver that reads them, the
+    # renderer that turns them into the prompt text the agent sees, and the API-side resolver
+    # plus its stamp. A change to any of the three can leave the agent answering from its own
+    # transcript with no fact to read, which is invisible to every frame-level cell.
+    # `api/oss/src/core/sessions/**` already names SESSION_CONTROL above; naming the resolver
+    # file exactly is a separate key, and matches are unioned, so both rules fire on it.
+    "sdks/python/agenta/sdk/agents/platform/session_context.py": SESSION_CONTEXT,
+    "sdks/python/agenta/sdk/agents/platform_instructions.py": SESSION_CONTEXT,
+    "api/oss/src/core/sessions/context.py": SESSION_CONTEXT,
 }
 
 # Glob -> journeys that MUST run when the rule fires. Same matching as PATH_TRIGGERS, kept as a
