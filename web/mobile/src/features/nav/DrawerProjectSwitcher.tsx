@@ -56,8 +56,7 @@ export const DrawerProjectSwitcher = ({
 
     const goTo = (nextWorkspaceId: string, nextProjectId: string) => {
         writeLastContext({workspaceId: nextWorkspaceId, projectId: nextProjectId})
-        // `projectHomeUrl` is the one spelling of the project home the resolver also forwards to;
-        // hand-rolling it here dropped the encoding it does.
+        // The resolver's own spelling of this route; the literal it replaces dropped the encoding.
         void router.push(projectHomeUrl({workspaceId: nextWorkspaceId, projectId: nextProjectId}))
     }
 
@@ -97,13 +96,10 @@ export const DrawerProjectSwitcher = ({
             const {createProject: create} = await import("@agenta/entities/project")
             return create({name: name.trim()}, workspaceId)
         },
-        // Creating a project is a switch into it, exactly like picking one from the list — landing
-        // back on the old project left the new one with no way in but a second trip to the panel.
+        // Creating a project is a switch into it, exactly like picking one from the list.
         onSuccess: async (created) => {
             setCreateOpen(false)
-            // Refetch BEFORE navigating: the switcher label, the page title and every screen on
-            // the destination read this same query, and a list without the new project renders
-            // the route we just pushed as an unknown project.
+            // Refetch first: the destination reads this same query for its title.
             await query.refetch()
             goTo(created.workspace_id ?? workspaceId, created.project_id)
         },
