@@ -36,12 +36,14 @@ import {
     useState,
 } from "react"
 
-import {CaretDown, CaretRight, Lock} from "@phosphor-icons/react"
+import {Lock} from "@phosphor-icons/react"
 import {motion} from "motion/react"
 
 import {cn} from "../../../utils/styles"
 import {HeightCollapse} from "../../HeightCollapse"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
+
+import {ConfigRowCaret, ConfigRowTrailing} from "./ConfigRowTrailing"
 
 /**
  * Whether the enclosing accordion section is currently expanded. Because the body stays MOUNTED while
@@ -418,15 +420,42 @@ export function ConfigAccordionSection({
                     {titleBadge ? <span className="shrink-0">{titleBadge}</span> : null}
                 </div>
 
-                <div
-                    className={cn(
-                        "flex items-center gap-2",
-                        preserveTitle ? "min-w-0" : "shrink-0",
-                    )}
+                <ConfigRowTrailing
+                    className={preserveTitle ? "min-w-0" : "shrink-0"}
+                    // A non-collapsible row never carries an affordance, so it keeps no column.
+                    reserve={collapsible || opensDrawer || locked}
+                    affordance={
+                        locked ? (
+                            lockedReason ? (
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Lock size={14} className="text-[var(--ag-zinc-5)]" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>{lockedReason}</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            ) : (
+                                <Lock size={14} className="text-[var(--ag-zinc-5)]" />
+                            )
+                        ) : opensDrawer ? (
+                            <ConfigRowCaret />
+                        ) : collapsible ? (
+                            <ConfigRowCaret open={isOpen} />
+                        ) : null
+                    }
                 >
                     {summary && (!summaryCollapsedOnly || !isOpen) ? (
                         // antd `Text type="secondary"` is colorTextDescription, not colorTextSecondary.
-                        <span className="min-w-0 max-w-[220px] truncate text-right text-xs text-colorTextDescription">
+                        // The title gives way, not the summary — a percentage cap here resolved
+                        // against this shrink-to-fit cluster, i.e. the text's own width, so it
+                        // clipped even "1 file" to "1 f…". `preserveTitle` swaps which half yields.
+                        <span
+                            className={cn(
+                                "text-right text-xs text-colorTextDescription",
+                                preserveTitle ? "min-w-0 truncate" : "shrink-0 whitespace-nowrap",
+                            )}
+                        >
                             {summary}
                         </span>
                     ) : null}
@@ -443,29 +472,7 @@ export function ConfigAccordionSection({
                             {extra}
                         </span>
                     ) : null}
-                    {locked ? (
-                        lockedReason ? (
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Lock size={14} className="text-[var(--ag-zinc-5)]" />
-                                    </TooltipTrigger>
-                                    <TooltipContent>{lockedReason}</TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
-                        ) : (
-                            <Lock size={14} className="text-[var(--ag-zinc-5)]" />
-                        )
-                    ) : opensDrawer ? (
-                        <CaretRight size={14} className="text-[var(--ag-zinc-5)]" />
-                    ) : collapsible ? (
-                        isOpen ? (
-                            <CaretDown size={14} className="text-[var(--ag-zinc-5)]" />
-                        ) : (
-                            <CaretRight size={14} className="text-[var(--ag-zinc-5)]" />
-                        )
-                    ) : null}
-                </div>
+                </ConfigRowTrailing>
             </div>
 
             {opensDrawer ? null : (

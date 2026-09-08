@@ -15,6 +15,10 @@ the diff rather than from a runner's memory.
 Standalone preview, before running anything:
 
     uv run path_triggers.py --release-base origin/main
+    uv run path_triggers.py --changed-path services/runner/src/subscription-login-attempts.ts
+
+The second form asks nothing of git. Use it on a deployment whose checkout is not the release
+branch, and to check a rule you just wrote.
 
 The rules are data. Adding coverage for a new subsystem is one line in PATH_TRIGGERS plus the
 cell it names. There is no plugin system and no rule ordering: every matching rule contributes
@@ -32,29 +36,10 @@ import subprocess
 # matrix cell (`matrix_gw1_gateway_tools.py`). The driver runs the first kind itself and records
 # the second kind as required, because a standalone cell is a separate process it cannot observe.
 GATEWAY_TOOLS = ("matrix_gw1_gateway_tools.py",)
-
-# The standing session-control regression cells: Stop, durable commands, and the runner's
-# recovery paths (owner release, park/resume, watchdog quarantine). A separate standalone driver
-# because it needs its own account bootstrap and, for most cells, a docker-compose project name —
-# see resources/session_control.py and SKILL.md "Session control cells".
-SESSION_CONTROL = ("session_control.py",)
-
-# The cells that run a REMOTE sandbox and need no extra flag. A release that touches the sandbox
-# engine or the Daytona provider changes how a cold sandbox gets built and how its credentials are
-# delivered, and the `burst` and `crosstalk` journeys are the only ones that see that path under
-# load (AGE-4249). Both run in every cell selected here, because a run without `--only` runs every
-# journey.
-#
-# P3 is deliberately NOT in this list even though it is a Daytona cell. It needs --custom-slug and
-# --custom-name, and the driver exits when a selected custom cell has no slug, so naming it here
-# would stop every release run that did not pass those flags.
-DAYTONA_CELLS = ("C2", "C4", "X2")
-
-# The journeys a rule can demand alongside its cells. A cell without its journey proves nothing:
-# `--release-base ... --only chat` would run `chat` on the mandatory Daytona cells and report a
-# green release while the coverage the rule exists for never ran. Journeys named here are FORCED
-# into the selection, even against an explicit --only.
-CONCURRENCY_JOURNEYS = ("burst", "crosstalk")
+# The hosted-subscription connection: one login, signed in through the product, stored by the
+# API and delivered to whichever sandbox runs the turn. H1 is the local cell, so it is the one a
+# change to this chain must run; H2 adds the remote delivery and is worth running beside it.
+HOSTED_SUBSCRIPTION = ("H1",)
 
 # Glob -> cells. Matching is fnmatch over the whole repo-relative path, so `*` crosses directory
 # separators: `a/b/*` and `a/b/**` behave the same, and both mean "anything under a/b". Write
@@ -72,31 +57,24 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "sdks/python/agenta/sdk/agents/tools/gateway_policy.py": GATEWAY_TOOLS,
     "services/runner/src/tools/**": GATEWAY_TOOLS,
     "services/runner/src/engines/sandbox_agent/gateway-gate.ts": GATEWAY_TOOLS,
-    # The sandbox engine and the Daytona provider: sandbox creation, the secret plan, the
-    # credential preflight, and the one retry the runner does when a first model call is refused.
-    # A fault here shows up only when many sandboxes start at once, which is what `burst` and
-    # `crosstalk` do on these cells. Production hit it as one first message in five failing with
-    # a credential error (AGE-4249 / #6485) while the sequential gate stayed green.
-    # A dict literal keeps only the last value for a repeated key, so a glob that already names
-    # DAYTONA_CELLS lists SESSION_CONTROL alongside it in the SAME tuple rather than as a second
-    # entry that would silently drop the Daytona rule.
-    "services/runner/src/engines/sandbox_agent/**": DAYTONA_CELLS + SESSION_CONTROL,
-    "services/runner/src/providers/daytona*": DAYTONA_CELLS,
-    # Session control: Stop, durable commands, park/resume, and the owner-release and watchdog
-    # sweeps. A change here can silently break a warm resume or leave a command stuck, and
-    # nothing in the fixed matrix drives Stop at all. See qa-audit-2026-09-03.md section 4.
-    "services/runner/src/sessions/**": SESSION_CONTROL,
-    "api/oss/src/core/sessions/**": SESSION_CONTROL,
-    "api/oss/src/tasks/asyncio/sessions/**": SESSION_CONTROL,
-    "api/oss/src/apis/fastapi/sessions/**": SESSION_CONTROL,
-}
-
-# Glob -> journeys that MUST run when the rule fires. Same matching as PATH_TRIGGERS, kept as a
-# separate table so a rule can demand a cell, a journey, or both, without changing the shape of
-# either one.
-PATH_TRIGGER_JOURNEYS: dict[str, tuple[str, ...]] = {
-    "services/runner/src/engines/sandbox_agent/**": CONCURRENCY_JOURNEYS,
-    "services/runner/src/providers/daytona*": CONCURRENCY_JOURNEYS,
+    # The hosted-subscription chain: the runner half that materializes a login into a sandbox,
+    # watches it, and pushes a refreshed copy back; and the API half that stores it, versions it,
+    # and decides whether a reported failure kills the login or is merely stale. Every other cell
+    # in the matrix authenticates from a vault key or from a login an OPERATOR mounted, so none of
+    # them touches this code and a break here is invisible to the whole fixed matrix. The failure
+    # it hides is quiet in the worst way: a turn keeps answering from a copy the store has already
+    # replaced, until the copy expires and every session dies at once.
+    "services/runner/src/engines/sandbox_agent/subscription-*": HOSTED_SUBSCRIPTION,
+    # The runner's login-attempt and status surface, one level up: it starts the device login,
+    # polls it, and reports what the connection is doing. A break here does not stop a turn, so
+    # every other cell stays green while the product can no longer tell a user to sign in.
+    "services/runner/src/subscription-*": HOSTED_SUBSCRIPTION,
+    "api/oss/src/core/secrets/subscription_*": HOSTED_SUBSCRIPTION,
+    # The client half of the same chain: the entities package owns the secret shapes and the
+    # connection state the AI providers page renders. `login_state` and `login_version` are the
+    # two fields the hosted journeys assert on, and they are read here as well as written by the
+    # API, so a shape change on this side breaks the sign-in path with no server-side diff.
+    "web/packages/agenta-entities/src/secret/**": HOSTED_SUBSCRIPTION,
 }
 
 
@@ -134,43 +112,38 @@ def mandatory_cells(paths: list[str]) -> dict[str, list[str]]:
     return {cell: sorted(why) for cell, why in sorted(activated.items())}
 
 
-def mandatory_journeys(paths: list[str]) -> dict[str, list[str]]:
-    """Journey -> the changed paths that made it mandatory.
-
-    The driver forces these into the run even when --only named something else. A release that
-    reworks sandbox credential delivery and then runs `--only chat` is not covered by the fact
-    that the right CELL was selected.
-    """
-    activated: dict[str, set[str]] = {}
-    for glob, journeys in PATH_TRIGGER_JOURNEYS.items():
-        for path in paths:
-            if fnmatch.fnmatch(path, glob):
-                for journey in journeys:
-                    activated.setdefault(journey, set()).add(path)
-    return {journey: sorted(why) for journey, why in sorted(activated.items())}
-
-
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument(
-        "--release-base", required=True, help="git ref the release branches from"
-    )
+    p.add_argument("--release-base", help="git ref the release branches from")
     p.add_argument("--head", default="HEAD", help="git ref under test (default HEAD)")
+    p.add_argument(
+        "--changed-path",
+        action="append",
+        help=(
+            "a changed path, instead of asking git. Repeatable, and combinable with "
+            "--release-base."
+        ),
+    )
     args = p.parse_args()
+    if not args.release_base and not args.changed_path:
+        p.error("pass --release-base, or --changed-path, or both")
 
-    paths = changed_paths(args.release_base, args.head)
+    paths = list(args.changed_path or [])
+    if args.release_base:
+        paths += changed_paths(args.release_base, args.head)
+    where = (
+        f"the diff {args.release_base}...{args.head}"
+        if args.release_base
+        else "these paths"
+    )
+
     triggered = mandatory_cells(paths)
-    journeys = mandatory_journeys(paths)
-    if not triggered and not journeys:
-        print(f"No path rule matched the diff {args.release_base}...{args.head}.")
+    if not triggered:
+        print(f"No path rule matched {where}.")
         return 0
-    print(f"Mandatory for {args.release_base}...{args.head}:")
+    print(f"Mandatory for {where}:")
     for cell, why in triggered.items():
-        print(f"  cell {cell}")
-        for path in why:
-            print(f"      because this release changed {path}")
-    for journey, why in journeys.items():
-        print(f"  journey {journey}")
+        print(f"  {cell}")
         for path in why:
             print(f"      because this release changed {path}")
     return 0

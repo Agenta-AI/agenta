@@ -554,6 +554,8 @@ async def run_orphan_sweep(
                 )
             )
             if completion_failures:
+                deferred.update(completion_failures)
+                unsettled.difference_update(completion_failures)
                 orphan_rows = [
                     row
                     for row in orphan_rows
@@ -653,12 +655,11 @@ async def run_orphan_sweep(
                 },
             )
 
+        unsettled.difference_update(skipped_orphan_turns)
         terminal_winners: Set[Tuple[UUID, str, str]] = set()
         endings_written: Set[Tuple[UUID, str, str]] = set()
         for project_id, session_id, turn_id in sorted(unsettled, key=lambda t: t[1]):
             key = (project_id, session_id, turn_id)
-            if key in skipped_orphan_turns:
-                continue
             if (
                 key not in terminal_turns
                 and env.agenta.sessions.durable_stop

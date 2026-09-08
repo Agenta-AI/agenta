@@ -21,6 +21,7 @@ export {
 } from "./agentModelCandidates"
 
 export type {
+    AgentSecretBinding,
     CreateSecretDto,
     CustomModelSettingsDto,
     CustomProviderDto,

@@ -61,6 +61,7 @@ export const SessionsPane = ({
                     onOpenRow={open}
                     menuFor={menu.menuFor}
                     onMenuSelect={menu.onMenuSelect}
+                    onRenameRow={menu.onRenameRow}
                 />
             </div>
         </div>

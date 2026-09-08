@@ -11,6 +11,8 @@ Verifies:
 
 from uuid import UUID, uuid5, NAMESPACE_DNS
 
+import pytest
+
 from oss.src.core.sessions.records.dtos import SessionRecordEvent
 from oss.src.dbs.postgres.sessions.records.mappings import map_record_event_to_dbe
 
@@ -59,6 +61,13 @@ def test_turn_id_and_span_id_default_to_none():
     assert dbe.sequence is None
 
 
+@pytest.fixture
+def legacy_write_mode(monkeypatch):
+    from oss.src.utils.env import env
+
+    monkeypatch.setattr(env.sessions, "sequence_writes", False)
+
+
 class _FakeResult:
     def scalars(self):
         class _S:
@@ -99,7 +108,7 @@ class _FakeEngine:
         return _cm()
 
 
-def test_append_upserts_preserving_index():
+def test_append_upserts_preserving_index(legacy_write_mode):
     """The append statement must be an ON CONFLICT DO UPDATE on (project_id, record_id)
     that overwrites attributes but does not touch record_index."""
     from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
@@ -137,7 +146,7 @@ def test_append_upserts_preserving_index():
     assert "span_id" in compiled
 
 
-def test_append_commits_when_it_opens_its_own_session():
+def test_append_commits_when_it_opens_its_own_session(legacy_write_mode):
     from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
     import asyncio
 
@@ -149,7 +158,7 @@ def test_append_commits_when_it_opens_its_own_session():
     assert engine.opened_sessions[0].commit_calls == 1
 
 
-def test_append_does_not_commit_a_caller_supplied_session():
+def test_append_does_not_commit_a_caller_supplied_session(legacy_write_mode):
     """A caller threading its own session through owns the transaction boundary;
     append must flush (so the row is visible in-transaction) but never commit it."""
     from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO

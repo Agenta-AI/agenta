@@ -71,6 +71,7 @@ export const SessionHistoryMenu = ({
                         onOpenRow={openRow}
                         menuFor={menu.menuFor}
                         onMenuSelect={menu.onMenuSelect}
+                        onRenameRow={menu.onRenameRow}
                     />
                 </div>
             </PopoverContent>

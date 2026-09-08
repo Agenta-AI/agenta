@@ -28,6 +28,8 @@ export interface AgentOverviewBodyProps {
     onOpenRow: SessionListCardProps["onOpenRow"]
     menuFor?: SessionListCardProps["menuFor"]
     onMenuSelect?: SessionListCardProps["onMenuSelect"]
+    /** Persists a session rename; given it, a row renames in place from its menu. */
+    onRenameRow?: SessionListCardProps["onRenameRow"]
     /** Touch hosts keep the pin visible instead of revealing it on hover. */
     alwaysShowPin?: boolean
     /** Display names for the triggers section's bound-agent labels. */
@@ -51,6 +53,7 @@ export const AgentOverviewBody = ({
     onOpenRow,
     menuFor,
     onMenuSelect,
+    onRenameRow,
     alwaysShowPin,
     agentNames,
 }: AgentOverviewBodyProps) => (
@@ -72,6 +75,7 @@ export const AgentOverviewBody = ({
                         onOpenRow={onOpenRow}
                         menuFor={menuFor}
                         onMenuSelect={onMenuSelect}
+                        onRenameRow={onRenameRow}
                     />
                     {/* Co-equal with Sessions, not a filter of it: an automation run is one the
                         user configured but did not start. */}
@@ -88,6 +92,7 @@ export const AgentOverviewBody = ({
                         onOpenRow={onOpenRow}
                         menuFor={menuFor}
                         onMenuSelect={onMenuSelect}
+                        onRenameRow={onRenameRow}
                     />
                 </div>
             </>

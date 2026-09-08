@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useReducer, useRef, useState} from "react"
+import {useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState} from "react"
 
 import {
     buildRequestWithinDeadline,
@@ -180,6 +180,21 @@ export const useAgentChatSession = ({
     const [turnDeliverySource, setTurnDeliverySource] = useState<TurnDeliverySource | null>(
         () => turnDeliverySourceBySession.get(sessionId) ?? null,
     )
+    const entityIdRef = useRef(entityId)
+    // Synced after commit, never during render: an interrupted render must not leak an
+    // uncommitted revision into the request builder.
+    useLayoutEffect(() => {
+        entityIdRef.current = entityId
+    }, [entityId])
+    const adoptRevision = useCallback(
+        (next: string) => {
+            entityIdRef.current = next
+            if (next !== entityId) {
+                switchEntity({currentEntityId: entityId, newEntityId: next})
+            }
+        },
+        [entityId, switchEntity],
+    )
     const settleSharedTurn = useCallback(
         (executionId?: string) => {
             const acceptedExecutionId = acceptedExecutionIdRef.current
@@ -223,9 +238,10 @@ export const useAgentChatSession = ({
                     // the build hangs, so a failed send surfaces as an error bubble instead of an
                     // eternal spinner (#6042).
                     const req = await buildRequestWithinDeadline(() =>
-                        buildAgentRequest(entityId, messages, {
+                        buildAgentRequest(entityIdRef.current, messages, {
                             sessionId: id ?? sessionId,
                             sharedResponse,
+                            secretSetup: true,
                         }),
                     )
                     captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
@@ -926,6 +942,7 @@ export const useAgentChatSession = ({
         setStopped,
         handleStop,
         handleClientToolOutput,
+        adoptRevision,
         markLiveGate,
         answerApproval,
         answerApprovals,

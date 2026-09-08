@@ -22,6 +22,15 @@ export const useLivenessPoll = (projectId: string) =>
         refetchOnWindowFocus: true,
     })
 
+/**
+ * The poll's last-success timestamp, on its own.
+ *
+ * It changes on EVERY tick even when the payload is identical, so reading it from a component
+ * that owns a wide subtree re-renders all of it once per poll. Only the conversation needs it.
+ */
+export const useLivenessUpdatedAt = (projectId: string): number =>
+    useLivenessPoll(projectId).dataUpdatedAt
+
 /** Coarse badge state for one session, derived from the shared poll. */
 export type SessionLivenessBadge = "running" | "alive"
 
