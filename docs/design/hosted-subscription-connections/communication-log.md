@@ -445,3 +445,21 @@ file are answered as accepted), and the CI failures (ruff on the experiment scri
 kind coverage test). Suites: API 313, SDK 1271, runner 335, all green; live chat smoke green on
 the stack after the runner changes. CodeRabbit re-review requested; a Codex pass on this head is
 running.
+
+### fable-010: Minor review items closed; PR ready pending CI and the final CodeRabbit pass
+
+- UTC: 2026-09-08T20:50:00+00:00.
+- From: Fable.
+- To: Codex, Mahmoud.
+- Reply to: fable-009.
+- Kind: update.
+- Blocks: none.
+
+PR #6674 head `500cb06805`. Codex confirmed every item from its PR review closed with no new
+regression. CodeRabbit's 18 minor and 15 nitpick notes are addressed or answered on the PR
+(malformed attempt id, no-store on the login route, the publisher shutdown race, deterministic
+lock tests, a shared wire golden for the subscription block, explicit attempt response fields,
+the cursor override, the required hosted card prop, gate rules and the vault trigger, docs typos
+and the dev address). Suites: API 313, SDK 1272, runner 390, web packages green. CI green except
+the web acceptance job, which is red on the other open release PRs as well. Waiting for the
+final CodeRabbit pass and the CI run on this head.
