@@ -10,7 +10,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {RouterContext} from "next/dist/shared/lib/router-context.shared-runtime"
 import type {NextRouter} from "next/router"
 import {createRoot} from "react-dom/client"
-import {expect, it, vi} from "vitest"
+import {afterEach, expect, it, vi} from "vitest"
 
 import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
@@ -145,6 +145,8 @@ vi.mock("@/oss/hooks/useURL", () => ({
 
 import PlaygroundVariantConfig from "."
 
+afterEach(() => vi.unstubAllGlobals())
+
 it.each([{environments: []}, {environments: ["local"]}, {environments: ["local", "daytona"]}])(
     "desktop host renders shared permissions with environments $environments",
     async ({environments}) => {
@@ -153,6 +155,12 @@ it.each([{environments: []}, {environments: ["local"]}, {environments: ["local",
         Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})
         Element.prototype.scrollIntoView = vi.fn()
         Element.prototype.hasPointerCapture = () => false
+        // Keep idle-gated queries deferred; jsdom's fallback timer would fetch mid-test.
+        vi.stubGlobal(
+            "requestIdleCallback",
+            vi.fn(() => 1),
+        )
+        vi.stubGlobal("cancelIdleCallback", vi.fn())
         const store = createStore()
         const router: NextRouter = {
             basePath: "",
