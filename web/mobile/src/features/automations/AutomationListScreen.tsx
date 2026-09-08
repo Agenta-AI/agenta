@@ -2,6 +2,7 @@ import {useMemo, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {ClockClockwise, Lightning, MagnifyingGlass, Plus, Robot} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -51,6 +52,12 @@ const STATUS_COLOR: Record<AutomationStatus, {dot: string; text: string}> = {
  * their proportions. The minima sum to 572 — the width below which the table scrolls sideways
  * rather than crushing five columns into a phone.
  */
+/**
+ * The page column, shared with the sessions page: same max width, same gutters, so a reader
+ * moving between the two nav entries sees one page frame rather than two.
+ */
+const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
+
 const GRID =
     "grid gap-3 [grid-template-columns:minmax(120px,1.7fr)_118px_minmax(120px,1.5fr)_minmax(80px,1fr)_24px]"
 
@@ -250,10 +257,15 @@ export const AutomationListScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div className="mx-auto w-full max-w-[1180px] shrink-0 px-8 pb-3 pt-7">
-                            <div className="mb-1.5 flex min-w-0 items-center gap-4">
+                        // The same frame the sessions bar uses, so the two pages line up at every
+                        // width: page column, 16px gutters on a phone, 64px and a deeper top from
+                        // `lg`, and the rule under the header only while it is a pinned bar.
+                        <div
+                            className={`box-border flex shrink-0 flex-col gap-3 border-x-0 border-t-0 border-b border-solid border-border px-4 pb-3 pt-3 lg:border-b-0 lg:pt-14 ${PAGE_FRAME}`}
+                        >
+                            <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-[20px] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[26px] text-foreground">
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                     Automations
                                 </h1>
                                 <Button
@@ -288,7 +300,7 @@ export const AutomationListScreen = ({
                         </div>
                     }
                 >
-                    <div className="mx-auto w-full min-w-0 max-w-[1180px] px-8 pb-12">{body}</div>
+                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>{body}</div>
                 </ScreenScaffold>
             </AppShell>
         </>
