@@ -13,6 +13,17 @@ const capabilities = {
     },
 }
 
+/** The runner answering, in full, that it holds no subscription login for any harness. */
+const RUNNER_WITH_NO_PAIRS = {
+    runner: "connected",
+    checked_at: "2026-09-08T18:49:13Z",
+    harnesses: {
+        claude: {state: "not_configured", provider: "anthropic"},
+        codex: {state: "not_configured", provider: "openai"},
+        pi_core: {state: "not_configured"},
+    },
+} as const
+
 const vaultRows = [
     {
         id: "openai",
@@ -54,7 +65,7 @@ describe("resolveAgentModelCandidateSources", () => {
         const state = resolveAgentModelCandidateSources({
             vaultRows: [],
             capabilities,
-            subscriptionStatus: null,
+            subscriptionStatus: RUNNER_WITH_NO_PAIRS,
             subscriptionSettled: true,
             showSubscriptions: true,
         })
@@ -114,7 +125,7 @@ describe("resolveAgentModelCandidateSources", () => {
         const state = resolveAgentModelCandidateSources({
             vaultRows: [],
             capabilities,
-            subscriptionStatus: null,
+            subscriptionStatus: RUNNER_WITH_NO_PAIRS,
             subscriptionSettled: true,
             subscriptionError: undefined,
             showSubscriptions: true,
@@ -177,5 +188,34 @@ describe("resolveAgentModelCandidateSources", () => {
         })
 
         expect(state).toMatchObject({status: "error", error})
+    })
+
+    it("never reads an unreadable subscription answer as 'no subscriptions'", () => {
+        // `null` is the boundary schema's fallback for an answer we could not parse. Reading it as
+        // "this deployment has none" raised the add-a-key banner on a claim never established.
+        const state = resolveAgentModelCandidateSources({
+            vaultRows: [],
+            capabilities,
+            subscriptionStatus: null,
+            subscriptionSettled: true,
+            showSubscriptions: true,
+        })
+
+        expect(state.status).not.toBe("ready")
+        expect(state).toMatchObject({status: "error", candidates: []})
+    })
+
+    it("answers from the vault when the subscription answer is unreadable", () => {
+        // Unknown pairs would only have added routes. With one runnable already, the answer stands.
+        const state = resolveAgentModelCandidateSources({
+            vaultRows,
+            capabilities,
+            subscriptionStatus: null,
+            subscriptionSettled: true,
+            showSubscriptions: true,
+        })
+
+        expect(state.status).toBe("ready")
+        expect(state.candidates).toHaveLength(1)
     })
 })

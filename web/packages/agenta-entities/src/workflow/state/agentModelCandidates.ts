@@ -42,6 +42,7 @@ interface CandidateSourceState {
     vaultError?: unknown
     capabilities?: HarnessCapabilitiesMap
     capabilitiesError?: unknown
+    /** The runner's answer. `null` is the boundary schema's fallback for one we could not read. */
     subscriptionStatus?: SubscriptionStatusResponse | null
     subscriptionSettled: boolean
     /** The subscription check could not be MADE (rejected request), as opposed to answering "none". */
@@ -91,26 +92,25 @@ export const resolveAgentModelCandidateSources = ({
         pairModelSelection,
     })
 
-    // A check we could not MAKE is not a deployment with no subscription. Reading a rejected
-    // request as "no pairs" turns an unreachable runner into "you have no runnable model", and the
-    // gate that follows tells the user to add a provider key the agent may not even use.
+    // A check we could not MAKE, and an answer we could not READ, are both "unknown". Neither is a
+    // deployment with no subscription, so neither may stand as the reason the gate tells the user
+    // to add a provider key. `subscriptionStatus === null` is the boundary schema's fallback for an
+    // unreadable answer; the subscription card already calls that a failed check.
     //
-    // It only matters when nothing else is runnable: with vault candidates in hand the gate's
-    // question is already answered yes, and the pairs we could not read would have added more, not
-    // fewer. So report the failure only in the case where it changes the answer, and let the gate
-    // stand down there rather than blocking the composer on a claim we never established.
-    if (
+    // It only matters when nothing else is runnable: with vault candidates in hand the answer is
+    // already yes, and pairs we could not read would have added more routes, never fewer. So report
+    // it only where it changes the answer, and let the gate stand down there rather than claiming
+    // something we never established.
+    const subscriptionUnknown =
         showSubscriptions &&
-        subscriptionStatus === undefined &&
-        subscriptionError &&
-        candidates.length === 0
-    ) {
+        (subscriptionStatus === null || (subscriptionStatus === undefined && !!subscriptionError))
+    if (subscriptionUnknown && candidates.length === 0) {
         return {
             status: "error",
             candidates: [],
             connections,
             capabilities,
-            error: subscriptionError,
+            error: subscriptionError ?? new Error("[workflows] Unreadable subscription status"),
         }
     }
     return {status: "ready", candidates, connections, capabilities, error: null}
