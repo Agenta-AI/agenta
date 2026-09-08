@@ -11,17 +11,26 @@ export const AutomationSaveBar = ({
     saving,
     onDiscard,
     onSave,
+    bare = false,
 }: {
     saving: boolean
     onDiscard: () => void
     onSave: () => void
+    /** In a drawer footer the rule and the top margin belong to the footer, not to this bar. */
+    bare?: boolean
 }) => (
-    <div className="mt-[30px] flex items-center justify-end gap-2.5 border-0 border-t border-solid border-border pt-5">
+    <div
+        className={
+            bare
+                ? "flex items-center justify-end gap-2.5"
+                : "mt-[30px] flex items-center justify-end gap-2.5 border-0 border-t border-solid border-border pt-5"
+        }
+    >
         <Button
             type="button"
-            size="sm"
+            size={bare ? "default" : "sm"}
             variant="outline"
-            className="text-xs font-normal"
+            className={bare ? "font-normal" : "text-xs font-normal"}
             disabled={saving}
             onClick={onDiscard}
         >
@@ -29,8 +38,8 @@ export const AutomationSaveBar = ({
         </Button>
         <Button
             type="button"
-            size="sm"
-            className="text-xs font-normal"
+            size={bare ? "default" : "sm"}
+            className={bare ? "font-normal" : "text-xs font-normal"}
             disabled={saving}
             onClick={onSave}
         >

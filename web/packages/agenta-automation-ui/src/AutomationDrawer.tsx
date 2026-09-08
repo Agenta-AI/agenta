@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback, useState, type ReactNode} from "react"
 
 import {
     triggerScheduleDrawerAtom,
@@ -12,6 +12,7 @@ import {useAtom, useAtomValue} from "jotai"
 import {AutomationCreateBody} from "./AutomationCreateBody"
 import {AutomationDetailBody} from "./AutomationDetailBody"
 import {type AutomationKind} from "./automationModel"
+import {AutomationSaveBar} from "./AutomationSaveBar"
 import {AutomationDetailSkeleton} from "./states/AutomationStates"
 import {useAutomationCreate} from "./useAutomationCreate"
 import {useAutomationEditor} from "./useAutomationEditor"
@@ -21,11 +22,15 @@ import {useAutomationEditor} from "./useAutomationEditor"
  *
  * A schedule and an event subscription are two endpoints, but they are one thing to a reader:
  * something that runs an agent. This replaces the pair of kind-specific forms with the single
- * field stack the app's own automations screens render, so the two surfaces cannot drift.
+ * field stack the automations screens render, so the two surfaces cannot drift.
  *
  * It is driven by the SAME two atoms the old drawers used, so every existing opener — the agent
- * panel's rows, its add menu, the settings sections — keeps working untouched; which atom is set
+ * panel's rows and its "+", the session row menus — keeps working untouched; which atom is set
  * decides only which half of the "Runs when" control a new automation opens on.
+ *
+ * Create and edit each own their whole shell rather than sharing one: the footer is a prop of the
+ * drawer, and the buttons in it need state that lives inside the body. Only one is ever mounted,
+ * and it stays mounted through the close animation.
  */
 export const AutomationDrawer = () => {
     const [schedule, setSchedule] = useAtom(triggerScheduleDrawerAtom)
@@ -33,23 +38,67 @@ export const AutomationDrawer = () => {
 
     const state = schedule ?? subscription
     const kind: AutomationKind = schedule ? "schedule" : "event"
-    const open = !!state
+    const automationId = schedule?.scheduleId ?? subscription?.subscriptionId
 
     const handleClose = useCallback(() => {
         setSchedule(null)
         setSubscription(null)
     }, [setSchedule, setSubscription])
 
-    // EnhancedDrawer keeps the shell mounted for the slide-out, so gating content on `state`
-    // would empty the drawer mid-animation. Keep the last state until the shell unmounts.
+    // The atom clears on close, but the shell has to outlive it to play the slide-out.
     const [rendered, setRendered] = useState(state)
-    if (state && state !== rendered) setRendered(state)
+    const [renderedId, setRenderedId] = useState(automationId)
+    if (state && state !== rendered) {
+        setRendered(state)
+        setRenderedId(automationId)
+    }
     const handleAfterOpenChange = useCallback((isOpen: boolean) => {
         if (!isOpen) setRendered(null)
     }, [])
 
-    const automationId = schedule?.scheduleId ?? subscription?.subscriptionId
-    const playgroundEntityId = rendered?.playgroundEntityId
+    if (!rendered) return null
+
+    return renderedId ? (
+        <AutomationEditDrawer
+            key={renderedId}
+            automationId={renderedId}
+            open={!!state}
+            onClose={handleClose}
+            onAfterOpenChange={handleAfterOpenChange}
+            playgroundEntityId={rendered.playgroundEntityId}
+        />
+    ) : (
+        <AutomationCreateDrawer
+            key={`new-${kind}`}
+            kind={kind}
+            open={!!state}
+            onClose={handleClose}
+            onAfterOpenChange={handleAfterOpenChange}
+            playgroundEntityId={rendered.playgroundEntityId}
+            defaultAgentName={rendered.defaultBoundLabel}
+            defaultReferences={rendered.defaultReferences}
+        />
+    )
+}
+
+/** The shell both modes share — title, width, and a footer only when there is something in it. */
+const AutomationDrawerShell = ({
+    open,
+    onClose,
+    onAfterOpenChange,
+    playgroundEntityId,
+    title,
+    footer,
+    children,
+}: {
+    open: boolean
+    onClose: () => void
+    onAfterOpenChange: (isOpen: boolean) => void
+    playgroundEntityId?: string
+    title: string
+    footer?: ReactNode
+    children: ReactNode
+}) => {
     const boundAgentName = useAtomValue(
         workflowMolecule.selectors.artifactName(playgroundEntityId ?? ""),
     )
@@ -58,11 +107,11 @@ export const AutomationDrawer = () => {
         <EnhancedDrawer
             rootClassName="ag-drawer-elevated"
             open={open}
-            onClose={handleClose}
-            afterOpenChange={handleAfterOpenChange}
+            onClose={onClose}
+            afterOpenChange={onAfterOpenChange}
             title={
                 <span className="flex min-w-0 items-baseline gap-1.5">
-                    <span>{automationId ? "Automation" : "New automation"}</span>
+                    <span>{title}</span>
                     {boundAgentName ? (
                         <>
                             <span className="text-[var(--ag-colorTextQuaternary)]">·</span>
@@ -74,117 +123,136 @@ export const AutomationDrawer = () => {
                 </span>
             }
             width={640}
+            footer={footer}
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
         >
-            {rendered ? (
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">
-                    {automationId ? (
-                        <AutomationEditDrawerBody
-                            key={automationId}
-                            automationId={automationId}
-                            onClose={handleClose}
-                        />
-                    ) : (
-                        <AutomationCreateDrawerBody
-                            key={`new-${kind}`}
-                            kind={kind}
-                            defaultReferences={rendered.defaultReferences}
-                            defaultAgentId={playgroundEntityId ?? null}
-                            onClose={handleClose}
-                        />
-                    )}
-                </div>
-            ) : null}
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 py-4">{children}</div>
         </EnhancedDrawer>
     )
 }
 
-/** An existing automation: the same body the app's detail screen renders, minus its run history. */
-const AutomationEditDrawerBody = ({
+/** An existing automation: the same body the detail screen renders, minus its run history. */
+const AutomationEditDrawer = ({
     automationId,
+    open,
     onClose,
+    onAfterOpenChange,
+    playgroundEntityId,
 }: {
     automationId: string
+    open: boolean
     onClose: () => void
+    onAfterOpenChange: (isOpen: boolean) => void
+    playgroundEntityId?: string
 }) => {
     const editor = useAutomationEditor(automationId)
 
-    if (editor.loading) return <AutomationDetailSkeleton />
-    if (!editor.automation || !editor.preview)
-        return (
-            <p className="m-0 py-16 text-center text-[13px] text-muted-foreground">
-                This automation no longer exists.
-            </p>
-        )
-
     return (
-        <AutomationDetailBody
-            automation={editor.automation}
-            preview={editor.preview}
-            agentName={editor.agentName}
-            // The drawer opens over the agent that owns the run history, so a link out of it
-            // would be a link to the surface the reader is already standing on.
-            runsHref={null}
-            // The drawer owns the gutters, so the body drops the page column it uses on a screen.
-            className="flex min-w-0 flex-col"
-            failureReason={editor.failureReason}
-            runHistoryCaption={editor.runHistoryCaption}
-            dirty={editor.dirty}
-            saving={editor.saving}
-            onRename={editor.onRename}
-            onSelectAgent={editor.setAgent}
-            onChangeCron={editor.setCron}
-            onSelectEvent={editor.setEvent}
-            onChangeInputs={editor.setInputs}
-            onToggle={editor.onToggle}
-            onDiscard={editor.discard}
-            onSave={() => void editor.save().then(onClose)}
-        />
+        <AutomationDrawerShell
+            open={open}
+            onClose={onClose}
+            onAfterOpenChange={onAfterOpenChange}
+            playgroundEntityId={playgroundEntityId}
+            title="Automation"
+            // Nothing to commit, nothing to stand under the form: the bar arrives with the edit.
+            footer={
+                editor.dirty ? (
+                    <AutomationSaveBar
+                        bare
+                        saving={editor.saving}
+                        onDiscard={editor.discard}
+                        onSave={() => void editor.save()}
+                    />
+                ) : undefined
+            }
+        >
+            {editor.loading ? (
+                <AutomationDetailSkeleton />
+            ) : !editor.automation || !editor.preview ? (
+                <p className="m-0 py-16 text-center text-[13px] text-muted-foreground">
+                    This automation no longer exists.
+                </p>
+            ) : (
+                <AutomationDetailBody
+                    automation={editor.automation}
+                    preview={editor.preview}
+                    agentName={editor.agentName}
+                    // The drawer opens over the agent that owns the run history, so a link out of
+                    // it would point at the surface the reader is already standing on.
+                    runsHref={null}
+                    // The drawer owns the gutters, so the body drops its page column.
+                    className="flex min-w-0 flex-col"
+                    // The save bar lives in the drawer's footer, where it stays put while the
+                    // form scrolls under it.
+                    hideSaveBar
+                    failureReason={editor.failureReason}
+                    runHistoryCaption={editor.runHistoryCaption}
+                    dirty={editor.dirty}
+                    saving={editor.saving}
+                    onRename={editor.onRename}
+                    onSelectAgent={editor.setAgent}
+                    onChangeCron={editor.setCron}
+                    onSelectEvent={editor.setEvent}
+                    onChangeInputs={editor.setInputs}
+                    onToggle={editor.onToggle}
+                    onDiscard={editor.discard}
+                    onSave={() => void editor.save()}
+                />
+            )}
+        </AutomationDrawerShell>
     )
 }
 
 /** A new automation, pre-bound to the agent whose panel opened the drawer. */
-const AutomationCreateDrawerBody = ({
+const AutomationCreateDrawer = ({
     kind,
-    defaultAgentId,
-    defaultReferences,
+    open,
     onClose,
+    onAfterOpenChange,
+    playgroundEntityId,
+    defaultAgentName,
+    defaultReferences,
 }: {
     kind: AutomationKind
-    defaultAgentId: string | null
-    defaultReferences?: Record<string, {id?: string; slug?: string}>
+    open: boolean
     onClose: () => void
+    onAfterOpenChange: (isOpen: boolean) => void
+    playgroundEntityId?: string
+    defaultAgentName?: string
+    defaultReferences?: Record<string, {id?: string; slug?: string}>
 }) => {
     const state = useAutomationCreate({
         defaultKind: kind,
-        defaultAgentId,
+        defaultAgentId: playgroundEntityId ?? null,
+        defaultAgentName,
         defaultReferences,
     })
 
     return (
-        <AutomationCreateBody
-            state={state}
-            // The agent is the panel this drawer opened from — offering to change it here would
-            // let the reader move an automation off the agent they are looking at.
-            showAgentField={!defaultAgentId}
+        <AutomationDrawerShell
+            open={open}
+            onClose={onClose}
+            onAfterOpenChange={onAfterOpenChange}
+            playgroundEntityId={playgroundEntityId}
+            title="New automation"
             footer={
-                <div className="mt-[30px] flex items-center justify-end gap-2.5 border-0 border-t border-solid border-border pt-5">
+                <div className="flex items-center justify-end gap-2.5">
                     <Button
                         type="button"
-                        size="sm"
                         variant="outline"
-                        className="text-xs font-normal"
+                        className="font-normal"
                         onClick={onClose}
                     >
                         Cancel
                     </Button>
+                    {/* A disabled button takes no pointer events, so the reason has to hang off
+                        something that does. */}
                     <span title={state.blockedReason || undefined}>
                         <Button
                             type="button"
-                            size="sm"
-                            className="text-xs font-normal"
+                            className="font-normal"
                             disabled={!!state.blockedReason || state.saving}
                             title={state.blockedReason || undefined}
                             onClick={() => void state.create().then((made) => made && onClose())}
@@ -194,6 +262,13 @@ const AutomationCreateDrawerBody = ({
                     </span>
                 </div>
             }
-        />
+        >
+            <AutomationCreateBody
+                state={state}
+                // The agent is the panel this drawer opened from — offering to change it here
+                // would let the reader move an automation off the agent they are looking at.
+                showAgentField={!playgroundEntityId}
+            />
+        </AutomationDrawerShell>
     )
 }
