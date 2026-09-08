@@ -168,6 +168,7 @@ def set_session_name(session_id: str, name: str) -> str | None:
 
 
 def stored_session_name(session_id: str) -> str | None:
+    """The name the backend has stored for this session, read back before every ask."""
     r = api_call("GET", "/sessions/streams/", params={"session_id": session_id})
     if r.status_code != 200:
         raise RuntimeError(f"fetch stream HTTP {r.status_code}: {r.text[:300]}")
@@ -193,6 +194,7 @@ def _step(name: str, token: str, reply: str, *, absent: str | None = None) -> di
 
 
 def n1_for(harness_name: str, spec: dict) -> dict:
+    """Run the whole N1 sequence on one harness and return its PASS/FAIL/SKIP verdict."""
     hexid = uuid.uuid4().hex[:8]
     # Every token below is minted here and spoken nowhere, so a reply that carries one can only
     # have got it from a fact delivered this turn.
@@ -207,10 +209,16 @@ def n1_for(harness_name: str, spec: dict) -> dict:
     name_two = f"QA-N1 Vermilion Quay {tok_two}"
     forged_name = f"QA-N1 FORGED Ashen Vault {tok_forged}"
 
-    # The workflow's DISPLAY NAME is the agent-name fact: the service reads it with
-    # `GET /workflows/{workflow_id}`. It carries a token minted above and spoken nowhere.
-    wf, var = create_workflow(hexid, "qa-n1-session-context", name=agent_name)
+    # Bound before the try so the classifier below and the archive in `finally` can both read it
+    # even when the create itself is what failed.
+    wf = None
     try:
+        # The workflow's DISPLAY NAME is the agent-name fact: the service reads it with
+        # `GET /workflows/{workflow_id}`. It carries a token minted above and spoken nowhere.
+        # Inside the try, so a non-200 or a transport error is classified like every other infra
+        # failure instead of escaping and killing the remaining harnesses under --harness-all.
+        wf, var = create_workflow(hexid, "qa-n1-session-context", name=agent_name)
+
         cfg = harness_agent_config(spec)
         rev_id, _ = seed_and_baseline(wf, var, cfg, hexid)
         params = {"agent": cfg}
@@ -409,10 +417,13 @@ def n1_for(harness_name: str, spec: dict) -> dict:
             "workflow_id": wf,
         }
     finally:
-        archive(wf)
+        # None when the create is what failed, and there is nothing to archive then.
+        if wf:
+            archive(wf)
 
 
 def main() -> int:
+    """Run N1 on the selected harnesses, print the results, and exit nonzero on any FAIL."""
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
         "--only",
