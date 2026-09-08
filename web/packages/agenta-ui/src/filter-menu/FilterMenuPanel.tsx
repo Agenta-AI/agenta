@@ -83,9 +83,14 @@ export const FilterMenuPanel = ({
 
     // Radix focuses the content wrapper on open, which beats an input's own `autoFocus` — the
     // popover suppresses that (`onOpenAutoFocus`) and the entry point is chosen here instead.
+    // A frame late, because on the opening frame the content is still being positioned and a
+    // focus call lands on a node the popover then moves out from under.
     useEffect(() => {
-        if (searchable) searchRef.current?.focus()
-        else focusRow(order[0])
+        const frame = requestAnimationFrame(() => {
+            if (searchable) searchRef.current?.focus()
+            else focusRow(order[0])
+        })
+        return () => cancelAnimationFrame(frame)
         // Open-time only: re-running would pull focus out of whatever the reader moved to.
     }, [])
 
@@ -104,7 +109,7 @@ export const FilterMenuPanel = ({
     }
 
     return (
-        <div className={cn("flex w-[300px] flex-col", className)}>
+        <div className={cn("flex w-[248px] flex-col", className)}>
             {searchable ? (
                 <label className="flex items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
                     <Search size={14} className="shrink-0 text-muted-foreground" aria-hidden />
@@ -146,7 +151,16 @@ export const FilterMenuPanel = ({
                                 section={entry.section}
                                 options={entry.options}
                                 open={openKey === entry.section.key}
-                                onOpenChange={(next) => setOpenKey(next ? entry.section.key : null)}
+                                onOpenChange={(next) =>
+                                    setOpenKey((current) => {
+                                        if (next) return entry.section.key
+                                        // The row being closed is not always the row that just
+                                        // opened: moving the pointer to a new row opens that one
+                                        // and only then does the old flyout report itself shut.
+                                        // Honouring that late close would wipe the new key.
+                                        return current === entry.section.key ? null : current
+                                    })
+                                }
                                 flyoutSide={flyoutSide}
                                 flyoutAlign={flyoutAlign}
                                 flyoutSideOffset={flyoutSideOffset}
