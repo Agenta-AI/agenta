@@ -1,4 +1,4 @@
-import {memo, useMemo} from "react"
+import {memo, useCallback, useMemo, useState} from "react"
 
 import {
     NamePromptModal,
@@ -7,6 +7,7 @@ import {
     type SwitcherEntry,
     type SwitcherThemeControl,
 } from "@agenta/navigation-ui"
+import {KeyboardShortcutsSheet} from "@agenta/ui/shortcuts"
 import {themeIcon} from "@agenta/ui/theme"
 
 import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
@@ -35,9 +36,13 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
     } = useProjectOrgSwitcher()
 
     const {themeMode, toggleAppTheme} = useAppTheme()
+    // The sheet is a modal, so its state lives with whatever stays mounted after the menu closes.
+    const [shortcutsOpen, setShortcutsOpen] = useState(false)
     // Help rides on the switcher row rather than taking a nav row of its own: it is a menu you
     // reach for, not a place in the product.
-    const helpItem = useSidebarHelpItem()
+    const helpItem = useSidebarHelpItem({
+        onOpenShortcuts: useCallback(() => setShortcutsOpen(true), []),
+    })
 
     const theme = useMemo<SwitcherThemeControl>(
         () => ({
@@ -92,6 +97,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                 onLogout={confirmLogout}
                 trailing={<SidebarIconMenu item={helpItem} />}
             />
+            <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             <NamePromptModal
                 title="Create project"
                 label="Project name"

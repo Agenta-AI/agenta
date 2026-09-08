@@ -1,20 +1,14 @@
 import {useCallback, useMemo, type MouseEvent} from "react"
 
-import {
-    ALL_RELEASES_LINK,
-    buildHelpDocsNavItem,
-    buildInviteTeammateNavItem,
-    RELEASES,
-} from "@agenta/navigation"
+import {buildHelpDocsNavItem, buildInviteTeammateNavItem} from "@agenta/navigation"
 import type {SidebarConfig, SidebarSection} from "@agenta/navigation"
+import {buildReleaseNavItems} from "@agenta/navigation-ui"
 import {GithubFilled} from "@ant-design/icons"
 import {
     ChatCircleIcon,
-    CircleIcon,
     GearIcon,
-    PackageIcon,
+    KeyboardIcon,
     PaperPlaneIcon,
-    PhoneIcon,
     QuestionIcon,
     RocketLaunchIcon,
     ScrollIcon,
@@ -115,16 +109,18 @@ export const useSidebarBottomSection = ({
     )
 }
 
-/** Newest first, capped: the menu is a "what changed lately", not the whole changelog. */
-const RECENT_RELEASE_COUNT = 3
-
 /**
  * Help & Docs, as an item the rail renders as an icon button beside the project switcher.
  *
  * It carries the releases that used to be sidebar banner cards. News belongs in a list you
  * open, not in a card you dismiss one at a time.
+ *
+ * `onOpenShortcuts` is the host's: the sheet is a modal, and the menu that names it has closed
+ * by the time it opens.
  */
-export const useSidebarHelpItem = (): SidebarConfig => {
+export const useSidebarHelpItem = ({
+    onOpenShortcuts,
+}: {onOpenShortcuts?: () => void} = {}): SidebarConfig => {
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const versionState = useAtomValue(versionAtom)
     const version = versionState.state === "hasData" ? versionState.data : undefined
@@ -147,39 +143,34 @@ export const useSidebarHelpItem = (): SidebarConfig => {
                     docs: <ScrollIcon size={14} />,
                     github: <GithubFilled style={{fontSize: 14}} />,
                     slack: <SlackLogoIcon size={14} />,
-                    bookCall: <PhoneIcon size={14} />,
                 },
-                // Always: the releases below now follow Book a call whether or not Live Chat does.
-                dividerAfterBookCall: true,
                 extraItems: [
                     {
                         key: "support-chat-link",
-                        title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
+                        title: "Live Chat Support",
+                        // The state reads as the row's VALUE, not as part of its name: a row
+                        // called "Live Chat Support: Off" scans as a different destination.
+                        suffix: (
+                            <span className="text-[12px] leading-none text-colorTextTertiary">
+                                {isVisible ? "On" : "Off"}
+                            </span>
+                        ),
                         icon: <ChatCircleIcon size={14} />,
                         isHidden: !isDemo() || !isCrispEnabled,
                         onClick: handleToggleSupport,
                     },
-                    {key: "releases-heading", title: "What's new?", isGroupLabel: true},
-                    ...RELEASES.slice(0, RECENT_RELEASE_COUNT).map((release) => ({
-                        key: release.id,
-                        title: release.title,
-                        link: release.link,
-                        icon: <CircleIcon size={7} weight="fill" />,
-                    })),
                     {
-                        key: "all-releases",
-                        title: "View all releases",
-                        link: ALL_RELEASES_LINK,
-                        icon: <PackageIcon size={14} />,
-                        // The running build, on the row that lists what shipped.
-                        suffix: version ? (
-                            <span className="text-[11px] leading-none text-colorTextTertiary">
-                                v{version}
-                            </span>
-                        ) : undefined,
+                        key: "keyboard-shortcuts",
+                        title: "Keyboard shortcuts",
+                        icon: <KeyboardIcon size={14} />,
+                        isHidden: !onOpenShortcuts,
+                        onClick: () => onOpenShortcuts?.(),
+                        // The rule between the destinations and the release list.
+                        divider: true,
                     },
+                    ...buildReleaseNavItems(version),
                 ],
             }),
-        [handleToggleSupport, isCrispEnabled, isVisible, version],
+        [handleToggleSupport, isCrispEnabled, isVisible, onOpenShortcuts, version],
     )
 }

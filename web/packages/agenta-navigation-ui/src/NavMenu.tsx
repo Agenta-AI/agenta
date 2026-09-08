@@ -338,6 +338,9 @@ export const FlyoutChildren = ({
                         className={clsx(
                             "gap-[10px]",
                             selectedKeys.includes(child.key) && "font-medium",
+                            // Same field the inline rows read, so a row that tunes its own
+                            // geometry does it once for both paths.
+                            child.rowClassName,
                         )}
                         asChild={Boolean(child.link)}
                         onSelect={

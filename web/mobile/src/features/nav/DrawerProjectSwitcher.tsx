@@ -2,9 +2,11 @@ import {useCallback, useMemo, useState} from "react"
 
 import {
     ProjectOrgSwitcherView,
+    SidebarIconMenu,
     type SwitcherEntry,
     type SwitcherThemeControl,
 } from "@agenta/navigation-ui"
+import {KeyboardShortcutsSheet} from "@agenta/ui/shortcuts"
 import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
 import {useMutation, useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
@@ -15,6 +17,7 @@ import {useLogout} from "../auth/useLogout"
 import {groupByOrganization} from "../context/workspaceGroups"
 
 import {CreateProjectSheet} from "./CreateProjectSheet"
+import {useMobileHelpItem} from "./useMobileNavItems"
 
 /**
  * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
@@ -32,6 +35,12 @@ export const DrawerProjectSwitcher = ({
 }) => {
     const router = useRouter()
     const logout = useLogout()
+    // The sheet is a modal, so its state lives with whatever stays mounted after the menu closes.
+    const [shortcutsOpen, setShortcutsOpen] = useState(false)
+    // Help rides on the switcher row rather than taking a nav row of its own, as on the desktop.
+    const helpItem = useMobileHelpItem({
+        onOpenShortcuts: useCallback(() => setShortcutsOpen(true), []),
+    })
     const query = useQuery({
         queryKey: ["mobile", "projects"],
         queryFn: () => fetchProjects(),
@@ -141,7 +150,9 @@ export const DrawerProjectSwitcher = ({
                 theme={theme}
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
+                trailing={<SidebarIconMenu item={helpItem} />}
             />
+            <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             <CreateProjectSheet
                 open={createOpen}
                 onOpenChange={setCreateOpen}
