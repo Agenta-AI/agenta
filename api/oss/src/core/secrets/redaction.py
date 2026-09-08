@@ -48,6 +48,16 @@ DATA_CREDENTIAL_FIELDS: Dict[str, Tuple[str, ...]] = {
 }
 
 
+# Every secret kind states where its credential lives, in exactly ONE of the two maps
+# above: a kind in neither is a kind nothing redacts. The maps stay separate because their
+# shapes differ (a nested container and a field, against fields on the data object), and a
+# kind in both would give one credential two locations that can disagree. Assert against
+# this set rather than against either map alone.
+CREDENTIAL_FIELD_KINDS: frozenset = frozenset(PRIMARY_CREDENTIAL_FIELDS) | frozenset(
+    DATA_CREDENTIAL_FIELDS
+)
+
+
 def mask_secret_value(value: str) -> str:
     """A short, non-reversible display preview like ``sk-****9Qa``.
 
