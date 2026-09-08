@@ -41,11 +41,18 @@ describe("toSkillListItem", () => {
 })
 
 describe("toSourceInfo", () => {
-    it("labels an import by its repository and carries the resolved version", () => {
+    it("renders the provider-supplied link rather than building one", () => {
         const info = toSourceInfo(origin())
         expect(info.label).toBe("obra/superpowers")
-        expect(info.repoUrl).toBe("https://github.com/obra/superpowers")
+        // The adapter owns the URL shape; the frontend never assembles a provider link.
+        expect(info.repoUrl).toBe(
+            "https://github.com/obra/superpowers/tree/b36e082/skills/brainstorming",
+        )
         expect(info.commitSha).toBe("b36e082")
+    })
+
+    it("has no link when the provider supplied none", () => {
+        expect(toSourceInfo(origin({imported_at_url: null})).repoUrl).toBeUndefined()
     })
 
     it("falls back to a neutral label without a repository", () => {
