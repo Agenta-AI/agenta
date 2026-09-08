@@ -2,10 +2,11 @@
 
 ## Current state
 
-The working research document and editable Fable handoff are prepared. The intended result is an
-integrated exploratory implementation, with alternative experiments running alongside product work.
-There is no timebox. No new authentication implementation or live refresh validation has been
-completed in this worktree.
+Updated 2026-09-08 16:30 UTC. The exploratory implementation is on the branch
+`spike/hosted-subscription-exploration` (head pushed to origin) and runs on the stack below. All
+four tracks are committed. Every scenario in the evidence table below ran against the real
+provider unless marked simulated or not established. Remaining work is cleanup for a production
+PR, a two-replica test, and the Codex review items listed at the end of the table.
 
 ## Workspace
 
@@ -42,7 +43,7 @@ stores one. Pi is the harness for this slice.
 ## Known limits and follow-ups
 
 - A pending device-login attempt lives in the runner process. A runner restart or a second runner replica behind one URL drops it; the API reports `failed` with "attempt not found; try again".
-- The vault read is cached for a short time, so a refreshed login pushed by one runner reaches another runner's next turn after the cache expires. The reuse window of about an hour covers that delay.
+- The vault read is cached for a short time, so a refreshed login pushed by one runner reaches another runner's next turn after the cache expires. The measured overlap of roughly an hour absorbed that delay in today's tests; it is an observation, not a guarantee.
 - Codex harness is out: Codex 0.145.0 refuses a login file without `id_token`, which Pi never stores.
 - `fs.watch` fails with EMFILE on a host whose root user has exhausted inotify instances; the publisher polls every 5 s instead. A production host with the same limit behaves the same.
 - The onboarding draft agent selects the deployment-login row by default when a runner mounts an operator login. On a cloud runner with no mount this does not arise. Consider preferring a ready hosted connection.

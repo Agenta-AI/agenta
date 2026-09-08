@@ -188,8 +188,9 @@ Log (fingerprints only): `~/agenta-qa-evidence/2026-09-08-hosted-subscriptions/r
 | Does an old access token keep working after a rotation? | Yes. The old access token still authenticated against the Codex responses endpoint (400 for a malformed body, not 401). | real provider |
 | How long does a rotated-away refresh token stay valid? | Between 30 and 102 minutes. The old token still refreshed at 15 and 30 minutes of age. At 102 minutes the server answered HTTP 401 with `code: refresh_token_reused` and the message "Your refresh token has already been used to generate a new access token. Please try signing in again." From 132 minutes on it answered HTTP 401 with `code: invalid_refresh_token` and the message "Invalid refresh token." Both codes sit under `error.code` in the body. Log: `~/agenta-qa-evidence/2026-09-08-hosted-subscriptions/reuse-window.log`. | real provider |
 
-What this means for the design: a concurrent refresh race does not log anyone out within the
-reuse window of roughly one hour. The loser gets a valid new pair too. The remaining risk is a session that
+What this means for the design: in today's observations a concurrent refresh race did not log
+anyone out within roughly one hour. This is measured behavior of the server on one day, not a
+documented guarantee, and the design still handles a rejected refresh. The loser gets a valid new pair too. The remaining risk is a session that
 holds a refresh token older than the reuse window, which is the case the push-back to the API and
 the `stale` answer cover.
 
