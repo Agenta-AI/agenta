@@ -234,7 +234,7 @@ export const AutomationListScreen = ({
                                                     event.preventDefault()
                                                     open()
                                                 }}
-                                                className={`${GRID} w-full cursor-pointer items-center border-0 border-b border-solid border-border/60 bg-transparent px-2 py-[15px] text-left hover:bg-accent/60 ${FOCUS_RING}`}
+                                                className={`${GRID} w-full cursor-pointer items-center rounded-md border-0 bg-transparent px-2 py-[13px] text-left hover:bg-accent/60 ${FOCUS_RING}`}
                                             >
                                                 <span className="flex min-w-0 items-center gap-2">
                                                     {automation.kind === "event" ? (
