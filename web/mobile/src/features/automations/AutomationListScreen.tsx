@@ -26,7 +26,7 @@ import {useRouter} from "next/router"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {Button} from "@/components/ui/button"
-import {Input} from "@/components/ui/input"
+import {InputGroup, InputGroupAddon, InputGroupInput} from "@/components/ui/input-group"
 import {FOCUS_RING} from "@/lib/interactive"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -339,22 +339,20 @@ export const AutomationListScreen = ({
                         {/* One control beside the field, not three: sort and group are rows
                             inside it, so the bar stays a search bar. */}
                         <div className="mb-3 flex items-center gap-2">
-                            {/* h-8 is the filter button's height: the field's own padding put
-                                it 3.5px taller than the control beside it. */}
-                            <label className="flex h-8 min-w-0 max-w-[340px] flex-1 items-center gap-2 rounded-lg border border-solid border-border px-2.5 focus-within:border-ring">
-                                <MagnifyingGlass
-                                    size={14}
-                                    className="shrink-0 text-muted-foreground"
-                                    aria-hidden
-                                />
-                                <Input
+                            {/* h-8 matches the filter button beside it; the group's own 36 is a
+                                form field's height, not a toolbar's. */}
+                            <InputGroup className="h-8 min-w-0 max-w-[340px] flex-1">
+                                <InputGroupAddon>
+                                    <MagnifyingGlass size={14} aria-hidden />
+                                </InputGroupAddon>
+                                <InputGroupInput
                                     value={search}
                                     onChange={(event) => setSearch(event.target.value)}
                                     placeholder="Search automations"
                                     aria-label="Search automations"
-                                    className="h-auto rounded-none border-0 bg-transparent p-0 text-[13px] shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-[13px] dark:bg-transparent"
+                                    className="text-[13px] md:text-[13px]"
                                 />
-                            </label>
+                            </InputGroup>
                             <AutomationFilterMenu view={view} onChange={setView} agents={agents} />
                         </div>
                         {body}
