@@ -69,7 +69,16 @@ export const AutomationRunHistoryView = ({
     const showList = !showPane || canSplit
 
     return (
-        <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
+        <div
+            className={cn(
+                "flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden",
+                // With no run open the view is a single column, so it sits on the page's centre
+                // line like every other screen — and the back link centres with it, on the same
+                // 30px as the heading below. The split layout stays full-bleed: its rule divides
+                // the window, not a column.
+                !showPane && "mx-auto max-w-[760px]",
+            )}
+        >
             {header}
             <div className="flex min-h-0 w-full min-w-0 flex-1 overflow-hidden">
                 {showList ? (

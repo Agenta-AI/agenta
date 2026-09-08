@@ -3,7 +3,7 @@ import {useMemo} from "react"
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 
 import {AutomationRunRow} from "./AutomationRunRow"
-import {runDayGroups} from "./runModel"
+import {runGroups, type RunGrouping} from "./runListView"
 import {
     AutomationRunHistoryEmpty,
     AutomationRunHistoryError,
@@ -13,15 +13,16 @@ import {
 /**
  * The runs, grouped by the day they ran on, in the one column that owns their scroll.
  *
- * Day grouping is the presentation, not a filter: a run's own row states only a time, so the
- * heading above it is what makes that time mean anything. Grouping lives in `runDayGroups` so
- * the shape is testable without rendering.
+ * Day is the default grouping because a run's own row states only a time, so the heading above
+ * it is what makes that time mean anything. The cut itself lives in `runGroups`, so the shape is
+ * testable without rendering.
  *
  * The column is bounded by its parent and scrolls internally, so picking an old run does not
  * scroll the pane beside it out of view.
  */
 export const AutomationRunList = ({
     runs,
+    grouping = "day",
     filtered = false,
     selectedId,
     isLoading,
@@ -30,6 +31,8 @@ export const AutomationRunList = ({
     onRetry,
 }: {
     runs: TriggerDelivery[]
+    /** What the headings cut the list by. */
+    grouping?: RunGrouping
     /** The runs were narrowed by the menu — an empty list is a filter's doing, not a new automation. */
     filtered?: boolean
     selectedId: string | null
@@ -38,7 +41,7 @@ export const AutomationRunList = ({
     onSelect: (delivery: TriggerDelivery) => void
     onRetry?: () => void
 }) => {
-    const groups = useMemo(() => runDayGroups(runs), [runs])
+    const groups = useMemo(() => runGroups(runs, grouping), [grouping, runs])
 
     return (
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
@@ -49,9 +52,11 @@ export const AutomationRunList = ({
             ) : groups.length ? (
                 groups.map((group) => (
                     <section key={group.key} className="mb-1 last:mb-0">
-                        <h2 className="m-0 flex items-center gap-1.5 pb-1 pl-2.5 pt-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
-                            {group.label}
-                        </h2>
+                        {group.label ? (
+                            <h2 className="m-0 flex items-center gap-1.5 pb-1 pl-2.5 pt-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                                {group.label}
+                            </h2>
+                        ) : null}
                         <div className="flex flex-col gap-0.5">
                             {group.runs.map((delivery) => (
                                 <AutomationRunRow

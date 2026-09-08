@@ -2,12 +2,14 @@ import {useMemo} from "react"
 
 import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {
-    ArrowsDownUp,
+    CalendarBlank,
     CheckCircle,
-    ClockClockwise,
     Circle,
+    ClockClockwise,
     Flask,
     Lightning,
+    Minus,
+    Rows,
     SquaresFour,
     WarningCircle,
     Waveform,
@@ -16,21 +18,20 @@ import {
 import {
     DEFAULT_RUN_LIST_VIEW,
     isDefaultRunListView,
-    type RunKindFilter,
+    type RunGrouping,
     type RunListView,
-    type RunOutcomeFilter,
-    type RunSort,
+    type RunStatusFilter,
+    type RunTypeFilter,
 } from "./runListView"
 
 const ICON = 14
 
 /**
- * The run history's view control: how a run ended, how it started, and which end of the list to
- * read from.
+ * The run history's view control: how a run ended, how it started, and what the headings cut it
+ * by.
  *
- * No Group row — the day headings are the list's presentation rather than a choice, and a menu
- * that offered to turn them off would be offering to make every row's bare time meaningless.
- * Omitting the section is the whole of that decision.
+ * No Sort row: runs are newest-first everywhere in this app, and a history read bottom-up
+ * answers no question the day headings do not already answer.
  */
 export const AutomationRunFilterMenu = ({
     view,
@@ -42,10 +43,10 @@ export const AutomationRunFilterMenu = ({
     const sections = useMemo<FilterMenuSection[]>(
         () => [
             {
-                key: "outcome",
-                label: "Outcome",
+                key: "status",
+                label: "Status",
                 icon: <Waveform size={ICON} />,
-                value: view.outcome,
+                value: view.status,
                 options: [
                     {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
                     {
@@ -64,13 +65,13 @@ export const AutomationRunFilterMenu = ({
                         icon: <Circle size={ICON} className="text-muted-foreground" />,
                     },
                 ],
-                onChange: (next) => onChange({...view, outcome: next as RunOutcomeFilter}),
+                onChange: (next) => onChange({...view, status: next as RunStatusFilter}),
             },
             {
-                key: "kind",
-                label: "Kind",
+                key: "type",
+                label: "Type",
                 icon: <Lightning size={ICON} />,
-                value: view.kind,
+                value: view.type,
                 options: [
                     {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
                     {
@@ -81,19 +82,21 @@ export const AutomationRunFilterMenu = ({
                     {value: "event", label: "Event", icon: <Lightning size={ICON} />},
                     {value: "test", label: "Test run", icon: <Flask size={ICON} />},
                 ],
-                onChange: (next) => onChange({...view, kind: next as RunKindFilter}),
+                onChange: (next) => onChange({...view, type: next as RunTypeFilter}),
             },
             {
-                key: "sort",
-                label: "Sort by",
-                icon: <ArrowsDownUp size={ICON} />,
+                key: "group",
+                label: "Group by",
+                icon: <Rows size={ICON} />,
                 block: "sort",
-                value: view.sort,
+                value: view.group,
                 options: [
-                    {value: "newest", label: "Newest first"},
-                    {value: "oldest", label: "Oldest first"},
+                    {value: "day", label: "Day", icon: <CalendarBlank size={ICON} />},
+                    {value: "status", label: "Status", icon: <Waveform size={ICON} />},
+                    {value: "type", label: "Type", icon: <Lightning size={ICON} />},
+                    {value: "none", label: "None", icon: <Minus size={ICON} />},
                 ],
-                onChange: (next) => onChange({...view, sort: next as RunSort}),
+                onChange: (next) => onChange({...view, group: next as RunGrouping}),
             },
         ],
         [onChange, view],
@@ -106,7 +109,7 @@ export const AutomationRunFilterMenu = ({
             // does not hang off the rule beside it. The flyouts keep their default side —
             // Radix flips them when the column leaves no room.
             align="end"
-            searchPlaceholder="Search filters and sort…"
+            searchPlaceholder="Search filters and group…"
             label={null}
             size="sm"
             // Ghost: it sits beside a heading rather than in a toolbar, and a bordered box
