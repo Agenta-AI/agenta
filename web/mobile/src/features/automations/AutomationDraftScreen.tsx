@@ -88,7 +88,9 @@ export const AutomationDraftScreen = ({
     // Seeded once: a template is a starting point, so a later query change must not overwrite
     // what has been typed since. The route remounts per `?template=` anyway (see `new.tsx`).
     const [draft, setDraft] = useState<AutomationDraft>(() => ({
-        name: template?.title ?? "Untitled automation",
+        // Blank without a template, so the page opens on an empty, focused name field
+        // rather than on a placeholder the user has to clear first.
+        name: template?.title ?? "",
         description: template?.body ?? "",
         kind: "schedule",
         cron: DEFAULT_CRON,
@@ -159,7 +161,7 @@ export const AutomationDraftScreen = ({
         return {
             id: DRAFT_ID,
             kind: draft.kind,
-            name: draft.name,
+            name: draft.name.trim() || "Untitled automation",
             // Never rendered on a draft — the title stands alone until the row exists.
             description: "",
             agentId: draft.agentId,
@@ -234,7 +236,13 @@ export const AutomationDraftScreen = ({
                     }
                 >
                     <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px]">
-                        <AutomationTitle name={draft.name} description="" onRename={onRename} />
+                        <AutomationTitle
+                            name={draft.name}
+                            description=""
+                            onRename={onRename}
+                            autoEdit={!template}
+                            placeholder="Automation name"
+                        />
 
                         <div className="mt-[26px] flex flex-col gap-[22px]">
                             <AutomationAgentField

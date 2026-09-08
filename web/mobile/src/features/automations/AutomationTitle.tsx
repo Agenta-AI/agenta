@@ -1,3 +1,5 @@
+import {useEffect, useRef} from "react"
+
 import {useInlineRename} from "@agenta/sessions-ui"
 import {message} from "@agenta/ui/app-message"
 import {PencilSimple} from "@phosphor-icons/react"
@@ -15,10 +17,16 @@ export const AutomationTitle = ({
     name,
     description,
     onRename,
+    autoEdit = false,
+    placeholder,
 }: {
     name: string
     description: string
     onRename: (next: string) => Promise<boolean>
+    /** Open in the editing state on mount — a new automation lands with its name to be typed. */
+    autoEdit?: boolean
+    /** Shown while the name is empty, in the input and in place of the heading. */
+    placeholder?: string
 }) => {
     const rename = useInlineRename({
         current: name,
@@ -35,12 +43,23 @@ export const AutomationTitle = ({
         },
     })
 
+    // Once, on mount: `start` is re-created whenever the name changes, so keying the effect on
+    // it would drop the user back into editing after every rename.
+    const started = useRef(false)
+    const {start} = rename
+    useEffect(() => {
+        if (!autoEdit || started.current) return
+        started.current = true
+        start()
+    }, [autoEdit, start])
+
     return (
         <div className="flex min-w-0 flex-col">
             {rename.renaming ? (
                 <Input
                     autoFocus
                     aria-label="Automation name"
+                    placeholder={placeholder}
                     value={rename.draft}
                     onChange={(event) => rename.setDraft(event.target.value)}
                     onBlur={() => void rename.commit()}
@@ -61,8 +80,12 @@ export const AutomationTitle = ({
                     // the softer ring still glowed around the title. Hover carries the affordance.
                     className="group -ml-2 flex min-w-0 items-center rounded-lg border-0 bg-transparent px-2 py-1 text-left text-foreground outline-none hover:bg-accent"
                 >
-                    <h1 className="m-0 min-w-0 truncate text-[18px] font-semibold leading-[1.25] tracking-[-0.02em]">
-                        {name}
+                    <h1
+                        className={`m-0 min-w-0 truncate text-[18px] font-semibold leading-[1.25] tracking-[-0.02em] ${
+                            name ? "" : "text-muted-foreground"
+                        }`}
+                    >
+                        {name || placeholder}
                     </h1>
                     {/* Only on hover or keyboard focus: the name is the control, and a pencil
                         parked beside it permanently reads as part of the title. */}
