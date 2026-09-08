@@ -12,6 +12,7 @@ the row remembers, and the route — and, at the end, the sequences that break i
 them is subtly wrong.
 """
 
+import json
 from typing import Optional
 from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
@@ -189,17 +190,50 @@ def test_the_refusal_envelope_carries_the_state_and_one_next_step():
     assert "replacing_revision" in envelope["next_step"]
 
 
-def test_the_envelope_bounds_the_name_it_repeats():
-    # The runner cuts a tool error at 2000 characters. An unbounded echo of a long name
-    # would push `details` off the end, which is the half a caller can act on.
-    long_name = "N" * 3000
+def test_a_long_name_survives_the_envelope_exactly():
+    # A rename can store a name longer than the prose bound. `replacing_name` has to match
+    # the stored value exactly, so the precondition values stay whole and only the sentences
+    # are bounded. 200 characters is past the echo limit and well inside what a person types.
+    long_name = "N" * 200
     envelope = SessionNameProtected(
-        _SESSION, long_name, name_revision=1, stale_precondition=True
+        _SESSION, long_name, name_revision=4, stale_precondition=True
     ).envelope()
 
-    assert len(envelope["message"]) < 400
-    assert len(envelope["next_step"]) < 600
     assert envelope["details"]["current_name"] == long_name
+    assert envelope["details"]["name_revision"] == 4
+    # The whole serialized detail stays inside the runner's 2000-character cut, so a caller
+    # receives both values rather than a severed copy.
+    assert len(json.dumps(envelope)) < 2000
+
+
+def test_the_prose_never_repeats_a_shortened_name():
+    # A truncated quote is worse than no quote: a caller that copies it out of the sentence
+    # is refused forever and cannot tell why. The sentence stops naming the session instead.
+    long_name = "N" * 200
+    envelope = SessionNameProtected(_SESSION, long_name, name_revision=1).envelope()
+
+    assert "..." not in envelope["message"]
+    assert long_name[:50] not in envelope["message"]
+    assert "details.current_name" in envelope["message"]
+
+
+def test_the_next_step_points_at_the_machine_readable_values():
+    for kwargs in ({}, {"stale_precondition": True}):
+        envelope = SessionNameProtected(
+            _SESSION, _PERSON_NAME, name_revision=1, **kwargs
+        ).envelope()
+
+        assert "details.current_name" in envelope["next_step"]
+        assert "details.name_revision" in envelope["next_step"]
+
+
+def test_the_revision_comes_before_the_name_in_details():
+    # A name is unbounded at this API. If one ever does outgrow the runner's cut, the field
+    # the cut reaches first is the small one.
+    envelope = SessionNameProtected(_SESSION, "N" * 3000, name_revision=2).envelope()
+
+    assert list(envelope["details"]) == ["name_revision", "current_name"]
+    assert envelope["details"]["current_name"] == "N" * 3000
 
 
 def test_a_padded_name_is_trimmed_before_it_is_stored():

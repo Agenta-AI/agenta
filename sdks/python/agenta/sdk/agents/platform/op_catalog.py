@@ -1476,7 +1476,10 @@ _RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
         },
         "replacing_revision": {
             "type": "integer",
-            "minimum": 1,
+            # 0 is a real revision, not a missing one: a session whose title was filled from
+            # its first message and then kept by the person has a name nobody counted.
+            # Rejecting 0 here would make that one session impossible to rename on request.
+            "minimum": 0,
         },
     },
     "required": ["name"],

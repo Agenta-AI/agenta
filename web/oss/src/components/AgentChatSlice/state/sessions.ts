@@ -871,15 +871,19 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
                 projectId,
                 name: title,
                 nameSource: "automatic",
-            }).then((ok) => {
-                if (ok) return
-                const latest = get(sessionsByAppAtom)
-                set(sessionsByAppAtom, {
-                    ...latest,
-                    [key]: (latest[key] ?? []).map((s) =>
-                        s.id === id && s.title === title ? {...s, title: undefined} : s,
-                    ),
-                })
+                // Only a REFUSAL clears the optimistic title. A refusal means the server
+                // holds a name a person chose, so this one is wrong. A network failure
+                // means nobody knows yet, and dropping the title then would blank the row
+                // for no reason.
+                onRefused: () => {
+                    const latest = get(sessionsByAppAtom)
+                    set(sessionsByAppAtom, {
+                        ...latest,
+                        [key]: (latest[key] ?? []).map((s) =>
+                            s.id === id && s.title === title ? {...s, title: undefined} : s,
+                        ),
+                    })
+                },
             })
     }),
 )

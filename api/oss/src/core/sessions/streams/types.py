@@ -83,16 +83,21 @@ class ConcurrencyLimitExceeded(SessionStreamError):
         super().__init__(self.message)
 
 
-#: How much of a session name the refusal message repeats. The runner cuts a tool error at
-#: 2000 characters, and a name is unbounded at this API, so an unbounded echo would push the
-#: machine-readable half of the envelope off the end. `details.current_name` carries it whole.
+#: How much of a session name the refusal PROSE repeats. The runner cuts a tool error at 2000
+#: characters, and a name is unbounded at this API, so an unbounded echo would push the
+#: machine-readable half of the envelope off the end.
 NAME_ECHO_MAX_CHARS = 120
 
 
-def _echo(name: str) -> str:
-    if len(name) <= NAME_ECHO_MAX_CHARS:
-        return name
-    return name[:NAME_ECHO_MAX_CHARS] + "..."
+def _quotable(name: str) -> Optional[str]:
+    """The name to put in a sentence, or None when it is too long to put in one.
+
+    A truncated name is worse than no name here. `replacing_name` has to match the stored
+    value exactly, so a caller that copies a shortened quote out of the message is refused
+    forever and cannot tell why. `details.current_name` is the only place the name appears,
+    and it appears whole.
+    """
+    return name if len(name) <= NAME_ECHO_MAX_CHARS else None
 
 
 class SessionNameProtected(SessionStreamError):
@@ -134,13 +139,22 @@ class SessionNameProtected(SessionStreamError):
         self.name_revision = name_revision
         self.stale_precondition = stale_precondition
         self.clearing = clearing
-        echoed = _echo(current_name)
+        quotable = _quotable(current_name)
+        named = (
+            f'This session is named "{quotable}"'
+            if quotable is not None
+            else "This session's name is too long to repeat here, and details.current_name"
+            " below has it exactly"
+        )
+        # Every next_step points at `details` rather than at the sentence above it, because
+        # the sentence is prose and `details` is the contract.
+        take_it_from_details = (
+            "send replacing_name and replacing_revision set to details.current_name and"
+            " details.name_revision below, copied exactly."
+        )
         if clearing:
             self.code = "session_name_clear_is_manual"
-            self.message = (
-                f'This session is named "{echoed}", and only a person can remove'
-                " a session's name."
-            )
+            self.message = f"{named}, and only a person can remove a session's name."
             self.next_step = (
                 "Keep the name. If the person wants it gone, tell them to clear it"
                 " themselves."
@@ -148,21 +162,19 @@ class SessionNameProtected(SessionStreamError):
         elif stale_precondition:
             self.code = "session_name_changed"
             self.message = (
-                f'This session is named "{echoed}" now, which is not the name you asked'
-                " to replace, so the rename was not applied."
+                f"{named}. That is not the name you asked to replace, so the rename was not"
+                " applied."
             )
             self.next_step = (
-                f'Tell the person the session is called "{echoed}". Rename it only if they'
-                " still want a different name, and send replacing_name and"
-                " replacing_revision set to the values below."
+                "Tell the person what the session is called now. Rename it only if they"
+                f" still want a different name, and {take_it_from_details}"
             )
         else:
             self.code = "session_name_is_manual"
-            self.message = f'This session is named "{echoed}", and a person named it.'
+            self.message = f"{named}, and a person named it."
             self.next_step = (
                 "Keep that name and do not rename the session. Only if the person asked you"
-                " for a different one, send replacing_name and replacing_revision set to the"
-                " values below."
+                f" for a different one, {take_it_from_details}"
             )
         super().__init__(self.message)
 
@@ -173,8 +185,11 @@ class SessionNameProtected(SessionStreamError):
             "message": self.message,
             "retryable": False,
             "next_step": self.next_step,
+            # The revision comes first so the runner's 2000-character cut of the whole
+            # serialized detail reaches it before a long name can crowd it out. Both are
+            # verbatim: a caller has to reproduce them exactly for a rename to land.
             "details": {
-                "current_name": self.current_name,
                 "name_revision": self.name_revision,
+                "current_name": self.current_name,
             },
         }

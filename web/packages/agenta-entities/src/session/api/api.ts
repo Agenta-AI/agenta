@@ -49,6 +49,7 @@ import {
     getMountsClient,
     getSessionsClient,
     isAbortError,
+    isConflictError,
     projectScopedRequest,
 } from "./client"
 
@@ -813,6 +814,13 @@ export interface SetSessionHeaderParams {
      * that would replace a name a person controls.
      */
     nameSource?: SessionNameSource
+    /**
+     * Called only when the server REFUSED the write, never when it merely failed. The
+     * distinction matters to a caller that shows a name optimistically: a refusal means the
+     * server has a different name and the optimistic one is wrong, while a network failure
+     * means nobody knows yet and dropping it would lose a name for no reason.
+     */
+    onRefused?: () => void
 }
 
 /**
@@ -828,6 +836,7 @@ export async function setSessionHeader({
     appId,
     abortSignal,
     nameSource,
+    onRefused,
 }: SetSessionHeaderParams): Promise<boolean> {
     if (!projectId || !sessionId) return false
 
@@ -841,9 +850,19 @@ export async function setSessionHeader({
     const request = projectScopedRequest(projectId, appId, abortSignal)
     if (nameSource) request.queryParams.name_source = nameSource
 
-    const data = await callFern("[setSessionHeader]", () =>
-        getSessionsClient().setSessionStreamHeader({session_id: sessionId, body}, request),
+    // A 409 is the documented answer when an automatic name would replace one a person
+    // controls. It is an expected outcome rather than a fault, so it is not logged as one.
+    let refused = false
+    const data = await callFern(
+        "[setSessionHeader]",
+        () => getSessionsClient().setSessionStreamHeader({session_id: sessionId, body}, request),
+        (error) => {
+            if (!isConflictError(error)) return false
+            refused = true
+            return true
+        },
     )
+    if (refused) onRefused?.()
     return data !== null
 }
 
