@@ -356,6 +356,11 @@ class ChannelAgentData(BaseModel):
                 f"references key(s) {unknown} cannot be resolved into a runnable "
                 f"agent; use one of {sorted(RESOLVABLE_AGENT_REFERENCE_KEYS)}"
             )
+        if not references:
+            raise ValueError(
+                "references must name the workflow the agent runs; use one of "
+                f"{sorted(RESOLVABLE_AGENT_REFERENCE_KEYS)}"
+            )
         return references
 
 

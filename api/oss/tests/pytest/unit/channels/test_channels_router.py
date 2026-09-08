@@ -90,7 +90,7 @@ def _agent(agent_id, connection_id) -> ChannelAgent:
         id=agent_id,
         slug="a",
         connection_id=connection_id,
-        data=ChannelAgentData(references={}),
+        data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         flags=ChannelAgentFlags(),
     )
 
@@ -186,7 +186,9 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
                     agent=ChannelAgentCreate(
                         connection_id=uuid4(),
                         slug="a",
-                        data=ChannelAgentData(references={}),
+                        data=ChannelAgentData(
+                            references={"workflow_revision": {"id": uuid4()}}
+                        ),
                     )
                 ),
             ),
@@ -204,7 +206,10 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
                 agent_id=uuid4(),
                 body=ChannelAgentEditRequest(
                     agent=ChannelAgentEdit(
-                        id=uuid4(), data=ChannelAgentData(references={})
+                        id=uuid4(),
+                        data=ChannelAgentData(
+                            references={"workflow_revision": {"id": uuid4()}}
+                        ),
                     )
                 ),
             ),

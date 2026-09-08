@@ -44,3 +44,11 @@ def test_a_key_the_runtime_cannot_resolve_is_refused_with_the_allowed_list(key):
     message = str(caught.value)
     assert "workflow_variant" in message
     assert repr(key) in message
+
+
+def test_an_empty_reference_map_is_refused():
+    """An agent with nothing to run would fail on its first turn; refuse it here."""
+    with pytest.raises(ValidationError) as caught:
+        ChannelAgentData(references={})
+
+    assert "must name the workflow" in str(caught.value)

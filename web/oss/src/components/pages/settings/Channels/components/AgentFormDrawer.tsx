@@ -17,6 +17,7 @@ interface AgentFormValues {
     name?: string
     connection_id: string
     workflow_variant_id: string
+    reference_family?: string
     is_active: boolean
 }
 
@@ -72,6 +73,8 @@ export default function AgentFormDrawer({open, onClose, agentId, onSaved}: Agent
                         connection_id: agent.connection_id,
                         workflow_variant_id:
                             Object.values(agent.data.references ?? {})[0]?.id ?? "",
+                        reference_family:
+                            Object.keys(agent.data.references ?? {})[0] ?? "workflow_variant",
                         is_active: agent.flags?.is_active ?? true,
                     })
                     setPolicy(agent.data.policy ?? {})
@@ -85,7 +88,12 @@ export default function AgentFormDrawer({open, onClose, agentId, onSaved}: Agent
         setIsSaving(true)
         try {
             const data: AgentaApi.ChannelAgentData = {
-                references: {workflow_variant: {id: values.workflow_variant_id}},
+                // an existing agent keeps the family it was saved with; a new one is a variant
+                references: {
+                    [values.reference_family ?? "workflow_variant"]: {
+                        id: values.workflow_variant_id,
+                    },
+                },
                 policy,
             }
             const flags: AgentaApi.ChannelAgentFlags = {
@@ -163,6 +171,9 @@ export default function AgentFormDrawer({open, onClose, agentId, onSaved}: Agent
                             value: c.id,
                         }))}
                     />
+                </Form.Item>
+                <Form.Item name="reference_family" hidden>
+                    <Input />
                 </Form.Item>
                 <Form.Item
                     name="workflow_variant_id"
