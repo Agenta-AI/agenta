@@ -600,8 +600,9 @@ async def test_a_slow_teardown_cannot_run_past_the_grace(connection, monkeypatch
     and the turn moves on rather than waiting for it.
     """
     monkeypatch.setattr(session_context, "CLEANUP_GRACE", 0.1)
-    # budget 0.1 + grace 0.1 = 0.2. A one-second allowance would pass on a version that
-    # awaits the ten-second teardown on a loaded box, so bound it just above the real sum.
+    # budget 0.1 + grace 0.1 = 0.2, so bound it just above that. A one-second allowance
+    # rejected the ten-second teardown too; this one also rejects a version that merely
+    # waits several times longer than it promised.
 
     class _Client:
         def __init__(self, *args, **kwargs) -> None:

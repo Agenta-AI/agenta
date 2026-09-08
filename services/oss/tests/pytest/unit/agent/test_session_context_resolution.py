@@ -99,7 +99,9 @@ def sdk_singleton():
     and leaving an unroutable host installed would follow every later test in the worker.
     """
     previous = getattr(agenta_sdk, "tracing", None)
-    # Unroutable on purpose: spans only flush in the background and nothing here reads them.
+    # `host` does NOT isolate the exporter here: the AGENTA_API_URL set above wins, so the
+    # background exporter really does reach for that host. Nothing in this file reads a span,
+    # and the exporter flushes off the request path, so its failures do not affect a result.
     agenta_sdk.init(host="http://127.0.0.1:1", api_key="test-key")
     assert agenta_sdk.tracing is not None, (
         "the route needs an initialized SDK singleton"
