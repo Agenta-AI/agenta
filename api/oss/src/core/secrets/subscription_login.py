@@ -32,6 +32,21 @@ _DELETE_TIMEOUT_SECONDS = 5.0
 _MIN_POLL_AFTER_MS = 2000
 
 
+def _log_hop(operation: str, outcome: str, **fields: Any) -> None:
+    """One structured line per API to runner hop, in the vocabulary the row's decisions use.
+
+    Same event name as the decisions this hop feeds (`subscription.attempt`), and key=value
+    fields rather than a formatted sentence, so one query counts sign-in failures wherever
+    they happened. The connection id is not known here: this client is addressed by attempt.
+    """
+    log.warning(
+        "subscription.attempt",
+        operation=operation,
+        outcome=outcome,
+        **fields,
+    )
+
+
 class RunnerLoginAttempt(BaseModel):
     """One device login attempt as the runner reports it.
 
@@ -109,14 +124,11 @@ class SubscriptionLoginRunnerClient:
                     headers=self._headers(),
                 )
         except httpx.HTTPError as e:
-            log.warning("subscription login: runner start failed: %s", e)
+            _log_hop("start", "unreachable", error=str(e))
             raise SubscriptionLoginRunnerUnavailable() from e
 
         if response.status_code >= 300:
-            log.warning(
-                "subscription login: runner start returned %s",
-                response.status_code,
-            )
+            _log_hop("start", "refused", status=response.status_code)
             raise SubscriptionLoginRunnerUnavailable(
                 message=(
                     "The agent runner refused to start the sign-in "
@@ -132,16 +144,15 @@ class SubscriptionLoginRunnerClient:
             async with httpx.AsyncClient(timeout=_POLL_TIMEOUT_SECONDS) as client:
                 response = await client.get(url, headers=self._headers())
         except httpx.HTTPError as e:
-            log.warning("subscription login: runner poll failed: %s", e)
+            _log_hop("poll", "unreachable", attempt_id=attempt_id, error=str(e))
             raise SubscriptionLoginRunnerUnavailable() from e
 
         if response.status_code == 404:
             raise SubscriptionLoginAttemptNotFound()
 
         if response.status_code >= 300:
-            log.warning(
-                "subscription login: runner poll returned %s",
-                response.status_code,
+            _log_hop(
+                "poll", "refused", attempt_id=attempt_id, status=response.status_code
             )
             raise SubscriptionLoginRunnerUnavailable(
                 message=(
@@ -165,7 +176,7 @@ class SubscriptionLoginRunnerClient:
             async with httpx.AsyncClient(timeout=_DELETE_TIMEOUT_SECONDS) as client:
                 response = await client.delete(url, headers=self._headers())
         except httpx.HTTPError as e:
-            log.warning("subscription login: runner delete failed: %s", e)
+            _log_hop("delete", "unreachable", attempt_id=attempt_id, error=str(e))
             return False
 
         return response.status_code < 300 or response.status_code == 404

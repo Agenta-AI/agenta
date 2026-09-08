@@ -83,11 +83,23 @@ class SubscriptionLoginFailureResult(BaseModel):
     login: Optional[Dict[str, Any]] = None
 
 
-def _log_attempt(secret_id: UUID, attempt_id: str, state: str, outcome: str) -> None:
-    """One line per attempt decision. Never the user code, never the credential."""
-    log.info(
+def _log_attempt(
+    secret_id: UUID,
+    attempt_id: str,
+    state: str,
+    outcome: str,
+    *,
+    warn: bool = False,
+) -> None:
+    """One line per attempt decision. Never the user code, never the credential.
+
+    `connection` is the key the runner uses for the same id, so one query follows a sign-in
+    across the hop.
+    """
+    write = log.warning if warn else log.info
+    write(
         "subscription.attempt",
-        connection_id=str(secret_id),
+        connection=str(secret_id),
         attempt_id=attempt_id,
         state=state,
         outcome=outcome,
@@ -104,7 +116,7 @@ def _log_push(
     write = log.warning if decision is PushDecision.INVALID else log.info
     write(
         "subscription.push",
-        connection_id=str(secret_id),
+        connection=str(secret_id),
         incoming_generation=generation,
         stored_generation=stored.login_generation,
         stored_version=stored.login_version,
@@ -120,7 +132,7 @@ def _log_failure(
 ) -> None:
     log.info(
         "subscription.failure",
-        connection_id=str(secret_id),
+        connection=str(secret_id),
         stored_generation=stored.login_generation,
         stored_version=stored.login_version,
         stale=stale,
@@ -390,13 +402,7 @@ class SubscriptionLoginService:
                 user_id=user_id,
                 attempt_id=attempt_id,
             )
-            log.warning(
-                "subscription.attempt",
-                connection_id=str(secret_id),
-                attempt_id=attempt_id,
-                state="failed",
-                outcome="unusable_login",
-            )
+            _log_attempt(secret_id, attempt_id, "failed", "unusable_login", warn=True)
             return SubscriptionLoginAttemptView(
                 attempt_id=attempt.attempt_id or attempt_id,
                 state="failed",
