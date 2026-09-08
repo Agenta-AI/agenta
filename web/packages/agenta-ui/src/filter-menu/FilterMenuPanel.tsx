@@ -1,20 +1,48 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {Search} from "lucide-react"
+import {RotateCcw as ArrowCounterClockwise, Search} from "lucide-react"
 
 import {cn} from "../components/ui/utils"
 
 import {FilterMenuRow, selectedValues, summaryLabel} from "./FilterMenuRow"
 import type {FilterMenuPlacementProps, FilterMenuSection} from "./types"
 
-/** The Esc hint in the footer — a caption, not a control, so it is a bare `<kbd>`. */
-const EscHint = () => (
-    <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-        close
-        <kbd className="box-border rounded-control-sm border border-solid border-border bg-muted px-1 py-px font-[inherit] text-[10px] leading-[1.4] text-muted-foreground">
-            Esc
-        </kbd>
-    </span>
+/**
+ * Reset reads as one more thing you can pick, not as fine print under the list — it is the same
+ * row shape as everything above it, so it is as clickable as the rows it undoes.
+ */
+export const ResetRow = ({
+    label,
+    onReset,
+    disabled = false,
+}: {
+    label: string
+    onReset: () => void
+    /** Nothing to undo. It stays on the panel rather than vanishing — a control that appears
+        only once you have changed something is one you cannot learn is there. */
+    disabled?: boolean
+}) => (
+    <div className="flex flex-col gap-px border-0 border-t border-solid border-border p-1">
+        <button
+            type="button"
+            onClick={onReset}
+            disabled={disabled}
+            className={cn(
+                // Preflight is off app-wide, so the <button> reset is restated here.
+                "box-border appearance-none border-0 bg-transparent font-[inherit]",
+                "flex w-full items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
+                "text-[13px] text-muted-foreground outline-none transition-colors",
+                disabled
+                    ? "cursor-default opacity-45"
+                    : "cursor-pointer hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:text-foreground",
+            )}
+        >
+            <span className="flex size-4 shrink-0 items-center justify-center">
+                <ArrowCounterClockwise size={14} aria-hidden />
+            </span>
+            <span className="truncate">{label}</span>
+        </button>
+    </div>
 )
 
 /**
@@ -31,6 +59,7 @@ export const FilterMenuPanel = ({
     defaultSearch = "",
     onReset,
     resetLabel = "Reset to defaults",
+    resetDisabled,
     flyoutSide,
     flyoutAlign,
     flyoutSideOffset,
@@ -43,6 +72,7 @@ export const FilterMenuPanel = ({
     defaultSearch?: string
     onReset?: () => void
     resetLabel?: string
+    resetDisabled?: boolean
     className?: string
 } & Pick<FilterMenuPlacementProps, "flyoutSide" | "flyoutAlign" | "flyoutSideOffset">) => {
     const [query, setQuery] = useState(defaultSearch)
@@ -173,27 +203,9 @@ export const FilterMenuPanel = ({
                 ))
             )}
 
-            <div
-                className={cn(
-                    "flex items-center gap-2 border-0 border-t border-solid border-border px-3 py-2",
-                    onReset ? "justify-between" : "justify-end",
-                )}
-            >
-                {onReset ? (
-                    <button
-                        type="button"
-                        onClick={onReset}
-                        className={cn(
-                            "box-border cursor-pointer appearance-none border-0 bg-transparent p-0 font-[inherit]",
-                            "rounded-control-sm text-[12px] text-muted-foreground outline-none transition-colors",
-                            "hover:text-foreground focus-visible:text-foreground focus-visible:underline",
-                        )}
-                    >
-                        {resetLabel}
-                    </button>
-                ) : null}
-                <EscHint />
-            </div>
+            {onReset ? (
+                <ResetRow label={resetLabel} onReset={onReset} disabled={resetDisabled} />
+            ) : null}
         </div>
     )
 }

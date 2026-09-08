@@ -142,11 +142,8 @@ export const AutomationFilterMenu = ({
             sections={sections}
             align="start"
             activeCount={automationListViewChanges(view)}
-            onReset={
-                isDefaultAutomationListView(view)
-                    ? undefined
-                    : () => onChange(DEFAULT_AUTOMATION_LIST_VIEW)
-            }
+            onReset={() => onChange(DEFAULT_AUTOMATION_LIST_VIEW)}
+            resetDisabled={isDefaultAutomationListView(view)}
         />
     )
 }
