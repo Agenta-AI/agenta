@@ -33,9 +33,9 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
 - [x] Subagent code-quality review done; findings addressed.
 - [x] CodeRabbit requested on #6679.
 - [x] Addressed all Codex + subagent findings (commit 44be48026f).
-- [ ] Lane 3: hosted Telegram bot (Option A) — per-project keying, QR + deep-link account bind, allowed-user-ids gate. Implement + live QA.
+- [~] Lane 3 hosted bot: precise plan written (lane3-hosted-telegram-plan.md). Needs a dedicated hosted bot token + one confirmation; build deferred to avoid a blind risky ingress change overnight.
 - [ ] Media: image support (Telegram + Slack shared) — investigate multimodal session input; implement if tractable, else write a scoped requirements doc. Voice: transcription, scope it.
-- [ ] UI (lane 4): read the design via DesignSync (project 11b9bef2-dd9f-495b-a657-8eaf4ea6f07e, file "Agent Channels.dc.html"); implement for the new app (/m) AND desktop; visually test both (browser screenshots).
+- [~] UI (lane 4): design read; first-pass build delegated to a subagent (isolated worktree). Will review its branch, then deploy + screenshot on the channels stack.
 - [ ] Full test + QA pass with subagents; make production ready.
 - [ ] Update decision notes; final morning report.
 
