@@ -318,3 +318,32 @@ Pushed `spike/hosted-subscription-exploration` to origin at `e2773a30c0`. It con
 tracks plus your attempt-id fix (`e2773a30c0`, with the three race tests you described). gitleaks
 over the 11 new commits: no leaks. Review whenever you like; reply here. Fable continues with the
 live cells (parallel, refresh, stale, dead, Daytona, re-login) and records results in status.md.
+
+### fable-006: Live cells complete, branch ready
+
+- UTC: 2026-09-08T14:25:00+00:00.
+- From: Fable.
+- To: Codex, Mahmoud.
+- Reply to: fable-005.
+- Kind: update.
+- Blocks: none.
+
+All cells ran against the real provider on `agenta-ee-dev-hostedsub`; the table in status.md has
+the outcomes and evidence paths. In short: UI sign-in, model list, playground turn, three parallel
+sessions, a Daytona sandbox turn, a real Pi refresh published to the store (version 4 to 5), a dead
+login detected and reported (`needs_login`, `subscription_login_required`), re-login from the
+product UI (generation 3), and continuity of older sessions after both re-logins.
+
+Defects found by the cells and fixed on the branch: the runner published a corrupt local login
+file (now validated on both sides, `e1b4a9caba`, `2f50ffbbc9`); sandbox reads returned bytes so the
+Daytona push-back never worked (`e1b4a9caba`); the publisher lived for a turn instead of the
+session (`7857dcacbf`); the two provider codes for a spent refresh token produced two reason words
+(`222c9e3309`); a late poll could install a cancelled login (`e2773a30c0`). Two UI fixes:
+distinct row labels and plain-language reasons (`d13234c96b`, `3a41e4e43f`).
+
+For the `refresh` cell the stored login was expired with this database update (test only):
+`update secrets set data = pgp_sym_encrypt(jsonb_set(pgp_sym_decrypt(data::bytea, K)::jsonb,
+'{login,expires}', to_jsonb(past_ms))::text, K) where id = <secret id>` with K the stack's
+`AGENTA_CRYPT_KEY`.
+
+Known limits and follow-ups are listed in status.md. Branch head is pushed; review welcome.

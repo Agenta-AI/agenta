@@ -32,12 +32,29 @@ attempt poll, picker row, chat error buttons). Both are being verified and finis
 Codex harness: out for now. Codex 0.145.0 refuses a login file without `id_token`, and Pi never
 stores one. Pi is the harness for this slice.
 
+## How to run it
+
+- Deploy: `bash ./hosting/docker-compose/run.sh --license ee --dev --env-file .env.ee.dev.hostedsub --no-tunnel` from this worktree (the env file and the gitignored image-tag override are local to the box). The runner image must be rebuilt once for the two new packages: `--rebuild runner`.
+- Product path: Settings, AI providers, Connect ChatGPT, approve the device code, then pick the "ChatGPT · Subscription" row in an agent's model picker.
+- Cells: `docs/design/hosted-subscription-connections/research/experiments/hosted_subscription_cells.py` (needs `AGENTA_BASE`, `AGENTA_PROJECT_ID`, `AGENTA_API_KEY`): `connect --wait`, `chat`, `parallel --count 3`, `refresh --runner <container>`, `dead --runner <container>`. The `refresh` cell also needs the stored login expired in the database (a pgcrypto update on the `secrets` row, see the log entry fable-006), because Pi refreshes only on expiry and a token lives 10 days.
+- Unit tests: `cd api && uv run --no-sync pytest oss/tests/pytest/unit/secrets oss/tests/pytest/unit/vault`; `cd sdks/python && uv run --no-sync pytest oss/tests/pytest/unit/agents`; runner `pnpm exec vitest run --project unit tests/unit/subscription-*` inside the runner container; web per-package `vitest run` in agenta-entities, agenta-entity-ui, agenta-chat, oss.
+
+## Known limits and follow-ups
+
+- A pending device-login attempt lives in the runner process. A runner restart or a second runner replica behind one URL drops it; the API reports `failed` with "attempt not found; try again".
+- The vault read is cached for a short time, so a refreshed login pushed by one runner reaches another runner's next turn after the cache expires. The reuse window of about an hour covers that delay.
+- Codex harness is out: Codex 0.145.0 refuses a login file without `id_token`, which Pi never stores.
+- `fs.watch` fails with EMFILE on a host whose root user has exhausted inotify instances; the publisher polls every 5 s instead. A production host with the same limit behaves the same.
+- The onboarding draft agent selects the deployment-login row by default when a runner mounts an operator login. On a cloud runner with no mount this does not arise. Consider preferring a ready hosted connection.
+- Not measured: a real cross-runner loser (two runner replicas), and the Daytona 30 s poll window with a real loser. Both paths have unit tests only.
+- The picker cannot select a `needs_login` connection, so the chat error card path was proven on the API only.
+
 ## Ownership and next work
 
 | Owner | Work | State |
 | --- | --- | --- |
 | Mahmoud | Edit and send the Fable prompt; relay the delivered version. | Pending. |
-| Fable | Parallel research, experiments, and product implementation. | Research done. SDK and API landed. Runner and web being finished. Next: integrated live run (UI login needs Mahmoud), concurrency and refresh cells, re-login cell. |
+| Fable | Parallel research, experiments, and product implementation. | Done for this handoff: all tracks on `spike/hosted-subscription-exploration`, live cells recorded above. Open: Codex review of the branch, the follow-ups listed above. |
 | Codex | Prepare handoff, then review evidence and contribute after the user relays the handoff. | Handoff prepared. |
 
 ## Evidence so far (2026-09-08)
@@ -61,6 +78,9 @@ stores one. Pi is the harness for this slice.
 | Real Pi refresh, first attempt | not established: the turn received a cached copy of the secret with the original expiry (the vault read is cached for a short time), so Pi saw a valid token and did not refresh. The earlier "half passed" reading of this row was wrong: the local file was the delivered login, not a refresh. | `cell-refresh-2.log` |
 | Real Pi refresh, second attempt: stored login expired in the database, cache cleared, local copy expired, one turn | passed, real provider: Pi refreshed under its lock (new refresh fingerprint, expiry 10 days out), the publisher pushed within the turn (`push ok version=5`), the stored login moved from version 4 to 5. The materialize-time push correctly skipped the expired local copy (`check=expires_past`). | `cell-refresh-3.log` |
 | Dead login: local copy with garbage tokens, current meta version | passed: the push was refused before it left the runner (`check=access_not_jwt`), the refresh check answered terminal (401), the failure report was not stale, the connection became `needs_login`, and the client got `subscription_login_required`. | `cell-dead.log` |
+| Re-login from the product UI: "Sign in again" on the AI providers card of a `needs_login` connection, device code approved, card flipped to Connected by its own poll | passed, real provider; generation 2 to 3, version 6 | `web/20-ai-providers-needs-login.png`, `web/21-picker-needs-login-row.png`, `web/23-card-pending-code-blanked.png`, `web/24-card-connected-after-relogin.png` |
+| An older session continues after the UI re-login | passed: cold start, `materialized=true reason=newer-generation`, answered | `cell-continuity-after-relogin-2.log` |
+| Chat error card with a Sign in again button, live in the browser | not established in the browser: the picker refuses a `needs_login` row, so no agent could be sent through a dead connection from the UI in this session. The code `subscription_login_required` reached the client on the API path (`cell-dead.log`), and the button rendering is covered by unit tests. | `cell-dead.log` |
 | Login attempt survives a runner restart | failed by design: attempts live in the runner process; a hot reload dropped a pending attempt, the API reported `attempt not found; try again` | runner log 11:53 UTC |
 
 Known UI gap: the picker shows two identical "ChatGPT · Subscription" rows on a dev runner that
