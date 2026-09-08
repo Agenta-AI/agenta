@@ -98,6 +98,10 @@ ingress:
   className: gce
   host: agenta.example.com
   annotations:
+    # GKE does not act on spec.ingressClassName. The controller reads this legacy
+    # annotation, and without it the Ingress gets no events and never gets an IP.
+    # The chart always renders ingressClassName, so set both.
+    kubernetes.io/ingress.class: gce
     kubernetes.io/ingress.global-static-ip-name: agenta-ip
     networking.gke.io/managed-certificates: agenta-cert
   paths:
@@ -112,7 +116,9 @@ prefix. Do strip `/services`. Keep the mobile path at `/m`, because the mobile
 image is built with that basePath.
 
 The GCE ingress controller reads two annotations off each Service, so set them
-per component:
+per component. Set the NEG annotation yourself even on Autopilot, which adds it
+only when it creates the Service: a `helm upgrade --force` recreates Services
+without it.
 
 ```yaml
 api:
