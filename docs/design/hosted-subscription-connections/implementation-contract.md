@@ -253,3 +253,39 @@ with no version bump. Two simultaneous polls are safe. Known limitation: attempt
 runner process; with several runner replicas behind one URL a poll may reach a replica that does
 not hold the attempt, which answers 404 and the API reports `failed` with "attempt not found; try
 again". Recorded, not solved here.
+
+## Shape after the cleanup pass (2026-09-08, supersedes the publish and state rules above)
+
+Applied from the Codex code-organization review, with the simplify rules.
+
+- **Runner modules.** `subscription-login/files.ts` (local and Daytona file access, the write
+  decision, the lock), `subscription-login/publisher.ts` (one reconciliation loop and the API
+  calls), `subscription-login/validate.ts` (token shape and account claim), `subscription-recovery.ts`
+  (classify a failure with a real refresh, adopt a stale answer, replay once), and
+  `subscription-events.ts` (structured decision logs). `subscription-login.ts` is gone.
+- **One publisher per environment.** It runs a pass at start (repairs a missed publish), every 5 s
+  locally and every 30 s on Daytona, on request from recovery, and once more on shutdown after it
+  drains the pass in flight. The materialize-time push, the file watch with its debounce and
+  fallback, the turn-end read-back, and the session-end read-back are gone.
+- **Acknowledgement, not expiry.** The publisher keeps one credential identity (generation plus a
+  hash of the refresh token) and marks it acknowledged only when the API accepted it. A timeout,
+  a network failure, a 5xx, a 408, or a 429 leaves it unacknowledged and the next pass retries.
+  A rotation with an equal expiry is published. Push state is three fields: generation, version,
+  acknowledged. The failure report still quotes what the run was delivered.
+- **Refresh under the lock.** Read, provider exchange, and write happen inside one lock hold, and
+  the generation guard runs before the exchange so a newer lineage's refresh token is never spent
+  by an older session. On Daytona the file is re-read and compared before a write.
+- **Deleted.** `mergeSubscriptionAuth`, the attempt `delivered` flag and response field, and the
+  history-narrating comments.
+- **Observability.** One logfmt line per decision with allowlisted scalar fields:
+  `event=subscription.materialize`, `subscription.publish`, `subscription.recovery`,
+  `subscription.attempt`, with connection, scope, generation, version, reason, status, action. The
+  same fields go on the active run span as `agenta.subscription.*` attributes. New Relic reads the
+  runner through its logs; no new export pipeline.
+- **API.** An unchanged poll is a real no-op (no write, no cache invalidation). A simultaneous
+  start keeps the winner under the lock and cancels the redundant runner attempt. Server-owned
+  login fields are rejected on the public create and update routes. Attempt state stays in the
+  encrypted row.
+- **SDK and web.** The hosted Codex mapping is removed until that credential format is supported;
+  ChatGPT plus Pi is enforced at resolution. The card resolves from the connection state when a
+  poll response is lost, and the 15-minute backstop shows a terminal state with a retry.
