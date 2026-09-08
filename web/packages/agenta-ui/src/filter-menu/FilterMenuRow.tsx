@@ -34,6 +34,9 @@ export const FilterMenuRow = ({
     options,
     open,
     onOpenChange,
+    autoFocusOptions = false,
+    onHoverOpen,
+    onHoverLeave,
     flyoutSide = "right",
     flyoutAlign = "start",
     flyoutSideOffset = 6,
@@ -47,6 +50,16 @@ export const FilterMenuRow = ({
     options: FilterMenuOption[]
     open: boolean
     onOpenChange: (open: boolean) => void
+    /**
+     * Whether the flyout takes focus when it opens. False under the pointer: the panel's search
+     * field is focused, and a flyout that opens because the pointer passed over a row must not
+     * take the caret out of what the reader is typing.
+     */
+    autoFocusOptions?: boolean
+    /** Pointer arrived on the row or in its flyout. */
+    onHoverOpen?: () => void
+    /** Pointer left the row or its flyout — the panel decides how long to wait. */
+    onHoverLeave?: () => void
     flyoutSide?: FilterMenuSide
     flyoutAlign?: FilterMenuAlign
     flyoutSideOffset?: number
@@ -71,7 +84,8 @@ export const FilterMenuRow = ({
                     tabIndex={tabIndex}
                     onFocus={onRowFocus}
                     onKeyDown={onKeyDown}
-                    onMouseEnter={() => onOpenChange(true)}
+                    onMouseEnter={onHoverOpen}
+                    onMouseLeave={onHoverLeave}
                     onClick={() => onOpenChange(true)}
                     className={cn(
                         // Preflight is off app-wide, so the <button> reset is restated here.
@@ -106,10 +120,16 @@ export const FilterMenuRow = ({
                 aria-label={section.label}
                 className="flex max-h-[280px] w-[188px] flex-col overflow-y-auto p-1"
                 onOpenAutoFocus={(event) => event.preventDefault()}
+                // Radix hands focus back to its anchor on close; under the pointer that would
+                // pull the caret out of the search field the reader is still typing in.
+                onCloseAutoFocus={(event) => event.preventDefault()}
+                onMouseEnter={onHoverOpen}
+                onMouseLeave={onHoverLeave}
             >
                 <FilterMenuOptionList
                     options={options}
                     selected={selected}
+                    autoFocus={autoFocusOptions}
                     emptyText={section.emptyText ?? `No ${section.label.toLowerCase()} options`}
                     onDismiss={() => onOpenChange(false)}
                     onSelect={(value) => {

@@ -15,14 +15,20 @@ export const ResetRow = ({
     label,
     onReset,
     disabled = false,
+    onMouseEnter,
 }: {
     label: string
     onReset: () => void
+    /** Reaching the reset row means the reader has left the rows: the panel shuts any flyout. */
+    onMouseEnter?: () => void
     /** Nothing to undo. It stays on the panel rather than vanishing — a control that appears
         only once you have changed something is one you cannot learn is there. */
     disabled?: boolean
 }) => (
-    <div className="flex flex-col gap-px border-0 border-t border-solid border-border p-1">
+    <div
+        className="flex flex-col gap-px border-0 border-t border-solid border-border p-1"
+        onMouseEnter={onMouseEnter}
+    >
         <button
             type="button"
             onClick={onReset}
@@ -77,6 +83,10 @@ export const FilterMenuPanel = ({
 } & Pick<FilterMenuPlacementProps, "flyoutSide" | "flyoutAlign" | "flyoutSideOffset">) => {
     const [query, setQuery] = useState(defaultSearch)
     const [openKey, setOpenKey] = useState<string | null>(null)
+    // How the open flyout was opened. A keyboard reader wants focus inside it; a pointer reader
+    // is often still typing in the search field above, so a hover must not take the caret.
+    const [openedByKeyboard, setOpenedByKeyboard] = useState(false)
+    const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
     const rowRefs = useRef(new Map<string, HTMLButtonElement | null>())
     const searchRef = useRef<HTMLInputElement | null>(null)
 
@@ -106,6 +116,36 @@ export const FilterMenuPanel = ({
 
     const order = visible.map((entry) => entry.section.key)
 
+    const cancelClose = () => {
+        if (!closeTimer.current) return
+        clearTimeout(closeTimer.current)
+        closeTimer.current = null
+    }
+
+    /**
+     * Leaving a row does not close its flyout at once: the pointer has to cross the gap between
+     * the row and the flyout, and closing on that first frame would make the options
+     * unreachable. Entering either side cancels the pending close.
+     */
+    const scheduleClose = () => {
+        cancelClose()
+        closeTimer.current = setTimeout(() => setOpenKey(null), 140)
+    }
+
+    const openByHover = (key: string) => {
+        cancelClose()
+        setOpenedByKeyboard(false)
+        setOpenKey(key)
+    }
+
+    /** Anything outside the rows — the search field, the reset row — dismisses the flyout. */
+    const closeNow = () => {
+        cancelClose()
+        setOpenKey(null)
+    }
+
+    useEffect(() => cancelClose, [])
+
     const focusRow = (key: string | undefined) => {
         if (!key) return
         rowRefs.current.get(key)?.focus()
@@ -134,6 +174,8 @@ export const FilterMenuPanel = ({
             focusRow(order[(index - 1 + order.length) % order.length])
         } else if (event.key === "ArrowRight" || event.key === "Enter" || event.key === " ") {
             event.preventDefault()
+            cancelClose()
+            setOpenedByKeyboard(true)
             setOpenKey(key)
         }
     }
@@ -141,7 +183,10 @@ export const FilterMenuPanel = ({
     return (
         <div className={cn("flex w-[248px] flex-col", className)}>
             {searchable ? (
-                <label className="flex items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
+                <label
+                    className="flex items-center gap-2 border-0 border-b border-solid border-border px-3 py-2"
+                    onMouseEnter={closeNow}
+                >
                     <Search size={14} className="shrink-0 text-muted-foreground" aria-hidden />
                     <input
                         ref={searchRef}
@@ -181,6 +226,9 @@ export const FilterMenuPanel = ({
                                 section={entry.section}
                                 options={entry.options}
                                 open={openKey === entry.section.key}
+                                autoFocusOptions={openedByKeyboard}
+                                onHoverOpen={() => openByHover(entry.section.key)}
+                                onHoverLeave={scheduleClose}
                                 onOpenChange={(next) =>
                                     setOpenKey((current) => {
                                         if (next) return entry.section.key
@@ -204,7 +252,12 @@ export const FilterMenuPanel = ({
             )}
 
             {onReset ? (
-                <ResetRow label={resetLabel} onReset={onReset} disabled={resetDisabled} />
+                <ResetRow
+                    label={resetLabel}
+                    onReset={onReset}
+                    disabled={resetDisabled}
+                    onMouseEnter={closeNow}
+                />
             ) : null}
         </div>
     )
