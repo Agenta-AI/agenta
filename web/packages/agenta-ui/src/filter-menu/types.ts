@@ -56,13 +56,13 @@ export interface FilterMenuTriggerProps {
     triggerClassName?: string
     triggerAriaLabel?: string
     /**
-     * How many of the surface's controls are off their default, shown as a count on the trigger.
+     * The surface is not showing what it shows by default — a dot appears in the trigger's
+     * corner.
      *
      * A narrowed table whose control looks untouched is the failure mode this exists for: the
-     * rows are missing and nothing on screen says why. `0` and absent both render the plain
-     * button — the badge appears only when it has something to report.
+     * rows are missing and nothing on screen says why.
      */
-    activeCount?: number
+    active?: boolean
 }
 
 export interface FilterMenuPlacementProps {

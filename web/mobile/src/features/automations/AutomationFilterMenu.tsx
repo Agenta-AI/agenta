@@ -2,7 +2,6 @@ import {useMemo} from "react"
 
 import {
     AUTOMATION_STATUS_LABEL,
-    automationListViewChanges,
     DEFAULT_AUTOMATION_LIST_VIEW,
     isDefaultAutomationListView,
     type AutomationGrouping,
@@ -141,7 +140,11 @@ export const AutomationFilterMenu = ({
         <FilterMenu
             sections={sections}
             align="start"
-            activeCount={automationListViewChanges(view)}
+            // Icon alone: the table beside it is already the subject, and the word "Filter"
+            // added a second label to a toolbar that has one.
+            label={null}
+            size="default"
+            active={!isDefaultAutomationListView(view)}
             onReset={() => onChange(DEFAULT_AUTOMATION_LIST_VIEW)}
             resetDisabled={isDefaultAutomationListView(view)}
         />
