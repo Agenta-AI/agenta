@@ -6,7 +6,7 @@ import {
     AutomationListEmpty,
     AutomationListError,
     AutomationListSkeleton,
-    AutomationStatCards,
+    AutomationStatsLine,
     automationStatus,
     type AutomationStatus,
     type AutomationListView,
@@ -330,9 +330,9 @@ export const AutomationListScreen = ({
                     }
                 >
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        {/* The three numbers sit above the search field, not below it: they
-                            describe the project, and the search narrows only the table. */}
-                        <AutomationStatCards stats={stats} />
+                        {/* Above the search field, not below it: the numbers describe the
+                            project, and the search narrows only the table. */}
+                        <AutomationStatsLine stats={stats} />
                         {/* Search belongs to the list, not to the page: it sits on the table's
                             own left edge so it reads as the control that narrows what is below
                             it. */}
