@@ -86,7 +86,17 @@ def handle_subscription_exceptions():
 
 
 def _attempt_response(view: SubscriptionLoginAttemptView):
-    return SubscriptionLoginAttemptResponse(**view.model_dump())
+    # Named field by field, not spread: a field added to the view never reaches a browser
+    # by accident, and adding one here is a deliberate edit to this boundary.
+    return SubscriptionLoginAttemptResponse(
+        attempt_id=view.attempt_id,
+        state=view.state,
+        user_code=view.user_code,
+        verification_uri=view.verification_uri,
+        expires_at=view.expires_at,
+        poll_after_ms=view.poll_after_ms,
+        error=view.error,
+    )
 
 
 class SecretSafeRoute(APIRoute):
