@@ -258,8 +258,9 @@ the run:
   built-ins on every harness. `default_mode` applies to Claude only. Pi harnesses read prompt
   overrides (`system` / `append_system`) from `extras`.
 - `runner` — `{ "kind": "sidecar", "permissions": { "default": "allow"|"ask"|"deny"|
-  "allow_reads" }, "extras": {...} }`. `allow_reads` (the default) runs read-hinted tools and
-  asks for everything else.
+  "allow_reads" }, "extras": {...} }`. `allow_reads` runs read-hinted tools and asks for
+  everything else, and is what applies when the field is absent. The standard template writes
+  `allow`, so that is what a new agent starts on.
 - `sandbox` — `{ "kind": "local" | "daytona", "permissions": {...}, "extras": {...} }`.
   `permissions` (optional) is the security boundary: `{ "network": { "mode": "on"|"off"|
   "allowlist", "allowlist": ["<CIDR>"] }, "filesystem": "on"|"readonly"|"off", "enforcement":
