@@ -155,8 +155,7 @@ DELETE /subscription-login/attempts/{id}       -> 204
   for openai-codex`, and a bare 401 map to a new `RunErrorCode`. Before emitting, call
   `POST {apiBase}/secrets/{id}/subscription-login/failure` with `{"version": <delivered>,
   "reason": "<short string>"}`. If the API answers `{"stale": true}` emit
-  `subscription_login_refreshed` ("The ChatGPT sign-in was updated by another session. Try
-  again."). Otherwise emit `subscription_login_required` ("The ChatGPT sign-in is no longer valid.
+  `subscription_login_refreshed` ("The ChatGPT sign-in was renewed. Send your message again."). Otherwise emit `subscription_login_required` ("The ChatGPT sign-in is no longer valid.
   Sign in again from AI providers."). Neither message may contain tokens or paths.
 - Daytona: the login lives on in-VM disk, never on the geesefs cwd:
   `/home/sandbox/agenta/subscriptions/<id>/auth.json` (a sibling of the codex-sqlite dir). Write
