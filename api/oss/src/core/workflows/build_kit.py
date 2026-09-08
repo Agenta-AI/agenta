@@ -34,7 +34,23 @@ _READ_CONFIG_OPS: tuple[str, ...] = (
     ("read_config",) if "read_config" in PLATFORM_OPS else ()
 )
 
-_AUTO_ALLOWED_BUILD_KIT_OPS = frozenset({"rename_session", "rename_agent"})
+_BUILD_KIT_OP_PERMISSIONS = {
+    "discover_tools": "allow",
+    "read_config": "allow",
+    "commit_revision": "allow",
+    "test_run": "allow",
+    "rename_session": "allow",
+    "rename_agent": "allow",
+    "discover_triggers": "allow",
+    "create_schedule": "ask",
+    "create_subscription": "ask",
+    "list_schedules": "allow",
+    "list_deliveries": "allow",
+    "test_subscription": "allow",
+    "list_subscriptions": "allow",
+    "remove_schedule": "ask",
+    "remove_subscription": "ask",
+}
 
 # Cut ops stay catalog opt-ins. `annotate_trace` and `query_spans` left the kit on 2026-09-07:
 # no skill text told the model when to use them, and both are due for their own rework.
@@ -51,6 +67,7 @@ DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "list_schedules",
     "list_deliveries",
     "test_subscription",
+    "list_subscriptions",
     "remove_schedule",
     "remove_subscription",
 )
@@ -99,11 +116,7 @@ def build_agent_template_overlay() -> Dict[str, Any]:
                 {
                     "type": "platform",
                     "op": op_name,
-                    **(
-                        {"permission": "allow"}
-                        if op_name in _AUTO_ALLOWED_BUILD_KIT_OPS
-                        else {}
-                    ),
+                    "permission": _BUILD_KIT_OP_PERMISSIONS[op_name],
                 }
                 for op_name in DEFAULT_BUILD_KIT_OPS
             ],

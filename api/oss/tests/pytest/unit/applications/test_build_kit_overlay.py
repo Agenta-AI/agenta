@@ -52,6 +52,7 @@ EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
     "list_schedules",
     "list_deliveries",
     "test_subscription",
+    "list_subscriptions",
     "remove_schedule",
     "remove_subscription",
 )
@@ -69,6 +70,7 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "list_schedules",
     "list_deliveries",
     "test_subscription",
+    "list_subscriptions",
     "remove_schedule",
     "remove_subscription",
 )
@@ -108,8 +110,25 @@ CUT_BUILD_KIT_OPS = (
     "resume_subscription",
     "query_workflows",
     "list_connections",
-    "list_subscriptions",
 )
+
+EXPECTED_BUILD_KIT_PERMISSIONS = {
+    "discover_tools": "allow",
+    "read_config": "allow",
+    "commit_revision": "allow",
+    "test_run": "allow",
+    "rename_session": "allow",
+    "rename_agent": "allow",
+    "discover_triggers": "allow",
+    "create_schedule": "ask",
+    "create_subscription": "ask",
+    "list_schedules": "allow",
+    "list_deliveries": "allow",
+    "test_subscription": "allow",
+    "list_subscriptions": "allow",
+    "remove_schedule": "ask",
+    "remove_subscription": "ask",
+}
 
 
 def _embed_slug(entry: dict) -> str | None:
@@ -138,11 +157,7 @@ def test_agent_template_overlay_tools_list_is_pinned():
             {
                 "type": "platform",
                 "op": op_name,
-                **(
-                    {"permission": "allow"}
-                    if op_name in {"rename_session", "rename_agent"}
-                    else {}
-                ),
+                "permission": EXPECTED_BUILD_KIT_PERMISSIONS[op_name],
             }
             for op_name in DEFAULT_BUILD_KIT_OPS
         ],
@@ -187,22 +202,10 @@ def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permiss
         {
             "type": "platform",
             "op": op_name,
-            **(
-                {"permission": "allow"}
-                if op_name in {"rename_session", "rename_agent"}
-                else {}
-            ),
+            "permission": EXPECTED_BUILD_KIT_PERMISSIONS[op_name],
         }
         for op_name in DEFAULT_BUILD_KIT_OPS
     ]
-    assert [
-        tool["op"] for tool in platform_tools if tool.get("permission") == "allow"
-    ] == ["rename_session", "rename_agent"]
-    assert all(
-        "permission" not in tool
-        for tool in platform_tools
-        if tool["op"] not in {"rename_session", "rename_agent"}
-    )
 
     authoring_skill = StaticWorkflowCatalog().retrieve_revision(
         slug=BUILD_AN_AGENT_SLUG
@@ -368,6 +371,9 @@ async def test_resolved_build_kit_overlay_parses_through_from_params():
         tool for tool in template.tools if isinstance(tool, ClientToolConfig)
     ]
     assert [tool.op for tool in platform_ops] == list(DEFAULT_BUILD_KIT_OPS)
+    assert {tool.op: tool.permission for tool in platform_ops} == {
+        op: EXPECTED_BUILD_KIT_PERMISSIONS[op] for op in EXPECTED_DEFAULT_BUILD_KIT_OPS
+    }
     # The reserved static embeds must coerce to client tools, not builtins.
     assert [tool.name for tool in client_tools] == [
         "request_connection",
