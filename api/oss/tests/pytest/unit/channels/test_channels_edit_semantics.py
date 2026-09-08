@@ -144,16 +144,14 @@ async def test_a_policy_only_edit_keeps_the_agent_the_default():
         user_id=uuid4(),
         agent=ChannelAgentEdit(
             id=existing.id,
-            data=ChannelAgentData(
-                references=existing.data.references,
-                policy=ChannelPolicy(forwardfill=False),
-            ),
+            data={"policy": {"forwardfill": False}},
         ),
     )
 
     written = dao.edit_agent.call_args.kwargs["agent"]
     assert written.flags.is_default is True
     assert written.data.policy.forwardfill is False
+    assert written.data.references == existing.data.references
     assert written.name == existing.name
 
 
@@ -169,7 +167,7 @@ async def test_a_rename_keeps_the_agent_references_and_policy():
 
     written = dao.edit_agent.call_args.kwargs["agent"]
     assert written.name == "Triage"
-    assert written.data == existing.data
+    assert written.data.model_dump() == existing.data.model_dump()
     assert written.flags == existing.flags
 
 
@@ -185,3 +183,18 @@ async def test_editing_an_unknown_agent_returns_none():
 
     assert result is None
     dao.edit_agent.assert_not_awaited()
+
+
+async def test_an_explicit_null_policy_clears_it():
+    existing = _stored_agent()
+    service, dao = _service_for_agent(existing)
+
+    await service.edit_agent(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        agent=ChannelAgentEdit(id=existing.id, data={"policy": None}),
+    )
+
+    written = dao.edit_agent.call_args.kwargs["agent"]
+    assert written.data.policy is None
+    assert written.data.references == existing.data.references

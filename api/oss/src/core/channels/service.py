@@ -8,6 +8,8 @@ from sqlalchemy.exc import IntegrityError
 from oss.src.core.channels.dtos import (
     ChannelAgent,
     ChannelAgentCreate,
+    ChannelAgentData,
+    ChannelAgentDataEdit,
     ChannelAgentEdit,
     ChannelAgentQuery,
     ChannelCapabilities,
@@ -1906,6 +1908,8 @@ def _layer_agent_edit(
         data = existing.data.model_copy(
             update={k: getattr(edit.data, k) for k in data_sent}
         )
+        # the merged data must still be a complete, valid agent data
+        data = ChannelAgentData.model_validate(data.model_dump(mode="json"))
     flags = existing.flags
     if edit.flags is not None:
         flags = existing.flags.model_copy(
@@ -1917,7 +1921,7 @@ def _layer_agent_edit(
         "description": existing.description,
         "tags": existing.tags,
         "meta": existing.meta,
-        "data": data,
+        "data": ChannelAgentDataEdit(references=data.references, policy=data.policy),
         "flags": flags,
     }
     for field in ("name", "description", "tags", "meta"):

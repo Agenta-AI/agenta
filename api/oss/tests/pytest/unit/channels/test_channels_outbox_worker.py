@@ -1128,3 +1128,67 @@ async def test_a_rejected_post_is_written_down_as_failed_with_the_reason():
     assert row.state is ChannelDeliveryState.FAILED
     assert row.status is not None and row.status.code == "delivery_failed"
     assert "channel_not_found" in (row.status.message or "")
+
+
+class _FlakyAdapter(WellBehavedFakeAdapter):
+    """Rejects the first post, accepts the second, and records every token."""
+
+    def __init__(self):
+        super().__init__()
+        self.tokens: List = []
+        self.calls = 0
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        self.calls += 1
+        self.tokens.append(idempotency_key)
+        if self.calls == 1:
+            raise RuntimeError("ratelimited")
+        return await super().post_message(
+            connection=connection,
+            locator=locator,
+            content=content,
+            idempotency_key=idempotency_key,
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_failed_post_retries_with_the_same_token_and_ends_sent():
+    """A retry of the same content reuses its idempotency token, so a post the
+    platform accepted but whose reply timed out is never duplicated; the row
+    that was FAILED ends SENT, and the failure it recorded is replaced."""
+    channels_dao = FakeChannelsDAO()
+    adapter = _FlakyAdapter()
+    service = ChannelsService(
+        channels_dao=channels_dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={"fake": adapter}),
+    )
+    worker = ChannelsOutboxWorker(
+        channels_service=service,
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(FakeRecordsDAO()),
+    )
+    connection = channels_dao.seed_connection(channel="fake")
+    space = channels_dao.seed_space(connection_id=connection.id)
+    thread = channels_dao.seed_thread(
+        space_id=space.id,
+        session_id="s-retry",
+        external_locator={"channel": "C1", "thread_ts": "42.1"},
+    )
+
+    with pytest.raises(RuntimeError):
+        await worker.on_turn_started(
+            project_id=PROJECT_ID, thread=thread, turn_id="turn-retry"
+        )
+    (row,) = channels_dao.outbox.values()
+    assert row.state is ChannelDeliveryState.FAILED
+
+    # the platform redelivers turn-started: the FAILED row is attempted again
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-retry"
+    )
+
+    (row,) = channels_dao.outbox.values()
+    assert row.state is ChannelDeliveryState.SENT
+    assert row.status is not None and row.status.code == "sent"
+    assert adapter.calls == 2
+    assert adapter.tokens[0] == adapter.tokens[1]

@@ -22,7 +22,7 @@ from oss.src.core.channels.render.dtos import RenderItem
 from oss.src.core.channels.render.render import render_indicator, render_turn_result
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelConnectionNotFound, ChannelSpaceNotFound
-from oss.src.core.channels.utils import compose_idempotency_key, compose_outbox_key
+from oss.src.core.channels.utils import compose_outbox_key
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.tasks.asyncio.sessions.streaming import deserialize_turn_event
@@ -126,7 +126,10 @@ class ChannelsOutboxWorker:
             turn_id=turn_id,
             item_index=0,
         )
-        if event.state is not ChannelDeliveryState.CREATED:
+        if event.state not in (
+            ChannelDeliveryState.CREATED,
+            ChannelDeliveryState.FAILED,
+        ):
             return  # already sent — redelivery of turn-started, no second post
 
         item = render_indicator(capabilities=capabilities)
@@ -252,9 +255,10 @@ class ChannelsOutboxWorker:
     ) -> None:
         content = [part.model_dump(exclude_none=True) for part in item.parts]
 
-        idempotency_key = compose_idempotency_key(
-            key=event.key, updated_at=event.updated_at
-        )
+        # One wire token per (row, content): a retry of the same content after a
+        # FAILED write reuses it, so a post the platform accepted but whose reply
+        # timed out is never duplicated; an edit to new content mints a new one.
+        idempotency_key = _delivery_key(event.key, content)
 
         adapter = self.channels_service.adapter_registry.get(connection.channel)
 
@@ -306,6 +310,8 @@ class ChannelsOutboxWorker:
             project_id=project_id,
             event_id=event.id,
             state=ChannelDeliveryState.SENT,
+            # a success after a FAILED attempt replaces the failure it recorded
+            status=Status(code="sent"),
             data=ChannelOutboxEventData(
                 external_locator=receipt,
                 processed={"content": content},
@@ -445,3 +451,12 @@ class ChannelsOutboxStreamWorker(StreamConsumer):
                 # left un-acked: pending, retried on the next read
 
         return len(processed_ids), processed_ids
+
+
+def _delivery_key(event_key: UUID, content: List[Dict]) -> UUID:
+    """The idempotency token for one (outbox row, content) pair."""
+    from uuid import uuid5
+
+    from oss.src.core.channels.utils import canonical_json
+
+    return uuid5(event_key, canonical_json(content))

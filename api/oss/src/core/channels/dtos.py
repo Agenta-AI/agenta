@@ -543,12 +543,37 @@ class ChannelAgentCreate(Slug, Header, Metadata):
     flags: ChannelAgentFlags = Field(default_factory=ChannelAgentFlags)
 
 
+class ChannelAgentDataEdit(BaseModel):
+    """`ChannelAgentData` for an edit: both fields optional, and an omitted one
+    keeps its stored value. `policy: null` clears the policy on purpose."""
+
+    references: Optional[Dict[str, Reference]] = None
+    policy: Optional[ChannelPolicy] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_full_data(cls, value: Any) -> Any:
+        # a caller holding a complete ChannelAgentData may pass it as the edit
+        if isinstance(value, ChannelAgentData):
+            return value.model_dump()
+        return value
+
+    @field_validator("references")
+    @classmethod
+    def _references_must_be_resolvable(
+        cls, references: Optional[Dict[str, Reference]]
+    ) -> Optional[Dict[str, Reference]]:
+        if references is None:
+            return None
+        return ChannelAgentData._references_must_be_resolvable(references)
+
+
 class ChannelAgentEdit(Identifier, Header, Metadata):
     """Same contract as the connection edit: an omitted field keeps its stored
-    value. A policy-only edit once reset `is_default` and muted the whole
+    value. A policy-only agent edit once reset `is_default` and muted the whole
     connection (F91)."""
 
-    data: Optional[ChannelAgentData] = None
+    data: Optional[ChannelAgentDataEdit] = None
     flags: Optional[ChannelAgentFlags] = None
 
 
