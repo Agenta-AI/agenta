@@ -13,7 +13,7 @@ interface ConfirmRequest {
  *
  * The Pages Router has no navigation blocker, so the documented way out is to abort
  * `routeChangeStart` by throwing — the throw IS the abort, and `routeChangeError` is what puts
- * the progress bar back. The confirmation is the app's own `ConfirmSheet`, not a browser dialog, so
+ * the progress bar back. The confirmation is the app's own `ConfirmModal`, not the browser's, so
  * leaving an automation reads like every other confirm on this surface.
  *
  * The retry sets a bypass flag rather than unbinding the listener: the effect is keyed on `dirty`,
