@@ -63,7 +63,10 @@ import {answerThenSteer} from "./assets/answerThenSteer"
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
-import {restoreHeldRefusedSend} from "./assets/refusedMessageRecovery"
+import {
+    restoreHeldRefusedSend,
+    restoreRefusedSend as restoreRefusedSendInto,
+} from "./assets/refusedMessageRecovery"
 import AgentComposerDock from "./components/AgentComposerDock"
 import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
@@ -430,14 +433,25 @@ const AgentConversation = ({
 
     // A refusal that arrived after the send promise resolved. Hand the text back through the same
     // channel a rejected send uses, so both refusal shapes recover identically.
-    const setRejectionsRef = useRef(attachments.setRejections)
-    setRejectionsRef.current = attachments.setRejections
+    // A refusal that arrived after the send promise resolved. Reuses the rejected-send path
+    // wholesale: it refuses to overwrite a draft the user has typed since, and puts the staged
+    // files back with the text. Returning false leaves the echo row as the recovery surface,
+    // which is exactly the case where it is needed.
+    const lateRefusalRef = useRef({
+        restore: restoreAttachments,
+        reject: attachments.setRejections,
+    })
+    lateRefusalRef.current = {restore: restoreAttachments, reject: attachments.setRejections}
     const restoreLateRefusedSend = useCallback((message: QueuedMessage) => {
-        const editor = richInputRef.current
-        if (!editor) return false
-        editor.setMarkdown(message.text)
-        setRejectionsRef.current([{name: "Message", reason: "wasn't sent — try again."}])
-        return true
+        const taken = restoreRefusedSendInto(
+            richInputRef.current,
+            {text: message.text, stagedFiles: message.stagedFiles ?? []},
+            lateRefusalRef.current.restore,
+        )
+        if (taken) {
+            lateRefusalRef.current.reject([{name: "Message", reason: "wasn't sent — try again."}])
+        }
+        return taken
     }, [])
 
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released

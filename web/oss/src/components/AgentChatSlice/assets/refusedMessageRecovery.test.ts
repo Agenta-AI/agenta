@@ -84,3 +84,41 @@ describe("restoreRefusedDraft", () => {
         expect(restoreAttachments).toHaveBeenCalledTimes(1)
     })
 })
+
+describe("restoreRefusedSend for a late refusal", () => {
+    // A refusal carried inside a 200 arrives seconds after the composer cleared, so unlike a
+    // rejected send the user has had time to type something else. These pin the two properties
+    // the late path depends on: it never overwrites that, and it says so by returning false, which
+    // is what keeps the echo row as the recovery surface in exactly that case.
+    it("refuses a composer the user has typed into, and reports it", () => {
+        const editor = {
+            getMarkdown: () => "something I typed since",
+            setMarkdown: vi.fn(),
+        } as unknown as RichChatInputHandle
+        const restoreAttachments = vi.fn()
+
+        expect(
+            restoreRefusedSend(editor, {text: "refused", stagedFiles: []}, restoreAttachments),
+        ).toBe(false)
+        expect(editor.setMarkdown).not.toHaveBeenCalled()
+        expect(restoreAttachments).not.toHaveBeenCalled()
+    })
+
+    it("puts the staged files back with the text, not the text alone", () => {
+        let markdown = ""
+        const editor = {
+            getMarkdown: () => markdown,
+            setMarkdown: (next: string) => {
+                markdown = next
+            },
+        } as unknown as RichChatInputHandle
+        const restoreAttachments = vi.fn()
+        const stagedFiles = [{uid: "f1"}]
+
+        expect(restoreRefusedSend(editor, {text: "refused", stagedFiles}, restoreAttachments)).toBe(
+            true,
+        )
+        expect(markdown).toBe("refused")
+        expect(restoreAttachments).toHaveBeenCalledWith(stagedFiles)
+    })
+})
