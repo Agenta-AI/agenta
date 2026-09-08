@@ -46,7 +46,7 @@ export {AutomationBackLink} from "./AutomationBackLink"
 export {AutomationFailureBanner} from "./AutomationFailureBanner"
 export {AutomationRunHistoryCard} from "./AutomationRunHistoryCard"
 export {AutomationRunHistoryView} from "./AutomationRunHistoryView"
-export {AutomationStatCards} from "./AutomationStatCards"
+export {AutomationStatsLine} from "./AutomationStatsLine"
 export {AutomationTemplateCard} from "./AutomationTemplateCard"
 export {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 
