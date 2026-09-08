@@ -199,6 +199,18 @@ the `stale` answer cover.
 `intervalSeconds`, and `expiresInSeconds` in about 200 ms from inside the hostedsub runner
 container, with no browser and no open port. The attempt was aborted before any human step.
 
+### Shared login file on the object-store mount (measured, real stack)
+
+[research/storage-mounts.md](research/storage-mounts.md) measured the runner's own geesefs flags
+on the hostedsub stack: a second mount served stale bytes for 58 seconds (the default 60 s stat
+cache), two writers on one key kept only one writer's values, an exclusive `flock` held on both
+mounts at once, and a symlink came back as a zero-byte file. SeaweedFS 4.37 does answer
+conditional PUT (`If-Match`, `If-None-Match`), so a direct S3 compare-and-swap is possible without
+the mount. Conclusion: architecture option 1 (native files on the shared mount) is out. The
+contract uses option 2: the secret row in Postgres as the source of truth, a per-connection local
+directory on the runner or in-VM disk on Daytona, a file watch that publishes a refresh when it
+happens, and a version plus generation check on the write path.
+
 ## Completion
 
 Deliver a runnable integrated application with UI login, model selection, concurrent agent use,

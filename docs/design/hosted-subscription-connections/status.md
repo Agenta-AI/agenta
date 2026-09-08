@@ -16,12 +16,27 @@ completed in this worktree.
 - PR branch: `agent/hosted-subscription-connections-plan-20260907`.
 - Workflow: ordinary Git in the explicitly requested worktree. Do not initialize GitButler here.
 
+## Landed on the branch (2026-09-08)
+
+| Commit | Track | What |
+| --- | --- | --- |
+| `d471df22e8` | docs | research, contract, refresh probes, log |
+| `0ebff58cec` | SDK | self_managed with a slug, subscription block on the wire, `subscription_login_required` on the 422 envelope and the stream |
+| `e26c03fdd1` | API | `subscription_provider` secret kind, login attempts through the runner, push and failure routes with generation then expiry |
+
+In the working tree, not yet committed: the runner track (device-login attempts, per-connection
+home, materialize, push-back, error codes, Daytona in-VM home) and the web track (ChatGPT card,
+attempt poll, picker row, chat error buttons). Both are being verified and finished.
+
+Codex harness: out for now. Codex 0.145.0 refuses a login file without `id_token`, and Pi never
+stores one. Pi is the harness for this slice.
+
 ## Ownership and next work
 
 | Owner | Work | State |
 | --- | --- | --- |
 | Mahmoud | Edit and send the Fable prompt; relay the delivered version. | Pending. |
-| Fable | Parallel research, experiments, and product implementation. | Started 2026-09-08. Four research tracks running; stack `agenta-ee-dev-hostedsub` on port 8780 building. See fable-001 in the log. |
+| Fable | Parallel research, experiments, and product implementation. | Research done. SDK and API landed. Runner and web being finished. Next: integrated live run (UI login needs Mahmoud), concurrency and refresh cells, re-login cell. |
 | Codex | Prepare handoff, then review evidence and contribute after the user relays the handoff. | Handoff prepared. |
 
 ## Evidence so far (2026-09-08)
