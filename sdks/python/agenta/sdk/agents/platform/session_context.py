@@ -7,7 +7,10 @@ carry: the agent's display name, the session's name, and whether an earlier turn
 The API stamps those facts on ``request.meta`` for the runs it proxies. The playground does
 not go through the API: it posts a turn straight to the agent service, so a service that
 reads the facts off ``meta`` sees nothing on the path the browser uses. This module reads
-them where every agent turn passes, in the service itself.
+them in the service instead, which is where every turn that goes through
+``agenta.sdk.agents.handler.make_agent_handler`` passes. An SDK user who drives the harness
+or session interfaces directly bypasses that handler and supplies ``SessionConfig``'s
+``session_context`` itself.
 
 ``meta`` is request body, and the service's ``/invoke`` is reachable by a browser, so a
 ``session_context`` on the wire is client input on this path. It is never read. A client must
@@ -71,8 +74,13 @@ async def resolve_session_context(
     """Read the agent name, the session name, and the first-turn flag for one turn.
 
     Returns ``None`` when no fact could be read at all, so the caller leaves the prompt
-    section out entirely. The backend reads run concurrently: they are independent indexed
-    single-row reads and the turn waits on both.
+    section out entirely. Three requests go out concurrently, so the turn waits for the
+    slowest rather than the sum. They are not all cheap: the stream read touches Redis for
+    the liveness flags as well as Postgres for the row.
+
+    A new client per call, matching every other adapter in this package. That costs a fresh
+    connection per turn, which is worth revisiting for the package as a whole rather than
+    here alone. Never cache the FACTS: a rename has to show on the very next turn.
 
     The whole operation shares one deadline, including client construction and teardown.
     When it expires the outstanding reads are cancelled and the turn goes on with no facts.
@@ -200,7 +208,9 @@ async def _read_session_facts(
     """The session's name and whether it has run a turn yet.
 
     A run with no session id opens a fresh session, so it is the first turn and the session
-    has no name. That is a fact, not an unknown, and it needs no read.
+    has no name. That is a fact, not an unknown, and it needs no read. It is also rare in the
+    service: the normalizer mints a session id before the handler runs, so a request that
+    arrived without one usually still pays both reads.
 
     The name and the turn position are reported as ONE pair. If either read fails, or either
     body is a shape this code cannot trust, both come back UNKNOWN. A half-read pair is worse
@@ -208,9 +218,15 @@ async def _read_session_facts(
     name yet. Name it with rename_session", which tells an already-named session to rename
     itself, and that is the exact bug this module exists to fix.
 
-    A turn row is appended by the runner as the turn executes, so no row exists yet while
-    the prelude of the FIRST turn runs. Counting the request's messages would be wrong
-    rather than cheap, because a client may send only the latest message.
+    ``first_turn`` means "no durable turn row exists at lookup time", which is not quite
+    "this is the first logical exchange". A retry or a cold resume of the first exchange
+    reads False once its row is written, and an append that failed leaves a later execution
+    reading True. The API resolver has the same semantics, so the two agree.
+
+    The ordering is safe. The facts resolve, then the runner builds the prompt, then it
+    appends the turn row, so an ordinary first invocation cannot observe its own row.
+    Counting the request's messages would be wrong rather than cheap, because a client may
+    send only the latest message.
     """
     if session_id is None:
         return None, True

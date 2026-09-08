@@ -183,9 +183,13 @@ def _agent_artifact_id(run_context, references) -> Optional[str]:
     evaluator labels it ``evaluator``; all three are workflow-backed and name the same row.
     Reading only ``workflow`` would report no name for every playground turn.
 
-    Fall back to the request's own references when the run has no tracing context, which is
-    the bare-SDK case. Returns ``None`` for a run with no artifact at all: a draft has no name
-    to report.
+    The run context is not always populated. An inline-config run skips reference hydration,
+    and a slug-only or parentless reference can leave no artifact id at all, so the request's
+    own references are the fallback rather than only the bare-SDK case.
+
+    Returns ``None`` for a run with no artifact at all, which reports no name. That is not
+    the same as "a draft has no name": a saved artifact carries its name while its config is
+    unsaved, and such a run is still a draft.
 
     Competing families decline rather than pick. A request that carries ``application=A`` and
     ``workflow=B`` names two different artifacts, and the family validator that would reject
