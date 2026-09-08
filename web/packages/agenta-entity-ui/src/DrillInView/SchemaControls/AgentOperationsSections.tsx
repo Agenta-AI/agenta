@@ -59,7 +59,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
     return (
         <>
             <section className="flex flex-col" aria-busy>
-                <AgentRegionHeaderBar title="Triggers" sticky={sticky}>
+                <AgentRegionHeaderBar title="Automations" sticky={sticky}>
                     <ConfigRowTrailing>
                         <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                     </ConfigRowTrailing>
@@ -109,10 +109,10 @@ export function AgentOperationsSections({
     return (
         <>
             <section className="flex flex-col">
-                <AgentRegionHeaderBar title="Triggers" sticky={sticky}>
+                <AgentRegionHeaderBar title="Automations" sticky={sticky}>
                     <ConfigRowTrailing>
                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                            {countSummary(triggerCount, "trigger")}
+                            {countSummary(triggerCount, "automation")}
                         </span>
                     </ConfigRowTrailing>
                 </AgentRegionHeaderBar>
