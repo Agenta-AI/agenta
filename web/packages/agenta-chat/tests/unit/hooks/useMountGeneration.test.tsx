@@ -79,6 +79,30 @@ describe("useMountGeneration", () => {
         probe.unmount()
     })
 
+    it("blocks an effect declared ABOVE it once StrictMode replays", () => {
+        // The ordering contract, pinned rather than assumed. Effects run in hook order, so an
+        // effect declared above this hook captures BEFORE the replay re-arms it, and its capture
+        // is dead. That is why every caller declares `useMountGeneration()` first. A caller that
+        // does not gets a chain that can never write, which is safe but silently useless.
+        const capturedInSetup: number[] = []
+        let api: MountGeneration | undefined
+        const Probe = () => {
+            // Deliberately above the hook.
+            useEffect(() => {
+                capturedInSetup.push(api?.capture() ?? -1)
+            }, [])
+            const mount = useMountGeneration()
+            api = mount
+            return null
+        }
+        const root = createRoot(document.createElement("div"))
+        act(() => root.render(createElement(StrictMode, null, createElement(Probe))))
+
+        expect(capturedInSetup).toHaveLength(2)
+        expect(api!.isCurrent(capturedInSetup[1])).toBe(false)
+        act(() => root.unmount())
+    })
+
     it("is current for a generation captured before the first effect runs", () => {
         // Hook order decides which effect runs first, so a chain started by an effect declared
         // ABOVE this hook must still be able to write. The first generation is allocated during

@@ -94,6 +94,9 @@ const transcript = (count: number, sequence: number): SessionTranscript =>
 let seq = 0
 const nextSessionId = () => `unmount-test-${Date.now()}-${(seq += 1)}`
 
+/** `useAgentConversation` throttles `useChat` at 50 ms; wait past it before reading the screen. */
+const THROTTLE_FLUSH_MS = 120
+
 const plain = (node: ReactNode) => node
 const strict = (node: ReactNode) => createElement(StrictMode, null, node)
 
@@ -165,10 +168,24 @@ describe.each([
             await stalePass
         })
 
+        // `useChat` is throttled, so the screen lags the store. Reading it in the same tick shows
+        // six whether or not the stale write landed, which would make this assertion vacuous.
+        // Flush the throttle first, then read.
+        await act(async () => {
+            await new Promise((resolve) => setTimeout(resolve, THROTTLE_FLUSH_MS))
+        })
+
         expect(second.result.current.messages).toHaveLength(6)
-        // The persistence assertion is the one that carries this test: with the guard removed the
-        // stale adopter writes a four-message transcript to the cache while the screen still shows
-        // six, which is the half of the corruption that survives a reload.
+        expect(second.result.current.messages.map((m) => m.id)).toEqual([
+            "m1",
+            "m2",
+            "m3",
+            "m4",
+            "m5",
+            "m6",
+        ])
+        // The persisted copy is the half of the corruption that survives a reload, and unlike the
+        // screen it is written synchronously.
         expect(persistMock.mock.calls.filter(([args]) => args.messages.length !== 6)).toHaveLength(
             0,
         )

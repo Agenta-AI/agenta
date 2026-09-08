@@ -120,16 +120,25 @@ describe("readRunAdmission", () => {
         expect(w.onFailed).toHaveBeenCalledTimes(1)
     })
 
-    // An ordinary request never gets an acceptance frame, so `start` is the only thing that says
-    // the turn began. Live evidence on the EE dev stack: a run whose model call failed 13 s in
-    // ("no credits remaining") was read as a refused send, which put a second copy of the
-    // delivered message on screen under "Message wasn't sent".
-    it("does not read a mid-run failure as a refused send", async () => {
+    // The Vercel adapter yields `start` and `start-step` BEFORE it reads a single runner event
+    // (sdks/python/agenta/sdk/agents/adapters/vercel/stream.py), so those frames say nothing about
+    // admission. The runner's own `turn` event, forwarded as message metadata, is what does.
+    const startPrefix = [
+        'data: {"type":"start","messageId":"a1","messageMetadata":{"sessionId":"s1"}}\n',
+        'data: {"type":"start-step"}\n',
+    ]
+    const turnId = (id: string) =>
+        `data: ${JSON.stringify({type: "message-metadata", messageMetadata: {turnId: id}})}\n`
+
+    // Live evidence on the EE dev stack: a run whose model call failed 13 s in ("no credits
+    // remaining") was read as a refused send, which put a second copy of the delivered message on
+    // screen under "Message wasn't sent".
+    it("does not read a failure after the turn id as a refused send", async () => {
         const w = watcher()
         const result = await readRunAdmission(
             streamOf([
-                'data: {"type":"start","messageId":"a1"}\n',
-                'data: {"type":"start-step"}\n',
+                ...startPrefix,
+                turnId("turn-live"),
                 'data: {"type":"text-delta","id":"t1","delta":"partial"}\n',
                 'data: {"type":"data-agent-error","data":{"code":"runner_error","errorText":"no credits"}}\n',
                 'data: {"type":"error","errorText":"no credits"}\n',
@@ -141,20 +150,50 @@ describe("readRunAdmission", () => {
         expect(result).toBe(false)
     })
 
+    // The competing-turn refusal in services/runner/src/server.ts persists nothing, and it reaches
+    // this reader BEHIND the adapter's synthetic prefix. Treating that prefix as admission
+    // evidence would swallow the refusal.
+    it("still reads a refusal that arrives behind the adapter's synthetic start frames", async () => {
+        const w = watcher()
+        await readRunAdmission(
+            streamOf([
+                ...startPrefix,
+                'data: {"type":"data-agent-error","data":{"code":"busy","errorText":"refused"}}\n',
+                'data: {"type":"error","errorText":"refused"}\n',
+                'data: {"type":"finish"}\n',
+            ]),
+            w,
+        )
+        expect(w.onFailed).toHaveBeenCalledTimes(1)
+    })
+
+    it("ignores a message-metadata frame that carries no turn id", async () => {
+        const w = watcher()
+        await readRunAdmission(
+            streamOf([
+                ...startPrefix,
+                'data: {"type":"message-metadata","messageMetadata":{"sessionId":"s1"}}\n',
+                'data: {"type":"error","errorText":"refused"}\n',
+            ]),
+            w,
+        )
+        expect(w.onFailed).toHaveBeenCalledTimes(1)
+    })
+
     it("still reads an error before the turn begins as a refusal", async () => {
         const w = watcher()
         await readRunAdmission(streamOf(['data: {"type":"error","errorText":"refused"}\n']), w)
         expect(w.onFailed).toHaveBeenCalledTimes(1)
     })
 
-    it("still names the turn when acceptance follows the answer's first frame", async () => {
-        // The runner emits `start` BEFORE `data-session-accepted`, so scanning has to continue
-        // past a start frame or a detached send would lose the id it retires on.
+    it("still names the turn when acceptance follows the synthetic start frames", async () => {
+        // A detached run names its turn in a frame of its own, so scanning has to continue past
+        // the turn-id frame or the id the echo retires on would be lost.
         const w = watcher()
         const result = await readRunAdmission(
             streamOf([
-                'data: {"type":"start","messageId":"a1"}\n',
-                'data: {"type":"start-step"}\n',
+                ...startPrefix,
+                turnId("turn-8"),
                 accepted("turn-9"),
                 'data: {"type":"finish"}\n',
             ]),

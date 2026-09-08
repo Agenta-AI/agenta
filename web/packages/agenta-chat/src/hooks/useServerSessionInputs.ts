@@ -57,22 +57,30 @@ const emptyView = reduceSessionPendingInputs(null)
 
 const RUN_ERROR_FRAME_TYPES = new Set(["error", "data-agent-error"])
 
-/**
- * The first frames of an answer. Their arrival proves the request was admitted and a turn began,
- * whatever happens to that turn afterwards.
- */
-const RUN_STARTED_FRAME_TYPES = new Set(["start", "start-step"])
-
 type RunFrame = {kind: "accepted"; executionId: string} | {kind: "error"} | {kind: "started"} | null
 
 const runFrameFromLine = (line: string): RunFrame => {
     const payload = line.startsWith("data:") ? line.slice(5).trim() : line.trim()
     if (!payload || payload === "[DONE]") return null
     try {
-        const frame = JSON.parse(payload) as {type?: unknown; data?: {executionId?: unknown}}
+        const frame = JSON.parse(payload) as {
+            type?: unknown
+            data?: {executionId?: unknown}
+            messageMetadata?: {turnId?: unknown}
+        }
         if (typeof frame.type !== "string") return null
         if (RUN_ERROR_FRAME_TYPES.has(frame.type)) return {kind: "error"}
-        if (RUN_STARTED_FRAME_TYPES.has(frame.type)) return {kind: "started"}
+        // The runner emits its `turn` event only after it admits the request, and the Vercel
+        // adapter forwards that id as message metadata. It is the only thing in an ordinary
+        // request's stream that proves a turn exists.
+        //
+        // `start` and `start-step` are NOT that evidence, however early they arrive: the adapter
+        // yields both before it reads a single runner event, so a request the runner then refuses
+        // carries them exactly as a successful one does.
+        if (frame.type === "message-metadata") {
+            const turnId = frame.messageMetadata?.turnId
+            return typeof turnId === "string" && turnId ? {kind: "started"} : null
+        }
         if (frame.type !== "data-session-accepted") return null
         const id = frame.data?.executionId
         return typeof id === "string" && id ? {kind: "accepted", executionId: id} : null
@@ -90,9 +98,9 @@ const runFrameFromLine = (line: string): RunFrame => {
  * acceptance is usually a perfectly good turn. Those fall back to the count, exactly as before
  * identity existed.
  *
- * "Before the turn begins" is the whole of it, and an ordinary request needs the `start` frame to
- * say so, because it never gets an acceptance frame. Live evidence: a run whose model call failed
- * mid-turn ("no credits remaining") emitted its error 13 s after `start`, by which time the user's
+ * "Before the turn begins" is the whole of it, and for an ordinary request the turn id on the
+ * `message-metadata` frame is what says so. Live evidence for why this matters: a run whose model
+ * call failed mid-turn ("no credits remaining") emitted its error 13 s in, by which time the user's
  * row was saved and rendered. Reading that as a refused send put a second copy of a delivered
  * message on screen under "Message wasn't sent", and handed the text back to the composer. Once a
  * turn exists its failure is the transcript's to render, on the assistant row where it belongs.
@@ -118,8 +126,8 @@ export const readRunAdmission = async (
         for (const line of lines) {
             const frame = runFrameFromLine(line)
             if (!frame) continue
-            // Scanning continues past a start frame, because a detached run names its turn AFTER
-            // the answer's first frame, and that id is what retires the echo on identity.
+            // Scanning continues past the turn-id frame, because a detached run names its turn in
+            // a frame of its own, and that id is what retires the echo on identity.
             if (frame.kind === "started") {
                 started = true
                 continue
