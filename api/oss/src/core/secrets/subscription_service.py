@@ -128,6 +128,17 @@ def _attempt_is_live(expires_at: Optional[str]) -> bool:
     return deadline > datetime.now(timezone.utc)
 
 
+def _attempt_matches(stored: SubscriptionProviderDTO, attempt_id: str) -> bool:
+    """True when the locked row still waits on this attempt.
+
+    Every write that finishes a device login asks this first. The check runs inside the
+    row lock, so a poll that started before a cancel cannot act on the row the cancel and
+    the replacement attempt left behind.
+    """
+    current = stored.login_attempt
+    return current is not None and current.id == attempt_id
+
+
 def _clip(reason: Optional[str]) -> Optional[str]:
     if reason is None:
         return None
@@ -267,6 +278,7 @@ class SubscriptionLoginService:
                 project_id=project_id,
                 secret_id=secret_id,
                 user_id=user_id,
+                attempt_id=attempt_id,
                 error=_ATTEMPT_NOT_FOUND_ERROR,
             )
             return SubscriptionLoginAttemptView(
@@ -281,6 +293,7 @@ class SubscriptionLoginService:
                     project_id=project_id,
                     secret_id=secret_id,
                     user_id=user_id,
+                    attempt_id=attempt_id,
                     login=attempt.login,
                 )
                 await self.runner_client.delete_attempt(attempt_id=attempt_id)
@@ -289,6 +302,7 @@ class SubscriptionLoginService:
                     project_id=project_id,
                     secret_id=secret_id,
                     user_id=user_id,
+                    attempt_id=attempt_id,
                     error=None,
                 )
             return SubscriptionLoginAttemptView(
@@ -301,6 +315,7 @@ class SubscriptionLoginService:
                 project_id=project_id,
                 secret_id=secret_id,
                 user_id=user_id,
+                attempt_id=attempt_id,
                 error=attempt.error,
             )
             return SubscriptionLoginAttemptView(
@@ -350,6 +365,7 @@ class SubscriptionLoginService:
             project_id=project_id,
             secret_id=secret_id,
             user_id=user_id,
+            attempt_id=attempt_id,
             error=None,
         )
 
@@ -474,13 +490,21 @@ class SubscriptionLoginService:
         project_id: UUID,
         secret_id: UUID,
         user_id: Optional[UUID],
+        attempt_id: str,
         login: Dict[str, Any],
     ) -> None:
         def build_changes(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
-            # The runner keeps returning the login on every poll until the API deletes the
-            # attempt, so two simultaneous polls both arrive here. The refresh token is the
-            # identity of a login: seeing the stored one again means the write already
-            # happened, and a second bump would push every warm session cold for nothing.
+            # The attempt id decides. A poll can still be in flight when the user cancels
+            # and starts another login, and the runner keeps returning the login on every
+            # poll until the API deletes the attempt. Both cases land here on a row that
+            # waits on a different attempt, or on none, and neither may install a login.
+            if not _attempt_matches(stored, attempt_id):
+                return None
+
+            # A second guard, for a replayed poll of the attempt the row still holds. The
+            # refresh token is the identity of a login: seeing the stored one again means
+            # the write already happened, and a second bump would push every warm session
+            # cold for nothing.
             if stored.login is not None and stored.login.refresh == login.get(
                 "refresh"
             ):
@@ -508,16 +532,29 @@ class SubscriptionLoginService:
         project_id: UUID,
         secret_id: UUID,
         user_id: Optional[UUID],
+        attempt_id: str,
         error: Optional[str],
     ) -> None:
+        """Clear the attempt, but only while the row still waits on this one.
+
+        A late answer about an abandoned attempt must not clear the replacement the user
+        already started, and must not report its error against the new login.
+        """
+
+        def build_changes(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
+            if not _attempt_matches(stored, attempt_id):
+                return None
+
+            return {
+                "login_attempt": None,
+                "login_error": _clip(error),
+            }
+
         await self._apply(
             project_id=project_id,
             secret_id=secret_id,
             user_id=user_id,
-            build_changes=lambda _stored: {
-                "login_attempt": None,
-                "login_error": _clip(error),
-            },
+            build_changes=build_changes,
         )
 
     async def _refresh_pending_attempt(
@@ -539,10 +576,10 @@ class SubscriptionLoginService:
         """
 
         def build_changes(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
-            current = stored.login_attempt
-            if current is None or current.id != attempt_id:
+            if not _attempt_matches(stored, attempt_id):
                 return None
 
+            current = stored.login_attempt
             fresh = {
                 "id": attempt_id,
                 "expires_at": expires_at or current.expires_at,
