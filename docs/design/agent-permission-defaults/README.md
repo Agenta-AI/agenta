@@ -13,6 +13,7 @@ general permission dropdown without harness or sandbox implementation details.
 - [Claude findings](claude-spike.md) and [Codex findings](codex-spike.md): executed
   tests, native settings observations, and blocked live checks.
 - [Validation](validation.md): implementation checks and desktop/mobile coverage.
+- [Deployed QA](qa.md): real-app results and screenshots from the release-based stack.
 - [Status](status.md): implementation and verification progress.
 
 ## Terms

@@ -16,7 +16,7 @@ applies to Pi, Claude, and Codex immediately. Native behavior changes require sp
 | Codex spike | Unit/image investigation complete; live checks credential-blocked |
 | Review | Two save-race findings fixed; independent re-review found no remaining issues |
 | Documentation | Current configuration/tools references and interface inventory updated; docs build passes |
-| Browser validation | Release-based stack live on port 9080; editor flows pass on both hosts; overview fix awaiting deployment recheck |
+| Browser validation | Release-based stack live on port 9080; editor flows and corrected overview verified; runtime and remaining browser limits recorded in qa.md |
 
 See [validation.md](validation.md) for test scope and remaining checks. The user
 requested PR publication followed by a full isolated deployment and QA. Existing
@@ -82,6 +82,11 @@ The overview now gives Permissions its own summary and renders bodyless read-onl
 rows without interactive affordances or empty padding. Instructions still expands;
 desktop editor links remain available. The summary does not change stored policies.
 
+The correction is deployed from `648cd5d14e`. Real-browser rechecks passed for phone
+and desktop overviews in light and dark themes, static row behavior, Instructions
+expansion, desktop editor navigation, and saved Ask appearing after mobile reload.
+See [qa.md](qa.md) for screenshots and the exact verification limits.
+
 Added 13 focused rendering regressions, run in the background while other work
 continued; all passed. Repository lint and entity-ui typecheck passed, and an
 independent source review found no remaining issues. No web suite was awaited.
@@ -92,14 +97,15 @@ directory, with source from the PR and dependencies from its dedicated image.
 
 ## Remaining verification
 
-- Refresh the two isolated frontends and browser-check the corrected overview on
-  `/m` and the preserved editor navigation on `/w`.
 - Complete the Claude and Codex live matrices with isolated model credentials or
   correctly mounted subscriptions. Native modes remain unchanged.
 - Investigate general non-Pi Ask relay grant enforcement separately. The spikes
   distinguish this gap from marker-commit content authorization.
 - Multiple-environment selector behavior has DOM coverage but has not been exercised
   against the local-only deployed configuration. Mobile build-kit Save remains unverified.
+- A fresh mobile session in the isolated recheck reported no agent or replayable history;
+  its editor was not retested. Earlier seeded session-editor checks passed. Theme
+  rendering was verified through the app's stored preference, not reliable menu interaction.
 
 The orchestration-console CLI and console directory were absent in this checkout.
 This status file remains the durable tracking record.
