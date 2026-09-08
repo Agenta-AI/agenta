@@ -144,6 +144,8 @@ export const AutomationFilterMenu = ({
             // added a second label to a toolbar that has one.
             label={null}
             size="default"
+            // The square icon size is 28; the search field and New automation are both 32.
+            triggerClassName="size-8"
             active={!isDefaultAutomationListView(view)}
             onReset={() => onChange(DEFAULT_AUTOMATION_LIST_VIEW)}
             resetDisabled={isDefaultAutomationListView(view)}
