@@ -2950,7 +2950,7 @@
 - Severity: `P0`
 - Confidence: `high`
 - Status: `open`
-- Resolution: [takeover 2026-09-08] PARTIAL in PR #6650 (the invoke carries the mode; ask refused under message scope is still open).
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6650 + #6653 (approval answer via the sessions respond path; card renders on a park; approve/deny/typed/numbered all resolve; refusing `ask` under message scope stays a minor follow-up).
 - Category: `Security`
 - Summary: A channel turn passes **no permission mode at all** — the request
   built at `inbox.py:492-500` carries references, session id and inputs, and
@@ -2978,7 +2978,7 @@
 - Severity: `P1`
 - Confidence: `high`
 - Status: `open`
-- Resolution: [takeover 2026-09-08] PARTIAL in PR #6650 (inbound answer via the sessions respond path; OUTBOUND card render on a park is blocked on a sessions park signal, see takeover-2026-09-08.md).
+- Resolution: [takeover 2026-09-08] RESOLVED in PR #6650 + #6653 (full loop live on the Agenta channel: card renders, approve resumes the parked turn, the tool runs, the answer posts back; routed to the agent that asked).
 - Category: `Correctness`
 - Summary: Two defects that together make the approval surface unusable.
   (a) Under `session_scope: message`, `resolve` sets `thread = None` and
