@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState, type ReactNode} from "react"
 
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
+import {useFilterMenuView} from "@agenta/ui/filter-menu"
 
 import {AutomationRunFilterMenu} from "./AutomationRunFilterMenu"
 import {AutomationRunList} from "./AutomationRunList"
@@ -8,7 +9,12 @@ import {AutomationRunPane} from "./AutomationRunPane"
 import {type Automation} from "./automationModel"
 import {useMediaQuery} from "./lib/useMediaQuery"
 import {cn} from "./lib/utils"
-import {DEFAULT_RUN_LIST_VIEW, deriveRunList, isDefaultRunListView} from "./runListView"
+import {
+    DEFAULT_RUN_LIST_VIEW,
+    deriveRunList,
+    isDefaultRunListView,
+    type RunListView,
+} from "./runListView"
 import {useAutomationRuns} from "./useAutomationRuns"
 
 /**
@@ -38,7 +44,13 @@ export const AutomationRunHistoryView = ({
 }) => {
     const {runs: allRuns, caption, isLoading, error, refetch} = useAutomationRuns(automation)
 
-    const [view, setView] = useState(DEFAULT_RUN_LIST_VIEW)
+    // Same split as the automations list: how the runs are cut is remembered, what they are
+    // narrowed to is not.
+    const [view, setView] = useFilterMenuView<RunListView>({
+        key: "agenta:automation-runs:view",
+        fallback: DEFAULT_RUN_LIST_VIEW,
+        persist: ["group"],
+    })
     const runs = useMemo(() => deriveRunList(allRuns, view), [allRuns, view])
     const filtered = !isDefaultRunListView(view)
 

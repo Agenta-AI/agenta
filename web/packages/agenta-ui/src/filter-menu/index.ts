@@ -18,3 +18,4 @@ export type {
     FilterMenuSide,
     FilterMenuTriggerProps,
 } from "./types"
+export {useFilterMenuView} from "./useFilterMenuView"
