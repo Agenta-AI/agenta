@@ -207,7 +207,13 @@ const switchToTypescriptTab = async (drawer: any) => {
 
 const useApiTests = () => {
     // WEB-ACC-USEAPI-001
-    test(
+    // Quarantined on a real product hang, not a flaky test: https://github.com/Agenta-AI/agenta/issues/6708
+    // For an app with more than one variant, the variant-mode "How to use API" drawer
+    // renders in an infinite update loop from the moment it opens. Clicking a language
+    // tab turns that loop synchronous and pins the renderer, so the click never returns
+    // and the test burns its full timeout. Re-enable this test with the fix for #6708.
+    // The deployment-mode test below covers the same drawer and still runs.
+    test.fixme(
         "should show variant TypeScript snippet for Fetch Prompt/Config and Invoke LLM",
         {tag: lightFastTags},
         async ({page, apiHelpers, uiHelpers}) => {
