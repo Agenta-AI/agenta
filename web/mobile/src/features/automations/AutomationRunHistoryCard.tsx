@@ -22,16 +22,16 @@ export const AutomationRunHistoryCard = ({
 }) => (
     <Link
         href={href}
-        className={`mt-[30px] flex w-full items-center rounded-[11px] border border-solid border-border no-underline ${caption ? "gap-3.5 px-[18px] py-4" : "gap-3 px-4 py-3"} ${ROW_LINK}`}
+        className={`mt-[30px] flex w-full items-center rounded-lg border border-solid border-border no-underline ${caption ? "gap-3 px-3.5 py-2.5" : "gap-3 px-3.5 py-2"} ${ROW_LINK}`}
     >
         <span
-            className={`flex shrink-0 items-center justify-center rounded-[9px] bg-muted ${
-                caption ? "size-[34px]" : "size-7"
+            className={`flex shrink-0 items-center justify-center rounded-md bg-muted ${
+                caption ? "size-7" : "size-6"
             }`}
         >
             <ClockCounterClockwise
                 aria-hidden
-                size={caption ? 17 : 15}
+                size={caption ? 15 : 14}
                 className="text-muted-foreground"
             />
         </span>
