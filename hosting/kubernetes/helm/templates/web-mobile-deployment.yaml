@@ -46,12 +46,15 @@ spec:
               value: "0.0.0.0"
             - name: AGENTA_LICENSE
               value: {{ include "agenta.edition" . | quote }}
+            {{- /* Use the *Effective helpers, like every other workload: they fall back to
+                   ingress.host when the operator does not set agenta.webUrl/apiUrl/servicesUrl.
+                   Reading the raw values here shipped empty URLs to the browser bundle. */}}
             - name: AGENTA_WEB_URL
-              value: {{ $agenta.webUrl | default "" | quote }}
+              value: {{ include "agenta.webUrlEffective" . | quote }}
             - name: AGENTA_SERVICES_URL
-              value: {{ $agenta.servicesUrl | default "" | quote }}
+              value: {{ include "agenta.servicesUrlEffective" . | quote }}
             - name: AGENTA_API_URL
-              value: {{ $agenta.apiUrl | default "" | quote }}
+              value: {{ include "agenta.apiUrlEffective" . | quote }}
             - name: AGENTA_MOBILE_GATE
               value: {{ eq (include "agenta.webMobile.enabled" .) "true" | quote }}
             - name: AGENTA_MOBILE_REVERSE_GATE
