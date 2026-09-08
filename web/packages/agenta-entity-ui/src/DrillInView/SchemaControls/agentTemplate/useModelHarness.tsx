@@ -58,6 +58,7 @@ import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
 import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
 import ModelPickerControl from "./ModelPickerControl"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
+import {agentProviderNeedsKey} from "./providerKeyGate"
 import {RevertGroupButton} from "./RevertGroupButton"
 import {useBuildKit} from "./useBuildKit"
 
@@ -226,15 +227,15 @@ export function useModelHarness({
             ) ?? null
         )
     }, [standardSecrets, selectedProviderFamily])
-    // Self-managed agents never need a vault key — the harness signs itself in. Neither does a
-    // named custom-provider connection (agenta mode with a slug): it carries its own credentials,
-    // so a missing STANDARD vault key for the family is not this connection's problem.
-    const providerNeedsKey =
-        connection.mode !== "self_managed" &&
-        !(connection.mode === "agenta" && !!connection.slug) &&
-        vaultLoaded &&
-        !!providerVaultEntry &&
-        !providerVaultEntry.key
+    // The rule lives in `agentProviderNeedsKey` so the presence check goes through `hasStoredKey`
+    // and cannot drift back to reading the value off the row (a write-only record never returns
+    // one — see the module for the whole rule).
+    const providerNeedsKey = agentProviderNeedsKey({
+        connectionMode: connection.mode,
+        connectionSlug: connection.slug,
+        vaultLoaded,
+        providerEntry: providerVaultEntry,
+    })
 
     // The "Add custom provider" footer + drawer come from context, same source as the completion picker.
     const {llmProviderConfig, permissions, onWorkflowRevisionCommitted} = useDrillInUI()
