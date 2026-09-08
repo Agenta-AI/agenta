@@ -30,6 +30,7 @@ from oss.src.core.secrets.subscription_rules import (
     classify_push,
     failure_is_stale,
     login_is_usable,
+    push_reason,
 )
 from oss.src.core.secrets.types import (
     SubscriptionLoginAttemptNotFound,
@@ -49,6 +50,9 @@ _MAX_LOGIN_ERROR_LENGTH = 200
 _ATTEMPT_NOT_FOUND_ERROR = "attempt not found; try again"
 
 _INVALID_LOGIN_REASON = "invalid_login"
+
+# Push decisions worth a warning rather than an info line.
+_WARNED_PUSH_DECISIONS = {PushDecision.INVALID, PushDecision.OTHER_ACCOUNT}
 
 
 class SubscriptionLoginAttemptView(BaseModel):
@@ -71,8 +75,11 @@ class SubscriptionLoginPushResult(BaseModel):
     # The current login, sent back only on a stale answer, so the runner can rematerialize
     # without a second call.
     login: Optional[Dict[str, Any]] = None
-    # Only an unusable credential sets this. The ordering refusals are the protocol
-    # working as designed.
+    # Why a push was not stored, as a stable slug. `same_login` means the row already holds
+    # this exact credential, which is the one refusal that still tells the runner its
+    # credential is current; every other slug (`invalid_login`, `older_login`,
+    # `other_account`, `wrong_generation`, `no_login`) means the row kept something else.
+    # An accepted push and a stale answer carry none: `updated` and `stale` say it.
     reason: Optional[str] = None
 
 
@@ -112,8 +119,13 @@ def _log_push(
     generation: int,
     decision: PushDecision,
 ) -> None:
-    """One line per push decision. Never the credential."""
-    write = log.warning if decision is PushDecision.INVALID else log.info
+    """One line per push decision. Never the credential.
+
+    Two decisions warn, because both mean a run pushed something that cannot belong here: an
+    unusable credential, and a login for another ChatGPT account. The ordering refusals are
+    the protocol working, so they stay at info.
+    """
+    write = log.warning if decision in _WARNED_PUSH_DECISIONS else log.info
     write(
         "subscription.push",
         connection=str(secret_id),
@@ -683,7 +695,7 @@ def _push_result(
         updated=False,
         stale=decision is PushDecision.STALE,
         login=_current_login(stored) if decision is PushDecision.STALE else None,
-        reason=(_INVALID_LOGIN_REASON if decision is PushDecision.INVALID else None),
+        reason=push_reason(decision),
     )
 
 

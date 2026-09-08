@@ -24,7 +24,12 @@ _ACCOUNT_CLAIM_FIELD = "chatgpt_account_id"
 
 
 class PushDecision(str, Enum):
-    """What a pushed login is worth against the row it claims to refresh."""
+    """What a pushed login is worth against the row it claims to refresh.
+
+    One member per outcome, because the answer goes on the wire: the runner learns the row's
+    version from a push only when its own credential was stored or is already the stored one,
+    and a single `reject` bucket could not tell it which happened.
+    """
 
     ACCEPT = "accept"
     # The same refresh token is already stored. A second store would bump the version for
@@ -34,7 +39,33 @@ class PushDecision(str, Enum):
     STALE = "stale"
     # The credential itself is not usable, whatever lineage it claims.
     INVALID = "invalid"
-    REJECT = "reject"
+    # The row holds no login at all, so there is no lineage to refresh.
+    NO_LOGIN = "no_login"
+    # A lineage this row has never issued. Nothing safe to do with it.
+    WRONG_GENERATION = "wrong_generation"
+    # A login for a different ChatGPT account. It must never take over this connection.
+    OTHER_ACCOUNT = "other_account"
+    # The same account and lineage, but the credential is older than the stored one.
+    OLDER_LOGIN = "older_login"
+
+
+# The `reason` slug each decision puts on the wire. `accept` and `stale` say what they are in
+# their own fields (`updated` and `stale`), so they carry no reason. Every other decision
+# means "not stored", and the slug is how the runner tells a credential the row already holds
+# from one the row refused.
+_PUSH_REASONS: Dict[PushDecision, str] = {
+    PushDecision.NOOP: "same_login",
+    PushDecision.INVALID: "invalid_login",
+    PushDecision.NO_LOGIN: "no_login",
+    PushDecision.WRONG_GENERATION: "wrong_generation",
+    PushDecision.OTHER_ACCOUNT: "other_account",
+    PushDecision.OLDER_LOGIN: "older_login",
+}
+
+
+def push_reason(decision: PushDecision) -> Optional[str]:
+    """The slug a push answer carries for `decision`, or None when it carries none."""
+    return _PUSH_REASONS.get(decision)
 
 
 def now_ms() -> int:
@@ -140,7 +171,7 @@ def classify_push(
     with a new refresh token is still a real refresh.
     """
     if stored.login is None:
-        return PushDecision.REJECT
+        return PushDecision.NO_LOGIN
 
     if not login_is_usable(login):
         return PushDecision.INVALID
@@ -149,18 +180,17 @@ def classify_push(
         return PushDecision.STALE
 
     if generation != stored.login_generation:
-        # The run claims a lineage this row has never issued. Nothing safe to do with it.
-        return PushDecision.REJECT
+        return PushDecision.WRONG_GENERATION
 
     if login.get("accountId") != stored.login.accountId:
-        return PushDecision.REJECT
+        return PushDecision.OTHER_ACCOUNT
 
     if login.get("refresh") == stored.login.refresh:
         return PushDecision.NOOP
 
     expires = login.get("expires")
     if not isinstance(expires, int) or expires < (stored.login.expires or 0):
-        return PushDecision.REJECT
+        return PushDecision.OLDER_LOGIN
 
     return PushDecision.ACCEPT
 

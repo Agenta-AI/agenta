@@ -46,8 +46,13 @@ class SubscriptionLoginPushResponse(BaseModel):
     updated: bool
     stale: bool = False
     login: Optional[Dict[str, Any]] = None
-    # Set to `invalid_login` when the pushed credential was not usable. The ordering
-    # refusals leave it null: those are the protocol working, not something to report.
+    # Why the push was not stored. `same_login` says the row already holds this exact
+    # credential, so the run's own login is current and `version` describes it. Every other
+    # slug says the row kept something else, so `version` describes a credential this run
+    # does not hold: `invalid_login` (unusable shape), `older_login` (an earlier expiry on
+    # the same lineage), `other_account` (a different ChatGPT account), `wrong_generation`
+    # (a lineage this row never issued), `no_login` (the row holds none). An accepted push
+    # and a stale answer carry no reason, because `updated` and `stale` already say it.
     reason: Optional[str] = None
 
 

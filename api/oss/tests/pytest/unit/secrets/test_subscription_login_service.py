@@ -943,7 +943,7 @@ class TestPushedLogin:
         )
 
         assert result.updated is False
-        assert result.reason is None
+        assert result.reason == "other_account"
         assert (await _read(vault, secret.id)).data.login.accountId == "acct-1"
 
     async def test_a_push_to_a_connection_with_no_login_is_refused(
@@ -960,6 +960,7 @@ class TestPushedLogin:
         )
 
         assert result.updated is False
+        assert result.reason == "no_login"
         assert (await _read(vault, secret.id)).data.login is None
 
     async def test_a_real_shaped_token_for_this_account_is_accepted(
@@ -1118,9 +1119,9 @@ class TestAnUnusablePushedLogin:
             generation=1,
         )
 
-        # Refused, but by the account rule, not the shape check: no `invalid_login`.
+        # Refused, but by the account rule, not the shape check.
         assert result.updated is False
-        assert result.reason is None
+        assert result.reason == "other_account"
 
 
 class TestAnUnusableDeviceLogin:

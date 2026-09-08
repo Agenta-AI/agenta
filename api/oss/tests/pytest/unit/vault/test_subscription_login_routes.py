@@ -488,6 +488,12 @@ class TestRunnerFacingRoutes:
         assert read_back["data"]["login_state"] == "ready"
 
     def test_the_same_refresh_token_is_an_idempotent_no_op(self, harness):
+        """`same_login` is the one refusal that tells a run its credential IS current.
+
+        The runner learns the row's version from a push only when the row stored its
+        credential or already holds it. Answering a no-op the way a refusal answers left it
+        unable to tell "you are up to date" from "the row kept something else".
+        """
         secret_id = _signed_in(
             harness,
             {"login": LOGIN, "login_version": 3, "login_generation": 1},
@@ -507,7 +513,115 @@ class TestRunnerFacingRoutes:
             "generation": 1,
             "updated": False,
             "stale": False,
+            "reason": "same_login",
         }
+
+    def test_each_refusal_names_itself_and_none_of_them_says_same_login(self, harness):
+        """One slug per outcome, so no refusal can be read as "you are up to date"."""
+        secret_id = _signed_in(
+            harness,
+            {"login": LOGIN, "login_version": 3, "login_generation": 1},
+        )
+
+        pushes = {
+            # A credential the row cannot use, whatever lineage it claims.
+            "invalid_login": {
+                "login": {
+                    **LOGIN,
+                    "access": "not-a-jwt",
+                    "refresh": "refresh-2",
+                    "expires": _expires_in(9),
+                },
+                "version": 3,
+                "generation": 1,
+            },
+            # A different ChatGPT account, self-consistent so it clears the shape check.
+            "other_account": {
+                "login": {
+                    **LOGIN,
+                    "access": _access_token("acct-2"),
+                    "accountId": "acct-2",
+                    "refresh": "refresh-2",
+                    "expires": _expires_in(9),
+                },
+                "version": 3,
+                "generation": 1,
+            },
+            # The same lineage and account, but older than what the row holds.
+            "older_login": {
+                "login": {
+                    **LOGIN,
+                    "refresh": "refresh-2",
+                    "expires": _expires_in(0.5),
+                },
+                "version": 3,
+                "generation": 1,
+            },
+            # A lineage this row has never issued.
+            "wrong_generation": {
+                "login": {**LOGIN, "refresh": "refresh-2", "expires": _expires_in(9)},
+                "version": 3,
+                "generation": 7,
+            },
+        }
+
+        for expected, body in pushes.items():
+            response = harness.client.post(
+                f"/secrets/{secret_id}/subscription-login", json=body
+            )
+
+            assert response.status_code == 200, response.text
+            answer = response.json()
+            assert answer["reason"] == expected, expected
+            assert answer["updated"] is False
+            assert answer["stale"] is False
+
+        # Nothing above moved the row.
+        read_back = harness.client.get(f"/secrets/{secret_id}").json()
+        assert read_back["data"]["login_version"] == 3
+
+    def test_a_push_to_a_connection_that_holds_no_login_says_so(self, harness):
+        secret_id = _create(harness.client)["id"]
+
+        response = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login",
+            json={"login": LOGIN, "version": 0, "generation": 0},
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json()["reason"] == "no_login"
+        assert response.json()["updated"] is False
+
+    def test_an_accepted_push_and_a_stale_answer_carry_no_reason(self, harness):
+        """`updated` and `stale` already say what those two are."""
+        secret_id = _signed_in(
+            harness,
+            {"login": LOGIN, "login_version": 3, "login_generation": 1},
+        )
+
+        accepted = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login",
+            json={
+                "login": {**LOGIN, "refresh": "refresh-2", "expires": _expires_in(2)},
+                "version": 3,
+                "generation": 1,
+            },
+        ).json()
+
+        assert accepted["updated"] is True
+        assert "reason" not in accepted
+
+        stale = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login",
+            json={
+                "login": {**LOGIN, "refresh": "refresh-3", "expires": _expires_in(9)},
+                "version": 0,
+                "generation": 0,
+            },
+        ).json()
+
+        assert stale["stale"] is True
+        assert "reason" not in stale
 
     def test_an_older_generation_gets_the_current_login_back(self, harness):
         secret_id = _signed_in(
