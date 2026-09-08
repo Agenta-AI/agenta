@@ -45,8 +45,13 @@ class _FakeResponse:
 
 
 @pytest.fixture
-def backend_facts(monkeypatch):
-    """Stub the three backend reads the resolver makes. Returns the mutable answers."""
+def backend_facts(monkeypatch, sdk_singleton):
+    """Stub the three backend reads the resolver makes. Returns the mutable answers.
+
+    Depends on ``sdk_singleton`` to make the order real rather than assumed. Two
+    function-scoped fixtures with no dependency between them have no guaranteed order, and
+    this one sets an environment variable the other reads.
+    """
     facts: Dict[str, Any] = {
         "names": {ARTIFACT_A: "Agent A", ARTIFACT_B: "Agent B"},
         "session_name": None,
@@ -88,20 +93,30 @@ def backend_facts(monkeypatch):
 
 @pytest.fixture
 def sdk_singleton():
-    """Own the SDK singleton for one test, and put back whatever was there.
+    """Give one test an initialized ``ag.tracing``, and put back the one it replaced.
 
     The route runs the INSTRUMENTED handler, which reads ``ag.tracing``. Inheriting it from
     whatever else ran first in the process is not safe: under the parallel runner the worker
     that gets this file may have run nothing that initializes it, and the failure is a 500 on
     ``NoneType.get_current_span`` in the very cell that proves the artifact check works.
 
-    Restoring on the way out matters as much as setting it. ``init`` mutates a process global,
-    and leaving an unroutable host installed would follow every later test in the worker.
+    Restoring on the way out matters as much as setting it, so a host meant for this file does
+    not follow every later test in the worker. Be clear about how far that goes: this puts back
+    the ``ag.tracing`` alias and nothing else. ``init`` also replaces the SDK singleton's api,
+    async_api and tracer, and installs a provider and exporter, and those stay. It is a
+    narrower guarantee than owning the singleton, and it is the part later tests read.
+
+    Pytest also unwinds this fixture after a failing test, but not after a failure raised
+    before the yield.
     """
     previous = getattr(agenta_sdk, "tracing", None)
-    # `host` does NOT isolate the exporter here: the AGENTA_API_URL set above wins, so the
-    # background exporter really does reach for that host. Nothing in this file reads a span,
-    # and the exporter flushes off the request path, so its failures do not affect a result.
+    # The host below is a preference, not isolation. `init` prefers AGENTA_API_INTERNAL_URL,
+    # then AGENTA_API_URL, over anything passed here, and either may be ambient in the
+    # process. `backend_facts` depends on this fixture so at least it cannot be the one that
+    # sets the variable first, but that is ordering, not a guarantee about the target.
+    #
+    # Isolation is not needed. Nothing here reads a span, and the exporter flushes off the
+    # request path, so wherever it points, a failed export cannot change a result.
     agenta_sdk.init(host="http://127.0.0.1:1", api_key="test-key")
     assert agenta_sdk.tracing is not None, (
         "the route needs an initialized SDK singleton"
