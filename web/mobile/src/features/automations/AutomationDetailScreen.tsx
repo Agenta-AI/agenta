@@ -1,7 +1,10 @@
+import {useCallback, useState} from "react"
+
 import {
     AutomationBackLink,
     AutomationDetailBody,
     AutomationDetailSkeleton,
+    AutomationRunHistoryView,
     AutomationTriggerDrawers,
     useAutomationEditor,
 } from "@agenta/automation-ui"
@@ -15,6 +18,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {useConfirmSheet} from "../settings/useConfirmSheet"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
+import {AutomationRunConversation} from "./AutomationRunConversation"
 import {AutomationTestRunButton} from "./AutomationTestRunButton"
 import {useUnsavedGuard} from "./useUnsavedGuard"
 
@@ -28,6 +32,10 @@ import {useUnsavedGuard} from "./useUnsavedGuard"
  *
  * The three config fields are one unsaved draft (`useAutomationDraft`) that leaves on Save; only
  * the name and the on/off switch still write on the spot.
+ *
+ * The run history is the SAME screen in another state, not a route of its own: it belongs to this
+ * automation, and a URL for it would make "did it work?" somewhere you navigate away to — losing
+ * an unsaved draft on the way. The header swaps its back link to match whichever is showing.
  */
 export const AutomationDetailScreen = ({
     workspaceId,
@@ -66,28 +74,65 @@ export const AutomationDetailScreen = ({
     const {confirm, sheet} = useConfirmSheet()
     const leave = useUnsavedGuard({dirty, confirm})
 
+    const [showRuns, setShowRuns] = useState(false)
+    const openRuns = useCallback(() => setShowRuns(true), [])
+    const closeRuns = useCallback(() => setShowRuns(false), [])
+
+    const renderConversation = useCallback(
+        (sessionId: string) => (
+            // The transcript is this app's chat surface, so the package takes it as a slot.
+            <AutomationRunConversation
+                sessionId={sessionId}
+                projectId={projectId}
+                workspaceId={workspaceId}
+                agentId={automation?.agentId ?? null}
+            />
+        ),
+        [automation?.agentId, projectId, workspaceId],
+    )
+
     return (
         <>
             <PageTitle title="Automations" context={automation?.name} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
+                    fill={showRuns}
                     header={
-                        <div className="mx-auto w-full max-w-[760px] shrink-0 px-8 pb-3.5 pt-[30px]">
-                            <div className="flex min-w-0 items-center gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <AutomationBackLink href={`${base}/automations`} />
+                        showRuns ? (
+                            // The runs view puts the list on a 240px column, and pl-[30px] lands
+                            // this arrow on the rows' own grid.
+                            <div className="w-full shrink-0 pb-2 pl-[30px] pr-5 pt-5">
+                                <div className="flex min-w-0 max-w-[240px] items-center gap-2">
+                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                    <AutomationBackLink
+                                        onBack={closeRuns}
+                                        label={automation?.name || "Automation"}
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="mx-auto w-full max-w-[760px] shrink-0 px-8 pb-3.5 pt-[30px]">
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                    <AutomationBackLink href={`${base}/automations`} />
+                                </div>
+                            </div>
+                        )
                     }
                 >
-                    {automation && preview ? (
+                    {showRuns ? (
+                        <AutomationRunHistoryView
+                            automation={automation}
+                            renderConversation={renderConversation}
+                        />
+                    ) : automation && preview ? (
                         <AutomationDetailBody
                             automation={automation}
                             preview={preview}
                             agentName={agentName}
-                            runsHref={`${base}/automations/${automation.id}/runs`}
-                            failureReason={failureReason}
                             runHistoryCaption={runHistoryCaption}
+                            onOpenRunHistory={openRuns}
+                            failureReason={failureReason}
                             dirty={dirty}
                             saving={saving}
                             onRename={onRename}

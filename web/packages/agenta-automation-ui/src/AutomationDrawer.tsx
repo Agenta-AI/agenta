@@ -11,9 +11,9 @@ import {useAtom, useAtomValue} from "jotai"
 
 import {AutomationCreateBody} from "./AutomationCreateBody"
 import {AutomationDetailBody} from "./AutomationDetailBody"
-import {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 import {type AutomationKind} from "./automationModel"
 import {AutomationSaveBar} from "./AutomationSaveBar"
+import {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 import {AutomationDetailSkeleton} from "./states/AutomationStates"
 import {useAutomationCreate} from "./useAutomationCreate"
 import {useAutomationEditor} from "./useAutomationEditor"
@@ -184,16 +184,12 @@ const AutomationEditDrawer = ({
                     automation={editor.automation}
                     preview={editor.preview}
                     agentName={editor.agentName}
-                    // The drawer opens over the agent that owns the run history, so a link out of
-                    // it would point at the surface the reader is already standing on.
-                    runsHref={null}
                     // The drawer owns the gutters, so the body drops its page column.
                     className="flex min-w-0 flex-col"
                     // The save bar lives in the drawer's footer, where it stays put while the
                     // form scrolls under it.
                     hideSaveBar
                     failureReason={editor.failureReason}
-                    runHistoryCaption={editor.runHistoryCaption}
                     dirty={editor.dirty}
                     saving={editor.saving}
                     onRename={editor.onRename}

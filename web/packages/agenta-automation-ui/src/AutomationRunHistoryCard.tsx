@@ -1,28 +1,31 @@
 import {CaretRight, ClockCounterClockwise} from "@phosphor-icons/react"
-import Link from "next/link"
 
 import {ROW_LINK} from "./lib/interactive"
 
 /**
- * The way out of the config screen and into what actually happened.
+ * The way out of the config and into what actually happened.
  *
- * A card rather than a list preview: runs are their own screen (W6), and a truncated list here
- * would answer neither "did it work" nor "what did it do".
+ * A card rather than a list preview: the runs take the whole screen when opened, and a truncated
+ * list here would answer neither "did it work" nor "what did it do".
+ *
+ * It opens a VIEW, not a route. The runs belong to the automation above them, so the URL stays on
+ * it and the history's own back link returns here — one screen, two states.
  *
  * The design draws this two lines tall — a title over a run count. It collapses to a single row
  * until that count is wired, because a box sized for two lines holding one reads as padding
  * around nothing.
  */
 export const AutomationRunHistoryCard = ({
-    href,
+    onOpen,
     caption = "",
 }: {
-    href: string
+    onOpen: () => void
     caption?: string
 }) => (
-    <Link
-        href={href}
-        className={`mt-[30px] flex w-full items-center rounded-lg border border-solid border-border no-underline ${caption ? "gap-3 px-3.5 py-2.5" : "gap-3 px-3.5 py-2"} ${ROW_LINK}`}
+    <button
+        type="button"
+        onClick={onOpen}
+        className={`mt-[30px] flex w-full cursor-pointer items-center rounded-lg border border-solid border-border bg-transparent text-left ${caption ? "gap-3 px-3.5 py-2.5" : "gap-3 px-3.5 py-2"} ${ROW_LINK}`}
     >
         <span
             className={`flex shrink-0 items-center justify-center rounded-md bg-muted ${
@@ -42,5 +45,5 @@ export const AutomationRunHistoryCard = ({
             ) : null}
         </span>
         <CaretRight aria-hidden size={14} className="shrink-0 text-muted-foreground" />
-    </Link>
+    </button>
 )
