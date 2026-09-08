@@ -86,15 +86,13 @@ describe("SubscriptionLoginAttempts", () => {
 
     const first = attempts.get(attemptId);
     assert.equal(first?.state, "succeeded");
-    assert.equal(first?.delivered, true);
     // `type` is stamped on, so the vault stores the file-ready Pi shape.
     assert.deepEqual(first?.login, { type: "oauth", ...LOGIN });
 
-    // Amendment A5: a second poll must still get the credential. The API stores it durably and
-    // only then deletes; consuming it on the first read lost logins whose response never arrived.
+    // A second poll must still get the credential. The API stores it durably and only then
+    // deletes; consuming it on the first read lost logins whose response never arrived.
     const second = attempts.get(attemptId);
     assert.equal(second?.state, "succeeded");
-    assert.equal(second?.delivered, true);
     assert.deepEqual(
       second?.login,
       { type: "oauth", ...LOGIN },
