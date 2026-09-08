@@ -6,7 +6,10 @@ export const canRestoreRefusedSend = (editor: RichChatInputHandle | null): boole
 export const restoreRefusedDraft = (editor: RichChatInputHandle | null, text: string): boolean => {
     if (!editor || !text || !canRestoreRefusedSend(editor)) return false
     editor.setMarkdown(text)
-    return true
+    // `setMarkdown` returns void and does nothing at all when the handle's internal ref is gone,
+    // so the only way to know it took the text is to read it back. Reporting success falsely tells
+    // the caller the message is safe in the composer when it is nowhere.
+    return editor.getMarkdown() === text
 }
 
 interface RefusedSend<TAttachment> {

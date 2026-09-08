@@ -9,8 +9,13 @@ import {
 
 describe("restoreRefusedDraft", () => {
     it("restores a refused message only into an empty composer", () => {
-        const setMarkdown = vi.fn()
-        const editor = {getMarkdown: () => "", setMarkdown} as never
+        // The stub STORES what it is given, because success is now confirmed by reading it back
+        // rather than by the call returning.
+        let markdown = ""
+        const setMarkdown = vi.fn((next: string) => {
+            markdown = next
+        })
+        const editor = {getMarkdown: () => markdown, setMarkdown} as never
 
         expect(restoreRefusedDraft(editor, "try again")).toBe(true)
         expect(setMarkdown).toHaveBeenCalledWith("try again")
@@ -120,5 +125,20 @@ describe("restoreRefusedSend for a late refusal", () => {
         )
         expect(markdown).toBe("refused")
         expect(restoreAttachments).toHaveBeenCalledWith(stagedFiles)
+    })
+})
+
+describe("restoreRefusedDraft with a stale editor handle", () => {
+    it("reports failure when setMarkdown silently does nothing", () => {
+        // The handle's setMarkdown returns void and is a no-op once its internal ref is gone.
+        // Reporting success there tells the caller the message is safe in the composer when it is
+        // nowhere, and the caller uses that to drop the only row showing it.
+        const stale = {
+            getMarkdown: () => "",
+            setMarkdown: () => undefined,
+        } as unknown as RichChatInputHandle
+
+        expect(restoreRefusedDraft(stale, "refused")).toBe(false)
+        expect(restoreRefusedSend(stale, {text: "refused", stagedFiles: []}, vi.fn())).toBe(false)
     })
 })

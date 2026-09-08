@@ -349,7 +349,10 @@ export const useAgentChatQueue = ({
                                 if (restoreRefusedSendRef.current?.(message)) {
                                     echoes.drop(message.id)
                                 } else {
-                                    echoes.markFailed(message.id)
+                                    // Re-create the row if the count rule already retired it,
+                                    // or a refusal arriving after that leaves the message with
+                                    // nowhere at all to be seen.
+                                    echoes.markFailed(message.id, message)
                                 }
                             },
                             // The turn ended and its records were re-read. An echo still on

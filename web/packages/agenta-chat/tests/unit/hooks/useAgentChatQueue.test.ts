@@ -1518,3 +1518,44 @@ describe("useAgentChatQueue settlement never touches the composer", () => {
         expect(result.current.pendingSendRows[0].metadata).toMatchObject({pendingSendFailed: true})
     })
 })
+
+describe("useAgentChatQueue refusal after the echo has gone", () => {
+    it("re-creates the row when the count retired it and the composer declines", async () => {
+        // The pre-acknowledgement window can retire an echo before its refusal arrives. If the
+        // composer also declines, because the user has typed since, the message previously had
+        // neither a row nor a restored draft: it was gone.
+        const {server, watchers} = durableServer()
+        const restoreRefusedSend = vi.fn(() => false)
+        const props: HarnessProps = {...settledEmpty, server, restoreRefusedSend}
+        const {result, rerender} = setup(props)
+
+        await act(async () => {
+            await result.current.submit({text: "refused after retirement"})
+        })
+
+        // A foreign row retires it on the count before any identity arrives.
+        rerender({...props, messages: [userTurn("foreign-1", "someone else")]})
+        expect(result.current.pendingSendRows).toHaveLength(0)
+
+        await act(async () => watchers[0].onFailed?.())
+
+        expect(echoText(result)).toEqual(["refused after retirement"])
+        expect(result.current.pendingSendRows[0].metadata).toMatchObject({pendingSendFailed: true})
+    })
+
+    it("does not re-create a row when the composer took the text", async () => {
+        const {server, watchers} = durableServer()
+        const restoreRefusedSend = vi.fn(() => true)
+        const props: HarnessProps = {...settledEmpty, server, restoreRefusedSend}
+        const {result, rerender} = setup(props)
+
+        await act(async () => {
+            await result.current.submit({text: "restored instead"})
+        })
+        rerender({...props, messages: [userTurn("foreign-1", "someone else")]})
+
+        await act(async () => watchers[0].onFailed?.())
+
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+})

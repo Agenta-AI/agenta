@@ -27,8 +27,12 @@ export interface PendingSendEchoes {
     markAccepted: (id: string, executionId: string) => void
     /** The server parked it; from here it retires when the dock is OBSERVED to list that input. */
     markParked: (id: string, inputId: string) => void
-    /** The send failed after the composer cleared. The row STAYS, flagged, so no text is lost. */
-    markFailed: (id: string) => void
+    /**
+     * The send failed after the composer cleared. The row STAYS, flagged, so no text is lost.
+     * Pass the message to re-create a row the count rule has already retired: a refusal that
+     * arrives after that would otherwise leave neither a row nor a restored draft.
+     */
+    markFailed: (id: string, recreate?: PendingSendEchoInput) => void
     /** The caller will restore the text itself, so the row can go. */
     drop: (id: string) => void
 }
@@ -121,7 +125,31 @@ export const usePendingSendEchoes = ({
         (id: string, inputId: string) => mark(id, {parkedInputId: inputId}),
         [mark],
     )
-    const markFailed = useCallback((id: string) => mark(id, {failed: true}), [mark])
+    const markFailed = useCallback((id: string, recreate?: PendingSendEchoInput) => {
+        setEchoes((current) => {
+            const index = current.findIndex((item) => item.id === id)
+            if (index >= 0) {
+                if (current[index].failed) return current
+                const next = [...current]
+                next[index] = {...current[index], failed: true}
+                return next
+            }
+            if (!recreate) return current
+            // Retired already, and now refused. The row is the only place this message can
+            // still be seen, so put it back rather than lose it.
+            return [
+                ...current,
+                {
+                    id: recreate.id,
+                    text: recreate.text,
+                    fileParts: recreate.fileParts,
+                    failed: true,
+                    coveredAtUserCount: Number.POSITIVE_INFINITY,
+                    createdAtUserCount: 0,
+                },
+            ]
+        })
+    }, [])
 
     const rows = useMemo(() => pendingSendEchoMessages(visible), [visible])
 
