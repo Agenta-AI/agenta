@@ -30,9 +30,9 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
 ## Plan and checklist (work top-down; check items as done)
 - [x] Committed + pushed + PR 6679 (base channels/fix-approval-card-on-park). CodeRabbit requested.
 - [~] Codex astra review RUNNING (xhigh, /tmp/codex-out-telegram.log). Subagent quality review RUNNING.
-- [ ] Subagent code-quality/cleanliness review of the added code; address findings.
-- [ ] Request CodeRabbit review on the PR.
-- [ ] Address all review findings (system + subsystem).
+- [x] Subagent code-quality review done; findings addressed.
+- [x] CodeRabbit requested on #6679.
+- [x] Addressed all Codex + subagent findings (commit 44be48026f).
 - [ ] Lane 3: hosted Telegram bot (Option A) — per-project keying, QR + deep-link account bind, allowed-user-ids gate. Implement + live QA.
 - [ ] Media: image support (Telegram + Slack shared) — investigate multimodal session input; implement if tractable, else write a scoped requirements doc. Voice: transcription, scope it.
 - [ ] UI (lane 4): read the design via DesignSync (project 11b9bef2-dd9f-495b-a657-8eaf4ea6f07e, file "Agent Channels.dc.html"); implement for the new app (/m) AND desktop; visually test both (browser screenshots).
@@ -75,3 +75,14 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
 2. Address findings on channels/telegram; push; keep tests green.
 3. Lane 3 (hosted bind) stacked on it.
 4. UI first pass from the design for /m + desktop (own branch), then visual QA.
+
+## Reviews addressed (night)
+- Codex astra (xhigh) + code-quality subagent reviewed PR #6679. 10 + 11 findings.
+- ALL P1/P2 fixed on channels/telegram (commit 44be48026f), no architecture change:
+  redaction of secondary channel secrets; rotation preserves them; failed-activation
+  rollback; per-chat kick no longer deactivates the connection; approval card rendered as
+  text; forum topics not classified/advertised (one conversation per chat); split-before-
+  escape; invalid-token -> setup error; mention-by-substring + command target check;
+  callback ack; indicator identified by explicit marker not display text.
+- 844 channels+secrets unit tests pass; ruff clean.
+- Live re-verified on the test account: continuity PASS (recalled 99), one reply per message.
