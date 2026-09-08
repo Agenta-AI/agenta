@@ -290,9 +290,15 @@ def _bearer_token(header_value: Optional[str]) -> Optional[str]:
 
 
 def _json_body(request: httpx.Request) -> Dict[str, Any]:
-    if not request.content:
-        return {}
-    return json.loads(request.content)
+    """The call's arguments: read methods send them as query parameters, write
+    methods as a JSON body. Numeric query values come back as ints so the
+    handlers can page the same way for both."""
+    args: Dict[str, Any] = {}
+    for key, value in request.url.params.multi_items():
+        args[key] = int(value) if value.isdigit() else value
+    if request.content:
+        args.update(json.loads(request.content))
+    return args
 
 
 def _ok_response(body: Dict[str, Any]) -> httpx.Response:

@@ -490,3 +490,22 @@ async def test_verify_signature_rejects_a_stale_timestamp():
             ),
             connection=_connection(signing_secret=secret),
         )
+
+
+async def test_discover_spaces_follows_the_listing_cursor_past_the_first_page():
+    """Slack pages conversations.list; a workspace with more channels than one
+    page hid every channel past it, the QA channel included."""
+    channels = [{"id": f"C{i:04d}", "name": f"room-{i}"} for i in range(450)]
+    adapter, _workspace, transport = make_adapter_and_workspace(channels=channels)
+    connection = _connection()
+
+    candidates = await adapter.discover_spaces(connection=connection)
+
+    assert len(candidates) == 450
+    assert {c.external_locator["channel"] for c in candidates} == {
+        c["id"] for c in channels
+    }
+    listing_calls = [
+        r for r in transport.requests if r.url.path.endswith("conversations.list")
+    ]
+    assert len(listing_calls) == 3
