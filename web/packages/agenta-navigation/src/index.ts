@@ -18,6 +18,10 @@ export {useSidebarResize} from "./useSidebarResize"
 export {
     dropMissingAgentSessions,
     localSessionRefsAtom,
+    sidebarSessionSearchLoadingAtom,
+    sidebarSessionSearchOpenAtom,
+    sidebarSessionSearchQueryAtom,
+    sidebarSessionSearchResultsAtom,
     withLocalSessions,
     type SessionSidebarRef,
 } from "./dynamic/sessionsSource"

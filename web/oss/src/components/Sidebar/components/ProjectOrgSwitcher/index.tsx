@@ -3,6 +3,7 @@ import {memo, useMemo} from "react"
 import {
     NamePromptModal,
     ProjectOrgSwitcherView,
+    SidebarIconMenu,
     type SwitcherEntry,
     type SwitcherThemeControl,
 } from "@agenta/navigation-ui"
@@ -12,6 +13,7 @@ import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 
 import {useProjectOrgSwitcher} from "../../hooks/useProjectOrgSwitcher"
+import {useSidebarHelpItem} from "../../scopes/bottomSection"
 
 interface ProjectOrgSwitcherProps {
     collapsed: boolean
@@ -33,6 +35,9 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
     } = useProjectOrgSwitcher()
 
     const {themeMode, toggleAppTheme} = useAppTheme()
+    // Help rides on the switcher row rather than taking a nav row of its own: it is a menu you
+    // reach for, not a place in the product.
+    const helpItem = useSidebarHelpItem()
 
     const theme = useMemo<SwitcherThemeControl>(
         () => ({
@@ -85,6 +90,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                 theme={theme}
                 onOrgSettings={goToOrgSettings}
                 onLogout={confirmLogout}
+                trailing={<SidebarIconMenu item={helpItem} />}
             />
             <NamePromptModal
                 title="Create project"

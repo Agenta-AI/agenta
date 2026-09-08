@@ -286,7 +286,7 @@ const LeafRow = ({
 }
 
 /** Children of a collapsed-rail (or vertical-mode) group, flattened into a Radix flyout. */
-const FlyoutChildren = ({
+export const FlyoutChildren = ({
     items,
     selectedKeys,
     onItemSelect,
@@ -312,7 +312,12 @@ const FlyoutChildren = ({
                     {child.icon ? (
                         <span className="flex shrink-0 items-center">{child.icon}</span>
                     ) : null}
-                    <span className="min-w-0 truncate">{child.title}</span>
+                    <span className="min-w-0 flex-1 truncate">{child.title}</span>
+                    {/* The version rides the row it describes; the inline path draws it through
+                        RowLabel, so this path has to draw it too or it disappears. */}
+                    {child.suffix ? (
+                        <span className="ml-auto shrink-0 pl-2">{child.suffix}</span>
+                    ) : null}
                 </>
             )
             return (

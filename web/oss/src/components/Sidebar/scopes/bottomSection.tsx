@@ -1,11 +1,18 @@
 import {useCallback, useMemo, type MouseEvent} from "react"
 
-import {buildHelpDocsNavItem, buildInviteTeammateNavItem} from "@agenta/navigation"
+import {
+    ALL_RELEASES_LINK,
+    buildHelpDocsNavItem,
+    buildInviteTeammateNavItem,
+    RELEASES,
+} from "@agenta/navigation"
 import type {SidebarConfig, SidebarSection} from "@agenta/navigation"
 import {GithubFilled} from "@ant-design/icons"
 import {
     ChatCircleIcon,
+    CircleIcon,
     GearIcon,
+    PackageIcon,
     PaperPlaneIcon,
     PhoneIcon,
     QuestionIcon,
@@ -43,12 +50,9 @@ export const useSidebarBottomSection = ({
     // this row hidden for a whole GET /organizations/{id} round-trip on every switch.
     const selectedOrgId = useAtomValue(selectedOrgIdAtom)
     const {canInviteMembers} = useWorkspacePermissions()
-    const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL} = useURL()
     const openWidget = useSetAtom(openWidgetAtom)
     const hasProjectURL = Boolean(projectURL)
-    const versionState = useAtomValue(versionAtom)
-    const version = versionState.state === "hasData" ? versionState.data : undefined
 
     const handleOpenWidget = useCallback(
         (e: MouseEvent) => {
@@ -56,14 +60,6 @@ export const useSidebarBottomSection = ({
             openWidget()
         },
         [openWidget],
-    )
-
-    const handleToggleSupport = useCallback(
-        (e: MouseEvent) => {
-            e.preventDefault()
-            toggle()
-        },
-        [toggle],
     )
 
     const settingsLink = useMemo<SidebarConfig>(
@@ -102,43 +98,8 @@ export const useSidebarBottomSection = ({
                 isHidden: !SHOW_GET_STARTED_GUIDE || !doesSessionExist,
                 onClick: handleOpenWidget,
             },
-            // The four destinations are shared with the mobile drawer; Live Chat needs Crisp,
-            // so it rides in as an extra rather than being reproduced there.
-            buildHelpDocsNavItem({
-                icons: {
-                    help: <QuestionIcon size={14} />,
-                    docs: <ScrollIcon size={14} />,
-                    github: <GithubFilled style={{fontSize: 14}} />,
-                    slack: <SlackLogoIcon size={14} />,
-                    bookCall: <PhoneIcon size={14} />,
-                },
-                // Live Chat relocates here from a standalone row; keep the divider only when it
-                // will actually render (demo + Crisp), else it dangles.
-                dividerAfterBookCall: isDemo() && isCrispEnabled,
-                suffix: version ? (
-                    <span className="text-[12px] leading-none text-colorTextTertiary">
-                        v{version}
-                    </span>
-                ) : undefined,
-                extraItems: [
-                    {
-                        key: "support-chat-link",
-                        title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
-                        icon: <ChatCircleIcon size={14} />,
-                        isHidden: !isDemo() || !isCrispEnabled,
-                        onClick: handleToggleSupport,
-                    },
-                ],
-            }),
         ],
-        [
-            doesSessionExist,
-            handleOpenWidget,
-            handleToggleSupport,
-            isCrispEnabled,
-            isVisible,
-            version,
-        ],
+        [doesSessionExist, handleOpenWidget],
     )
 
     return useMemo(
@@ -151,5 +112,74 @@ export const useSidebarBottomSection = ({
             mode: "vertical",
         }),
         [includeSettingsLink, settingsLink, inviteItem, sharedItems],
+    )
+}
+
+/** Newest first, capped: the menu is a "what changed lately", not the whole changelog. */
+const RECENT_RELEASE_COUNT = 3
+
+/**
+ * Help & Docs, as an item the rail renders as an icon button beside the project switcher.
+ *
+ * It carries the releases that used to be sidebar banner cards. News belongs in a list you
+ * open, not in a card you dismiss one at a time.
+ */
+export const useSidebarHelpItem = (): SidebarConfig => {
+    const {toggle, isVisible, isCrispEnabled} = useCrispChat()
+    const versionState = useAtomValue(versionAtom)
+    const version = versionState.state === "hasData" ? versionState.data : undefined
+
+    const handleToggleSupport = useCallback(
+        (e: MouseEvent) => {
+            e.preventDefault()
+            toggle()
+        },
+        [toggle],
+    )
+
+    return useMemo(
+        () =>
+            // The four destinations are shared with the mobile drawer; Live Chat needs Crisp,
+            // so it rides in as an extra rather than being reproduced there.
+            buildHelpDocsNavItem({
+                icons: {
+                    help: <QuestionIcon size={15} />,
+                    docs: <ScrollIcon size={14} />,
+                    github: <GithubFilled style={{fontSize: 14}} />,
+                    slack: <SlackLogoIcon size={14} />,
+                    bookCall: <PhoneIcon size={14} />,
+                },
+                // Always: the releases below now follow Book a call whether or not Live Chat does.
+                dividerAfterBookCall: true,
+                extraItems: [
+                    {
+                        key: "support-chat-link",
+                        title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
+                        icon: <ChatCircleIcon size={14} />,
+                        isHidden: !isDemo() || !isCrispEnabled,
+                        onClick: handleToggleSupport,
+                    },
+                    {key: "releases-heading", title: "What's new?", isGroupLabel: true},
+                    ...RELEASES.slice(0, RECENT_RELEASE_COUNT).map((release) => ({
+                        key: release.id,
+                        title: release.title,
+                        link: release.link,
+                        icon: <CircleIcon size={7} weight="fill" />,
+                    })),
+                    {
+                        key: "all-releases",
+                        title: "View all releases",
+                        link: ALL_RELEASES_LINK,
+                        icon: <PackageIcon size={14} />,
+                        // The running build, on the row that lists what shipped.
+                        suffix: version ? (
+                            <span className="text-[11px] leading-none text-colorTextTertiary">
+                                v{version}
+                            </span>
+                        ) : undefined,
+                    },
+                ],
+            }),
+        [handleToggleSupport, isCrispEnabled, isVisible, version],
     )
 }
