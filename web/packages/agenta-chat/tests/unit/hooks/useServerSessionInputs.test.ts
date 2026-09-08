@@ -14,7 +14,10 @@ import {ChatComposer} from "../../../src/components/ChatComposer"
 import QueuedMessagesDock from "../../../src/components/QueuedMessagesDock"
 import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
 import type {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
-import {useServerSessionInputs} from "../../../src/hooks/useServerSessionInputs"
+import {
+    useServerSessionInputs,
+    type ServerSessionInputs,
+} from "../../../src/hooks/useServerSessionInputs"
 
 const {
     buildAgentRequest,

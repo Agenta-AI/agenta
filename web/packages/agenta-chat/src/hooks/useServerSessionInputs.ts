@@ -181,6 +181,17 @@ export const useServerSessionInputs = ({
     onExecutedRef.current = onExecuted
     isSharedReaderReadyRef.current = isSharedReaderReady
 
+    // A run stream outlives this mount, and the session registry deliberately preserves the same
+    // Chat across a remount, so an old completion firing `onExecuted` can adopt a stale snapshot
+    // over a newer transcript and persist it. Every continuation past an await checks this first.
+    const aliveRef = useRef(true)
+    useEffect(() => {
+        aliveRef.current = true
+        return () => {
+            aliveRef.current = false
+        }
+    }, [])
+
     const load = useCallback((): Promise<SessionPendingInputView | null> => {
         if (loadInFlightRef.current?.scope === scope) {
             return loadInFlightRef.current.promise
@@ -291,7 +302,9 @@ export const useServerSessionInputs = ({
             // first frame names it, and a stream that ends without one never started a turn.
             void readRunAdmission(response, watcher)
                 .then(async (accepted) => {
+                    if (!aliveRef.current) return
                     await refresh()
+                    if (!aliveRef.current) return
                     onExecutedRef.current?.()
                     // ONLY for a turn this stream actually named. Silence means the runner never
                     // emits acceptance on this path, not that nothing was sent, and settling on
