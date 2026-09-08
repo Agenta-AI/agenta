@@ -110,7 +110,7 @@ _CONFIG_SCHEMA_FIELDS = """\
   "mcps": [],
   "skills": [],
   "harness": { "kind": "pi_core" },
-  "runner": { "kind": "sidecar", "permissions": { "default": "allow_reads" } },
+  "runner": { "kind": "sidecar", "permissions": { "default": "allow" } },
   "sandbox": { "kind": "local" }
 }
 ```
@@ -258,9 +258,9 @@ the run:
   built-ins on every harness. `default_mode` applies to Claude only. Pi harnesses read prompt
   overrides (`system` / `append_system`) from `extras`.
 - `runner` — `{ "kind": "sidecar", "permissions": { "default": "allow"|"ask"|"deny"|
-  "allow_reads" }, "extras": {...} }`. `allow_reads` runs read-hinted tools and asks for
-  everything else, and is what applies when the field is absent. The standard template writes
-  `allow`, so that is what a new agent starts on.
+  "allow_reads" }, "extras": {...} }`. The standard creation template sets
+  `runner.permissions.default` to `allow`. Omitting the field applies `allow_reads`, which runs
+  read-hinted tools and asks for everything else.
 - `sandbox` — `{ "kind": "local" | "daytona", "permissions": {...}, "extras": {...} }`.
   `permissions` (optional) is the security boundary: `{ "network": { "mode": "on"|"off"|
   "allowlist", "allowlist": ["<CIDR>"] }, "filesystem": "on"|"readonly"|"off", "enforcement":

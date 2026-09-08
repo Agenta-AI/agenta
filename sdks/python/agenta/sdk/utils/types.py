@@ -1382,8 +1382,8 @@ class _PermissionsSchema(BaseModel):
         description=(
             "allow runs every tool without asking. ask requires approval for every tool. "
             "deny refuses every tool. allow_reads runs read-hinted tools and asks for "
-            "everything else, and is what applies when this field is absent. The standard "
-            "template writes allow, so that is what a new agent starts on."
+            "everything else. Omitting this field applies allow_reads; the standard "
+            "creation template sets it to allow."
         ),
     )
 
