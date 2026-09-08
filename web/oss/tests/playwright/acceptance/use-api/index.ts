@@ -108,6 +108,43 @@ const deployFirstVariantToDevelopment = async (
 }
 
 /**
+ * Reports whether an element keeps the same bounding box across two animation
+ * frames. Runs in the page so both samples come from real frames, which a
+ * Playwright-side poll interval cannot guarantee.
+ */
+const hasStableBoxAcrossFrames = (element: Element): Promise<boolean> =>
+    new Promise((resolve) => {
+        const first = element.getBoundingClientRect()
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const second = element.getBoundingClientRect()
+                resolve(
+                    first.x === second.x &&
+                        first.y === second.y &&
+                        first.width === second.width &&
+                        first.height === second.height,
+                )
+            })
+        })
+    })
+
+/**
+ * Waits until the drawer finishes its slide-in animation.
+ * The Sheet panel translates in over about 333ms, so every control inside it
+ * moves while it opens. Playwright's actionability check needs a stable
+ * bounding box, and it cannot settle inside that window: a click that starts
+ * during the slide fails with "element is not stable". Wait for the panel's
+ * own box to stop moving before any caller clicks inside it.
+ */
+const waitForDrawerAnimationToSettle = async (drawer: any) => {
+    await expect
+        .poll(() => pollLocatorState(() => drawer.evaluate(hasStableBoxAcrossFrames)), {
+            timeout: 10000,
+        })
+        .toBe(true)
+}
+
+/**
  * Opens the "How to use API" drawer from the Variants tab.
  * Uses the data-tour attribute so we target exactly this button even if other
  * "Use API" buttons exist elsewhere in the page.
@@ -142,6 +179,7 @@ const openVariantUseApiDrawer = async (page: any) => {
         hasText: "How to use API",
     })
     await expect(drawer).toBeVisible({timeout: 20000})
+    await waitForDrawerAnimationToSettle(drawer)
     return drawer
 }
 
@@ -163,6 +201,7 @@ const openDeploymentUseApiDrawer = async (page: any) => {
         hasText: "How to use API",
     })
     await expect(drawer).toBeVisible({timeout: 20000})
+    await waitForDrawerAnimationToSettle(drawer)
     return drawer
 }
 
