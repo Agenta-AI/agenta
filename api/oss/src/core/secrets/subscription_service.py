@@ -6,8 +6,10 @@ working. All three edit the same subscription secret, so every decision that rea
 stored login is made against the locked row (`VaultService.update_secret_atomically`).
 """
 
+from base64 import urlsafe_b64decode
 from datetime import datetime, timezone
 from enum import Enum
+from json import loads as json_loads
 from typing import Any, Dict, Optional
 from uuid import UUID
 
@@ -39,6 +41,12 @@ _MAX_LOGIN_ERROR_LENGTH = 200
 
 _ATTEMPT_NOT_FOUND_ERROR = "attempt not found; try again"
 
+# The claim a Codex access token carries the ChatGPT account in. Pi reads the same one.
+_ACCOUNT_CLAIM = "https://api.openai.com/auth"
+_ACCOUNT_CLAIM_FIELD = "chatgpt_account_id"
+
+_INVALID_LOGIN_REASON = "invalid_login"
+
 
 class SubscriptionLoginAttemptView(BaseModel):
     """What a browser learns about an in-flight device login. Never the credential."""
@@ -60,6 +68,9 @@ class SubscriptionLoginPushResult(BaseModel):
     # The current login, sent back only when the run was on an older generation, so the
     # runner can rematerialize without a second call.
     login: Optional[Dict[str, Any]] = None
+    # Why a push changed nothing, when the answer is worth acting on. Only the unusable
+    # credential sets it; the ordering refusals are the runner working as designed.
+    reason: Optional[str] = None
 
 
 class SubscriptionLoginFailureResult(BaseModel):
@@ -78,6 +89,8 @@ class PushDecision(str, Enum):
     NOOP = "noop"
     # The run carried an older lineage. It gets the current login back.
     STALE = "stale"
+    # The credential itself is not usable, whatever lineage it claims.
+    INVALID = "invalid"
     REJECT = "reject"
 
 
@@ -126,6 +139,83 @@ def _attempt_is_live(expires_at: Optional[str]) -> bool:
         deadline = deadline.replace(tzinfo=timezone.utc)
 
     return deadline > datetime.now(timezone.utc)
+
+
+def _now_ms() -> int:
+    """Now in epoch milliseconds, the unit a login's `expires` is written in."""
+    return int(datetime.now(timezone.utc).timestamp() * 1000)
+
+
+def _jwt_account_id(access: Any) -> Optional[str]:
+    """The ChatGPT account a Codex access token was issued for, or None if it carries none.
+
+    The signature is not checked. Only OpenAI can check it, and the platform is not the
+    audience. What this does catch is a token that is not a JWT at all, which is what a
+    harness leaves behind when its own refresh went wrong.
+    """
+    if not isinstance(access, str):
+        return None
+
+    segments = access.split(".")
+    if len(segments) != 3:
+        return None
+
+    try:
+        padded = segments[1] + "=" * (-len(segments[1]) % 4)
+        payload = json_loads(urlsafe_b64decode(padded))
+    except (ValueError, TypeError):
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    claim = payload.get(_ACCOUNT_CLAIM)
+    if not isinstance(claim, dict):
+        return None
+
+    account_id = claim.get(_ACCOUNT_CLAIM_FIELD)
+    if not isinstance(account_id, str) or not account_id:
+        return None
+
+    return account_id
+
+
+def _login_is_usable(login: Dict[str, Any]) -> bool:
+    """True when a login is a credential a run could actually authenticate with.
+
+    Measured on 2026-09-08: an `auth.json` rewritten with junk `access` and `refresh` and
+    a later `expires` was pushed and overwrote the good stored login. Every ordering rule
+    below asks only whether a login is NEWER, and one number is all it takes to win that.
+
+    The account comes from the token itself, never from what the file claims alongside it.
+    The row is checked separately by the ordering rules, so an accepted login matches the
+    token, the pushed `accountId`, and the stored `accountId`.
+
+    This is not authentication. The signature is unchecked because the provider is the only
+    authority on validity. It keeps garbage out of the vault, nothing more.
+
+    These are the rules `validateSubscriptionLogin` in the runner applies before it pushes.
+    Keep the two the same. A missing `accountId` is accepted here for the same reason it is
+    accepted there: the field is optional in the credential shape, the claim is what names
+    the account, and refusing on an absent optional field would refuse a real login.
+    """
+    claimed = _jwt_account_id(login.get("access"))
+    if claimed is None:
+        return False
+
+    account_id = login.get("accountId")
+    if isinstance(account_id, str) and account_id and account_id != claimed:
+        return False
+
+    refresh = login.get("refresh")
+    if not isinstance(refresh, str) or not refresh.strip():
+        return False
+
+    expires = login.get("expires")
+    if isinstance(expires, bool) or not isinstance(expires, int):
+        return False
+
+    return expires > _now_ms()
 
 
 def _attempt_matches(stored: SubscriptionProviderDTO, attempt_id: str) -> bool:
@@ -288,6 +378,29 @@ class SubscriptionLoginService:
             )
 
         if attempt.state == "succeeded":
+            if attempt.login and not _login_is_usable(attempt.login):
+                # The device flow finished but handed back something no run can
+                # authenticate with. Ending the attempt beats storing it and leaving every
+                # later run to fail on a credential the user cannot see is broken.
+                log.warning(
+                    "[subscriptions] refused an unusable device login",
+                    project_id=str(project_id),
+                    secret_id=str(secret_id),
+                )
+                await self.runner_client.delete_attempt(attempt_id=attempt_id)
+                await self._clear_attempt(
+                    project_id=project_id,
+                    secret_id=secret_id,
+                    user_id=user_id,
+                    attempt_id=attempt_id,
+                    error=_INVALID_LOGIN_REASON,
+                )
+                return SubscriptionLoginAttemptView(
+                    attempt_id=attempt.attempt_id or attempt_id,
+                    state="failed",
+                    error=_INVALID_LOGIN_REASON,
+                )
+
             if attempt.login:
                 await self._store_new_login(
                     project_id=project_id,
@@ -395,6 +508,12 @@ class SubscriptionLoginService:
 
         # Most turns push a login the row already holds, so answer those without a write.
         decision = _classify_push(stored=data, login=login, generation=generation)
+        if decision is PushDecision.INVALID:
+            log.warning(
+                "[subscriptions] refused an unusable pushed login",
+                project_id=str(project_id),
+                secret_id=str(secret_id),
+            )
         if decision is not PushDecision.ACCEPT:
             return _push_result(stored=data, decision=decision)
 
@@ -608,14 +727,19 @@ def _classify_push(
 ) -> PushDecision:
     """Decide what a pushed login is worth, in the order the contract fixes.
 
-    Generation first, because a login from an older lineage is not a competitor: the run
-    is behind and needs the current one back. Then the account, so a login for a different
-    ChatGPT account can never take over the connection. Then the refresh token, which is
-    what makes the store idempotent when two polls redeem the same device login. Expiry
-    last: an equal expiry with a new refresh token is still a real refresh.
+    Shape first, because the ordering rules all assume a real credential: a garbage string
+    with a later expiry outranks a working login under every one of them. Then generation,
+    because a login from an older lineage is not a competitor: the run is behind and needs
+    the current one back. Then the account, so a login for a different ChatGPT account can
+    never take over the connection. Then the refresh token, which is what makes the store
+    idempotent when two polls redeem the same device login. Expiry last: an equal expiry
+    with a new refresh token is still a real refresh.
     """
     if stored.login is None:
         return PushDecision.REJECT
+
+    if not _login_is_usable(login):
+        return PushDecision.INVALID
 
     if generation < stored.login_generation:
         return PushDecision.STALE
@@ -648,6 +772,7 @@ def _push_result(
         updated=False,
         stale=decision is PushDecision.STALE,
         login=_current_login(stored) if decision is PushDecision.STALE else None,
+        reason=(_INVALID_LOGIN_REASON if decision is PushDecision.INVALID else None),
     )
 
 

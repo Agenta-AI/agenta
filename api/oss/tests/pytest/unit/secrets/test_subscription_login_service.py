@@ -6,7 +6,9 @@ below stores through the real postgres mappings, so the JSON round trip is exerc
 """
 
 import asyncio
+from base64 import urlsafe_b64encode
 from datetime import datetime, timedelta, timezone
+from json import dumps as json_dumps
 from typing import Optional
 from uuid import uuid4
 
@@ -34,11 +36,36 @@ from oss.src.dbs.postgres.secrets.mappings import (
 PROJECT_ID = uuid4()
 USER_ID = uuid4()
 
+_HOUR_MS = 3_600_000
+
+
+def _segment(payload: dict) -> str:
+    return urlsafe_b64encode(json_dumps(payload).encode()).decode().rstrip("=")
+
+
+def _access_token(account_id: str = "acct-1") -> str:
+    """An access token shaped like Codex's: three segments, the account in the claim.
+
+    The signature is filler. Nothing on this side of the wire verifies it, and nothing
+    could: the platform is not the audience.
+    """
+    header = _segment({"alg": "RS256", "typ": "JWT"})
+    payload = _segment(
+        {"https://api.openai.com/auth": {"chatgpt_account_id": account_id}}
+    )
+    return f"{header}.{payload}.c2lnbmF0dXJl"
+
+
+def _expires_in(hours: float) -> int:
+    """An absolute expiry in epoch milliseconds, the unit Pi writes."""
+    return int(datetime.now(timezone.utc).timestamp() * 1000) + int(hours * _HOUR_MS)
+
+
 LOGIN = {
     "type": "oauth",
-    "access": "access-1",
+    "access": _access_token(),
     "refresh": "refresh-1",
-    "expires": 1_000,
+    "expires": _expires_in(1),
     "accountId": "acct-1",
 }
 
@@ -279,7 +306,7 @@ class TestAttemptLifecycle:
         assert runner.deleted == ["att-1"]
 
         stored = await _read(vault, secret.id)
-        assert stored.data.login.access == "access-1"
+        assert stored.data.login.access == LOGIN["access"]
         assert stored.data.login_version == 1
         assert stored.data.login_generation == 1
         assert stored.data.login_state == SubscriptionLoginState.READY
@@ -564,9 +591,9 @@ class TestPushedLogin:
         secret = await self._ready(vault)
         newer = {
             **LOGIN,
-            "access": "access-2",
+            "access": _access_token(),
             "refresh": "refresh-2",
-            "expires": 2_000,
+            "expires": _expires_in(2),
         }
 
         result = await service.push_login(
@@ -597,7 +624,7 @@ class TestPushedLogin:
         first = await service.push_login(
             project_id=PROJECT_ID,
             secret_id=secret.id,
-            login={**LOGIN, "expires": 5_000},
+            login={**LOGIN, "expires": _expires_in(5)},
             version=3,
             generation=1,
         )
@@ -631,7 +658,7 @@ class TestPushedLogin:
         result = await service.push_login(
             project_id=PROJECT_ID,
             secret_id=secret.id,
-            login={**LOGIN, "refresh": "refresh-0", "expires": 500},
+            login={**LOGIN, "refresh": "refresh-0", "expires": _expires_in(0.5)},
             version=3,
             generation=1,
         )
@@ -648,7 +675,7 @@ class TestPushedLogin:
         result = await service.push_login(
             project_id=PROJECT_ID,
             secret_id=secret.id,
-            login={**LOGIN, "refresh": "refresh-old", "expires": 9_000},
+            login={**LOGIN, "refresh": "refresh-old", "expires": _expires_in(9)},
             version=3,
             generation=1,
         )
@@ -667,7 +694,7 @@ class TestPushedLogin:
         result = await service.push_login(
             project_id=PROJECT_ID,
             secret_id=secret.id,
-            login={**LOGIN, "refresh": "refresh-2", "expires": 9_000},
+            login={**LOGIN, "refresh": "refresh-2", "expires": _expires_in(9)},
             version=3,
             generation=9,
         )
@@ -678,11 +705,13 @@ class TestPushedLogin:
 
     async def test_a_login_for_another_account_is_refused(self, vault, service):
         secret = await self._ready(vault)
+        # Self-consistent, so it clears the shape check and meets the account rule.
         other = {
             **LOGIN,
+            "access": _access_token("acct-2"),
             "accountId": "acct-2",
             "refresh": "refresh-2",
-            "expires": 9_000,
+            "expires": _expires_in(9),
         }
 
         result = await service.push_login(
@@ -694,6 +723,7 @@ class TestPushedLogin:
         )
 
         assert result.updated is False
+        assert result.reason is None
         assert (await _read(vault, secret.id)).data.login.accountId == "acct-1"
 
     async def test_a_push_to_a_connection_with_no_login_is_refused(
@@ -704,13 +734,36 @@ class TestPushedLogin:
         result = await service.push_login(
             project_id=PROJECT_ID,
             secret_id=secret.id,
-            login={**LOGIN, "expires": 9_000},
+            login={**LOGIN, "expires": _expires_in(9)},
             version=0,
             generation=0,
         )
 
         assert result.updated is False
         assert (await _read(vault, secret.id)).data.login is None
+
+    async def test_a_real_shaped_token_for_this_account_is_accepted(
+        self, vault, service
+    ):
+        secret = await self._ready(vault)
+        refreshed = {
+            **LOGIN,
+            "access": _access_token("acct-1"),
+            "refresh": "refresh-2",
+            "expires": _expires_in(9),
+        }
+
+        result = await service.push_login(
+            project_id=PROJECT_ID,
+            secret_id=secret.id,
+            login=refreshed,
+            version=3,
+            generation=1,
+        )
+
+        assert result.updated is True
+        assert result.reason is None
+        assert (await _read(vault, secret.id)).data.login.refresh == "refresh-2"
 
     async def test_a_stored_error_is_cleared_when_a_refresh_lands(self, vault, service):
         secret = await self._ready(
@@ -720,7 +773,7 @@ class TestPushedLogin:
         await service.push_login(
             project_id=PROJECT_ID,
             secret_id=secret.id,
-            login={**LOGIN, "refresh": "refresh-2", "expires": 2_000},
+            login={**LOGIN, "refresh": "refresh-2", "expires": _expires_in(2)},
             version=3,
             generation=1,
         )
@@ -728,6 +781,155 @@ class TestPushedLogin:
         stored = await _read(vault, secret.id)
         assert stored.data.login_state == SubscriptionLoginState.READY
         assert stored.data.login_error is None
+
+
+class TestAnUnusablePushedLogin:
+    """A run whose own refresh went wrong still pushes whatever the auth file holds.
+
+    Seen live: garbage strings with a later expiry, which every ordering rule then ranked
+    above the working stored login. The shape check runs before those rules, so none of
+    these can reach the row.
+    """
+
+    async def _ready(self, vault):
+        return await _make_secret(
+            vault,
+            {
+                "login": LOGIN,
+                "login_version": 3,
+                "login_generation": 1,
+                "login_state": "ready",
+            },
+        )
+
+    async def _push(self, service, secret, **overrides):
+        return await service.push_login(
+            project_id=PROJECT_ID,
+            secret_id=secret.id,
+            login={
+                **LOGIN,
+                "refresh": "refresh-2",
+                "expires": _expires_in(9),
+                **overrides,
+            },
+            version=3,
+            generation=1,
+        )
+
+    async def _assert_refused(self, vault, secret, result):
+        assert result.updated is False
+        assert result.stale is False
+        assert result.reason == "invalid_login"
+        assert result.version == 3
+        assert result.generation == 1
+
+        stored = (await _read(vault, secret.id)).data
+        assert stored.login.refresh == "refresh-1"
+        assert stored.login_version == 3
+        assert stored.login_generation == 1
+        assert stored.login_state == SubscriptionLoginState.READY
+
+    async def test_a_garbage_access_token_is_refused(self, vault, service):
+        secret = await self._ready(vault)
+
+        result = await self._push(service, secret, access="not-a-jwt")
+
+        await self._assert_refused(vault, secret, result)
+
+    async def test_a_token_whose_middle_segment_is_not_json_is_refused(
+        self, vault, service
+    ):
+        secret = await self._ready(vault)
+
+        result = await self._push(service, secret, access="aaa.bbbb.cccc")
+
+        await self._assert_refused(vault, secret, result)
+
+    async def test_a_token_for_another_account_is_refused(self, vault, service):
+        secret = await self._ready(vault)
+
+        result = await self._push(service, secret, access=_access_token("acct-9"))
+
+        await self._assert_refused(vault, secret, result)
+
+    async def test_an_empty_refresh_token_is_refused(self, vault, service):
+        secret = await self._ready(vault)
+
+        result = await self._push(service, secret, refresh="")
+
+        await self._assert_refused(vault, secret, result)
+
+    async def test_an_expiry_already_in_the_past_is_refused(self, vault, service):
+        secret = await self._ready(vault)
+
+        result = await self._push(service, secret, expires=_expires_in(-1))
+
+        await self._assert_refused(vault, secret, result)
+
+    async def test_an_expiry_that_is_not_an_integer_is_refused(self, vault, service):
+        secret = await self._ready(vault)
+
+        result = await self._push(service, secret, expires="9999999999999")
+
+        await self._assert_refused(vault, secret, result)
+
+    async def test_a_token_with_no_account_claim_is_refused(self, vault, service):
+        secret = await self._ready(vault)
+        no_claim = f"{_segment({'alg': 'RS256'})}.{_segment({'sub': 'x'})}.c2ln"
+
+        result = await self._push(service, secret, access=no_claim)
+
+        await self._assert_refused(vault, secret, result)
+
+    async def test_a_login_without_an_account_id_field_still_passes_the_shape_check(
+        self, vault, service
+    ):
+        # The runner's own gate accepts this, and the two must agree. The claim names the
+        # account; the stored-account rule below is what refuses a real takeover.
+        secret = await self._ready(vault)
+        login = {**LOGIN, "refresh": "refresh-2", "expires": _expires_in(9)}
+        login.pop("accountId")
+
+        result = await service.push_login(
+            project_id=PROJECT_ID,
+            secret_id=secret.id,
+            login=login,
+            version=3,
+            generation=1,
+        )
+
+        # Refused, but by the account rule, not the shape check: no `invalid_login`.
+        assert result.updated is False
+        assert result.reason is None
+
+
+class TestAnUnusableDeviceLogin:
+    async def test_a_device_login_that_hands_back_garbage_fails_the_attempt(
+        self, vault, runner, service
+    ):
+        secret = await _make_secret(
+            vault, {"login_attempt": {"id": "att-1", "expires_at": _later()}}
+        )
+        runner.next_attempt = RunnerLoginAttempt(
+            attempt_id="att-1",
+            state="succeeded",
+            login={**LOGIN, "access": "not-a-jwt"},
+        )
+
+        view = await service.read_attempt(
+            project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
+        )
+
+        assert view.state == "failed"
+        assert view.error == "invalid_login"
+        assert runner.deleted == ["att-1"]
+
+        stored = (await _read(vault, secret.id)).data
+        assert stored.login is None
+        assert stored.login_version == 0
+        assert stored.login_generation == 0
+        assert stored.login_attempt is None
+        assert stored.login_error == "invalid_login"
 
 
 class TestReportedFailure:

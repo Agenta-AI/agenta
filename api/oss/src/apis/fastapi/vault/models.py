@@ -46,6 +46,9 @@ class SubscriptionLoginPushResponse(BaseModel):
     updated: bool
     stale: bool = False
     login: Optional[Dict[str, Any]] = None
+    # Set to `invalid_login` when the pushed credential was not usable. The ordering
+    # refusals leave it null: those are the protocol working, not something to report.
+    reason: Optional[str] = None
 
 
 class SubscriptionLoginFailureRequest(BaseModel):

@@ -5,7 +5,9 @@ with an in-memory DAO and a scripted runner. The permission check is replaced by
 so each route's required permissions are asserted, not assumed.
 """
 
+from base64 import urlsafe_b64encode
 from datetime import datetime, timedelta, timezone
+from json import dumps as json_dumps
 from uuid import uuid4
 
 import pytest
@@ -32,11 +34,32 @@ from oss.src.dbs.postgres.secrets.mappings import (
 PROJECT_ID = str(uuid4())
 USER_ID = str(uuid4())
 
+_HOUR_MS = 3_600_000
+
+
+def _access_token(account_id: str = "acct-1") -> str:
+    """An access token shaped like Codex's. The signature is filler; nothing checks it."""
+
+    def segment(payload: dict) -> str:
+        return urlsafe_b64encode(json_dumps(payload).encode()).decode().rstrip("=")
+
+    header = segment({"alg": "RS256", "typ": "JWT"})
+    claims = segment(
+        {"https://api.openai.com/auth": {"chatgpt_account_id": account_id}}
+    )
+    return f"{header}.{claims}.c2lnbmF0dXJl"
+
+
+def _expires_in(hours: float) -> int:
+    """An absolute expiry in epoch milliseconds, the unit Pi writes."""
+    return int(datetime.now(timezone.utc).timestamp() * 1000) + int(hours * _HOUR_MS)
+
+
 LOGIN = {
     "type": "oauth",
-    "access": "access-1",
+    "access": _access_token(),
     "refresh": "refresh-1",
-    "expires": 1_000,
+    "expires": _expires_in(1),
     "accountId": "acct-1",
 }
 
@@ -308,7 +331,7 @@ class TestRunnerFacingRoutes:
         response = harness.client.post(
             f"/secrets/{created['id']}/subscription-login",
             json={
-                "login": {**LOGIN, "refresh": "refresh-2", "expires": 2_000},
+                "login": {**LOGIN, "refresh": "refresh-2", "expires": _expires_in(2)},
                 "version": 3,
                 "generation": 1,
             },
@@ -323,6 +346,48 @@ class TestRunnerFacingRoutes:
         }
         assert harness.asked == [Permission.RUN_SESSIONS, Permission.USE_MOUNTS]
 
+    def test_an_unusable_login_is_refused_with_a_reason_and_changes_nothing(
+        self, harness
+    ):
+        created = _create(
+            harness.client,
+            {
+                "login": LOGIN,
+                "login_version": 3,
+                "login_generation": 1,
+                "login_state": "ready",
+            },
+        )
+
+        response = harness.client.post(
+            f"/secrets/{created['id']}/subscription-login",
+            json={
+                # What a run sends when its own refresh went wrong: not a token, but a
+                # later expiry, so every ordering rule would have ranked it first.
+                "login": {
+                    **LOGIN,
+                    "access": "not-a-jwt",
+                    "refresh": "refresh-2",
+                    "expires": _expires_in(9),
+                },
+                "version": 3,
+                "generation": 1,
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "version": 3,
+            "generation": 1,
+            "updated": False,
+            "stale": False,
+            "reason": "invalid_login",
+        }
+
+        read_back = harness.client.get(f"/secrets/{created['id']}").json()
+        assert read_back["data"]["login_version"] == 3
+        assert read_back["data"]["login_state"] == "ready"
+
     def test_the_same_refresh_token_is_an_idempotent_no_op(self, harness):
         created = _create(
             harness.client,
@@ -332,7 +397,7 @@ class TestRunnerFacingRoutes:
         response = harness.client.post(
             f"/secrets/{created['id']}/subscription-login",
             json={
-                "login": {**LOGIN, "expires": 9_000},
+                "login": {**LOGIN, "expires": _expires_in(9)},
                 "version": 3,
                 "generation": 1,
             },
@@ -354,7 +419,7 @@ class TestRunnerFacingRoutes:
         response = harness.client.post(
             f"/secrets/{created['id']}/subscription-login",
             json={
-                "login": {**LOGIN, "refresh": "refresh-old", "expires": 9_000},
+                "login": {**LOGIN, "refresh": "refresh-old", "expires": _expires_in(9)},
                 "version": 3,
                 "generation": 1,
             },
@@ -379,7 +444,7 @@ class TestRunnerFacingRoutes:
                     **LOGIN,
                     "accountId": "acct-2",
                     "refresh": "refresh-2",
-                    "expires": 9_000,
+                    "expires": _expires_in(9),
                 },
                 "version": 3,
                 "generation": 1,
