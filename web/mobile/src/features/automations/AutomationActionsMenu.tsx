@@ -155,15 +155,22 @@ export const AutomationActionsMenu = ({
                 <DropdownMenuTrigger asChild>
                     <Button
                         type="button"
-                        size="icon-xs"
+                        // A list row is a compact line and the kebab sits in a 24px column; on the
+                        // detail screen it stands beside Test run and has to be that button's
+                        // height, or the pair reads as one control and a smaller afterthought.
+                        size={surface === "list" ? "icon-xs" : "icon-sm"}
                         variant="ghost"
                         aria-label="Automation actions"
                         className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
                     >
-                        {/* 14 against the 12 the button would give it: three small dots read smaller
-                            than a glyph that fills its box, so matching them by measurement
-                            mismatches them by eye. */}
-                        <DotsThreeVertical aria-hidden className="size-3.5" weight="bold" />
+                        {/* Bigger than the box would give it: three small dots read smaller than
+                            a glyph that fills its box, so matching by measurement mismatches by
+                            eye. */}
+                        <DotsThreeVertical
+                            aria-hidden
+                            className={surface === "list" ? "size-3.5" : "size-4"}
+                            weight="bold"
+                        />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-[220px]">
