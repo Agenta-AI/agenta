@@ -61,7 +61,7 @@ import {
     OrganizationLoading,
     OrganizationNoFlags,
 } from "./states/OrganizationStates"
-import {useConfirmSheet} from "./useConfirmSheet"
+import {useConfirmModal} from "./useConfirmModal"
 import {WebhooksTab} from "./WebhooksTab"
 
 /**
@@ -132,10 +132,10 @@ const TabBody = ({
         enabled: access.isEE && (tab === "organization" || tab === "auditLog"),
     })
     // Destructive actions in the shared tool sections ask for confirmation through an
-    // imperative callback (the desktop hands them antd's AlertPopup); this is the sheet version.
-    const {confirm, sheet: confirmSheet, close: closeConfirm} = useConfirmSheet()
+    // imperative callback (the desktop hands them antd's AlertPopup); this is the modal version.
+    const {confirm, modal: confirmModal, close: closeConfirm} = useConfirmModal()
     // A confirmation is about the section that raised it. Leaving the tab abandons that context,
-    // so the sheet must not survive into the next one and act there.
+    // so the modal must not survive into the next one and act there.
     useEffect(() => closeConfirm, [tab, closeConfirm])
     const [memberSearch, setMemberSearch] = useState("")
     const [orgSearch, setOrgSearch] = useState("")
@@ -214,7 +214,7 @@ const TabBody = ({
             return (
                 <>
                     <GatewayToolsSection confirm={confirm} />
-                    {confirmSheet}
+                    {confirmModal}
                 </>
             )
         case "projects":

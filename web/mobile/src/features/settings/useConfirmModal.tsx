@@ -1,6 +1,6 @@
 import {useCallback, useState} from "react"
 
-import {ConfirmSheet} from "./ConfirmSheet"
+import {ConfirmModal} from "./ConfirmModal"
 
 interface ConfirmRequest {
     title: string
@@ -9,12 +9,12 @@ interface ConfirmRequest {
 }
 
 /**
- * Adapts `ConfirmSheet` (controlled) to the imperative `confirm({title, message, onOk})` the
+ * Adapts `ConfirmModal` (controlled) to the imperative `confirm({title, message, onOk})` the
  * shared settings sections expect — the desktop passes antd's AlertPopup, which is imperative.
  *
- * Returns the sheet to render; a section given no `confirm` hides its destructive actions.
+ * Returns the modal to render; a section given no `confirm` hides its destructive actions.
  */
-export const useConfirmSheet = () => {
+export const useConfirmModal = () => {
     const [request, setRequest] = useState<ConfirmRequest | null>(null)
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -29,8 +29,8 @@ export const useConfirmSheet = () => {
         setError(null)
     }, [])
 
-    const sheet = (
-        <ConfirmSheet
+    const modal = (
+        <ConfirmModal
             open={Boolean(request)}
             title={request?.title ?? ""}
             body={request?.message}
@@ -53,5 +53,5 @@ export const useConfirmSheet = () => {
         />
     )
 
-    return {confirm, sheet, close}
+    return {confirm, modal, close}
 }
