@@ -442,8 +442,8 @@ const AgentConversation = ({
         reject: attachments.setRejections,
     })
     lateRefusalRef.current = {restore: restoreAttachments, reject: attachments.setRejections}
-    const restoreLateRefusedSend = useCallback((message: QueuedMessage) => {
-        const taken = restoreRefusedSendInto(
+    const restoreLateRefusedSend = useCallback(async (message: QueuedMessage) => {
+        const taken = await restoreRefusedSendInto(
             richInputRef.current,
             {
                 text: message.text,

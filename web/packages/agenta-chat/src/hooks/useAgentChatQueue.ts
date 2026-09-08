@@ -84,11 +84,14 @@ interface UseAgentChatQueueArgs {
     /** Mark this tab as the next run's owner before a released send reaches the transport. */
     markRunOwned: () => void
     /**
-     * Hand a refused send back to the composer. Returns whether the composer took it: if it did,
+     * Hand a refused send back to the composer. Reports whether the composer took it: if it did,
      * the message lives there and its echo row goes; if it could not (no mounted editor), the row
      * stays as the one place the text survives.
+     *
+     * May answer later than the call. A rich text editor commits a write on a following tick, so a
+     * host that reads its own composer back cannot always answer in this one.
      */
-    restoreRefusedSend?: (message: QueuedMessage) => boolean
+    restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
     /** Send one released message into the conversation (wraps `useChat`'s `sendMessage`). Must be
      * referentially stable so the release effect doesn't churn on every streamed token. */
     sendQueued: (item: QueuedMessage) => void
@@ -346,14 +349,22 @@ export const useAgentChatQueue = ({
                             // wording for it. The row is the fallback only when no composer can
                             // take the text.
                             onFailed: () => {
-                                if (restoreRefusedSendRef.current?.(message)) {
-                                    echoes.drop(message.id)
-                                } else {
-                                    // Re-create the row if the count rule already retired it,
-                                    // or a refusal arriving after that leaves the message with
-                                    // nowhere at all to be seen.
-                                    echoes.markFailed(message.id, message)
-                                }
+                                // The row goes up FIRST and comes down only once the composer
+                                // confirms it took the text. It is the safe side to fail to: the
+                                // message must never be in neither place, and a host cannot always
+                                // answer in this tick, because its editor commits a write on a
+                                // following one. Deciding on a same-tick answer left a refused
+                                // message in the transcript AND the composer, where it could be
+                                // sent twice (staging, `66ed5a6c57`).
+                                //
+                                // Passing the message re-creates the row when the count rule has
+                                // already retired it, so a late refusal always has somewhere to be.
+                                echoes.markFailed(message.id, message)
+                                const restoring = restoreRefusedSendRef.current?.(message)
+                                if (!restoring) return
+                                void Promise.resolve(restoring).then((taken) => {
+                                    if (taken) echoes.drop(message.id)
+                                })
                             },
                             // The turn ended and its records were re-read. An echo still on
                             // screen is one whose row was never persisted, so it stops waiting
