@@ -6,7 +6,6 @@ import {
     AutomationListEmpty,
     AutomationListError,
     AutomationListSkeleton,
-    AutomationStatsLine,
     automationStatus,
     type AutomationStatus,
     type AutomationListView,
@@ -14,7 +13,6 @@ import {
     deriveAutomationList,
     runsWhenLabel,
     useAutomations,
-    useAutomationStats,
 } from "@agenta/automation-ui"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
@@ -91,10 +89,6 @@ export const AutomationListScreen = ({
     const [search, setSearch] = useState("")
     const [view, setView] = useState<AutomationListView>(DEFAULT_AUTOMATION_LIST_VIEW)
     const {automations, isLoading, error, refetch} = useAutomations(search)
-    // The unfiltered list is what "total" counts — `useAutomations(search)` narrows in place, and
-    // a headline that drops as you type is a search result, not a total.
-    const {automations: allAutomations} = useAutomations()
-    const stats = useAutomationStats(allAutomations)
 
     // Same roster `useAutomations` already reads for its search, so the name in a row and the
     // name it matched on can never disagree.
@@ -330,9 +324,6 @@ export const AutomationListScreen = ({
                     }
                 >
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        {/* Above the search field, not below it: the numbers describe the
-                            project, and the search narrows only the table. */}
-                        <AutomationStatsLine stats={stats} />
                         {/* Search belongs to the list, not to the page: it sits on the table's
                             own left edge so it reads as the control that narrows what is below
                             it. */}
