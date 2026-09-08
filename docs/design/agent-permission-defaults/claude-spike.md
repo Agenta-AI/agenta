@@ -25,32 +25,31 @@ runner before making those claims.
 
 ## Environment
 
+Deployment values and fixture IDs below are placeholders. `QA_BASE` denotes your
+isolated QA origin (shown as `https://qa.example.invalid`), not the original address.
+`<worktree>` and `<private-artifacts>` replace private checkout and artifact roots.
+
 | Item | Observed value |
 | --- | --- |
 | Workspace HEAD | `bfe9b2278527ebd6fea2d960e74d8c218d1f4da3` |
 | Worktree | Dirty, shared with other agents. Tests used working-tree files, not an isolated commit. |
-| Selected deployment | `agenta-ee-dev-tools`, `http://144.76.237.122:8780` |
+| Selected deployment | QA deployment, `https://qa.example.invalid` |
 | API health | HTTP 200, `{"status":"ok"}` |
-| Runner image | `agenta-ee-dev-tools-runner:latest` |
-| Runner image ID | `sha256:4cd7bc9169eca8ef35551b9f8d1d03c48ae0be04b0d3558767120c7b02469029` |
-| Runner source mount | `/home/mahmoud/code/agenta-2-worktrees/fd-pin/services/runner/src` to `/app/src`; not this checkout |
+| Runner image | `<qa-runner-image>` |
+| Runner source | `<worktree>/services/runner/src`; a different checkout from the tests |
 | Runtime | Node `v24.20.0`, container UID/GID 0 |
 | Claude ACP | `@agentclientprotocol/claude-agent-acp` 0.58.1 |
 | ACP SDK dependency | `@anthropic-ai/claude-agent-sdk` 0.3.205, from installed ACP package metadata |
 | Claude CLI | `command -v claude` returned no path. No executed CLI version established. |
-| Subscription | No credentials at checked `/root/.claude/.credentials.json` or `/home/node/.claude/.credentials.json`; no `CLAUDE_CONFIG_DIR` in runner environment. Mounted Pi auth contains only `openai-codex`. |
-| Daytona | Enabled alongside local; configured snapshot `agenta-agent-sandbox-v1`; Daytona key populated. No sandbox created or image readiness verified. |
+| Subscription | Claude subscription unconfigured; `CLAUDE_CONFIG_DIR` unset. |
+| Daytona | Enabled alongside local; snapshot and authentication configured. No sandbox created or image readiness verified. |
 
-Discovery commands, from the repository root unless stated otherwise:
+Discovery command template, with `QA_BASE` set to your isolated QA origin:
 
 ```bash
 git status --short
 git rev-parse HEAD
-docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}'
-curl --max-time 15 -sS -w '\nHTTP %{http_code}\n' http://144.76.237.122:8780/api/health
-docker inspect agenta-ee-dev-tools-runner-1 --format '{{.Image}} {{json .Mounts}}'
-docker logs agenta-ee-dev-tools-runner-1 --since 5m --tail 15
-docker logs agenta-ee-dev-tools-runner-1 --since 3m --tail 35
+curl --max-time 15 -sS -w '\nHTTP %{http_code}\n' "${QA_BASE:?Set QA_BASE to your isolated QA origin}/api/health"
 ```
 
 Read-only `docker exec` inspected command availability, package metadata, auth-file
@@ -102,9 +101,8 @@ The isolated diagnostic imports the installed ACP `SettingsManager` and
 effective permissions, and disposes watchers. It contains no assertions and starts
 no model. Existing repository tests above remain the verification evidence.
 
-```bash
-HOME=/tmp/opencode/permission-claude-spike CLAUDE_CONFIG_DIR=/tmp/opencode/permission-claude-spike/.claude node /tmp/opencode/permission-claude-spike/inspect-native-settings.mjs
-```
+The private diagnostic is `<private-artifacts>/claude/inspect-native-settings.mjs`.
+It used an isolated scratch home and Claude configuration directory.
 
 | Project `permissions.defaultMode` | Observed effective mode | Other settings |
 | --- | --- | --- |
@@ -120,12 +118,9 @@ The adapter reads that result into `permissionMode` and calls the SDK with
 (`dist/acp-agent.js:2826,2858,2885-2887`). Thus successful SDK JSON rendering alone
 does not establish that an escalating project mode will take effect.
 
-The following read-only command also exercised the resolver inside the actual
-root-running container, independently of the project-source filter:
-
-```bash
-docker exec agenta-ee-dev-tools-runner-1 sh -c 'id; node --input-type=module -e '\''import {resolvePermissionMode} from "/app/node_modules/@agentclientprotocol/claude-agent-acp/dist/acp-agent.js"; for(const mode of ["default","acceptEdits","plan","bypassPermissions"]){console.log(mode,resolvePermissionMode(mode))}'\'''
-```
+A read-only diagnostic also exercised `resolvePermissionMode` from the installed
+`@agentclientprotocol/claude-agent-acp/dist/acp-agent.js` inside the root-running
+container, independently of the project-source filter, for all four modes below.
 
 Results: `default -> default`, `acceptEdits -> acceptEdits`, `plan -> plan`,
 `bypassPermissions -> default`, with the explicit warning that bypass is unavailable
@@ -150,27 +145,26 @@ exported all three gate credentials explicitly and disabled credential-file fall
 The account has no seeded defaults or customer integrations. Its random fixture email
 and gate session UUID are independent of the Codex spike.
 
-```bash
-PYTHONDONTWRITEBYTECODE=1 uv run /tmp/opencode/permission-claude-spike/run_isolated_gate.py
-```
+The private wrapper `<private-artifacts>/claude/run_isolated_gate.py` ran with
+`PYTHONDONTWRITEBYTECODE=1 uv run`.
 
-The wrapper's child command was:
+The wrapper's child command, expressed relative to the repository root, was:
 
 ```bash
-uv run /home/mahmoud/code/agenta-2/.agents/skills/agent-release-gate/resources/qa_product.py --cell C1 --only chat --env-file /dev/null
+uv run .agents/skills/agent-release-gate/resources/qa_product.py --cell C1 --only chat --env-file /dev/null
 ```
 
 | Evidence | Result |
 | --- | --- |
-| Project | `01a07d0b-c59d-7f93-990f-3ab24cbebe76` |
-| Session | `eeea0f5b-7492-4d4d-b2ff-1961ca6cba5e` |
-| Turn | `f072dc44-8b41-4221-b1c6-0b6fa50f3b37` |
+| Project | `019d952f-0000-0000-0000-000000000001` |
+| Session | `019d952f-0000-0000-0000-000000000002` |
+| Turn | `019d952f-0000-0000-0000-000000000003` |
 | Configuration | Claude/local, model `sonnet`, provider `anthropic`, `self_managed`, no authored harness permissions |
 | HTTP | 200, 291ms; gate process exit 1 |
 | SSE | `start`, `start-step`, `message-metadata`, `data-agent-status`, `data-agent-error`, `error`, `finish-step`, `finish` |
 | Tools / approvals / reply | No tools, no approval, empty reply, no successful stop |
 | Error | `runtime_provided local run requires a mounted subscription: set PI_CODING_AGENT_DIR (Pi), CLAUDE_CONFIG_DIR (Claude), or CODEX_HOME (Codex) to a read-write mount of your harness login.` |
-| Artifact | `/tmp/opencode/permission-claude-spike/gate-runs/20260907-200518/results.json` and adjacent `summary.md` |
+| Artifact | `<private-artifacts>/claude/gate-runs/results.json` and adjacent `summary.md` |
 
 One failed setup/run attempt was made. No further attempts to install Claude, attach
 credentials, stock provider keys, or alter shared containers were made. Managed-auth
@@ -278,5 +272,5 @@ release-gate skill already records a missing live cold stale-approval cell; chan
 history or restarting a shared runner is not a valid substitute.
 
 Only this report and isolated artifacts under
-`/tmp/opencode/permission-claude-spike` were manually written. No production files,
+`<private-artifacts>/claude` were manually written. No production files,
 other agents' work, deployment configuration, commits, or pushes were changed.

@@ -3,13 +3,18 @@ import {act} from "react"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {preloadAgentTemplateControl} from "@agenta/entity-ui"
 import {queryClient} from "@agenta/shared/api"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {createStore, Provider} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
+import {RouterContext} from "next/dist/shared/lib/router-context.shared-runtime"
+import type {NextRouter} from "next/router"
 import {createRoot} from "react-dom/client"
 import {expect, it, vi} from "vitest"
 
 import {OSSdrillInUIProvider} from "@/oss/components/DrillInView/OSSdrillInUIProvider"
+import {appStateSnapshotAtom} from "@/oss/state/appState"
+import {parseRouterState} from "@/oss/state/appState/parse"
 
 const fixture = vi.hoisted(() => ({environments: ["local"] as string[], write: vi.fn()}))
 
@@ -149,6 +154,46 @@ it.each([{environments: []}, {environments: ["local"]}, {environments: ["local",
         Element.prototype.scrollIntoView = vi.fn()
         Element.prototype.hasPointerCapture = () => false
         const store = createStore()
+        const router: NextRouter = {
+            basePath: "",
+            route: "/w/[workspace_id]/p/[project_id]/apps/[app_id]/playground",
+            pathname: "/w/[workspace_id]/p/[project_id]/apps/[app_id]/playground",
+            asPath: "/w/workspace/p/project/apps/agent/playground",
+            query: {workspace_id: "workspace", project_id: "project", app_id: "agent"},
+            isReady: true,
+            isFallback: false,
+            isPreview: false,
+            isLocaleDomain: false,
+            push: vi.fn(async () => true),
+            replace: vi.fn(async () => true),
+            reload: vi.fn(),
+            back: vi.fn(),
+            forward: vi.fn(),
+            prefetch: vi.fn(async () => undefined),
+            beforePopState: vi.fn(),
+            events: {on: vi.fn(), off: vi.fn(), emit: vi.fn()},
+        }
+        store.set(appStateSnapshotAtom, parseRouterState(router))
+        store.set(projectIdAtom, "project")
+        // Serve cached permission inputs without enabling authenticated queries.
+        store.set(sessionAtom, false)
+        const user = {id: "user", username: "test-user", email: "test@example.com"}
+        const org = {id: "workspace", owner_id: user.id, default_workspace: {id: "workspace"}}
+        queryClient.setQueryData(["profile"], user)
+        queryClient.setQueryData(["orgs", user.id], [org])
+        queryClient.setQueryData(["selectedOrg", org.id], org)
+        queryClient.setQueryData(
+            ["projects", org.id],
+            [{project_id: "project", workspace_id: "workspace", organization_id: org.id}],
+        )
+        queryClient.setQueryData(
+            ["workflows", "runtime", "subscription-status", "claude", "project"],
+            {runner: "unavailable"},
+        )
+        const fetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Unexpected fetch"))
+        const xhr = vi.spyOn(XMLHttpRequest.prototype, "send").mockImplementation(() => {
+            throw new Error("Unexpected XMLHttpRequest")
+        })
         const queryDefaults = queryClient.getDefaultOptions()
         queryClient.setDefaultOptions({
             ...queryDefaults,
@@ -164,9 +209,11 @@ it.each([{environments: []}, {environments: ["local"]}, {environments: ["local",
                 root.render(
                     <Provider store={store}>
                         <QueryClientProvider client={queryClient}>
-                            <OSSdrillInUIProvider>
-                                <PlaygroundVariantConfig variantId="revision" />
-                            </OSSdrillInUIProvider>
+                            <RouterContext.Provider value={router}>
+                                <OSSdrillInUIProvider>
+                                    <PlaygroundVariantConfig variantId="revision" />
+                                </OSSdrillInUIProvider>
+                            </RouterContext.Provider>
                         </QueryClientProvider>
                     </Provider>,
                 ),
@@ -224,11 +271,15 @@ it.each([{environments: []}, {environments: ["local"]}, {environments: ["local",
                     },
                 },
             })
+            expect(fetch).not.toHaveBeenCalled()
+            expect(xhr).not.toHaveBeenCalled()
         } finally {
             await act(async () => root.unmount())
             host.remove()
             queryClient.clear()
             queryClient.setDefaultOptions(queryDefaults)
+            fetch.mockRestore()
+            xhr.mockRestore()
         }
     },
 )

@@ -3,9 +3,10 @@
 ## Deployment
 
 PR [#6641](https://github.com/Agenta-AI/agenta/pull/6641) targets `release/v0.115.3`.
-The isolated stack is available at [desktop](http://144.76.237.122:9080/w) and
-[mobile](http://144.76.237.122:9080/m). It has its own database, credentials, and
-Docker project. Existing stacks were not replaced.
+The isolated QA origin is represented by `https://qa.example.invalid`, with desktop
+at `/w` and mobile at `/m`. This reserved example is not a live deployment link.
+The stack has its own database, credentials, and Docker project. Existing stacks
+were not replaced.
 
 The backend/defaults code is `92f82133ea`. The two frontends also contain the
 overview correction from `648cd5d14e`; that correction changes no backend code.

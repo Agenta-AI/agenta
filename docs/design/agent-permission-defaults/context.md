@@ -26,6 +26,12 @@ Do not introduce a new public policy schema, change API access checks, reset hid
 restrictions, or claim that the shared default controls every native harness action.
 Do not change Claude or Codex native modes without spike evidence and a reviewed decision.
 
+Compatibility with previously entered harness-specific permission rules is not a
+requirement. Keep the runner's existing precedence: an explicit tool policy wins over
+matching harness rules, including Deny. Do not add a migration or a global deny veto.
+Saved values remain intact, but preserving their storage does not give them higher
+priority than the build-kit policies. Native harness enforcement remains separate.
+
 ## Rollout
 
 The template change affects new agents across all three harnesses. The shared build-kit

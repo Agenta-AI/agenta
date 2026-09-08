@@ -16,7 +16,7 @@ applies to Pi, Claude, and Codex immediately. Native behavior changes require sp
 | Codex spike | Unit/image investigation complete; live checks credential-blocked |
 | Review | Two save-race findings fixed; independent re-review found no remaining issues |
 | Documentation | Current configuration/tools references and interface inventory updated; docs build passes |
-| Browser validation | Release-based stack live on port 9080; editor flows and corrected overview verified; runtime and remaining browser limits recorded in qa.md |
+| Browser validation | Release-based stack at the isolated QA origin; editor flows and corrected overview verified; runtime and remaining browser limits recorded in qa.md |
 
 See [validation.md](validation.md) for test scope and remaining checks. The user
 requested PR publication followed by a full isolated deployment and QA. Existing
@@ -56,10 +56,28 @@ rewritten. Independent review found no remaining source-level issues.
 - Scoped Python Ruff format/check passed. Dependency lockfiles remain unchanged.
 
 The deployment uses its own project, images, network, database, and credentials at
-port 9080. Only unused Docker build cache was removed, with user approval, to recover
-disk space. Application data, volumes, images, and running containers were not removed.
+the isolated QA origin. Only unused Docker build cache was removed, with user approval,
+to recover disk space. Application data, volumes, images, and running containers were
+not removed.
 
 ## Review corrections
+
+The product owner clarified that compatibility with previously entered harness-specific
+rules is not required. The existing explicit-tool-before-harness-rule precedence stays
+unchanged. New runner regressions cover all nine explicit-policy/rule combinations and
+the fallback modes, rather than introducing a runtime deny veto.
+
+CI exposed two incomplete host fixtures after the release rebase: mobile omitted the
+bridge's required project/session IDs, and desktop omitted Next router context. Both
+fixtures now provide the real host inputs without network requests. The exact Mobile
+types CI command passes all 22 tasks. Focused mobile and desktop checks pass (five and
+three tests). The runner suite passes 2,949 tests; runner typecheck and extension build
+also pass. Broad web test jobs are not awaited.
+
+Tracked spike and QA reports now use placeholders for live infrastructure addresses,
+private paths, image identifiers, credential mounts, and fixture IDs. Original evidence
+is retained privately. Public PR text is redacted separately; no Git-history rewrite
+or credential rotation is implied by this documentation change.
 
 Buffered Restore now preserves newer hidden restrictions when empty draft ancestors
 are pruned. Model saves preserve an atomic model/provider/connection/harness selection

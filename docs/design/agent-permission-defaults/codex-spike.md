@@ -22,7 +22,7 @@ marker-commit authorization tests do not close that gap.
 - No production source edits, commits, pushes, deployment restarts, rebuilds, or
   shared configuration changes.
 - Only this report and isolated artifacts under
-  `/tmp/opencode/permission-codex-spike` were manually written.
+  `<private-artifacts>/codex` were manually written.
 - Tests used installed project environments, no project `uv sync`, no dependency
   installation into the shared SDK environment, no standard JUnit output path,
   and no pytest/Vitest result cache. Test temporary files used the distinct
@@ -41,22 +41,26 @@ it contains no replacement verification assertions.
 
 ## Environment
 
+Deployment values and fixture IDs below are placeholders. `QA_BASE` denotes your
+isolated QA origin (shown as `https://qa.example.invalid`), not the original address.
+`<worktree>` and `<private-artifacts>` replace private checkout and artifact roots.
+
 | Item | Observed value |
 | --- | --- |
 | Local checkout HEAD | `bfe9b2278527ebd6fea2d960e74d8c218d1f4da3` |
 | Worktree state | Pre-existing staged, unstaged, and untracked changes; other agents' files left untouched |
-| Selected origin | `http://144.76.237.122:8780` |
-| Compose project | `agenta-ee-dev-tools` |
+| Selected origin | `https://qa.example.invalid` |
+| Compose project | `<qa-compose-project>` |
 | Health | `/api/health` returned `{"status":"ok"}` |
-| Deployed source | Bind mounts from `/home/mahmoud/code/agenta-2-worktrees/fd-pin`, not this checkout |
-| API image | `agenta-ee-dev-tools-api:latest`, ID `sha256:91d0d19ed428237352de75dd4f7c04777ccda842715bb87252c18d73c5f9745a` |
-| Runner image | `agenta-ee-dev-tools-runner:latest`, ID `sha256:4cd7bc9169eca8ef35551b9f8d1d03c48ae0be04b0d3558767120c7b02469029` |
+| Deployed source | `<worktree>`; a different checkout from the tests |
+| API image | `<qa-api-image>` |
+| Runner image | `<qa-runner-image>` |
 | Runner Node | `v24.20.0` |
 | Installed ACP adapter | `@agentclientprotocol/codex-acp` `1.1.7` |
 | Installed Codex package | `@openai/codex` `0.145.0` |
 | Local test runner | Vitest `4.1.9` as actually invoked, not the package manifest's `^4.1.4` floor |
 | Auth requested | Managed OpenAI, gate cell `X1`, model `gpt-5.6-luna` |
-| Subscription availability | Selected runner has no `CODEX_HOME` and no Codex login mount; its `.pi` mount is not a Codex harness login |
+| Subscription availability | Codex subscription unconfigured; `CODEX_HOME` unset |
 | Daytona availability | Runner reports nonempty Daytona configuration variable names; no remote sandbox was acquired or inspected |
 
 The API and runner had restart counts of zero. Their start times remained
@@ -100,10 +104,10 @@ that Codex's native permission implementation failed.
 
 ## Native settings
 
-The deployed adapter bundle was read from:
+The deployed adapter bundle was inspected at this package-relative reference:
 
 ```text
-/root/.local/share/sandbox-agent/bin/agent_processes/codex/node_modules/@agentclientprotocol/codex-acp/dist/index.js
+@agentclientprotocol/codex-acp/dist/index.js
 ```
 
 Its actual full-access preset contains:
@@ -247,24 +251,25 @@ Ask tool or non-marker commit.
 
 ## Commands and outcomes
 
-Directory for SDK command: `/home/mahmoud/code/agenta-2/sdks/python`.
+Directory for SDK command: `sdks/python`. In these command templates, set
+`PRIVATE_ARTIFACTS` to an existing isolated scratch directory for this spike.
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 TMPDIR=/tmp/opencode/permission-codex-spike uv run --no-sync python -m pytest -p no:cacheprovider -o addopts='' oss/tests/pytest/unit/agents/adapters/test_codex_settings_layers.py -q
+PYTHONDONTWRITEBYTECODE=1 TMPDIR="${PRIVATE_ARTIFACTS:?Set an isolated scratch directory}" uv run --no-sync python -m pytest -p no:cacheprovider -o addopts='' oss/tests/pytest/unit/agents/adapters/test_codex_settings_layers.py -q
 ```
 
 Outcome: 12 passed in 0.02 seconds.
 
-Directory for runner commands: `/home/mahmoud/code/agenta-2/services/runner`.
+Directory for runner commands: `services/runner`.
 
 ```bash
-TMPDIR=/tmp/opencode/permission-codex-spike pnpm exec vitest run --project unit --no-cache tests/unit/codex-mode.test.ts tests/unit/codex-acp-patch.test.ts tests/unit/sandbox-agent-codex-assets.test.ts tests/unit/permission-plan.test.ts tests/unit/permission-parity.test.ts tests/unit/tool-relay-guard.test.ts tests/unit/responder.test.ts tests/unit/commit-authorization.test.ts tests/unit/sandbox-agent-acp-interactions.test.ts --reporter=verbose
+TMPDIR="${PRIVATE_ARTIFACTS:?Set an isolated scratch directory}" pnpm exec vitest run --project unit --no-cache tests/unit/codex-mode.test.ts tests/unit/codex-acp-patch.test.ts tests/unit/sandbox-agent-codex-assets.test.ts tests/unit/permission-plan.test.ts tests/unit/permission-parity.test.ts tests/unit/tool-relay-guard.test.ts tests/unit/responder.test.ts tests/unit/commit-authorization.test.ts tests/unit/sandbox-agent-acp-interactions.test.ts --reporter=verbose
 ```
 
 Outcome: 9 files, 224 tests passed, 1.50 seconds.
 
 ```bash
-TMPDIR=/tmp/opencode/permission-codex-spike pnpm exec vitest run --project unit --no-cache tests/unit/executable-tools.test.ts tests/unit/session-keepalive-approval.test.ts tests/unit/pending-approval-pause.test.ts tests/unit/relay-loop.test.ts --reporter=verbose
+TMPDIR="${PRIVATE_ARTIFACTS:?Set an isolated scratch directory}" pnpm exec vitest run --project unit --no-cache tests/unit/executable-tools.test.ts tests/unit/session-keepalive-approval.test.ts tests/unit/pending-approval-pause.test.ts tests/unit/relay-loop.test.ts --reporter=verbose
 ```
 
 Outcome: 4 files, 88 tests passed, 6.21 seconds. Some tests deliberately log
@@ -275,41 +280,34 @@ No customer integration was called; the export was unauthorized. Do not describe
 this entire run as having zero external network attempts. No source was changed
 to address that test-hygiene issue.
 
-Read-only deployment commands, from the repository root:
+Read-only health command template, with `QA_BASE` set to your isolated QA origin:
 
 ```bash
-docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}'
-docker inspect agenta-ee-dev-tools-api-1 agenta-ee-dev-tools-runner-1 --format '{{.Name}} image={{.Image}} mounts={{range .Mounts}}{{.Source}}:{{.Destination}} {{end}}'
-curl --max-time 15 -sS http://144.76.237.122:8780/api/health
-docker inspect agenta-ee-dev-tools-api-1 agenta-ee-dev-tools-runner-1 --format '{{.Name}} started={{.State.StartedAt}} restarts={{.RestartCount}}'
+curl --max-time 15 -sS "${QA_BASE:?Set QA_BASE to your isolated QA origin}/api/health"
 ```
 
-Exact installed-bundle version/preset inspection:
-
-```bash
-docker exec agenta-ee-dev-tools-runner-1 node -e 'const fs=require("fs"),p="/root/.local/share/sandbox-agent/bin/agent_processes/codex/node_modules/";for(const n of ["@agentclientprotocol/codex-acp","@openai/codex"]){const f=p+n+"/package.json";console.log(n,fs.existsSync(f)?JSON.parse(fs.readFileSync(f)).version:"absent")}const f=p+"@agentclientprotocol/codex-acp/dist/index.js";if(fs.existsSync(f)){const s=fs.readFileSync(f,"utf8");console.log(s.slice(s.indexOf("static AgentFullAccess"),s.indexOf("static AgentFullAccess")+550));}'
-```
+Read-only container inspection recorded image/source identity, start times, and
+restart counts. Installed versions came from `@agentclientprotocol/codex-acp/package.json`
+and `@openai/codex/package.json`; the preset came from `static AgentFullAccess` in
+`@agentclientprotocol/codex-acp/dist/index.js`. Private installation paths are omitted.
 
 Outcome: the versions and patched preset quoted above. Additional read-only
 substring inspection of that bundle found the explicit per-turn policies and
 command/file approval handlers. No patch script was executed against the running
 container.
 
-Product preflight, from the SDK directory:
-
-```bash
-PYTHONDONTWRITEBYTECODE=1 TMPDIR=/tmp/opencode/permission-codex-spike uv run --no-sync --active /tmp/opencode/permission-codex-spike/run_gate.py
-```
+Product preflight ran `<private-artifacts>/codex/run_gate.py` from the SDK directory
+with `PYTHONDONTWRITEBYTECODE=1`, an isolated `TMPDIR`, and `uv run --no-sync --active`.
 
 The isolated script imports `api/oss/tests/pytest/utils/accounts.py`, reads the
 selected API container's admin credential into memory without printing it, calls
 the fixture once, and passes the returned project key to the existing gate in the
 child environment. It explicitly supplies all three `AGENTA_*` gate variables and
 uses a nonexistent isolated `--env-file` to prevent fallback to another project.
-It invokes the existing script with these exact arguments:
+It invokes the existing script with these arguments (private path replaced):
 
 ```text
-qa_product.py --cell X1 --only chat --env-file /tmp/opencode/permission-codex-spike/no-fallback.env
+qa_product.py --cell X1 --only chat --env-file <private-artifacts>/codex/no-fallback.env
 ```
 
 Outcome: account creation HTTP 200; product request HTTP 422. The gate's
@@ -319,16 +317,16 @@ Outcome: account creation HTTP 200; product request HTTP 422. The gate's
 provider 'openai' connection has no usable credential; configure a credential or select self_managed authentication
 ```
 
-The isolated project ID is `01a07d0c-6386-7071-a670-7fa11e0753ce`; the failed session
-ID is `106e33af-5fd7-49fc-9873-310ef64ab069`. These identify only this gate account.
+The isolated project ID is represented by `019d952f-0000-0000-0000-000000000004`;
+the failed session by `019d952f-0000-0000-0000-000000000005`. These are fixture placeholders.
 Credentials were not written into the report or scratch files.
 
 Artifacts:
 
 ```text
-/tmp/opencode/permission-codex-spike/run_gate.py
-/tmp/opencode/permission-codex-spike/gate-runs/20260907-200559/results.json
-/tmp/opencode/permission-codex-spike/gate-runs/20260907-200559/summary.md
+<private-artifacts>/codex/run_gate.py
+<private-artifacts>/codex/gate-runs/results.json
+<private-artifacts>/codex/gate-runs/summary.md
 ```
 
 ## Recommendation

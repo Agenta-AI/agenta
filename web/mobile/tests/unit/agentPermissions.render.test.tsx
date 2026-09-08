@@ -14,6 +14,8 @@ import {DrillInBridgeProvider} from "@/features/chat/DrillInBridgeProvider"
 import {queryClient} from "@/lib/queryClient"
 
 const fixture = vi.hoisted(() => ({environments: ["local"]}))
+const projectId = "permissions-test-project"
+const sessionId = "permissions-test-session"
 
 vi.mock("@agenta/shared/api", async (original) => ({
     ...(await original<object>()),
@@ -85,11 +87,13 @@ async function mount(disabled = false) {
         )
     }
     await preloadAgentTemplateControl()
+    // Keep the real permission hook offline with fresh host-cache data.
+    queryClient.setQueryData(["mobile", "project-permission", projectId, "edit_secret"], false)
     await act(async () => {
         root.render(
             <QueryClientProvider client={queryClient}>
                 <Provider store={store}>
-                    <DrillInBridgeProvider>
+                    <DrillInBridgeProvider sessionId={sessionId} projectId={projectId}>
                         <ConfigField />
                     </DrillInBridgeProvider>
                 </Provider>

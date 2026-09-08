@@ -21,6 +21,12 @@ Explicit tool permissions precede the runner fallback. Allow and Deny in the gen
 dropdown are fallback values, not guarantees that override every tool-specific setting.
 The operator deny switch is a separate higher-priority restriction.
 
+Explicit tool permissions also precede authored harness rules. Retain this existing
+contract for Allow, Ask, and Deny; old harness-specific settings do not receive a new
+compatibility override. A tool explicitly marked Ask still requires approval under
+the general Allow default. A tool explicitly marked Deny cannot be allowed by a
+lower-priority rule or a stored approval.
+
 Pi activates read, bash, edit, write, grep, find, and ls without saved tool entries. With
 Allow and no native rule, its built-in approval interception is disabled. Claude and
 Codex have separate native settings; their source behavior needs live spike verification.
