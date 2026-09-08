@@ -28,6 +28,7 @@ import {
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 
+import {isProtocolRelativeHref} from "./chatFileLinkGate"
 import {DriveFileInlineRef} from "./DriveFileCard"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 
@@ -37,6 +38,9 @@ import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
  * guaranteed-404 on-demand read once scrolled into view; the shape test drops those. */
 export const fileCandidate = (text: string): string | null => {
     const trimmed = text.trim()
+    // A span or a link target that names a HOST is not a file, whichever host called in (#6666).
+    // The anchors refuse it before this point; an inline-code mention arrives here directly.
+    if (isProtocolRelativeHref(trimmed)) return null
     // Keep the leading slash on an absolute sandbox path. The Quick Look host uses the complete
     // tool-path tail to match the mount-relative file, while removing it turns `/tmp/...` into an
     // unrelated drive-relative path and loses the information needed for that match (#5983).

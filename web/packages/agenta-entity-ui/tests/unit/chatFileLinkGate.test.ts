@@ -5,9 +5,11 @@ import {
     decodeDriveHref,
     explicitRelativeHref,
     isExternalHref,
+    isProtocolRelativeHref,
     rehypeExplicitRelativeLinks,
     withExplicitRelativeLinks,
 } from "../../src/drive/chatFileLinkGate"
+import {fileCandidate} from "../../src/drive/chatFileRefs"
 
 describe("explicitRelativeHref", () => {
     it("respells the working-directory-relative path the platform prompt prescribes", () => {
@@ -54,6 +56,84 @@ describe("isExternalHref", () => {
     it("is false for a path, which may name a drive file", () => {
         expect(isExternalHref("/agent-files/report.md")).toBe(false)
         expect(isExternalHref("agent-files/report.md")).toBe(false)
+    })
+})
+
+describe("isProtocolRelativeHref", () => {
+    it("refuses the target harden hands back for a dot segment that climbs to a host (#6666)", () => {
+        // What the anchor actually receives: harden resolved `..//evil.com/x` to its pathname.
+        expect(isProtocolRelativeHref("//evil.com/x")).toBe(true)
+        // And the target as written, in case a pipeline change stops resolving it first.
+        expect(isProtocolRelativeHref("..//evil.com/x")).toBe(true)
+        expect(isProtocolRelativeHref("a/..//evil.com/x")).toBe(true)
+        expect(isProtocolRelativeHref(".././/evil.com/x")).toBe(true)
+    })
+
+    it("refuses the encoded spellings of the same target", () => {
+        expect(isProtocolRelativeHref("%2F%2Fevil.com")).toBe(true)
+        expect(isProtocolRelativeHref("%2f%2fevil.com")).toBe(true)
+        expect(isProtocolRelativeHref("%252F%252Fevil.com")).toBe(true)
+        expect(isProtocolRelativeHref("/%2F%2Fevil.com")).toBe(true)
+    })
+
+    it("refuses the backslash spellings a browser reads as slashes", () => {
+        expect(isProtocolRelativeHref("\\\\evil.com")).toBe(true)
+        expect(isProtocolRelativeHref("/\\evil.com")).toBe(true)
+        expect(isProtocolRelativeHref("\\/evil.com")).toBe(true)
+        expect(isProtocolRelativeHref("/%5Cevil.com")).toBe(true)
+        expect(isProtocolRelativeHref("%5C%5Cevil.com")).toBe(true)
+    })
+
+    it("refuses a target hidden behind the whitespace a browser strips", () => {
+        expect(isProtocolRelativeHref("  //evil.com/x")).toBe(true)
+        expect(isProtocolRelativeHref("\n//evil.com/x")).toBe(true)
+        expect(isProtocolRelativeHref("\t\\\\evil.com")).toBe(true)
+        expect(isProtocolRelativeHref("\u0000//evil.com/x")).toBe(true)
+    })
+
+    it("does not care how the host is cased", () => {
+        expect(isProtocolRelativeHref("//EVIL.com/x")).toBe(true)
+        expect(isProtocolRelativeHref("%2F%2FEVIL.com")).toBe(true)
+    })
+
+    it("lets an ordinary web link through, double slashes in its path included", () => {
+        expect(isProtocolRelativeHref("https://example.com")).toBe(false)
+        expect(isProtocolRelativeHref("https://example.com//deep/path")).toBe(false)
+        expect(isProtocolRelativeHref("HTTPS://example.com")).toBe(false)
+        expect(isProtocolRelativeHref("mailto:qa@agenta.ai")).toBe(false)
+    })
+
+    it("lets every file path through", () => {
+        expect(isProtocolRelativeHref("agent-files/report.md")).toBe(false)
+        expect(isProtocolRelativeHref("/agent-files/report.md")).toBe(false)
+        expect(isProtocolRelativeHref("./agent-files/report.md")).toBe(false)
+        expect(isProtocolRelativeHref("../report.md")).toBe(false)
+        expect(isProtocolRelativeHref("/tmp/agenta/mounts/p/m/agent-files/report.md")).toBe(false)
+        expect(isProtocolRelativeHref("/agent-files/my%20report.md")).toBe(false)
+        expect(isProtocolRelativeHref("/a//b/report.md")).toBe(false)
+        expect(isProtocolRelativeHref("#section")).toBe(false)
+    })
+
+    it("survives a malformed escape and a missing href instead of throwing", () => {
+        expect(isProtocolRelativeHref("/agent-files/100%.md")).toBe(false)
+        expect(isProtocolRelativeHref("%")).toBe(false)
+        expect(isProtocolRelativeHref("")).toBe(false)
+        expect(isProtocolRelativeHref(undefined)).toBe(false)
+        expect(isProtocolRelativeHref(null)).toBe(false)
+    })
+})
+
+describe("fileCandidate", () => {
+    it("refuses a mention that names a host, so the resolver never treats it as a file (#6666)", () => {
+        expect(fileCandidate("//evil.com/x")).toBeNull()
+        expect(fileCandidate("\\\\evil.com")).toBeNull()
+        expect(fileCandidate("%2F%2Fevil.com")).toBeNull()
+    })
+
+    it("still accepts an ordinary file mention", () => {
+        expect(fileCandidate("agent-files/report.md")).toBe("agent-files/report.md")
+        expect(fileCandidate("./report.md")).toBe("report.md")
+        expect(fileCandidate("/tmp/agenta/report.md")).toBe("/tmp/agenta/report.md")
     })
 })
 

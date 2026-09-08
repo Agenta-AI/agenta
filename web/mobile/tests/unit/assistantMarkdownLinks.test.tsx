@@ -45,4 +45,40 @@ describe("mobile assistant markdown links", () => {
         expect(html).toContain('target="_blank"')
         expect(html).toContain('rel="noopener noreferrer"')
     })
+
+    it("refuses a target that names a host instead of a path (#6666)", () => {
+        // The shapes that reach the anchor: what harden hands back for a dot segment that climbs
+        // to a host, and the encoded and backslash spellings of the same thing.
+        const targets = [
+            "//evil.com/x",
+            "..//evil.com/x",
+            "a/..//evil.com/x",
+            "//EVIL.com/x",
+            "%2F%2Fevil.com",
+            "%2f%2fevil.com",
+            "\\\\evil.com",
+            "/\\evil.com",
+            "  //evil.com/x",
+        ]
+        for (const target of targets) {
+            const before = resolved.length
+            const html = renderLink(target)
+            expect(html, target).not.toContain("<a")
+            expect(html, target).toContain("[blocked]")
+            // It never reaches the drive resolver either, so no file read is attempted for it.
+            expect(resolved.length, target).toBe(before)
+        }
+    })
+
+    it("keeps the file link the platform prompt prescribes working", () => {
+        const html = renderLink("/agent-files/report.md")
+        expect(html).not.toContain("[blocked]")
+        expect(resolved).toContain("/agent-files/report.md")
+    })
+
+    it("keeps a web link whose own path has a double slash", () => {
+        const html = renderLink("https://example.com//deep/report.md")
+        expect(html).toContain('href="https://example.com//deep/report.md"')
+        expect(html).not.toContain("[blocked]")
+    })
 })

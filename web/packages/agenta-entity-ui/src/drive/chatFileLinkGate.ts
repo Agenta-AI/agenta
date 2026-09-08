@@ -4,11 +4,76 @@
  * form the platform prompt prescribes rendered as inert "[blocked]" text (#6659). Respelling the
  * href is all this module does. `rehype-sanitize`, upstream of it, is what strips a dangerous
  * scheme, and harden still gates every href this module rewrites.
+ *
+ * It also owns the one shape harden lets through that it should not: a target that resolves to a
+ * host instead of a path. See {@link isProtocolRelativeHref}, which the chat anchor calls first.
  */
 
 /** True for a `scheme:` URL, a protocol-relative `//host` or a `#fragment`; false for a path. */
 export const isExternalHref = (href?: string): boolean =>
     !href || /^([a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)
+
+/** Drop the leading and trailing C0 controls and spaces a browser drops before it parses an href. */
+const trimHref = (value: string): string => {
+    let start = 0
+    let end = value.length
+    while (start < end && value[start] <= " ") start += 1
+    while (end > start && value[end - 1] <= " ") end -= 1
+    return value.slice(start, end)
+}
+
+/** Resolving against this tells a same-document path apart from one that names another host. */
+const PROBE_ORIGIN = "http://link-gate.invalid"
+const PROBE_HOST = "link-gate.invalid"
+
+/**
+ * True when a browser would read this href as naming a HOST rather than a path in this app (#6666).
+ *
+ * The escape harden leaves open: it parses a target that starts with `../`, then emits
+ * `parsedUrl.pathname`, and the pathname of `..//evil.com/x` is `//evil.com/x`. That is a
+ * protocol-relative URL, so the browser fills in the page's scheme and navigates off-site under a
+ * link text the markdown author chose. Model output is markdown an agent can be steered into
+ * writing, so the anchor refuses the shape instead of trusting the target.
+ *
+ * The test is deliberately wider than a literal `//` prefix, because several spellings reach the
+ * same place. A browser reads a backslash as a slash in an http(s) URL, so `/\host` is `//host`.
+ * Percent-encoding hides the slashes from a prefix test but not from the browser, so the check
+ * decodes until the value stops changing. A leading control character or space is dropped by the
+ * browser before it parses, so it is dropped here first. And a target harden did not resolve can
+ * still resolve to another host, so the last step resolves it and compares.
+ *
+ * A `scheme:` URL is not this function's business and returns false: `rehype-sanitize` drops a
+ * dangerous scheme and `rehype-harden` gates the rest, and an `https://` link is a link a reply is
+ * allowed to contain. The cost of the rule is a legitimate `//host` spelling of a web link in a
+ * reply, which renders blocked. That trade is the decision recorded on #6666.
+ */
+export const isProtocolRelativeHref = (href?: string | null): boolean => {
+    if (typeof href !== "string" || !href) return false
+    let value = href
+    // Four rounds covers `%252f`-style double encoding with room to spare. The loop stops as soon
+    // as decoding is a no-op, so an ordinary path costs one pass.
+    for (let round = 0; round < 4; round += 1) {
+        value = trimHref(value)
+        if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return false
+        if (value.replace(/\\/g, "/").startsWith("//")) return true
+        let decoded: string
+        try {
+            decoded = decodeURIComponent(value)
+        } catch {
+            break
+        }
+        if (decoded === value) break
+        value = decoded
+    }
+    try {
+        const url = new URL(value.replace(/\\/g, "/"), PROBE_ORIGIN)
+        // A different host means the target named one. A pathname that still starts with `//` is
+        // the shape harden hands back, which the NEXT resolution (the browser's) reads as a host.
+        return url.host !== PROBE_HOST || url.pathname.startsWith("//")
+    } catch {
+        return false
+    }
+}
 
 /** The explicit-relative spelling of a bare relative href, else null. */
 export const explicitRelativeHref = (href: string): string | null => {

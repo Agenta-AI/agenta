@@ -3,6 +3,7 @@
  * their rows, plus the toast-reporting download hooks, over the headless layer in
  * `@agenta/entities/drive`. antd-free so the mobile app renders it.
  */
+export * from "./BlockedChatLink"
 export * from "./ContextRail"
 export * from "./DriveBreadcrumb"
 export * from "./DriveExplorer"

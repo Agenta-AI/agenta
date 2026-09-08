@@ -75,6 +75,72 @@ describe("chat markdown link gate", () => {
         expect(html).toContain('target="_blank"')
     })
 
+    it("never renders a target that names a host as a link (#6666)", () => {
+        const targets = [
+            "..//evil.com/x",
+            "//evil.com/x",
+            "a/..//evil.com/x",
+            ".././/evil.com/x",
+            "..//EVIL.com/x",
+            "..//evil.com/x?a=1",
+            "%2F%2Fevil.com",
+            "%2f%2fevil.com",
+            "\\\\evil.com",
+            "/\\evil.com",
+        ]
+        for (const target of targets) {
+            const html = renderToStaticMarkup(<Markdown content={link(target)} />)
+            // No anchor at all, so there is nothing to click and no href to resolve. A refused
+            // target still appears inside a `title`, the same place harden puts one it refused.
+            expect(html, target).not.toContain("<a ")
+            expect(html, target).not.toContain("href=")
+            expect(html, target).toContain("report.md")
+        }
+    })
+
+    it("is the anchor that refuses the shape harden hands over as a host (#6666)", () => {
+        // `..//evil.com/x` starts with `../`, so harden parses it and returns its pathname,
+        // `//evil.com/x`. The browser fills in the page scheme and leaves the app, so the anchor
+        // has to be the one to say no. These are the targets that reach it in that shape.
+        for (const target of ["..//evil.com/x", "a/..//evil.com/x", ".././/evil.com/x"]) {
+            const html = renderToStaticMarkup(<Markdown content={link(target)} />)
+            expect(html, target).toContain("[blocked]")
+        }
+        // Written with no dot segment, harden drops the host itself and hands over a bare path.
+        // Nothing to block, and still not a link.
+        const bare = renderToStaticMarkup(<Markdown content={link("//evil.com/x")} />)
+        expect(bare).not.toContain("<a ")
+        expect(bare).not.toContain("evil.com")
+    })
+
+    it("refuses it the same way harden refuses a bad scheme, so both read alike", () => {
+        const blockedHere = renderToStaticMarkup(<Markdown content={link("..//evil.com/x")} />)
+        const blockedByHarden = renderToStaticMarkup(
+            <Markdown content={link("javascript:alert(1)")} />,
+        )
+        for (const html of [blockedHere, blockedByHarden]) {
+            expect(html).toContain("<span")
+            expect(html).toContain('title="Blocked URL:')
+            expect(html).toContain("[blocked]")
+        }
+    })
+
+    it("keeps the links a reply is allowed to have", () => {
+        const web = renderToStaticMarkup(<Markdown content={link("https://example.com")} />)
+        expect(web).toContain('href="https://example.com/"')
+        expect(web).toContain('target="_blank"')
+        expect(web).not.toContain("[blocked]")
+
+        // A web link whose own path has a double slash is a link, not a host escape.
+        const doubled = renderToStaticMarkup(<Markdown content={link("https://example.com//a")} />)
+        expect(doubled).toContain('href="https://example.com//a"')
+
+        // The file link the platform prompt prescribes still reaches the drive resolver.
+        const file = renderToStaticMarkup(<Markdown content={link("agent-files/report.md")} />)
+        expect(file).not.toContain("[blocked]")
+        expect(file).toContain("report.md")
+    })
+
     it("blocked every relative shape before the fix", () => {
         // Streamdown's stock list: the before column of the table.
         const stock = Object.values(defaultRehypePlugins)
