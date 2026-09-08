@@ -13,9 +13,9 @@ import {
     effectiveHarnesses,
     firstAgentModelForConnection,
     isSubscriptionConnection,
+    mountedSubscriptionName,
     resolveAgentModelSelection,
     subscriptionIsReady,
-    subscriptionPlanName,
     SecretKind,
     SUBSCRIPTION_SIGN_IN_HINT,
     type AgentModelCandidate,
@@ -74,12 +74,24 @@ export interface BuildPickerRowsArgs {
     harnessIds?: readonly string[]
 }
 
+/**
+ * What a candidate's row is called.
+ *
+ * A candidate backed by a stored record uses the record's own name. Only a MOUNTED subscription
+ * has no record, and that fallback has to say so: a project that also holds a hosted subscription
+ * to the same plan would otherwise show two rows called "ChatGPT · Subscription".
+ */
+const candidateRowName = (
+    candidate: AgentModelCandidate,
+    connection: ProviderConnection | undefined,
+): string => connection?.name ?? mountedSubscriptionName(candidate.provider ?? "")
+
 const rowFromCandidate = (
     candidate: AgentModelCandidate,
     connection: ProviderConnection | undefined,
 ): PickerConnectionRow => ({
     key: candidate.connectionKey,
-    name: connection?.name ?? subscriptionPlanName(candidate.provider ?? ""),
+    name: candidateRowName(candidate, connection),
     iconKey: candidate.managed ? "agenta" : (connection?.kind ?? candidate.provider ?? ""),
     kind: candidate.source,
     managed: candidate.managed || undefined,
@@ -106,7 +118,7 @@ const modelFromCandidate = (
         slug: candidate.slug,
         provider: candidate.provider,
         connectionKey: candidate.connectionKey,
-        connectionName: connection?.name ?? subscriptionPlanName(candidate.provider ?? ""),
+        connectionName: candidateRowName(candidate, connection),
     }
 }
 

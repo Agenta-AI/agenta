@@ -101,6 +101,7 @@ export {
     activeModelsSummary,
     connectedRowSubtitle,
     connectionModelCount,
+    mountedSubscriptionName,
     subscriptionConnectionCandidates,
     subscriptionIsReady,
     subscriptionPairModels,

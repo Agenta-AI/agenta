@@ -134,6 +134,7 @@ export {
     subscriptionStatusLine,
 } from "./subscriptionConnections"
 export {
+    mountedSubscriptionName,
     subscriptionPairModels,
     subscriptionPairsFrom,
     subscriptionPlanName,
