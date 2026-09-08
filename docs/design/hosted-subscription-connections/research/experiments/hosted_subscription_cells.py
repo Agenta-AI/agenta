@@ -316,8 +316,14 @@ const fs=require('fs');
 const [file, mode, metaVersion, metaGeneration]=process.argv.slice(1);
 const doc=JSON.parse(fs.readFileSync(file,'utf8'));
 const cred=doc['openai-codex'];
-cred.expires=Date.now()-60000;
-if (mode==='dead') cred.refresh='dead-'+cred.refresh.slice(0,8)+'-'+Math.random().toString(36).slice(2);
+if (mode==='expire') cred.expires=Date.now()-60000;
+if (mode==='dead') {
+  // A dead lineage that the materialize rule keeps: later expiry than the stored copy, but both
+  // tokens are garbage, so the first model request fails and the refresh is refused.
+  cred.access='dead-'+Math.random().toString(36).slice(2);
+  cred.refresh='dead-'+Math.random().toString(36).slice(2);
+  cred.expires=Date.now()+20*24*3600*1000;
+}
 fs.writeFileSync(file, JSON.stringify(doc,null,2)); fs.chmodSync(file,0o600);
 const meta=file.replace(/auth\.json$/,'meta.json');
 if (metaVersion!==undefined && fs.existsSync(meta)) {
