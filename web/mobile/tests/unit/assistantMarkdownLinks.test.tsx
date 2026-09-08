@@ -47,8 +47,7 @@ describe("mobile assistant markdown links", () => {
     })
 
     it("refuses a target that names a host instead of a path (#6666)", () => {
-        // The shapes that reach the anchor: what harden hands back for a dot segment that climbs
-        // to a host, and the encoded and backslash spellings of the same thing.
+        // Every spelling of a host that can reach the anchor.
         const targets = [
             "//evil.com/x",
             "..//evil.com/x",
@@ -71,9 +70,11 @@ describe("mobile assistant markdown links", () => {
     })
 
     it("keeps the file link the platform prompt prescribes working", () => {
+        // `resolved` accumulates across the whole file, so read only what this render added.
+        const before = resolved.length
         const html = renderLink("/agent-files/report.md")
         expect(html).not.toContain("[blocked]")
-        expect(resolved).toContain("/agent-files/report.md")
+        expect(resolved.slice(before)).toEqual(["/agent-files/report.md"])
     })
 
     it("keeps a web link whose own path has a double slash", () => {

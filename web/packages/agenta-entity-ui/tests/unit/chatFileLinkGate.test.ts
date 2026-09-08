@@ -92,8 +92,7 @@ describe("isProtocolRelativeHref", () => {
     })
 
     it("refuses a target split by the tab and newline the URL parser removes", () => {
-        // The URL parser deletes these from ANYWHERE in the input, not just the ends, so a
-        // browser reads each of these as `//evil.com`.
+        // The parser deletes these from anywhere, so a browser reads each as `//evil.com`.
         expect(isProtocolRelativeHref("/\t/evil.com")).toBe(true)
         expect(isProtocolRelativeHref("/\n/evil.com")).toBe(true)
         expect(isProtocolRelativeHref("/\r/evil.com")).toBe(true)
