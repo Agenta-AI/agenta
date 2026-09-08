@@ -94,7 +94,6 @@ from oss.src.core.sessions.records.dtos import (
     TERMINAL_RECORD_TYPE,
 )
 from oss.src.core.sessions.records.streaming import publish_live_frame, publish_record
-from oss.src.tasks.asyncio.sessions.streaming import publish_turn_ended
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionCreate,
     SessionInteractionKind,
@@ -1084,23 +1083,6 @@ class RecordsRouter:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Record ingestion is temporarily unavailable.",
             )
-
-        # Tell the channels outbox a turn settled, so it folds and renders.
-        # complete_turn publishes turn-ended for a turn the desktop drives, but
-        # two channel-relevant endings miss it: a PARKED turn (never completes,
-        # so the approval card would never draw) and an APPROVAL CONTINUATION
-        # (dispatched detached, it bypasses complete_turn). Emitting on every
-        # terminal record covers both. streams:sessions is consumed only by the
-        # channels outbox, and that worker keys its output by (turn_id, index),
-        # so a turn that also ends through complete_turn just edits the same
-        # message rather than posting twice.
-        if body.record_type == TERMINAL_RECORD_TYPE and body.turn_id:
-            await publish_turn_ended(
-                project_id=UUID(project_id),
-                session_id=body.session_id,
-                turn_id=str(body.turn_id),
-            )
-
         return {"ok": True}
 
 

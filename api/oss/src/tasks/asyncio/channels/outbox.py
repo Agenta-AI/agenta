@@ -263,18 +263,21 @@ class ChannelsOutboxWorker:
         match on it, else take the turn's single open interaction."""
         if self.interactions_service is None:
             return None
-        try:
-            rows = await self.interactions_service.fetch_turn_interactions(
-                project_id=project_id, session_id=session_id, turn_id=turn_id
-            )
-        except Exception:  # pylint: disable=broad-exception-caught
-            return None
-        if not rows:
-            return None
-        for row in rows:
-            if token and row.token == token:
-                return str(row.id)
-        return str(rows[0].id)
+        # No try/except: a transient lookup failure must raise so the stream
+        # worker retries, not store an unusable (None) interaction id.
+        rows = await self.interactions_service.fetch_turn_interactions(
+            project_id=project_id, session_id=session_id, turn_id=turn_id
+        )
+        if token:
+            for row in rows:
+                if row.token == token:
+                    return str(row.id)
+        # A turn can hold resolved interactions beside the open one, so a bare
+        # "first row" would answer the wrong interaction. Fall back only when
+        # there is exactly one.
+        if len(rows) == 1:
+            return str(rows[0].id)
+        return None
 
     # --- send: post or edit, then record the receipt ------------------------#
 

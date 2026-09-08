@@ -6,6 +6,7 @@ from sqlalchemy.exc import DataError, IntegrityError
 
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.dtos import SessionRecord, TERMINAL_RECORD_TYPE
+from oss.src.tasks.asyncio.sessions.streaming import publish_turn_ended
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.events import durable_events_from_records
 from oss.src.core.sessions.records.streaming import (
@@ -29,6 +30,23 @@ if is_ee():
 # for a pause and omitted on every other stop reason).
 PAUSED_STOP_REASON = "paused"
 ROW_REJECTION_ERRORS = (DataError, IntegrityError)
+
+
+def terminal_turns_in_batch(events: List[Any]) -> Dict[str, str]:
+    """`session_id -> turn_id` for every turn that reached a terminal `done` in
+    this batch, PAUSED ones included. The channels outbox folds and renders a
+    turn only on a turn-ended signal; `complete_turn` emits one for a turn the
+    desktop completes, but a PARKED turn (never completes) and an approval
+    CONTINUATION (a detached run) both miss it, so the channels card would
+    never draw. Publishing from here is post-commit, so the record is durable
+    before the outbox reads it; `streams:sessions` is consumed only by the
+    channels outbox, which dedups by (turn_id, index), so a turn that also ends
+    through `complete_turn` just edits the same message."""
+    terminal: Dict[str, str] = {}
+    for record in events:
+        if record.record_type == TERMINAL_RECORD_TYPE and record.turn_id:
+            terminal[record.session_id] = str(record.turn_id)
+    return terminal
 
 
 def finished_turns_in_batch(events: List[Any]) -> Dict[str, str]:
@@ -423,6 +441,19 @@ class RecordsWorker(StreamConsumer):
                 project_id=project_batch["project_id"],
                 events=committed_events,
             )
+            # Post-commit: tell the channels outbox which turns settled, so it
+            # folds and renders them (a parked turn's approval card, or an
+            # approval continuation's answer). Built from the committed
+            # SessionRecords, not the raw stream messages. See
+            # terminal_turns_in_batch.
+            for session_id, turn_id in terminal_turns_in_batch(
+                [r for r in results if isinstance(r, SessionRecord)]
+            ).items():
+                await publish_turn_ended(
+                    project_id=UUID(str(project_batch["project_id"])),
+                    session_id=session_id,
+                    turn_id=turn_id,
+                )
 
             # Relay tee (M3): strictly post-append so a notified client that
             # revalidates always sees the new rows. One publish per distinct
