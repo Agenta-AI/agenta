@@ -23,11 +23,13 @@ import {Skeleton, SimpleTooltip} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import InlineRenameInput from "./InlineRenameInput"
 import {type SessionMenuEntry} from "./menu"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
 import {SessionTabStrip} from "./SessionTabStrip"
+import {useInlineRename} from "./useInlineRename"
 
 export interface SessionTabRailProps extends UseSessionCardListArgs {
     /** The session on screen — its chip is the active one. */
@@ -48,6 +50,12 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
      */
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
+    /**
+     * Persists a rename. Given this, a chip renames IN PLACE from its menu, the way a row does on
+     * every list. Without it the "rename" key falls through to `onMenuSelect` and the entry is
+     * inert, which is what it was here.
+     */
+    onRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
     /**
      * Drag to hand-arrange the tabs, persisted per agent. On by default — a tab strip is a place
      * users expect to arrange. Off leaves the rail in list order.
@@ -71,6 +79,7 @@ const RailTab = ({
     onSelect,
     menuFor,
     onMenuSelect,
+    onRenameRow,
     draggable,
 }: {
     vm: SessionRowVm
@@ -78,6 +87,7 @@ const RailTab = ({
     onSelect: (vm: SessionRowVm) => void
     menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
     onMenuSelect?: (vm: SessionRowVm, key: string) => void
+    onRenameRow?: (vm: SessionRowVm, name: string) => Promise<boolean>
     /** A drag slot only inside a reorder group — a lone `Reorder.Item` has no context to drag in. */
     draggable: boolean
 }) => {
@@ -103,12 +113,35 @@ const RailTab = ({
         }
     }, [active])
     const handleSelect = useCallback(() => onSelect(vm), [onSelect, vm])
+    const onRename = useMemo(
+        () => (onRenameRow ? (name: string) => onRenameRow(vm, name) : undefined),
+        [onRenameRow, vm],
+    )
+    const rename = useInlineRename({current: vm.title, onCommit: onRename ?? (async () => false)})
+    const handleMenuSelect = useCallback(
+        (key: string) => {
+            // Deferred, not run here: an input that mounts inside the menu's focus trap is
+            // blurred straight back out, and a blur commits. See `useDeferredMenuSelect`.
+            if (key === "rename" && onRename) return () => rename.start()
+            onMenuSelect?.(vm, key)
+        },
+        [onMenuSelect, onRename, rename, vm],
+    )
 
     const chip = (
-        <SessionRowContextMenu entries={menuFor?.(vm)} onSelect={(key) => onMenuSelect?.(vm, key)}>
+        <SessionRowContextMenu entries={menuFor?.(vm)} onSelect={handleMenuSelect}>
             <SessionTab
                 active={active}
-                label={vm.title}
+                label={
+                    rename.renaming ? (
+                        <InlineRenameInput
+                            rename={rename}
+                            className="h-5 w-full min-w-0 rounded border border-solid border-colorBorder bg-colorBgContainer px-1 text-xs leading-5 text-colorText outline-none [font-family:inherit] focus:border-colorPrimary"
+                        />
+                    ) : (
+                        vm.title
+                    )
+                }
                 onSelect={handleSelect}
                 statusDot={
                     <SimpleTooltip title={vm.status.label}>
@@ -177,6 +210,7 @@ export const SessionTabRail = ({
     activeFallbackTitle,
     menuFor,
     onMenuSelect,
+    onRenameRow,
     reorderable = true,
     className,
     ...listArgs
@@ -228,6 +262,7 @@ export const SessionTabRail = ({
                           vm={vm}
                           active={vm.id === activeSessionId}
                           onSelect={onSelect}
+                          onRenameRow={onRenameRow}
                           draggable={reorderable}
                           menuFor={(row) => [
                               ...(menuFor?.(row) ?? []),

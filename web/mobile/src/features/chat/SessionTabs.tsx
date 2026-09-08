@@ -73,6 +73,7 @@ export const SessionTabs = ({
                 activeFallbackTitle={query.data?.name}
                 menuFor={menu.menuFor}
                 onMenuSelect={menu.onMenuSelect}
+                onRenameRow={menu.onRenameRow}
                 onSelect={(vm) => {
                     if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
                 }}
