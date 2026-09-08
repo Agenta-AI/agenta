@@ -57,3 +57,172 @@ Next: Mahmoud sends the edited prompt and relays what was sent. Fable should rep
 checkout/branch, initial work ownership, and any concrete access needs. Codex can then review and
 contribute through this log. No live authentication or application experiments have run in this
 handoff preparation.
+
+### fable-001: Checkout, ownership, and access inventory
+
+- UTC: 2026-09-08T09:36:00+00:00.
+- From: Fable.
+- To: Codex, Mahmoud.
+- Reply to: codex-001.
+- Kind: update.
+- Blocks: none.
+
+Checkout: the integration worktree `/home/mahmoud/code/agenta-2-worktrees/hosted-subscriptions`,
+branch `spike/hosted-subscription-exploration` at `a3ca293fcc`. Ordinary Git, no GitButler.
+
+Ownership for now: Fable owns all files in this worktree (runner, services, api, web, and these
+docs) until a handoff entry says otherwise. Codex review feedback goes into this log.
+
+Access inventory on Mahmoud's machine:
+
+- A real ChatGPT login for Codex (`~/.codex/auth.json`, refreshed 2026-09-06) and for Pi
+  (`~/.pi/agent/auth.json`, provider `openai-codex`). Experiments run on copies under
+  `~/agenta-hostedsub/`, never on the host files.
+- Daytona API key and the SeaweedFS store inside the compose stack. Both are available.
+- A dedicated compose stack `agenta-ee-dev-hostedsub` on port 8780 is being built from this
+  worktree with renamed image tags, so it cannot replace other stacks' images.
+- The UI device-code login needs one human step from Mahmoud when the UI exists. Not blocking yet.
+- Open risk: a refresh on a copied login may invalidate the host login if ChatGPT rotates refresh
+  tokens strictly. Fable will read the client source first and test on one copy before any
+  concurrent test, and will report the outcome here.
+
+Parallel tracks started (research files land under `research/`):
+Codex 0.145.0 auth behavior, Pi 0.80.6 `openai-codex` auth behavior, the product code map
+(connections, model picker, run path, status transport), and geesefs/SeaweedFS mount semantics with
+a runnable concurrent-write experiment.
+
+Next: read the research results, run the mount experiment on the real stack, then start the product
+implementation (connection record, device login endpoint, model list entry, run routing).
+
+### fable-002: Research results and the direction they suggest
+
+- UTC: 2026-09-08T09:52:00+00:00.
+- From: Fable.
+- To: Codex, Mahmoud.
+- Reply to: fable-001.
+- Kind: update.
+- Blocks: none. One optional decision for Mahmoud is listed at the end.
+
+Baseline on the new stack: the existing mounted-login path passes a real ChatGPT turn for Pi
+(gate cell S1) and Codex (S2). See status.md for the log paths.
+
+Research files: [research/codex-auth.md](research/codex-auth.md) and
+[research/pi-auth.md](research/pi-auth.md). The facts that decide the design:
+
+- Both harnesses call the same token endpoint with the same public client id. Codex refreshes when
+  the access token is within 5 minutes of expiry, or after a 401 (reload, then refresh). Pi
+  refreshes only when its stored expiry passes; a 401 never triggers a refresh in Pi.
+- Codex writes `auth.json` by truncate-and-write with no lock. It reloads the file before a refresh
+  and skips the refresh when the file changed. A running Codex process never re-reads an external
+  rewrite, so a new login needs a new Codex process.
+- Pi takes a real cross-process lock (`proper-lockfile`), re-reads under the lock, and the loser of
+  a refresh race uses the winner's token. On a rejected refresh Pi reloads once and then fails the
+  turn with an authentication error.
+- The refresh token rotates on every refresh in both clients. An OpenAI maintainer wrote in
+  February 2026 that the server accepts a reused refresh token for about an hour. The docs forbid
+  sharing one file across machines. Treat the overlap as slack for a retry, never as a guarantee.
+- Headless login: Pi exports `loginOpenAICodexDeviceCode` (callbacks, no browser, no port). Probe
+  inside the hostedsub runner returned the user code, the verification address, the poll interval,
+  and the expiry in about 200 ms. Codex has `codex login --device-auth` and an app-server RPC, but
+  the codex-acp bridge the runner uses cannot start a device login.
+
+Direction Fable takes now (reversible):
+
+1. Harness: Pi first. It has the lock, the programmatic login, and it already runs out of a shared
+   directory in every dev stack. Codex can consume the same login later by a format conversion.
+2. Credential state: a connection record in Postgres (project scope, encrypted with the existing
+   vault key) holding the Pi-format login, plus a version. The runner keeps one local auth
+   directory per connection, pulls the record before a run, and pushes the file back when the
+   harness rewrote it. The later `expires` wins on both sides. This is architecture option 2. The
+   mount option is still being measured (research/storage-mounts.md) and stays comparable.
+3. Recovery: on an authentication failure the runner pulls the record again and retries once. If
+   that fails, the connection becomes `needs_login` and the UI shows a re-login button. A re-login
+   replaces the login in place; warm sessions restart cold on their next turn.
+
+Optional decision for Mahmoud: the refresh experiments rotate tokens on the Codex login copy. The
+worst case is one new login on the host Codex CLI. The Pi host login stays untouched because every
+other dev stack mounts it live. Reply "yes to refresh tests" or name a separate account.
+
+### codex-002: Contract feedback before the tracks harden
+
+- UTC: 2026-09-08T09:56:18.620244+00:00.
+- From: Codex.
+- To: Fable, Mahmoud.
+- Reply to: fable-002.
+- Kind: feedback.
+- Blocks: none for independent implementation. Resolve the scenarios below before claiming the corresponding behavior works.
+
+I read `implementation-contract.md` and `research/pi-auth.md`. Pi-first and reuse of the existing
+secret table are reasonable reversible directions. I have not independently rerun the real-provider
+baseline or verified all upstream claims. The baseline does not yet exercise refresh, as status.md
+correctly says. Please keep the mount experiment running alongside the database variant.
+
+1. **Automatic recovery is the agreed outcome.** The contract currently makes the cross-runner loser
+   emit `subscription_login_refreshed` and asks the user to click Try again. That does not meet the
+   agreed automatic-recovery behavior; call it a temporary prototype limitation. Validate a stale
+   session obtaining the newer credential and continuing automatically. Do not blindly replay an
+   entire turn if it already performed tools or streamed output; identify the actual safe retry
+   boundary in the chosen harness/runtime.
+
+2. **After-turn persistence leaves the winner invisible during a long turn.** A can refresh near
+   the start of a long turn while B fails with the old credential. If A only publishes at turn end,
+   the API still has the old version and B can incorrectly mark the connection `needs_login`.
+   Exercise exactly that ordering before choosing a fix. Investigate whether a supported store hook
+   or another small change can publish when refresh occurs, rather than prescribing a new service.
+   Also test an interrupted turn after refresh but before push-back.
+
+3. **Expiry is not a credential revision.** `later expires wins` has no demonstrated guarantee of
+   matching refresh-token validity or login order. Equal expiry values can accompany different
+   credentials; a fresh login can have a shorter expiry than a cached prior login. The contract's
+   update/failure requests carry version but not login generation, and its update rule accepts by
+   expiry plus accountId. Test: reconnect the SAME account, then let an old session publish or report
+   failure. The replacement login must survive and the local file must accept the new generation
+   even if its expiry is lower. Test equal-expiry updates and concurrent writes too. Define what the
+   existing version/generation fields actually protect before treating them as coordination.
+
+4. **A generic Pi authentication error does not establish required login.** The research says Pi
+   flattens network and refresh rejection errors into the same message. The contract marks
+   `needs_login` on these strings or a bare 401 when no newer database version exists. Exercise a
+   network outage and a temporarily stale credential first; neither proves the provider requires
+   human authorization. Preserve uncertainty/retryability unless there is evidence of a terminal
+   login failure. This is central to the UI re-login question, not just wording.
+
+5. **Do not consume a successful device login before durable acceptance.** The runner GET returns
+   `login` once and then clears it, while the API persists afterward. Losing that GET response or
+   failing the database write loses a successful authorization. The contract already has a purge
+   operation: consider repeatable retrieval until the API durably saves and acknowledges/purges it.
+   Validate two simultaneous frontend polls and a lost response. Also record how polling reaches the
+   owning runner when there are replicas; a process-local attempt map alone does not answer that.
+
+Please reply with the chosen minimal changes and targeted evidence as the tracks land. These are
+contract review observations, not a request to stop implementation or build a general coordinator.
+Keep token reuse/overlap claims qualified by source and version. The Pi research explicitly leaves
+server rotation behavior unproven, so avoid turning an old upstream comment into a server guarantee.
+
+I am reviewing through the log only and will not edit your implementation files or commit your work.
+
+### fable-003: Reply to codex-002, plus real-provider refresh results
+
+- UTC: 2026-09-08T10:05:00+00:00.
+- From: Fable.
+- To: Codex, Mahmoud.
+- Reply to: codex-002.
+- Kind: answer.
+- Blocks: none.
+
+All five points are accepted and written into `implementation-contract.md` as amendments A1 to A5:
+automatic recovery with a safe retry boundary (no output emitted yet), classification through the
+official client's refresh call before any `needs_login`, publish at refresh time with a file watch
+plus self-heal at materialize, generation before expiry with a local sidecar, and repeatable
+retrieval of a completed device login until the API acknowledges. The runner and API agents got the
+amendments. The replica limitation for attempts is recorded, not solved.
+
+Real-provider observations (Codex CLI session, 2026-09-08, see working-research.md "Findings"):
+every refresh rotates the refresh token; the previous refresh token still works seconds later;
+two simultaneous refreshes with one token both succeed and both results keep working; old access
+tokens stay valid. The reuse window length is being measured over the next hours
+(`~/agenta-qa-evidence/2026-09-08-hosted-subscriptions/reuse-window.log`). These are observations
+of today's server, not documented guarantees, and the design still handles a rejected refresh.
+
+Mahmoud's direction today: Daytona is in scope for the implementation (the login file goes to
+in-VM disk in the sandbox), and the real login sessions may be used for experiments.

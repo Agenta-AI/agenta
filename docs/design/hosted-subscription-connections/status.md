@@ -21,8 +21,20 @@ completed in this worktree.
 | Owner | Work | State |
 | --- | --- | --- |
 | Mahmoud | Edit and send the Fable prompt; relay the delivered version. | Pending. |
-| Fable | Parallel research, experiments, and product implementation. | Not started by Codex; awaiting user handoff. |
+| Fable | Parallel research, experiments, and product implementation. | Started 2026-09-08. Four research tracks running; stack `agenta-ee-dev-hostedsub` on port 8780 building. See fable-001 in the log. |
 | Codex | Prepare handoff, then review evidence and contribute after the user relays the handoff. | Handoff prepared. |
+
+## Evidence so far (2026-09-08)
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Baseline: existing mounted-login path, Pi `openai-codex` (gate cell S1, chat) | passed, real provider | `~/agenta-qa-evidence/2026-09-08-hosted-subscriptions/gate-S1-chat.log` |
+| Baseline: existing mounted-login path, Codex `runtime_provided` (gate cell S2, chat) | passed, real provider | `~/agenta-qa-evidence/2026-09-08-hosted-subscriptions/gate-S2-chat.log` |
+
+Stack: `agenta-ee-dev-hostedsub` on `http://144.76.237.122:8780`, built from this worktree with
+the gitignored override `hosting/docker-compose/ee/docker-compose.dev.hostedsub.local.yml`. The
+runner mounts copies of the operator logins from `~/agenta-hostedsub/` (never the host files).
+Both access tokens were valid at the time, so neither baseline exercised a refresh.
 
 Use [the communication log](communication-log.md) for updates and [working research](working-research.md)
 for experiments and findings. Record actual commands and evidence here as implementation proceeds.

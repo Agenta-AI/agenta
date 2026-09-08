@@ -1,10 +1,5 @@
 # Fable prompt
 
-This is an editable handoff draft for Mahmoud to send to Fable. It has not been sent. The delivered
-version, plus any subsequent user corrections, governs Fable's work.
-
----
-
 Build a working exploratory implementation of hosted ChatGPT subscriptions in Agenta. Research,
 spikes, backend work, and product integration should proceed in parallel. There is no timebox. Do
 not stop with a plan, recommendation, or mocked demonstration. We may rebuild parts after learning
@@ -60,15 +55,12 @@ Use parallel agents or equivalent independent tasks for:
 - Shared-state and concurrent-refresh experiments.
 - UI login, connection persistence/scope, model picker, execution, and re-login integration.
 - Real integration validation and incorporation of Codex review feedback.
-
-Give shared files one integration owner. Use separate worktrees or disjoint files for alternative
-implementations, then integrate the useful results. Do not have several workers concurrently
-commit or switch branches in the same checkout.
+- And any other thing you thing make sense to paralellize (say reserach grok, implement htings)
 
 ## Architecture direction
 
 Most likely, each session's harness should continue to perform refresh. Explore, in order of
-initial preference rather than as a mandatory sequence:
+initial preference rather than as a mandatory sequence
 
 1. Native auth files in shared mounted storage, with reload and retry after a recoverable race.
 2. Other ways to share changes: database-backed state, direct object storage, or supported hooks
@@ -84,8 +76,7 @@ Do not serialize complete runs to avoid the problem.
 
 The storage discussion is about S3-backed mounts in Daytona and SeaweedFS in the existing setup.
 Inspect the actual storage configuration, filesystem adapter, caching, and persistence semantics.
-Do not substitute a local-directory test and claim it proves the remote-mount behavior. Redis
-Streams was a transcription mistake in the discussion, not a requested credential mechanism.
+Do not substitute a local-directory test and claim it proves the remote-mount behavior. 
 
 ## Research and experiments
 

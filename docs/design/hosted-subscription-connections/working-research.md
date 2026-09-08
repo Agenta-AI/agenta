@@ -171,6 +171,34 @@ failed, or not established. A scenario without real credentials remains not esta
 mock passes. Human provider authorization may require Mahmoud; ask for that step while other tracks
 continue.
 
+## Findings (2026-09-08)
+
+### Real provider: ChatGPT OAuth refresh semantics
+
+Observed on 2026-09-08 with a real ChatGPT login (the Codex CLI session), by calling the token
+endpoint the same way Codex and Pi do. Script:
+[research/experiments/refresh_rotation_probe.py](research/experiments/refresh_rotation_probe.py).
+Log (fingerprints only): `~/agenta-qa-evidence/2026-09-08-hosted-subscriptions/refresh-rotation-probe-1.log`.
+
+| Question | Observed | Label |
+| --- | --- | --- |
+| Does a refresh rotate the refresh token? | Yes. Every refresh returned a new refresh token and a new access token with `expires_in` 864000 s (10 days) plus an id token. | real provider |
+| Does the previous refresh token still work right after rotation? | Yes. A second refresh with the old token succeeded seconds later and produced yet another new pair. | real provider |
+| Do two simultaneous refreshes with the same token both succeed? | Yes. Both got distinct new refresh tokens, and both of those refreshed again successfully. | real provider |
+| Does an old access token keep working after a rotation? | Yes. The old access token still authenticated against the Codex responses endpoint (400 for a malformed body, not 401). | real provider |
+| How long does a rotated-away refresh token stay valid? | Being measured. A rotated-away token is re-tested at growing ages; results land in `~/agenta-qa-evidence/2026-09-08-hosted-subscriptions/reuse-window.log`. | in progress |
+
+What this means for the design: a concurrent refresh race does not log anyone out, at least
+within the reuse window. The loser gets a valid new pair too. The remaining risk is a session that
+holds a refresh token older than the reuse window, which is the case the push-back to the API and
+the `stale` answer cover.
+
+### Headless device login inside the runner
+
+`loginOpenAICodexDeviceCode` from `pi-ai` 0.80.6 returned `userCode`, `verificationUri`,
+`intervalSeconds`, and `expiresInSeconds` in about 200 ms from inside the hostedsub runner
+container, with no browser and no open port. The attempt was aborted before any human step.
+
 ## Completion
 
 Deliver a runnable integrated application with UI login, model selection, concurrent agent use,
