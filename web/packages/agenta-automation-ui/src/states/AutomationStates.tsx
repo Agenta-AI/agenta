@@ -29,7 +29,7 @@ export const AutomationListSkeleton = ({rows = 5}: {rows?: number}) => (
             {Array.from({length: rows}, (_, i) => (
                 <div
                     key={i}
-                    className={`${GRID} items-center border-0 border-b border-solid border-border/60 px-2 py-[15px]`}
+                    className={`${GRID} items-center px-2 py-[13px]`}
                 >
                     <Skeleton className="h-3.5 w-4/5" />
                     <Skeleton className="h-3.5 w-16" />
