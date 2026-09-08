@@ -228,4 +228,26 @@ describe("resolveAgentModelCandidateSources", () => {
         expect(state.status).toBe("ready")
         expect(state.candidates).toHaveLength(1)
     })
+
+    it("treats a runner it could not read as unknown, but an absent runner as none", () => {
+        // The service answers `incompatible` for a runner whose shape it cannot read, and
+        // `unavailable` for one that is not there. Only the first leaves the pairs unknown.
+        const unreadable = resolveAgentModelCandidateSources({
+            vaultRows: [],
+            capabilities,
+            subscriptionStatus: {runner: "incompatible", checked_at: null},
+            subscriptionSettled: true,
+            showSubscriptions: true,
+        })
+        const absent = resolveAgentModelCandidateSources({
+            vaultRows: [],
+            capabilities,
+            subscriptionStatus: {runner: "unavailable", checked_at: null},
+            subscriptionSettled: true,
+            showSubscriptions: true,
+        })
+
+        expect(unreadable.subscriptionUnknown).toBe(true)
+        expect(absent.subscriptionUnknown).toBe(false)
+    })
 })

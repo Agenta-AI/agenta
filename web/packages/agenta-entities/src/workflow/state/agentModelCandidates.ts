@@ -114,9 +114,13 @@ export const resolveAgentModelCandidateSources = ({
     // The sources that DID resolve are still authoritative, so this stays `ready`: creation, the
     // model picker and the slash commands keep working off the routes we do know about. Only the
     // reading of an EMPTY list changes, which is why the flag travels with the state.
+    // `incompatible` is the service's word for a runner it could not read, so it belongs here too.
+    // `unavailable` does not: a runner that is not there really does offer no subscription route.
     const subscriptionUnknown =
         showSubscriptions &&
-        (subscriptionStatus === null || (subscriptionStatus === undefined && !!subscriptionError))
+        (subscriptionStatus === null ||
+            subscriptionStatus?.runner === "incompatible" ||
+            (subscriptionStatus === undefined && !!subscriptionError))
     return {
         status: "ready",
         candidates,
