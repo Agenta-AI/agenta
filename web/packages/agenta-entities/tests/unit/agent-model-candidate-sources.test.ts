@@ -149,4 +149,33 @@ describe("resolveAgentModelCandidateSources", () => {
 
         expect(state.status).toBe("ready")
     })
+    it("never answers 'no routes' from an empty harness catalog", () => {
+        // An empty map is what `fetchHarnessCapabilities` builds from any 200 that carries no
+        // harnesses, and the catalog query persists to disk. Read as a catalog it says no harness
+        // supports any provider, so a project with working keys shows the connect-a-model gate and
+        // keeps showing it across reloads (issue #6660).
+        const state = resolveAgentModelCandidateSources({
+            vaultRows,
+            capabilities: {},
+            subscriptionStatus: null,
+            subscriptionSettled: true,
+            showSubscriptions: true,
+        })
+
+        expect(state.status).not.toBe("ready")
+        expect(state.status).toBe("loading")
+    })
+
+    it("reports the catalog failure behind an empty catalog", () => {
+        const error = new Error("Harness catalog returned no harnesses")
+        const state = resolveAgentModelCandidateSources({
+            vaultRows,
+            capabilities: undefined,
+            capabilitiesError: error,
+            subscriptionSettled: true,
+            showSubscriptions: false,
+        })
+
+        expect(state).toMatchObject({status: "error", error})
+    })
 })

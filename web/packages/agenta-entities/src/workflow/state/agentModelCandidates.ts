@@ -58,7 +58,14 @@ export const resolveAgentModelCandidateSources = ({
     showSubscriptions,
 }: CandidateSourceState): AgentModelCandidatesState => {
     const connections = toProviderConnections(vaultRows ?? [])
-    if (!vaultRows || !capabilities) {
+    // An EMPTY capability map is not a catalog. Every route is built by asking a harness what it
+    // supports, so a `{}` here answers "no route is runnable" for a project whose vault holds
+    // working keys, and the gate then tells the user to add a provider key they already added.
+    // `fetchHarnessCapabilities` produces `{}` from any 200 that carries no harnesses, and the
+    // catalog query persists to IndexedDB, so one such answer can outlive reloads. Treat it as an
+    // unresolved source, the same as a missing one.
+    const catalogResolved = !!capabilities && Object.keys(capabilities).length > 0
+    if (!vaultRows || !catalogResolved) {
         const error = vaultError ?? capabilitiesError ?? null
         return {
             status: error ? "error" : "loading",

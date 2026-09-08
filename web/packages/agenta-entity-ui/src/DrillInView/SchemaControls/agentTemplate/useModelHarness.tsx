@@ -58,7 +58,7 @@ import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
 import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
 import ModelPickerControl from "./ModelPickerControl"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
-import {agentProviderNeedsKey} from "./providerKeyGate"
+import {shouldPromptForProviderKey} from "./providerKeyPrompt"
 import {RevertGroupButton} from "./RevertGroupButton"
 import {useBuildKit} from "./useBuildKit"
 
@@ -227,14 +227,13 @@ export function useModelHarness({
             ) ?? null
         )
     }, [standardSecrets, selectedProviderFamily])
-    // The rule lives in `agentProviderNeedsKey` so the presence check goes through `hasStoredKey`
-    // and cannot drift back to reading the value off the row (a write-only record never returns
-    // one — see the module for the whole rule).
-    const providerNeedsKey = agentProviderNeedsKey({
+    // Presence goes through `hasStoredKey`, never the row's value: a write-only record never
+    // returns one. The whole rule, and what it deliberately does not judge, lives in the module.
+    const providerNeedsKey = shouldPromptForProviderKey({
         connectionMode: connection.mode,
         connectionSlug: connection.slug,
         vaultLoaded,
-        providerEntry: providerVaultEntry,
+        standardProviderEntry: providerVaultEntry,
     })
 
     // The "Add custom provider" footer + drawer come from context, same source as the completion picker.
@@ -702,8 +701,9 @@ export function useModelHarness({
     return {
         hasModelOrHarness,
         mcpSupported,
-        // The selected model's provider has a standard vault slot but no key yet — the config panel
-        // highlights the Model section and the chat gates on it until it's connected.
+        // The selected model's provider has a standard vault slot but no key yet, so the config
+        // panel highlights the Model section. The chat composer gates on its own project-wide
+        // rule (`gateActive`), not on this one.
         needsProviderKey: providerNeedsKey,
         // A model is selected but its harness can't run it — a *model* problem, so the config panel
         // flags the Model section as invalid.
