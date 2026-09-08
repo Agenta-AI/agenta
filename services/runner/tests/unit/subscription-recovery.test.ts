@@ -194,6 +194,56 @@ describe("classifyRefreshError", () => {
     assert.equal(refreshFailureReason(err), "refresh_token_rejected");
   });
 
+  /**
+   * The SECOND refusal the provider gives for the same dead token, measured on 2026-09-18's
+   * endpoint on 2026-09-08. A rotated-away token answers `refresh_token_reused` for about two
+   * hours and then switches to this one. The word order is reversed, so a `refresh_token_` prefix
+   * rule catches the first and silently misses the second.
+   */
+  const INVALID_BODY = JSON.stringify({
+    error: {
+      message: "Invalid refresh token.",
+      type: "invalid_request_error",
+      param: null,
+      code: "invalid_refresh_token",
+    },
+  });
+
+  it("calls the live 401 invalid_refresh_token refusal terminal", () => {
+    const err = new Error(
+      `OpenAI Codex token refresh failed (401): ${INVALID_BODY}`,
+    );
+    assert.equal(classifyRefreshError(err), "terminal");
+    assert.equal(refreshFailureReason(err), "refresh_token_rejected");
+  });
+
+  it("gives the two refusals for one dead token the SAME reason word", () => {
+    // They are one condition seen at two ages. A connection whose login_error flips wording as
+    // time passes is a support question nobody can answer.
+    const reused = new Error(
+      `OpenAI Codex token refresh failed (401): ${REUSED_BODY}`,
+    );
+    const invalid = new Error(
+      `OpenAI Codex token refresh failed (401): ${INVALID_BODY}`,
+    );
+    assert.equal(refreshFailureReason(reused), refreshFailureReason(invalid));
+  });
+
+  it("does not read the echoed refresh_token PARAMETER as a token refusal", () => {
+    // Every failure body echoes the request, which names `refresh_token`. Matching that would
+    // label a network blip or a 502 as a dead credential.
+    const network = new Error(
+      'OpenAI Codex token refresh error: fetch failed while sending refresh_token',
+    );
+    assert.equal(classifyRefreshError(network), "retryable");
+    assert.equal(refreshFailureReason(network), "refresh_unreachable");
+    const upstream = new Error(
+      'OpenAI Codex token refresh failed (502): {"sent":{"grant_type":"refresh_token"}}',
+    );
+    assert.equal(classifyRefreshError(upstream), "retryable");
+    assert.equal(refreshFailureReason(upstream), "refresh_status_502");
+  });
+
   it("calls every refresh_token_* code terminal, nested or not, at 400 and at 401", () => {
     for (const status of ["400", "401"]) {
       for (const code of [

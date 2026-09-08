@@ -120,11 +120,32 @@ export function classifyRefreshError(err: unknown): "terminal" | "retryable" {
   return "retryable";
 }
 
+/**
+ * The provider's codes for "this refresh token is finished", as an EXPLICIT LIST.
+ *
+ * The two measured on the real endpoint on 2026-09-08 sit either side of a prefix rule, which is
+ * why this is a list rather than a pattern. A rotated-away token first answers 401 with
+ * `refresh_token_reused`, and from about two hours on it answers 401 with `invalid_refresh_token`
+ * — the same word order reversed, so a `refresh_token_` prefix rule catches the first and misses
+ * the second.
+ *
+ * It is deliberately NOT the looser `/refresh_token/`. The provider echoes the request in its
+ * error body, and that body contains the `refresh_token` PARAMETER NAME on every failure; matching
+ * it would label every refresh error a token refusal, including the network and 5xx cases this
+ * classifier exists to keep retryable.
+ *
+ * Note what does NOT depend on this list: whether the failure is terminal. `classifyRefreshError`
+ * decides that from the HTTP status alone, so an unrecognized code at 401 is still terminal. This
+ * only chooses the word stored on the connection and shown as `login_error`.
+ */
+const REFRESH_TOKEN_REFUSAL_CODE =
+  /refresh_token_(?:reused|expired|invalidated|revoked)|invalid_refresh_token/i;
+
 /** A short word for WHY, for the log and the failure report. Never the provider's own sentence. */
 export function refreshFailureReason(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
   if (/invalid_grant/i.test(raw)) return "invalid_grant";
-  if (/refresh_token_/i.test(raw)) return "refresh_token_rejected";
+  if (REFRESH_TOKEN_REFUSAL_CODE.test(raw)) return "refresh_token_rejected";
   const status = /token refresh failed \((\d{3})\)/i.exec(raw)?.[1];
   if (status) return `refresh_status_${status}`;
   return "refresh_unreachable";
