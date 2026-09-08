@@ -16,6 +16,7 @@ import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
 
 import type {QueuedMessage} from "./useAgentChatQueue"
+import {useMountGeneration} from "./useMountGeneration"
 
 /** "queued" parks the input and the dock owns it; "running" starts a turn the transcript adopts. */
 export type ServerInputAdmission = "queued" | "running"
@@ -183,14 +184,11 @@ export const useServerSessionInputs = ({
 
     // A run stream outlives this mount, and the session registry deliberately preserves the same
     // Chat across a remount, so an old completion firing `onExecuted` can adopt a stale snapshot
-    // over a newer transcript and persist it. Every continuation past an await checks this first.
-    const aliveRef = useRef(true)
-    useEffect(() => {
-        aliveRef.current = true
-        return () => {
-            aliveRef.current = false
-        }
-    }, [])
+    // over a newer transcript and persist it. The generation is captured when the chain starts and
+    // re-checked after every await. It closes THIS hook's own windows only: `onExecuted` starts a
+    // records read of its own, and the host that owns that read guards its adoption with a
+    // generation of its own.
+    const mount = useMountGeneration()
 
     const load = useCallback((): Promise<SessionPendingInputView | null> => {
         if (loadInFlightRef.current?.scope === scope) {
@@ -251,6 +249,9 @@ export const useServerSessionInputs = ({
             policy: "queue" | "steer",
             watcher?: ServerInputWatcher,
         ): Promise<ServerInputAdmission> => {
+            // Captured before the first await, so every continuation below is checked against the
+            // mount that actually started this send.
+            const generation = mount.capture()
             const outbound: UIMessage = {
                 id: message.id,
                 role: "user",
@@ -302,9 +303,9 @@ export const useServerSessionInputs = ({
             // first frame names it, and a stream that ends without one never started a turn.
             void readRunAdmission(response, watcher)
                 .then(async (accepted) => {
-                    if (!aliveRef.current) return
+                    if (!mount.isCurrent(generation)) return
                     await refresh()
-                    if (!aliveRef.current) return
+                    if (!mount.isCurrent(generation)) return
                     onExecutedRef.current?.()
                     // ONLY for a turn this stream actually named. Silence means the runner never
                     // emits acceptance on this path, not that nothing was sent, and settling on
@@ -314,7 +315,7 @@ export const useServerSessionInputs = ({
                 .catch(() => undefined)
             return "running"
         },
-        [refresh, sessionId],
+        [mount, refresh, sessionId],
     )
 
     const remove = useCallback(

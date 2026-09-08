@@ -142,3 +142,77 @@ describe("restoreRefusedDraft with a stale editor handle", () => {
         expect(restoreRefusedSend(stale, {text: "refused", stagedFiles: []}, vi.fn())).toBe(false)
     })
 })
+
+/**
+ * A refused send that carries files. The caller drops the echo row when the restore reports
+ * success, so a false success deletes the only copy of the message — reported against #6658 as
+ * "a successful text restore deletes the attachment row and leaves nothing".
+ */
+describe("restoreRefusedSend for a send carrying attachments", () => {
+    const emptyEditor = () => {
+        let markdown = ""
+        return {
+            getMarkdown: () => markdown,
+            setMarkdown: vi.fn((next: string) => {
+                markdown = next
+            }),
+        } as never
+    }
+
+    it("restores an attachments-only send into the composer and reports success", () => {
+        const restoreAttachments = vi.fn()
+        const stagedFiles = [{uid: "file-1", name: "brief.pdf"}]
+
+        expect(
+            restoreRefusedSend(
+                emptyEditor(),
+                {text: "", stagedFiles, fileParts: [{type: "file"}]},
+                restoreAttachments,
+            ),
+        ).toBe(true)
+        expect(restoreAttachments).toHaveBeenCalledWith(stagedFiles)
+    })
+
+    it("refuses when the send carried attachments the tray cannot take back", () => {
+        // A merged queue edit or a seed handed over from another surface arrives with file parts
+        // and no staged entry behind them. Restoring the words alone would delete the files.
+        const restoreAttachments = vi.fn()
+
+        expect(
+            restoreRefusedSend(
+                emptyEditor(),
+                {text: "with a file", stagedFiles: [], fileParts: [{type: "file"}]},
+                restoreAttachments,
+            ),
+        ).toBe(false)
+        expect(restoreAttachments).not.toHaveBeenCalled()
+    })
+
+    it("refuses an attachments-only send whose staged entries are gone", () => {
+        // Reporting success here puts nothing anywhere and drops the row with it.
+        const restoreAttachments = vi.fn()
+
+        expect(
+            restoreRefusedSend(
+                emptyEditor(),
+                {text: "", stagedFiles: [], fileParts: [{type: "file"}]},
+                restoreAttachments,
+            ),
+        ).toBe(false)
+        expect(restoreAttachments).not.toHaveBeenCalled()
+    })
+
+    it("refuses a send with nothing in it at all", () => {
+        expect(restoreRefusedSend(emptyEditor(), {text: ""}, vi.fn())).toBe(false)
+    })
+
+    it("still treats the staged entries as the whole send when no file parts are given", () => {
+        const restoreAttachments = vi.fn()
+        const stagedFiles = [{uid: "file-1", name: "brief.pdf"}]
+
+        expect(restoreRefusedSend(emptyEditor(), {text: "", stagedFiles}, restoreAttachments)).toBe(
+            true,
+        )
+        expect(restoreAttachments).toHaveBeenCalledWith(stagedFiles)
+    })
+})

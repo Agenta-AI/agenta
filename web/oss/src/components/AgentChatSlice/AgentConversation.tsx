@@ -445,7 +445,13 @@ const AgentConversation = ({
     const restoreLateRefusedSend = useCallback((message: QueuedMessage) => {
         const taken = restoreRefusedSendInto(
             richInputRef.current,
-            {text: message.text, stagedFiles: message.stagedFiles ?? []},
+            {
+                text: message.text,
+                stagedFiles: message.stagedFiles ?? [],
+                // Told apart from the staged entries on purpose: a send can carry file parts the
+                // tray has nothing to put back, and the row must keep those cards.
+                fileParts: message.fileParts ?? [],
+            },
             lateRefusalRef.current.restore,
         )
         if (taken) {
