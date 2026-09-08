@@ -14,7 +14,6 @@ import {userAtom} from "../state/user"
 import {
     CLASSIC_MODE_COOKIE,
     GATE_COOKIE_MAX_AGE,
-    MOBILE_OPTIN_COOKIE,
     MOBILE_OPTOUT_COOKIE,
     desktopRouteFor,
     isDesktopOnlyLink,
@@ -106,6 +105,12 @@ export const useClassicModeCookieSync = () => {
  * `location.replace`, not the router: `/m` is a different Next app behind the same origin, so
  * this is a document navigation whichever way it is spelled — and replace keeps the desktop URL
  * out of history, where Back would bounce off it.
+ *
+ * DELIBERATELY ONE-WAY. `/m` has no mirror of this hook, and must not grow one: the two hosts
+ * write `activeUserIdAtom` from different sources (`Session.getUserId()` here, the profile's
+ * `uid` on `/m`), so they can scope the preference to different keys and disagree about it. With
+ * a redirect on both sides that disagreement is an infinite `/w` ↔ `/m` loop rather than a stop.
+ * Leaving `/m` is the proxy's job — it reads one cookie, and the desktop gate yields to it.
  */
 export const useClassicModeRedirect = (enabled = true) => {
     const userId = useAtomValue(activeUserIdAtom)
@@ -142,31 +147,4 @@ export const desktopEscapeHref = (): string => {
     const {pathname, search} = window.location
     const stripped = pathname === "/m" ? "/" : pathname.replace(/^\/m(?=\/)/, "")
     return desktopRouteFor(stripped, search) ?? "/w"
-}
-
-/**
- * `/m`-only: send a Classic-mode-ON user back to the desktop app. Mirror of
- * {@link useClassicModeRedirect}, and needed for the same reason — the proxy reads only cookies,
- * and the device gate can land a user here before one exists. Bounces a phone too, because
- * Classic mode outranks the device heuristic on both sides of the gate.
- */
-export const useDesktopModeRedirect = (enabled = true) => {
-    const userId = useAtomValue(activeUserIdAtom)
-    const advancedNavHidden = useSettledAdvancedNavHidden()
-
-    useEffect(() => {
-        if (!enabled || typeof window === "undefined") return
-        if (!classicGateEnabled()) return
-        // `null` is "not known yet", and `true` is Classic mode OFF — both stay put.
-        if (!userId || advancedNavHidden !== false) return
-
-        const {pathname} = window.location
-        // Sign-in and the OAuth landing finish where they are: the mobile flow's state lives in
-        // this origin's sessionStorage, and bouncing the callback drops the one-time code.
-        if (/^\/m\/auth(\/|$)/.test(pathname)) return
-        // "Open mobile version" is an explicit request for this app; it outranks the preference.
-        if (readCookie(MOBILE_OPTIN_COOKIE)) return
-
-        window.location.replace(desktopEscapeHref())
-    }, [enabled, userId, advancedNavHidden])
 }
