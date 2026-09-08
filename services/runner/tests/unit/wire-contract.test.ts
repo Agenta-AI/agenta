@@ -37,6 +37,7 @@ const KNOWN_REQUEST_KEYS = [
   "sessionId",
   "agentsMd",
   "model",
+  "connection",
   "harnessMode",
   "modelCapabilities",
   "modelConnection",
@@ -98,6 +99,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     "run_request.codex.json",
     "run_request.attachment.json",
     "run_request.gateway_connection.json",
+    "run_request.subscription_connection.json",
   ]) {
     it(`${name}: every top-level key is known to AgentRunRequest`, () => {
       const req = loadGolden(name) as Record<string, unknown>;
@@ -317,6 +319,32 @@ describe("wire contract: requests (vs Python golden)", () => {
       req.customTools!.map((tool) => tool.permission),
       ["allow", "allow"],
     );
+  });
+
+  it("subscription connection request: the login arrives exactly as Python sent it", () => {
+    const req = loadGolden(
+      "run_request.subscription_connection.json",
+    ) as AgentRunRequest;
+    // The author's choice rides `connection`; the resolved login rides `modelConnection`.
+    assert.deepEqual(req.connection, { mode: "self_managed", slug: "chatgpt" });
+    assert.equal(req.modelConnection?.credentialMode, "runtime_provided");
+    // A hosted subscription run carries NO credential entry: the harness signs in from the login.
+    assert.deepEqual(req.modelConnection?.credentials, []);
+    const subscription = req.modelConnection?.subscription;
+    assert.ok(subscription, "the subscription block is what makes this run hosted");
+    // Nested, field by field: a rename or a dropped counter on either side fails here or at `tsc`.
+    assert.equal(subscription.id, "0199-secret-id");
+    assert.equal(subscription.slug, "chatgpt");
+    assert.equal(subscription.provider, "chatgpt");
+    assert.equal(subscription.version, 3);
+    assert.equal(subscription.generation, 1);
+    assert.deepEqual(subscription.login, {
+      type: "oauth",
+      access: "access-token",
+      refresh: "refresh-token",
+      expires: 1789000000000,
+      accountId: "acct-1",
+    });
   });
 
   it("codex request: no Pi built-ins, file-free managed auth provider block, managed key", () => {
