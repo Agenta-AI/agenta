@@ -231,7 +231,7 @@ const GroupLabelRow = ({item}: {item: NavItem}) => {
                 behind the caret made a heading look like a button it is not. */}
             <span
                 aria-label={`${item.isCollapsed ? "Expand" : "Collapse"} ${item.title}`}
-                className="mr-1 flex h-[22px] w-7 shrink-0 items-center justify-center"
+                className="mr-1 flex size-[22px] shrink-0 items-center justify-center"
             >
                 <CaretRight
                     size={11}
@@ -500,7 +500,7 @@ const NavMenuImpl = ({
                                 tabIndex={0}
                                 aria-label={`${open ? "Collapse" : "Expand"} ${item.title}`}
                                 // z-[1] keeps the toggle clickable above the stretched link anchor.
-                                className="relative z-[1] mr-1 flex h-[22px] w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText"
+                                className="relative z-[1] mr-1 flex size-[22px] shrink-0 cursor-pointer items-center justify-center rounded-md text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText"
                                 onClick={(event) => {
                                     event.preventDefault()
                                     event.stopPropagation()
