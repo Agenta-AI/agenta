@@ -54,14 +54,24 @@ export const AutomationRunsScreen = ({
     const {runs, caption, isLoading, error, refetch} = useAutomationRuns(automation)
 
     const [selectedId, setSelectedId] = useState<string | null>(null)
+    // The newest run answers "did it work?", which is the question that brought you here, so
+    // opening the history opens that run rather than a list waiting to be clicked. A pick the
+    // user has made wins; only an unresolved selection falls through to the newest.
+    // Narrow layout only: going back has to mean "no run", which the fallback would otherwise
+    // undo on the next render by re-selecting the newest.
+    const [dismissed, setDismissed] = useState(false)
     const selected = useMemo(
-        () => runs.find((delivery) => delivery.id === selectedId) ?? null,
-        [runs, selectedId],
+        () =>
+            dismissed
+                ? null
+                : (runs.find((delivery) => delivery.id === selectedId) ?? runs[0] ?? null),
+        [dismissed, runs, selectedId],
     )
     const onSelect = useCallback((delivery: TriggerDelivery) => {
         setSelectedId(delivery.id ?? null)
+        setDismissed(false)
     }, [])
-    const onBack = useCallback(() => setSelectedId(null), [])
+    const onBack = useCallback(() => setDismissed(true), [])
 
     // The split needs a 240px list, a 20px gap and roughly 360px of transcript inside the page's
     // 32px gutters — about 700px of window. Below that the two panes share nothing usefully, so
@@ -78,7 +88,7 @@ export const AutomationRunsScreen = ({
                 <ScreenScaffold
                     fill
                     header={
-                        <div className="w-full shrink-0 px-5 pb-2 pt-[30px]">
+                        <div className="w-full shrink-0 px-5 pb-2 pt-5">
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <AutomationBackLink
@@ -96,7 +106,7 @@ export const AutomationRunsScreen = ({
                                     "flex min-h-0 flex-col",
                                     showPane
                                         ? "min-w-[240px] max-w-[380px] flex-[1_1_240px] border-0 border-r border-solid border-border pb-6 pl-5 pr-4"
-                                        : "mx-auto w-full min-w-0 max-w-[760px] flex-1 px-5 pb-6",
+                                        : "w-full min-w-0 max-w-[760px] flex-1 pb-6 pl-5 pr-5",
                                 )}
                             >
                                 <div className="flex shrink-0 items-center gap-2">
@@ -112,7 +122,7 @@ export const AutomationRunsScreen = ({
                                 </p>
                                 <AutomationRunList
                                     runs={runs}
-                                    selectedId={selectedId}
+                                    selectedId={selected?.id ?? null}
                                     isLoading={listLoading || isLoading}
                                     error={error}
                                     onSelect={onSelect}
