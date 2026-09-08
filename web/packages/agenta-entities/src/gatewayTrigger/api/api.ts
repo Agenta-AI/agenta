@@ -42,7 +42,6 @@ import {
     type TriggerDeliveriesResponse,
     type TriggerDeliveryQuery,
     type TriggerDeliveryResponse,
-    type TriggerDeliveryWindowing,
     type TriggerScheduleCreate,
     type TriggerScheduleEdit,
     type TriggerScheduleQuery,
@@ -540,13 +539,10 @@ export const stopTriggerSchedule = async (scheduleId: string): Promise<TriggerSc
 
 export const queryTriggerDeliveries = async (
     delivery?: TriggerDeliveryQuery,
-    windowing?: TriggerDeliveryWindowing,
 ): Promise<TriggerDeliveriesResponse> => {
-    // A null `delivery` is not an empty query — it is the PROJECT's deliveries: the endpoint
-    // filters on `project_id` and adds an owner clause only when one is given.
     const {data} = await axios.post(
         `${triggersBaseUrl()}/deliveries/query`,
-        {delivery: delivery ?? null, windowing: windowing ?? null},
+        {delivery: delivery ?? null},
         projectScopedParams(),
     )
     return (

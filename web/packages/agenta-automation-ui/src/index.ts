@@ -23,7 +23,6 @@ export * from "./templates"
 export {useAutomation} from "./useAutomation"
 export {useAutomations} from "./useAutomations"
 export {useAutomationRuns} from "./useAutomationRuns"
-export {useAutomationStats, STATS_WINDOW_DAYS, type AutomationStats} from "./useAutomationStats"
 export {useAutomationDraft} from "./useAutomationDraft"
 
 // One drawer for both kinds — what the playground mounts in place of its two forms.
@@ -46,7 +45,6 @@ export {AutomationBackLink} from "./AutomationBackLink"
 export {AutomationFailureBanner} from "./AutomationFailureBanner"
 export {AutomationRunHistoryCard} from "./AutomationRunHistoryCard"
 export {AutomationRunHistoryView} from "./AutomationRunHistoryView"
-export {AutomationStatsLine} from "./AutomationStatsLine"
 export {AutomationTemplateCard} from "./AutomationTemplateCard"
 export {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 
