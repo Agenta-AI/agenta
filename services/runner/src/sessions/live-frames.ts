@@ -52,7 +52,7 @@ interface LiveFramePublisherOptions {
 
 function envEnabled(): boolean {
   return ["1", "true", "yes", "on"].includes(
-    String(process.env[LIVE_FRAMES_ENV] ?? "")
+    String(process.env[LIVE_FRAMES_ENV] || "true")
       .trim()
       .toLowerCase(),
   );

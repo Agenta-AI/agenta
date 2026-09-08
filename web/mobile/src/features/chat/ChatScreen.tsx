@@ -3,6 +3,7 @@ import {useMemo, useRef, useState} from "react"
 import {
     buildTurnViewModels,
     createExecutedToolIdentityCache,
+    createTurnViewModelCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
 import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
@@ -74,6 +75,10 @@ export const ChatScreen = ({
     const lastEntityIdRef = useRef<string | null>(null)
     if (entityId) lastEntityIdRef.current = entityId
     const heldEntityId = entityId ?? lastEntityIdRef.current
+    // Held for the same gap: a blink to null re-scopes the files pane and the tab rail (#6542, #6544).
+    const lastAgentIdRef = useRef<string | null>(null)
+    if (resolvedAgentId) lastAgentIdRef.current = resolvedAgentId
+    const heldAgentId = resolvedAgentId ?? lastAgentIdRef.current
     // Only a FIRST load has nothing to hold — that is the one time a spinner is honest.
     const showLoading = resolving && !heldEntityId
     const liveness = useLivenessPoll(projectId)
@@ -103,8 +108,7 @@ export const ChatScreen = ({
             sessionTurnId={liveStream?.turn_id}
             stoppingTurnId={liveStream?.stopping_turn_id}
             sharedReader={sharedReader}
-            livenessUpdatedAt={liveness.dataUpdatedAt}
-            agentId={resolvedAgentId}
+            agentId={heldAgentId}
         />
     ) : (
         <ReplayScreen
@@ -113,7 +117,7 @@ export const ChatScreen = ({
             projectId={projectId}
             workspaceId={workspaceId}
             running={running}
-            agentId={resolvedAgentId}
+            agentId={heldAgentId}
         />
     )
 
@@ -122,7 +126,7 @@ export const ChatScreen = ({
             // Held, not raw: the config pane keys off this, and letting it blink to null mid-switch
             // is what unmounted the pane.
             entityId={heldEntityId}
-            agentId={resolvedAgentId}
+            agentId={heldAgentId}
             sessionId={sessionId}
             workspaceId={workspaceId}
             projectId={projectId}
@@ -176,10 +180,16 @@ const ReplayScreen = ({
     // One identity cache per session — the dep does that, and must, since the screen is no longer
     // remounted per session.
 
+    // Both factories take no argument, so the linter reads `sessionId` as unused. It is the point:
+    // the dep is what discards the previous session's cache on a screen that never remounts.
+
     const executedFor = useMemo(() => createExecutedToolIdentityCache(), [sessionId])
+    // Without this every view model is a fresh object per poll, so TurnRow's memo never hits.
+
+    const turnCache = useMemo(() => createTurnViewModelCache(), [sessionId])
     const turns = useMemo(
-        () => buildTurnViewModels(messages, {busy: false, executedFor}),
-        [messages, executedFor],
+        () => buildTurnViewModels(messages, {busy: false, executedFor, cache: turnCache}),
+        [messages, executedFor, turnCache],
     )
     // Keyed on `turns` (new array per poll) so streamed growth also re-pins.
     const autoScroll = useTranscriptAutoScroll(turns)

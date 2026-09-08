@@ -170,6 +170,16 @@ describe("facet normalization: stability and coverage", () => {
       // The per-deployment gateway URL is read from the incoming request every turn
       // (finding 5); a moved deployment must not evict every warm session.
       { toolCallback: { endpoint: "https://gateway-2/tools/call" } as never },
+      // Generated platform text is fixed when an environment is built. It intentionally stays
+      // outside both identity views so an integration change does not evict a warm session.
+      { platformInstructions: "new generated platform text" },
+      // Rolling-deployment compatibility has the same identity behavior as its replacement.
+      {
+        gatewayGuidance: {
+          text: "legacy generated guidance",
+          carrier: "agentsMd" as const,
+        },
+      },
     ]) {
       const label = JSON.stringify(overrides).slice(0, 40);
       assert.deepEqual(movedBy(overrides), [], label);
@@ -189,10 +199,15 @@ describe("facet normalization: stability and coverage", () => {
     // omission, so two identical requests disagreed in one view only: a cold evict with an
     // empty live plan and a DISAGREE log (Codex review of the finding-3 change).
     const server = { name: "s", connection: { url: "https://mcp.test" } };
-    const omitted = { ...BASE, mcpServers: [server] } as never as AgentRunRequest;
+    const omitted = {
+      ...BASE,
+      mcpServers: [server],
+    } as never as AgentRunRequest;
     const empty = {
       ...BASE,
-      mcpServers: [{ ...server, connection: { ...server.connection, credentials: [] } }],
+      mcpServers: [
+        { ...server, connection: { ...server.connection, credentials: [] } },
+      ],
     } as never as AgentRunRequest;
     assert.equal(configFingerprint(omitted), configFingerprint(empty));
     assert.deepEqual(digestsOf(omitted), digestsOf(empty));

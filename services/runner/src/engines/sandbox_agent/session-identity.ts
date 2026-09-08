@@ -311,6 +311,8 @@ function configShape(request: AgentRunRequest) {
           ),
         }
       : null,
+    sandboxCredentials:
+      request.sandboxCredentials?.map((credential) => ({ binding: credential.binding })) ?? null,
     agentsMd: request.agentsMd ?? null,
     systemPrompt: request.systemPrompt ?? null,
     appendSystemPrompt: request.appendSystemPrompt ?? null,
@@ -326,21 +328,21 @@ function configShape(request: AgentRunRequest) {
           // `?? []` matches the facet digest's normalization (`credentialShapes`): an omitted
           // array and an empty one are the same configuration, and the two identity views
           // must agree on that or a no-op request cold-evicts with a DISAGREE log.
-          credentials: server.connection?.credentials?.map((credential) => ({
-            binding: credential.binding,
-            usage: credential.usage,
-          })) ?? [],
+          credentials:
+            server.connection?.credentials?.map((credential) => ({
+              binding: credential.binding,
+              usage: credential.usage,
+            })) ?? [],
         },
       })) ?? null,
     // No `toolCallback.endpoint` (audit finding 5): every turn reads the INCOMING request's
     // callback (`run-turn.ts` builds each dispatch from it), nothing bakes the endpoint into
     // the environment, and hashing it evicted a warm session when the per-deployment gateway
     // URL moved. The endpoint's per-turn AUTHORIZATION was already excluded.
-    // No `gatewayGuidance` and no `gatewayPolicy`: both are DERIVED from the agent's gateway
-    // connections at resolve time. The guidance is spliced into the prompt at environment build
-    // (`buildRunPlan`) and its wording treats the integration names as examples, so a warm
-    // session serving a slightly stale list is honest — and hashing it would evict a warm
-    // session every time an integration is added, the exact cost this exclusion removes.
+    // No `platformInstructions`, legacy `gatewayGuidance`, or derived `gatewayPolicy`. Platform
+    // text is spliced at environment build and remains fixed while that environment is warm.
+    // Hashing it would restore the integration-change over-eviction that the separate guidance
+    // seam removed. The next ordinary environment build picks up changes.
     permissions: request.permissions ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
     harnessFiles: request.harnessFiles ?? null,
@@ -691,6 +693,10 @@ export function computeCredentialEpoch(
         usage: credential.usage,
       }),
     ),
+    sandboxCredentials: (request.sandboxCredentials ?? []).map((credential) => ({
+      binding: credential.binding,
+      value: credential.value,
+    })),
     mcpCredentials: (request.mcpServers ?? []).flatMap((server) =>
       (server.connection?.credentials ?? []).map((credential) => ({
         server: server.name,
@@ -705,6 +711,10 @@ export function computeCredentialEpoch(
   // locally by the provider SDK, so they are baked into the daemon environment at create.
   const directMaterial = canonicalJson({
     modelEnvironment: request.modelConnection?.environment ?? {},
+    sandboxCredentials: (request.sandboxCredentials ?? []).map((credential) => ({
+      binding: credential.binding,
+      value: credential.value,
+    })),
     localUseCredentials: (request.modelConnection?.credentials ?? [])
       .filter((credential) => credential.usage === "local_use")
       .map((credential) => ({

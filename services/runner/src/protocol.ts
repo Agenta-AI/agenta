@@ -519,6 +519,12 @@ export interface ModelCredentialBinding {
   name: string;
 }
 
+/** A resolved custom credential whose plaintext is required by code inside the sandbox. */
+export interface SandboxCredential {
+  binding: ModelCredentialBinding;
+  value: string;
+}
+
 /**
  * One secret the model provider needs, plus enough information to decide whether the sandbox is
  * allowed to see it.
@@ -681,6 +687,8 @@ export interface AgentRunRequest {
   connection?: { mode: string; slug?: string };
   /** Resolved model routing and credential bindings, grouped under their consumer. */
   modelConnection?: ModelConnection;
+  /** Resolved custom credentials delivered as readable sandbox environment variables. */
+  sandboxCredentials?: SandboxCredential[];
   /** The conversation so far; the runner picks the latest turn and replays the rest. */
   messages?: ChatMessage[];
   /** Deprecated: accepted and ignored. Pi activates every built-in tool on every run. */
@@ -715,15 +723,18 @@ export interface AgentRunRequest {
    */
   gatewayPolicy?: GatewayPolicy;
   /**
-   * The derived gateway-tools instruction section (how to use `search_tools` / `run_tool`,
-   * with the configured integration names as EXAMPLES), plus which prompt surface carries it.
+   * SDK-owned platform instructions. The runner chooses the existing delivery surface by harness:
+   * Pi's append-system prompt, or the rendered instructions file for Claude and Codex.
    *
-   * Its own field, deliberately OUTSIDE `configFingerprint` and the desired-state facets: the
-   * text is derived from the agent's connections at resolve time, and the runner splices it
-   * into `carrier` when it BUILDS an environment (`buildRunPlan`). So adding or removing an
-   * integration never evicts a warm session for a one-word prompt change; the names refresh
-   * on the next session build, and the wording says the list may be stale. When it was
-   * composed into the prompt strings upstream, every integration add went cold.
+   * Deliberately outside `configFingerprint` and the desired-state facets, preserving the warm
+   * behavior of the field it replaces: the text is fixed when an environment is built and the
+   * next ordinary build picks up changes without evicting a warm session solely for generated
+   * guidance.
+   */
+  platformInstructions?: string;
+  /**
+   * Compatibility input for SDKs deployed before `platformInstructions`. The new scalar field
+   * wins when both are present so generated guidance is never delivered twice.
    */
   gatewayGuidance?: {
     text: string;

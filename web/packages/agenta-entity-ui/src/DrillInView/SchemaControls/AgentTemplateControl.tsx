@@ -86,11 +86,7 @@ import {
     ConnectedSubagentList,
     SubagentDrawerContainer,
 } from "./agentTemplate/SubagentDrawerContainer"
-import {
-    SubagentHeaderIcon,
-    SubagentHeaderTitle,
-    SubagentOpenAgentButton,
-} from "./agentTemplate/SubagentHeader"
+import {SubagentHeaderTitle, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
 import {
     selectSubagentTools,
     SubagentList,
@@ -99,7 +95,6 @@ import {
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
-import {type ConfigItemView} from "./ConfigItemDrawer"
 import {ConfigItemDrawer} from "./ConfigItemDrawer"
 import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
 import {InstructionsDrawer} from "./InstructionsDrawer"
@@ -200,8 +195,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         editing,
         draft,
         setDraft,
-        drawerView,
-        setDrawerView,
         jsonInvalid,
         setJsonInvalid,
         openCreate,
@@ -493,7 +486,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [config.mcps],
     )
     const handleAddMcpServer = useCallback(
-        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed(), "form"),
+        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed()),
         [openCreate],
     )
 
@@ -509,7 +502,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // embeds and shapes the bridge can't resolve keep the JSON round-trip editor.
     const [skillDetailSlug, setSkillDetailSlug] = useState<string | null>(null)
     const openSkillItem = useCallback(
-        (kind: ItemKind, index: number, item: unknown, view: ConfigItemView) => {
+        (kind: ItemKind, index: number, item: unknown) => {
             if (skillsBridge?.DetailHost && isEmbedRefSkill(item) && !isStaticSkill(item)) {
                 const slug = staticEmbedSlug(item as Record<string, unknown>)
                 if (slug) {
@@ -517,13 +510,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     return
                 }
             }
-            openEdit(kind, index, item, view)
+            openEdit(kind, index, item)
         },
         [openEdit, skillsBridge],
     )
     const handleAddSkill = useCallback(() => {
         if (skillsBridge?.enabled) setSkillPickerOpen(true)
-        else openCreate("skill", ITEM_KINDS.skill.createSeed(), "form")
+        else openCreate("skill", ITEM_KINDS.skill.createSeed())
     }, [openCreate, skillsBridge])
     /** Embed slugs already on this agent, with their pin — what the picker marks "Added". */
     const addedSkillRefs = useMemo(
@@ -1226,9 +1219,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // through an optional member cannot be called from here without breaking hook order.
     const editingSubagentSlug =
         shownEditing?.kind === "tool" ? (toolReferenceSlug(draft) ?? "") : ""
-    const subagentHeaderIcon = workflowReference ? (
-        <SubagentHeaderIcon bridge={workflowReference} slug={editingSubagentSlug} />
-    ) : undefined
     const subagentHeaderAction = workflowReference ? (
         <SubagentOpenAgentButton bridge={workflowReference} slug={editingSubagentSlug} />
     ) : undefined
@@ -1261,13 +1251,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                           <ConfigItemDrawer
                               open={!!editing}
                               mode={shownEditing.mode}
-                              icon={
-                                  bareChrome
-                                      ? undefined
-                                      : isSubagent
-                                        ? subagentHeaderIcon
-                                        : def.icon
-                              }
                               title={
                                   isSubagent && workflowReference ? (
                                       <SubagentHeaderTitle
@@ -1295,17 +1278,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               }
                               width={def.drawerWidth?.(draft)}
                               contentFlush={Boolean(def.formFlush?.(draft))}
-                              view={drawerView}
-                              onViewChange={setDrawerView}
                               onCancel={closeEditor}
                               onSave={commitDraft}
                               saveDisabled={
                                   draftInvalid ||
                                   draftUnchanged ||
-                                  (drawerView === "json" && jsonInvalid)
+                                  (def.jsonOnly(draft) && jsonInvalid)
                               }
                               jsonOnly={def.jsonOnly(draft)}
-                              formOnly={Boolean(def.formOnly?.(draft))}
                               headerExtra={isSubagent ? subagentHeaderAction : undefined}
                               disabled={readOnly}
                               form={
@@ -1381,12 +1361,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             <SectionDrawer
                 open={openSection === "advanced"}
                 title="Advanced"
-                icon={<SlidersHorizontal size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
                 disabled={disabled || !sectionDirty}
                 dirty={sectionDirty}
-                width={880}
+                width={mh.advancedDrawerWidth}
             >
                 <ChangedPathsProvider changes={drawerChangedPaths}>
                     <ModelHarnessSectionBody
@@ -1398,6 +1377,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         withTooltip={withTooltip}
                         revisionId={sectionRevision ?? revisionId}
                         buildKitOverride={draftBuildKitOverride}
+                        credentialOperationsBlocked={sectionDirty}
+                        onCredentialRevisionCommitted={closeSectionDraft}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>

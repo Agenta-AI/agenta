@@ -83,6 +83,10 @@ services:
         environment:
             - AGENTA_SERVICES_INTERNAL_KEY=${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
             - SCRIPT_NAME=/api
+            # The api calls the runner directly for Stop (session cancel) and kill (sandbox
+            # teardown): same address and shared token as the `services` container.
+            - AGENTA_RUNNER_INTERNAL_URL=${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
+            - AGENTA_RUNNER_TOKEN=${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
             # Unset leaves the code default (3600s) in place.
             - AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS=${AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS:-}
         # === NETWORK ============================================== #
@@ -342,7 +346,7 @@ services:
             AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM: ${AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM:-}
             AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES: ${AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES:-}
             AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS: ${AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS:-}
-            AGENTA_RUNNER_LIVE_FRAMES: ${AGENTA_RUNNER_LIVE_FRAMES:-false}
+            AGENTA_RUNNER_LIVE_FRAMES: ${AGENTA_RUNNER_LIVE_FRAMES:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network

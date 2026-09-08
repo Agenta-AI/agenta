@@ -17,6 +17,11 @@ export interface AgentCardGridProps {
     emptyText?: string
 }
 
+// `gap-y` carries the avatar overhang, so it is the gutter a phone can least afford — one
+// column there means the vertical gap is the only one that shows.
+const GRID_CLASS =
+    "grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-3 gap-y-6 pt-5 sm:gap-x-4 sm:gap-y-10"
+
 export const AgentCardGrid = ({
     children,
     isLoading = false,
@@ -32,7 +37,7 @@ export const AgentCardGrid = ({
     // a list, so the page re-flowed from list to grid on the first painted card.
     if (isLoading && count === 0) {
         return (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-4 gap-y-10 pt-5">
+            <div className={GRID_CLASS}>
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                     <SkeletonBlock key={i} active className="h-[148px] w-full rounded-xl" />
                 ))}
@@ -43,7 +48,7 @@ export const AgentCardGrid = ({
     // `pt-5` is the room the grid variant's overhanging avatar needs. It belongs to the grid,
     // not to each card — on the card it left the avatar-less dashed cell misaligned.
     return (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-4 gap-y-10 pt-5">
+        <div className={GRID_CLASS}>
             {children}
 
             {onCreate ? (

@@ -979,12 +979,49 @@ async def test_watchdog_does_not_recover_continuation_when_approvals_are_disable
     monkeypatch,
 ):
     monkeypatch.setattr(env.agenta.sessions, "durable_approvals", False)
+    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     project_id = uuid4()
     executions = _Executions(
         project_id=project_id, session_id="session-1", source_id="source-1"
     )
     executions.continuation = executions.continuation.model_copy(
         update={"state": SessionExecutionState.running}
+    )
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    assert await service.settle_execution_lost(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="continuation-1",
+        settled_at=datetime.now(timezone.utc),
+    )
+    assert executions.continuation.state == SessionExecutionState.terminal
+    assert executions.continuation.terminal_outcome == SessionCommandOutcome.lost.value
+
+
+@pytest.mark.asyncio
+async def test_watchdog_does_not_recover_input_continuation_when_queue_is_disabled(
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
+    monkeypatch.setattr(env.agenta.sessions, "queue", False)
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    executions.continuation = executions.continuation.model_copy(
+        update={
+            "state": SessionExecutionState.running,
+            "parent_execution_id": "source-1",
+            "source_interaction_id": None,
+        }
     )
     service = SessionCommandsService(
         commands_dao=_Commands(),

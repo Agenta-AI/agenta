@@ -1,14 +1,13 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    BOTTOM_FADE_HOVER_HIDE,
-    BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
     jumpGateOpen,
     latestTurnId,
     resolveStopExecution,
     shouldShowStopControl,
 } from "@agenta/chat/assets"
+import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {
     ConnectionDock,
     ConnectionFocusProvider,
@@ -32,6 +31,8 @@ import {
 import {getSessionTurnId} from "@agenta/chat/state"
 import {cancelSessionExecution} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
+import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
+import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {
     ChatBubble,
@@ -40,6 +41,7 @@ import {
     turnRowClass,
 } from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {isAltChord} from "@agenta/ui/shortcuts"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 import {User} from "lucide-react"
@@ -48,14 +50,16 @@ import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {Button} from "@/components/ui/button"
 
-import {pendingTasksAtom, failPendingTaskAtom, sendPendingTaskAtom} from "../home/pendingTask"
+import {useProjectPermission} from "../context/useProjectPermission"
+import {failPendingTaskAtom, pendingTasksAtom, sendPendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
-import {livenessQueryKey} from "../sessions/useLivenessPoll"
+import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
+import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {StopButton} from "./StopButton"
 import {cancelledStopAction} from "./stopHereState"
@@ -68,6 +72,7 @@ import {
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
+import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
 
 /**
@@ -91,7 +96,6 @@ export const LiveConversation = ({
     sessionTurnId,
     stoppingTurnId,
     sharedReader,
-    livenessUpdatedAt,
     agentId,
     embedded = false,
 }: {
@@ -108,12 +112,15 @@ export const LiveConversation = ({
     /** Backend-advertised ability to receive display-only live frames from another sender. */
     sharedReader: boolean
     /** React Query timestamp used to reject the sender's stale post-settle liveness snapshot. */
-    livenessUpdatedAt: number
     /** Scopes the session tab rail to this agent's sessions. */
     agentId?: string | null
     /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
     embedded?: boolean
 }) => {
+    // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
+    // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
+    const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
+    const startBlankSession = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
     const conversation = useAgentConversation({
         entityId,
         sessionId,
@@ -121,6 +128,19 @@ export const LiveConversation = ({
         sharedReaderRunning: running,
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
     })
+    const canEditSecrets = useProjectPermission(projectId, "edit_secret")
+    const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+    const adoptSecretRevision = useCallback(
+        (next: string) => {
+            conversation.adoptRevision(next)
+            pinRevision(next)
+        },
+        [conversation.adoptRevision, pinRevision],
+    )
+    const pendingSecret = useMemo(
+        () => getPendingSecretInteractions(conversation.messages)[0],
+        [conversation.messages],
+    )
 
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
@@ -490,21 +510,25 @@ export const LiveConversation = ({
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
     })
+    const secretDockOpen =
+        !streamingHere && !stopping && !conversation.stopped && Boolean(pendingSecret)
     // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
-    // surface has no question-form dock yet, so only approvals and connect cards can gate it.
-    const gateOpen = jumpGateOpen({
-        approvals: pendingApprovals.length,
-        elicitationOpen: false,
-        connectionOpen: connects.open,
-    })
+    // surface has no question-form dock yet, so approvals, connect, and secret cards gate it.
+    const gateOpen =
+        jumpGateOpen({
+            approvals: pendingApprovals.length,
+            elicitationOpen: false,
+            connectionOpen: connects.open,
+        }) || secretDockOpen
 
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
     // so the warning about tools that already ran, and putting a rewound user message back into
     // the composer, are this surface's job — same division the desktop uses. `composerRef` is
     // declared above, with the parked task that also refills the input.
+    const {rewind} = conversation
     const handleRewind = useCallback(
         (turn: TurnViewModel) => {
-            const plan = conversation.rewind(turn.message)
+            const plan = rewind(turn.message)
             if (!plan) return
             const run = () => {
                 plan.confirm()
@@ -526,8 +550,39 @@ export const LiveConversation = ({
                 onOk: run,
             })
         },
-        [conversation],
+        [rewind],
     )
+
+    // The desktop's run-level shortcuts, with its guards — what makes Stop's `Escape` true here.
+    const scrollerRef = autoScroll.ref
+    // Read through a ref: `pendingApprovals` is rebuilt every streamed commit, so depending on it
+    // would re-register the listener on the hot path.
+    const shortcutRef = useRef({streamingHere, pendingApprovals, approvalActions, stopHere})
+    shortcutRef.current = {streamingHere, pendingApprovals, approvalActions, stopHere}
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            // Radix lets a cancelled Escape through and never touches Alt+G; the pane can hide us.
+            if (e.defaultPrevented || isOverlayOpen()) return
+            if (!isOnScreen(scrollerRef.current)) return
+            const current = shortcutRef.current
+            if (e.key === "Escape" && !e.isComposing && current.streamingHere) {
+                e.preventDefault()
+                // `stopHere`, not the local abort: Escape must cancel the run on the server too.
+                current.stopHere()
+                return
+            }
+            // ONE gate, never "Approve all" — a mis-press must not grant a tool nobody read.
+            if (isAltChord(e) && e.code === "KeyG" && current.pendingApprovals.length > 0) {
+                e.preventDefault()
+                current.approvalActions.respond({
+                    approved: true,
+                    approvalId: current.pendingApprovals[0].approvalId,
+                })
+            }
+        }
+        document.addEventListener("keydown", onKey)
+        return () => document.removeEventListener("keydown", onKey)
+    }, [scrollerRef])
 
     let body
     if (conversation.isHydrating) {
@@ -610,15 +665,6 @@ export const LiveConversation = ({
                 scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
                 footer={
                     <div className="relative">
-                        {/* Bottom fade: a sibling overlay, NOT a second mask. A mask on the scroller
-                        would fade any hover toolbar that scrolls into the band, and no z-index
-                        escapes an ancestor's mask — the desktop learned this the same way. It sits
-                        above the footer and is dropped while a turn is hovered. */}
-                        <div
-                            aria-hidden
-                            className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
-                            style={BOTTOM_FADE_OVERLAY_STYLE}
-                        />
                         {/* What you have lined up stays visible while a gate is open: the queued
                         message is the acknowledgement that the user's Send was not lost. */}
                         {conversation.queued.length > 0 || conversation.editingId ? (
@@ -666,6 +712,18 @@ export const LiveConversation = ({
                         ) : null}
                         {/* Parked question forms, between approval and connect — the same order as
                         desktop, and the same order as the keyboard precedence. */}
+                        {secretDockOpen && pendingSecret ? (
+                            <ContentRail>
+                                <SecretRequestDock
+                                    key={pendingSecret.toolCallId}
+                                    meta={pendingSecret}
+                                    revisionId={entityId}
+                                    onAdoptRevision={adoptSecretRevision}
+                                    canEditSecrets={canEditSecrets}
+                                    onOutput={conversation.sendToolOutput}
+                                />
+                            </ContentRail>
+                        ) : null}
                         {elicits.open ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                                 <ContentRail>
@@ -738,6 +796,7 @@ export const LiveConversation = ({
                             </ContentRail>
                         ) : null}
                         <Composer
+                            entityId={entityId}
                             sessionId={sessionId}
                             onSend={async ({text, parts}) => {
                                 setStoppingHere(false)
@@ -772,6 +831,8 @@ export const LiveConversation = ({
                             steerEnabled={conversation.steerEnabled}
                             inputBusy={conversation.inputBusy}
                             inputRef={composerRef}
+                            // Same gate the rail's `+` uses: starting one needs an agent.
+                            onNewSession={agentId ? () => startBlankSession(agentId) : undefined}
                         />
                     </div>
                 }

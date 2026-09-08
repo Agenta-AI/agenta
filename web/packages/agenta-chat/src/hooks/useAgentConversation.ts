@@ -14,7 +14,7 @@
 // Deliberately omitted (desktop-only): first-seen timestamp stamping (display metadata for the desktop rows) — the desktop host keeps its own implementation until the re-plumb.
 // Deliberately omitted (desktop-only): session auto-titling and the first-run seed auto-send — the desktop host keeps its own implementation until the re-plumb.
 // Deliberately omitted (desktop-only): the model-key composer gate — compose `useAgentModelKeyStatus` in the skin instead.
-import {useCallback, useEffect, useMemo, useReducer, useRef, useState} from "react"
+import {useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState} from "react"
 
 import {
     invalidateSessionListQueries,
@@ -32,11 +32,11 @@ import {
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
-import {buildRenderMap} from "@agenta/playground"
 import {
     agentShouldResumeAfterApproval,
     approvalResolution,
     buildAgentRequest,
+    buildRenderMap,
     isResumeSend,
     type LiveAgentInteraction,
 } from "@agenta/playground/agent-chat"
@@ -66,6 +66,7 @@ import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionSta
 import {
     buildTurnViewModels,
     createExecutedToolIdentityCache,
+    createTurnViewModelCache,
     type ClientToolPartPredicate,
     type TurnViewModel,
 } from "../model/turnViewModel"
@@ -174,6 +175,8 @@ export interface AgentConversation {
     stop: () => void
     /** Re-run an assistant turn by message id (also the "Resend" action after a stop). */
     regenerate: (id: string) => void
+    /** Adopt a newly committed workflow revision for subsequent sends in this session. */
+    adoptRevision: (revisionId: string) => void
     /** Scan a rewind target; null while busy or for an unknown message. */
     rewind: (message: UIMessage) => RewindPlan | null
     /** Server hydration for an uncached session is in flight — show a transcript skeleton. */
@@ -291,7 +294,14 @@ export const useAgentConversation = ({
     // builder must read the CURRENT entity — capturing `entityId` by value would send every turn
     // with the revision displayed when the session first mounted.
     const entityIdRef = useRef(entityId)
-    entityIdRef.current = entityId
+    // Synced after commit, never during render: an interrupted render must not leak an
+    // uncommitted revision into the request builder.
+    useLayoutEffect(() => {
+        entityIdRef.current = entityId
+    }, [entityId])
+    const adoptRevision = useCallback((next: string) => {
+        entityIdRef.current = next
+    }, [])
 
     // Whether this mount is still on screen. The chat outlives it, so its callbacks need to tell
     // "still mine to report" from "running on in the background".
@@ -374,6 +384,7 @@ export const useAgentConversation = ({
                         buildAgentRequest(entityIdRef.current, messages, {
                             sessionId: id ?? sessionId,
                             sharedResponse,
+                            secretSetup: true,
                         }),
                     )
                     return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
@@ -1231,22 +1242,31 @@ export const useAgentConversation = ({
     // Per-mount executed-identity cache — the desktop's per-message toolSignature memo,
     // recreated hook-side so the identity JSON.stringify doesn't re-run per streamed token.
     const [executedFor] = useState(() => createExecutedToolIdentityCache())
+    // Per-mount view-model cache: unchanged turns keep object identity, so `TurnRow`'s memo holds.
+    const [turnCache] = useState(() => createTurnViewModelCache())
+    // Memoized so the turn cache can key on it: renderMap is built across the whole conversation,
+    // so a hint arriving late must invalidate the earlier turns it reclassifies.
+    const classifyClientToolPart = useMemo(
+        (): ClientToolPartPredicate => (part, ctx) =>
+            (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
+        [isClientToolPart, renderMap],
+    )
     const turns = useMemo(
         () =>
             buildTurnViewModels(displayMessages, {
                 busy: busy || (includePreview && previewMessages.length > 0),
                 executedFor,
-                isClientToolPart: (part, ctx) =>
-                    (isClientToolPart ?? defaultIsClientToolPart)(part, ctx, renderMap),
+                cache: turnCache,
+                isClientToolPart: classifyClientToolPart,
             }),
         [
             displayMessages,
             busy,
             executedFor,
-            isClientToolPart,
+            turnCache,
+            classifyClientToolPart,
             includePreview,
             previewMessages.length,
-            renderMap,
         ],
     )
 
@@ -1280,6 +1300,7 @@ export const useAgentConversation = ({
         commitEdit,
         approvals,
         sendToolOutput,
+        adoptRevision,
         revalidate,
         runningFromSnapshot,
         sharedSettledAt,

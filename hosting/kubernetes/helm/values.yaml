@@ -138,7 +138,7 @@ redisDurable:
 # ================================================================== #
 # agentRunner:
 #   enabled: true
-#   liveFrames: false          # AGENTA_RUNNER_LIVE_FRAMES; opt in to temporary live-frame relay
+#   liveFrames: true           # AGENTA_RUNNER_LIVE_FRAMES; set false to disable live-frame relay
 #   providers:
 #     enabled: [local]        # AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS (rendered comma-joined)
 #     default: local          # AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER (must be one of enabled)

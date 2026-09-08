@@ -16,6 +16,7 @@ import type {ComponentType} from "react"
 import type {ToolUIPart} from "ai"
 
 export const CLIENT_TOOL_DESCRIPTORS = {
+    secret: {toolName: "request_secret", renderKind: "secret"},
     connection: {toolName: "request_connection", renderKind: "connect"},
     elicitation: {toolName: "request_input", renderKind: "elicitation"},
 } as const

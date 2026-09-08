@@ -5,7 +5,7 @@ import {
     agentWorkflowsListQueryStateAtom,
     matchesAgentQuery,
 } from "@agenta/entities/workflow"
-import {AgentRosterGrid, type AgentRosterEntry} from "@agenta/entity-ui/agent"
+import {AgentRosterGrid, useAgentActions, type AgentRosterEntry} from "@agenta/entity-ui/agent"
 import {useWaitingByAgent} from "@agenta/sessions/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
@@ -29,9 +29,10 @@ import {useNewAgentAction} from "./useNewAgentAction"
  * The full agent roster — where the nav's Agents entry lands.
  *
  * The roster IS the shared `AgentRosterGrid`: the same cards, waiting badge, create cell and empty
- * state the desktop Agents page renders. Rename and archive are absent because this app has no
- * modals for them, and the shared card drops a menu entry whose handler is missing rather than
- * offering a dead one.
+ * state the desktop Agents page renders, with the same rename and archive verbs from the shared
+ * `useAgentActions`. "Open in playground" is the one entry this app drops — /m has no playground
+ * route — and the shared card omits a menu entry whose handler is missing rather than offering a
+ * dead one.
  *
  * Same browse shape as sessions and templates: title, create and search sit in a pinned toolbar
  * above the results, so none of them scrolls away with the roster.
@@ -50,6 +51,8 @@ export const AgentListScreen = ({
     const query = useAtomValue(agentWorkflowsListQueryStateAtom)
     const [search, setSearch] = useAtom(agentRosterSearchAtom)
     const waitingByAgent = useWaitingByAgent()
+    // The shared agent verbs, the same ones the overview header's kebab binds.
+    const agentActions = useAgentActions()
     // This list is already resolved client-side, so the term filters it in place — no refetch.
     const agents = useMemo<AgentRosterEntry[]>(
         () =>
@@ -78,7 +81,9 @@ export const AgentListScreen = ({
         >
             <div className="flex min-w-0 items-center gap-2">
                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                <h1 className="text-colorText m-0 min-w-0 flex-1 truncate text-[24px] font-semibold leading-[1.3333333333333333]">
+                {/* From `sm`, 24px is the desktop page-title rung; on a phone it eats the row, so
+                    the title drops to the 16px body ramp — the same shape the sessions bar uses. */}
+                <h1 className="text-colorText m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] sm:text-[24px] sm:leading-[1.3333333333333333]">
                     Agents
                 </h1>
             </div>
@@ -91,6 +96,7 @@ export const AgentListScreen = ({
                     creating={newAgent.creating}
                     error={newAgent.error}
                     align="end"
+                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
                 />
                 <SearchInput
                     value={search}
@@ -115,6 +121,8 @@ export const AgentListScreen = ({
             waitingByAgent={waitingByAgent}
             onCreate={() => void newAgent.create()}
             onOpenOverview={(agent) => void router.push(`${base}/agents/${agent.id}`)}
+            onRename={(agent) => agentActions.rename({id: agent.id, name: agent.name})}
+            onArchive={(agent) => agentActions.remove({id: agent.id, name: agent.name})}
             emptyText={
                 hasQuery
                     ? `No agents match "${search.trim()}".`

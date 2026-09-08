@@ -26,8 +26,23 @@ import {CaretDown, CaretRight, Plugs, Plus} from "@phosphor-icons/react"
 import Image from "next/image"
 
 /** A connected-app logo square; a plug glyph when no logo is known (catalog not loaded yet). */
-export function ProviderLogo({logo, size = 24}: {logo?: string | null; size?: number}) {
-    if (!logo) return <Plugs size={size} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
+export function ProviderLogo({
+    logo,
+    size = 24,
+    className,
+}: {
+    logo?: string | null
+    size?: number
+    /** Responsive size overrides need `!`: `size` renders as width/height attributes. */
+    className?: string
+}) {
+    if (!logo)
+        return (
+            <Plugs
+                size={size}
+                className={`shrink-0 text-[var(--ag-colorTextSecondary)] ${className ?? ""}`}
+            />
+        )
     return (
         <Image
             src={logo}
@@ -35,7 +50,7 @@ export function ProviderLogo({logo, size = 24}: {logo?: string | null; size?: nu
             width={size}
             height={size}
             unoptimized
-            className="shrink-0 rounded object-contain"
+            className={`shrink-0 rounded object-contain ${className ?? ""}`}
         />
     )
 }

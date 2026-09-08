@@ -2682,6 +2682,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/watch-session-events",
+          label: "Session Events",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
           id: "reference/api/watch-project",
           label: "Watch Project",
           className: "api-method get",
@@ -2826,6 +2832,18 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/update-pending-session-input",
+          label: "Update Pending Input",
+          className: "api-method patch",
+        },
+        {
+          type: "doc",
+          id: "reference/api/remove-pending-session-input",
+          label: "Remove Pending Input",
+          className: "api-method delete",
+        },
+        {
+          type: "doc",
           id: "reference/api/archive-session",
           label: "Archive Session",
           className: "api-method post",
@@ -2838,8 +2856,26 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/get-session-snapshot",
+          label: "Get Session Snapshot",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
           id: "reference/api/cancel-session-execution",
           label: "Cancel Session Execution",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/resume-session-continuation",
+          label: "Resume Session Continuation",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/send-pending-session-input-now",
+          label: "Send Pending Input Now",
           className: "api-method post",
         },
       ],

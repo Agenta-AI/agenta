@@ -448,3 +448,60 @@ def test_malformed_create_never_echoes_the_submitted_key(harness):
 
     assert response.status_code == 422
     assert CANARY not in response.text
+
+
+def test_write_only_custom_secret_keeps_default_environment_metadata(harness):
+    response = harness.post(
+        "/secrets/",
+        json={
+            "header": {"name": "GitHub token"},
+            "slug": "github-token",
+            "write_only": True,
+            "secret": {
+                "kind": "custom_secret",
+                "data": {
+                    "secret": {
+                        "format": "text",
+                        "content": "github-secret-value",
+                        "default_env_var": "GITHUB_TOKEN",
+                    }
+                },
+            },
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["data"]["secret"]["default_env_var"] == "GITHUB_TOKEN"
+    assert "content" not in body["data"]["secret"]
+
+
+def test_custom_secret_update_keeps_omitted_default_environment_metadata(harness):
+    created = harness.post(
+        "/secrets/",
+        json={
+            "header": {"name": "GitHub token"},
+            "slug": "github-token-update",
+            "write_only": True,
+            "secret": {
+                "kind": "custom_secret",
+                "data": {
+                    "secret": {
+                        "format": "text",
+                        "content": "old",
+                        "default_env_var": "GITHUB_TOKEN",
+                    }
+                },
+            },
+        },
+    ).json()
+    updated = harness.put(
+        f"/secrets/{created['id']}",
+        json={
+            "secret": {
+                "kind": "custom_secret",
+                "data": {"secret": {"format": "text", "content": "new"}},
+            }
+        },
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["data"]["secret"]["default_env_var"] == "GITHUB_TOKEN"

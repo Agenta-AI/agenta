@@ -1,0 +1,1 @@
+{"parameters":[{"name":"session_id","in":"path","required":true,"schema":{"type":"string","title":"Session Id"}},{"name":"input_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Input Id"}}]}
