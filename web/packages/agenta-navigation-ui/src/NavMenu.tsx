@@ -14,6 +14,7 @@ import {
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
+    cn,
 } from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -62,6 +63,9 @@ const ROW_DISABLED = "cursor-default text-colorTextQuaternary"
 // Guide line marks the group's extent, the way the old inline menu did.
 const GROUP_CHILDREN =
     "ml-[22px] flex flex-col border-0 border-l border-solid border-colorBorderSecondary pl-1"
+// A group with no collapse control is a SECTION of the rail, not a submenu you opened: its rows
+// are rail rows. No indent and no guide line, so their glyphs sit in the nav icons' own column.
+const SECTION_CHILDREN = "flex flex-col"
 // Stretches the anchor over the whole row so middle-click / ctrl+click work anywhere on it.
 const LINK_CLASS =
     "!text-inherit no-underline before:absolute before:inset-0 before:content-[''] min-w-0 flex-1 truncate"
@@ -259,7 +263,10 @@ const LeafRow = ({
     return (
         <div
             {...dragAttrs(item.dragItem)}
-            className={clsx(
+            // cn, not clsx: a row can carry its own size or colour (a session title is 12px) and
+            // plain concatenation leaves it beside ROW_BASE's, where the stylesheet's order
+            // decides the winner rather than this list does.
+            className={cn(
                 ROW_BASE,
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
@@ -463,6 +470,7 @@ const NavMenuImpl = ({
 
         if (hasChildren) {
             const open = openKeys.includes(item.key)
+            const childrenClass = item.alwaysOpen ? SECTION_CHILDREN : GROUP_CHILDREN
             return (
                 <Fragment key={item.key}>
                     <div
@@ -521,7 +529,7 @@ const NavMenuImpl = ({
                         // hold their size on their own (auto min-height == their fixed row height).
                         <div
                             data-nav-scroll="true"
-                            className={clsx(GROUP_CHILDREN, "min-h-0 overflow-y-auto", DRAG_GHOST)}
+                            className={clsx(childrenClass, "min-h-0 overflow-y-auto", DRAG_GHOST)}
                         >
                             {(item.submenu ?? []).map(renderItem)}
                         </div>
@@ -530,8 +538,7 @@ const NavMenuImpl = ({
                         // flex item's automatic min-height — so beside a scrolling group it
                         // shrank and clipped its own rows instead of holding its height.
                         <HeightCollapse open={open} className="shrink-0">
-                            {/* Guide line marks the group's extent, as the old inline menu did. */}
-                            <div className={clsx(GROUP_CHILDREN, DRAG_GHOST)}>
+                            <div className={clsx(childrenClass, DRAG_GHOST)}>
                                 {(item.submenu ?? []).map(renderItem)}
                             </div>
                         </HeightCollapse>
