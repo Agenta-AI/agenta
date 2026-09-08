@@ -1511,7 +1511,7 @@ def build_agent_v0_default(
     template["harness"] = {"kind": _DEFAULT_HARNESS}
     template["runner"] = {
         "kind": "sidecar",
-        "permissions": {"default": _DEFAULT_PERMISSION_MODE},
+        "permissions": {"default": "allow"},
     }
     template["sandbox"] = sandbox
     return template
