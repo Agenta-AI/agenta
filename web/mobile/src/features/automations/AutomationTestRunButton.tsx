@@ -57,7 +57,7 @@ export const AutomationTestRunButton = ({
                 type="button"
                 size="sm"
                 variant="outline"
-                className="font-normal"
+                className="text-xs font-normal"
                 disabled={Boolean(blockedReason)}
                 title={blockedReason || "Open a session with this instruction, ready to send"}
                 onClick={() => {
@@ -65,7 +65,7 @@ export const AutomationTestRunButton = ({
                     startSession(automation.agentId, {draft: instruction})
                 }}
             >
-                <Play aria-hidden size={14} />
+                <Play aria-hidden className="size-3" />
                 Test run
             </Button>
         </span>

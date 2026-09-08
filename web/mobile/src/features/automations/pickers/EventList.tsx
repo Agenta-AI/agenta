@@ -60,10 +60,9 @@ export const EventList = ({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="font-normal"
+                            className="justify-start text-xs font-normal"
                             disabled={isFetchingNextPage}
                             onClick={requestMore}
-                            className="justify-start"
                         >
                             {isFetchingNextPage ? "Loading…" : "Show more events"}
                         </Button>
