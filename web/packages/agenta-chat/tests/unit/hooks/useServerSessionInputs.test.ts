@@ -32,9 +32,12 @@ const {
     updateInput: vi.fn(),
 }))
 
-vi.mock("@agenta/entities/session", async () => {
+vi.mock("@agenta/entities/session", async (importOriginal) => {
     const {atom} = await import("jotai")
     return {
+        // Keep every real export (the composer's file palette reads the mount queries) and
+        // replace only the five atoms this test drives.
+        ...(await importOriginal<typeof import("@agenta/entities/session")>()),
         fetchSessionCapabilitiesAtom: atom(null, (_get, _set, sessionId: string) =>
             fetchCapabilities(sessionId),
         ),
