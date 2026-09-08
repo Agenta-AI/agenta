@@ -4,6 +4,7 @@ in, field for field, modulo server-assigned fields (id, timestamps)."""
 import uuid
 
 import pytest
+from uuid import uuid4
 
 from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
@@ -93,7 +94,7 @@ async def test_agent_roundtrip(channels_scope):
             connection_id=connection_id,
             slug="support",
             name="Support",
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         ),
     )
 
@@ -155,7 +156,7 @@ async def test_grant_roundtrip(channels_scope):
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug="agent",
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         ),
     )
     space = await dao.create_space(
@@ -205,7 +206,7 @@ async def test_thread_roundtrip(channels_scope):
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug="agent",
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         ),
     )
     space = await dao.create_space(
@@ -258,7 +259,7 @@ async def test_fetch_current_thread_returns_the_latest_row_not_a_unique_lookup(
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug="agent",
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         ),
     )
     space = await dao.create_space(
@@ -348,7 +349,7 @@ async def test_close_thread_flips_is_active_in_place(channels_scope):
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug="agent",
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         ),
     )
     space = await dao.create_space(

@@ -265,7 +265,7 @@ async def test_archive_cascades_to_agents_and_leaves_threads_alone(channels_scop
         agent=ChannelAgentCreate(
             connection_id=connection.id,
             slug="archive-agent",
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         ),
     )
 
