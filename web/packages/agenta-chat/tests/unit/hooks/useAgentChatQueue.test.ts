@@ -1244,3 +1244,122 @@ it.each([false, true])(
         unmount()
     },
 )
+
+// ── The local echo of a durable send ──────────────────────────────────────────────────────────
+// A server-owned send adds nothing to the AI SDK chat, so without an echo the transcript stays
+// unchanged until the records read that adopts the saved row lands. These cover the three ways an
+// echo retires: the dock takes it (202), the durable row lands (200), and the send is refused.
+
+const durableServer = (overrides: Partial<ServerQueueAdapter> = {}): ServerQueueAdapter => ({
+    capabilities: {queue: true, steer: true},
+    busy: false,
+    queued: [],
+    submit: vi.fn().mockResolvedValue("running"),
+    remove: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+})
+
+const echoText = (result: {current: {pendingSendRows: UIMessage[]}}) =>
+    result.current.pendingSendRows.map((row) =>
+        row.parts.map((part) => ("text" in part ? part.text : "")).join(""),
+    )
+
+describe("useAgentChatQueue pending-send echoes", () => {
+    it("shows a durable send at once, before the request resolves", async () => {
+        let admit!: (value: "running") => void
+        const server = durableServer({
+            submit: vi.fn(() => new Promise<"running">((resolve) => (admit = resolve))),
+        })
+        const {result} = setup({...settledEmpty, server})
+
+        act(() => {
+            void result.current.submit({text: "show me now"})
+        })
+
+        expect(echoText(result)).toEqual(["show me now"])
+        expect(result.current.pendingSendRows[0].role).toBe("user")
+        await act(async () => {
+            admit("running")
+        })
+        // A started run keeps the echo: its saved row has not been adopted yet.
+        expect(echoText(result)).toEqual(["show me now"])
+    })
+
+    it("retires the echo when the adopted transcript carries the saved row", async () => {
+        const server = durableServer()
+        const props: HarnessProps = {...settledEmpty, server}
+        const {result, rerender} = setup(props)
+
+        await act(async () => {
+            await result.current.submit({text: "saved soon"})
+        })
+        expect(echoText(result)).toEqual(["saved soon"])
+
+        rerender({...props, messages: [userTurn("record-1", "saved soon")]})
+
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+
+    it("hands a queued message to the dock instead of the transcript", async () => {
+        const server = durableServer({submit: vi.fn().mockResolvedValue("queued")})
+        const {result} = setup({
+            ...settledEmpty,
+            status: "streaming",
+            messages: [userTurn("u1", "go")],
+            server,
+        })
+
+        await act(async () => {
+            await result.current.submit({text: "behind the turn"})
+        })
+
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+
+    it("drops the echo when the send is refused, so the composer restore is not doubled", async () => {
+        const server = durableServer({
+            submit: vi.fn().mockRejectedValue(new Error("The input was not accepted (409).")),
+        })
+        const {result} = setup({...settledEmpty, server})
+
+        await act(async () => {
+            await expect(result.current.submit({text: "refused"})).rejects.toThrow(
+                "The input was not accepted (409).",
+            )
+        })
+
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+
+    it("retires a burst oldest-first as each saved row arrives", async () => {
+        const server = durableServer()
+        const props: HarnessProps = {...settledEmpty, server}
+        const {result, rerender} = setup(props)
+
+        await act(async () => {
+            await result.current.submit({text: "one"})
+            await result.current.submit({text: "two"})
+        })
+        expect(echoText(result)).toEqual(["one", "two"])
+
+        rerender({...props, messages: [userTurn("record-1", "one")]})
+        expect(echoText(result)).toEqual(["two"])
+
+        rerender({
+            ...props,
+            messages: [userTurn("record-1", "one"), userTurn("record-2", "two")],
+        })
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+
+    it("adds no echo when the browser-local path already renders the message", () => {
+        const {result, sendQueued} = setup(settledEmpty)
+
+        act(() => {
+            result.current.submit({text: "local send"})
+        })
+
+        expect(sendQueued).toHaveBeenCalledTimes(1)
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+})

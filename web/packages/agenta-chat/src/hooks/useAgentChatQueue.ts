@@ -1,5 +1,5 @@
 // Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     approvalContinuationSettled,
@@ -11,6 +11,13 @@ import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
 import {latestTurnId} from "../assets/agentTurn"
+import {
+    countUserMessages,
+    nextPendingSendCoverage,
+    pendingSendMessages,
+    retirePendingSends,
+    type PendingSend,
+} from "../assets/pendingSends"
 
 import type {ComposerAttachment} from "./useComposerAttachments"
 
@@ -30,7 +37,11 @@ export interface ServerQueueAdapter {
     resolveCapabilities?: () => Promise<{queue: boolean; steer: boolean}>
     busy: boolean
     queued: QueuedMessage[]
-    submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
+    /** Resolves with what the server did: "queued" parks the input, "running" starts a turn. */
+    submit: (
+        message: QueuedMessage,
+        policy: "queue" | "steer",
+    ) => Promise<"queued" | "running" | void>
     remove: (id: string) => Promise<void>
     sendNow?: (id: string) => Promise<void>
     edit?: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
@@ -121,6 +132,8 @@ export const useAgentChatQueue = ({
 }: UseAgentChatQueueArgs) => {
     const serverBusyRef = useRef(server?.busy)
     serverBusyRef.current = server?.busy
+    const messagesRef = useRef(messages)
+    messagesRef.current = messages
     const [queued, setQueued] = useState<QueuedMessage[]>(
         () => (sessionId && queuedBySession.get(sessionId)) || [],
     )
@@ -198,6 +211,42 @@ export const useAgentChatQueue = ({
     useEffect(() => {
         queuedRef.current = queued
     }, [queued])
+
+    // ── The local echo of a durable send ──────────────────────────────────────────────────────
+    // A server-owned send adds NOTHING to the AI SDK chat, so the transcript stays unchanged until
+    // the invoke POST, the durable event, and the records read all land. Measured at ~0.9s on a
+    // local stack and several seconds against a remote deployment, with the composer already
+    // cleared — the message simply vanishes for the whole window. These echoes render it at once
+    // and retire as the durable rows catch up. They live only in the merged render array, never in
+    // the AI SDK `messages`: `shouldAdoptServerTranscript` weighs the local message count, and an
+    // echo counted there would make the adoption that retires it look redundant.
+    const [pendingSends, setPendingSends] = useState<readonly PendingSend[]>([])
+    // The ref, not the state, is the source of truth: two sends can land before React re-renders,
+    // and a second echo reading a stale list would claim the first one's coverage number and
+    // retire with it. Every writer goes through `updatePendingSends`, which keeps both in step.
+    const pendingSendsRef = useRef(pendingSends)
+    const updatePendingSends = useCallback(
+        (next: (current: readonly PendingSend[]) => readonly PendingSend[]) => {
+            const computed = next(pendingSendsRef.current)
+            if (computed === pendingSendsRef.current) return
+            pendingSendsRef.current = computed
+            setPendingSends(computed)
+        },
+        [],
+    )
+    const userMessageCount = countUserMessages(messages)
+    useEffect(() => {
+        updatePendingSends((current) => retirePendingSends(current, userMessageCount))
+    }, [updatePendingSends, userMessageCount])
+    const dropPendingSend = useCallback(
+        (id: string) => {
+            updatePendingSends((current) => {
+                const next = current.filter((item) => item.id !== id)
+                return next.length === current.length ? current : next
+            })
+        },
+        [updatePendingSends],
+    )
 
     // Retained until admission so a refused immediate send can return to the composer.
     const lastSentRef = useRef<QueuedMessage | undefined>(undefined)
@@ -300,7 +349,31 @@ export const useAgentChatQueue = ({
             const message: QueuedMessage = {...item, id: generateId()}
             const admit = (queue: boolean) => {
                 if (queue && server) {
-                    return server.submit(message, "queue")
+                    // Echo it into the transcript before the request leaves, and retire it the
+                    // moment something else in the UI owns the message: the dock on a 202, the
+                    // durable user row on a 200, the composer restore on a refusal (both hosts put
+                    // the text back there), so it is never shown twice and never lost.
+                    updatePendingSends((current) => [
+                        ...current,
+                        {
+                            id: message.id,
+                            text: message.text,
+                            fileParts: message.fileParts,
+                            coveredAtUserCount: nextPendingSendCoverage(
+                                countUserMessages(messagesRef.current),
+                                current,
+                            ),
+                        },
+                    ])
+                    return server.submit(message, "queue").then(
+                        (admission) => {
+                            if (admission === "queued") dropPendingSend(message.id)
+                        },
+                        (error: unknown) => {
+                            dropPendingSend(message.id)
+                            throw error
+                        },
+                    )
                 }
                 if (recoverable && retryContinuation) {
                     setQueued((q) => [...q, message])
@@ -331,7 +404,16 @@ export const useAgentChatQueue = ({
                 ? server.resolveCapabilities().then((capabilities) => admit(capabilities.queue))
                 : admit(server?.capabilities.queue === true)
         },
-        [canReleaseNow, recoverable, retryContinuation, markRunOwned, sendQueued, server],
+        [
+            canReleaseNow,
+            dropPendingSend,
+            recoverable,
+            retryContinuation,
+            markRunOwned,
+            sendQueued,
+            server,
+            updatePendingSends,
+        ],
     )
 
     const removeQueued = useCallback(
@@ -501,8 +583,18 @@ export const useAgentChatQueue = ({
         sendQueued(head)
     }, [settled, canReleaseNow, queued, markRunOwned, sendQueued])
 
+    // Rebuilt only when an echo is added or retired, so the transcript memo that appends these
+    // does not churn on every streamed token.
+    const pendingSendRows = useMemo(() => pendingSendMessages(pendingSends), [pendingSends])
+
     return {
         queued: [...(server?.queued ?? []), ...queued],
+        /**
+         * Disposable user rows for messages this tab has sent and the durable transcript has not
+         * echoed back yet. Render them AFTER the adopted messages and BEFORE any live preview, so
+         * the question stays above the answer streaming under it.
+         */
+        pendingSendRows,
         submit,
         steer,
         removeQueued,

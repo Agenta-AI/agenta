@@ -733,6 +733,7 @@ export const useAgentConversation = ({
         beginEdit,
         cancelEdit,
         commitEdit,
+        pendingSendRows,
     } = useAgentChatQueue({
         status,
         messages,
@@ -1075,10 +1076,13 @@ export const useAgentConversation = ({
     const includePreview = turnDeliverySource !== "legacy"
     const displayMessages = useMemo(() => {
         const transcriptMessages = withoutSharedSenderAcceptanceMessages(messages)
-        return includePreview && previewMessages.length
-            ? [...transcriptMessages, ...previewMessages]
-            : transcriptMessages
-    }, [includePreview, messages, previewMessages])
+        const live = includePreview && previewMessages.length ? previewMessages : []
+        // The queue's echoes sit between the two: after everything already saved, and before the
+        // answer streaming under them. Without them a durable send leaves the transcript unchanged
+        // until the records read that adopts the saved row lands.
+        if (pendingSendRows.length === 0 && live.length === 0) return transcriptMessages
+        return [...transcriptMessages, ...pendingSendRows, ...live]
+    }, [includePreview, messages, pendingSendRows, previewMessages])
 
     const applyInteractionStates = useCallback(
         (rows: ReturnType<typeof interactionStatesFromWatchEvent>) => {

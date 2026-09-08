@@ -17,12 +17,19 @@ import {reduceSessionPendingInputs, type SessionPendingInputView} from "../asset
 
 import type {QueuedMessage} from "./useAgentChatQueue"
 
+/**
+ * What the server did with an admitted input. "queued" means it is parked as a pending input and
+ * the dock owns it from here; "running" means it started a turn whose records the transcript will
+ * adopt. Callers use it to retire a local echo at the right moment.
+ */
+export type ServerInputAdmission = "queued" | "running"
+
 export interface ServerSessionInputs {
     capabilities: SessionPendingInputView["capabilities"]
     executionState: SessionPendingInputView["executionState"]
     busy: boolean
     queued: QueuedMessage[]
-    submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
+    submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<ServerInputAdmission>
     remove: (id: string) => Promise<void>
     sendNow: (id: string) => Promise<void>
     edit: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
@@ -128,7 +135,10 @@ export const useServerSessionInputs = ({
     }, [fetchCapabilities, sessionId, scope])
 
     const submit = useCallback(
-        async (message: QueuedMessage, policy: "queue" | "steer") => {
+        async (
+            message: QueuedMessage,
+            policy: "queue" | "steer",
+        ): Promise<ServerInputAdmission> => {
             const outbound: UIMessage = {
                 id: message.id,
                 role: "user",
@@ -164,7 +174,7 @@ export const useServerSessionInputs = ({
             if (response.status === 202) {
                 await response.body?.cancel()
                 await refresh()
-                return
+                return "queued"
             }
 
             // Admission succeeded when the response headers arrived. Keep consuming a fresh 200
@@ -177,6 +187,7 @@ export const useServerSessionInputs = ({
                     onExecutedRef.current?.()
                 })
                 .catch(() => undefined)
+            return "running"
         },
         [refresh, sessionId],
     )

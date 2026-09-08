@@ -204,11 +204,6 @@ const AgentConversation = ({
         readerReady,
         ownedContinuation: acceptedRunPending,
     })
-    const transcriptMessages = useMemo(() => {
-        const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
-        if (turnDeliverySource === "legacy" || previewMessages.length === 0) return durableMessages
-        return [...durableMessages, ...previewMessages]
-    }, [messages, previewMessages, turnDeliverySource])
     const transcriptBusy =
         busy ||
         remoteTurn.showActivity ||
@@ -453,6 +448,7 @@ const AgentConversation = ({
         cancelEdit,
         commitEdit,
         takeLastSent,
+        pendingSendRows,
     } = useAgentChatQueue({
         status,
         messages,
@@ -467,6 +463,19 @@ const AgentConversation = ({
         sessionId,
         server: serverInputs,
     })
+
+    // Declared after the queue because it renders the queue's echoes: a durable send adds nothing
+    // to the AI SDK chat, so without them the transcript stays unchanged until the records read
+    // that adopts the saved row lands.
+    const transcriptMessages = useMemo(() => {
+        const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
+        const live =
+            turnDeliverySource === "legacy" || previewMessages.length === 0 ? [] : previewMessages
+        // A just-sent message goes between the two: after everything already saved, and before the
+        // answer streaming under it.
+        if (pendingSendRows.length === 0 && live.length === 0) return durableMessages
+        return [...durableMessages, ...pendingSendRows, ...live]
+    }, [messages, pendingSendRows, previewMessages, turnDeliverySource])
 
     // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision made
     // in THIS mount marks the resume as live — a restored approval-requested tail the user answers
