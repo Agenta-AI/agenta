@@ -1,14 +1,19 @@
 import {
     isEntityActive,
     type TriggerSchedule,
+    type TriggerScheduleCreate,
     type TriggerScheduleData,
     type TriggerScheduleEdit,
     type TriggerSubscription,
+    type TriggerSubscriptionCreate,
     type TriggerSubscriptionData,
     type TriggerSubscriptionEdit,
 } from "@agenta/entities/gatewayTrigger"
 
 import type {Automation, AutomationKind} from "./automationModel"
+
+/** The stored agent binding, exactly as `buildTriggerReferences` shapes it. */
+export type AutomationReferences = TriggerScheduleData["references"]
 
 /** Every schedule fires on the same synthetic tick; the event key is not user-facing. */
 export const SCHEDULE_EVENT_KEY = "schedule.tick"
@@ -27,6 +32,14 @@ export interface AutomationPatch {
     cron?: string
     /** The whole `data.inputs_fields` object, as the message composer wrote it. */
     inputsFields?: Record<string, unknown>
+    /** The agent binding, already shaped by `buildTriggerReferences`. */
+    references?: AutomationReferences
+    /** Event subscriptions only — the connection the picked event arrives on. */
+    connectionId?: string
+    /** Event subscriptions only — the provider event key. */
+    eventKey?: string
+    /** Event subscriptions only — the event's own filters, as the picker returned them. */
+    triggerConfig?: Record<string, unknown>
 }
 
 export type AutomationEditBody = TriggerScheduleEdit | TriggerSubscriptionEdit
@@ -45,6 +58,7 @@ function scheduleEdit(schedule: TriggerSchedule, patch: AutomationPatch): Trigge
         ...schedule.data,
         ...(patch.cron === undefined ? {} : {schedule: patch.cron}),
         ...(patch.inputsFields === undefined ? {} : {inputs_fields: patch.inputsFields}),
+        ...(patch.references === undefined ? {} : {references: patch.references}),
     }
     return {
         id: schedule.id ?? "",
@@ -64,6 +78,9 @@ function subscriptionEdit(
     const data: TriggerSubscriptionData = {
         ...subscription.data,
         ...(patch.inputsFields === undefined ? {} : {inputs_fields: patch.inputsFields}),
+        ...(patch.references === undefined ? {} : {references: patch.references}),
+        ...(patch.eventKey === undefined ? {} : {event_key: patch.eventKey}),
+        ...(patch.triggerConfig === undefined ? {} : {trigger_config: patch.triggerConfig}),
     }
     return {
         id: subscription.id ?? "",
@@ -71,7 +88,7 @@ function subscriptionEdit(
         description: subscription.description ?? null,
         tags: subscription.tags ?? null,
         meta: subscription.meta ?? null,
-        connection_id: subscription.connection_id,
+        connection_id: patch.connectionId ?? subscription.connection_id,
         data,
         flags: {
             ...(subscription.flags ?? {}),
@@ -93,6 +110,8 @@ export interface AutomationCreateDraft {
     /** Event drafts only — the event's own `trigger_config` filters, as the picker returned them. */
     triggerConfig?: Record<string, unknown>
     inputsFields: Record<string, unknown>
+    /** Defaults to on. A duplicate arrives OFF, so a copy never starts running unannounced. */
+    isActive?: boolean
 }
 
 /**
@@ -105,18 +124,20 @@ export interface AutomationCreateDraft {
  */
 export function buildAutomationCreate(
     draft: AutomationCreateDraft,
-    references: ReturnType<typeof buildTriggerReferences>,
+    references: AutomationReferences,
 ): TriggerScheduleCreate | TriggerSubscriptionCreate {
     const header = {
         name: draft.name,
         description: draft.description || null,
     }
+    const isActive = draft.isActive ?? true
 
     if (draft.kind === "schedule") {
         return {
             ...header,
-            // New automations arrive on, which is what the success message promises.
-            flags: {is_active: true},
+            // A new automation arrives on (what the success message promises); a duplicate
+            // arrives off, so a copy never starts running unannounced.
+            flags: {is_active: isActive},
             data: {
                 event_key: SCHEDULE_EVENT_KEY,
                 schedule: draft.cron.trim(),
@@ -128,7 +149,7 @@ export function buildAutomationCreate(
 
     return {
         ...header,
-        flags: {is_active: true, is_valid: true},
+        flags: {is_active: isActive, is_valid: true},
         // Guarded by `blockedReason`, which never lets an event draft create without both.
         connection_id: draft.connectionId ?? "",
         data: {

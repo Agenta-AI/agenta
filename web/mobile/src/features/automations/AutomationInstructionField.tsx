@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo} from "react"
 
 import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
@@ -10,32 +10,23 @@ import {AutomationField} from "./AutomationField"
 /**
  * What the agent is told on every run — the shared `MessageComposer`, over `data.inputs_fields`.
  *
- * The draft is local and commits on blur, so a save is one round trip per edit rather than one
- * per keystroke. The composer maps the message onto whichever input the bound agent takes; a
- * mapping richer than a single message keeps its own warning inside the composer.
+ * Controlled by the host, with no draft of its own: both screens that mount it already hold the
+ * unsaved config, and a second copy here is how a Discard leaves the old text sitting in the box.
+ * Typing costs nothing now — the host holds it in memory until Save.
+ *
+ * The composer maps the message onto whichever input the bound agent takes; a mapping richer than
+ * a single message keeps its own warning inside the composer.
  */
 export const AutomationInstructionField = ({
-    automationId,
     agentId,
     inputsFields,
     onCommit,
 }: {
-    automationId: string
     agentId: string | null
     inputsFields: unknown
     onCommit: (next: Record<string, unknown>) => void
 }) => {
-    const stored = useMemo(() => JSON.stringify(inputsFields ?? {}, null, 2), [inputsFields])
-    const [draft, setDraft] = useState(stored)
-
-    // Rehydrate only when the automation itself changes: a refetch mid-edit must not stomp the
-    // draft, and a commit's own response would otherwise reformat the field under the cursor.
-    const hydratedFor = useRef(automationId)
-    useEffect(() => {
-        if (hydratedFor.current === automationId) return
-        hydratedFor.current = automationId
-        setDraft(stored)
-    }, [automationId, stored])
+    const inputsText = useMemo(() => JSON.stringify(inputsFields ?? {}, null, 2), [inputsFields])
 
     // Which input the message lands on. The stored shape wins inside the composer's own
     // getter/setter; this only decides where a message goes when there is nothing stored yet.
@@ -47,30 +38,27 @@ export const AutomationInstructionField = ({
         return ports.find((port) => port.type === "string")?.key ?? "message"
     }, [isChat, inputSchema])
 
-    const commit = useCallback(() => {
-        if (draft === stored) return
-        try {
-            const parsed: unknown = JSON.parse(draft)
-            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return
-            onCommit(parsed as Record<string, unknown>)
-        } catch {
-            // The composer only ever writes valid JSON; an unparseable draft is not ours to save.
-        }
-    }, [draft, onCommit, stored])
+    const onChange = useCallback(
+        (next: string) => {
+            try {
+                const parsed: unknown = JSON.parse(next)
+                if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return
+                onCommit(parsed as Record<string, unknown>)
+            } catch {
+                // The composer only ever writes valid JSON; an unparseable value is not ours.
+            }
+        },
+        [onCommit],
+    )
 
     return (
-        <AutomationField
-            label="Instruction"
-        >
-            {/* Blur bubbles, so the wrapper is where the composer's textarea commits from. */}
-            <div onBlur={commit}>
-                <MessageComposer
-                    inputsText={draft}
-                    onChange={setDraft}
-                    isChat={isChat}
-                    primaryKey={primaryKey}
-                />
-            </div>
+        <AutomationField label="Instruction">
+            <MessageComposer
+                inputsText={inputsText}
+                onChange={onChange}
+                isChat={isChat}
+                primaryKey={primaryKey}
+            />
         </AutomationField>
     )
 }

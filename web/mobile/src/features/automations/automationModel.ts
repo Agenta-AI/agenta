@@ -76,6 +76,20 @@ export function toAutomation(
 }
 
 /**
+ * The stored `data.inputs_fields` as an object.
+ *
+ * The schema allows a bare selector STRING there ("$" = the whole event context), which no editor
+ * on this surface can represent — reading one as an object would silently replace it, so it reads
+ * as empty and the composer's own warning is what stands between it and an overwrite.
+ */
+export function automationInputsFields(automation: Automation): Record<string, unknown> {
+    const stored = automation.raw.data?.inputs_fields
+    return stored && typeof stored === "object" && !Array.isArray(stored)
+        ? (stored as Record<string, unknown>)
+        : {}
+}
+
+/**
  * What the row's status pill says.
  *
  * Stopped is a choice, so it never reads as a problem. Only an automation that is supposed to be

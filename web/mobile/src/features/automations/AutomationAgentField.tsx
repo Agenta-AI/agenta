@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
@@ -9,8 +9,6 @@ import {useAtomValue} from "jotai"
 import {Skeleton} from "@/components/ui/skeleton"
 
 import {AutomationField} from "./AutomationField"
-import type {Automation} from "./automationModel"
-import {useAgentBinding} from "./useAgentBinding"
 
 /**
  * Which agent the automation runs.
@@ -19,46 +17,35 @@ import {useAgentBinding} from "./useAgentBinding"
  * so it closes on pick, marks the bound one, and lines up with the "Runs when" trigger beside it
  * (both are `selectTriggerVariants` at `h-auto py-input-y`).
  *
- * How a pick is committed depends on what the host has. Given an `automation` it rebinds and
- * saves in place through `useAgentBinding`. Given `onSelectAgent` — the draft screen, which has no
- * row to PUT to — it reports the pick and the host holds it until Create. With neither it reads as
- * a bound fact rather than offering a dead tap target.
+ * The pick is never saved here: both hosts hold the whole config as one unsaved draft (the draft
+ * screen until Create, the detail screen until Save), and a field that wrote the binding on its own
+ * would make the agent the one setting that changed before the user asked for it. Without
+ * `onSelectAgent` it reads as a bound fact rather than offering a dead tap target.
  */
 export const AutomationAgentField = ({
     agentId = null,
     agentName,
-    automation,
     onSelectAgent,
 }: {
-    /** The bound agent. Defaults to the automation's own when one is given. */
+    /** The agent the draft currently binds. */
     agentId?: string | null
     agentName: string | null
-    /** The automation being edited. Present ⇒ the field picks and saves the agent itself. */
-    automation?: Automation
-    /** A draft's "not yet saved" mode — the host takes the pick instead of a save. */
+    /** Absent ⇒ the field reads only. */
     onSelectAgent?: (agentId: string) => void
 }) => {
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
-    const bindAgent = useAgentBinding(automation)
-
-    const bound = automation?.agentId ?? agentId
-    const editable = Boolean(automation || onSelectAgent)
-
-    const onValueChange = useCallback(
-        (next: string) => {
-            if (onSelectAgent) onSelectAgent(next)
-            else bindAgent(next)
-        },
-        [bindAgent, onSelectAgent],
-    )
 
     return (
         <AutomationField
             label="Agent"
             helper="This agent does the work, with the tools it already has."
         >
-            <Select value={bound ?? undefined} onValueChange={onValueChange} disabled={!editable}>
+            <Select
+                value={agentId ?? undefined}
+                onValueChange={(next) => onSelectAgent?.(next)}
+                disabled={!onSelectAgent}
+            >
                 {/* h-auto py-input-y: the same treatment `ScheduleBuilderField` gives its own
                     trigger, so the two controls are one height. Not dimmed while there is
                     nothing to open — the bound agent is still a fact to read. */}
@@ -68,7 +55,7 @@ export const AutomationAgentField = ({
                 >
                     <span className="flex min-w-0 flex-1 items-center gap-2">
                         <AgentGlyph
-                            workflowId={automation?.agentId ?? null}
+                            workflowId={agentId}
                             size={16}
                             fallback={<Robot aria-hidden size={16} />}
                             className="text-muted-foreground shrink-0"
