@@ -1,10 +1,7 @@
 import {memo} from "react"
 
 import ChatMarkdown from "@agenta/chat/markdown"
-import {useDriveSessionId} from "@agenta/entity-ui/drive"
-import {useAtomValue} from "jotai"
-
-import {chatFileLinkAtomFamily} from "../state/fileLinks"
+import {useChatFileLink} from "@agenta/entity-ui/drive"
 
 // Dark-mode-aware markdown styling. `min-w-0` + `max-w-full` + the per-element width guards
 // keep long lines / code blocks from widening their container; code blocks scroll within their
@@ -101,12 +98,6 @@ export const MD_CLASS =
     // The `display:block` fix for Shiki line spans lives in ChatMarkdown's structural class.
     // Trim the outer edges so the bubble padding isn't doubled by leading/trailing margins.
     "[&>:first-child]:!mt-0 [&>:last-child]:!mb-0 [&>:last-child>*]:!mb-0"
-
-/** Resolve file mentions against THIS conversation's session, from the ambient drive context. */
-const useChatFileLink = () => {
-    const sessionId = useDriveSessionId()
-    return useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
-}
 
 /**
  * Desktop markdown for the agent chat slice: the shared `ChatMarkdown` renderer wearing this app's

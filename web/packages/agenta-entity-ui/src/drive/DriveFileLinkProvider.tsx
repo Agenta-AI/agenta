@@ -10,11 +10,11 @@
  */
 import {useEffect} from "react"
 
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import {chatFileLinkAtomFamily} from "@/oss/components/AgentChatSlice/state/fileLinks"
-
+import {chatFileLinkAtomFamily} from "./chatFileLinks"
 import {chatFileResolver} from "./chatFileRefs"
+import {useDriveSessionId} from "./driveSessionContext"
 
 export function DriveFileLinkProvider({
     sessionId,
@@ -29,4 +29,13 @@ export function DriveFileLinkProvider({
         return () => setLink(null)
     }, [setLink])
     return null
+}
+
+/**
+ * The resolver for THIS conversation, read from the ambient drive context — what a surface hands
+ * `ChatMarkdown` as `useLinkResolver` so a file mention becomes a card instead of a dead path.
+ */
+export const useChatFileLink = () => {
+    const sessionId = useDriveSessionId()
+    return useAtomValue(chatFileLinkAtomFamily(sessionId ?? ""))
 }

@@ -11,7 +11,12 @@ import {
     rightPanelWidthAtom,
     useCanPanesCoexist,
 } from "@agenta/chat/state"
-import {DriveSessionProvider, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
+import {
+    DriveFileLinkProvider,
+    DriveSessionProvider,
+    SessionFilesPane,
+    useSessionFilesPane,
+} from "@agenta/entity-ui/drive"
 import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {sessionRoutePath} from "@agenta/sessions/link"
@@ -245,6 +250,10 @@ export const SessionWorkspace = ({
                 mount query stays disabled and `agent-files/…` falls back to the cwd mount, 404s,
                 and the row opens nothing (#6270). Desktop mounts this; /m did not. */}
             <DriveSessionProvider sessionId={sessionId} artifactId={agentId ?? null}>
+                {/* Publishes the file-link resolver for this conversation, so a file the agent
+                    names in chat renders as a card that opens the Files pane — the same bridge the
+                    desktop playground mounts (#6535). Renders nothing. */}
+                <DriveFileLinkProvider sessionId={sessionId} artifactId={agentId ?? null} />
                 {/* The workspace column: the shared playground top bar, then the panes under it. The
                     column owns the top safe-area inset (the bar is the topmost chrome). */}
                 <div className="ag-app-ground flex h-[var(--ag-viewport-height,100dvh)] min-w-0 flex-col pt-[env(safe-area-inset-top)]">

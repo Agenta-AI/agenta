@@ -43,7 +43,7 @@ import {
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
-import {ContextRail} from "@agenta/entity-ui/drive"
+import {ContextRail, DriveFileLinkProvider} from "@agenta/entity-ui/drive"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {filesDrawerStagedAtomFamily} from "@agenta/entity-ui/drive"
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
@@ -55,7 +55,6 @@ import {isAltChord} from "@agenta/ui/shortcuts"
 import {type FileUIPart, type UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
-import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
 import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"

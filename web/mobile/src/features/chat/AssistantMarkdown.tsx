@@ -1,5 +1,6 @@
 import {useTypewriter} from "@agenta/chat/hooks"
 import ChatMarkdown from "@agenta/chat/markdown"
+import {useChatFileLink} from "@agenta/entity-ui/drive"
 
 /**
  * Streamdown's built-in classes assume a 14–30px type scale; the mobile app's base is 12px.
@@ -51,6 +52,8 @@ export const AssistantMarkdown = ({
             baseClassName={proseClassName}
             content={revealed}
             streaming={streaming || !settled}
+            // Without a resolver a file the agent names renders as dead text: no card, no pane.
+            useLinkResolver={useChatFileLink}
         />
     )
 }
