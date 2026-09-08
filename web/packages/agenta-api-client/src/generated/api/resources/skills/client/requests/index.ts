@@ -1,6 +1,11 @@
 export type { ApplySkillUpdateRequest } from "./ApplySkillUpdateRequest.js";
+export type { ArchiveSkillRequest } from "./ArchiveSkillRequest.js";
 export type { CheckSkillUpdateRequest } from "./CheckSkillUpdateRequest.js";
+export type { ListSkillReferencedByRequest } from "./ListSkillReferencedByRequest.js";
+export type { LogSkillRevisionsRequest } from "./LogSkillRevisionsRequest.js";
+export type { SkillCommitRequest } from "./SkillCommitRequest.js";
+export type { SkillCreateRequest } from "./SkillCreateRequest.js";
 export type { SkillSourceImportRequest } from "./SkillSourceImportRequest.js";
 export type { SkillSourceScanRequest } from "./SkillSourceScanRequest.js";
 export type { SkillsQueryRequest } from "./SkillsQueryRequest.js";
-export type { SkillUsageRequest } from "./SkillUsageRequest.js";
+export type { UnarchiveSkillRequest } from "./UnarchiveSkillRequest.js";

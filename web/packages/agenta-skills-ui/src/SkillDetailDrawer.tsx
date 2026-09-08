@@ -22,7 +22,7 @@ import {
     buildSkillEmbedEntry,
     commitSkillRevision,
     fetchSkillRevisions,
-    querySkillUsage,
+    querySkillReferencedBy,
     skillContentSchema,
     unarchiveSkill,
     type SkillRevision,
@@ -122,7 +122,7 @@ export function SkillDetailDrawer({
     })
     const usageQuery = useQuery({
         queryKey: ["skills", "usage", projectId, workflowId],
-        queryFn: () => querySkillUsage({projectId, workflowId}),
+        queryFn: () => querySkillReferencedBy({projectId, workflowId}),
         enabled: open && Boolean(projectId && workflowId) && !isBuiltin,
         staleTime: 15_000,
     })
@@ -132,7 +132,7 @@ export function SkillDetailDrawer({
 
     const usedBy = useMemo<SkillUsageRef[]>(
         () =>
-            (usageQuery.data?.usage ?? []).map((entry) => ({
+            (usageQuery.data?.referenced_by ?? []).map((entry) => ({
                 id: entry.agent_workflow_id ?? entry.agent_slug ?? "",
                 name: entry.agent_name ?? entry.agent_slug ?? "unknown agent",
                 mode: entry.mode ?? "latest",
@@ -233,12 +233,18 @@ export function SkillDetailDrawer({
         [revisions],
     )
 
+    /** The revision this edit started from — the concurrency base. Captured on
+     * ENTRY, because a background refetch can move `head` while the drawer is
+     * open, and committing against a base the author never saw is exactly what
+     * the check exists to prevent. */
+    const [editBaseId, setEditBaseId] = useState<string | null>(null)
     const startEdit = useCallback(() => {
         setDraft(toFormValue(selected?.skill))
         setSelectedId(null)
+        setEditBaseId((selected ?? head)?.id ?? null)
         setEditing(true)
         setError(null)
-    }, [selected])
+    }, [head, selected])
 
     const askToCommit = useCallback((content: Record<string, unknown>, defaultMessage: string) => {
         const parsed = skillContentSchema.safeParse(content)
@@ -260,15 +266,18 @@ export function SkillDetailDrawer({
             await commitSkillRevision({
                 projectId,
                 workflowId,
-                variantId: head.variantId,
                 skill: pending,
                 message: saveMessage.trim() || undefined,
+                // The revision this edit started from; a commit landed meanwhile
+                // conflicts instead of silently overwriting it.
+                baseRevisionId: editBaseId ?? head.id,
             })
             invalidateSkillsListCache()
             await revisionsQuery.refetch()
             setSaveOpen(false)
             setPending(null)
             setEditing(false)
+            setEditBaseId(null)
             setSelectedId(null)
         } catch (err) {
             setError(
@@ -279,7 +288,7 @@ export function SkillDetailDrawer({
         } finally {
             setBusy(false)
         }
-    }, [head, pending, projectId, revisionsQuery, saveMessage, workflowId])
+    }, [editBaseId, head, pending, projectId, revisionsQuery, saveMessage, workflowId])
 
     const usedByIds = useMemo(() => new Set(usedBy.map((agent) => agent.id)), [usedBy])
     const availableAgents = useMemo(

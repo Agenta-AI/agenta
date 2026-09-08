@@ -108,7 +108,7 @@ export const skillsQueryResponseSchema = z
 export type SkillsQueryResponse = z.infer<typeof skillsQueryResponseSchema>
 
 // ---------------------------------------------------------------------------
-// Usage (mirrors SkillUsageResponse / SkillUsageItem)
+// Referenced-by (mirrors SkillReferencedByResponse / SkillUsageItem)
 // ---------------------------------------------------------------------------
 
 export const skillUsageItemSchema = z
@@ -123,13 +123,16 @@ export const skillUsageItemSchema = z
     .passthrough()
 export type SkillUsageItem = z.infer<typeof skillUsageItemSchema>
 
-export const skillUsageResponseSchema = z
+export const skillReferencedByResponseSchema = z
     .object({
         count: z.number().optional(),
-        usage: z.array(skillUsageItemSchema).optional(),
+        /** The response field is `referenced_by` — the directional name the API uses.
+         * A passthrough schema accepts an unknown field silently, so this MUST track
+         * the endpoint: a stale name parses fine and renders an empty list. */
+        referenced_by: z.array(skillUsageItemSchema).optional(),
     })
     .passthrough()
-export type SkillUsageResponse = z.infer<typeof skillUsageResponseSchema>
+export type SkillReferencedByResponse = z.infer<typeof skillReferencedByResponseSchema>
 
 // ---------------------------------------------------------------------------
 // Sources: scan + import (mirrors /skills/sources/* — parser.py + import_service.py)

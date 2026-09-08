@@ -3,15 +3,39 @@ from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 
+from uuid import uuid4
+
+from pydantic import ValidationError
+
+from agenta.sdk.agents.skills.models import SkillTemplate
+from agenta.sdk.engines.running.utils import AGENTA_BUILTIN_SKILL_URI
+
 from oss.src.core.shared.dtos import Reference
+from oss.src.core.shared.exceptions import EntityCreationConflict
+from oss.src.core.skills.exceptions import (
+    SkillContentInvalidError,
+    SkillNotFoundError,
+    SkillRevisionConflictError,
+)
 from oss.src.core.workflows.dtos import (
+    SimpleWorkflowCreate,
+    SimpleWorkflowData,
+    SimpleWorkflowFlags,
     WorkflowRevision,
+    WorkflowRevisionCommit,
+    WorkflowRevisionData,
     WorkflowRevisionQuery,
     WorkflowRevisionQueryFlags,
 )
-from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.service import (
+    RevisionConflictError,
+    WorkflowsService,
+)
 from oss.src.core.skills.dtos import (
+    SkillCommitted,
+    SkillCreated,
     SkillOriginInfo,
+    SkillRevisionRow,
     SkillRegistryItem,
     SkillRegistryQuery,
     SkillRegistryList,
@@ -43,6 +67,18 @@ def _skill_payload(revision: Optional[WorkflowRevision]) -> Dict[str, Any]:
     return skill if isinstance(skill, dict) else {}
 
 
+def _is_skill_workflow(workflow) -> bool:
+    """A skill IS a workflow, identified by its flag or the builtin skill URI."""
+    flags = getattr(workflow, "flags", None)
+    if flags is not None and bool(getattr(flags, "is_skill", False)):
+        return True
+    data = getattr(workflow, "data", None)
+    uri = getattr(data, "uri", None)
+    if uri is None and isinstance(data, dict):
+        uri = data.get("uri")
+    return uri == AGENTA_BUILTIN_SKILL_URI
+
+
 def _head_hash(payload: Dict[str, Any]) -> str:
     # Local import avoids a service←import_service cycle for one pure function.
     from oss.src.core.skills.import_service import skill_content_hash
@@ -62,8 +98,11 @@ class SkillsService:
         self,
         *,
         workflows_service: WorkflowsService,
+        simple_workflows_service=None,
     ):
         self.workflows_service = workflows_service
+        # The one-call create used by the lifecycle facade (create → v1 commit).
+        self.simple_workflows_service = simple_workflows_service
 
     async def _usage_counts(
         self, *, project_id: UUID
@@ -327,6 +366,187 @@ class SkillsService:
             usage.append(item)
 
         return usage
+
+    # ─ lifecycle facade (plan: /skills owns every skill write) ────────────────
+
+    @staticmethod
+    def _validated_skill(skill: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """The server owns the content contract: every write validates against the
+        SDK's SkillTemplate (the same rules the parser and runner enforce)."""
+        try:
+            template = SkillTemplate(**(skill or {}))
+        except ValidationError as e:
+            issue = e.errors()[0] if e.errors() else {}
+            path = ".".join(str(part) for part in issue.get("loc", []))
+            message = issue.get("msg", "Invalid skill.")
+            raise SkillContentInvalidError(
+                f"{path + ': ' if path else ''}{message}",
+                next_step="Fix the skill content and retry.",
+            ) from e
+        return template.model_dump(mode="json", exclude_none=True)
+
+    async def create_skill(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        skill: Dict[str, Any],
+    ) -> SkillCreated:
+        """Create a registry skill: the server generates the suffixed slug and
+        stamps the invariants (flags on both records, the builtin skill URI)."""
+        payload = self._validated_skill(skill)
+
+        created = None
+        for _ in range(3):
+            try:
+                created = await self.simple_workflows_service.create(
+                    project_id=project_id,
+                    user_id=user_id,
+                    simple_workflow_create=SimpleWorkflowCreate(
+                        # Display names may collide (like agents); the slug is
+                        # plumbing and carries a random suffix.
+                        slug=f"{payload['name']}-{uuid4().hex[:4]}",
+                        name=payload["name"],
+                        description=payload.get("description"),
+                        flags=SimpleWorkflowFlags(is_skill=True, is_snippet=True),
+                        data=SimpleWorkflowData(
+                            uri=AGENTA_BUILTIN_SKILL_URI,
+                            parameters={"skill": payload},
+                        ),
+                    ),
+                )
+            except EntityCreationConflict:
+                continue
+            break
+        if not created or not created.id:
+            raise SkillNotFoundError("The skill workflow could not be created.")
+        return SkillCreated(
+            workflow_id=str(created.id),
+            slug=created.slug,
+            revision_id=str(created.revision_id) if created.revision_id else None,
+        )
+
+    async def commit_skill_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        workflow_id: UUID,
+        skill: Dict[str, Any],
+        message: Optional[str] = None,
+        base_revision_id: Optional[UUID] = None,
+    ) -> SkillCommitted:
+        """Commit a new revision of one skill, with the server stamping flags and
+        URI; `base_revision_id` makes a concurrent edit a 409, never a clobber."""
+        payload = self._validated_skill(skill)
+
+        current = await self.simple_workflows_service.fetch(
+            project_id=project_id,
+            workflow_id=workflow_id,
+        )
+        if current is None:
+            raise SkillNotFoundError(
+                f"Skill workflow {workflow_id} was not found in this project.",
+            )
+        # The facade stamps skill flags and the skill URI, so committing through it
+        # to a non-skill workflow would silently rewrite an agent (or evaluator) as
+        # a skill. The target must already BE one.
+        if not _is_skill_workflow(current):
+            raise SkillNotFoundError(
+                f"Workflow {workflow_id} is not a skill.",
+                next_step="Commit non-skill workflows through the workflows API.",
+            )
+
+        try:
+            outcome = await self.workflows_service.commit_workflow_revision_checked(
+                project_id=project_id,
+                user_id=user_id,
+                workflow_revision_commit=WorkflowRevisionCommit(
+                    slug=uuid4().hex[-12:],
+                    name=payload["name"],
+                    description=payload.get("description"),
+                    message=message or None,
+                    data=WorkflowRevisionData(
+                        uri=AGENTA_BUILTIN_SKILL_URI,
+                        parameters={"skill": payload},
+                    ),
+                    workflow_id=workflow_id,
+                    workflow_variant_id=current.variant_id,
+                    base_revision_id=base_revision_id,
+                ),
+            )
+        except RevisionConflictError as e:
+            raise SkillRevisionConflictError(
+                "The skill changed while you were editing — reload and retry.",
+                next_step="Fetch the head revision and rebase your edit onto it.",
+                details={
+                    "base_revision_id": str(e.base_revision_id),
+                    "current_revision_id": str(e.current_revision_id),
+                },
+            ) from e
+
+        revision = outcome.revision
+        return SkillCommitted(
+            workflow_id=str(workflow_id),
+            revision_id=str(revision.id) if revision and revision.id else None,
+            version=revision.version if revision else None,
+        )
+
+    async def archive_skill(
+        self, *, project_id: UUID, user_id: UUID, workflow_id: UUID
+    ):
+        workflow = await self.workflows_service.archive_workflow(
+            project_id=project_id, user_id=user_id, workflow_id=workflow_id
+        )
+        if workflow is None:
+            raise SkillNotFoundError(
+                f"Skill workflow {workflow_id} was not found in this project.",
+            )
+        return workflow
+
+    async def unarchive_skill(
+        self, *, project_id: UUID, user_id: UUID, workflow_id: UUID
+    ):
+        workflow = await self.workflows_service.unarchive_workflow(
+            project_id=project_id, user_id=user_id, workflow_id=workflow_id
+        )
+        if workflow is None:
+            raise SkillNotFoundError(
+                f"Skill workflow {workflow_id} was not found in this project.",
+            )
+        return workflow
+
+    async def log_skill_revisions(
+        self, *, project_id: UUID, workflow_id: UUID
+    ) -> List[SkillRevisionRow]:
+        """The skill's history, newest first, with each revision's stored content.
+        v0 (the empty bootstrap revision) is server-filtered — history starts at v1."""
+        revisions = await self.workflows_service.query_workflow_revisions(
+            project_id=project_id,
+            workflow_refs=[Reference(id=workflow_id)],
+        )
+        rows: List[SkillRevisionRow] = []
+        for revision in revisions:
+            if str(revision.version or "") == "0":
+                continue
+            rows.append(
+                SkillRevisionRow(
+                    id=str(revision.id) if revision.id else None,
+                    version=revision.version,
+                    message=revision.message,
+                    created_at=(
+                        revision.created_at.isoformat() if revision.created_at else None
+                    ),
+                    workflow_variant_id=(
+                        str(revision.variant_id) if revision.variant_id else None
+                    ),
+                    skill=_skill_payload(revision) or None,
+                )
+            )
+        rows.sort(key=lambda row: int(row.version or 0), reverse=True)
+        return rows
 
     def _list_builtin_skills(self) -> List[SkillRegistryItem]:
         catalog = self.workflows_service.static_catalog
