@@ -70,6 +70,10 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     # every other cell stays green while the product can no longer tell a user to sign in.
     "services/runner/src/subscription-*": HOSTED_SUBSCRIPTION,
     "api/oss/src/core/secrets/subscription_*": HOSTED_SUBSCRIPTION,
+    # The HTTP boundary of that same surface: the device-login routes and the request and response
+    # shapes the browser reads them through. A change confined to these files matches no other
+    # rule, so without this the sign-in path can break with every cell still green.
+    "api/oss/src/apis/fastapi/vault/**": HOSTED_SUBSCRIPTION,
     # The client half of the same chain: the entities package owns the secret shapes and the
     # connection state the AI providers page renders. `login_state` and `login_version` are the
     # two fields the hosted journeys assert on, and they are read here as well as written by the
