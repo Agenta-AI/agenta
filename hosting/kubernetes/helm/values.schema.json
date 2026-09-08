@@ -439,6 +439,24 @@
             "webMobile": { "$ref": "#/$defs/ingressPath", "description": "Mobile web route. The mobile image is built with basePath /m, so keep path at /m unless you rebuild it; pathType is free to change (a managed ingress may need ImplementationSpecific)." },
             "web":       { "$ref": "#/$defs/ingressPath" }
           }
+        },
+        "extraPaths": {
+          "type": "array",
+          "description": "Extra routes on ingress.host, appended after the built-in api/services/webMobile/web paths. Use them to reach a Service the chart does not own, for example /llm in front of a gateway.",
+          "items": { "$ref": "#/$defs/ingressExtraPath" }
+        },
+        "extraHosts": {
+          "type": "array",
+          "description": "Extra ingress rules, one per hostname, each with its own path list.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["host", "paths"],
+            "properties": {
+              "host":  { "type": "string" },
+              "paths": { "type": "array", "items": { "$ref": "#/$defs/ingressExtraPath" } }
+            }
+          }
         }
       }
     },
@@ -473,6 +491,18 @@
       "properties": {
         "path":     { "type": "string" },
         "pathType": { "type": "string", "enum": ["Exact", "Prefix", "ImplementationSpecific"] }
+      }
+    },
+    "ingressExtraPath": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "serviceName", "servicePort"],
+      "description": "One extra ingress route pointing at a Service the chart does not own. The Service must already exist in the release namespace.",
+      "properties": {
+        "path":        { "type": "string" },
+        "pathType":    { "type": "string", "enum": ["Exact", "Prefix", "ImplementationSpecific"], "description": "Default Prefix." },
+        "serviceName": { "type": "string" },
+        "servicePort": { "type": ["integer", "string"], "description": "A number renders as port.number, a string as port.name." }
       }
     },
     "component": {

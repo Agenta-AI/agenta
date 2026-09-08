@@ -470,6 +470,28 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- end }}
 
 {{/* ================================================================
+   One extra ingress path item, shared by ingress.extraPaths and by
+   ingress.extraHosts[].paths. The caller passes the item itself, not
+   the root context, so this helper must not use `.Values`.
+
+   servicePort accepts a number (rendered as port.number) or a string
+   (rendered as port.name), which is what the Ingress spec allows.
+   ================================================================ */}}
+{{- define "agenta.ingress.extraPath" -}}
+- path: {{ .path }}
+  pathType: {{ default "Prefix" .pathType }}
+  backend:
+    service:
+      name: {{ .serviceName | quote }}
+      port:
+        {{- if kindIs "string" .servicePort }}
+        name: {{ .servicePort | quote }}
+        {{- else }}
+        number: {{ .servicePort | int }}
+        {{- end }}
+{{- end }}
+
+{{/* ================================================================
    Postgresql section defaults (Bitnami subchart wiring).
    ================================================================ */}}
 {{- define "agenta.postgresql.authUsername" -}}
