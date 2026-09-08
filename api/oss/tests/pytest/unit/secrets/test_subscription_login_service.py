@@ -1012,11 +1012,11 @@ class TestAnUnusablePushedLogin:
     these can reach the row.
     """
 
-    async def _ready(self, vault):
+    async def _ready(self, vault, login=None):
         return await _make_secret(
             vault,
             {
-                "login": LOGIN,
+                "login": login or LOGIN,
                 "login_version": 3,
                 "login_generation": 1,
                 "login_state": "ready",
@@ -1102,11 +1102,15 @@ class TestAnUnusablePushedLogin:
 
         await self._assert_refused(vault, secret, result)
 
-    async def test_a_login_without_an_account_id_field_still_passes_the_shape_check(
+    async def test_a_login_without_an_account_id_field_is_stored_on_its_claim(
         self, vault, service
     ):
-        # The runner's own gate accepts this, and the two must agree. The claim names the
-        # account; the stored-account rule below is what refuses a real takeover.
+        """`accountId` is optional, so the claim is what both sides compare.
+
+        The runner's own gate accepts a login that omits the field, and the two must agree.
+        Reading the field instead made every such refresh look like another account's, so a
+        harness that stopped writing it could never refresh a connection again.
+        """
         secret = await self._ready(vault)
         login = {**LOGIN, "refresh": "refresh-2", "expires": _expires_in(9)}
         login.pop("accountId")
@@ -1119,7 +1123,32 @@ class TestAnUnusablePushedLogin:
             generation=1,
         )
 
-        # Refused, but by the account rule, not the shape check.
+        assert result.updated is True
+        assert result.reason is None
+        assert (await _read(vault, secret.id)).data.login.refresh == "refresh-2"
+
+    async def test_a_stored_login_without_the_field_still_refuses_another_account(
+        self, vault, service
+    ):
+        """The guard holds from the other side too: the stored claim names the account."""
+        stored = {k: v for k, v in LOGIN.items() if k != "accountId"}
+        secret = await self._ready(vault, login=stored)
+        other = {
+            **LOGIN,
+            "access": _access_token("acct-2"),
+            "accountId": "acct-2",
+            "refresh": "refresh-2",
+            "expires": _expires_in(9),
+        }
+
+        result = await service.push_login(
+            project_id=PROJECT_ID,
+            secret_id=secret.id,
+            login=other,
+            version=3,
+            generation=1,
+        )
+
         assert result.updated is False
         assert result.reason == "other_account"
 
@@ -1152,6 +1181,77 @@ class TestAnUnusableDeviceLogin:
         assert stored.login_attempt is None
         # The refusal is the attempt's, so it is reported on the attempt and nowhere else.
         assert stored.login_error is None
+
+
+class TestAConnectionRemovedMidWrite:
+    """The row is deleted between the load and the locked write.
+
+    Reachable: a user disconnects the connection while a run is pushing, or while a device
+    login poll is in flight. The write finds nothing to lock, so the callback that fills in
+    every caller's answer never runs. Each caller must say the connection is gone rather
+    than answer from an empty result.
+    """
+
+    async def _vanishing(self, vault, data: dict):
+        """A row that deletes itself the moment the atomic update takes the lock."""
+        secret = await _make_secret(vault, data)
+        original = vault.secrets_dao.update
+
+        async def delete_then_update(*args, **kwargs):
+            vault.secrets_dao.rows.pop(str(secret.id), None)
+            return await original(*args, **kwargs)
+
+        vault.secrets_dao.update = delete_then_update
+        return secret
+
+    async def test_a_push_answers_not_found_instead_of_an_empty_result(
+        self, vault, service
+    ):
+        secret = await self._vanishing(
+            vault,
+            {"login": LOGIN, "login_version": 3, "login_generation": 1},
+        )
+
+        with pytest.raises(SubscriptionSecretNotFound):
+            await service.push_login(
+                project_id=PROJECT_ID,
+                secret_id=secret.id,
+                login={**LOGIN, "refresh": "refresh-2", "expires": _expires_in(9)},
+                version=3,
+                generation=1,
+            )
+
+    async def test_a_failure_report_answers_not_found(self, vault, service):
+        secret = await self._vanishing(
+            vault,
+            {"login": LOGIN, "login_version": 3, "login_generation": 1},
+        )
+
+        with pytest.raises(SubscriptionSecretNotFound):
+            await service.report_login_failure(
+                project_id=PROJECT_ID,
+                secret_id=secret.id,
+                version=3,
+                generation=1,
+                reason="refresh_rejected",
+            )
+
+    async def test_a_device_login_is_not_reported_as_stored(
+        self, vault, runner, service
+    ):
+        """The worst of the three: the browser would show a sign-in that never landed."""
+        secret = await self._vanishing(
+            vault,
+            {"login_attempt": {"id": "att-1", "expires_at": _later()}},
+        )
+        runner.next_attempt = RunnerLoginAttempt(
+            attempt_id="att-1", state="succeeded", login=LOGIN
+        )
+
+        with pytest.raises(SubscriptionSecretNotFound):
+            await service.read_attempt(
+                project_id=PROJECT_ID, secret_id=secret.id, attempt_id="att-1"
+            )
 
 
 class TestReportedFailure:

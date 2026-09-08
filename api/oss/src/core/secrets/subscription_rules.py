@@ -127,6 +127,31 @@ def _jwt_account_id(access: Any) -> Optional[str]:
     return account_id
 
 
+def login_account(login: Any) -> Optional[str]:
+    """The ChatGPT account a login belongs to, or None when it names none.
+
+    The token's own claim first, the `accountId` field only as a fallback. The field is
+    optional in the credential shape and a harness may omit it, so reading it first would
+    make an account comparison answer "different" for two logins on the same account.
+    Works on an incoming dict and on a stored `SubscriptionLoginDTO` alike.
+    """
+    access = (
+        login.get("access")
+        if isinstance(login, dict)
+        else getattr(login, "access", None)
+    )
+    claimed = _jwt_account_id(access)
+    if claimed is not None:
+        return claimed
+
+    account_id = (
+        login.get("accountId")
+        if isinstance(login, dict)
+        else getattr(login, "accountId", None)
+    )
+    return account_id if isinstance(account_id, str) and account_id else None
+
+
 def login_is_usable(login: Dict[str, Any]) -> bool:
     """True when a login is a credential a run could actually authenticate with.
 
@@ -169,6 +194,11 @@ def classify_push(
     never take over the connection. Then the refresh token, which is what makes the store
     idempotent when two polls redeem the same device login. Expiry last: an equal expiry
     with a new refresh token is still a real refresh.
+
+    Both sides of the account comparison read the token's claim, so a refresh that omits the
+    optional `accountId` is judged on the account it actually belongs to. A stored login that
+    names no account at all cannot be compared, so the comparison is skipped rather than
+    refusing every push onto that row forever.
     """
     if stored.login is None:
         return PushDecision.NO_LOGIN
@@ -182,7 +212,8 @@ def classify_push(
     if generation != stored.login_generation:
         return PushDecision.WRONG_GENERATION
 
-    if login.get("accountId") != stored.login.accountId:
+    stored_account = login_account(stored.login)
+    if stored_account is not None and login_account(login) != stored_account:
         return PushDecision.OTHER_ACCOUNT
 
     if login.get("refresh") == stored.login.refresh:
