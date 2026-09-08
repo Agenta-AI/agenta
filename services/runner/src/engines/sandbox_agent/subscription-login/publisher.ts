@@ -266,10 +266,13 @@ export function startSubscriptionPublisher(input: {
   let stopping: Promise<void> | undefined;
   const stop = async (): Promise<void> => {
     clearInterval(timer);
-    // The final sample runs AFTER the in-flight pass, so a refresh written during it is still seen.
-    await queue.catch(() => {});
-    await pass("shutdown").catch(() => {});
+    // Released BEFORE the drain: a late `reconcile` must not chain a pass beside the final one and
+    // send the same login twice. The recovery path calls `reconcile` while a session ends.
     released = true;
+    // The final sample goes through the queue, so it runs AFTER the in-flight pass and a refresh
+    // written during that pass is still seen.
+    queue = queue.then(() => pass("shutdown")).catch(() => {});
+    await queue;
   };
 
   // The start pass repairs a publication a previous session lost: the agent dir can already hold a

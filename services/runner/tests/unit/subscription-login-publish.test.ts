@@ -398,6 +398,65 @@ describe("shutdown", () => {
 
     assert.equal(api.pushed.length, 1);
   });
+
+  it("refuses a reconcile that arrives during the drain, so nothing runs beside the final pass", async () => {
+    // "Passes are serialized" has to hold through shutdown too. The recovery path calls
+    // `reconcile` while a session ends, and a pass that starts there reads the same file the
+    // shutdown pass reads, so the two can send the same rotated login twice.
+    //
+    // The assertion is on WHICH passes ran, not on how two concurrent ones interleave: the late
+    // reconcile must run no pass at all, and the shutdown pass must be the one that publishes.
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    const later: SubscriptionLogin = makeLogin({
+      refresh: "later-refreshxxxx",
+      expires: REFRESHED.expires + 3_600_000,
+    });
+
+    const pushed: SubscriptionLogin[] = [];
+    let releaseFirst: (() => void) | undefined;
+    const firstAnswered = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let firstReached: (() => void) | undefined;
+    const firstInFlight = new Promise<void>((resolve) => {
+      firstReached = resolve;
+    });
+    const fetchImpl = (async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+      pushed.push(body.login as SubscriptionLogin);
+      if (pushed.length === 1) {
+        firstReached?.();
+        await firstAnswered;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ version: 4, updated: true }),
+      };
+    }) as unknown as typeof fetch;
+    const api: FakeApi = { fetchImpl, pushed, bodies: [] };
+
+    const lines: string[] = [];
+    const publisher = start({ home, api, intervalMs: 60_000, log: (l) => lines.push(l) });
+    // The start pass is inside the API call, so `stop` below has a real pass to drain.
+    await firstInFlight;
+    // Pi rotates again while that call is out, so both later passes have something to send.
+    writeLogin(home, later);
+
+    const stopped = publisher.stop();
+    const late = publisher.reconcile("interval");
+    releaseFirst?.();
+    await Promise.all([stopped, late]);
+
+    assert.deepEqual(pushed, [REFRESHED, later], "the rotated login is sent once");
+    // The trigger words say which passes ran. An `interval` here is a pass that started beside
+    // the final one, which is exactly what a late caller must not be able to do.
+    assert.deepEqual(
+      lines.map((line) => /trigger=(\w+)/.exec(line)?.[1]),
+      ["start", "shutdown"],
+    );
+  });
 });
 
 describe("a Daytona session", () => {
