@@ -30,6 +30,7 @@ export const AutomationDetailBody = ({
     agentName,
     runsHref,
     className,
+    hideSaveBar = false,
     failureReason = null,
     runHistoryCaption = "",
     dirty,
@@ -59,6 +60,8 @@ export const AutomationDetailBody = ({
      * its own, because the drawer already owns the gutters.
      */
     className?: string
+    /** The host renders the save bar itself — a drawer puts it in its own footer. */
+    hideSaveBar?: boolean
     failureReason?: string | null
     runHistoryCaption?: string
     /** The draft differs from what is saved, so the footer has something to offer. */
@@ -113,6 +116,8 @@ export const AutomationDetailBody = ({
         {runsHref ? <AutomationRunHistoryCard href={runsHref} caption={runHistoryCaption} /> : null}
         {/* Last on the page: the bar commits the whole screen, so it reads as the end of the
             form rather than a divider halfway down it. */}
-        {dirty ? <AutomationSaveBar saving={saving} onDiscard={onDiscard} onSave={onSave} /> : null}
+        {dirty && !hideSaveBar ? (
+            <AutomationSaveBar saving={saving} onDiscard={onDiscard} onSave={onSave} />
+        ) : null}
     </div>
 )

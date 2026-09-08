@@ -57,6 +57,7 @@ export const useAutomationCreate = ({
     template,
     defaultKind = "schedule",
     defaultAgentId = null,
+    defaultAgentName = null,
     defaultReferences,
 }: {
     /** Seeds the name and the instruction. */
@@ -65,6 +66,12 @@ export const useAutomationCreate = ({
     defaultKind?: AutomationKind
     /** Pre-bound agent — the playground opens this already knowing whose automation it is. */
     defaultAgentId?: string | null
+    /**
+     * The pre-bound agent's name. The playground binds by REVISION id, which the agents list
+     * cannot resolve, so the host passes the label it already has rather than leaving the
+     * generated name to fall back to "Untitled automation".
+     */
+    defaultAgentName?: string | null
     /**
      * References as the host already has them (the playground's `defaultReferences`). When
      * absent they are derived from the picked agent, which is what the app's own screen does.
@@ -92,8 +99,8 @@ export const useAutomationCreate = ({
     const agentName = useMemo(() => {
         const agents: Workflow[] = agentsQuery.data ?? []
         const agent = agents.find((candidate) => candidate.id === draft.agentId)
-        return agent?.name || agent?.slug || null
-    }, [agentsQuery.data, draft.agentId])
+        return agent?.name || agent?.slug || defaultAgentName || null
+    }, [agentsQuery.data, defaultAgentName, draft.agentId])
 
     // "Latest" binds the agent's VARIANT so the newest revision resolves at run time — the same
     // rule an edit's save obeys. An agent with more than one variant (or one whose variants have
