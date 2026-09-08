@@ -1,5 +1,12 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {
+    AutomationBackLink,
+    AutomationRunList,
+    AutomationRunPane,
+    useAutomationRuns,
+    useAutomations,
+} from "@agenta/automation-ui"
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -11,11 +18,7 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {AutomationBackLink} from "./AutomationBackLink"
-import {AutomationRunList} from "./AutomationRunList"
-import {AutomationRunPane} from "./AutomationRunPane"
-import {useAutomationRuns} from "./useAutomationRuns"
-import {useAutomations} from "./useAutomations"
+import {AutomationRunConversation} from "./AutomationRunConversation"
 
 /**
  * What this automation actually did — the runs, and the conversation each one had.
@@ -137,16 +140,28 @@ export const AutomationRunsScreen = ({
                             </div>
                         ) : null}
                         {selected ? (
-                            <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", showList && "pl-4")}>
+                            <div
+                                className={cn(
+                                    "flex min-h-0 min-w-0 flex-1 flex-col",
+                                    showList && "pl-4",
+                                )}
+                            >
                                 <AutomationRunPane
                                     // Per run: the pane hosts a conversation engine, and a
                                     // swapped delivery must not inherit the previous run's
                                     // transcript state.
                                     key={selected.id ?? selected.event_id}
                                     delivery={selected}
-                                    projectId={projectId}
-                                    workspaceId={workspaceId}
-                                    agentId={automation?.agentId ?? null}
+                                    // The transcript is this app's chat surface, so the package
+                                    // takes it as a slot rather than importing it.
+                                    renderConversation={(sessionId) => (
+                                        <AutomationRunConversation
+                                            sessionId={sessionId}
+                                            projectId={projectId}
+                                            workspaceId={workspaceId}
+                                            agentId={automation?.agentId ?? null}
+                                        />
+                                    )}
                                     onBack={canSplit ? undefined : onBack}
                                 />
                             </div>

@@ -4,9 +4,7 @@ import {
     useTriggerCatalogEvents,
     useTriggerCatalogIntegrations,
 } from "@agenta/entities/gatewayTrigger"
-
-import {Button} from "@/components/ui/button"
-import {Skeleton} from "@/components/ui/skeleton"
+import {Button, Skeleton} from "@agenta/ui/ui"
 
 import {eventLabel, type ConnectedApp} from "./connectedApps"
 import {EventRow} from "./EventRow"

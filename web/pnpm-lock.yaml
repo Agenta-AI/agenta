@@ -382,6 +382,9 @@ importers:
       '@agenta/auth-ui':
         specifier: workspace:../packages/agenta-auth-ui
         version: link:../packages/agenta-auth-ui
+      '@agenta/automation-ui':
+        specifier: workspace:../packages/agenta-automation-ui
+        version: link:../packages/agenta-automation-ui
       '@agenta/chat':
         specifier: workspace:../packages/agenta-chat
         version: link:../packages/agenta-chat
@@ -1120,6 +1123,58 @@ importers:
       react:
         specifier: ^19.0.0
         version: 19.2.6
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/agenta-automation-ui:
+    dependencies:
+      '@agenta/entities':
+        specifier: workspace:../agenta-entities
+        version: link:../agenta-entities
+      '@agenta/entity-ui':
+        specifier: workspace:../agenta-entity-ui
+        version: link:../agenta-entity-ui
+      '@agenta/sessions-ui':
+        specifier: workspace:../agenta-sessions-ui
+        version: link:../agenta-sessions-ui
+      '@agenta/shared':
+        specifier: workspace:../agenta-shared
+        version: link:../agenta-shared
+      '@agenta/ui':
+        specifier: workspace:../agenta-ui
+        version: link:../agenta-ui
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      lucide-react:
+        specifier: ^0.475.0
+        version: 0.475.0(react@19.2.6)
+    devDependencies:
+      '@tanstack/react-query':
+        specifier: 5.100.9
+        version: 5.100.9(react@19.2.6)
+      '@types/node':
+        specifier: ^20.19.20
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.4
+        version: 19.2.3(@types/react@19.2.14)
+      jotai:
+        specifier: ^2.15.0
+        version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.6(react@19.2.6)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -9663,6 +9718,11 @@ packages:
 
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
+
+  lucide-react@0.475.0:
+    resolution: {integrity: sha512-NJzvVu1HwFVeZ+Gwq2q00KygM1aBhy/ZrhY9FsAgJtpB+E4R7uxRk9M2iKvHa6/vNxZydIB59htha4c2vvwvVg==}
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   lucide-react@0.479.0:
     resolution: {integrity: sha512-aBhNnveRhorBOK7uA4gDjgaf+YlHMdMhQ/3cupk6exM10hWlEU+2QtWYOfhXhjAsmdb6LeKR+NZnow4UxRRiTQ==}
@@ -19486,6 +19546,10 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
+
+  lucide-react@0.475.0(react@19.2.6):
+    dependencies:
+      react: 19.2.6
 
   lucide-react@0.479.0(react@19.2.6):
     dependencies:

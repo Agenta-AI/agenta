@@ -1,10 +1,10 @@
+import {type ReactNode} from "react"
+
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 import {ArrowLeft} from "@phosphor-icons/react"
 
-import {ICON_LINK} from "@/lib/interactive"
-import {cn} from "@/lib/utils"
-
-import {AutomationRunConversation} from "./AutomationRunConversation"
+import {ICON_LINK} from "./lib/interactive"
+import {cn} from "./lib/utils"
 import {
     runDotClass,
     runDuration,
@@ -23,19 +23,19 @@ import {AutomationRunNoConversation} from "./states/AutomationRunStates"
  * the list entirely, and a transcript with no heading gives no way back and no way to tell which
  * run is on screen. `onBack` is supplied only in that narrow case; from the split layout the
  * list is still visible and an extra back arrow would point at nothing.
+ *
+ * The transcript is a slot: it is the app's own chat surface (composer, streaming, session
+ * state), which is the one part of this pane a package cannot own. `renderConversation` is
+ * called only when the run actually produced a session.
  */
 export const AutomationRunPane = ({
     delivery,
-    projectId,
-    workspaceId,
-    agentId,
+    renderConversation,
     onBack,
 }: {
     delivery: TriggerDelivery
-    projectId: string
-    workspaceId: string
-    /** The automation's bound agent, for a run whose session has no turns to name one. */
-    agentId: string | null
+    /** The run's transcript, given its session — the host's chat surface. */
+    renderConversation: (sessionId: string) => ReactNode
     /** Narrow layout only — the list is off screen, so the pane owns the way back to it. */
     onBack?: () => void
 }) => {
@@ -84,12 +84,7 @@ export const AutomationRunPane = ({
             </div>
             <div className="flex min-h-0 flex-1 flex-col">
                 {sessionId ? (
-                    <AutomationRunConversation
-                        sessionId={sessionId}
-                        projectId={projectId}
-                        workspaceId={workspaceId}
-                        agentId={agentId}
-                    />
+                    renderConversation(sessionId)
                 ) : (
                     <AutomationRunNoConversation reason={runError(delivery)} />
                 )}

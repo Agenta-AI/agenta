@@ -1,10 +1,18 @@
 import {type ReactNode} from "react"
 
-import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+} from "@agenta/ui/ui"
 
-import {Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@/components/ui/sheet"
-import {useMediaQuery} from "@/lib/useMediaQuery"
-import {cn} from "@/lib/utils"
+import {useMediaQuery} from "../lib/useMediaQuery"
+import {cn} from "../lib/utils"
 
 /**
  * The one overlay the automation pickers open from: a popover anchored to the field from `lg` up,

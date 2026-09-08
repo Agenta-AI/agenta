@@ -1,5 +1,21 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {
+    type Automation,
+    AUTOMATION_TEMPLATES,
+    AutomationAgentField,
+    AutomationBackLink,
+    AutomationInstructionField,
+    type AutomationKind,
+    AutomationRunsWhenField,
+    AutomationTitle,
+    AutomationTriggerDrawers,
+    buildAutomationCreate,
+    type EventSelection,
+    generatedAutomationName,
+    SCHEDULE_EVENT_KEY,
+    useAutomation,
+} from "@agenta/automation-ui"
 import {type TriggerSchedule, type TriggerSubscription} from "@agenta/entities/gatewayTrigger"
 import {
     agentWorkflowsListQueryStateAtom,
@@ -19,18 +35,6 @@ import {Button} from "@/components/ui/button"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
-
-import {AutomationAgentField} from "./AutomationAgentField"
-import {AutomationBackLink} from "./AutomationBackLink"
-import {buildAutomationCreate, SCHEDULE_EVENT_KEY} from "./automationEdit"
-import {AutomationInstructionField} from "./AutomationInstructionField"
-import {generatedAutomationName, type Automation, type AutomationKind} from "./automationModel"
-import {AutomationRunsWhenField} from "./AutomationRunsWhenField"
-import {AutomationTitle} from "./AutomationTitle"
-import {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
-import {type EventSelection} from "./pickers/EventPickerPanel"
-import {AUTOMATION_TEMPLATES} from "./templates"
-import {useAutomation} from "./useAutomation"
 
 /** Weekdays at 09:00 UTC — the cadence a blank draft opens on. */
 // The comma form, not "1-5": cronToBuilder parses a plain int list, so a range comes back

@@ -1,7 +1,7 @@
 import {CaretRight, ClockCounterClockwise} from "@phosphor-icons/react"
 import Link from "next/link"
 
-import {ROW_LINK} from "@/lib/interactive"
+import {ROW_LINK} from "./lib/interactive"
 
 /**
  * The way out of the config screen and into what actually happened.

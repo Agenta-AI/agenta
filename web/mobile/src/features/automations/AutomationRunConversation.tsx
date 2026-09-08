@@ -1,10 +1,10 @@
+import {AutomationRunConversationUnavailable} from "@agenta/automation-ui"
+
 import {conversationKey} from "../chat/conversationKey"
 import {LiveConversation} from "../chat/LiveConversation"
 import {ChatLoading} from "../chat/states/ChatStates"
 import {useAgentEntity} from "../chat/useAgentEntity"
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
-
-import {AutomationRunConversationUnavailable} from "./states/AutomationRunStates"
 
 /**
  * The run's session, as the chat screen already draws it.

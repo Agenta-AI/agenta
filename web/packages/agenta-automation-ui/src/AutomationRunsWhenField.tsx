@@ -1,15 +1,13 @@
 import {useMemo, useState} from "react"
 
 import {ScheduleBuilderPanel, useScheduleBuilder} from "@agenta/entity-ui/gatewayTrigger"
-import {selectTriggerVariants} from "@agenta/ui/ui"
+import {Button, selectTriggerVariants} from "@agenta/ui/ui"
 import {CalendarBlank, Lightning} from "@phosphor-icons/react"
 import {ChevronDown} from "lucide-react"
 
-import {Button} from "@/components/ui/button"
-import {cn} from "@/lib/utils"
-
 import {AutomationField} from "./AutomationField"
 import {runsWhenLabel, type Automation, type AutomationKind} from "./automationModel"
+import {cn} from "./lib/utils"
 import {EventPickerPanel, type EventSelection} from "./pickers/EventPickerPanel"
 import {PickerOverlay} from "./pickers/PickerOverlay"
 

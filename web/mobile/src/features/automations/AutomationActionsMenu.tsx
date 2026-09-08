@@ -1,9 +1,12 @@
 import {useCallback, useState} from "react"
 
 import {
-    getScheduleMessagePreview,
-    type TriggerSubscription,
-} from "@agenta/entities/gatewayTrigger"
+    type Automation,
+    automationInputsFields,
+    buildAutomationCreate,
+    useAutomation,
+} from "@agenta/automation-ui"
+import {getScheduleMessagePreview, type TriggerSubscription} from "@agenta/entities/gatewayTrigger"
 import {message} from "@agenta/ui/app-message"
 import {
     DropdownMenu,
@@ -26,10 +29,6 @@ import {Button} from "@/components/ui/button"
 
 import {useStartBlankSession} from "../chat/useStartBlankSession"
 import {useConfirmSheet} from "../settings/useConfirmSheet"
-
-import {buildAutomationCreate} from "./automationEdit"
-import {automationInputsFields, type Automation} from "./automationModel"
-import {useAutomation} from "./useAutomation"
 
 /**
  * The automation's own actions — everything that acts on the row rather than on a field.
@@ -103,7 +102,7 @@ export const AutomationActionsMenu = ({
             message.success("Duplicated — the copy is off until you switch it on")
             // Not awaited inside the try: unsaved edits here make the guard abort this push, and
             // that abort is not a failed duplicate.
-            void router.push(`${base}/automations/${copy.id}`).catch(() => {})
+            void router.push(`${base}/automations/${copy.id}`).catch(() => undefined)
         } catch {
             message.error("Couldn't duplicate this automation")
         } finally {
@@ -143,7 +142,7 @@ export const AutomationActionsMenu = ({
                 message.success("Automation deleted")
                 const list = `${base}/automations`
                 if (onLeave) onLeave(list)
-                else void router.push(list).catch(() => {})
+                else void router.push(list).catch(() => undefined)
             },
         })
     }, [automation.id, automation.name, base, confirm, onLeave, remove, router])
@@ -175,7 +174,7 @@ export const AutomationActionsMenu = ({
                                 onSelect={() =>
                                     void router
                                         .push(`${base}/automations/${automation.id}/runs`)
-                                        .catch(() => {})
+                                        .catch(() => undefined)
                                 }
                             >
                                 <ClockCounterClockwise aria-hidden size={14} />

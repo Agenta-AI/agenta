@@ -1,5 +1,17 @@
 import {useCallback, useMemo} from "react"
 
+import {
+    agentLabel,
+    AutomationBackLink,
+    AutomationDetailBody,
+    AutomationDetailSkeleton,
+    AutomationTriggerDrawers,
+    buildAutomationEdit,
+    useAutomation,
+    useAutomationDraft,
+    useAutomationRuns,
+    useAutomations,
+} from "@agenta/automation-ui"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {useAtomValue} from "jotai"
 
@@ -12,17 +24,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {useConfirmSheet} from "../settings/useConfirmSheet"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
-import {AutomationBackLink} from "./AutomationBackLink"
-import {AutomationDetailBody} from "./AutomationDetailBody"
-import {buildAutomationEdit} from "./automationEdit"
-import {agentLabel} from "./automationModel"
 import {AutomationTestRunButton} from "./AutomationTestRunButton"
-import {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
-import {AutomationDetailSkeleton} from "./states/AutomationStates"
-import {useAutomation} from "./useAutomation"
-import {useAutomationDraft} from "./useAutomationDraft"
-import {useAutomationRuns} from "./useAutomationRuns"
-import {useAutomations} from "./useAutomations"
 import {useUnsavedGuard} from "./useUnsavedGuard"
 
 /**

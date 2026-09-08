@@ -1,8 +1,6 @@
+import {Button, Skeleton} from "@agenta/ui/ui"
 import {Lightning} from "@phosphor-icons/react"
 import {RefreshCw, TriangleAlert} from "lucide-react"
-
-import {Button} from "@/components/ui/button"
-import {Skeleton} from "@/components/ui/skeleton"
 
 import {AutomationTemplateCard} from "../AutomationTemplateCard"
 import {AUTOMATION_TEMPLATES, type AutomationTemplate} from "../templates"

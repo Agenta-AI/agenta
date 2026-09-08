@@ -55,9 +55,7 @@ export const AutomationMetaRow = ({
                     checked={active}
                     disabled={saving}
                     onCheckedChange={(next) => void toggle(next)}
-                    aria-label={
-                        active ? "Switch this automation off" : "Switch this automation on"
-                    }
+                    aria-label={active ? "Switch this automation off" : "Switch this automation on"}
                 />
                 <span className="text-[14px] text-foreground">{active ? "On" : "Off"}</span>
             </span>

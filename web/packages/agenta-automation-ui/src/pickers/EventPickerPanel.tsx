@@ -10,12 +10,10 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {SchemaForm, type SchemaFormHandle} from "@agenta/entity-ui/gatewayTool"
 import {useSchemaFormInstance} from "@agenta/entity-ui/gatewayTrigger"
+import {Button, Input} from "@agenta/ui/ui"
 import {ArrowLeft, Warning} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 import {Plug, Search} from "lucide-react"
-
-import {Button} from "@/components/ui/button"
-import {Input} from "@/components/ui/input"
 
 import type {Automation} from "../automationModel"
 
