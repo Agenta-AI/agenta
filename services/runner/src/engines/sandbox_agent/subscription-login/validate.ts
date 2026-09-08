@@ -4,8 +4,8 @@
  * WHY THIS EXISTS. The runner reads the login back off a file the harness owns, on disk the agent
  * itself can reach, and then hands it to the API as the project's stored credential. An ordering
  * gate asks only "is it newer", and `expires` is one number a corrupt or tampered file can carry
- * while its tokens are garbage. Measured on 2026-09-08: such a file was published and overwrote the
- * good stored login, and the connection then went to `needs_login`. One bad file cost a sign-in.
+ * while its tokens are garbage. Such a file publishes cleanly, overwrites the good stored login,
+ * and sends the connection to `needs_login`: one bad file costs the user their sign-in.
  *
  * So the runner proves the login is real against the TOKEN itself, not against anything the file
  * claims alongside it. A ChatGPT access token is a JWT whose `https://api.openai.com/auth` claim

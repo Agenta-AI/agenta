@@ -116,9 +116,9 @@ export function classifyRefreshError(err: unknown): "terminal" | "retryable" {
 /**
  * The provider's codes for "this refresh token is finished", as an EXPLICIT LIST.
  *
- * The two measured on the real endpoint on 2026-09-08 sit either side of a prefix rule, which is
- * why this is a list rather than a pattern. A rotated-away token first answers 401 with
- * `refresh_token_reused`, and from about two hours on it answers 401 with `invalid_refresh_token`.
+ * A rotated-away token answers 401 with `refresh_token_reused` at first and with
+ * `invalid_refresh_token` from about two hours on. The two sit either side of any prefix rule,
+ * which is why this is a list.
  *
  * It is deliberately NOT the looser `/refresh_token/`. The provider echoes the request in its error
  * body, and that body carries the `refresh_token` PARAMETER NAME on every failure; matching it

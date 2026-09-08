@@ -521,9 +521,8 @@ export const SUBSCRIPTION_LOGIN_UNCHECKED_MESSAGE =
  *
  * Pi exposes no error taxonomy: every failure is a plain `Error` carrying a formatted string, so
  * the classification is by string and there is nothing better to key on (research/pi-auth.md
- * section 7). Every alternative below was read out of the SHIPPED bundle
- * (`@earendil-works/pi-ai` and `pi-coding-agent` 0.80.6), not from the design notes, after a live
- * check on 2026-09-08 returned two of them verbatim and the earlier pattern matched neither:
+ * section 7). Every alternative below is read out of the SHIPPED bundle
+ * (`@earendil-works/pi-ai` and `pi-coding-agent` 0.80.6), never from the design notes:
  *
  * - `Authentication failed` / `Authentication failed for <provider>` — the credential is unusable.
  * - `Failed to refresh OAuth token for <providerId>` — the refresh was rejected and its cause was
@@ -533,17 +532,17 @@ export const SUBSCRIPTION_LOGIN_UNCHECKED_MESSAGE =
  *   all", one of which interpolates a display NAME rather than the provider id. A hosted run that
  *   sees any of them had its materialized login fail to reach the harness.
  * - `Failed to extract accountId from token` — the stored access token is not a readable JWT, so
- *   the login on disk is corrupt. Live-observed as a raw HTTP 500 before this line existed.
+ *   the login on disk is corrupt.
  *
  * The last alternative is not Pi's at all. `Could not parse your authentication token. Please try
- * signing in again.` is the PROVIDER's own prose, relayed through Pi, and it was live-observed on
- * 2026-09-08 for an access token the provider refused. Provider prose is the most fragile input
- * here, so it is matched on the two nouns that carry the meaning rather than the whole sentence.
+ * signing in again.` is the PROVIDER's own prose, relayed through Pi. Provider prose is the most
+ * fragile input here, so it is matched on the two nouns that carry the meaning rather than on the
+ * whole sentence.
  *
- * The provider id is deliberately NOT required. Several of these sentences do not carry it, and
- * requiring it turned a dead sign-in into an unclassified 500 with an internal string in it. The
- * breadth is safe because this pattern is consulted ONLY for a run that carries a subscription:
- * such a run has no vault key, so "no API key" can only be about the login.
+ * The provider id is deliberately NOT required: several of these sentences do not carry it, and
+ * requiring it leaves a dead sign-in unclassified. The breadth is safe because this pattern is
+ * consulted ONLY for a run that carries a subscription: such a run has no vault key, so "no API
+ * key" can only be about the login.
  */
 const PI_SUBSCRIPTION_AUTH_FAILURE =
   /authentication failed|failed to refresh oauth token|no api key|failed to extract accountid from token|authentication token|sign(?:ing)? in again/i;

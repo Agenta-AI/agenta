@@ -249,9 +249,8 @@ export async function runTurn(
    *
    * Two call sites reach it, and BOTH are load-bearing. Pi does not throw a provider refusal: it
    * records the refusal in its own transcript and ends the turn cleanly, so the ordinary path is
-   * the swallowed-error branch below and the `catch` is the exception. A live check on 2026-09-08
-   * found the swallowed branch unwired and a dead sign-in surfacing as an HTTP 500 with Pi's
-   * internal sentence in it.
+   * the swallowed-error branch below and the `catch` is the exception. With the swallowed branch
+   * unwired, a dead sign-in surfaces as an HTTP 500 carrying Pi's internal sentence.
    */
   const subscriptionRecovery = async (
     err: unknown,
