@@ -106,6 +106,7 @@ describe("settings sidebar scopes", () => {
             "llms",
             "tools",
             "triggers",
+            "channels",
             "webhooks",
         ])
         expect(keysForScope("organization")).toEqual([

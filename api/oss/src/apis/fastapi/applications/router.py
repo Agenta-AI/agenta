@@ -1357,6 +1357,12 @@ class ApplicationsRouter:
             application_revision_ref=application_revision_ref,
             #
             resolve=application_revision_retrieve_request.resolve or False,
+            #
+            include_archived=(
+                application_revision_retrieve_request.include_archived
+                if application_revision_retrieve_request.include_archived is not None
+                else True
+            ),
         )
 
         if environment_lookup_requested and not application_revision:

@@ -609,6 +609,8 @@ class ApplicationsService:
         application_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
+        #
+        include_archived: Optional[bool] = True,
     ) -> tuple[
         Optional[ApplicationRevision],
         Optional[ResolutionInfo],
@@ -677,6 +679,8 @@ class ApplicationsService:
                 application_ref=application_ref,
                 application_variant_ref=application_variant_ref,
                 application_revision_ref=application_revision_ref,
+                #
+                include_archived=include_archived,
             )
             application_revision, resolution_info = result if result else (None, None)
         else:
@@ -686,6 +690,8 @@ class ApplicationsService:
                 application_ref=application_ref,
                 application_variant_ref=application_variant_ref,
                 application_revision_ref=application_revision_ref,
+                #
+                include_archived=include_archived,
             )
             resolution_info = None
 

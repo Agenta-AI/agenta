@@ -585,6 +585,153 @@ class TestResolverMiddlewareEmbedGate:
             TracingContext.reset(token)
 
 
+class _FakeAsyncClient:
+    """Queues canned responses for successive `httpx.AsyncClient().post()` calls."""
+
+    def __init__(self, post_mock):
+        self._post_mock = post_mock
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def post(self, *args, **kwargs):
+        return await self._post_mock(*args, **kwargs)
+
+
+def _json_response(payload):
+    response = MagicMock()
+    response.raise_for_status = MagicMock()
+    response.json = MagicMock(return_value=payload)
+    return response
+
+
+class TestArchivedReferenceGuard:
+    """resolve_references_with_info must never resolve an archived workflow,
+    application, evaluator, or revision into a live invoke."""
+
+    @pytest.mark.asyncio
+    async def test_sends_include_archived_false_on_the_primary_retrieve(self):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        request = WorkflowInvokeRequest(references={"workflow": {"slug": "my-wf"}})
+        post_mock = AsyncMock(return_value=_json_response({"workflow_revision": None}))
+        fake_async_api = MagicMock()
+        fake_async_api._client_wrapper._base_url = "http://api.test"
+
+        with (
+            patch.object(ag, "async_api", fake_async_api),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.httpx.AsyncClient",
+                return_value=_FakeAsyncClient(post_mock),
+            ),
+        ):
+            result = await resolve_references_with_info(
+                request=request, credentials="test-creds"
+            )
+
+        assert result == (None, None, None)
+        # Primary retrieve, then the archived probe: both miss, no fallback for a bare workflow ref.
+        assert post_mock.await_count == 2
+        assert post_mock.await_args_list[0].kwargs["json"]["include_archived"] is False
+        assert post_mock.await_args_list[1].kwargs["json"]["include_archived"] is True
+
+    @pytest.mark.asyncio
+    async def test_raises_archived_error_when_only_the_probe_finds_it(self):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+        from agenta.sdk.engines.running.errors import ArchivedReferenceV0Error
+
+        request = WorkflowInvokeRequest(references={"workflow": {"slug": "my-wf"}})
+        post_mock = AsyncMock(
+            side_effect=[
+                _json_response({"workflow_revision": None}),
+                _json_response({"workflow_revision": {"data": {"uri": "test://uri"}}}),
+            ]
+        )
+        fake_async_api = MagicMock()
+        fake_async_api._client_wrapper._base_url = "http://api.test"
+
+        with (
+            patch.object(ag, "async_api", fake_async_api),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.httpx.AsyncClient",
+                return_value=_FakeAsyncClient(post_mock),
+            ),
+        ):
+            with pytest.raises(ArchivedReferenceV0Error):
+                await resolve_references_with_info(
+                    request=request, credentials="test-creds"
+                )
+
+        assert post_mock.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_genuine_miss_returns_none_without_raising(self):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        request = WorkflowInvokeRequest(
+            references={"workflow": {"slug": "does-not-exist"}}
+        )
+        post_mock = AsyncMock(return_value=_json_response({"workflow_revision": None}))
+        fake_async_api = MagicMock()
+        fake_async_api._client_wrapper._base_url = "http://api.test"
+
+        with (
+            patch.object(ag, "async_api", fake_async_api),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.httpx.AsyncClient",
+                return_value=_FakeAsyncClient(post_mock),
+            ),
+        ):
+            result = await resolve_references_with_info(
+                request=request, credentials="test-creds"
+            )
+
+        # Both the direct retrieve and the archived probe missed: a genuine not-found,
+        # not an archived hit, so no exception.
+        assert result == (None, None, None)
+
+    @pytest.mark.asyncio
+    async def test_application_retrieve_and_its_workflow_fallback_both_exclude_archived(
+        self,
+    ):
+        from agenta.sdk.models.workflows import WorkflowInvokeRequest
+
+        request = WorkflowInvokeRequest(references={"application": {"slug": "my-app"}})
+        post_mock = AsyncMock(
+            side_effect=[
+                _json_response({"application_revision": None}),
+                _json_response({"workflow_revision": None}),
+                _json_response({"application_revision": None}),
+            ]
+        )
+        fake_async_api = MagicMock()
+        fake_async_api._client_wrapper._base_url = "http://api.test"
+
+        with (
+            patch.object(ag, "async_api", fake_async_api),
+            patch(
+                "agenta.sdk.middlewares.running.resolver.httpx.AsyncClient",
+                return_value=_FakeAsyncClient(post_mock),
+            ),
+        ):
+            result = await resolve_references_with_info(
+                request=request, credentials="test-creds"
+            )
+
+        assert result == (None, None, None)
+        # Primary /applications retrieve, its /workflows compatibility fallback, then the probe.
+        assert post_mock.await_count == 3
+        primary_body, fallback_body, probe_body = (
+            call.kwargs["json"] for call in post_mock.await_args_list
+        )
+        assert primary_body["include_archived"] is False
+        assert fallback_body["include_archived"] is False
+        assert probe_body["include_archived"] is True
+
+
 class TestResolverMiddlewareHydrationIntent:
     """Tests for WHEN reference hydration fires.
 

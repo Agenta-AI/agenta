@@ -333,6 +333,10 @@ class EvaluatorRevisionRetrieveRequest(BaseModel):
         default=None,
         description="When true, resolve embedded references on the returned revision's `data`.",
     )
+    include_archived: Optional[bool] = Field(
+        default=None,
+        description="When false, an archived evaluator, variant, or revision resolves to nothing.",
+    )
 
 
 class EvaluatorRevisionDeployRequest(BaseModel):

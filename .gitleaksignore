@@ -304,3 +304,6 @@ ea3257c7cc43d635b7bd8a16863d26df8d012c85:api/oss/tests/pytest/unit/secrets/test_
 84bb7fe0c9f926c6a60d7bd8577ba64043b655e7:api/oss/tests/pytest/unit/secrets/test_managed_secrets.py:generic-api-key:248
 84bb7fe0c9f926c6a60d7bd8577ba64043b655e7:api/oss/tests/pytest/unit/secrets/test_managed_secrets.py:generic-api-key:303
 e30afd32abeb0b51f22a0590b5bf44899978712b:.agents/skills/agent-release-gate/resources/test_out_of_credit_skip.py:generic-api-key:50
+9e9fec16acda13e00567df1dee63b3485f7c4a10:.agents/skills/agent-release-gate/resources/qa-gate-runs/20260806-215437/results.json:generic-api-key:18
+9e9fec16acda13e00567df1dee63b3485f7c4a10:.agents/skills/agent-release-gate/resources/qa-gate-runs/20260806-215437/results.json:generic-api-key:94
+9e9fec16acda13e00567df1dee63b3485f7c4a10:.agents/skills/agent-release-gate/resources/qa-gate-runs/20260806-215512/results.json:generic-api-key:18

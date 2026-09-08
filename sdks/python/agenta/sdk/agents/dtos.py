@@ -10,6 +10,7 @@ translates them to and from its engine's own shapes at its edge.
 
 from __future__ import annotations
 
+import json
 from enum import Enum
 from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Union
 
@@ -47,11 +48,14 @@ class HarnessKind(str, Enum):
     """The coding agent program a run drives. A backend declares which it supports.
 
     ``pi_core`` is Pi; ``claude`` drives Claude Code; ``codex`` drives Codex.
+    ``mock`` drives no real coding agent at all: it is a deterministic, LLM-free, network-free
+    stand-in for testing, selecting a named behavior the runner resolves in-process.
     """
 
     PI = "pi_core"
     CLAUDE = "claude"
     CODEX = "codex"
+    MOCK = "mock"
 
     @classmethod
     def coerce(cls, value: "HarnessKind | str") -> "HarnessKind":
@@ -146,6 +150,11 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
         value=HarnessKind.CODEX.value,
         slug=f"agenta:harness:{HarnessKind.CODEX.value}:v0",
         name="Codex",
+    ),
+    HarnessIdentity(
+        value=HarnessKind.MOCK.value,
+        slug=f"agenta:harness:{HarnessKind.MOCK.value}:v0",
+        name="Mock",
     ),
 ]
 
@@ -1154,6 +1163,30 @@ class CodexAgentTemplate(HarnessAgentTemplate):
         if not files:
             return {}
         return {"harnessFiles": files}
+
+
+class MockAgentTemplate(HarnessAgentTemplate):
+    """The mock harness's config. No real coding agent, no tools, no network. ``behavior``
+    names the deterministic behavior the runner resolves in-process; ``behavior_kwargs`` is a
+    free-form bag passed through verbatim. Neither is validated or privileged here: resolving
+    the name is the runner's job, matching the ``mock_v0`` service-level selector pattern."""
+
+    harness: ClassVar[HarnessKind] = HarnessKind.MOCK
+
+    behavior: Optional[str] = None
+    behavior_kwargs: Dict[str, Any] = Field(default_factory=dict)
+
+    def wire_tools(self) -> Dict[str, Any]:
+        return {}
+
+    def wire_harness_files(self) -> Dict[str, Any]:
+        """Render the behavior selection into a ``.agenta/mock.json`` file the runner drops in
+        the cwd; the mock reads its own config from its cwd, the same generic mechanism as the
+        Claude and Codex settings files."""
+        content = json.dumps(
+            {"behavior": self.behavior, "kwargs": self.behavior_kwargs}
+        )
+        return {"harnessFiles": [{"path": ".agenta/mock.json", "content": content}]}
 
 
 # ---------------------------------------------------------------------------

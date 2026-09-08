@@ -13,8 +13,11 @@ from oss.src.dbs.postgres.shared.engine import TransactionsEngine
 from oss.src.utils.env import env
 from oss.tests.pytest.utils.mounts import skip_if_mount_storage_unavailable
 
-# Reads the database directly, so it only runs adjacent to the stack (see conftest).
-pytestmark = pytest.mark.integration
+# Reads the database AND the object store directly, so it only runs adjacent to
+# the stack (see conftest). The store probe is separate from the Postgres one:
+# the bundled SeaweedFS publishes no host port, so it stays unreachable even
+# where Postgres is fine.
+pytestmark = [pytest.mark.integration, pytest.mark.store_required]
 
 _PNG = b"\x89PNG\r\n\x1a\n" + b"teardown"
 
