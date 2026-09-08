@@ -140,7 +140,11 @@ spec:
                    `optional`. An explicit `auth.tokenSecretRef` overrides the platform Secret for
                    operators who keep the runner credential in their own vault. Note this mounts a
                    SINGLE key, not the whole Secret: the runner's env must stay narrow, because a
-                   local harness shares its container and can read /proc (tests/test_runner_secret_absence.py). */}}
+                   local harness shares its container and can read /proc (tests/test_runner_secret_absence.py).
+                   The fallback goes through `agenta.secretName`, not `agenta.fullname`, so a
+                   `secrets.existingSecret` install reads the operator's own Secret. The chart does
+                   not create its own Secret in that case, so a hardcoded name would never resolve
+                   and the runner would crash-loop (tests/test_existing_secret.py). */}}
             - name: AGENTA_RUNNER_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -148,7 +152,7 @@ spec:
                   name: {{ $auth.tokenSecretRef.name | quote }}
                   key: {{ $auth.tokenSecretRef.key | quote }}
                   {{- else }}
-                  name: {{ include "agenta.fullname" . | quote }}
+                  name: {{ include "agenta.secretName" . | quote }}
                   key: AGENTA_RUNNER_TOKEN
                   {{- end }}
             {{- range $key, $val := $runner.env }}

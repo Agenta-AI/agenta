@@ -348,7 +348,9 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- /* Services sends the shared runner protocol credential the runner verifies (interface.md
        section 2). REQUIRED and always rendered — the runner rejects an un-tokened request with 401
        and refuses to boot without the secret, so a Services pod without it could never call it.
-       Mirrors runner-deployment.yaml: an explicit auth.tokenSecretRef wins, else the platform Secret. */}}
+       Mirrors runner-deployment.yaml: an explicit auth.tokenSecretRef wins, else the platform Secret.
+       The platform Secret is `agenta.secretName`, so a `secrets.existingSecret` install reads the
+       operator's own Secret instead of a chart-managed one the chart never creates. */}}
 - name: AGENTA_RUNNER_TOKEN
   valueFrom:
     secretKeyRef:
@@ -356,7 +358,7 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
       name: {{ $auth.tokenSecretRef.name | quote }}
       key: {{ $auth.tokenSecretRef.key | quote }}
       {{- else }}
-      name: {{ include "agenta.fullname" . | quote }}
+      name: {{ include "agenta.secretName" . | quote }}
       key: AGENTA_RUNNER_TOKEN
       {{- end }}
 {{- end }}
