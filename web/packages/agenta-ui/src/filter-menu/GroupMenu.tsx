@@ -66,7 +66,7 @@ export const GroupMenu = <Value extends string = string>({
     variant,
     triggerClassName,
     triggerAriaLabel,
-    activeCount,
+    active,
 }: GroupMenuProps<Value>) => {
     const [uncontrolled, setUncontrolled] = useState(false)
     const [query, setQuery] = useState(defaultSearch)
@@ -100,7 +100,7 @@ export const GroupMenu = <Value extends string = string>({
                 variant={variant}
                 triggerClassName={triggerClassName}
                 triggerAriaLabel={triggerAriaLabel}
-                activeCount={activeCount}
+                active={active}
                 defaultLabel="Group"
             />
             <PopoverContent

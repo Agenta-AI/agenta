@@ -62,7 +62,7 @@ export const FilterMenu = ({
     variant,
     triggerClassName,
     triggerAriaLabel,
-    activeCount,
+    active,
 }: FilterMenuProps) => {
     const [uncontrolled, setUncontrolled] = useState(false)
     const open = openProp ?? uncontrolled
@@ -80,7 +80,7 @@ export const FilterMenu = ({
                 variant={variant}
                 triggerClassName={triggerClassName}
                 triggerAriaLabel={triggerAriaLabel}
-                activeCount={activeCount}
+                active={active}
                 defaultLabel="Filter"
             />
             <PopoverContent

@@ -51,13 +51,12 @@ export const AUTOMATION_TYPE_LABEL: Record<"schedule" | "event", string> = {
 }
 
 /**
- * How many of the view's five controls are off their default — the number the menu's trigger
- * carries.
+ * How many of the view's five controls are off their default.
  *
- * Sort counts alongside the filters even though it hides nothing: the trigger's job is to say the
- * table is not showing what it shows by default, and a re-sorted table is exactly that.
+ * Sort counts alongside the filters even though it hides nothing: what this answers is whether
+ * the table is showing what it shows by default, and a re-sorted table is not.
  */
-export const automationListViewChanges = (view: AutomationListView): number =>
+const automationListViewChanges = (view: AutomationListView): number =>
     (Object.keys(DEFAULT_AUTOMATION_LIST_VIEW) as (keyof AutomationListView)[]).filter(
         (key) => view[key] !== DEFAULT_AUTOMATION_LIST_VIEW[key],
     ).length
