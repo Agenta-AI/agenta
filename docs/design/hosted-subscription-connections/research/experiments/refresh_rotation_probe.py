@@ -73,7 +73,11 @@ def describe(status: int, body: dict) -> str:
             f"200 access={fp(body['access_token'])} refresh={fp(body.get('refresh_token', ''))} "
             f"expires_in={body.get('expires_in')} has_id_token={'id_token' in body}"
         )
-    keys = {k: body.get(k) for k in ("error", "code", "error_description", "message") if k in body}
+    keys = {
+        k: body.get(k)
+        for k in ("error", "code", "error_description", "message")
+        if k in body
+    }
     return f"{status} {keys}"
 
 
@@ -107,9 +111,14 @@ def main() -> None:
     r0 = tokens["refresh_token"]
     a0 = tokens["access_token"]
     account_id = tokens["account_id"]
-    print(f"start: refresh={fp(r0)} access={fp(a0)} access_exp={dt.datetime.fromtimestamp(jwt_claims(a0)['exp'], dt.UTC)}")
+    print(
+        f"start: refresh={fp(r0)} access={fp(a0)} access_exp={dt.datetime.fromtimestamp(jwt_claims(a0)['exp'], dt.UTC)}"
+    )
 
-    print("Q4 pre-check: old access token before any refresh ->", access_probe(a0, account_id))
+    print(
+        "Q4 pre-check: old access token before any refresh ->",
+        access_probe(a0, account_id),
+    )
 
     t = time.time()
     s1, b1 = refresh(r0)
@@ -118,7 +127,9 @@ def main() -> None:
         print("stop: first refresh failed")
         return
     r1, a1 = b1["refresh_token"], b1["access_token"]
-    print("Q1 answer: rotated" if r1 != r0 else "Q1 answer: same refresh token returned")
+    print(
+        "Q1 answer: rotated" if r1 != r0 else "Q1 answer: same refresh token returned"
+    )
 
     s2, b2 = refresh(r0)
     print(f"Q2 refresh with R0 again right after rotation: {describe(s2, b2)}")
@@ -131,7 +142,11 @@ def main() -> None:
         s3, b3 = refresh(latest_refresh)
         print(f"Q3 setup refresh with R1: {describe(s3, b3)}")
         if s3 == 200:
-            latest_refresh, latest_access, latest_body = b3["refresh_token"], b3["access_token"], b3
+            latest_refresh, latest_access, latest_body = (
+                b3["refresh_token"],
+                b3["access_token"],
+                b3,
+            )
         r_par = latest_refresh
         with cf.ThreadPoolExecutor(max_workers=2) as ex:
             futs = [ex.submit(refresh, r_par) for _ in range(2)]
@@ -141,13 +156,21 @@ def main() -> None:
         oks = [b for s, b in results if s == 200]
         if oks:
             distinct = {b["refresh_token"] for b in oks}
-            print(f"Q3 answer: {len(oks)} of 2 succeeded, {len(distinct)} distinct new refresh tokens")
+            print(
+                f"Q3 answer: {len(oks)} of 2 succeeded, {len(distinct)} distinct new refresh tokens"
+            )
             # Keep the last successful one. If both succeeded with different tokens, test both.
             for i, b in enumerate(oks):
                 s, bb = refresh(b["refresh_token"])
-                print(f"Q3 follow-up: refresh with concurrent winner #{i}: {describe(s, bb)}")
+                print(
+                    f"Q3 follow-up: refresh with concurrent winner #{i}: {describe(s, bb)}"
+                )
                 if s == 200:
-                    latest_refresh, latest_access, latest_body = bb["refresh_token"], bb["access_token"], bb
+                    latest_refresh, latest_access, latest_body = (
+                        bb["refresh_token"],
+                        bb["access_token"],
+                        bb,
+                    )
 
     print(f"final: refresh={fp(latest_refresh)} access={fp(latest_access)}")
     now = dt.datetime.now(dt.UTC)
@@ -174,7 +197,8 @@ def main() -> None:
             "type": "oauth",
             "access": latest_access,
             "refresh": latest_refresh,
-            "expires": int(time.time() * 1000) + int(latest_body.get("expires_in", 0)) * 1000,
+            "expires": int(time.time() * 1000)
+            + int(latest_body.get("expires_in", 0)) * 1000,
             "accountId": account_id,
         }
         with open(path, "w") as f:

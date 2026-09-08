@@ -132,8 +132,15 @@ def cell_connect(args) -> None:
             die(f"start attempt -> {r.status_code} {r.text[:300]}")
         a = r.json()
         print("attempt:", a["attempt_id"], "state:", a["state"])
-        print("HUMAN STEP: open", a["verification_uri"], "and enter the code:", a["user_code"])
-        print("expires_at:", a.get("expires_at"), "poll_after_ms:", a.get("poll_after_ms"))
+        print(
+            "HUMAN STEP: open",
+            a["verification_uri"],
+            "and enter the code:",
+            a["user_code"],
+        )
+        print(
+            "expires_at:", a.get("expires_at"), "poll_after_ms:", a.get("poll_after_ms")
+        )
         if not args.wait:
             return
         deadline = time.time() + 15 * 60
@@ -152,7 +159,9 @@ def cell_connect(args) -> None:
 
 def params() -> dict:
     return {
-        "instructions": {"agents_md": "Be terse. Do exactly what is asked, nothing more."},
+        "instructions": {
+            "agents_md": "Be terse. Do exactly what is asked, nothing more."
+        },
         "llm": {
             "model": MODEL,
             "provider": "openai-codex" if HARNESS == "pi_core" else "openai",
@@ -193,7 +202,9 @@ def invoke(session_id: str, messages: list[dict]) -> dict:
                 text = r.read().decode()[:600]
                 out["errors"].append(text)
                 try:
-                    out["codes"].append(json.loads(text).get("status", {}).get("failure_code"))
+                    out["codes"].append(
+                        json.loads(text).get("status", {}).get("failure_code")
+                    )
                 except Exception:
                     pass
                 out["ms"] = int((time.time() - t0) * 1000)
@@ -224,11 +235,19 @@ def invoke(session_id: str, messages: list[dict]) -> dict:
 
 
 def user(text: str) -> dict:
-    return {"id": str(uuid.uuid4()), "role": "user", "parts": [{"type": "text", "text": text}]}
+    return {
+        "id": str(uuid.uuid4()),
+        "role": "user",
+        "parts": [{"type": "text", "text": text}],
+    }
 
 
 def assistant(text: str) -> dict:
-    return {"id": str(uuid.uuid4()), "role": "assistant", "parts": [{"type": "text", "text": text}]}
+    return {
+        "id": str(uuid.uuid4()),
+        "role": "assistant",
+        "parts": [{"type": "text", "text": text}],
+    }
 
 
 def one_session(label: str) -> dict:
@@ -334,7 +353,9 @@ console.log('rewrote', mode, 'expires past', 'meta', fs.existsSync(meta)? fs.rea
 """
 
 
-def rewrite_local(runner: str, file: str, mode: str, version=None, generation=None) -> None:
+def rewrite_local(
+    runner: str, file: str, mode: str, version=None, generation=None
+) -> None:
     argv = ["docker", "exec", runner, "node", "-e", REWRITE, file, mode]
     if version is not None:
         argv += [str(version), str(generation)]
@@ -358,8 +379,14 @@ def cell_refresh(args) -> None:
             time.sleep(3)
             after = login_state(c)
         print("after:", json.dumps(after))
-        ok = res.get("turn1", {}).get("finish") == "stop" and after["version"] > before["version"]
-        print("PASS" if ok else "FAIL", "refresh: turn answered and the stored login_version moved")
+        ok = (
+            res.get("turn1", {}).get("finish") == "stop"
+            and after["version"] > before["version"]
+        )
+        print(
+            "PASS" if ok else "FAIL",
+            "refresh: turn answered and the stored login_version moved",
+        )
 
 
 def cell_stale(args) -> None:
@@ -373,8 +400,14 @@ def cell_stale(args) -> None:
         print(json.dumps({k: res[k] for k in ("turn1", "turn2") if k in res}, indent=1))
         after = login_state(c)
         print("after:", json.dumps(after))
-        ok = res.get("turn1", {}).get("finish") == "stop" and after["login_state"] == "ready"
-        print("PASS" if ok else "FAIL", "stale: session recovered automatically and the login stays ready")
+        ok = (
+            res.get("turn1", {}).get("finish") == "stop"
+            and after["login_state"] == "ready"
+        )
+        print(
+            "PASS" if ok else "FAIL",
+            "stale: session recovered automatically and the login stays ready",
+        )
 
 
 def cell_dead(args) -> None:
@@ -382,14 +415,22 @@ def cell_dead(args) -> None:
         before = login_state(c)
         print("before:", json.dumps(before))
         home = local_home(args.runner, before["id"])
-        rewrite_local(args.runner, home, "dead", before["version"], before["generation"])
+        rewrite_local(
+            args.runner, home, "dead", before["version"], before["generation"]
+        )
         res = one_session("dead")
         print(json.dumps({k: res[k] for k in ("turn1", "turn2") if k in res}, indent=1))
         after = login_state(c)
         print("after:", json.dumps(after))
         codes = res.get("turn1", {}).get("codes", [])
-        ok = "subscription_login_required" in codes and after["login_state"] == "needs_login"
-        print("PASS" if ok else "FAIL", "dead: the run reported subscription_login_required and the connection needs a login")
+        ok = (
+            "subscription_login_required" in codes
+            and after["login_state"] == "needs_login"
+        )
+        print(
+            "PASS" if ok else "FAIL",
+            "dead: the run reported subscription_login_required and the connection needs a login",
+        )
 
 
 def main() -> None:
