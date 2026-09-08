@@ -429,6 +429,15 @@ posthog:
 # ================================================================== #
 # === api / web / services / workers / cron — deployment knobs ===
 # ================================================================== #
+# Every workload below also takes `extraEnv` (a raw list of Kubernetes env entries,
+# so valueFrom works) and `envFrom` (raw list of secretRef/configMapRef). Both render
+# after the chart's own variables, so a later entry wins. Use extraEnv to reach a
+# Secret key the chart does not model:
+#   api:
+#     extraEnv:
+#       - name: AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY
+#         valueFrom:
+#           secretKeyRef: {name: agenta, key: AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY}
 # api:
 #   enabled: true
 #   replicas: 1

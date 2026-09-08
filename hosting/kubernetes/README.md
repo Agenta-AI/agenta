@@ -221,6 +221,35 @@ The Ingress renders only when the bundled SeaweedFS is deployed, and `host` is
 required once you enable it. Compose does the same thing with
 `AGENTA_STORE_TRAEFIK_ENABLE` and `AGENTA_STORE_DOMAIN`.
 
+## Extra environment variables
+
+`<component>.env` takes plain strings only, so it cannot reference a Secret key.
+Two more keys take raw Kubernetes entries and render verbatim after the chart's
+own variables, which means a later entry wins:
+
+```yaml
+api:
+  extraEnv:
+    - name: AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY
+      valueFrom:
+        secretKeyRef:
+          name: agenta
+          key: AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY
+  envFrom:
+    - secretRef:
+        name: agenta-extra
+        optional: true
+```
+
+Both work on every workload: `api`, `services`, `web`, `webMobile`, `cron`,
+`workerStreams`, `workerQueues`, `agentRunner`, `alembic` and `supertokens`.
+
+Be careful on the runner. Its environment is narrow on purpose, because a local
+harness process shares that container and can read `/proc`. Add one key at a time
+with `extraEnv`, and avoid `envFrom` there: it pulls a whole Secret and defeats
+the guard in `helm/tests/test_runner_secret_absence.py`, which can only see
+named entries.
+
 ## The runner bind address
 
 The runner binds `127.0.0.1` on its own. In a pod the kubelet connects over the

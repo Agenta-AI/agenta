@@ -171,6 +171,18 @@ spec:
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
+            {{- /* extraEnv and envFrom widen the runner's environment, which is narrow ON
+                   PURPOSE: a local harness process shares this container and can read /proc.
+                   envFrom in particular pulls a whole Secret and defeats
+                   tests/test_runner_secret_absence.py, which can only see named entries. Add one
+                   key at a time with extraEnv and keep platform credentials out. */}}
+            {{- with $runner.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $runner.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           startupProbe:
             httpGet:
               path: /health

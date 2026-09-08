@@ -50,6 +50,17 @@ spec:
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
+            {{- /* extraEnv is a raw list of Kubernetes env entries, so valueFrom works and the
+                   operator can reach a Secret key the chart knows nothing about. envFrom pulls
+                   whole Secrets or ConfigMaps. Both render last, so they win over the entries
+                   above. */}}
+            {{- with $workerQueues.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $workerQueues.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           livenessProbe:
             exec:
               command: ["pgrep", "-f", "entrypoints.worker_queues"]

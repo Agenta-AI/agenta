@@ -155,6 +155,9 @@
       "properties": {
         "enabled":          { "type": "boolean" },
         "apiKey":           { "type": "string", "description": "SUPERTOKENS_API_KEY via Secret." },
+        "env":              { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+        "extraEnv":         { "$ref": "#/$defs/rawEnvList" },
+        "envFrom":          { "$ref": "#/$defs/envFromList" },
         "uriCore":          { "type": "string", "description": "SUPERTOKENS_URI_CORE (override; ignored when bundled)." },
         "application":      { "type": "string", "description": "SUPERTOKENS_APPLICATION." },
         "tenant":           { "type": "string", "description": "SUPERTOKENS_TENANT." },
@@ -320,6 +323,8 @@
         "externalUrl": { "type": "string", "description": "AGENTA_RUNNER_INTERNAL_URL override pointing at an external runner." },
         "piAgentDir":  { "type": "string", "description": "PI_CODING_AGENT_DIR for local Pi runs (default /pi-agent); unset means no Agenta extension for the run (the runner logs a warning)." },
         "logLevel":    { "type": "string", "description": "AGENTA_RUNNER_LOG_LEVEL read by the runner service." },
+        "extraEnv":    { "$ref": "#/$defs/rawEnvList", "description": "Raw env entries for the runner. Keep it to one key at a time: a local harness shares this container and can read /proc, which is why the runner's environment is narrow." },
+        "envFrom":     { "$ref": "#/$defs/envFromList", "description": "Whole Secrets or ConfigMaps on the runner. Discouraged: it defeats the narrow-environment guard in tests/test_runner_secret_absence.py." },
         "host":        { "type": "string", "description": "AGENTA_RUNNER_HOST, the runner's bind address. Default 0.0.0.0. The runner itself defaults to 127.0.0.1, which the kubelet cannot reach, so the probes would fail forever." },
         "port":        { "type": ["integer", "string"], "description": "AGENTA_RUNNER_PORT and the container port. Default 8765." },
         "replicas":    { "type": "integer", "minimum": 0 },
@@ -422,6 +427,9 @@
         "autoMigrations":          { "type": ["boolean", "string"], "description": "ALEMBIC_AUTO_MIGRATIONS." },
         "cfgPathCore":             { "type": "string", "description": "ALEMBIC_CFG_PATH_CORE." },
         "cfgPathTracing":          { "type": "string", "description": "ALEMBIC_CFG_PATH_TRACING." },
+        "env":                     { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
+        "extraEnv":                { "$ref": "#/$defs/rawEnvList" },
+        "envFrom":                 { "$ref": "#/$defs/envFromList" },
         "hookPhase":               { "type": "string", "enum": ["post", "pre"], "description": "Helm hook phase for the migration Job. 'post' (default) renders post-install,post-upgrade and is required with the bundled PostgreSQL, which does not exist yet at pre-install time. 'pre' renders pre-install,pre-upgrade so the migrations finish before the app pods start; use it with an external database." },
         "activeDeadlineSeconds":   { "type": "integer" },
         "backoffLimit":            { "type": "integer" },
@@ -509,6 +517,16 @@
         "pathType": { "type": "string", "enum": ["Exact", "Prefix", "ImplementationSpecific"] }
       }
     },
+    "rawEnvList": {
+      "type": "array",
+      "description": "Raw Kubernetes env entries, rendered verbatim after the chart's own variables, so valueFrom works and a later entry wins. Use it to reach a Secret key the chart does not model.",
+      "items": { "type": "object", "additionalProperties": true, "required": ["name"], "properties": { "name": { "type": "string" } } }
+    },
+    "envFromList": {
+      "type": "array",
+      "description": "Raw Kubernetes envFrom entries (secretRef or configMapRef), rendered verbatim on the container.",
+      "items": { "type": "object", "additionalProperties": true }
+    },
     "ingressExtraPath": {
       "type": "object",
       "additionalProperties": false,
@@ -540,6 +558,8 @@
           }
         },
         "resources":   { "type": "object", "additionalProperties": true },
+        "extraEnv":    { "$ref": "#/$defs/rawEnvList" },
+        "envFrom":     { "$ref": "#/$defs/envFromList" },
         "env":         { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
         "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
         "labels":      { "type": "object", "additionalProperties": { "type": "string" } },
