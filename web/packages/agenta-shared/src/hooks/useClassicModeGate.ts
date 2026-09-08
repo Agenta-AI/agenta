@@ -8,8 +8,12 @@ import {useEffect} from "react"
 import {useAtomValue} from "jotai"
 
 import {getEnv} from "../api/env"
-import {advancedNavHiddenAtom, readSettledAdvancedNavHidden} from "../state/classicMode"
-import {ACTIVE_USER_ID_KEY, activeUserIdAtom} from "../state/featureFlags"
+import {
+    advancedNavHiddenAtom,
+    readSettledAdvancedNavHidden,
+    readSettledClassicModeCookie,
+} from "../state/classicMode"
+import {activeUserIdAtom} from "../state/featureFlags"
 import {userAtom} from "../state/user"
 import {
     CLASSIC_MODE_COOKIE,
@@ -76,28 +80,28 @@ const useSettledAdvancedNavHidden = (): boolean | null => {
  *
  * Written only once a user is known — the preference is scoped by user id, and a cookie written
  * under nobody would decide which app the NEXT person on this browser gets. Cleared on sign-out
- * for the same reason.
+ * for the same reason, and cleared again when the answer is a bare default rather than a choice.
+ * `readSettledClassicModeCookie` draws that line and explains why the gates need it drawn.
  */
 export const useClassicModeCookieSync = () => {
-    const userId = useAtomValue(activeUserIdAtom)
-    const advancedNavHidden = useSettledAdvancedNavHidden()
+    useAtomValue(activeUserIdAtom)
+    useAtomValue(advancedNavHiddenAtom)
+    const user = useAtomValue(userAtom)
+    // A primitive, so the effect still runs only when the answer actually changes.
+    const value = readSettledClassicModeCookie(user)
 
     useEffect(() => {
         if (typeof document === "undefined") return
-        if (!userId) {
-            // Storage, not the atom: `activeUserIdAtom` has no `getOnInit`, so it reads null on
-            // every first render and only then hydrates. Clearing on that would drop the cookie
-            // at the start of EVERY page load, and a redirect landing in that window arrives at
-            // a gate with no preference to read. Only a real sign-out empties the key.
-            if (localStorage.getItem(ACTIVE_USER_ID_KEY)) return
+        // `undefined` is "nothing new to say" — leave whatever is there. `null` is a real
+        // answer: this browser has no preference to publish, so the gates fall back to the
+        // device heuristic.
+        if (value === undefined) return
+        if (value === null) {
             clearCookie(CLASSIC_MODE_COOKIE)
             return
         }
-        // Publishing an unsettled value would park the WRONG answer where the middleware reads
-        // it, and the next load acts on the cookie before any of this runs.
-        if (advancedNavHidden === null) return
-        writeCookie(CLASSIC_MODE_COOKIE, advancedNavHidden ? "0" : "1")
-    }, [userId, advancedNavHidden])
+        writeCookie(CLASSIC_MODE_COOKIE, value)
+    }, [value])
 }
 
 /**

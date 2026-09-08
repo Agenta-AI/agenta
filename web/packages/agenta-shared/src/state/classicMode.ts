@@ -160,6 +160,44 @@ export const readSettledAdvancedNavHidden = (user: User | null): boolean | null 
     return user ? isSimplifiedCohort(user) : null
 }
 
+/**
+ * What the gate cookie should say, or `undefined` to leave it alone. `null` means "publish
+ * nothing" — clear it.
+ *
+ * Distinct from {@link readSettledAdvancedNavHidden}, and deliberately so. That one answers
+ * "which surface does this user get", where the signup-era default is as good an answer as a
+ * choice. The gates ask something narrower: both treat `"1"` as the user asking for the desktop
+ * app in as many words, and rank it ABOVE the device heuristic. Only an explicit choice earns
+ * that. An account that predates the switch has classic mode on because nobody ever turned it
+ * off, and publishing `"1"` for them tells the gate a phone should get the desktop app — which
+ * is how every pre-existing account lost `/m`.
+ *
+ * So classic-mode-ON publishes only from the override. The default answers UNKNOWN, and the
+ * device gate decides, exactly as it did before this preference existed.
+ *
+ * Simplified (`"0"`) has no such problem and publishes from any source: it is the cohort the
+ * default was built to route, and `/m` is where they belong however we learned it.
+ */
+export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | null | undefined => {
+    if (typeof window === "undefined") return undefined
+
+    // Storage, not `activeUserIdAtom`: that atom has no `getOnInit` and reads null on the first
+    // render of every page load. Treating that as a sign-out clears the cookie mid-session.
+    const userId = localStorage.getItem(ACTIVE_USER_ID_KEY)
+    if (!userId) return null
+
+    const override = readStoredBoolean(onboardingScopedKey(userId, "nav-simplified-override"))
+    if (override !== null) return override ? "0" : "1"
+
+    if (readStoredBoolean(onboardingScopedKey(userId, "nav-simplified")) === true) return "0"
+
+    // The cohort answer lives on the profile. Until it lands we know nothing new, and a stale
+    // cookie beats no cookie: clearing here would drop a correct answer on every reload.
+    if (!user) return undefined
+
+    return isSimplifiedCohort(user) ? "0" : null
+}
+
 /** The one atom both apps' Preferences pages bind their "Classic mode" switch to. */
 export const classicModeEnabledAtom = atom(
     (get) => !get(advancedNavHiddenAtom),
