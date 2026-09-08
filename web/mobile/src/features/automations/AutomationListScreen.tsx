@@ -108,7 +108,7 @@ export const AutomationListScreen = ({
             )
 
         return (
-            <div className="overflow-hidden rounded-xl border border-solid border-border">
+            <div className="overflow-hidden rounded-md border border-solid border-border">
                 <div className="overflow-x-auto">
                     <div className="min-w-[544px]">
                         <div
