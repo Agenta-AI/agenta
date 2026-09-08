@@ -1,0 +1,640 @@
+"""Device login and login upkeep for a hosted subscription connection.
+
+Three callers meet here. The browser starts, polls, and cancels a device login. The runner
+pushes a refreshed login back after a turn. The runner also reports a login that stopped
+working. All three edit the same subscription secret, so every decision that reads the
+stored login is made against the locked row (`VaultService.update_secret_atomically`).
+"""
+
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, Optional
+from uuid import UUID
+
+from pydantic import BaseModel
+
+from oss.src.core.secrets.dtos import (
+    SecretResponseDTO,
+    SubscriptionProviderDTO,
+    UpdateSecretDTO,
+    UpdateSecretPayloadDTO,
+)
+from oss.src.core.secrets.enums import SecretKind, SubscriptionLoginState
+from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
+from oss.src.core.secrets.types import (
+    SubscriptionLoginAttemptNotFound,
+    SubscriptionSecretNotFound,
+)
+from oss.src.utils.logging import get_module_logger
+
+
+log = get_module_logger(__name__)
+
+# States the runner reports that end an attempt.
+_TERMINAL_FAILURE_STATES = {"failed", "expired", "cancelled"}
+
+# A reason string comes from the runner and is shown to the user, so it is bounded.
+_MAX_LOGIN_ERROR_LENGTH = 200
+
+_ATTEMPT_NOT_FOUND_ERROR = "attempt not found; try again"
+
+
+class SubscriptionLoginAttemptView(BaseModel):
+    """What a browser learns about an in-flight device login. Never the credential."""
+
+    attempt_id: str
+    state: str
+    user_code: Optional[str] = None
+    verification_uri: Optional[str] = None
+    expires_at: Optional[str] = None
+    poll_after_ms: Optional[int] = None
+    error: Optional[str] = None
+
+
+class SubscriptionLoginPushResult(BaseModel):
+    version: int
+    generation: int
+    updated: bool
+    stale: bool = False
+    # The current login, sent back only when the run was on an older generation, so the
+    # runner can rematerialize without a second call.
+    login: Optional[Dict[str, Any]] = None
+
+
+class SubscriptionLoginFailureResult(BaseModel):
+    stale: bool
+    version: int
+    generation: int
+    login: Optional[Dict[str, Any]] = None
+
+
+class PushDecision(str, Enum):
+    """What a pushed login is worth against the row it claims to refresh."""
+
+    ACCEPT = "accept"
+    # The same refresh token is already stored. Storing it again would bump the version
+    # for nothing and, on two simultaneous polls, twice.
+    NOOP = "noop"
+    # The run carried an older lineage. It gets the current login back.
+    STALE = "stale"
+    REJECT = "reject"
+
+
+def _subscription_data(secret: SecretResponseDTO) -> SubscriptionProviderDTO:
+    data = secret.data
+    if not isinstance(data, SubscriptionProviderDTO):
+        raise SubscriptionSecretNotFound()
+    return data
+
+
+def _update_with(
+    secret: SecretResponseDTO,
+    changes: Dict[str, Any],
+) -> UpdateSecretDTO:
+    """An update carrying the WHOLE stored payload plus `changes`.
+
+    Every field is stated, so the keep-on-omit carry-over has nothing to fill in and an
+    explicit clear (a finished attempt, a cleared error) survives the write.
+    """
+    data = _subscription_data(secret).model_dump(mode="json")
+    data.update(changes)
+
+    return UpdateSecretDTO(
+        secret=UpdateSecretPayloadDTO(
+            kind=SecretKind.SUBSCRIPTION_PROVIDER,
+            data=data,
+        )
+    )
+
+
+def _attempt_is_live(expires_at: Optional[str]) -> bool:
+    """True while a stored attempt can still be completed.
+
+    An unreadable or missing deadline counts as expired: starting a fresh attempt costs
+    the user one more click, while reusing a dead one leaves them polling forever.
+    """
+    if not expires_at:
+        return False
+
+    try:
+        deadline = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=timezone.utc)
+
+    return deadline > datetime.now(timezone.utc)
+
+
+def _clip(reason: Optional[str]) -> Optional[str]:
+    if reason is None:
+        return None
+    return reason[:_MAX_LOGIN_ERROR_LENGTH]
+
+
+class SubscriptionLoginService:
+    def __init__(
+        self,
+        *,
+        vault_service: VaultService,
+        runner_client: SubscriptionLoginRunnerClient,
+    ) -> None:
+        self.vault_service = vault_service
+        self.runner_client = runner_client
+
+    async def _load(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+    ) -> SecretResponseDTO:
+        secret = await self.vault_service.get_secret_by_id(
+            secret_id=secret_id,
+            project_id=project_id,
+        )
+        if secret is None or secret.kind != SecretKind.SUBSCRIPTION_PROVIDER:
+            raise SubscriptionSecretNotFound()
+        return secret
+
+    async def _apply(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+        user_id: Optional[UUID],
+        build_changes,
+    ):
+        """Run `build_changes(stored_data)` under the row lock and persist what it returns.
+
+        `build_changes` returns a dict of subscription fields to write, or None to leave
+        the row alone.
+        """
+
+        def resolve(stored: SecretResponseDTO) -> UpdateSecretDTO:
+            changes = build_changes(_subscription_data(stored))
+            if changes is None:
+                # Header-less and secret-less: only the lifecycle columns move.
+                return UpdateSecretDTO()
+            return _update_with(stored, changes)
+
+        return await self.vault_service.update_secret_atomically(
+            secret_id=secret_id,
+            project_id=project_id,
+            user_id=user_id,
+            resolve_update=resolve,
+        )
+
+    # -- browser-facing device login ------------------------------------------------
+
+    async def start_attempt(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+        user_id: Optional[UUID] = None,
+    ) -> SubscriptionLoginAttemptView:
+        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        data = _subscription_data(secret)
+
+        stored = data.login_attempt
+        if stored is not None and _attempt_is_live(stored.expires_at):
+            return SubscriptionLoginAttemptView(
+                attempt_id=stored.id,
+                state="pending",
+                user_code=stored.user_code,
+                verification_uri=stored.verification_uri,
+                expires_at=stored.expires_at,
+                poll_after_ms=stored.poll_after_ms,
+            )
+
+        attempt = await self.runner_client.start_attempt(
+            provider=data.provider.value,
+        )
+
+        await self._apply(
+            project_id=project_id,
+            secret_id=secret_id,
+            user_id=user_id,
+            build_changes=lambda _stored: {
+                "login_attempt": {
+                    "id": attempt.attempt_id,
+                    "expires_at": attempt.expires_at,
+                    "user_code": attempt.user_code,
+                    "verification_uri": attempt.verification_uri,
+                    "poll_after_ms": attempt.poll_after_ms,
+                },
+                "login_error": None,
+            },
+        )
+
+        return SubscriptionLoginAttemptView(
+            attempt_id=attempt.attempt_id,
+            state="pending",
+            user_code=attempt.user_code,
+            verification_uri=attempt.verification_uri,
+            expires_at=attempt.expires_at,
+            poll_after_ms=attempt.poll_after_ms,
+        )
+
+    async def read_attempt(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+        attempt_id: str,
+        user_id: Optional[UUID] = None,
+    ) -> SubscriptionLoginAttemptView:
+        """Ask the runner where the attempt stands, and store a login it hands back.
+
+        The attempt id must be the one this connection is waiting on. That binding is the
+        only thing stopping one project from redeeming another project's device login.
+        """
+        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        data = _subscription_data(secret)
+
+        if data.login_attempt is None or data.login_attempt.id != attempt_id:
+            raise SubscriptionLoginAttemptNotFound()
+
+        try:
+            attempt = await self.runner_client.read_attempt(attempt_id=attempt_id)
+        except SubscriptionLoginAttemptNotFound:
+            # Attempts live in one runner process. Behind several replicas a poll can reach
+            # a replica that never held this attempt, and it answers 404 like a real
+            # expiry. Both cases end the attempt and the user starts a new one.
+            await self._clear_attempt(
+                project_id=project_id,
+                secret_id=secret_id,
+                user_id=user_id,
+                error=_ATTEMPT_NOT_FOUND_ERROR,
+            )
+            return SubscriptionLoginAttemptView(
+                attempt_id=attempt_id,
+                state="failed",
+                error=_ATTEMPT_NOT_FOUND_ERROR,
+            )
+
+        if attempt.state == "succeeded":
+            if attempt.login:
+                await self._store_new_login(
+                    project_id=project_id,
+                    secret_id=secret_id,
+                    user_id=user_id,
+                    login=attempt.login,
+                )
+                await self.runner_client.delete_attempt(attempt_id=attempt_id)
+            else:
+                await self._clear_attempt(
+                    project_id=project_id,
+                    secret_id=secret_id,
+                    user_id=user_id,
+                    error=None,
+                )
+            return SubscriptionLoginAttemptView(
+                attempt_id=attempt.attempt_id or attempt_id,
+                state="succeeded",
+            )
+
+        if attempt.state in _TERMINAL_FAILURE_STATES:
+            await self._clear_attempt(
+                project_id=project_id,
+                secret_id=secret_id,
+                user_id=user_id,
+                error=attempt.error,
+            )
+            return SubscriptionLoginAttemptView(
+                attempt_id=attempt.attempt_id or attempt_id,
+                state=attempt.state,
+                error=attempt.error,
+            )
+
+        await self._refresh_pending_attempt(
+            project_id=project_id,
+            secret_id=secret_id,
+            user_id=user_id,
+            attempt_id=attempt_id,
+            expires_at=attempt.expires_at,
+            user_code=attempt.user_code,
+            verification_uri=attempt.verification_uri,
+            poll_after_ms=attempt.poll_after_ms,
+        )
+
+        return SubscriptionLoginAttemptView(
+            attempt_id=attempt_id,
+            state="pending",
+            user_code=attempt.user_code or data.login_attempt.user_code,
+            verification_uri=(
+                attempt.verification_uri or data.login_attempt.verification_uri
+            ),
+            expires_at=attempt.expires_at or data.login_attempt.expires_at,
+            poll_after_ms=attempt.poll_after_ms,
+        )
+
+    async def cancel_attempt(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+        attempt_id: str,
+        user_id: Optional[UUID] = None,
+    ) -> SubscriptionLoginAttemptView:
+        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        data = _subscription_data(secret)
+
+        if data.login_attempt is None or data.login_attempt.id != attempt_id:
+            raise SubscriptionLoginAttemptNotFound()
+
+        await self.runner_client.delete_attempt(attempt_id=attempt_id)
+        await self._clear_attempt(
+            project_id=project_id,
+            secret_id=secret_id,
+            user_id=user_id,
+            error=None,
+        )
+
+        return SubscriptionLoginAttemptView(
+            attempt_id=attempt_id,
+            state="cancelled",
+        )
+
+    # -- runner-facing login upkeep --------------------------------------------------
+
+    async def push_login(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+        login: Dict[str, Any],
+        version: int,
+        generation: int,
+    ) -> SubscriptionLoginPushResult:
+        """Store a login a run refreshed, but only when it belongs on this row.
+
+        A pushed login never bumps the generation: a refresh keeps warm sessions, only a
+        new device login makes them start cold.
+        """
+        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        data = _subscription_data(secret)
+
+        # Most turns push a login the row already holds, so answer those without a write.
+        decision = _classify_push(stored=data, login=login, generation=generation)
+        if decision is not PushDecision.ACCEPT:
+            return _push_result(stored=data, decision=decision)
+
+        result: Dict[str, Any] = {}
+
+        def build_changes(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
+            # Re-decided against the locked row: another replica may have pushed the same
+            # refresh token, or a newer generation, since the read above.
+            locked = _classify_push(stored=stored, login=login, generation=generation)
+            if locked is not PushDecision.ACCEPT:
+                result.update(_push_result(stored=stored, decision=locked).model_dump())
+                return None
+
+            result.update(
+                {
+                    "version": stored.login_version + 1,
+                    "generation": stored.login_generation,
+                    "updated": True,
+                    "stale": False,
+                    "login": None,
+                }
+            )
+            return {
+                "login": login,
+                "login_version": stored.login_version + 1,
+                "login_state": SubscriptionLoginState.READY.value,
+                "login_error": None,
+            }
+
+        await self._apply(
+            project_id=project_id,
+            secret_id=secret_id,
+            user_id=None,
+            build_changes=build_changes,
+        )
+
+        return SubscriptionLoginPushResult(**result)
+
+    async def report_login_failure(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+        version: int,
+        generation: int,
+        reason: str,
+    ) -> SubscriptionLoginFailureResult:
+        """Mark the stored login unusable, unless the run was using an older one.
+
+        A stale answer carries the current login so the runner can rematerialize and retry
+        the turn in one hop, which is the whole point of reporting the failure first.
+        """
+        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        data = _subscription_data(secret)
+
+        if _failure_is_stale(stored=data, version=version, generation=generation):
+            return _stale_failure_result(stored=data)
+
+        result: Dict[str, Any] = {}
+
+        def build_changes(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
+            if _failure_is_stale(stored=stored, version=version, generation=generation):
+                result.update(_stale_failure_result(stored=stored).model_dump())
+                return None
+
+            result.update(
+                {
+                    "stale": False,
+                    "version": stored.login_version,
+                    "generation": stored.login_generation,
+                    "login": None,
+                }
+            )
+            return {
+                "login_state": SubscriptionLoginState.NEEDS_LOGIN.value,
+                "login_error": _clip(reason),
+            }
+
+        await self._apply(
+            project_id=project_id,
+            secret_id=secret_id,
+            user_id=None,
+            build_changes=build_changes,
+        )
+
+        return SubscriptionLoginFailureResult(**result)
+
+    # -- writes -----------------------------------------------------------------------
+
+    async def _store_new_login(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+        user_id: Optional[UUID],
+        login: Dict[str, Any],
+    ) -> None:
+        def build_changes(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
+            # The runner keeps returning the login on every poll until the API deletes the
+            # attempt, so two simultaneous polls both arrive here. The refresh token is the
+            # identity of a login: seeing the stored one again means the write already
+            # happened, and a second bump would push every warm session cold for nothing.
+            if stored.login is not None and stored.login.refresh == login.get(
+                "refresh"
+            ):
+                return None
+
+            return {
+                "login": login,
+                "login_version": stored.login_version + 1,
+                "login_generation": stored.login_generation + 1,
+                "login_state": SubscriptionLoginState.READY.value,
+                "login_error": None,
+                "login_attempt": None,
+            }
+
+        await self._apply(
+            project_id=project_id,
+            secret_id=secret_id,
+            user_id=user_id,
+            build_changes=build_changes,
+        )
+
+    async def _clear_attempt(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+        user_id: Optional[UUID],
+        error: Optional[str],
+    ) -> None:
+        await self._apply(
+            project_id=project_id,
+            secret_id=secret_id,
+            user_id=user_id,
+            build_changes=lambda _stored: {
+                "login_attempt": None,
+                "login_error": _clip(error),
+            },
+        )
+
+    async def _refresh_pending_attempt(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+        user_id: Optional[UUID],
+        attempt_id: str,
+        expires_at: Optional[str],
+        user_code: Optional[str],
+        verification_uri: Optional[str],
+        poll_after_ms: Optional[int],
+    ) -> None:
+        """Write the attempt back only when the runner reported something different.
+
+        A poll runs every couple of seconds for up to fifteen minutes; without this guard
+        each one would be a row write.
+        """
+
+        def build_changes(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
+            current = stored.login_attempt
+            if current is None or current.id != attempt_id:
+                return None
+
+            fresh = {
+                "id": attempt_id,
+                "expires_at": expires_at or current.expires_at,
+                "user_code": user_code or current.user_code,
+                "verification_uri": verification_uri or current.verification_uri,
+                "poll_after_ms": poll_after_ms or current.poll_after_ms,
+            }
+            if fresh == current.model_dump(mode="json"):
+                return None
+
+            return {"login_attempt": fresh}
+
+        await self._apply(
+            project_id=project_id,
+            secret_id=secret_id,
+            user_id=user_id,
+            build_changes=build_changes,
+        )
+
+
+def _classify_push(
+    *,
+    stored: SubscriptionProviderDTO,
+    login: Dict[str, Any],
+    generation: int,
+) -> PushDecision:
+    """Decide what a pushed login is worth, in the order the contract fixes.
+
+    Generation first, because a login from an older lineage is not a competitor: the run
+    is behind and needs the current one back. Then the account, so a login for a different
+    ChatGPT account can never take over the connection. Then the refresh token, which is
+    what makes the store idempotent when two polls redeem the same device login. Expiry
+    last: an equal expiry with a new refresh token is still a real refresh.
+    """
+    if stored.login is None:
+        return PushDecision.REJECT
+
+    if generation < stored.login_generation:
+        return PushDecision.STALE
+
+    if generation != stored.login_generation:
+        # The run claims a lineage this row has never issued. Nothing safe to do with it.
+        return PushDecision.REJECT
+
+    if login.get("accountId") != stored.login.accountId:
+        return PushDecision.REJECT
+
+    if login.get("refresh") == stored.login.refresh:
+        return PushDecision.NOOP
+
+    expires = login.get("expires")
+    if not isinstance(expires, int) or expires < (stored.login.expires or 0):
+        return PushDecision.REJECT
+
+    return PushDecision.ACCEPT
+
+
+def _push_result(
+    *,
+    stored: SubscriptionProviderDTO,
+    decision: PushDecision,
+) -> SubscriptionLoginPushResult:
+    return SubscriptionLoginPushResult(
+        version=stored.login_version,
+        generation=stored.login_generation,
+        updated=False,
+        stale=decision is PushDecision.STALE,
+        login=_current_login(stored) if decision is PushDecision.STALE else None,
+    )
+
+
+def _failure_is_stale(
+    *,
+    stored: SubscriptionProviderDTO,
+    version: int,
+    generation: int,
+) -> bool:
+    """True when the row moved on since the run was given its login."""
+    return stored.login_generation > generation or stored.login_version > version
+
+
+def _stale_failure_result(
+    *,
+    stored: SubscriptionProviderDTO,
+) -> SubscriptionLoginFailureResult:
+    return SubscriptionLoginFailureResult(
+        stale=True,
+        version=stored.login_version,
+        generation=stored.login_generation,
+        login=_current_login(stored),
+    )
+
+
+def _current_login(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
+    return stored.login.model_dump(mode="json") if stored.login else None
