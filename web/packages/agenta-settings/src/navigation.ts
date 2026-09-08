@@ -7,6 +7,7 @@ export type SettingsTabKey =
     | "tools"
     | "triggers"
     | "webhooks"
+    | "channels"
     | "workspace"
     | "projects"
     | "organizationGeneral"
@@ -88,6 +89,12 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
             "Send workflow events to your own HTTP endpoints, with signed payloads and delivery retries.",
     },
     {
+        key: "channels",
+        scope: "project",
+        description:
+            "Let your team talk to an agent from the chat tools they already use — Slack and Telegram.",
+    },
+    {
         key: "organizationGeneral",
         scope: "organization",
         description: "Every organization you belong to.",
@@ -164,6 +171,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     tools: "Tools",
     triggers: "Triggers",
     webhooks: "Webhooks",
+    channels: "Channels",
     workspace: "Members",
     projects: "Projects",
     organizationGeneral: "Organizations",

@@ -112,6 +112,7 @@
     --color-colorSuccessText: var(--colorSuccessText);
     --color-colorWarning: var(--colorWarning);
     --color-colorWarningBg: var(--colorWarningBg);
+    --color-colorWarningBorder: var(--colorWarningBorder);
     --color-colorWarningText: var(--colorWarningText);
     --color-colorError: var(--colorError);
     /* The danger callout (shared AccountPage, the composer's mic-permission notice) paints with

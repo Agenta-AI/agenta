@@ -10,6 +10,7 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "llms",
     "secrets",
     "webhooks",
+    "channels",
     "tools",
     "triggers",
     "organizationGeneral",

@@ -12,6 +12,29 @@ export {
 } from "./providers/AIProvidersPage"
 export {WebhooksPage, type WebhooksPageProps} from "./webhooks/WebhooksPage"
 export {
+    ChannelsPage,
+    ChannelConnectFlow,
+    ChannelManagePanel,
+    EMPTY_CONNECTIONS,
+    hasAnyIssue,
+    summarizeConnection,
+    platformLabel as channelPlatformLabel,
+    botHandle as channelBotHandle,
+    type ChannelsPageProps,
+    type ChannelsPanelRenderProps,
+    type ChannelConnectFlowProps,
+    type ChannelManagePanelProps,
+    type ChannelRowSummary,
+    type ChannelPlatform,
+    type ChannelInstallMode,
+    type ChannelStatus,
+    type ChannelChatType,
+    type ChannelBehavior,
+    type ChannelChat,
+    type ChannelConnection,
+    type ChannelConnections,
+} from "./channels"
+export {
     ProjectsPage,
     type ProjectsPageProps,
     type ProjectDialogState,

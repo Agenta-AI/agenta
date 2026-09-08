@@ -50,6 +50,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 
 import {AccountTab} from "./AccountTab"
 import {BillingTab} from "./BillingTab"
+import {ChannelsTab} from "./ChannelsTab"
 import {LlmProvidersTab} from "./LlmProvidersTab"
 import {MembersTab} from "./MembersTab"
 import {isNestedSettingsNavEnabled} from "./nestedNav"
@@ -208,6 +209,8 @@ const TabBody = ({
             return <BillingTab projectId={projectId} />
         case "webhooks":
             return <WebhooksTab />
+        case "channels":
+            return <ChannelsTab />
         // Writable: the drawers' forms moved from antd to @rc-component/form, so they carry
         // no antd theming and render correctly here.
         case "tools":

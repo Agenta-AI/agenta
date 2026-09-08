@@ -69,6 +69,10 @@ const Webhooks = dynamic(() => import("@/oss/components/pages/settings/Webhooks/
     ssr: false,
 })
 
+const Channels = dynamic(() => import("@/oss/components/pages/settings/Channels/Channels"), {
+    ssr: false,
+})
+
 const Preferences = dynamic(
     () => import("@/oss/components/pages/settings/Preferences/Preferences"),
     {ssr: false},
@@ -156,6 +160,11 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                 return {
                     content: <Webhooks />,
                     title: getSettingsTabLabel("webhooks", settingsAccess),
+                }
+            case "channels":
+                return {
+                    content: <Channels />,
+                    title: getSettingsTabLabel("channels", settingsAccess),
                 }
             case "auditLog":
                 return {
