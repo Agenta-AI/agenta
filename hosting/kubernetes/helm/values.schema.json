@@ -486,7 +486,15 @@
         "resources":   { "type": "object", "additionalProperties": true },
         "env":         { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
         "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
-        "labels":      { "type": "object", "additionalProperties": { "type": "string" } }
+        "labels":      { "type": "object", "additionalProperties": { "type": "string" } },
+        "service": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Knobs for the component's Service object.",
+          "properties": {
+            "annotations": { "type": "object", "additionalProperties": { "type": "string" }, "description": "Annotations on the Service. GKE reads cloud.google.com/backend-config and cloud.google.com/neg here." }
+          }
+        }
       }
     },
     "bundledRedis": {
