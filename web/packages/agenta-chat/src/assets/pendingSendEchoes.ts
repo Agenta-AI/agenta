@@ -3,25 +3,27 @@ import type {FileUIPart, UIMessage} from "ai"
 import {getMessageTurnId} from "./agentTurn"
 
 /**
- * A sent message the durable transcript has not echoed back yet.
+ * A sent message the UI has nowhere else to show yet.
  *
  * A session advertising the `queue` capability admits every send server-side and adds nothing to
  * the local AI SDK chat, so the message is invisible until the invoke POST, the durable event, and
- * the adopting records read all land. These rows fill that window.
+ * the adopting records read all land. These rows fill that window and are display state only.
  */
-export interface PendingSend {
+export interface PendingSendEcho {
     /** Client-generated id, the same one the invoke POST sends as its `Idempotency-Key`. */
     id: string
     text: string
     fileParts?: FileUIPart[]
     /**
-     * Turn id from the invoke response's first frame, once it arrives. It is the `turn_id` the
-     * saved user record carries, so it identifies THIS send among everyone else's.
+     * Turn id from the invoke response's acceptance frame. It is the `turn_id` the saved user
+     * record carries, so it identifies THIS send among everyone else's.
      */
     executionId?: string | null
-    /** The send is known to have failed; the row stays until the host takes the text back. */
+    /** Durable input id from a 202 body; the dock owns the row once it reports this id. */
+    parkedInputId?: string | null
+    /** The send is known to have failed. The host takes the text back; the row goes. */
     failed?: boolean
-    /** Fallback user-row count that covers this echo while its turn id is still unknown. */
+    /** Fallback user-row count, used only while this send has no identity of its own yet. */
     coveredAtUserCount: number
     /** User-row count when this echo was made; falling below it means a rewind stranded it. */
     createdAtUserCount: number
@@ -29,34 +31,6 @@ export interface PendingSend {
 
 export const countUserMessages = (messages: readonly UIMessage[]): number =>
     messages.reduce((total, message) => (message.role === "user" ? total + 1 : total), 0)
-
-/** One past the transcript and past every waiting echo, so a burst retires in FIFO order. */
-export const nextPendingSendCoverage = (
-    userCount: number,
-    pending: readonly PendingSend[],
-): number => Math.max(userCount, ...pending.map((item) => item.coveredAtUserCount)) + 1
-
-/**
- * Renumber the counts reserved by echoes queued behind one that left without being covered.
- *
- * Without this, dropping an echo that reserved count four leaves the next one waiting for five
- * while its own saved row arrives as four. It then never retires and duplicates the saved row for
- * good. Only the unacknowledged echoes need it; an acknowledged one retires on its turn id.
- */
-export const compactPendingSendCoverage = (
-    pending: readonly PendingSend[],
-    userCount: number,
-): readonly PendingSend[] => {
-    let changed = false
-    const next = pending.map((item, index) => {
-        // Whatever is still outstanding will save as the next rows after the ones already there.
-        const expected = userCount + index + 1
-        if (item.coveredAtUserCount === expected) return item
-        changed = true
-        return {...item, coveredAtUserCount: expected}
-    })
-    return changed ? next : pending
-}
 
 /** Turn ids of every user row the durable transcript holds. */
 export const durableUserTurnIds = (messages: readonly UIMessage[]): ReadonlySet<string> => {
@@ -69,32 +43,59 @@ export const durableUserTurnIds = (messages: readonly UIMessage[]): ReadonlySet<
     return ids
 }
 
-export interface RetirePendingSendsArgs {
+/** One past the transcript and past every waiting echo, so a burst retires in FIFO order. */
+export const nextPendingSendCoverage = (
+    userCount: number,
+    pending: readonly PendingSendEcho[],
+): number => Math.max(userCount, ...pending.map((item) => item.coveredAtUserCount)) + 1
+
+/**
+ * Renumber the counts reserved by echoes queued behind one that left without being covered.
+ *
+ * Without this, dropping an echo that reserved count four leaves the next one waiting for five
+ * while its own saved row arrives as four. It then never retires and duplicates the saved row.
+ */
+export const compactPendingSendCoverage = (
+    pending: readonly PendingSendEcho[],
+    userCount: number,
+): readonly PendingSendEcho[] => {
+    let changed = false
+    const next = pending.map((item, index) => {
+        const expected = userCount + index + 1
+        if (item.coveredAtUserCount === expected) return item
+        changed = true
+        return {...item, coveredAtUserCount: expected}
+    })
+    return changed ? next : pending
+}
+
+export interface RetirePendingSendEchoesArgs {
     userCount: number
     /** Turn ids of the adopted user rows, which retire an acknowledged echo exactly. */
     durableTurnIds: ReadonlySet<string>
-    /** Client ids the durable queue now holds, so the dock owns those rows instead. */
-    dockedIds?: ReadonlySet<string>
+    /** Input ids the durable queue is OBSERVED to hold, not merely reported to have accepted. */
+    dockedIds: ReadonlySet<string>
 }
 
 /**
- * Drop every echo something else now owns.
+ * Decide which echoes are still worth showing.
  *
- * An ACKNOWLEDGED echo retires only when its own turn id appears among the saved user rows. It
- * deliberately ignores the count: a foreign row from another tab, a promoted queued input, or a
- * history adoption all raise the count without saying anything about this send.
+ * Pure, and safe to call during render: it returns the same array reference when nothing retires.
  *
- * An echo still waiting for its turn id has no identity to match on, so it falls back to the count.
- * That window is the length of one HTTP round trip to the response's first frame.
+ * An echo retires only on evidence about ITSELF. A parked one waits for the dock to actually list
+ * its input id. An acknowledged one waits for its own turn id among the saved user rows, and
+ * deliberately ignores the count, because another tab's message, a promoted queued input, a Steer,
+ * or a history adoption all raise the count while saying nothing about this send. Only an echo
+ * with no identity yet falls back to the count, for the one round trip before its first frame.
  */
-export const retirePendingSends = (
-    pending: readonly PendingSend[],
-    {userCount, durableTurnIds, dockedIds}: RetirePendingSendsArgs,
-): readonly PendingSend[] => {
+export const retirePendingSendEchoes = (
+    pending: readonly PendingSendEcho[],
+    {userCount, durableTurnIds, dockedIds}: RetirePendingSendEchoesArgs,
+): readonly PendingSendEcho[] => {
     const next = pending.filter((item) => {
-        if (dockedIds?.has(item.id)) return false
         if (userCount < item.createdAtUserCount) return false
-        if (item.failed) return true
+        if (item.failed) return false
+        if (item.parkedInputId) return !dockedIds.has(item.parkedInputId)
         if (item.executionId) return !durableTurnIds.has(item.executionId)
         return userCount < item.coveredAtUserCount
     })
@@ -103,7 +104,7 @@ export const retirePendingSends = (
 }
 
 /** Disposable user rows; the id prefix keeps rewind from finding an echo in the AI SDK array. */
-export const pendingSendMessages = (pending: readonly PendingSend[]): UIMessage[] =>
+export const pendingSendEchoMessages = (pending: readonly PendingSendEcho[]): UIMessage[] =>
     pending.map(
         (item) =>
             ({
@@ -116,7 +117,6 @@ export const pendingSendMessages = (pending: readonly PendingSend[]): UIMessage[
                 metadata: {
                     pendingSend: true,
                     ...(item.executionId ? {pendingSendExecutionId: item.executionId} : {}),
-                    ...(item.failed ? {pendingSendFailed: true} : {}),
                 },
             }) as unknown as UIMessage,
     )
@@ -127,13 +127,13 @@ const previewExecutionId = (message: UIMessage): string | null => {
 }
 
 /**
- * Order the tail of the transcript: saved rows, then echoes, then live output.
+ * Order the tail of the transcript: saved rows, then any answer already streaming, then the
+ * echoes, then the answer to those echoes.
  *
- * A preview for an execution NO echo owns belongs to an earlier turn that has not been retired
- * yet, so it stays above the echoes. A preview for an echo's own execution is that echo's answer
- * and belongs below it.
+ * A preview belongs to an execution. One no echo owns is an EARLIER turn's answer still on screen,
+ * so a newly sent question must go below it, not above.
  */
-export const mergePendingSendRows = (
+export const mergePendingSendEchoRows = (
     durable: UIMessage[],
     echoes: UIMessage[],
     preview: UIMessage[],
@@ -149,13 +149,12 @@ export const mergePendingSendRows = (
                 : []
         }),
     )
-    const earlier = preview.filter((message) => {
+    const earlier: UIMessage[] = []
+    const answers: UIMessage[] = []
+    for (const message of preview) {
         const id = previewExecutionId(message)
-        return !id || !owned.has(id)
-    })
-    const answers = preview.filter((message) => {
-        const id = previewExecutionId(message)
-        return !!id && owned.has(id)
-    })
+        if (id && owned.has(id)) answers.push(message)
+        else earlier.push(message)
+    }
     return [...durable, ...earlier, ...echoes, ...answers]
 }

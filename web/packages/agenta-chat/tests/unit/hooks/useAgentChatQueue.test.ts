@@ -1248,31 +1248,45 @@ it.each([false, true])(
     },
 )
 
-// ── The local echo of a durable send ──────────────────────────────────────────────────────────
-// A server-owned send adds nothing to the AI SDK chat, so without an echo the transcript stays
-// unchanged until the records read that adopts the saved row lands. These cover the three ways an
-// echo retires: the dock takes it (202), the durable row lands (200), and the send is refused.
-
-const durableServer = (overrides: Partial<ServerQueueAdapter> = {}): ServerQueueAdapter => ({
-    capabilities: {queue: true, steer: true},
-    busy: false,
-    queued: [],
-    submit: vi.fn().mockResolvedValue("running"),
-    remove: vi.fn().mockResolvedValue(undefined),
-    ...overrides,
-})
+// ── Wiring the echo of a durable send ─────────────────────────────────────────────────────────
+// Reconciliation itself lives in usePendingSendEchoes and is tested there. These cover only what
+// this hook is responsible for: showing the send at once, and routing each server outcome to it.
 
 const echoText = (result: {current: {pendingSendRows: UIMessage[]}}) =>
     result.current.pendingSendRows.map((row) =>
         row.parts.map((part) => ("text" in part ? part.text : "")).join(""),
     )
 
-describe("useAgentChatQueue pending-send echoes", () => {
-    it("shows a durable send at once, before the request resolves", async () => {
+interface CapturedWatcher {
+    onAccepted?: (executionId: string) => void
+    onParked?: (inputId: string) => void
+    onFailed?: () => void
+}
+
+const durableServer = (
+    admission: "running" | "queued" = "running",
+): {server: ServerQueueAdapter; watchers: CapturedWatcher[]} => {
+    const watchers: CapturedWatcher[] = []
+    const server: ServerQueueAdapter = {
+        capabilities: {queue: true, steer: true},
+        busy: false,
+        queued: [],
+        submit: vi.fn(
+            (_message: QueuedMessage, _policy: "queue" | "steer", watcher?: CapturedWatcher) => {
+                if (watcher) watchers.push(watcher)
+                return Promise.resolve(admission)
+            },
+        ),
+        remove: vi.fn().mockResolvedValue(undefined),
+    }
+    return {server, watchers}
+}
+
+describe("useAgentChatQueue durable send echoes", () => {
+    it("shows a durable send before the request resolves", async () => {
         let admit!: (value: "running") => void
-        const server = durableServer({
-            submit: vi.fn(() => new Promise<"running">((resolve) => (admit = resolve))),
-        })
+        const {server} = durableServer()
+        server.submit = vi.fn(() => new Promise<"running">((resolve) => (admit = resolve)))
         const {result} = setup({...settledEmpty, server})
 
         act(() => {
@@ -1281,48 +1295,77 @@ describe("useAgentChatQueue pending-send echoes", () => {
 
         expect(echoText(result)).toEqual(["show me now"])
         expect(result.current.pendingSendRows[0].role).toBe("user")
-        await act(async () => {
-            admit("running")
-        })
-        // A started run keeps the echo: its saved row has not been adopted yet.
+        await act(async () => admit("running"))
         expect(echoText(result)).toEqual(["show me now"])
     })
 
-    it("retires the echo when the adopted transcript carries the saved row", async () => {
-        const server = durableServer()
+    it("retires it when the transcript adopts the turn the server named", async () => {
+        const {server, watchers} = durableServer()
         const props: HarnessProps = {...settledEmpty, server}
         const {result, rerender} = setup(props)
 
         await act(async () => {
             await result.current.submit({text: "saved soon"})
         })
+        await act(async () => watchers[0].onAccepted?.("turn-1"))
         expect(echoText(result)).toEqual(["saved soon"])
 
-        rerender({...props, messages: [userTurn("record-1", "saved soon")]})
-
+        rerender({
+            ...props,
+            messages: [
+                {
+                    id: "record-1",
+                    role: "user",
+                    parts: [{type: "text", text: "saved soon"}],
+                    metadata: {turnId: "turn-1"},
+                } as unknown as UIMessage,
+            ],
+        })
         expect(result.current.pendingSendRows).toHaveLength(0)
     })
 
-    it("hands a queued message to the dock instead of the transcript", async () => {
-        const server = durableServer({submit: vi.fn().mockResolvedValue("queued")})
-        const {result} = setup({
+    it("keeps a parked send until the dock actually lists its durable input", async () => {
+        const {server, watchers} = durableServer("queued")
+        const props: HarnessProps = {
             ...settledEmpty,
             status: "streaming",
             messages: [userTurn("u1", "go")],
             server,
-        })
+        }
+        const {result, rerender} = setup(props)
 
         await act(async () => {
             await result.current.submit({text: "behind the turn"})
         })
+        await act(async () => watchers[0].onParked?.("input-1"))
+        expect(echoText(result)).toEqual(["behind the turn"])
 
+        rerender({
+            ...props,
+            server: {
+                ...server,
+                queued: [{id: "input-1", text: "behind the turn", source: "server"}],
+            },
+        })
         expect(result.current.pendingSendRows).toHaveLength(0)
     })
 
-    it("drops the echo when the send is refused, so the composer restore is not doubled", async () => {
-        const server = durableServer({
-            submit: vi.fn().mockRejectedValue(new Error("The input was not accepted (409).")),
+    it("drops it when the run stream never accepts a turn", async () => {
+        const {server, watchers} = durableServer()
+        const {result} = setup({...settledEmpty, server})
+
+        await act(async () => {
+            await result.current.submit({text: "never started"})
         })
+        expect(echoText(result)).toEqual(["never started"])
+
+        await act(async () => watchers[0].onFailed?.())
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+
+    it("drops it when the send is refused, so the composer restore is not doubled", async () => {
+        const {server} = durableServer()
+        server.submit = vi.fn().mockRejectedValue(new Error("The input was not accepted (409)."))
         const {result} = setup({...settledEmpty, server})
 
         await act(async () => {
@@ -1334,27 +1377,6 @@ describe("useAgentChatQueue pending-send echoes", () => {
         expect(result.current.pendingSendRows).toHaveLength(0)
     })
 
-    it("retires a burst oldest-first as each saved row arrives", async () => {
-        const server = durableServer()
-        const props: HarnessProps = {...settledEmpty, server}
-        const {result, rerender} = setup(props)
-
-        await act(async () => {
-            await result.current.submit({text: "one"})
-            await result.current.submit({text: "two"})
-        })
-        expect(echoText(result)).toEqual(["one", "two"])
-
-        rerender({...props, messages: [userTurn("record-1", "one")]})
-        expect(echoText(result)).toEqual(["two"])
-
-        rerender({
-            ...props,
-            messages: [userTurn("record-1", "one"), userTurn("record-2", "two")],
-        })
-        expect(result.current.pendingSendRows).toHaveLength(0)
-    })
-
     it("adds no echo when the browser-local path already renders the message", () => {
         const {result, sendQueued} = setup(settledEmpty)
 
@@ -1363,182 +1385,6 @@ describe("useAgentChatQueue pending-send echoes", () => {
         })
 
         expect(sendQueued).toHaveBeenCalledTimes(1)
-        expect(result.current.pendingSendRows).toHaveLength(0)
-    })
-})
-
-describe("useAgentChatQueue echo retirement timing", () => {
-    it("never paints an adopted durable row and its echo in the same frame", async () => {
-        // Retirement in an effect runs AFTER the paint, so the frame carrying the newly adopted
-        // row would also carry the echo: one duplicate-bubble flash per send.
-        const server = durableServer()
-        const props: HarnessProps = {...settledEmpty, server}
-        const frames: {durableUsers: number; echoes: number}[] = []
-        const {result, rerender} = renderHook(
-            (p: HarnessProps) => {
-                const queue = useAgentChatQueue({
-                    ...p,
-                    markRunOwned: () => undefined,
-                    sendQueued: () => undefined,
-                })
-                frames.push({
-                    durableUsers: p.messages.filter((m) => m.role === "user").length,
-                    echoes: queue.pendingSendRows.length,
-                })
-                return queue
-            },
-            {initialProps: props},
-        )
-
-        await act(async () => {
-            await result.current.submit({text: "saved soon"})
-        })
-        expect(result.current.pendingSendRows).toHaveLength(1)
-
-        frames.length = 0
-        rerender({...props, messages: [userTurn("record-1", "saved soon")]})
-
-        expect(frames.length).toBeGreaterThan(0)
-        for (const frame of frames) {
-            expect(frame.durableUsers + frame.echoes).toBeLessThanOrEqual(1)
-        }
-        expect(result.current.pendingSendRows).toHaveLength(0)
-    })
-})
-
-// ── Retirement identity ───────────────────────────────────────────────────────────────────────
-// Codex review: counting alone is wrong on a shared session. Both cases below were reproduced
-// against the count-only version and fail there.
-
-const userTurnWith = (id: string, text: string, turnId: string): UIMessage =>
-    ({id, role: "user", parts: [{type: "text", text}], metadata: {turnId}}) as unknown as UIMessage
-
-/** A durable server that hands back the watcher so a test can drive acceptance itself. */
-const acknowledgingServer = () => {
-    const watchers: {onAccepted?: (id: string) => void; onFailed?: () => void}[] = []
-    const submit = vi.fn(
-        (
-            _message: QueuedMessage,
-            _policy: "queue" | "steer",
-            watcher?: (typeof watchers)[number],
-        ) => {
-            if (watcher) watchers.push(watcher)
-            return Promise.resolve("running" as const)
-        },
-    )
-    const server: ServerQueueAdapter = {
-        capabilities: {queue: true, steer: true},
-        busy: false,
-        queued: [],
-        submit,
-        remove: vi.fn().mockResolvedValue(undefined),
-    }
-    return {server, watchers, submit}
-}
-
-describe("useAgentChatQueue retirement identity", () => {
-    it("keeps an acknowledged echo when a FOREIGN user row lands first", async () => {
-        // Another tab, a promoted queued input, or a history adoption raises the user count while
-        // saying nothing about this send. Counting alone would retire the echo here and the
-        // message would vanish again until its own record arrived.
-        const {server, watchers} = acknowledgingServer()
-        const props: HarnessProps = {...settledEmpty, server}
-        const {result, rerender} = setup(props)
-
-        await act(async () => {
-            await result.current.submit({text: "mine"})
-        })
-        await act(async () => {
-            watchers[0].onAccepted?.("turn-mine")
-        })
-        expect(result.current.pendingSendRows).toHaveLength(1)
-
-        rerender({...props, messages: [userTurnWith("foreign-1", "theirs", "turn-foreign")]})
-        expect(result.current.pendingSendRows).toHaveLength(1)
-
-        rerender({
-            ...props,
-            messages: [
-                userTurnWith("foreign-1", "theirs", "turn-foreign"),
-                userTurnWith("mine-1", "mine", "turn-mine"),
-            ],
-        })
-        expect(result.current.pendingSendRows).toHaveLength(0)
-    })
-
-    it("retires B after A fails, instead of duplicating B's saved row forever", async () => {
-        // A reserved user count 4 and B reserved 5. A fails, so B's own record saves as row 4.
-        // Without renumbering B waits for 5 that never comes, and the echo sits beside the saved
-        // row permanently.
-        let failA!: () => void
-        const watchers: {onAccepted?: (id: string) => void; onFailed?: () => void}[] = []
-        const server: ServerQueueAdapter = {
-            capabilities: {queue: true, steer: true},
-            busy: false,
-            queued: [],
-            submit: vi.fn(
-                (_m: QueuedMessage, _p: "queue" | "steer", watcher?: (typeof watchers)[number]) => {
-                    if (watcher) watchers.push(watcher)
-                    return Promise.resolve("running" as const)
-                },
-            ),
-            remove: vi.fn().mockResolvedValue(undefined),
-        }
-        const base = [userTurn("h1", "one"), userTurn("h2", "two"), userTurn("h3", "three")]
-        const props: HarnessProps = {...settledEmpty, messages: base, server}
-        const {result, rerender} = setup(props)
-
-        await act(async () => {
-            await result.current.submit({text: "A"})
-            await result.current.submit({text: "B"})
-        })
-        expect(result.current.pendingSendRows).toHaveLength(2)
-
-        failA = () => watchers[0].onFailed?.()
-        await act(async () => {
-            failA()
-        })
-        expect(result.current.pendingSendRows).toHaveLength(1)
-
-        // B's record saves as the fourth user row, the count A had reserved.
-        rerender({...props, messages: [...base, userTurn("saved-b", "B")]})
-        expect(result.current.pendingSendRows).toHaveLength(0)
-    })
-
-    it("drops the echo when a 200 stream ends without ever accepting a turn", async () => {
-        const {server, watchers} = acknowledgingServer()
-        const {result} = setup({...settledEmpty, server})
-
-        await act(async () => {
-            await result.current.submit({text: "never started"})
-        })
-        expect(result.current.pendingSendRows).toHaveLength(1)
-
-        await act(async () => {
-            watchers[0].onFailed?.()
-        })
-        expect(result.current.pendingSendRows).toHaveLength(0)
-    })
-
-    it("hands the row to the dock once the durable queue reports it", async () => {
-        const {server} = acknowledgingServer()
-        const props: HarnessProps = {...settledEmpty, server}
-        const {result, rerender} = setup(props)
-
-        let sent!: QueuedMessage
-        server.submit = vi.fn((message: QueuedMessage) => {
-            sent = message
-            return Promise.resolve("running" as const)
-        })
-        await act(async () => {
-            await result.current.submit({text: "docked"})
-        })
-        expect(result.current.pendingSendRows).toHaveLength(1)
-
-        rerender({
-            ...props,
-            server: {...server, queued: [{...sent, source: "server"}]},
-        })
         expect(result.current.pendingSendRows).toHaveLength(0)
     })
 })

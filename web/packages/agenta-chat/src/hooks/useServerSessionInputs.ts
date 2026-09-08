@@ -20,9 +20,13 @@ import type {QueuedMessage} from "./useAgentChatQueue"
 /** "queued" parks the input and the dock owns it; "running" starts a turn the transcript adopts. */
 export type ServerInputAdmission = "queued" | "running"
 
-/** Reports the accepted turn, and a terminal failure when no turn was ever accepted. */
+/** Reports what became of ONE send, so its echo can retire on evidence about itself. */
 export interface ServerInputWatcher {
+    /** The run stream named the turn this send started. */
     onAccepted?: (executionId: string) => void
+    /** A 202 parked it as this durable input. */
+    onParked?: (inputId: string) => void
+    /** No turn will ever carry it: refused, errored, or accepted by nothing. */
     onFailed?: () => void
 }
 
@@ -45,26 +49,34 @@ export interface ServerSessionInputs {
 
 const emptyView = reduceSessionPendingInputs(null)
 
-const acceptedExecutionIdFromLine = (line: string): string | null => {
+const RUN_ERROR_FRAME_TYPES = new Set(["error", "data-agent-error"])
+
+type RunFrame = {kind: "accepted"; executionId: string} | {kind: "error"} | null
+
+const runFrameFromLine = (line: string): RunFrame => {
     const payload = line.startsWith("data:") ? line.slice(5).trim() : line.trim()
     if (!payload || payload === "[DONE]") return null
     try {
         const frame = JSON.parse(payload) as {type?: unknown; data?: {executionId?: unknown}}
+        if (typeof frame.type !== "string") return null
+        if (RUN_ERROR_FRAME_TYPES.has(frame.type)) return {kind: "error"}
         if (frame.type !== "data-session-accepted") return null
         const id = frame.data?.executionId
-        return typeof id === "string" && id ? id : null
+        return typeof id === "string" && id ? {kind: "accepted", executionId: id} : null
     } catch {
         return null
     }
 }
 
 /**
- * Drain the run stream, reporting the accepted turn id from its first frame.
+ * Drain the run stream and report what it says about this send.
  *
- * The body is consumed either way so the connection closes; only the acceptance is read out of it.
- * Reaching the end without an acceptance is a refusal carried inside a 200, so it reports failure.
+ * An HTTP 200 only proves the request was taken. The runner can refuse inside the stream, so an
+ * error frame BEFORE acceptance, or an end with no acceptance at all, means no turn ever carried
+ * the message. After acceptance the turn exists and its failure is the transcript's to render, so
+ * the echo is left to retire on its saved row.
  */
-const readAcceptedExecutionId = async (
+const readRunAdmission = async (
     response: Response,
     watcher?: ServerInputWatcher,
 ): Promise<void> => {
@@ -85,19 +97,32 @@ const readAcceptedExecutionId = async (
             const lines = buffer.split("\n")
             buffer = lines.pop() ?? ""
             for (const line of lines) {
-                const id = acceptedExecutionIdFromLine(line)
-                if (!id) continue
+                const frame = runFrameFromLine(line)
+                if (!frame) continue
+                if (frame.kind === "error") {
+                    watcher?.onFailed?.()
+                    await reader.cancel().catch(() => undefined)
+                    return
+                }
                 accepted = true
-                watcher?.onAccepted?.(id)
+                watcher?.onAccepted?.(frame.executionId)
                 break
             }
         }
     } catch {
-        // A dropped connection says nothing about the turn: the runner owns it either way.
+        // A dropped connection after acceptance says nothing: the runner owns the turn either way.
         if (!accepted) watcher?.onFailed?.()
         return
     }
     if (!accepted) watcher?.onFailed?.()
+}
+
+const parkedInputIdFromBody = (body: unknown): string | null => {
+    if (!body || typeof body !== "object") return null
+    const input = (body as {input?: unknown}).input
+    if (!input || typeof input !== "object") return null
+    const id = (input as {id?: unknown}).id
+    return typeof id === "string" && id ? id : null
 }
 
 export const useServerSessionInputs = ({
@@ -234,7 +259,14 @@ export const useServerSessionInputs = ({
             }
 
             if (response.status === 202) {
-                await response.body?.cancel()
+                // The body names the durable input this became. The echo retires when the dock is
+                // OBSERVED to list that id, not merely because this refresh returned.
+                const parkedId = await response
+                    .json()
+                    .then(parkedInputIdFromBody)
+                    .catch(() => null)
+                if (parkedId) watcher?.onParked?.(parkedId)
+                else watcher?.onFailed?.()
                 await refresh()
                 return "queued"
             }
@@ -243,7 +275,7 @@ export const useServerSessionInputs = ({
             // run in the background so the composer can admit Queue/Steer while that run streams.
             // A 200 only proves the request was taken: the turn is accepted when the stream's
             // first frame names it, and a stream that ends without one never started a turn.
-            void readAcceptedExecutionId(response, watcher)
+            void readRunAdmission(response, watcher)
                 .then(async () => {
                     await refresh()
                     onExecutedRef.current?.()

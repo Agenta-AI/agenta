@@ -16,6 +16,6 @@ export * from "./composerRunState"
 export {startupLabelFromDataPart} from "./startupPhases"
 export {getMessageTurnId, latestTurnId} from "./agentTurn"
 export * from "./resolveStopExecution"
-export * from "./pendingSends"
+export * from "./pendingSendEchoes"
 
 export {liveCommittedRevisions, type CommittedRevision} from "./committedRevisions"

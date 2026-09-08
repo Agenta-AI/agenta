@@ -11,17 +11,9 @@ import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
 import {latestTurnId} from "../assets/agentTurn"
-import {
-    compactPendingSendCoverage,
-    countUserMessages,
-    durableUserTurnIds,
-    nextPendingSendCoverage,
-    pendingSendMessages,
-    retirePendingSends,
-    type PendingSend,
-} from "../assets/pendingSends"
 
 import type {ComposerAttachment} from "./useComposerAttachments"
+import {usePendingSendEchoes} from "./usePendingSendEchoes"
 
 export interface QueuedMessage {
     id: string
@@ -39,12 +31,19 @@ export interface ServerQueueAdapter {
     resolveCapabilities?: () => Promise<{queue: boolean; steer: boolean}>
     busy: boolean
     queued: QueuedMessage[]
-    /** Resolves with what the server did: "queued" parks the input, "running" starts a turn. */
+    /**
+     * Admits one input. `watcher` reports what happened to THIS send: the turn it started, the
+     * durable input it was parked as, or its failure.
+     */
     submit: (
         message: QueuedMessage,
         policy: "queue" | "steer",
-        watcher?: {onAccepted?: (executionId: string) => void; onFailed?: () => void},
-    ) => Promise<"queued" | "running" | void>
+        watcher?: {
+            onAccepted?: (executionId: string) => void
+            onParked?: (inputId: string) => void
+            onFailed?: () => void
+        },
+    ) => Promise<"queued" | "running">
     remove: (id: string) => Promise<void>
     sendNow?: (id: string) => Promise<void>
     edit?: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
@@ -135,8 +134,6 @@ export const useAgentChatQueue = ({
 }: UseAgentChatQueueArgs) => {
     const serverBusyRef = useRef(server?.busy)
     serverBusyRef.current = server?.busy
-    const messagesRef = useRef(messages)
-    messagesRef.current = messages
     const [queued, setQueued] = useState<QueuedMessage[]>(
         () => (sessionId && queuedBySession.get(sessionId)) || [],
     )
@@ -215,65 +212,13 @@ export const useAgentChatQueue = ({
         queuedRef.current = queued
     }, [queued])
 
-    // Local echoes of durable sends, which the AI SDK chat never receives. See `pendingSends.ts`.
-    const [pendingSends, setPendingSends] = useState<readonly PendingSend[]>([])
-    // The ref leads the state: two sends can land in one render, and the second must not reuse
-    // the first's coverage number.
-    const pendingSendsRef = useRef(pendingSends)
-    const updatePendingSends = useCallback(
-        (next: (current: readonly PendingSend[]) => readonly PendingSend[]) => {
-            const computed = next(pendingSendsRef.current)
-            if (computed === pendingSendsRef.current) return
-            pendingSendsRef.current = computed
-            setPendingSends(computed)
-        },
-        [],
-    )
-    const userMessageCount = countUserMessages(messages)
-    const userMessageCountRef = useRef(userMessageCount)
-    userMessageCountRef.current = userMessageCount
-    const durableTurnIds = useMemo(() => durableUserTurnIds(messages), [messages])
-    const dockedIds = useMemo(
+    // Echo rows for durable sends, which the AI SDK chat never receives. Owned by its own hook so
+    // this one keeps to admission, queueing, and editing.
+    const dockedInputIds = useMemo(
         () => new Set((server?.queued ?? []).map((item) => item.id)),
         [server?.queued],
     )
-    // Retire DURING render, never in an effect: an effect runs after the paint, so the frame that
-    // first carries an adopted durable row would also carry its echo — one duplicate-bubble flash
-    // per send. Setting state here makes React re-run this render before painting anything.
-    const retiredPendingSends = retirePendingSends(pendingSendsRef.current, {
-        userCount: userMessageCount,
-        durableTurnIds,
-        dockedIds,
-    })
-    if (retiredPendingSends !== pendingSendsRef.current) {
-        pendingSendsRef.current = retiredPendingSends
-        setPendingSends(retiredPendingSends)
-    }
-    const dropPendingSend = useCallback(
-        (id: string) => {
-            updatePendingSends((current) => {
-                const next = current.filter((item) => item.id !== id)
-                // Renumber what is left: an echo behind a dropped one reserved a count that is now
-                // one too high, and would never retire.
-                return next.length === current.length
-                    ? current
-                    : compactPendingSendCoverage(next, userMessageCountRef.current)
-            })
-        },
-        [updatePendingSends],
-    )
-    const markPendingSendAccepted = useCallback(
-        (id: string, executionId: string) => {
-            updatePendingSends((current) => {
-                const index = current.findIndex((item) => item.id === id)
-                if (index < 0 || current[index].executionId === executionId) return current
-                const next = [...current]
-                next[index] = {...next[index], executionId}
-                return next
-            })
-        },
-        [updatePendingSends],
-    )
+    const echoes = usePendingSendEchoes({messages, dockedInputIds})
 
     // Retained until admission so a refused immediate send can return to the composer.
     const lastSentRef = useRef<QueuedMessage | undefined>(undefined)
@@ -376,37 +321,20 @@ export const useAgentChatQueue = ({
             const message: QueuedMessage = {...item, id: generateId()}
             const admit = (queue: boolean) => {
                 if (queue && server) {
-                    // Echo it before the request leaves; the dock owns it on a 202 and the
-                    // composer restore owns it on a refusal, so drop it in both cases.
-                    updatePendingSends((current) => {
-                        const userCount = countUserMessages(messagesRef.current)
-                        return [
-                            ...current,
-                            {
-                                id: message.id,
-                                text: message.text,
-                                fileParts: message.fileParts,
-                                coveredAtUserCount: nextPendingSendCoverage(userCount, current),
-                                createdAtUserCount: userCount,
-                            },
-                        ]
-                    })
-                    const watcher = {
-                        // The turn id from the response's first frame is what the saved user row
-                        // carries, so from here the echo retires on identity, not on a count.
-                        onAccepted: (executionId: string) =>
-                            markPendingSendAccepted(message.id, executionId),
-                        onFailed: () => dropPendingSend(message.id),
-                    }
-                    return server.submit(message, "queue", watcher).then(
-                        (admission) => {
-                            if (admission === "queued") dropPendingSend(message.id)
-                        },
-                        (error: unknown) => {
-                            dropPendingSend(message.id)
+                    // Show it before the request leaves. Every exit is driven by evidence about
+                    // this send: the turn it started, the dock row it became, or its failure.
+                    echoes.add(message)
+                    return server
+                        .submit(message, "queue", {
+                            onAccepted: (executionId) =>
+                                echoes.markAccepted(message.id, executionId),
+                            onParked: (inputId) => echoes.markParked(message.id, inputId),
+                            onFailed: () => echoes.drop(message.id),
+                        })
+                        .then(undefined, (error: unknown) => {
+                            echoes.drop(message.id)
                             throw error
-                        },
-                    )
+                        })
                 }
                 if (recoverable && retryContinuation) {
                     setQueued((q) => [...q, message])
@@ -437,17 +365,7 @@ export const useAgentChatQueue = ({
                 ? server.resolveCapabilities().then((capabilities) => admit(capabilities.queue))
                 : admit(server?.capabilities.queue === true)
         },
-        [
-            canReleaseNow,
-            dropPendingSend,
-            recoverable,
-            retryContinuation,
-            markPendingSendAccepted,
-            markRunOwned,
-            sendQueued,
-            server,
-            updatePendingSends,
-        ],
+        [canReleaseNow, echoes, recoverable, retryContinuation, markRunOwned, sendQueued, server],
     )
 
     const removeQueued = useCallback(
@@ -617,16 +535,10 @@ export const useAgentChatQueue = ({
         sendQueued(head)
     }, [settled, canReleaseNow, queued, markRunOwned, sendQueued])
 
-    // Keyed on the retired list, so this render never rebuilds a row it just dropped.
-    const pendingSendRows = useMemo(
-        () => pendingSendMessages(retiredPendingSends),
-        [retiredPendingSends],
-    )
-
     return {
         queued: [...(server?.queued ?? []), ...queued],
-        /** Sent-but-not-yet-saved user rows; render after the adopted messages, before the preview. */
-        pendingSendRows,
+        /** Sent-but-not-yet-saved user rows; merge with `mergePendingSendEchoRows`. */
+        pendingSendRows: echoes.rows,
         submit,
         steer,
         removeQueued,

@@ -7,7 +7,7 @@ import {
     messageText,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
-import {getMessageTraceId, mergePendingSendRows} from "@agenta/chat/assets"
+import {getMessageTraceId, mergePendingSendEchoRows} from "@agenta/chat/assets"
 import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {AttachmentDropOverlay, ConnectionFocusProvider} from "@agenta/chat/components"
 import {
@@ -469,7 +469,7 @@ const AgentConversation = ({
         const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
         const live =
             turnDeliverySource === "legacy" || previewMessages.length === 0 ? [] : previewMessages
-        return mergePendingSendRows(durableMessages, pendingSendRows, live)
+        return mergePendingSendEchoRows(durableMessages, pendingSendRows, live)
     }, [messages, pendingSendRows, previewMessages, turnDeliverySource])
 
     // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision made

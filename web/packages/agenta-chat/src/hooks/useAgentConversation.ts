@@ -54,7 +54,7 @@ import {
     loadSessionMessages,
     type SessionTranscript,
 } from "../assets/loadSession"
-import {mergePendingSendRows} from "../assets/pendingSends"
+import {mergePendingSendEchoRows} from "../assets/pendingSendEchoes"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {submitApprovalForCapability} from "../assets/serverOwnedApproval"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
@@ -1078,7 +1078,7 @@ export const useAgentConversation = ({
     const displayMessages = useMemo(() => {
         const transcriptMessages = withoutSharedSenderAcceptanceMessages(messages)
         const live = includePreview && previewMessages.length ? previewMessages : []
-        return mergePendingSendRows(transcriptMessages, pendingSendRows, live)
+        return mergePendingSendEchoRows(transcriptMessages, pendingSendRows, live)
     }, [includePreview, messages, pendingSendRows, previewMessages])
 
     const applyInteractionStates = useCallback(
