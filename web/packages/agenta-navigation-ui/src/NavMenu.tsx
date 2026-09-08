@@ -476,11 +476,15 @@ const NavMenuImpl = ({
             return (
                 <Fragment key={item.key}>
                     <div
-                        className={clsx(
+                        // cn, as LeafRow does: `pr-0` has to beat ROW_BASE's `px-3` on this list
+                        // rather than on Tailwind's emission order, and a group row carries its
+                        // own class like any other row.
+                        className={cn(
                             ROW_BASE,
                             item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                             selected && ROW_SELECTED,
                             "pr-0",
+                            item.rowClassName,
                         )}
                     >
                         {item.icon ? (
