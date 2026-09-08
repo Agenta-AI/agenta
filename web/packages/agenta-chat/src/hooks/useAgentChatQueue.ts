@@ -355,13 +355,12 @@ export const useAgentChatQueue = ({
                             // The turn ended and its records were re-read. An echo still on
                             // screen is one whose row was never persisted, so it stops waiting
                             // silently; a row that arrives later still retires it.
-                            onSettled: () => {
-                                if (restoreRefusedSendRef.current?.(message)) {
-                                    echoes.drop(message.id)
-                                } else {
-                                    echoes.markFailed(message.id)
-                                }
-                            },
+                            // Settlement never touches the composer. It only marks an echo that
+                            // is STILL waiting, and marking one that has already retired is a
+                            // no-op. Restoring here would write a delivered message back into
+                            // the input under "wasn't sent", which is the normal accepted path:
+                            // row adopted, echo retired, stream ends.
+                            onSettled: () => echoes.markFailed(message.id),
                         })
                         .then(undefined, (error: unknown) => {
                             echoes.drop(message.id)

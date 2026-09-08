@@ -1469,3 +1469,52 @@ describe("useAgentChatQueue late refusal recovery", () => {
         expect(result.current.pendingSendRows[0].metadata).toMatchObject({pendingSendFailed: true})
     })
 })
+
+describe("useAgentChatQueue settlement never touches the composer", () => {
+    it("does not restore a delivered message when its echo has already retired", async () => {
+        // The normal accepted path: row adopted, echo retired, stream ends. Restoring here wrote
+        // a delivered and answered message back into the input under "wasn't sent".
+        const {server, watchers} = durableServer()
+        const restoreRefusedSend = vi.fn(() => true)
+        const props: HarnessProps = {...settledEmpty, server, restoreRefusedSend}
+        const {result, rerender} = setup(props)
+
+        await act(async () => {
+            await result.current.submit({text: "delivered"})
+        })
+        await act(async () => watchers[0].onAccepted?.("turn-1"))
+
+        rerender({
+            ...props,
+            messages: [
+                {
+                    id: "record-1",
+                    role: "user",
+                    parts: [{type: "text", text: "delivered"}],
+                    metadata: {turnId: "turn-1"},
+                } as unknown as UIMessage,
+            ],
+        })
+        expect(result.current.pendingSendRows).toHaveLength(0)
+
+        await act(async () => watchers[0].onSettled?.())
+
+        expect(restoreRefusedSend).not.toHaveBeenCalled()
+        expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+
+    it("still flags an echo that is genuinely still waiting when its turn settles", async () => {
+        const {server, watchers} = durableServer()
+        const restoreRefusedSend = vi.fn(() => true)
+        const {result} = setup({...settledEmpty, server, restoreRefusedSend})
+
+        await act(async () => {
+            await result.current.submit({text: "never persisted"})
+        })
+        await act(async () => watchers[0].onAccepted?.("turn-1"))
+        await act(async () => watchers[0].onSettled?.())
+
+        expect(restoreRefusedSend).not.toHaveBeenCalled()
+        expect(result.current.pendingSendRows[0].metadata).toMatchObject({pendingSendFailed: true})
+    })
+})
