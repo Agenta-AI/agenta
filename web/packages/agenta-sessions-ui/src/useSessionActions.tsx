@@ -109,6 +109,9 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                     sessionId: target.sessionId,
                     projectId,
                     name,
+                    // A person typed this one, so the server remembers it as theirs and
+                    // refuses an agent rename over it.
+                    nameSource: "manual",
                 })
                 if (!ok) return false
             }

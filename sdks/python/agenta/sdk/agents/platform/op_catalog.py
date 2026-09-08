@@ -1452,6 +1452,8 @@ _RENAME_SESSION_DESCRIPTION = """Name and describe the session you are running i
 
 `description` is the current state: a short recap of what has happened and what is open, one to one and a half sentences, short enough to read inside a table cell.
 
+If a person named the session themselves, this tool refuses and gives you their name. Adopt that name and move on. Only when the person asks you for a different name, call it again with `replacing_name` and `replacing_revision` copied from that refusal. Those spend the request on one particular state of the session, so a rename the person has since overtaken or undone cannot take effect later.
+
 This renames the session you are in and no other one. It works only inside a session."""
 
 _RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
@@ -1467,6 +1469,17 @@ _RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
         "description": {
             "type": "string",
             "maxLength": 300,
+        },
+        "replacing_name": {
+            "type": "string",
+            "maxLength": 400,
+        },
+        "replacing_revision": {
+            "type": "integer",
+            # 0 is a real revision, not a missing one: a session whose title was filled from
+            # its first message and then kept by the person has a name nobody counted.
+            # Rejecting 0 here would make that one session impossible to rename on request.
+            "minimum": 0,
         },
     },
     "required": ["name"],
@@ -1570,7 +1583,12 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             op="rename_session",
             description=_RENAME_SESSION_DESCRIPTION,
             method="POST",
-            path="/api/sessions/streams/header?session_id={session_id}",
+            # `name_source=automatic` is fixed here, in code, and the model fills only the
+            # body, so an agent cannot claim a person chose the name. The endpoint refuses an
+            # automatic rename over a name a person controls, which is what stops a call the
+            # agent decided before the person renamed from replacing their name when it
+            # finally runs.
+            path="/api/sessions/streams/header?session_id={session_id}&name_source=automatic",
             input_schema=_RENAME_SESSION_INPUT_SCHEMA,
             context_bindings={"session_id": "$ctx.session.id"},
             read_only=False,
