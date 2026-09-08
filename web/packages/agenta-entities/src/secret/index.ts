@@ -62,6 +62,7 @@ export type {
     ProviderCatalogEntry,
     ProviderConnection,
     SubscriptionHarnessStatus,
+    SubscriptionLoginState,
     SubscriptionPair,
 } from "./core"
 
@@ -100,9 +101,19 @@ export {
     activeModelsSummary,
     connectedRowSubtitle,
     connectionModelCount,
+    subscriptionConnectionCandidates,
+    subscriptionIsReady,
     subscriptionPairModels,
     subscriptionPairsFrom,
     subscriptionPlanName,
+    subscriptionProviderFamily,
+    subscriptionProviderName,
+    subscriptionRunProvider,
+    subscriptionStatusLine,
+    DEFAULT_SUBSCRIPTION_HARNESSES,
+    SUBSCRIPTION_LOGIN_STATES,
+    SUBSCRIPTION_PROVIDER_KIND,
+    SUBSCRIPTION_SIGN_IN_HINT,
     bareModelId,
     credentialStatusLine,
     harnessSummary,
@@ -126,6 +137,7 @@ export {
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    isSubscriptionConnection,
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
@@ -143,6 +155,17 @@ export {
 // ============================================================================
 
 export {fetchVaultSecret, createVaultSecret, updateVaultSecret, deleteVaultSecret} from "./api"
+export {
+    LOGIN_ATTEMPT_BACKSTOP_MS,
+    LOGIN_ATTEMPT_STATES,
+    MIN_LOGIN_POLL_MS,
+    cancelLoginAttempt,
+    fetchLoginAttempt,
+    isTerminalLoginAttemptState,
+    startLoginAttempt,
+    type LoginAttemptResponse,
+    type LoginAttemptState,
+} from "./api"
 export {
     CREDENTIAL_STATUSES,
     DISCOVERY_STATUSES,
@@ -175,7 +198,17 @@ export {
     probeProviderMutationAtom,
     saveProviderConnectionAtom,
     subscriptionPairModelsAtom,
+    buildSubscriptionSecretPayload,
+    cancelSubscriptionLoginAtom,
+    createSubscriptionConnectionAtom,
+    forgetLoginAttemptAtom,
+    loginAttemptKey,
+    loginAttemptPollInterval,
+    loginAttemptQueryAtomFamily,
+    refreshVaultSecretsAtom,
+    startSubscriptionLoginAtom,
     useVaultSecret,
+    type LoginAttemptKey,
 } from "./state"
 
 // ============================================================================

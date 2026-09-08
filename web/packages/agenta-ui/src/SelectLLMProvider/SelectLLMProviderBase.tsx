@@ -139,6 +139,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
             // sections are authored by the caller and have no loose shapes to normalize.
             tag: group?.tag,
             tagTone: group?.tagTone,
+            disabled: group?.disabled,
             sections: group?.sections,
             options:
                 (group.options
@@ -192,7 +193,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
             ),
         })
 
-        return normalizedGroups.map(filterGroupOptions).filter((group) => group.options.length)
+        // A disabled group is a status row, not a result: it survives the option filter so the
+        // cascade can still explain itself, but never appears in a search, which is about matches.
+        return normalizedGroups
+            .map(filterGroupOptions)
+            .filter((group) => (group.disabled ? !normalizedSearchTerm : group.options.length > 0))
     }, [normalizedGroups, searchTerm])
 
     const isSearching = searchTerm.trim().length > 0
@@ -200,7 +205,10 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     // The panel cascade only renders when there is nothing to search through.
     const showPanels = shouldUseProviderPanels && !isSearching
     const hoveredGroup = useMemo(
-        () => filteredProviders.find((group) => groupKeyOf(group) === hoveredProvider) ?? null,
+        () =>
+            filteredProviders.find(
+                (group) => !group.disabled && groupKeyOf(group) === hoveredProvider,
+            ) ?? null,
         [filteredProviders, hoveredProvider],
     )
     /** Where the provider cursor sits, so the search field can name that row to a screen reader. */
@@ -331,14 +339,17 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 if (activeModelIndex !== null) {
                     setActiveModelIndex(move(models, activeModelIndex, dir))
                 } else {
-                    const next = move(
-                        filteredProviders,
-                        providerIndex < 0 ? -1 : providerIndex,
-                        dir,
-                    )
-                    setHoveredProvider(
-                        filteredProviders[next] ? groupKeyOf(filteredProviders[next]) : null,
-                    )
+                    // A disabled row is a note, not a destination: step over it, and give up after
+                    // one full lap so a list of nothing but notes cannot spin.
+                    let next = providerIndex < 0 ? -1 : providerIndex
+                    let remaining = filteredProviders.length
+                    while (remaining > 0) {
+                        next = move(filteredProviders, next, dir)
+                        if (!filteredProviders[next]?.disabled) break
+                        remaining -= 1
+                    }
+                    const target = filteredProviders[next]
+                    setHoveredProvider(target && !target.disabled ? groupKeyOf(target) : null)
                 }
             } else if (e.key === "ArrowRight" && models.length) {
                 e.preventDefault()
@@ -733,6 +744,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     </div>
                                 ) : (
                                     filteredProviders.map((group, idx) => {
+                                        // The flat list is options only, so a group with none —
+                                        // a disabled status row — has nothing to draw here.
+                                        if (!group.options.length) return null
                                         const GroupIcon = getProviderIcon(
                                             group.iconKey || group.label || "",
                                         )
@@ -785,7 +799,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                         const Icon = getProviderIcon(
                                             group.iconKey || group.label || "",
                                         )
-                                        const isHovered = hoveredProvider === groupKeyOf(group)
+                                        const isDisabled = !!group.disabled
+                                        const isHovered =
+                                            !isDisabled && hoveredProvider === groupKeyOf(group)
                                         // A group naming itself (a connection) is shown verbatim;
                                         // a provider-family label still gets its display name.
                                         const displayName = group.iconKey
@@ -800,18 +816,23 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                 // The open column IS this listbox's chosen row —
                                                 // there is no other provider value to mark.
                                                 aria-selected={isHovered}
+                                                aria-disabled={isDisabled || undefined}
                                                 data-active={isHovered && activeModelIndex === null}
                                                 onMouseEnter={() => {
+                                                    if (isDisabled) return
                                                     setHoveredProvider(groupKeyOf(group))
                                                     setActiveModelIndex(null)
                                                 }}
                                                 onClick={() => {
+                                                    if (isDisabled) return
                                                     setHoveredProvider(groupKeyOf(group))
                                                     setActiveModelIndex(0)
                                                 }}
                                                 className={clsx(
                                                     ROW_CLASS,
-                                                    "hover:bg-muted",
+                                                    isDisabled
+                                                        ? "cursor-default opacity-60"
+                                                        : "hover:bg-muted",
                                                     isHovered && "bg-muted",
                                                 )}
                                             >
@@ -840,13 +861,17 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                         </span>
                                                     ) : null}
                                                 </span>
-                                                <span className="text-field-sm tabular-nums text-colorTextTertiary">
-                                                    {group.options.length}
-                                                </span>
-                                                <CaretRight
-                                                    size={12}
-                                                    className="flex-shrink-0 text-colorTextTertiary"
-                                                />
+                                                {isDisabled ? null : (
+                                                    <>
+                                                        <span className="text-field-sm tabular-nums text-colorTextTertiary">
+                                                            {group.options.length}
+                                                        </span>
+                                                        <CaretRight
+                                                            size={12}
+                                                            className="flex-shrink-0 text-colorTextTertiary"
+                                                        />
+                                                    </>
+                                                )}
                                             </div>
                                         )
                                     })}

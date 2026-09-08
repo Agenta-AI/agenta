@@ -83,11 +83,20 @@ export const parseAgentRunError = (err: unknown, serverErrorProvenance = false):
                   : null
         if (message) {
             const type = typeof status?.type === "string" ? status.type : undefined
+            // A failure CLASS outranks the HTTP status. The server sends both, and `422` alone
+            // says only "your request was refused" — the slug says which refusal it was, and it
+            // is the same word the runner puts on its in-stream error frame. Without this, a
+            // subscription that needs a new sign-in is indistinguishable from any other 422.
+            const failureCode =
+                typeof status?.failure_code === "string" && status.failure_code
+                    ? status.failure_code
+                    : undefined
             const code = type?.endsWith("#continuation-resumed")
                 ? "continuation_resumed"
-                : typeof status?.code === "number" || typeof status?.code === "string"
-                  ? status.code
-                  : undefined
+                : (failureCode ??
+                  (typeof status?.code === "number" || typeof status?.code === "string"
+                      ? status.code
+                      : undefined))
             return {
                 message,
                 code,

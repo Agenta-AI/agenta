@@ -552,10 +552,21 @@ describe("pickerSelectionFrom", () => {
         })
     })
 
-    it("clears the slug for a subscription pick", () => {
+    it("keeps the slug on a hosted subscription pick", () => {
+        // A hosted subscription IS a stored record, and the slug is what names its sign-in.
+        // Dropping it here sent the run to whatever login the deployment happened to mount.
+        expect(
+            pickerSelectionFrom("gpt-5.6-sol", {
+                connectionSlug: "chatgpt",
+                connectionMode: "self_managed",
+                harness: "pi_core",
+            }),
+        ).toMatchObject({mode: "self_managed", slug: "chatgpt"})
+    })
+
+    it("leaves a mounted subscription pick slugless, because it names no record", () => {
         expect(
             pickerSelectionFrom("claude-fable-5", {
-                connectionSlug: "anthropic",
                 connectionMode: "self_managed",
                 harness: "claude",
             }),

@@ -17,6 +17,7 @@ export {
     resolveAgentModelSelection,
     selectableAgentHarnesses,
     soleAgentHarnessProviderFamily,
+    subscriptionConnectionCandidates,
 } from "./agentModelCandidates"
 
 export type {
@@ -106,6 +107,7 @@ export {
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    isSubscriptionConnection,
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
@@ -118,6 +120,19 @@ export {
 export {activeModelsSummary, connectedRowSubtitle, connectionModelCount} from "./connectionSummary"
 
 export type {SubscriptionHarnessStatus, SubscriptionPair} from "./subscriptionPairs"
+
+export type {SubscriptionLoginState} from "./subscriptionConnections"
+export {
+    DEFAULT_SUBSCRIPTION_HARNESSES,
+    SUBSCRIPTION_LOGIN_STATES,
+    SUBSCRIPTION_PROVIDER_KIND,
+    SUBSCRIPTION_SIGN_IN_HINT,
+    subscriptionIsReady,
+    subscriptionProviderFamily,
+    subscriptionProviderName,
+    subscriptionRunProvider,
+    subscriptionStatusLine,
+} from "./subscriptionConnections"
 export {
     subscriptionPairModels,
     subscriptionPairsFrom,

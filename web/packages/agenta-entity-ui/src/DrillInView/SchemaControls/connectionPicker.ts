@@ -9,11 +9,15 @@ import {
     agentModelSelectionIsRunnable,
     bareModelId,
     connectionModelIds,
+    DEFAULT_SUBSCRIPTION_HARNESSES,
     effectiveHarnesses,
     firstAgentModelForConnection,
+    isSubscriptionConnection,
     resolveAgentModelSelection,
+    subscriptionIsReady,
     subscriptionPlanName,
     SecretKind,
+    SUBSCRIPTION_SIGN_IN_HINT,
     type AgentModelCandidate,
     type AgentModelSelection,
     type ProviderConnection,
@@ -42,6 +46,10 @@ export interface PickerConnectionRow {
     iconKey: string
     kind: "connection" | "subscription"
     managed?: boolean
+    /** The row is shown but cannot be picked — a hosted subscription whose sign-in is not usable. */
+    disabled?: boolean
+    /** One short line under the name, saying why the row is disabled. */
+    hint?: string
     models: PickerModelRow[]
 }
 
@@ -58,6 +66,12 @@ export interface BuildPickerRowsArgs {
     candidates: readonly AgentModelCandidate[]
     connections: readonly ProviderConnection[]
     capabilities: HarnessCapabilitiesMap | null | undefined
+    /**
+     * The harnesses this picker's agent can run, when the caller narrowed the candidates to them.
+     * Only the sign-in-needed row reads it, so it stays quiet about a subscription this agent could
+     * not drive even after a sign-in. Absent means no narrowing, and every subscription may speak.
+     */
+    harnessIds?: readonly string[]
 }
 
 const rowFromCandidate = (
@@ -96,6 +110,40 @@ const modelFromCandidate = (
     }
 }
 
+/**
+ * Whether a signed-in subscription would give THIS agent anything.
+ *
+ * A ChatGPT subscription drives Pi. An agent that runs only Claude gains nothing by signing in, so
+ * the row has nothing to tell it. With no narrowing every subscription passes.
+ */
+const subscriptionDrivesAnyHarness = (
+    connection: ProviderConnection,
+    harnessIds: readonly string[] | undefined,
+): boolean => {
+    if (!harnessIds) return true
+    const allowed = connection.harnesses?.length
+        ? connection.harnesses
+        : DEFAULT_SUBSCRIPTION_HARNESSES
+    return allowed.some((harness) => harnessIds.includes(harness))
+}
+
+/**
+ * The row a hosted subscription shows while its sign-in cannot run anything.
+ *
+ * It contributes no candidates, so without this it would vanish from the picker exactly when the
+ * user needs to be told why. The row is disabled and says "Sign in needed"; the AI providers page
+ * is where the sign-in is done.
+ */
+const disabledSubscriptionRow = (connection: ProviderConnection): PickerConnectionRow => ({
+    key: connection.id,
+    name: connection.name,
+    iconKey: connection.kind,
+    kind: "subscription",
+    disabled: true,
+    hint: SUBSCRIPTION_SIGN_IN_HINT,
+    models: [],
+})
+
 /** Every connection in source order, with its model/harness candidates in deterministic order. */
 export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConnectionRow[] => {
     const rows: PickerConnectionRow[] = []
@@ -111,6 +159,18 @@ export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConn
         }
         row.models.push(modelFromCandidate(candidate, args.capabilities, connection))
     }
+
+    for (const connection of args.connections) {
+        if (!isSubscriptionConnection(connection)) continue
+        if (byKey.has(connection.id)) continue
+        // Only a dead sign-in earns the row. A READY subscription with no candidates was dropped
+        // for some other reason — the agent runs a harness it does not drive — and "Sign in
+        // needed" would be a false instruction there.
+        if (subscriptionIsReady(connection.subscription)) continue
+        if (!subscriptionDrivesAnyHarness(connection, args.harnessIds)) continue
+        rows.push(disabledSubscriptionRow(connection))
+    }
+
     return rows
 }
 
@@ -271,7 +331,9 @@ export const pickerSelectionFrom = (
         modelId,
         provider: read("provider"),
         mode,
-        slug: mode === "agenta" ? read("connectionSlug") : null,
+        // A slug survives in either mode. Under `self_managed` it names a hosted subscription's
+        // stored sign-in; dropping it there sent the run to whatever login the deployment mounted.
+        slug: read("connectionSlug"),
         harness: read("harness"),
     }
 }

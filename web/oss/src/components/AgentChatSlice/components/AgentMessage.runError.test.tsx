@@ -72,6 +72,36 @@ describe("RunErrorBody", () => {
         expect(rendered).not.toContain("Try again")
     })
 
+    it("offers Sign in again when the subscription's stored sign-in is dead", () => {
+        const rendered = text(
+            <RunErrorBody
+                text="The ChatGPT sign-in is no longer valid. Sign in again from AI providers."
+                stateKey="turn-sub-1"
+                code="subscription_login_required"
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("Sign in again")
+        // A new key would not fix this, and re-running the same dead sign-in would not either.
+        expect(rendered).not.toContain("Add your key")
+        expect(rendered).not.toContain("Try again")
+    })
+
+    it("offers Try again when another session already refreshed the sign-in", () => {
+        const rendered = text(
+            <RunErrorBody
+                text="The ChatGPT sign-in was updated by another session. Try again."
+                stateKey="turn-sub-2"
+                code="subscription_login_refreshed"
+                onRetry={() => undefined}
+            />,
+        )
+
+        expect(rendered).toContain("Try again")
+        expect(rendered).not.toContain("Sign in again")
+    })
+
     it("does not offer Try again for a non-transient failure", () => {
         const rendered = text(
             <RunErrorBody

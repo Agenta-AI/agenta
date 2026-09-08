@@ -152,6 +152,13 @@ const STARTER_CREDIT_CODES = new Set([
     "starter_credits_program_paused",
 ])
 
+/**
+ * Failure classes cleared by signing in again, not by a key. The subscription's stored sign-in is
+ * dead and no newer one exists, so the fix is a new device login on the AI providers page — which
+ * is where the provider drawer opens.
+ */
+const SUBSCRIPTION_LOGIN_CODES = new Set(["subscription_login_required"])
+
 /** Transient failure classes where the honest advice is simply to run the turn again. */
 const RETRYABLE_CODES = new Set([
     "continuation_resumed",
@@ -162,6 +169,9 @@ const RETRYABLE_CODES = new Set([
     // a turn would not unwind, or by the platform's execution watchdog when the runner itself
     // was gone. Nothing is wrong with the request, so sending it again is the whole fix.
     "execution_lost",
+    // Another session refreshed the subscription sign-in while this turn was using the old one.
+    // The newer sign-in is already stored, so the next attempt uses it.
+    "subscription_login_refreshed",
 ])
 
 // An admission refusal means the message was not sent, not that an agent run failed.
@@ -197,6 +207,7 @@ export const RunErrorBody = ({
     const expanded = stored ?? false
     const big = isBigError(text)
     const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
+    const offerSignIn = code ? SUBSCRIPTION_LOGIN_CODES.has(code) : false
     const notSent = !!code && NOT_SENT_CODES.has(code)
     const offerRetry =
         !notSent && !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
@@ -240,6 +251,16 @@ export const RunErrorBody = ({
                         onClick={() => requestProviderDrawer(true)}
                     >
                         Add your key
+                    </Button>
+                )}
+                {offerSignIn && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-1"
+                        onClick={() => requestProviderDrawer(true)}
+                    >
+                        Sign in again
                     </Button>
                 )}
                 {offerRetry && (

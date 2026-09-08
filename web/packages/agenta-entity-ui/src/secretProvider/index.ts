@@ -38,4 +38,8 @@ export {
     type SubscriptionPairCardProps,
     type SubscriptionPairCardSaveState,
 } from "./SubscriptionPairCard"
+export {
+    default as SubscriptionConnectionCard,
+    type SubscriptionConnectionCardProps,
+} from "./SubscriptionConnectionCard"
 export {default as ScrollScrim, type ScrollScrimProps} from "./ScrollScrim"

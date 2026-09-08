@@ -14,6 +14,7 @@
 
 import type {LlmProvider} from "@agenta/shared/types"
 
+import {SUBSCRIPTION_PROVIDER_KIND, subscriptionProviderName} from "./subscriptionConnections"
 import {
     PROVIDER_KINDS,
     SecretKind,
@@ -145,6 +146,43 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 harnesses: data.harnesses ?? undefined,
                 version: data.provider.version ?? "",
                 created_at: secret.lifecycle?.created_at ?? "",
+            })
+        } else if ((secret.kind as string) === SUBSCRIPTION_PROVIDER_KIND) {
+            // Not a Fern union member yet, so the payload is read field by field rather than cast.
+            // Every field is optional on purpose: a browser on an older bundle must still render
+            // the row, and an unreadable state falls back to "sign in needed".
+            const data = (secret.data ?? {}) as unknown as Record<string, unknown>
+            const provider = typeof data.provider === "string" ? data.provider : "chatgpt"
+            const stringList = (value: unknown): string[] | undefined =>
+                Array.isArray(value)
+                    ? value.filter((id): id is string => typeof id === "string")
+                    : undefined
+
+            acc.push({
+                ...storageFacts(secret),
+                title: provider,
+                name: secret.header?.name ?? subscriptionProviderName(provider),
+                displayName: secret.header?.name ?? undefined,
+                id: secret.id ?? undefined,
+                slug: secret.slug ?? undefined,
+                type: SUBSCRIPTION_PROVIDER_KIND,
+                provider,
+                models: stringList(data.models),
+                modelKeys: stringList(data.model_keys),
+                harnesses: stringList(data.harnesses),
+                subscription: {
+                    provider,
+                    loginState:
+                        typeof data.login_state === "string" ? data.login_state : "pending_login",
+                    loginVersion:
+                        typeof data.login_version === "number" ? data.login_version : undefined,
+                    loginGeneration:
+                        typeof data.login_generation === "number"
+                            ? data.login_generation
+                            : undefined,
+                    loginError: typeof data.login_error === "string" ? data.login_error : null,
+                },
+                created_at: secret.lifecycle?.created_at ?? undefined,
             })
         } else if (secret.kind === SecretKind.CustomSecret) {
             // `secret.data` is the Fern union; kind already discriminates it, but

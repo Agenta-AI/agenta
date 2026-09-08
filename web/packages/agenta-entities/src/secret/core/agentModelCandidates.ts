@@ -6,6 +6,11 @@ import {
     type ProviderConnection,
 } from "./connections"
 import {connectionSlugFor} from "./promptModelGroups"
+import {
+    DEFAULT_SUBSCRIPTION_HARNESSES,
+    subscriptionIsReady,
+    subscriptionRunProvider,
+} from "./subscriptionConnections"
 import {subscriptionPairModels, type SubscriptionPair} from "./subscriptionPairs"
 import {SecretKind, SecretManagementPolicy} from "./types"
 
@@ -139,6 +144,60 @@ export const agentVaultProviderFamily = (
     return soleAgentHarnessProviderFamily(capabilities, harness)
 }
 
+/**
+ * The routes one hosted subscription connection offers.
+ *
+ * A subscription is `self_managed` with a SLUG: the run carries no key, and the slug is what names
+ * the stored sign-in the runner materializes. That is the whole difference from the mounted
+ * subscription rows, which are `self_managed` with no slug because nothing is stored.
+ *
+ * The models come off the record — the plan fixes them and the API writes them — and the provider
+ * is whatever the driving harness calls the family (`openai-codex` for Pi).
+ */
+export const subscriptionConnectionCandidates = ({
+    connection,
+    capabilities,
+    harnessIds,
+}: {
+    connection: ProviderConnection
+    capabilities: HarnessCapabilityMap | null | undefined
+    harnessIds: string[]
+}): AgentModelCandidate[] => {
+    const subscription = connection.subscription
+    if (!subscription || !subscriptionIsReady(subscription)) return []
+
+    // The stored slug and nothing else: the resolver selects the sign-in by it, so a name-derived
+    // stand-in would name no record and fail the run.
+    const slug = connection.slug?.trim()
+    if (!slug) return []
+
+    const allowed = connection.harnesses?.length
+        ? connection.harnesses
+        : DEFAULT_SUBSCRIPTION_HARNESSES
+    const ids = (connection.models ?? []).filter(Boolean)
+
+    const candidates: AgentModelCandidate[] = []
+    for (const harness of harnessIds) {
+        if (!allowed.includes(harness)) continue
+        if (!capabilities?.[harness]?.connection_modes?.includes("self_managed")) continue
+        for (const modelId of ids) {
+            candidates.push({
+                modelId,
+                provider: subscriptionRunProvider(harness, subscription.provider),
+                mode: "self_managed",
+                slug,
+                harness,
+                source: "subscription",
+                // The record id, so the row is distinct from the mounted plan's
+                // `subscription:<family>` key even when both are present.
+                connectionKey: connection.id,
+                managed: false,
+            })
+        }
+    }
+    return candidates
+}
+
 const connectionCandidates = ({
     connections,
     capabilities,
@@ -146,6 +205,12 @@ const connectionCandidates = ({
 }: BuildAgentModelCandidatesArgs): AgentModelCandidate[] => {
     const candidates: AgentModelCandidate[] = []
     for (const connection of connections) {
+        if (connection.subscription) {
+            candidates.push(
+                ...subscriptionConnectionCandidates({connection, capabilities, harnessIds}),
+            )
+            continue
+        }
         if (!connection.hasStoredCredential) continue
         const harnesses = effectiveHarnesses(connection, capabilities, harnessIds)
         const ids = connectionModelIds(connection, capabilities)
