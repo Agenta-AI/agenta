@@ -1,7 +1,6 @@
 import {PreferencesPage} from "@agenta/settings-ui"
 import {
     agentaChannelSurfaceEnabledAtom,
-    channelsSettingsEnabledAtom,
     classicModeEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "@agenta/shared/state"
@@ -19,9 +18,6 @@ const Preferences = () => {
     )
     const [agentaChannelSurfaceEnabled, setAgentaChannelSurfaceEnabled] = useAtom(
         agentaChannelSurfaceEnabledAtom,
-    )
-    const [channelsSettingsEnabled, setChannelsSettingsEnabled] = useAtom(
-        channelsSettingsEnabledAtom,
     )
 
     return (
@@ -47,15 +43,6 @@ const Preferences = () => {
                     enabled: playgroundInspectorEnabled,
                     onChange: setPlaygroundInspectorEnabled,
                     badge: "DEBUG",
-                },
-                {
-                    key: "channels-settings",
-                    title: "Channels",
-                    description:
-                        "Show the Channels settings tab: connect Slack and other platforms to an agent.",
-                    enabled: channelsSettingsEnabled,
-                    onChange: setChannelsSettingsEnabled,
-                    badge: "BETA",
                 },
                 {
                     key: "agenta-channel-surface",
