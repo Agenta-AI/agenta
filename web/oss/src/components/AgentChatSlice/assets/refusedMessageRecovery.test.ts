@@ -9,8 +9,13 @@ import {
 
 describe("restoreRefusedDraft", () => {
     it("restores a refused message only into an empty composer", () => {
-        const setMarkdown = vi.fn()
-        const editor = {getMarkdown: () => "", setMarkdown} as never
+        // The stub STORES what it is given, because success is now confirmed by reading it back
+        // rather than by the call returning.
+        let markdown = ""
+        const setMarkdown = vi.fn((next: string) => {
+            markdown = next
+        })
+        const editor = {getMarkdown: () => markdown, setMarkdown} as never
 
         expect(restoreRefusedDraft(editor, "try again")).toBe(true)
         expect(setMarkdown).toHaveBeenCalledWith("try again")
@@ -82,5 +87,165 @@ describe("restoreRefusedDraft", () => {
         expect(restoreHeldRefusedSend(slot, editor, restoreAttachments)).toBe(false)
         expect(setMarkdown).toHaveBeenCalledTimes(1)
         expect(restoreAttachments).toHaveBeenCalledTimes(1)
+    })
+})
+
+describe("restoreRefusedSend for a late refusal", () => {
+    // A refusal carried inside a 200 arrives seconds after the composer cleared, so unlike a
+    // rejected send the user has had time to type something else. These pin the two properties
+    // the late path depends on: it never overwrites that, and it says so by returning false, which
+    // is what keeps the echo row as the recovery surface in exactly that case.
+    it("refuses a composer the user has typed into, and reports it", () => {
+        const editor = {
+            getMarkdown: () => "something I typed since",
+            setMarkdown: vi.fn(),
+        } as unknown as RichChatInputHandle
+        const restoreAttachments = vi.fn()
+
+        expect(
+            restoreRefusedSend(editor, {text: "refused", stagedFiles: []}, restoreAttachments),
+        ).toBe(false)
+        expect(editor.setMarkdown).not.toHaveBeenCalled()
+        expect(restoreAttachments).not.toHaveBeenCalled()
+    })
+
+    it("puts the staged files back with the text, not the text alone", () => {
+        let markdown = ""
+        const editor = {
+            getMarkdown: () => markdown,
+            setMarkdown: (next: string) => {
+                markdown = next
+            },
+        } as unknown as RichChatInputHandle
+        const restoreAttachments = vi.fn()
+        const stagedFiles = [{uid: "f1"}]
+
+        expect(restoreRefusedSend(editor, {text: "refused", stagedFiles}, restoreAttachments)).toBe(
+            true,
+        )
+        expect(markdown).toBe("refused")
+        expect(restoreAttachments).toHaveBeenCalledWith(stagedFiles)
+    })
+})
+
+describe("restoreRefusedDraft with a stale editor handle", () => {
+    it("reports failure when setMarkdown silently does nothing", () => {
+        // The handle's setMarkdown returns void and is a no-op once its internal ref is gone.
+        // Reporting success there tells the caller the message is safe in the composer when it is
+        // nowhere, and the caller uses that to drop the only row showing it.
+        const stale = {
+            getMarkdown: () => "",
+            setMarkdown: () => undefined,
+        } as unknown as RichChatInputHandle
+
+        expect(restoreRefusedDraft(stale, "refused")).toBe(false)
+        expect(restoreRefusedSend(stale, {text: "refused", stagedFiles: []}, vi.fn())).toBe(false)
+    })
+})
+
+/**
+ * A refused send that carries files. The caller drops the echo row when the restore reports
+ * success, so a false success deletes the only copy of the message — reported against #6658 as
+ * "a successful text restore deletes the attachment row and leaves nothing".
+ */
+describe("restoreRefusedSend for a send carrying attachments", () => {
+    const emptyEditor = () => {
+        let markdown = ""
+        return {
+            getMarkdown: () => markdown,
+            setMarkdown: vi.fn((next: string) => {
+                markdown = next
+            }),
+        } as never
+    }
+
+    it("restores an attachments-only send into the composer and reports success", () => {
+        const restoreAttachments = vi.fn()
+        const stagedFiles = [{uid: "file-1", name: "brief.pdf"}]
+
+        expect(
+            restoreRefusedSend(
+                emptyEditor(),
+                {text: "", stagedFiles, fileParts: [{type: "file"}]},
+                restoreAttachments,
+            ),
+        ).toBe(true)
+        expect(restoreAttachments).toHaveBeenCalledWith(stagedFiles)
+    })
+
+    it("refuses when the send carried attachments the tray cannot take back", () => {
+        // A merged queue edit or a seed handed over from another surface arrives with file parts
+        // and no staged entry behind them. Restoring the words alone would delete the files.
+        const restoreAttachments = vi.fn()
+
+        expect(
+            restoreRefusedSend(
+                emptyEditor(),
+                {text: "with a file", stagedFiles: [], fileParts: [{type: "file"}]},
+                restoreAttachments,
+            ),
+        ).toBe(false)
+        expect(restoreAttachments).not.toHaveBeenCalled()
+    })
+
+    it("refuses an attachments-only send whose staged entries are gone", () => {
+        // Reporting success here puts nothing anywhere and drops the row with it.
+        const restoreAttachments = vi.fn()
+
+        expect(
+            restoreRefusedSend(
+                emptyEditor(),
+                {text: "", stagedFiles: [], fileParts: [{type: "file"}]},
+                restoreAttachments,
+            ),
+        ).toBe(false)
+        expect(restoreAttachments).not.toHaveBeenCalled()
+    })
+
+    it("refuses a send with nothing in it at all", () => {
+        expect(restoreRefusedSend(emptyEditor(), {text: ""}, vi.fn())).toBe(false)
+    })
+
+    it("still treats the staged entries as the whole send when no file parts are given", () => {
+        const restoreAttachments = vi.fn()
+        const stagedFiles = [{uid: "file-1", name: "brief.pdf"}]
+
+        expect(restoreRefusedSend(emptyEditor(), {text: "", stagedFiles}, restoreAttachments)).toBe(
+            true,
+        )
+        expect(restoreAttachments).toHaveBeenCalledWith(stagedFiles)
+    })
+})
+
+describe("restoreHeldRefusedSend has no row to fall back on", () => {
+    const emptyEditor = () => {
+        let markdown = ""
+        return {
+            getMarkdown: () => markdown,
+            setMarkdown: vi.fn((next: string) => {
+                markdown = next
+            }),
+        } as never
+    }
+
+    it("places what it can when the send carried files the tray cannot take back", () => {
+        // The early rejection already dropped the echo row, so refusing here would leave the
+        // message in no visible place at all. The words go back; the files are already lost.
+        const restoreAttachments = vi.fn()
+        const slot = {
+            current: {text: "with a file", stagedFiles: [], fileParts: [{type: "file"}]} as never,
+        }
+        const editor = emptyEditor()
+
+        expect(restoreHeldRefusedSend(slot, editor, restoreAttachments)).toBe(true)
+        expect(slot.current).toBeUndefined()
+    })
+
+    it("still keeps the send held behind a newer draft", () => {
+        const slot = {current: {text: "refused", stagedFiles: []} as never}
+        const editor = {getMarkdown: () => "newer draft", setMarkdown: vi.fn()} as never
+
+        expect(restoreHeldRefusedSend(slot, editor, vi.fn())).toBe(false)
+        expect(slot.current).toBeDefined()
     })
 })

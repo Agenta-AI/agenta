@@ -7,7 +7,7 @@ import {
     messageText,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
-import {getMessageTraceId} from "@agenta/chat/assets"
+import {getMessageTraceId, mergePendingSendEchoRows} from "@agenta/chat/assets"
 import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {AttachmentDropOverlay, ConnectionFocusProvider} from "@agenta/chat/components"
 import {
@@ -63,7 +63,10 @@ import {answerThenSteer} from "./assets/answerThenSteer"
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
-import {restoreHeldRefusedSend} from "./assets/refusedMessageRecovery"
+import {
+    restoreHeldRefusedSend,
+    restoreRefusedSend as restoreRefusedSendInto,
+} from "./assets/refusedMessageRecovery"
 import AgentComposerDock from "./components/AgentComposerDock"
 import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
@@ -204,11 +207,6 @@ const AgentConversation = ({
         readerReady,
         ownedContinuation: acceptedRunPending,
     })
-    const transcriptMessages = useMemo(() => {
-        const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
-        if (turnDeliverySource === "legacy" || previewMessages.length === 0) return durableMessages
-        return [...durableMessages, ...previewMessages]
-    }, [messages, previewMessages, turnDeliverySource])
     const transcriptBusy =
         busy ||
         remoteTurn.showActivity ||
@@ -433,6 +431,35 @@ const AgentConversation = ({
         [sessionId, setSessionStatus],
     )
 
+    // A refusal that arrived after the send promise resolved. Hand the text back through the same
+    // channel a rejected send uses, so both refusal shapes recover identically.
+    // A refusal that arrived after the send promise resolved. Reuses the rejected-send path
+    // wholesale: it refuses to overwrite a draft the user has typed since, and puts the staged
+    // files back with the text. Returning false leaves the echo row as the recovery surface,
+    // which is exactly the case where it is needed.
+    const lateRefusalRef = useRef({
+        restore: restoreAttachments,
+        reject: attachments.setRejections,
+    })
+    lateRefusalRef.current = {restore: restoreAttachments, reject: attachments.setRejections}
+    const restoreLateRefusedSend = useCallback((message: QueuedMessage) => {
+        const taken = restoreRefusedSendInto(
+            richInputRef.current,
+            {
+                text: message.text,
+                stagedFiles: message.stagedFiles ?? [],
+                // Told apart from the staged entries on purpose: a send can carry file parts the
+                // tray has nothing to put back, and the row must keep those cards.
+                fileParts: message.fileParts ?? [],
+            },
+            lateRefusalRef.current.restore,
+        )
+        if (taken) {
+            lateRefusalRef.current.reject([{name: "Message", reason: "wasn't sent — try again."}])
+        }
+        return taken
+    }, [])
+
     // Queue messages typed while a turn is streaming or paused on a HITL approval; released
     // one-by-one once the turn truly settles (never mid-approval). A user stop is the exception —
     // it voids the pending gate, so `stopped` lets a fresh send go immediately (not queue). An
@@ -453,6 +480,7 @@ const AgentConversation = ({
         cancelEdit,
         commitEdit,
         takeLastSent,
+        pendingSendRows,
     } = useAgentChatQueue({
         status,
         messages,
@@ -463,10 +491,19 @@ const AgentConversation = ({
         retryContinuation: retryRecoverableContinuation,
         continuationExecutionId,
         markRunOwned,
+        restoreRefusedSend: restoreLateRefusedSend,
         sendQueued,
         sessionId,
         server: serverInputs,
     })
+
+    // Declared after the queue because it renders the queue's echoes.
+    const transcriptMessages = useMemo(() => {
+        const durableMessages = withoutSharedSenderAcceptanceMessages(messages)
+        const live =
+            turnDeliverySource === "legacy" || previewMessages.length === 0 ? [] : previewMessages
+        return mergePendingSendEchoRows(durableMessages, pendingSendRows, live)
+    }, [messages, pendingSendRows, previewMessages, turnDeliverySource])
 
     // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision made
     // in THIS mount marks the resume as live — a restored approval-requested tail the user answers

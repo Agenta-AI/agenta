@@ -54,6 +54,7 @@ import {
     loadSessionMessages,
     type SessionTranscript,
 } from "../assets/loadSession"
+import {mergePendingSendEchoRows} from "../assets/pendingSendEchoes"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {submitApprovalForCapability} from "../assets/serverOwnedApproval"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
@@ -99,6 +100,7 @@ import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
 import {useApprovalDock, type ApprovalDock} from "./useApprovalDock"
+import {useMountGeneration} from "./useMountGeneration"
 import {useServerSessionInputs} from "./useServerSessionInputs"
 import {useSessionChat} from "./useSessionChat"
 import {useSessionLivePreview} from "./useSessionLivePreview"
@@ -146,6 +148,8 @@ export interface UseAgentConversationArgs {
     sharedReaderRunning?: boolean
     /** Timestamp of the liveness snapshot behind `sharedReaderRunning`. */
     sharedReaderLivenessUpdatedAt?: number
+    /** Hand a late-refused send back to the composer; return whether it took the text. */
+    restoreRefusedSend?: (message: {text: string}) => boolean
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
      * silently folded every client tool into the plain "used N tools" group, leaving the run
@@ -244,8 +248,16 @@ export const useAgentConversation = ({
     sharedReaderAdvertised = false,
     sharedReaderRunning = false,
     sharedReaderLivenessUpdatedAt = 0,
+    restoreRefusedSend,
     isClientToolPart,
 }: UseAgentConversationArgs): AgentConversation => {
+    // Declared FIRST, so its effect re-arms before any effect below can capture a generation.
+    // `state/sessionChats.ts` deliberately preserves the same `Chat` across a remount, so an
+    // adopter that outlived its mount still holds a working `setMessages` and a working
+    // persistence atom, and its stale snapshot passes its own watermark guard. Every asynchronous
+    // chain that ends in an adoption or a persistence write captures a generation and re-checks it
+    // immediately before that write.
+    const mount = useMountGeneration()
     const store = useStore()
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
@@ -555,7 +567,16 @@ export const useAgentConversation = ({
      * trigger, the message count only a floor. Returns whether it adopted.
      */
     const adoptServerTranscript = useCallback(
-        (transcript: unknown): boolean => {
+        (
+            transcript: unknown,
+            /**
+             * The generation of the mount that STARTED the read this transcript came from.
+             * Required, not optional: a caller that forgets one would fail open, which is exactly
+             * the window an unmount mid-stream used to walk through.
+             */
+            generation: number,
+        ): boolean => {
+            if (!mount.isCurrent(generation)) return false
             if (!isSessionTranscript(transcript)) return false
             const {messages: serverMsgs, recordCount, sequenceCursor} = transcript
             const adopt = shouldAdoptServerTranscript({
@@ -593,7 +614,7 @@ export const useAgentConversation = ({
             persistMessages({id: sessionId, messages: serverMsgs, recordCount})
             return true
         },
-        [clearError, persistMessages, sessionId, setMessages],
+        [clearError, mount, persistMessages, sessionId, setMessages],
     )
 
     useEffect(() => {
@@ -607,6 +628,7 @@ export const useAgentConversation = ({
         // StrictMode's mount→unmount→mount cycle re-runs the fetch (the first run is cancelled)
         // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
+        const generation = mount.capture()
         // The background refetch can land BEFORE the promise handler below runs (both are
         // microtasks racing) and `messagesRef` only catches up on the next commit — so record here,
         // not from what's on screen, that real history was already adopted.
@@ -616,7 +638,7 @@ export const useAgentConversation = ({
         // guard as every other path.
         loadSessionMessages(sessionId, (fresh) => {
             if (cancelled) return
-            if (adoptServerTranscript(fresh)) adopted = true
+            if (adoptServerTranscript(fresh, generation)) adopted = true
         })
             .then((transcript) => {
                 if (cancelled) return
@@ -628,7 +650,7 @@ export const useAgentConversation = ({
                     if (!adopted) setHistoryUnavailable(true)
                     return
                 }
-                adoptServerTranscript(transcript)
+                adoptServerTranscript(transcript, generation)
             })
             .finally(() => {
                 if (!cancelled) setIsHydrating(false)
@@ -648,9 +670,10 @@ export const useAgentConversation = ({
         if (initialMessages.length === 0 || isSessionFresh(sessionId)) return
         // As above: no persistent ref, so StrictMode's double-mount re-runs the revalidation.
         let cancelled = false
+        const generation = mount.capture()
         const adopt = (transcript: SessionTranscript | null) => {
             if (cancelled) return
-            adoptServerTranscript(transcript)
+            adoptServerTranscript(transcript, generation)
         }
         // The first result may itself be the disk-restored records log; the callback re-applies
         // the same guarded adoption when the guaranteed background revalidation lands.
@@ -703,7 +726,12 @@ export const useAgentConversation = ({
         locallyBusy: busy,
         isSharedReaderReady: () => sharedSenderReadyRef.current,
         onExecuted: () => {
-            void loadSessionMessages(sessionId, adoptServerTranscript).then(adoptServerTranscript)
+            // The run stream that calls this outlives its mount, and both continuations below run
+            // past an await, so both carry the generation of the mount that started the read.
+            const generation = mount.capture()
+            void loadSessionMessages(sessionId, (transcript) =>
+                adoptServerTranscript(transcript, generation),
+            ).then((transcript) => adoptServerTranscript(transcript, generation))
         },
     })
 
@@ -733,6 +761,7 @@ export const useAgentConversation = ({
         beginEdit,
         cancelEdit,
         commitEdit,
+        pendingSendRows,
     } = useAgentChatQueue({
         status,
         messages,
@@ -743,6 +772,10 @@ export const useAgentConversation = ({
         retryContinuation: retryRecoverableContinuation,
         continuationExecutionId,
         markRunOwned,
+        // Not wired on this host yet: the composer lives below this hook and has no handle here,
+        // so a late refusal keeps its flagged row instead of restoring the draft. Pass a restorer
+        // in to unify it with the desktop.
+        restoreRefusedSend,
         sendQueued,
         sessionId,
         server: serverInputs,
@@ -1026,6 +1059,10 @@ export const useAgentConversation = ({
     // time (a watch relay tick, app foregrounding). Guards make it idempotent and stream-safe.
     const revalidate = useCallback(
         async (transcript?: SessionTranscript): Promise<boolean> => {
+            // Captured before the read below and re-checked inside `adoptServerTranscript`, which
+            // is where the write happens. A relay tick can outlive its mount the same way a run
+            // stream does.
+            const generation = mount.capture()
             const adoptOrConfirm = (candidate: unknown): boolean => {
                 if (!isSessionTranscript(candidate)) return false
                 const candidateWatermark = candidate.sequenceCursor ?? candidate.recordCount
@@ -1034,7 +1071,7 @@ export const useAgentConversation = ({
                         ? recordWatermarkRef.current
                         : sequenceWatermarkRef.current
                 return (
-                    adoptServerTranscript(candidate) ||
+                    adoptServerTranscript(candidate, generation) ||
                     (currentWatermark ?? 0) >= candidateWatermark
                 )
             }
@@ -1053,7 +1090,7 @@ export const useAgentConversation = ({
             }
             return adoptOrConfirm(refreshed) || adopted
         },
-        [adoptServerTranscript, revalidateSessionRecords, sessionId],
+        [adoptServerTranscript, mount, revalidateSessionRecords, sessionId],
     )
 
     const {
@@ -1075,13 +1112,14 @@ export const useAgentConversation = ({
     const includePreview = turnDeliverySource !== "legacy"
     const displayMessages = useMemo(() => {
         const transcriptMessages = withoutSharedSenderAcceptanceMessages(messages)
-        return includePreview && previewMessages.length
-            ? [...transcriptMessages, ...previewMessages]
-            : transcriptMessages
-    }, [includePreview, messages, previewMessages])
+        const live = includePreview && previewMessages.length ? previewMessages : []
+        return mergePendingSendEchoRows(transcriptMessages, pendingSendRows, live)
+    }, [includePreview, messages, pendingSendRows, previewMessages])
 
     const applyInteractionStates = useCallback(
-        (rows: ReturnType<typeof interactionStatesFromWatchEvent>) => {
+        (rows: ReturnType<typeof interactionStatesFromWatchEvent>, generation: number) => {
+            // Same rule as adoption: the mount that started the read owns the write.
+            if (!mount.isCurrent(generation)) return
             if (!rows || busyRef.current || liveGateInteractionRef.current) return
             const current = messagesRef.current
             const reconciled = reconcileInteractionRowStates(current, rows)
@@ -1094,12 +1132,13 @@ export const useAgentConversation = ({
                 recordCount: recordWatermarkRef.current,
             })
         },
-        [persistMessages, sessionId, setMessages],
+        [mount, persistMessages, sessionId, setMessages],
     )
     const refreshInteractions = useCallback(async () => {
+        const generation = mount.capture()
         if (busyRef.current || liveGateInteractionRef.current) return
         await revalidateSessionInteractions(sessionId)
-        applyInteractionStates(await fetchSessionInteractionStates(sessionId))
+        applyInteractionStates(await fetchSessionInteractionStates(sessionId), generation)
     }, [
         applyInteractionStates,
         fetchSessionInteractionStates,
@@ -1113,10 +1152,18 @@ export const useAgentConversation = ({
                 void refreshInteractions()
                 return
             }
-            applyInteractionStates(pushed)
+            // Pushed, so it is applied in the same turn it arrives: the live generation IS the
+            // one that owns this write.
+            applyInteractionStates(pushed, mount.capture())
             void revalidateSessionInteractions(sessionId)
         },
-        [applyInteractionStates, refreshInteractions, revalidateSessionInteractions, sessionId],
+        [
+            applyInteractionStates,
+            mount,
+            refreshInteractions,
+            revalidateSessionInteractions,
+            sessionId,
+        ],
     )
     useEffect(() => {
         if (!hitlPending) return

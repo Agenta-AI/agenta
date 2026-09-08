@@ -1,5 +1,5 @@
 // Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     approvalContinuationSettled,
@@ -13,6 +13,7 @@ import type {FileUIPart, UIMessage} from "ai"
 import {latestTurnId} from "../assets/agentTurn"
 
 import type {ComposerAttachment} from "./useComposerAttachments"
+import {usePendingSendEchoes} from "./usePendingSendEchoes"
 
 export interface QueuedMessage {
     id: string
@@ -30,7 +31,20 @@ export interface ServerQueueAdapter {
     resolveCapabilities?: () => Promise<{queue: boolean; steer: boolean}>
     busy: boolean
     queued: QueuedMessage[]
-    submit: (message: QueuedMessage, policy: "queue" | "steer") => Promise<void>
+    /**
+     * Admits one input. `watcher` reports what happened to THIS send: the turn it started, the
+     * durable input it was parked as, or its failure.
+     */
+    submit: (
+        message: QueuedMessage,
+        policy: "queue" | "steer",
+        watcher?: {
+            onAccepted?: (executionId: string) => void
+            onParked?: (inputId: string) => void
+            onFailed?: () => void
+            onSettled?: () => void
+        },
+    ) => Promise<"queued" | "running">
     remove: (id: string) => Promise<void>
     sendNow?: (id: string) => Promise<void>
     edit?: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
@@ -69,6 +83,12 @@ interface UseAgentChatQueueArgs {
     continuationExecutionId?: string | null
     /** Mark this tab as the next run's owner before a released send reaches the transport. */
     markRunOwned: () => void
+    /**
+     * Hand a refused send back to the composer. Returns whether the composer took it: if it did,
+     * the message lives there and its echo row goes; if it could not (no mounted editor), the row
+     * stays as the one place the text survives.
+     */
+    restoreRefusedSend?: (message: QueuedMessage) => boolean
     /** Send one released message into the conversation (wraps `useChat`'s `sendMessage`). Must be
      * referentially stable so the release effect doesn't churn on every streamed token. */
     sendQueued: (item: QueuedMessage) => void
@@ -115,6 +135,7 @@ export const useAgentChatQueue = ({
     retryContinuation,
     continuationExecutionId = null,
     markRunOwned,
+    restoreRefusedSend,
     sendQueued,
     sessionId,
     server,
@@ -198,6 +219,17 @@ export const useAgentChatQueue = ({
     useEffect(() => {
         queuedRef.current = queued
     }, [queued])
+
+    const restoreRefusedSendRef = useRef(restoreRefusedSend)
+    restoreRefusedSendRef.current = restoreRefusedSend
+
+    // Echo rows for durable sends, which the AI SDK chat never receives. Owned by its own hook so
+    // this one keeps to admission, queueing, and editing.
+    const dockedInputIds = useMemo(
+        () => new Set((server?.queued ?? []).map((item) => item.id)),
+        [server?.queued],
+    )
+    const echoes = usePendingSendEchoes({messages, dockedInputIds})
 
     // Retained until admission so a refused immediate send can return to the composer.
     const lastSentRef = useRef<QueuedMessage | undefined>(undefined)
@@ -300,7 +332,43 @@ export const useAgentChatQueue = ({
             const message: QueuedMessage = {...item, id: generateId()}
             const admit = (queue: boolean) => {
                 if (queue && server) {
-                    return server.submit(message, "queue")
+                    // Show it before the request leaves. Every exit is driven by evidence about
+                    // this send: the turn it started, the dock row it became, or its failure.
+                    echoes.add(message)
+                    return server
+                        .submit(message, "queue", {
+                            onAccepted: (executionId) =>
+                                echoes.markAccepted(message.id, executionId),
+                            onParked: (inputId) => echoes.markParked(message.id, inputId),
+                            // One event, one recovery. A refusal that arrives after the promise
+                            // resolved goes back to the composer exactly like one that rejected
+                            // it, so there is a single place the message lives and a single
+                            // wording for it. The row is the fallback only when no composer can
+                            // take the text.
+                            onFailed: () => {
+                                if (restoreRefusedSendRef.current?.(message)) {
+                                    echoes.drop(message.id)
+                                } else {
+                                    // Re-create the row if the count rule already retired it,
+                                    // or a refusal arriving after that leaves the message with
+                                    // nowhere at all to be seen.
+                                    echoes.markFailed(message.id, message)
+                                }
+                            },
+                            // The turn ended and its records were re-read. An echo still on
+                            // screen is one whose row was never persisted, so it stops waiting
+                            // silently; a row that arrives later still retires it.
+                            // Settlement never touches the composer. It only marks an echo that
+                            // is STILL waiting, and marking one that has already retired is a
+                            // no-op. Restoring here would write a delivered message back into
+                            // the input under "wasn't sent", which is the normal accepted path:
+                            // row adopted, echo retired, stream ends.
+                            onSettled: () => echoes.markFailed(message.id),
+                        })
+                        .then(undefined, (error: unknown) => {
+                            echoes.drop(message.id)
+                            throw error
+                        })
                 }
                 if (recoverable && retryContinuation) {
                     setQueued((q) => [...q, message])
@@ -331,7 +399,7 @@ export const useAgentChatQueue = ({
                 ? server.resolveCapabilities().then((capabilities) => admit(capabilities.queue))
                 : admit(server?.capabilities.queue === true)
         },
-        [canReleaseNow, recoverable, retryContinuation, markRunOwned, sendQueued, server],
+        [canReleaseNow, echoes, recoverable, retryContinuation, markRunOwned, sendQueued, server],
     )
 
     const removeQueued = useCallback(
@@ -503,6 +571,8 @@ export const useAgentChatQueue = ({
 
     return {
         queued: [...(server?.queued ?? []), ...queued],
+        /** Sent-but-not-yet-saved user rows; merge with `mergePendingSendEchoRows`. */
+        pendingSendRows: echoes.rows,
         submit,
         steer,
         removeQueued,
