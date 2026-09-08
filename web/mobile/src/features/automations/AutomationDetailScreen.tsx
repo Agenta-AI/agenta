@@ -113,20 +113,6 @@ export const AutomationDetailScreen = ({
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <AutomationBackLink href={`${base}/automations`} />
-                                {automation ? (
-                                    <div className="ml-auto flex shrink-0 items-center gap-1.5">
-                                        <AutomationTestRunButton
-                                            automation={automation}
-                                            base={base}
-                                            dirty={dirty}
-                                        />
-                                        <AutomationActionsMenu
-                                            automation={automation}
-                                            base={base}
-                                            onLeave={leave}
-                                        />
-                                    </div>
-                                ) : null}
                             </div>
                         </div>
                     }
@@ -147,6 +133,20 @@ export const AutomationDetailScreen = ({
                             onSelectEvent={setEvent}
                             onChangeInputs={setInputs}
                             onToggle={onToggle}
+                            actions={
+                                <>
+                                    <AutomationTestRunButton
+                                        automation={automation}
+                                        base={base}
+                                        dirty={dirty}
+                                    />
+                                    <AutomationActionsMenu
+                                        automation={automation}
+                                        base={base}
+                                        onLeave={leave}
+                                    />
+                                </>
+                            }
                             onDiscard={discard}
                             onSave={() => void save()}
                         />
