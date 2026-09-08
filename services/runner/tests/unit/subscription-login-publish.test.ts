@@ -177,6 +177,58 @@ describe("the version an accepted push teaches this session", () => {
     });
   });
 
+  /**
+   * The API answers `updated: false, stale: false` for two OPPOSITE outcomes: the row already
+   * holds this login (a no-op, marked `reason: "same_login"`), and the row REFUSED this login for
+   * an older expiry. Only the first means the row holds what this session runs on.
+   */
+  it("learns the version from a no-op the API marked same_login", async () => {
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    const api = fakeApi(() => ({
+      status: 200,
+      body: { version: 5, updated: false, stale: false, reason: "same_login" },
+    }));
+    const state = subscriptionPublishState(SUBSCRIPTION);
+
+    await start({ home, api, intervalMs: 10, state }).reconcile("interval");
+
+    assert.equal(state.version, 5);
+  });
+
+  it("never learns the version from a login the API REFUSED", async () => {
+    // Another session stored a newer rotation at 5; this one's older-expiry push is rejected. The
+    // row holds the other credential, so quoting 5 later would claim a login this run never had,
+    // and the failure report would mark a healthy connection needs_login.
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    const api = fakeApi(() => ({
+      status: 200,
+      body: { version: 5, updated: false, stale: false, reason: "older_expiry" },
+    }));
+    const state = subscriptionPublishState(SUBSCRIPTION);
+
+    await start({ home, api, intervalMs: 10, state }).reconcile("interval");
+
+    assert.equal(state.version, 3);
+  });
+
+  it("never learns the version from a refusal that carries no reason at all", async () => {
+    // An API that predates `same_login` teaches nothing rather than guessing. One stale failure
+    // report is recoverable; a wrongly current one costs the user their sign-in.
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    const api = fakeApi(() => ({
+      status: 200,
+      body: { version: 5, updated: false, stale: false },
+    }));
+    const state = subscriptionPublishState(SUBSCRIPTION);
+
+    await start({ home, api, intervalMs: 10, state }).reconcile("interval");
+
+    assert.equal(state.version, 3);
+  });
+
   it("leaves state.version alone when the API called the push stale", async () => {
     // A stale answer names a row this session is behind on. Adopting that version would claim a
     // login this run never ran on; the recovery path is what adopts a login the API hands back.

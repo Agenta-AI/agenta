@@ -288,9 +288,16 @@ export function startSubscriptionPublisher(input: {
  * body cannot change it, while a timeout, a network failure, and a 5xx leave the credential
  * unacknowledged for the next pass.
  *
- * `version` is the row version the API reports for a push it did not call stale. The caller adopts
- * it. A stale answer carries the version of a row this session is behind on, which belongs to the
- * recovery path, so it is not reported here.
+ * `version` is the row version the API reports, and ONLY when the answer says this credential is
+ * what the row now holds: `updated: true` (it was stored) or `reason: "same_login"` (the row
+ * already held it). Every other answer is refused or stale, and its version belongs to a
+ * credential this session does not have.
+ *
+ * The distinction matters because the API answers `updated: false, stale: false` for two opposite
+ * outcomes: the harmless no-op above, and a REJECTION of an older-expiry login. Adopting the
+ * version on a rejection would let this session quote a version it never ran on, so its later
+ * failure report would read as current and mark a healthy connection `needs_login`. An older API
+ * that sends no `reason` simply teaches nothing on a no-op, which costs one stale report at worst.
  *
  * A push NEVER fails the turn. The run already succeeded and the harness still holds the working
  * token in its own process. A lost push costs one extra refresh later, unless the runner state dir
@@ -347,15 +354,27 @@ async function pushLogin(
     };
     const stale = body.updated === false && body.stale === true;
     const version = typeof body.version === "number" ? body.version : undefined;
+    const reason = typeof body.reason === "string" ? body.reason : undefined;
+    // The row holds this credential: it was just stored, or it was already there.
+    const holdsThisLogin = body.updated === true || reason === "same_login";
     observeSubscription(log, "subscription.publish", {
       ...event,
       decision:
-        body.updated === false ? (stale ? "stale" : "refused") : "updated",
+        body.updated === false
+          ? stale
+            ? "stale"
+            : holdsThisLogin
+              ? "noop"
+              : "refused"
+          : "updated",
       version,
-      reason: typeof body.reason === "string" ? body.reason : undefined,
+      reason,
       status: res.status,
     });
-    return { answered: true, ...(stale || version === undefined ? {} : { version }) };
+    return {
+      answered: true,
+      ...(holdsThisLogin && version !== undefined ? { version } : {}),
+    };
   } catch (err) {
     observeSubscription(log, "subscription.publish", {
       ...event,
