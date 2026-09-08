@@ -225,13 +225,6 @@ export interface RunTurnOptions {
   settleApprovalsThenPrompt?: {
     decisions: ResumeApprovalInput[];
   };
-  /**
-   * This turn IS the one automatic retry a hosted subscription recovery is allowed (contract
-   * amendment A1). Set only by `runTurn` on its own recursive call, and the flag is what makes the
-   * retry BOUNDED: a second authentication failure on the retried turn fails the turn instead of
-   * recovering again, so a connection that refuses every credential cannot loop.
-   */
-  subscriptionRetry?: boolean;
 }
 
 /**

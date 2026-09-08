@@ -15,10 +15,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { SUBSCRIPTION_LOGIN_REFRESHED_MESSAGE } from "../../src/engines/sandbox_agent/errors.ts";
 import { materializeSubscriptionLoginForRun } from "../../src/engines/sandbox_agent/subscription-login/files.ts";
 import {
   classifyRefreshError,
-  isReplayBlockingEvent,
   recoverSubscriptionAuthFailure,
   refreshFailureReason,
   verifySubscriptionRefresh,
@@ -445,29 +445,6 @@ describe("verifySubscriptionRefresh", () => {
   });
 });
 
-describe("isReplayBlockingEvent", () => {
-  it("blocks a replay for anything the user saw or the harness did", () => {
-    for (const type of [
-      "message",
-      "message_delta",
-      "thought",
-      "tool_call",
-      "tool_result",
-      "interaction_request",
-      "data",
-      "file",
-    ]) {
-      assert.equal(isReplayBlockingEvent(type), true, type);
-    }
-  });
-
-  it("does not block on the frames a failing turn emits on its way out", () => {
-    for (const type of ["error", "usage", "done", "agent-status"]) {
-      assert.equal(isReplayBlockingEvent(type), false, type);
-    }
-  });
-});
-
 describe("recoverSubscriptionAuthFailure", () => {
   it("ignores a failure that is not about the login", async () => {
     const home = tempHome();
@@ -479,14 +456,13 @@ describe("recoverSubscriptionAuthFailure", () => {
       home,
       isDaytona: false,
       api,
-      replayable: true,
       refresh: async () => ROTATED,
       log: () => {},
     });
     assert.equal(recovery, undefined);
   });
 
-  it("a refresh that succeeds means the failure was transient, so retry", async () => {
+  it("a refresh that succeeds repairs the login and ends the turn for a cold start", async () => {
     const home = tempHome();
     const { calls, api } = fakeApi({});
     const published: string[] = [];
@@ -500,14 +476,22 @@ describe("recoverSubscriptionAuthFailure", () => {
       publish: async (trigger) => {
         published.push(trigger);
       },
-      replayable: true,
       refresh: async () => ROTATED,
       log: () => {},
     });
 
-    assert.deepEqual(recovery, { action: "retry", reason: "refresh-succeeded" });
-    // The new pair is on disk and published BEFORE the retry, through the session's one
-    // publisher, and no failure is reported.
+    // Pi holds the refused token in memory for the life of the daemon, so this turn cannot use
+    // the repaired login. It fails retryably and the next message cold-starts on the new pair.
+    assert.deepEqual(recovery, {
+      action: "fail",
+      reason: "refresh-succeeded",
+      classified: {
+        message: SUBSCRIPTION_LOGIN_REFRESHED_MESSAGE,
+        code: "subscription_login_refreshed",
+      },
+    });
+    // The new pair is on disk and published through the session's one publisher, and no failure
+    // is reported.
     assert.deepEqual(published, ["recovery"]);
     assert.deepEqual(calls, []);
     assert.deepEqual(localLogin(home), {
@@ -572,7 +556,7 @@ describe("recoverSubscriptionAuthFailure", () => {
     });
   });
 
-  it("a turn that already emitted output is never replayed", async () => {
+  it("names the renewed sign-in, not a dead one, when the login was repaired", async () => {
     const home = tempHome();
     const { api } = fakeApi({});
     const recovery = await recoverSubscriptionAuthFailure({
@@ -582,7 +566,6 @@ describe("recoverSubscriptionAuthFailure", () => {
       home,
       isDaytona: false,
       api,
-      replayable: false,
       refresh: async () => ROTATED,
       log: () => {},
     });
@@ -604,7 +587,6 @@ describe("recoverSubscriptionAuthFailure", () => {
       home,
       isDaytona: false,
       api,
-      replayable: true,
       refresh: async () => {
         throw new Error("OpenAI Codex token refresh failed (503): upstream");
       },
@@ -633,7 +615,6 @@ describe("recoverSubscriptionAuthFailure", () => {
       home,
       isDaytona: false,
       api,
-      replayable: true,
       refresh: async () => {
         throw new Error(
           'OpenAI Codex token refresh failed (400): {"error":"invalid_grant"}',
@@ -658,7 +639,7 @@ describe("recoverSubscriptionAuthFailure", () => {
     );
   });
 
-  it("a stale answer with a newer login of the same lineage rematerializes and retries", async () => {
+  it("a stale answer with a newer login of the same lineage rematerializes and ends the turn", async () => {
     const home = tempHome();
     const { calls, api } = fakeApi({
       failure: {
@@ -676,7 +657,6 @@ describe("recoverSubscriptionAuthFailure", () => {
       home,
       isDaytona: false,
       api,
-      replayable: true,
       refresh: async () => {
         throw new Error(
           'OpenAI Codex token refresh failed (401): {"error":"invalid_grant"}',
@@ -685,7 +665,14 @@ describe("recoverSubscriptionAuthFailure", () => {
       log: () => {},
     });
 
-    assert.deepEqual(recovery, { action: "retry", reason: "stale-recovered" });
+    assert.deepEqual(recovery, {
+      action: "fail",
+      reason: "stale-recovered",
+      classified: {
+        message: SUBSCRIPTION_LOGIN_REFRESHED_MESSAGE,
+        code: "subscription_login_refreshed",
+      },
+    });
     assert.deepEqual(localLogin(home), RECOVERED);
     assert.equal(calls.length, 1, "the recovered login is not pushed straight back");
     assert.equal(state.version, 7, "the run now runs on the recovered login");
@@ -727,7 +714,6 @@ describe("recoverSubscriptionAuthFailure", () => {
       home,
       isDaytona: false,
       api,
-      replayable: true,
       refresh: async () => {
         throw new Error(
           'OpenAI Codex token refresh failed (400): {"error":"invalid_grant"}',
@@ -756,7 +742,6 @@ describe("recoverSubscriptionAuthFailure", () => {
       home,
       isDaytona: false,
       api,
-      replayable: true,
       refresh: async () => {
         throw new Error(
           'OpenAI Codex token refresh failed (400): {"error":"invalid_grant"}',
@@ -791,7 +776,6 @@ describe("recoverSubscriptionAuthFailure", () => {
       home,
       isDaytona: false,
       api,
-      replayable: true,
       refresh: async () => {
         throw new Error(
           'OpenAI Codex token refresh failed (400): {"error":"invalid_grant"}',
@@ -818,7 +802,6 @@ describe("recoverSubscriptionAuthFailure", () => {
       home,
       isDaytona: false,
       api,
-      replayable: true,
       refresh: async () => {
         throw new Error(
           `OpenAI Codex token refresh failed (400): {"refresh_token":"${LOCAL.refresh}"}`,

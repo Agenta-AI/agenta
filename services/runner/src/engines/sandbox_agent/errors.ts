@@ -500,8 +500,13 @@ export function classifyRunError(
  */
 export const SUBSCRIPTION_LOGIN_REQUIRED_MESSAGE =
   "The ChatGPT sign-in is no longer valid. Sign in again from AI providers.";
+/**
+ * The login this turn started on is gone and a live one has taken its place — refreshed by this
+ * run, or signed in again elsewhere. The running harness cannot pick it up (see
+ * `SubscriptionRecovery`), so the copy asks for the message again rather than for a sign-in.
+ */
 export const SUBSCRIPTION_LOGIN_REFRESHED_MESSAGE =
-  "The ChatGPT sign-in was updated by another session. Try again.";
+  "The ChatGPT sign-in was renewed. Send your message again.";
 /**
  * The provider could not be reached to judge the login, so nothing is known about it and nothing
  * was marked. Distinct copy from the two above, and deliberately NOT "sign in again": the

@@ -1477,7 +1477,6 @@ async function acquireEnvironmentOnce(
         home: subscriptionHomeForError,
         isDaytona: plan.isDaytona,
         sandbox: environment.sandbox as never,
-        replayable: false,
         api: { apiBase: apiBase(), authorization: runCred, log: logger },
         ...(publisher ? { publish: publisher.reconcile } : {}),
         log: logger,

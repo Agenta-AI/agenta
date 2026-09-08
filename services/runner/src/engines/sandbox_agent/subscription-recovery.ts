@@ -229,47 +229,26 @@ export async function verifySubscriptionRefresh(input: {
   return verdict;
 }
 
-/** Retry this turn, or fail it with this copy. The whole output of the recovery decision. */
-export type SubscriptionRecovery =
-  | { action: "retry"; reason: string }
-  | { action: "fail"; classified: ClassifiedRunError; reason: string };
-
 /**
- * The events that make a turn unsafe to replay: anything the user has already seen, and anything
- * the harness already did to the world.
+ * Fail this turn with this copy. The whole output of the recovery decision.
  *
- * Deliberately a positive list. A new event type is not replay-blocking until someone says it is,
- * and the two frames that are NOT here, the terminal `error` and the runner's own diagnostics, are
- * exactly the ones a failed turn emits on its way out.
+ * There is no "retry" outcome. A recovery repairs the login FILE, and the harness that is already
+ * running cannot read it: Pi caches its credential when the daemon starts and re-reads `auth.json`
+ * only once the cached one has expired (pinned 0.80.6 `AuthStorage.getApiKey`), which is never the
+ * case here — the provider refused a token whose expiry is still in the future. Pi's rpc mode
+ * exposes no reload method and pi-acp forwards none, so nothing can make that daemon change its
+ * mind inside the turn. Every repaired login therefore fails the turn RETRYABLY and is picked up
+ * by the cold start the next message makes.
  */
-const REPLAY_BLOCKING_EVENTS = new Set([
-  "message",
-  "message_start",
-  "message_delta",
-  "message_end",
-  "thought",
-  "thought_start",
-  "thought_delta",
-  "thought_end",
-  "tool_call",
-  "tool_result",
-  "interaction_request",
-  "interaction_response",
-  "data",
-  "file",
-]);
-
-/** Whether one emitted event forbids replaying the turn it belongs to. */
-export function isReplayBlockingEvent(type: string): boolean {
-  return REPLAY_BLOCKING_EVENTS.has(type);
-}
+export type SubscriptionRecovery = {
+  action: "fail";
+  classified: ClassifiedRunError;
+  reason: string;
+};
 
 /**
  * Decide what a subscription run does about an authentication failure. Undefined when the failure
  * is not about the login, which leaves the generic classifier's answer in place.
- *
- * `replayable` is the caller's judgement, not this module's: only the turn knows whether it has
- * emitted anything yet, and whether it has already used its one retry.
  */
 export async function recoverSubscriptionAuthFailure(input: {
   err: unknown;
@@ -281,8 +260,6 @@ export async function recoverSubscriptionAuthFailure(input: {
   api: SubscriptionApiDeps;
   /** The session publisher, so a recovered login is published by the one operation that publishes. */
   publish?: (trigger: PublishTrigger) => Promise<void>;
-  /** False when the turn already emitted output, or already spent its one retry. */
-  replayable: boolean;
   refresh?: SubscriptionRefreshFn;
   log?: Log;
   fileDeps?: LocalSubscriptionFileDeps;
@@ -299,8 +276,7 @@ export async function recoverSubscriptionAuthFailure(input: {
       verdict,
       action: recovery.action,
       reason: recovery.reason,
-      replayable: input.replayable,
-      ...(recovery.action === "fail" ? { code: recovery.classified.code } : {}),
+      code: recovery.classified.code,
     });
     return recovery;
   };
@@ -310,18 +286,12 @@ export async function recoverSubscriptionAuthFailure(input: {
     verdict: string,
   ): SubscriptionRecovery =>
     decided({ action: "fail", classified, reason }, verdict);
-  const retryOrFail = (reason: string, verdict: string): SubscriptionRecovery => {
-    if (input.replayable) return decided({ action: "retry", reason }, verdict);
-    // The turn is not replayed, but the login IS fixed, so the next message succeeds.
-    return fail(
-      {
-        message: SUBSCRIPTION_LOGIN_REFRESHED_MESSAGE,
-        code: "subscription_login_refreshed",
-      },
-      `${reason}-not-replayable`,
-      verdict,
-    );
-  };
+  /**
+   * The login is repaired on disk, and this turn still cannot use it (see
+   * {@link SubscriptionRecovery}). Fail retryably so the next message cold-starts on it.
+   */
+  const coldStart = (reason: string, verdict: string): SubscriptionRecovery =>
+    fail(subscriptionAuthError(true), reason, verdict);
 
   // Step one: ask the provider before anything is recorded anywhere.
   const verdict = await verifySubscriptionRefresh({
@@ -338,7 +308,7 @@ export async function recoverSubscriptionAuthFailure(input: {
     // The connection is fine and the runner now holds a live pair nobody else has. Publish it
     // before retrying: if the retry dies, the next run must still find this token.
     await input.publish?.("recovery");
-    return retryOrFail("refresh-succeeded", verdict.verdict);
+    return coldStart("refresh-succeeded", verdict.verdict);
   }
 
   if (verdict.verdict === "retryable") {
@@ -401,18 +371,12 @@ export async function recoverSubscriptionAuthFailure(input: {
   // report asks about the recovered login rather than the dead one it started with.
   adoptSubscriptionLogin(input.state, generation, version, report.login);
 
-  if (generation !== input.subscription.generation) {
-    // A NEW SIGN-IN, not a refresh. The running harness cached a token of the dead lineage and Pi
-    // does not re-read `auth.json` while its cached token is unexpired, so this daemon can never
-    // use the recovered login however many times the turn is replayed. A daemon restart is what
-    // this needs; the turn seam cannot restart one, so the turn fails RETRYABLY instead. A failed
-    // turn is never parked, the session fingerprint hashes `generation`, and the file on disk now
-    // holds the new login, so the next message cold-starts on it.
-    return fail(
-      subscriptionAuthError(true),
-      "stale-new-generation",
-      verdict.verdict,
-    );
-  }
-  return retryOrFail("stale-recovered", verdict.verdict);
+  // A new sign-in also changes the session fingerprint, which hashes `generation`, so the two
+  // reasons are told apart in the log even though both end the turn the same way.
+  return coldStart(
+    generation !== input.subscription.generation
+      ? "stale-new-generation"
+      : "stale-recovered",
+    verdict.verdict,
+  );
 }
