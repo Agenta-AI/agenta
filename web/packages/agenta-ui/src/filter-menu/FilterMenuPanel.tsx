@@ -2,9 +2,8 @@ import {useEffect, useMemo, useRef, useState} from "react"
 
 import {ArrowLeft, RotateCcw as ArrowCounterClockwise, Search} from "lucide-react"
 
-import {useMediaQuery} from "../hooks/useMediaQuery"
-
 import {cn} from "../components/ui/utils"
+import {useMediaQuery} from "../hooks/useMediaQuery"
 
 import {FilterMenuOptionList} from "./FilterMenuOptionList"
 import {FilterMenuRow, selectedValues, summaryLabel} from "./FilterMenuRow"
