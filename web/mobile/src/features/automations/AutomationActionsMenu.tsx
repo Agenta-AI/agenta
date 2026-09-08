@@ -151,14 +151,17 @@ export const AutomationActionsMenu = ({
     return (
         <>
             <DropdownMenu>
+                {/* The hover is not the default `accent`: on a list row the row itself hovers to
+                    accent, so an accent button on top of it would read as no hover at all. */}
                 <DropdownMenuTrigger asChild>
                     <Button
                         type="button"
-                        size="icon-sm"
+                        size="icon-xs"
                         variant="ghost"
                         aria-label="Automation actions"
+                        className="hover:bg-foreground/10 dark:hover:bg-foreground/15"
                     >
-                        <DotsThreeVertical aria-hidden size={18} weight="bold" />
+                        <DotsThreeVertical aria-hidden weight="bold" />
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-[220px]">

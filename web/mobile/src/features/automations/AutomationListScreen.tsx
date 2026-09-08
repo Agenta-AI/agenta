@@ -48,11 +48,11 @@ const STATUS_COLOR: Record<AutomationStatus, {dot: string; text: string}> = {
  * The identity column is the widest and shares surplus with runs-when and agent; status holds
  * its 118 at every width, because a status word does not get wider with the window. The last
  * column is the row's kebab, fixed at the button's own width so the four reading columns keep
- * their proportions. The minima sum to 580 — the width below which the table scrolls sideways
+ * their proportions. The minima sum to 572 — the width below which the table scrolls sideways
  * rather than crushing five columns into a phone.
  */
 const GRID =
-    "grid gap-3 [grid-template-columns:minmax(120px,1.7fr)_118px_minmax(120px,1.5fr)_minmax(80px,1fr)_32px]"
+    "grid gap-3 [grid-template-columns:minmax(120px,1.7fr)_118px_minmax(120px,1.5fr)_minmax(80px,1fr)_24px]"
 
 /**
  * The automations list — where the nav's Automations entry lands.
@@ -112,7 +112,7 @@ export const AutomationListScreen = ({
         return (
             <div className="overflow-hidden rounded-md border border-solid border-border">
                 <div className="overflow-x-auto">
-                    <div className="min-w-[580px]">
+                    <div className="min-w-[572px]">
                         <div
                             className={`${GRID} border-0 border-b border-solid border-border bg-muted/40 px-3.5 py-[9px] text-[12px] text-muted-foreground`}
                         >
