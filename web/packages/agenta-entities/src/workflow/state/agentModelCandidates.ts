@@ -19,7 +19,11 @@ import {
     type SubscriptionStatusResponse,
 } from "../api"
 
-import {harnessCatalogQueryAtom, type HarnessCapabilitiesMap} from "./inspectMeta"
+import {
+    harnessCatalogIsUsable,
+    harnessCatalogQueryAtom,
+    type HarnessCapabilitiesMap,
+} from "./inspectMeta"
 import {
     SUBSCRIPTION_STATUS_QUERY_HARNESS,
     subscriptionStatusQueryAtomFamily,
@@ -60,8 +64,7 @@ export const resolveAgentModelCandidateSources = ({
     const connections = toProviderConnections(vaultRows ?? [])
     // An EMPTY map is not a catalog: read as one it says no route is runnable, and the gate then
     // asks a keyed project for a key it already has (#6660). Unresolved, like a missing one.
-    const catalogResolved = !!capabilities && Object.keys(capabilities).length > 0
-    if (!vaultRows || !catalogResolved) {
+    if (!vaultRows || !harnessCatalogIsUsable(capabilities)) {
         const error = vaultError ?? capabilitiesError ?? null
         return {
             status: error ? "error" : "loading",
@@ -124,9 +127,13 @@ export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boo
         return resolveAgentModelCandidateSources({
             vaultRows: vault.data,
             vaultError: vault.data === undefined && vault.isError ? vault.error : undefined,
-            capabilities: harnessCatalog.data,
+            // A cached empty map keeps `data` defined, so the error would be swallowed and the
+            // state would sit in `loading` with no way back. Report it.
+            capabilities: harnessCatalogIsUsable(harnessCatalog.data)
+                ? harnessCatalog.data
+                : undefined,
             capabilitiesError:
-                harnessCatalog.data === undefined && harnessCatalog.isError
+                !harnessCatalogIsUsable(harnessCatalog.data) && harnessCatalog.isError
                     ? harnessCatalog.error
                     : undefined,
             subscriptionStatus: subscription?.data,
@@ -140,6 +147,30 @@ export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boo
         })
     }),
 )
+
+const HARNESS_CATALOG_QUERY = {
+    queryKey: ["workflows", "catalog", "harnesses"],
+    queryFn: async () => (await fetchHarnessCapabilities()) as unknown as HarnessCapabilitiesMap,
+    staleTime: 5 * 60_000,
+    retry: false,
+} as const
+
+/**
+ * The catalog for an imperative load, refetched once when the cache holds an unusable map.
+ * `ensureQueryData` hands back whatever is cached, so a `{}` from an older build would be served
+ * forever, and a retry after the server recovered would make no request at all (#6660).
+ */
+const loadHarnessCatalog = (
+    queryClient: ReturnType<typeof getHostQueryClient>,
+): Promise<HarnessCapabilitiesMap> =>
+    queryClient.ensureQueryData<HarnessCapabilitiesMap>(HARNESS_CATALOG_QUERY).then((data) =>
+        harnessCatalogIsUsable(data)
+            ? data
+            : queryClient.fetchQuery<HarnessCapabilitiesMap>({
+                  ...HARNESS_CATALOG_QUERY,
+                  staleTime: 0,
+              }),
+    )
 
 export async function loadAgentModelCandidates({
     projectId,
@@ -168,14 +199,7 @@ export async function loadAgentModelCandidates({
         )
             .then((data) => ({data, error: undefined}))
             .catch((error: unknown) => ({data: undefined, error})),
-        queryClient
-            .ensureQueryData<HarnessCapabilitiesMap>({
-                queryKey: ["workflows", "catalog", "harnesses"],
-                queryFn: async () =>
-                    (await fetchHarnessCapabilities()) as unknown as HarnessCapabilitiesMap,
-                staleTime: 5 * 60_000,
-                retry: false,
-            })
+        loadHarnessCatalog(queryClient)
             .then((data) => ({data, error: undefined}))
             .catch((error: unknown) => ({data: undefined, error})),
         showSubscriptions

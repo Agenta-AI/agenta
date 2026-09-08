@@ -164,11 +164,13 @@ describe("resolveAgentModelCandidateSources", () => {
         expect(state.status).toBe("loading")
     })
 
-    it("reports the catalog failure behind an empty catalog", () => {
+    it("reports a catalog failure even when an empty map is cached beside it", () => {
+        // The cached map keeps `data` defined, so the atom used to swallow the refetch error and
+        // sit in `loading` with no notice and no retry.
         const error = new Error("Harness catalog returned no harnesses")
         const state = resolveAgentModelCandidateSources({
             vaultRows,
-            capabilities: undefined,
+            capabilities: {},
             capabilitiesError: error,
             subscriptionSettled: true,
             showSubscriptions: false,

@@ -116,6 +116,11 @@ export const harnessCatalogQueryAtom = atomWithQuery<HarnessCapabilitiesMap>((ge
     }
 })
 
+/** A map with no harnesses is not a catalog; an older build could have cached one (#6660). */
+export const harnessCatalogIsUsable = (
+    capabilities: HarnessCapabilitiesMap | null | undefined,
+): capabilities is HarnessCapabilitiesMap => !!capabilities && Object.keys(capabilities).length > 0
+
 /**
  * The per-harness capability map from the `harnesses` catalog. `null` until the catalog resolves.
  * Keyed by the harness ref (a template's `x-ag-harness-ref` value) that selects this catalog; the
@@ -123,8 +128,8 @@ export const harnessCatalogQueryAtom = atomWithQuery<HarnessCapabilitiesMap>((ge
  */
 export const harnessCapabilitiesAtomFamily = atomFamily((_harnessRef: string) =>
     atom<HarnessCapabilitiesMap | null>((get) => {
-        const query = get(harnessCatalogQueryAtom)
-        return query.data ?? null
+        const {data} = get(harnessCatalogQueryAtom)
+        return harnessCatalogIsUsable(data) ? data : null
     }),
 )
 
