@@ -75,22 +75,32 @@ def session_context_timeout() -> float:
     return DEFAULT_SESSION_CONTEXT_TIMEOUT
 
 
-async def run_optional(coroutine, *, budget: float, label: str):
-    """Await ``coroutine`` under one deadline, and turn every failure into ``None``.
+async def run_optional(start, *, budget: float, label: str):
+    """Call ``start()`` and await it under one deadline, turning every failure into ``None``.
 
-    The one deadline owner for optional work. It runs the coroutine as its OWN task, which is
-    what makes the two guarantees below hold; a bare ``wait_for`` gives neither.
+    The one deadline owner for optional work. It runs the work as its OWN task, which is what
+    makes the guarantees below hold; a bare ``wait_for`` gives none of them.
+
+    ``start`` is a callable, not an awaitable, so that a resolver which raises SYNCHRONOUSLY
+    before returning its coroutine is inside the boundary too. Passing the already-evaluated
+    call would let such a factory escape it, and ``Callable[..., Awaitable[...]]`` admits one.
 
     The unwind is bounded. ``wait_for`` awaits the cancelled coroutine's cleanup, so a slow
     teardown extends the turn past the budget. Here the cancelled task gets ``CLEANUP_GRACE``
-    to finish and is otherwise abandoned to complete on its own.
+    to finish and is otherwise detached to complete on its own.
 
     A cancellation from OUTSIDE always propagates. In a bare ``wait_for`` a teardown that
     raises REPLACES the in-flight ``CancelledError`` with an ordinary exception, which a
     broad ``except`` then swallows, and the caller's cancel is lost. A failing teardown inside
     a child task cannot reach this frame, so nothing can overwrite the cancel here.
     """
-    task = asyncio.ensure_future(coroutine)
+    try:
+        task = asyncio.ensure_future(start())
+    except asyncio.CancelledError:
+        raise
+    except Exception:  # pylint: disable=broad-except
+        log.warning("agent: %s could not start", label, exc_info=True)
+        return None
     try:
         done, _ = await asyncio.wait({task}, timeout=budget)
     except asyncio.CancelledError:
@@ -123,17 +133,31 @@ async def run_optional(coroutine, *, budget: float, label: str):
         return None
 
 
-def _abandon(task: "asyncio.Future") -> None:
-    """Retrieve an abandoned task's outcome so asyncio does not log it as never retrieved."""
+# Detached cleanups, held so the loop cannot collect one mid-unwind. A done callback is not
+# a reference: Python requires a strong one for a task to run reliably in the background, and
+# without it asyncio reports "Task was destroyed but it is pending!". Entries remove
+# themselves, so this set is empty whenever nothing is unwinding.
+_detached: "set[asyncio.Future]" = set()
 
-    def _consume(finished: "asyncio.Future") -> None:
+
+def detached_count() -> int:
+    """How many cleanups are still unwinding. Test and inspection hook."""
+    return len(_detached)
+
+
+def _abandon(task: "asyncio.Future") -> None:
+    """Let ``task`` finish unwinding on its own, held and its outcome consumed."""
+
+    def _release(finished: "asyncio.Future") -> None:
+        _detached.discard(finished)
         if not finished.cancelled():
             finished.exception()
 
     if task.done():
-        _consume(task)
-    else:
-        task.add_done_callback(_consume)
+        _release(task)
+        return
+    _detached.add(task)
+    task.add_done_callback(_release)
 
 
 async def resolve_session_context(
@@ -155,13 +179,17 @@ async def resolve_session_context(
     here alone. Never cache the FACTS: a rename has to show on the very next turn.
 
     The deadline covers the whole operation, client construction and teardown included, and
-    bounds the unwind too. See :func:`run_optional`. A direct caller of this function gets
-    that bound; ``make_agent_handler`` applies its own around whatever resolver it was given,
-    and that outer one starts first and so reports the timeout.
+    bounds the unwind too. See :func:`run_optional`.
+
+    This is the bounded entrypoint, for a caller that reaches past ``make_agent_handler``.
+    The handler does NOT go through here: it brings its own bound and calls
+    :func:`read_session_context` instead, so exactly one deadline owns a turn. Nesting two
+    would leave the outer grace period watching an inner wrapper unwind rather than the
+    client that actually holds the connections.
     """
     budget = timeout if timeout is not None else session_context_timeout()
     return await run_optional(
-        _resolve(
+        lambda: read_session_context(
             session_id=session_id,
             workflow_id=workflow_id,
             connection=connection,
@@ -169,6 +197,27 @@ async def resolve_session_context(
         ),
         budget=budget,
         label="session context",
+    )
+
+
+async def read_session_context(
+    *,
+    session_id: Optional[str],
+    workflow_id: Optional[str] = None,
+    connection: Optional[PlatformConnection] = None,
+    budget: Optional[float] = None,
+) -> Optional[SessionContext]:
+    """The reads, with NO deadline of their own. For a caller that supplies one.
+
+    ``budget`` caps each individual HTTP operation. It does not bound the whole call, and a
+    backend that trickles bytes will outlive it, so a caller must wrap this in
+    :func:`run_optional`.
+    """
+    return await _resolve(
+        session_id=session_id,
+        workflow_id=workflow_id,
+        connection=connection,
+        budget=budget if budget is not None else session_context_timeout(),
     )
 
 
@@ -350,8 +399,8 @@ _MALFORMED = _Malformed()
 def _session_name(body: Any) -> Any:
     """The session's name, ``None`` for an unnamed session, ``_MALFORMED`` for a bad body.
 
-    An absent or null ``stream`` is legitimate: the response model omits null fields, and a
-    session with no row yet has no name. An absent or null ``name`` is the unnamed session,
+    An absent or null ``stream`` is legitimate: a session with no row yet has no name, and
+    the backend may spell that either way. An absent or null ``name`` is the unnamed session,
     which is the whole point of the first-turn prompt. Anything else is a shape this code
     did not expect, and guessing "unnamed" from it would tell a named session to rename.
     """

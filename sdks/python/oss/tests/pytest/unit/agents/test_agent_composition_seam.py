@@ -1211,3 +1211,69 @@ async def test_the_same_artifact_spelled_two_ways_is_not_ambiguous():
     )
 
     assert seen["workflow_id"] == "0199e0d0-0000-7000-8000-0000000000aa"
+
+
+async def test_a_resolver_that_raises_synchronously_cannot_break_the_turn():
+    """The composition field is typed `Callable[..., Awaitable[...]]`, which admits a factory.
+
+    A factory that raises before it returns its coroutine escapes a boundary that evaluates
+    the call first, and then optional prompt text breaks the turn. That is the one thing this
+    seam promises will never happen.
+    """
+    backend = _FakeBackend()
+
+    def explodes(*, session_id, workflow_id):
+        raise RuntimeError("factory exploded before returning a coroutine")
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=explodes,
+        )
+    )
+
+    result = await handler(
+        request=WorkflowServiceRequest(session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert result is not None
+    assert backend.created_turn_contexts == [None]
+
+
+async def test_only_one_deadline_owns_a_turn(monkeypatch):
+    """The default path must not nest two bounds.
+
+    A nested pair leaves the outer grace period watching an inner wrapper unwind instead of
+    the client that holds the connections, so the mechanism guards the wrong object.
+    """
+    from agenta.sdk.agents import handler as handler_module
+    from agenta.sdk.agents.platform import session_context as session_context_module
+
+    owners: List[str] = []
+    real_run_optional = session_context_module.run_optional
+
+    async def _recording(start, *, budget, label):
+        owners.append(label)
+        return await real_run_optional(start, budget=budget, label=label)
+
+    monkeypatch.setattr(handler_module, "run_optional", _recording)
+    monkeypatch.setattr(session_context_module, "run_optional", _recording)
+
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert owners == ["session context resolver"]

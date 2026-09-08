@@ -351,7 +351,12 @@ async def test_a_slow_backend_costs_the_budget_and_no_more(connection, monkeypat
 
 
 async def test_the_budget_cancels_the_outstanding_reads(connection, monkeypatch):
-    """An expired budget must not leave reads running against the backend."""
+    """An expired budget must not leave reads running against the backend.
+
+    All three, not "at least one": both children of the nested gather have to go too, and a
+    test that accepts one cancellation passes on a version that leaks the other two.
+    """
+    started: List[str] = []
     cancelled: List[str] = []
 
     class _Client:
@@ -364,19 +369,20 @@ async def test_the_budget_cancels_the_outstanding_reads(connection, monkeypatch)
         async def __aexit__(self, *args):
             return False
 
-        async def _hang(self):
+        async def _hang(self, what: str):
+            started.append(what)
             try:
                 await asyncio.sleep(30.0)
             except asyncio.CancelledError:
-                cancelled.append("read")
+                cancelled.append(what)
                 raise
             return _FakeResponse(200, {})
 
         async def get(self, url, params=None, headers=None):
-            return await self._hang()
+            return await self._hang("workflow" if "/workflows/" in url else "stream")
 
         async def post(self, url, json=None, headers=None):
-            return await self._hang()
+            return await self._hang("turns")
 
     monkeypatch.setattr(session_context.httpx, "AsyncClient", _Client)
 
@@ -389,7 +395,8 @@ async def test_the_budget_cancels_the_outstanding_reads(connection, monkeypatch)
         )
         is None
     )
-    assert cancelled
+    assert sorted(started) == ["stream", "turns", "workflow"]
+    assert sorted(cancelled) == ["stream", "turns", "workflow"]
 
 
 async def test_a_client_that_raises_on_construction_costs_only_the_facts(
@@ -593,6 +600,8 @@ async def test_a_slow_teardown_cannot_run_past_the_grace(connection, monkeypatch
     and the turn moves on rather than waiting for it.
     """
     monkeypatch.setattr(session_context, "CLEANUP_GRACE", 0.1)
+    # budget 0.1 + grace 0.1 = 0.2. A one-second allowance would pass on a version that
+    # awaits the ten-second teardown on a loaded box, so bound it just above the real sum.
 
     class _Client:
         def __init__(self, *args, **kwargs) -> None:
@@ -625,7 +634,7 @@ async def test_a_slow_teardown_cannot_run_past_the_grace(connection, monkeypatch
     elapsed = time.monotonic() - started
 
     assert context is None
-    assert elapsed < 1.0
+    assert elapsed < 0.5
 
 
 async def test_a_failing_teardown_cannot_swallow_an_outside_cancel(
@@ -707,3 +716,98 @@ async def test_a_failing_teardown_after_the_budget_still_yields_no_facts(
         )
         is None
     )
+
+
+# --------------------------------------------------------------------------- #
+# The detached cleanup, and the single deadline owner
+# --------------------------------------------------------------------------- #
+
+
+async def test_a_detached_cleanup_is_held_and_released(connection, monkeypatch):
+    """An abandoned unwind needs a strong reference, or the loop can collect it mid-flight.
+
+    A done callback is not a reference. Without one asyncio reports "Task was destroyed but
+    it is pending!" and the client's connections are released at a time nobody chose.
+    """
+    monkeypatch.setattr(session_context, "CLEANUP_GRACE", 0.05)
+    release = asyncio.Event()
+
+    class _Client:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            await release.wait()
+            return False
+
+        async def get(self, url, params=None, headers=None):
+            await asyncio.sleep(30.0)
+            return _FakeResponse(200, {})
+
+        async def post(self, url, json=None, headers=None):
+            await asyncio.sleep(30.0)
+            return _FakeResponse(200, {})
+
+    monkeypatch.setattr(session_context.httpx, "AsyncClient", _Client)
+
+    before = session_context.detached_count()
+    assert (
+        await resolve_session_context(
+            session_id="session-1",
+            workflow_id=WORKFLOW_ID,
+            connection=connection,
+            timeout=0.05,
+        )
+        is None
+    )
+    # The caller is done, and the unwind is still held rather than left to chance.
+    assert session_context.detached_count() == before + 1
+
+    release.set()
+    for _ in range(200):
+        await asyncio.sleep(0.01)
+        if session_context.detached_count() == before:
+            break
+    # It lets go of itself once the teardown finishes, so the set does not grow forever.
+    assert session_context.detached_count() == before
+
+
+async def test_a_resolver_that_raises_before_awaiting_stays_inside_the_boundary():
+    """`Callable[..., Awaitable[...]]` admits a factory that raises synchronously.
+
+    Evaluating the call before entering the boundary lets such a resolver escape it and break
+    the turn, which is the whole thing the boundary exists to prevent.
+    """
+
+    def explodes(*, session_id, workflow_id):
+        raise RuntimeError("factory exploded before returning a coroutine")
+
+    assert (
+        await session_context.run_optional(
+            lambda: explodes(session_id="s", workflow_id=None),
+            budget=1.0,
+            label="test",
+        )
+        is None
+    )
+
+
+async def test_the_unbounded_read_carries_no_deadline_of_its_own(connection, routed):
+    """The handler supplies the only bound on its path, so this one must not add a second."""
+    routed(
+        {
+            f"/workflows/{WORKFLOW_ID}": _workflow("Changelog writer"),
+            "/sessions/streams/": _stream("Sapphire Ledger"),
+            "/sessions/turns/query": _turns(1),
+        }
+    )
+
+    context = await session_context.read_session_context(
+        session_id="session-1", workflow_id=WORKFLOW_ID, connection=connection
+    )
+
+    assert context.agent_name == "Changelog writer"
+    assert context.session_name == "Sapphire Ledger"

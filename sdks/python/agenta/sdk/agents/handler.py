@@ -44,7 +44,7 @@ from agenta.sdk.agents.platform import (
 from agenta.sdk.agents.platform import resolve_mcp as _platform_resolve_mcp
 from agenta.sdk.agents.platform import resolve_tools as _platform_resolve_tools
 from agenta.sdk.agents.platform import (
-    resolve_session_context as _platform_resolve_session_context,
+    read_session_context as _platform_read_session_context,
     run_optional,
     session_context_timeout,
 )
@@ -123,7 +123,8 @@ async def _default_resolve_connection(*, model, context) -> ResolvedConnection:
 async def _default_resolve_session_context(
     *, session_id, workflow_id
 ) -> Optional[SessionContext]:
-    return await _platform_resolve_session_context(
+    """The unbounded read. `_bounded_session_context` is the one deadline owner on this path."""
+    return await _platform_read_session_context(
         session_id=session_id, workflow_id=workflow_id
     )
 
@@ -141,12 +142,16 @@ async def _bounded_session_context(
     covers the WHOLE call, bounds the unwind, and propagates a caller's cancellation. It is
     the same helper the default resolver uses, so both paths behave identically.
 
-    This is the outer bound, and it starts first, so it is the one that reports a timeout.
-    The default resolver's own bound is for a caller that reaches past this handler. An
-    INJECTED resolver has no bound of its own, and this is the only thing that gives it one.
+    This is the ONLY deadline on this path. The default resolver reads without a bound of
+    its own, so nothing nests: a nested pair would leave this grace period watching an inner
+    wrapper unwind rather than the client that holds the connections. An injected resolver
+    has no bound either, and this is what gives it one.
+
+    The resolver is passed as a callable, not called here, so a resolver that raises before
+    returning its awaitable is inside the boundary too.
     """
     return await run_optional(
-        resolve(session_id=session_id, workflow_id=workflow_id),
+        lambda: resolve(session_id=session_id, workflow_id=workflow_id),
         budget=session_context_timeout(),
         label="session context resolver",
     )

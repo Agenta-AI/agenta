@@ -83,10 +83,16 @@ def backend_facts(monkeypatch):
     # Auth is exercised by test_credential_exchange.py. This file is about what the route
     # resolves and renders once a caller is through the door.
     monkeypatch.setattr(auth_middleware, "_AUTH_ENABLED", False)
-    # The route runs the INSTRUMENTED handler, so the SDK singleton has to exist. Point it
-    # at an unroutable host: spans are only flushed in the background and nothing in this
-    # file asserts on them.
+    # The route runs the INSTRUMENTED handler, which reads `ag.tracing`. Initialize it HERE
+    # rather than inheriting it from whatever else ran first in this process: under xdist the
+    # worker that gets this file is not guaranteed to have run an initializing test, and the
+    # failure is a 500 on `NoneType.get_current_span` in the cell that proves the artifact
+    # check works. Point it at an unroutable host, since spans only flush in the background
+    # and nothing here asserts on them.
     agenta_sdk.init(host="http://127.0.0.1:1", api_key="test-key")
+    assert agenta_sdk.tracing is not None, (
+        "the route needs an initialized SDK singleton"
+    )
     return facts
 
 
