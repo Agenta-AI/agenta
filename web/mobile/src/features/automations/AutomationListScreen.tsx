@@ -251,7 +251,7 @@ export const AutomationListScreen = ({
                                                         />
                                                     )}
                                                     <span
-                                                        className="truncate text-[14px] font-medium text-foreground"
+                                                        className="truncate text-[14px] text-foreground"
                                                         title={automation.name}
                                                     >
                                                         {automation.name}
