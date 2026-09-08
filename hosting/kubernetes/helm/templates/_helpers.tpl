@@ -426,7 +426,16 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{/* ================================================================
    Ingress defaults.
    ================================================================ */}}
-{{- define "agenta.ingress.className" -}}{{ default "traefik" (default dict .Values.ingress).className }}{{- end }}
+{{- /* Default "traefik", but an explicit empty string means "render no ingressClassName".
+       hasKey, not `default`, because `default` would turn "" back into "traefik".
+       Some controllers ignore the field: GKE reacts only to the legacy
+       kubernetes.io/ingress.class annotation, and an Ingress carrying a className it does
+       not own gets no controller events at all. Setting className: "" lets the operator
+       route by annotation alone. */ -}}
+{{- define "agenta.ingress.className" -}}
+{{- $ingress := default dict .Values.ingress -}}
+{{- if hasKey $ingress "className" }}{{ $ingress.className }}{{ else }}traefik{{ end }}
+{{- end }}
 {{- define "agenta.ingress.host" -}}{{ default "agenta.local" (default dict .Values.ingress).host }}{{- end }}
 {{- define "agenta.ingress.paths.api.path" -}}
 {{- $paths := default dict (default dict .Values.ingress).paths -}}

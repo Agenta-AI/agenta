@@ -509,7 +509,8 @@ posthog:
 # ================================================================== #
 # ingress:
 #   enabled: true
-#   className: traefik
+#   className: traefik   # "" leaves spec.ingressClassName out entirely, for a controller that
+#                        # ignores the field and routes by annotation instead (GKE).
 #   host: agenta.example.com
 #   annotations:
 #     traefik.ingress.kubernetes.io/router.middlewares: agenta-strip-prefixes@kubernetescrd

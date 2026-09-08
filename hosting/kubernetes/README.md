@@ -95,12 +95,9 @@ exist yet at pre-install time and would deadlock the Job.
 ```yaml
 ingress:
   enabled: true
-  className: gce
+  className: ""            # see the note below: GKE ignores this field
   host: agenta.example.com
   annotations:
-    # GKE does not act on spec.ingressClassName. The controller reads this legacy
-    # annotation, and without it the Ingress gets no events and never gets an IP.
-    # The chart always renders ingressClassName, so set both.
     kubernetes.io/ingress.class: gce
     kubernetes.io/ingress.global-static-ip-name: agenta-ip
     networking.gke.io/managed-certificates: agenta-cert
@@ -110,6 +107,14 @@ ingress:
     webMobile: { path: /m,        pathType: ImplementationSpecific }
     web:       { path: /,         pathType: ImplementationSpecific }
 ```
+
+The GKE ingress controller ignores `spec.ingressClassName`. An Ingress carrying
+`className: gce` gets no controller events and never gets an IP, even with an
+IngressClass object present. The controller reacts only to the legacy
+`kubernetes.io/ingress.class` annotation. Set `ingress.className: ""` so the
+chart leaves the field out, and route with the annotation. An unset
+`ingress.className` still defaults to `traefik`, which is right for the bundled
+stack.
 
 Do not strip `/api`. The API is mounted at `/api` and its redirects keep the
 prefix. Do strip `/services`. Keep the mobile path at `/m`, because the mobile

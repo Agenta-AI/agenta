@@ -21,7 +21,11 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  ingressClassName: {{ include "agenta.ingress.className" . }}
+  {{- /* Omitted when ingress.className is an empty string, for a controller that ignores the
+         field and routes by annotation instead (GKE). */}}
+  {{- with (include "agenta.ingress.className" .) }}
+  ingressClassName: {{ . }}
+  {{- end }}
   {{- with $ingress.tls }}
   tls:
     {{- toYaml . | nindent 4 }}

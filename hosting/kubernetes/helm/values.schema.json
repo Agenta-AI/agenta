@@ -450,7 +450,7 @@
       "additionalProperties": true,
       "properties": {
         "enabled":     { "type": "boolean" },
-        "className":   { "type": "string", "description": "IngressClass name. Default 'traefik'." },
+        "className":   { "type": "string", "description": "IngressClass name. Unset means 'traefik'. An empty string leaves spec.ingressClassName out entirely, for a controller that ignores the field and routes by annotation instead (GKE reacts only to kubernetes.io/ingress.class)." },
         "host":        { "type": "string" },
         "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
         "tls":         { "type": "array", "items": { "type": "object", "additionalProperties": true } },
