@@ -1,6 +1,9 @@
 import {useCallback, useState} from "react"
 
-import {type TriggerSubscription} from "@agenta/entities/gatewayTrigger"
+import {
+    getScheduleMessagePreview,
+    type TriggerSubscription,
+} from "@agenta/entities/gatewayTrigger"
 import {message} from "@agenta/ui/app-message"
 import {
     DropdownMenu,
@@ -9,11 +12,20 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {Copy, DotsThreeVertical, Hash, Trash} from "@phosphor-icons/react"
+import {
+    ClockCounterClockwise,
+    Copy,
+    DotsThreeVertical,
+    Hash,
+    Pause,
+    Play,
+    Trash,
+} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {Button} from "@/components/ui/button"
 
+import {useStartBlankSession} from "../chat/useStartBlankSession"
 import {useConfirmSheet} from "../settings/useConfirmSheet"
 
 import {buildAutomationCreate} from "./automationEdit"
@@ -29,15 +41,26 @@ import {useAutomation} from "./useAutomation"
  *
  * A duplicate arrives OFF. Copying a schedule that runs at 09:00 should not add a second 09:00 run
  * nobody asked for; the copy opens ready to be edited and switched on.
+ *
+ * On a list row the kebab is the row's only control, so it also carries the three things the
+ * detail screen exposes as its own controls — test run, run history, and the on/off switch.
+ * `surface` decides which set applies, so the detail screen never offers a second copy of a
+ * control already sitting beside it.
  */
 export const AutomationActionsMenu = ({
     automation,
     base,
     onLeave,
+    surface = "detail",
 }: {
     automation: Automation
     /** `/w/:workspace/p/:project` */
     base: string
+    /**
+     * `"list"` adds the actions the detail screen already shows as controls of its own. On the
+     * list the kebab is all a row has.
+     */
+    surface?: "detail" | "list"
     /**
      * Navigate past the unsaved-changes guard. A deleted automation has nothing left to save, so
      * asking about its draft would be asking about a row that no longer exists.
@@ -45,7 +68,8 @@ export const AutomationActionsMenu = ({
     onLeave?: (url: string) => void
 }) => {
     const router = useRouter()
-    const {create, remove} = useAutomation(automation.id, automation.kind)
+    const {create, remove, setActive} = useAutomation(automation.id, automation.kind)
+    const startSession = useStartBlankSession(base)
     const {confirm, sheet} = useConfirmSheet()
     const [duplicating, setDuplicating] = useState(false)
 
@@ -98,6 +122,27 @@ export const AutomationActionsMenu = ({
         }
     }, [automation.id])
 
+    const onToggle = useCallback(async () => {
+        const next = !automation.isActive
+        try {
+            await setActive(automation.id, next)
+            message.success(next ? "Automation switched on" : "Automation switched off")
+        } catch {
+            message.error("Couldn't change this automation")
+        }
+    }, [automation.id, automation.isActive, setActive])
+
+    const onTestRun = useCallback(() => {
+        if (!automation.agentId) {
+            message.error("Pick the agent this automation runs first")
+            return
+        }
+        // Unsent, like the detail screen's Test run: a rehearsal leaves the last press to the user.
+        startSession(automation.agentId, {
+            draft: getScheduleMessagePreview(automation.raw.data?.inputs_fields),
+        })
+    }, [automation.agentId, automation.raw.data?.inputs_fields, startSession])
+
     const onDelete = useCallback(() => {
         confirm({
             title: "Delete this automation?",
@@ -128,6 +173,33 @@ export const AutomationActionsMenu = ({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-[220px]">
+                    {surface === "list" ? (
+                        <>
+                            <DropdownMenuItem onSelect={onTestRun}>
+                                <Play aria-hidden size={14} />
+                                Test run in playground
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                onSelect={() =>
+                                    void router
+                                        .push(`${base}/automations/${automation.id}/runs`)
+                                        .catch(() => {})
+                                }
+                            >
+                                <ClockCounterClockwise aria-hidden size={14} />
+                                View run history
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => void onToggle()}>
+                                {automation.isActive ? (
+                                    <Pause aria-hidden size={14} />
+                                ) : (
+                                    <Play aria-hidden size={14} />
+                                )}
+                                {automation.isActive ? "Turn off" : "Turn on"}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                        </>
+                    ) : null}
                     <DropdownMenuItem disabled={duplicating} onSelect={() => void onDuplicate()}>
                         <Copy aria-hidden size={14} />
                         Duplicate
