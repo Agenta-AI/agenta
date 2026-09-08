@@ -1,4 +1,4 @@
-import {useCallback, useRef, type ReactElement} from "react"
+import type {ReactElement} from "react"
 
 import {
     ContextMenu,
@@ -9,20 +9,14 @@ import {
 } from "@agenta/ui/ui"
 
 import {isMenuDivider, type SessionMenuEntry} from "./menu"
+import {useDeferredMenuSelect, type MenuSelect} from "./useDeferredMenuSelect"
 
 export interface SessionRowContextMenuProps {
     /** The row's verbs. Empty or absent renders the row bare — no menu, no wrapper. */
     entries?: SessionMenuEntry[]
-    /**
-     * Runs the verb. Return `true` when the verb PUT THE CARET SOMEWHERE ITSELF — the inline
-     * rename editor is the only one that does.
-     *
-     * Radix returns focus to the trigger as the menu closes, which lands AFTER the editor's
-     * `autoFocus`. The editor then blurs, and a blur commits and closes it — so "Rename" opened
-     * an input the user never saw. A `true` here suppresses that one focus restore. Every other
-     * verb keeps it, because returning the caret to the row is the correct behaviour for them.
-     */
-    onSelect?: (key: string) => boolean | void
+    /** Runs the verb. Return a function to defer it until the menu closes — see
+     * `useDeferredMenuSelect`, which the row kebab shares. */
+    onSelect?: MenuSelect
     /** The row itself; it becomes the trigger, so it must forward a ref (`asChild`). */
     children: ReactElement
 }
@@ -38,21 +32,7 @@ export const SessionRowContextMenu = ({
     onSelect,
     children,
 }: SessionRowContextMenuProps) => {
-    // Set during `onSelect`, read one tick later by `onCloseAutoFocus`. A ref, not state: the
-    // close happens in the same commit as the select, so a re-render would be too late.
-    const keepFocusRef = useRef(false)
-
-    const handleSelect = useCallback(
-        (key: string) => {
-            keepFocusRef.current = onSelect?.(key) === true
-        },
-        [onSelect],
-    )
-
-    const handleCloseAutoFocus = useCallback((event: Event) => {
-        if (keepFocusRef.current) event.preventDefault()
-        keepFocusRef.current = false
-    }, [])
+    const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect(onSelect)
 
     if (!entries || entries.length === 0) return children
 

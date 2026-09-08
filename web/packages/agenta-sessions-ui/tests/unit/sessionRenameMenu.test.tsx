@@ -140,14 +140,14 @@ describe("onMenuClick", () => {
     })
 })
 
-describe("SessionRowContextMenu focus contract", () => {
+describe("the menu's close handoff", () => {
     const entries = [
         {key: "rename", label: "Rename"},
         {key: "archive", label: "Archive"},
     ]
 
-    /** Renders the wrapper, clicks one entry, then runs the close handler Radix would run. */
-    const selectThenClose = (key: string, onSelect: (selected: string) => boolean | void) => {
+    /** Clicks one entry, then runs the close handler Radix runs as the menu unmounts. */
+    const selectThenClose = (label: string, onSelect: (key: string) => (() => void) | void) => {
         act(() =>
             root.render(
                 createElement(
@@ -158,7 +158,7 @@ describe("SessionRowContextMenu focus contract", () => {
             ),
         )
         const button = Array.from(container.querySelectorAll("button")).find(
-            (element) => element.textContent === (key === "rename" ? "Rename" : "Archive"),
+            (element) => element.textContent === label,
         )
         act(() => button?.dispatchEvent(new MouseEvent("click", {bubbles: true})))
 
@@ -167,17 +167,44 @@ describe("SessionRowContextMenu focus contract", () => {
         return event.defaultPrevented
     }
 
-    // Without this the tab chip's input mounts, Radix pulls focus back to the row, the blur
-    // commits, and the editor is gone before the user sees it.
-    it("keeps the caret where a verb that opened an editor put it", () => {
-        expect(selectThenClose("rename", (selected) => selected === "rename")).toBe(true)
+    // The editor must not mount while the menu still holds its focus trap: the trap blurs it
+    // straight back out, and a blur commits and closes it.
+    it("runs deferred work after the menu closes, not during the select", () => {
+        const ran: string[] = []
+        const restored = selectThenClose("Rename", () => {
+            ran.push("select")
+            return () => ran.push("close")
+        })
+
+        expect(ran).toEqual(["select", "close"])
+        expect(restored).toBe(true)
     })
 
-    it("restores focus to the row for every other verb", () => {
-        expect(selectThenClose("archive", (selected) => selected === "rename")).toBe(false)
+    it("restores focus to the row for a verb that defers nothing", () => {
+        expect(selectThenClose("Archive", () => undefined)).toBe(false)
     })
 
-    it("restores focus where the surface cannot rename in place", () => {
-        expect(selectThenClose("rename", () => undefined)).toBe(false)
+    it("drops the deferred work when a later select supersedes it", () => {
+        const deferred = vi.fn()
+        act(() =>
+            root.render(
+                createElement(
+                    SessionRowContextMenu,
+                    {entries, onSelect: (key: string) => (key === "rename" ? deferred : undefined)},
+                    createElement("div", null, "row"),
+                ),
+            ),
+        )
+        const click = (label: string) =>
+            act(() =>
+                Array.from(container.querySelectorAll("button"))
+                    .find((element) => element.textContent === label)
+                    ?.dispatchEvent(new MouseEvent("click", {bubbles: true})),
+            )
+        click("Rename")
+        click("Archive")
+        act(() => menuStub.onCloseAutoFocus?.(new Event("closeAutoFocus", {cancelable: true})))
+
+        expect(deferred).not.toHaveBeenCalled()
     })
 })

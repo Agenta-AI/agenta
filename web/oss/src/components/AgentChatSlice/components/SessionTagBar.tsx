@@ -6,6 +6,7 @@ import {
     SessionTab,
     SessionTabDragItem,
     SessionTabStrip,
+    type MenuSelect,
 } from "@agenta/sessions-ui"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -116,7 +117,7 @@ interface SessionTagProps {
     onClose: (id: string) => void
     onRename: (id: string, title: string) => void
     /** Right-click actions, from the shared `useSessionActions` set. */
-    menu: {items: SessionMenuItem[]; onClick: (info: {key: string}) => void}
+    menu: {items: SessionMenuItem[]; onClick: MenuSelect}
 }
 
 /** One session chip: status dot + truncated label (double-click or pencil to rename) + hover
@@ -205,7 +206,7 @@ const SessionTag = memo(function SessionTag({
             }}
             className="flex shrink-0 items-center overflow-hidden"
         >
-            <SessionRowContextMenu entries={menu.items} onSelect={(key) => menu.onClick({key})}>
+            <SessionRowContextMenu entries={menu.items} onSelect={(key) => menu.onClick(key)}>
                 <SessionTab
                     active={active}
                     pinned={pinned}
@@ -365,14 +366,15 @@ const SessionTagBar = ({
                         disabled: toRight.length === 0,
                     },
                 ],
-                onClick: ({key}: {key: string}) => {
+                onClick: (key: string) => {
                     if (key === "close") return onClose(session.id)
                     if (key === "close-others") return onCloseMany?.(others)
                     if (key === "close-right") return onCloseMany?.(toRight)
+                    // Deferred, not run here: the request mounts the chip's input, and an input
+                    // that mounts inside the menu's focus trap is blurred straight back out —
+                    // and a blur commits. See `useDeferredMenuSelect`.
+                    if (key === "rename") return () => shared({key})
                     shared({key})
-                    // Rename opens the chip's own input. Say so, or the menu's closing focus
-                    // restore blurs it and the blur commits — the editor would flash and vanish.
-                    return key === "rename"
                 },
             }
         },

@@ -77,12 +77,9 @@ const Row = ({
 
     const onSelect = useCallback(
         (key: string) => {
-            if (key === "rename" && onRename) {
-                rename.start()
-                // The editor takes the caret; the menu must not take it back. See
-                // `SessionRowContextMenu`.
-                return true
-            }
+            // Deferred, not run here: the editor must not mount inside the menu's focus trap.
+            // See `SessionRowContextMenu`.
+            if (key === "rename" && onRename) return () => rename.start()
             onMenuSelect?.(vm, key)
         },
         [onMenuSelect, onRename, rename, vm],
