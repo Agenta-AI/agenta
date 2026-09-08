@@ -361,6 +361,21 @@ export interface TriggerDeliveryQuery {
     event_id?: string
 }
 
+/**
+ * The `windowing` half of a deliveries query — the shared `Windowing` DTO, narrowed to the
+ * fields the deliveries endpoint actually applies (`created_at`, descending by default).
+ *
+ * `oldest`/`newest` are ISO timestamps and bound the window server-side; `limit` caps the page.
+ * Ordering is `created_at DESC`, so a `limit` drops the OLDEST rows in the window — a caller
+ * counting a full page is reading a lower bound, not a total.
+ */
+export interface TriggerDeliveryWindowing {
+    oldest?: string
+    newest?: string
+    limit?: number
+    order?: "ascending" | "descending"
+}
+
 // ---------------------------------------------------------------------------
 // Schedules — a standing cron timer binding a recurring tick to a workflow.
 // Mirrors the backend DTOs (`api/oss/src/core/triggers/dtos.py`). A schedule

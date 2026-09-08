@@ -34,6 +34,7 @@ export type {
     TriggerDeliveryData,
     TriggerDeliveryQuery,
     TriggerDeliveryResponse,
+    TriggerDeliveryWindowing,
     TriggerProviderKind,
     TriggerReference,
     TriggerSchedule,
@@ -182,6 +183,8 @@ export type {
 // ---------------------------------------------------------------------------
 
 export {
+    DELIVERY_WINDOW_LIMIT,
+    projectTriggerDeliveriesAtomFamily,
     triggerCatalogEventsInfiniteFamily,
     triggerCatalogIntegrationsInfiniteAtom,
     triggerConnectionsQueryAtom,
@@ -201,6 +204,7 @@ export {
     useTriggerConnectionActions,
     useTriggerConnectionsQuery,
     useTriggerConnectionSubscriptions,
+    useProjectTriggerDeliveries,
     useTriggerDelivery,
     useTriggerDeliveries,
     useTriggerEvent,
