@@ -13,7 +13,8 @@ completed in this worktree.
 - Starting commit: `a8abc8f73e3189e4c9ba76b89278cf80813d01e8`.
 - Integration worktree: `/home/mahmoud/code/agenta-2-worktrees/hosted-subscriptions`.
 - Local branch: `spike/hosted-subscription-exploration`.
-- PR branch: `agent/hosted-subscription-connections-plan-20260907`.
+- PR branch: `agent/hosted-subscription-connections-plan-20260907` (Codex's plan PR).
+- Implementation branch on origin: `spike/hosted-subscription-exploration` at `e2773a30c0` (2026-09-08).
 - Workflow: ordinary Git in the explicitly requested worktree. Do not initialize GitButler here.
 
 ## Landed on the branch (2026-09-08)
