@@ -16,7 +16,7 @@ applies to Pi, Claude, and Codex immediately. Native behavior changes require sp
 | Codex spike | Unit/image investigation complete; live checks credential-blocked |
 | Review | Two save-race findings fixed; independent re-review found no remaining issues |
 | Documentation | Current configuration/tools references and interface inventory updated; docs build passes |
-| Browser validation | Dedicated full-stack deployment pending PR publication |
+| Browser validation | Release-based stack live on port 9080; editor flows pass on both hosts; overview fix awaiting deployment recheck |
 
 See [validation.md](validation.md) for test scope and remaining checks. The user
 requested PR publication followed by a full isolated deployment and QA. Existing
@@ -25,7 +25,8 @@ shared deployments remain unchanged.
 ## Release rebase
 
 The user approved rebasing the single feature commit onto `origin/release/v0.115.3`.
-Only the isolated worktree was changed; publishing remains with the main agent.
+PR [#6641](https://github.com/Agenta-AI/agenta/pull/6641) targets that release. Only the
+isolated worktree was changed; the original shared workspace remains untouched.
 The resolution preserves Custom secrets, credential draft guards and commit callbacks,
 the SDK credential/reference schemas, and the `request_secret` embed/render contract.
 The kit now has 15 platform operations (11 Allow, four Ask), or 14 without `read_config`.
@@ -69,18 +70,36 @@ revision changes and stale Save callbacks cannot write to the new revision.
 
 The user explicitly required the changes on both `/m` and `/w`. Both routes use the
 shared settings implementation. Added desktop host and mobile bridge rendering tests
-verify the actual controls. These are DOM tests, not authenticated browser smoke tests.
+verify the actual controls. Authenticated browser QA subsequently verified both
+shared editors, creation defaults, policy persistence, hidden restriction preservation,
+and light/dark rendering on the deployed release-based code.
+
+## Overview correction
+
+Real mobile QA found a separate overview summary still combining Permissions and
+Sandbox under Advanced. Bodyless read-only rows also expanded empty accordions.
+The overview now gives Permissions its own summary and renders bodyless read-only
+rows without interactive affordances or empty padding. Instructions still expands;
+desktop editor links remain available. The summary does not change stored policies.
+
+Added 13 focused rendering regressions, run in the background while other work
+continued; all passed. Repository lint and entity-ui typecheck passed, and an
+independent source review found no remaining issues. No web suite was awaited.
+
+The temporary frontend package snapshots disappeared after the first browser run.
+Their replacements live under the deployment's ignored `.permissions-runtime`
+directory, with source from the PR and dependencies from its dedicated image.
 
 ## Remaining verification
 
-- Mount or deploy this checkout to a dedicated frontend instance and smoke-test `/w`
-  and `/m` in light and dark themes. Existing running frontends use other worktrees.
+- Refresh the two isolated frontends and browser-check the corrected overview on
+  `/m` and the preserved editor navigation on `/w`.
 - Complete the Claude and Codex live matrices with isolated model credentials or
   correctly mounted subscriptions. Native modes remain unchanged.
 - Investigate general non-Pi Ask relay grant enforcement separately. The spikes
   distinguish this gap from marker-commit content authorization.
-- The earlier shared-worktree Storybook failures are superseded by the successful
-  isolated-worktree build. Actual `/w` and `/m` browser checks still require deployment.
+- Multiple-environment selector behavior has DOM coverage but has not been exercised
+  against the local-only deployed configuration. Mobile build-kit Save remains unverified.
 
 The orchestration-console CLI and console directory were absent in this checkout.
 This status file remains the durable tracking record.
