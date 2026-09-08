@@ -108,7 +108,7 @@ export function AgentOperationsSections({
      * its folder glyph lands on the panel's affordance axis. */
     storageHeader?: ReactNode
     /** The automations create/edit drawer, passed down to the Automations section. */
-    automationDrawer?: ReactNode
+    automationDrawer: ReactNode
 }) {
     const {count: triggerCount, defaultReferences, defaultBoundLabel} = useAgentTriggers(revisionId)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
@@ -128,7 +128,9 @@ export function AgentOperationsSections({
         <>
             <section className="flex flex-col">
                 <AgentRegionHeaderBar title="Automations" sticky={sticky}>
-                    <ConfigRowTrailing>
+                    {/* No reserved affordance column: this region has no caret, and the empty
+                        14px slot only held the "+" off the bar's right edge. */}
+                    <ConfigRowTrailing reserve={false}>
                         <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                             {countSummary(triggerCount, "automation")}
                         </span>
