@@ -740,7 +740,9 @@ const AgentMessage = ({
                         : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
-                content={hasBubbleContent ? body : null}
+                // A refused file-only send has no words to paint, but its failure still has to be
+                // said, or the cards sit there looking like an upload that worked.
+                content={hasBubbleContent ? body : pendingSendFailure}
                 header={attachments}
             />
             <div

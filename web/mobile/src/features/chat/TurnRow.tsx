@@ -423,16 +423,19 @@ export const TurnRow = ({
 
     // A send the server refused after the composer had already cleared. The row keeps the text so
     // it is not lost; this says why it is sitting there with no answer coming.
-    const content = isPendingSendFailed(turn.message) ? (
+    const failureNote = isPendingSendFailed(turn.message) ? (
+        <div
+            data-pending-send-failed="true"
+            role="status"
+            className="mt-1 text-[11px] leading-4 opacity-80"
+        >
+            {PENDING_SEND_FAILED_NOTE}
+        </div>
+    ) : null
+    const content = failureNote ? (
         <div className="flex min-w-0 max-w-full flex-col">
             {userBody}
-            <div
-                data-pending-send-failed="true"
-                role="status"
-                className="mt-1 text-[11px] leading-4 opacity-80"
-            >
-                {PENDING_SEND_FAILED_NOTE}
-            </div>
+            {failureNote}
         </div>
     ) : (
         userBody
@@ -451,7 +454,9 @@ export const TurnRow = ({
                         : "min-w-0 max-w-full overflow-hidden text-xs",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
-                content={hasBubbleContent ? content : null}
+                // A refused file-only send has no words to paint, but its failure still has to be
+                // said, or the cards sit there looking like an upload that worked.
+                content={hasBubbleContent ? content : failureNote}
                 header={attachments}
             />
             {/* The turn's information and actions, revealed on hover or keyboard focus — the same
