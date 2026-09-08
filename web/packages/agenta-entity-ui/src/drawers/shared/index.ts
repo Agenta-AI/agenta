@@ -3,7 +3,7 @@
  * config drawers. Re-exported here so app-layer drawers (e.g. the agent-home template setup drawer)
  * can share the exact same field/rail layout instead of re-implementing it.
  */
-export {RailField, railInfoLabel, type RailFieldProps} from "./RailField"
+export {RailField, FieldLayoutProvider, railInfoLabel, type RailFieldProps} from "./RailField"
 export {SectionRail, type SectionRailItem, type SectionRailProps} from "./SectionRail"
 export {DrawerFooter} from "./DrawerFooter"
 export {RowRemoveButton} from "./RowRemoveButton"

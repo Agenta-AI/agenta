@@ -139,8 +139,6 @@ function readTestProjectMetadata(): TestProjectMetadata | null {
 async function waitForModelsPageReady(page: Page): Promise<void> {
     const providersSection = getProvidersSection(page)
 
-    await page.waitForLoadState("networkidle", {timeout: 10000}).catch(() => {})
-
     await expect
         .poll(
             async () => {

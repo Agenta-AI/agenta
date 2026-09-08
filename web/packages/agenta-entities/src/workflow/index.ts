@@ -520,3 +520,5 @@ export {
 export type {AgentSetupSelection, AgentSetupStatus} from "./agentSetup"
 
 export {agentRosterSearchAtom, matchesAgentQuery} from "./state/agentRoster"
+
+export {commitAgentCredentialsAtom} from "./state/agentCredentials"

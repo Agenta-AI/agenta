@@ -32,6 +32,13 @@ import subprocess
 # matrix cell (`matrix_gw1_gateway_tools.py`). The driver runs the first kind itself and records
 # the second kind as required, because a standalone cell is a separate process it cannot observe.
 GATEWAY_TOOLS = ("matrix_gw1_gateway_tools.py",)
+CUSTOM_SECRETS = ("matrix_s1_custom_secrets.py",)
+
+# The standing session-control regression cells: Stop, durable commands, and the runner's
+# recovery paths (owner release, park/resume, watchdog quarantine). A separate standalone driver
+# because it needs its own account bootstrap and, for most cells, a docker-compose project name —
+# see resources/session_control.py and SKILL.md "Session control cells".
+SESSION_CONTROL = ("session_control.py",)
 
 # The cells that run a REMOTE sandbox and need no extra flag. A release that touches the sandbox
 # engine or the Daytona provider changes how a cold sandbox gets built and how its credentials are
@@ -66,13 +73,43 @@ PATH_TRIGGERS: dict[str, tuple[str, ...]] = {
     "sdks/python/agenta/sdk/agents/tools/gateway_policy.py": GATEWAY_TOOLS,
     "services/runner/src/tools/**": GATEWAY_TOOLS,
     "services/runner/src/engines/sandbox_agent/gateway-gate.ts": GATEWAY_TOOLS,
+    # Custom-secret authoring, resolution, transport, sandbox injection, and lifecycle identity.
+    "web/packages/agenta-entities/src/secret/**": CUSTOM_SECRETS,
+    "web/packages/agenta-entities/src/workflow/state/agentCredentials.ts": CUSTOM_SECRETS,
+    "web/packages/agenta-entity-ui/src/secret/**": CUSTOM_SECRETS,
+    "web/packages/agenta-entity-ui/src/clientTools/SecretRequest*": CUSTOM_SECRETS,
+    "web/packages/agenta-chat/src/clientTools/secretInteractions.ts": CUSTOM_SECRETS,
+    "api/oss/src/core/secrets/**": CUSTOM_SECRETS,
+    "api/oss/src/apis/fastapi/vault/router.py": CUSTOM_SECRETS,
+    "api/oss/src/apis/fastapi/workflows/router.py": CUSTOM_SECRETS,
+    "api/oss/src/core/workflows/static_catalog.py": CUSTOM_SECRETS,
+    "sdks/python/agenta/sdk/agents/sandbox_credentials.py": CUSTOM_SECRETS,
+    "sdks/python/agenta/sdk/agents/handler.py": CUSTOM_SECRETS,
+    "sdks/python/agenta/sdk/agents/wire_models.py": CUSTOM_SECRETS,
+    "sdks/python/agenta/sdk/agents/utils/wire.py": CUSTOM_SECRETS,
+    "services/runner/src/engines/sandbox_agent/sandbox-credentials.ts": CUSTOM_SECRETS,
+    "services/runner/src/engines/sandbox_agent/run-plan.ts": CUSTOM_SECRETS,
+    "services/runner/src/engines/sandbox_agent/session-identity.ts": CUSTOM_SECRETS,
+    "services/runner/src/environment/runtime-lifecycle.ts": CUSTOM_SECRETS,
+    "services/runner/src/lifecycle/desired-state.ts": CUSTOM_SECRETS,
+    "services/runner/src/redaction.ts": CUSTOM_SECRETS,
     # The sandbox engine and the Daytona provider: sandbox creation, the secret plan, the
     # credential preflight, and the one retry the runner does when a first model call is refused.
     # A fault here shows up only when many sandboxes start at once, which is what `burst` and
     # `crosstalk` do on these cells. Production hit it as one first message in five failing with
     # a credential error (AGE-4249 / #6485) while the sequential gate stayed green.
-    "services/runner/src/engines/sandbox_agent/**": DAYTONA_CELLS,
+    # A dict literal keeps only the last value for a repeated key, so a glob that already names
+    # DAYTONA_CELLS lists SESSION_CONTROL alongside it in the SAME tuple rather than as a second
+    # entry that would silently drop the Daytona rule.
+    "services/runner/src/engines/sandbox_agent/**": DAYTONA_CELLS + SESSION_CONTROL,
     "services/runner/src/providers/daytona*": DAYTONA_CELLS,
+    # Session control: Stop, durable commands, park/resume, and the owner-release and watchdog
+    # sweeps. A change here can silently break a warm resume or leave a command stuck, and
+    # nothing in the fixed matrix drives Stop at all. See qa-audit-2026-09-03.md section 4.
+    "services/runner/src/sessions/**": SESSION_CONTROL,
+    "api/oss/src/core/sessions/**": SESSION_CONTROL,
+    "api/oss/src/tasks/asyncio/sessions/**": SESSION_CONTROL,
+    "api/oss/src/apis/fastapi/sessions/**": SESSION_CONTROL,
 }
 
 # Glob -> journeys that MUST run when the rule fires. Same matching as PATH_TRIGGERS, kept as a

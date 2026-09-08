@@ -214,12 +214,7 @@ const confirmCreateEntityModal = async (page: Page) => {
     // (Radix) `Dialog`, so no `.ant-modal-wrap` exists in this tree any more. Radix
     // `aria-hidden`s the rest of the document while the modal is open (including the
     // antd drawer that launched it), so exactly one dialog resolves here.
-    const confirmModal = page
-        .getByRole("dialog")
-        .filter({
-            has: page.getByRole("button", {name: "Create", exact: true}),
-        })
-        .last()
+    const confirmModal = page.getByRole("dialog", {name: "Create changes", exact: true})
     const confirmButton = confirmModal.getByRole("button", {
         name: "Create",
         exact: true,
@@ -367,34 +362,28 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
             response.request().method() === "POST",
         2,
     )
+    const [workflowResponse, variantResponse, revisionResponses] = await Promise.all([
+        createWorkflowPromise,
+        createVariantPromise,
+        revisionCommitsPromise,
+        (async () => {
+            const createButton = drawer.getByRole("button", {name: "Create", exact: true}).first()
+            await expect(createButton).toBeEnabled({timeout: 15000})
+            await createButton.click()
+            await confirmCreateEntityModal(page)
+        })(),
+    ])
 
-    // CommitVariantChangesButton shows "Create" (not "Commit") for ephemeral local-* entities.
-    // Use exact:true + drawer scope to avoid matching "Create New Prompt" in the background.
-    const createButton = drawer.getByRole("button", {name: "Create", exact: true}).first()
-    await expect(createButton).toBeVisible({timeout: 15000})
-    await expect(createButton).toBeEnabled({timeout: 15000})
-    await createButton.click()
-
-    // Clicking "Create" opens CommitVariantChangesModal (EntityCommitModal with
-    // actionLabel="Create"). Wait for the modal submit button before clicking:
-    // Locator.isVisible() is an immediate snapshot and can race the antd modal render.
-    await confirmCreateEntityModal(page)
-
-    // Wait for workflow creation
-    const workflowResponse = await createWorkflowPromise
     expect(workflowResponse.ok()).toBe(true)
     const createdApp = (await workflowResponse.json()) as {workflow: ListAppsItem}
     const createdWorkflow = createdApp.workflow
     expect(createdWorkflow.id).toBeTruthy()
 
-    // Wait for variant creation
-    const variantResponse = await createVariantPromise
     expect(variantResponse.ok()).toBe(true)
     const variantData = await variantResponse.json()
     expect(variantData.workflow_variant?.id).toBeTruthy()
 
-    // Wait for both revision commits
-    const [seedResponse, dataResponse] = await revisionCommitsPromise
+    const [seedResponse, dataResponse] = revisionResponses
     expect(seedResponse.ok()).toBe(true)
     expect(dataResponse.ok()).toBe(true)
 
@@ -462,6 +451,7 @@ export const appMatchesType = (
     type: APP_TYPE,
     latestRevision?: {flags?: ListAppsItem["flags"]},
 ): boolean => {
+    if (!latestRevision) return false
     const flags = {...(app.flags ?? {}), ...(latestRevision?.flags ?? {})}
     if (flags.is_agent) return false
     if (type === "chat") return !!flags.is_chat
@@ -470,16 +460,17 @@ export const appMatchesType = (
 }
 
 export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
-    const appsResponse = waitForApiResponse<{workflows: ListAppsItem[]; count: number}>(page, {
-        route: "/workflows/query",
-        method: "POST",
-    })
-
     const projectBasePath = getProjectScopedBasePath(page)
     await page.goto(`${projectBasePath}/prompts`, {waitUntil: "domcontentloaded"})
     await page.waitForURL("**/prompts", {waitUntil: "domcontentloaded"})
 
-    const data = await appsResponse
+    // A background query from the previous document can finish during navigation.
+    // Read fixture data through the request context, whose response survives that navigation.
+    const queryUrl = new URL(`${getApiURL(page)}/workflows/query`)
+    queryUrl.searchParams.set("project_id", getProjectId(page))
+    const response = await page.request.post(queryUrl.toString(), {data: {}})
+    expect(response.ok()).toBe(true)
+    const data = (await response.json()) as {workflows: ListAppsItem[]; count: number}
     const apps = data.workflows ?? []
 
     expect(Array.isArray(apps)).toBe(true)

@@ -11,6 +11,7 @@ export {sessionRowTitle, type SessionRowTitle} from "./sessionRowTitle"
 export {sessionPreviewText} from "./sessionPreview"
 export {
     sessionRowStatus,
+    sessionRowStatusMeta,
     pendingGateLabel,
     type SessionRowStatus,
     type SessionRowStatusMeta,

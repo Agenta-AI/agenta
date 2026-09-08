@@ -103,8 +103,13 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
         )
     }
 
-    const AfterBottom = () => (
-        <DrawerProjectSwitcher workspaceId={workspaceId} projectId={projectId} />
+    // Forwarded, or the switcher keeps its expanded padding inside the 48px rail.
+    const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
+        <DrawerProjectSwitcher
+            workspaceId={workspaceId}
+            projectId={projectId}
+            collapsed={collapsed}
+        />
     )
 
     return {

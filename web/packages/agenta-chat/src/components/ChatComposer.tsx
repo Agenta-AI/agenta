@@ -7,8 +7,9 @@
  * attachment ENGINE (staging + uploads) arrives as the `useComposerAttachments` result so
  * hosts control the rollout flag and the viewer wiring.
  */
-import {Suspense, lazy, useRef, type ReactNode, type RefObject} from "react"
+import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from "react"
 
+import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -16,6 +17,7 @@ import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
+import {useFilePalette} from "../hooks/useFilePalette"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
@@ -52,7 +54,13 @@ export interface ChatComposerProps {
     onChange?: (markdown: string) => void
     /** A run is streaming — the send button becomes Stop. */
     streaming?: boolean
+    /** The Stop request is pending or accepted, awaiting the stream's terminal event. */
+    stopping?: boolean
     onStop?: () => void
+    /** Only the active session owns the global Escape shortcut. */
+    stopShortcutEnabled?: boolean
+    /** Capability-gated controls shown beside Stop while the session is busy. */
+    busyActions?: {label: string; onSubmit: (text: string) => void}[]
     /** Read at event time — attachments are refused right now (a voice take in flight…). */
     attachmentsBlocked?: () => boolean
     /** The composer itself is unusable (gates the paperclip alongside `uploadsEnabled`). */
@@ -70,6 +78,11 @@ export interface ChatComposerProps {
     headerExtra?: ReactNode
     /** The `/` palette's sections. Omit where the surface has no commands. */
     slashCommands?: SlashCommandSection[]
+    /**
+     * Enable the `@` file palette. Needs an enclosing `DriveSessionProvider`; off by default so the
+     * surfaces that run before a session exists (onboarding, the home task composer) are untouched.
+     */
+    fileMentions?: boolean
     /** Suspense fallback while the Lexical chunk hydrates (hosts pass their skeleton). */
     fallback?: ReactNode
 }
@@ -89,7 +102,10 @@ export const ChatComposer = ({
     initialMarkdown,
     onChange,
     streaming,
+    stopping,
     onStop,
+    stopShortcutEnabled = true,
+    busyActions,
     attachmentsBlocked,
     composerDisabled,
     onViewAttachment,
@@ -97,6 +113,7 @@ export const ChatComposer = ({
     trailing,
     headerExtra,
     slashCommands,
+    fileMentions,
     fallback,
 }: ChatComposerProps) => {
     const {
@@ -119,9 +136,24 @@ export const ChatComposer = ({
     // take room from a placeholder that is already tight. `isMacPlatform` reads the UA, so a real
     // iPhone was being shown the `⌘` variant specifically.
     const hasKeyboard = useHardwareKeyboard()
+    const filePalette = useFilePalette({enabled: fileMentions})
+
+    useEffect(() => {
+        if (!streaming || !onStop || !stopShortcutEnabled) return
+        const stopOnEscape = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || isOverlayOpen()) return
+            if (event.key !== "Escape" || event.isComposing) return
+            event.preventDefault()
+            onStop()
+        }
+        document.addEventListener("keydown", stopOnEscape)
+        return () => document.removeEventListener("keydown", stopOnEscape)
+    }, [onStop, stopShortcutEnabled, streaming])
 
     return (
         <Suspense fallback={fallback ?? null}>
+            {/* Renders null; it holds the `@` palette's per-directory listings. */}
+            {filePalette.subscribers}
             <input
                 ref={fileInputRef}
                 type="file"
@@ -163,15 +195,18 @@ export const ChatComposer = ({
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}
+                filePalette={filePalette.spec}
                 onChange={onChange}
                 onPasteFile={(pasted) => {
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))
                 }}
-                sendForceEnabled={files.length > 0 && attachmentsSettled}
+                sendForceEnabled={files.length > 0}
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}
                 streaming={streaming}
+                stopping={stopping}
                 onStop={onStop}
+                busyActions={busyActions}
                 prefix={
                     <div className="flex items-center gap-2">
                         {extraPrefix}

@@ -43,6 +43,7 @@ from oss.src.core.workflows.build_kit import (
 )
 from oss.src.core.workflows.static_catalog import (
     REQUEST_INPUT_TOOL_NAME,
+    REQUEST_SECRET_WORKFLOW_SLUG,
     REQUEST_INPUT_WORKFLOW_SLUG,
     STATIC_SLUG_PREFIX,
     StaticWorkflowCatalog,
@@ -316,12 +317,23 @@ async def test_build_agent_skill_embed_resolves_through_static_catalog_without_d
     workflows_dao.fetch_artifact.assert_not_awaited()
 
 
+@pytest.mark.parametrize(
+    ("workflow_slug", "expected_name", "expected_render"),
+    [
+        ("__ag__request_connection", "request_connection", {"kind": "connect"}),
+        ("__ag__request_secret", "request_secret", {"kind": "secret"}),
+    ],
+)
 @pytest.mark.asyncio
-async def test_request_connection_tool_embed_resolves_to_client_tool_config_without_db():
-    """The reserved request_connection workflow inlines a tool *config* (``type:"client"``), so the
-    embed + ``parameters.tool`` selector yields a value the SDK coerces to a ``ClientToolConfig``.
-    Regression: a spec-shaped ``kind:"client"`` value coerced to a builtin tool instead."""
-    from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
+async def test_platform_client_tool_embed_resolves_to_client_tool_config_without_db(
+    workflow_slug, expected_name, expected_render
+):
+    """Reserved client workflows inline tool configs selected from ``parameters.tool``.
+
+    This exercises catalog lookup, embed resolution, and SDK coercion for both platform client
+    tools. Omitting the selector instead supplies the whole revision data and produces the live
+    ``Unsupported tool configuration shape`` failure.
+    """
     from agenta.sdk.agents.tools.compat import coerce_tool_config
     from agenta.sdk.agents.tools.models import ClientToolConfig
 
@@ -344,11 +356,7 @@ async def test_request_connection_tool_embed_resolves_to_client_tool_config_with
                     "tools": [
                         {
                             "@ag.embed": {
-                                "@ag.references": {
-                                    "workflow": {
-                                        "slug": REQUEST_CONNECTION_WORKFLOW_SLUG
-                                    }
-                                },
+                                "@ag.references": {"workflow": {"slug": workflow_slug}},
                                 "@ag.selector": {"path": "parameters.tool"},
                             }
                         }
@@ -368,11 +376,11 @@ async def test_request_connection_tool_embed_resolves_to_client_tool_config_with
 
     tool = resolved_revision.data.parameters["agent"]["tools"][0]
     assert tool["type"] == "client"
-    assert tool["name"] == "request_connection"
+    assert tool["name"] == expected_name
     # The resolved config must coerce to a client tool (not silently a builtin).
     coerced = coerce_tool_config(tool)
     assert isinstance(coerced, ClientToolConfig)
-    assert coerced.render == {"kind": "connect"}
+    assert coerced.render == expected_render
     assert resolution_info.embeds_resolved == 1
     workflows_dao.fetch_revision.assert_not_awaited()
     workflows_dao.fetch_artifact.assert_not_awaited()
@@ -1005,3 +1013,16 @@ def test_request_input_matches_golden_response_fixture():
     assert golden["degradation_error_text"].startswith(
         "elicitation: unsupported payload — "
     )
+
+
+def test_request_secret_catalog_entry_shape():
+    revision = StaticWorkflowCatalog().retrieve_revision(
+        slug=REQUEST_SECRET_WORKFLOW_SLUG
+    )
+    assert revision is not None
+    tool = revision.data.parameters["tool"]
+    assert tool["type"] == "client"
+    assert tool["name"] == "request_secret"
+    assert tool["render"] == {"kind": "secret"}
+    assert tool["input_schema"]["required"] == ["name", "env_var", "reason"]
+    assert "value" not in tool["input_schema"]["properties"]

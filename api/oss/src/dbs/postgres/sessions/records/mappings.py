@@ -18,6 +18,7 @@ def map_record_event_to_dbe(
         project_id=event.project_id,
         session_id=event.session_id,
         record_id=event.record_id or uuid.uuid4(),
+        sequence=None,
         record_index=event.record_index,
         timestamp=event.timestamp,
         record_type=event.record_type,
@@ -25,6 +26,7 @@ def map_record_event_to_dbe(
         attributes=event.attributes,
         turn_id=event.turn_id,
         span_id=event.span_id,
+        quarantined_at=event.quarantined_at,
     )
 
 
@@ -33,6 +35,7 @@ def map_record_dbe_to_dto(*, dbe: RecordDBE) -> SessionRecord:
         record_id=dbe.record_id,
         session_id=dbe.session_id,
         project_id=dbe.project_id,
+        sequence=dbe.sequence,
         record_index=dbe.record_index,
         timestamp=dbe.timestamp,
         record_type=dbe.record_type,
@@ -40,5 +43,6 @@ def map_record_dbe_to_dto(*, dbe: RecordDBE) -> SessionRecord:
         attributes=dbe.attributes,
         turn_id=dbe.turn_id,
         span_id=dbe.span_id,
+        quarantined_at=dbe.quarantined_at,
         created_at=dbe.created_at,
     )

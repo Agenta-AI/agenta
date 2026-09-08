@@ -17,6 +17,7 @@ export const NewAgentAction = ({
     label,
     base,
     align = "stretch",
+    className,
 }: {
     label?: string
     /** `/w/:workspace/p/:project` — the create surface and gallery links' base. */
@@ -27,12 +28,15 @@ export const NewAgentAction = ({
      * on the other surface.
      */
     align?: "end" | "stretch"
+    /** On the trigger — the roster toolbar sizes it down on a phone. */
+    className?: string
 }) => {
     const router = useRouter()
 
     return (
         <span className={`flex flex-col gap-1 ${align === "end" ? "items-end" : "items-stretch"}`}>
             <NewAgentButton
+                className={className}
                 label={label}
                 onCreateBlank={() => void router.push(`${base}/agents/new`)}
                 templates={AGENT_TEMPLATES}

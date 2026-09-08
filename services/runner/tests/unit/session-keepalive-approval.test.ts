@@ -30,6 +30,7 @@ import {
 } from "../../src/server.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import {
+  approvalDecisionForToolCall,
   computeCredentialEpoch,
   configFingerprint,
   mountExpiryMs,
@@ -139,6 +140,12 @@ function makeApprovalEngine(
       reply: string;
       toolCallId: string;
     }>,
+    settledBeforePrompts: [] as Array<{
+      permissionId: string;
+      reply: string;
+      toolCallId: string;
+    }>,
+    prompts: [] as string[],
     acquiredEnvs: [] as DispatchFakeEnv[],
     /** One control per approvalPause turn: settle the parked prompt promise from the test. */
     promptControls: [] as Array<{
@@ -190,6 +197,7 @@ function makeApprovalEngine(
 
   const applyScript = async (
     env: DispatchFakeEnv,
+    request: AgentRunRequest,
     opts: any,
   ): Promise<AgentRunResult> => {
     const idx = calls.turns.length;
@@ -214,6 +222,19 @@ function makeApprovalEngine(
           reply: decision.reply,
           toolCallId: decision.toolCallId,
         });
+      }
+    }
+    if (opts?.settleApprovalsThenPrompt) {
+      for (const decision of opts.settleApprovalsThenPrompt.decisions) {
+        calls.settledBeforePrompts.push({
+          permissionId: decision.permissionId,
+          reply: decision.reply,
+          toolCallId: decision.toolCallId,
+        });
+      }
+      const tail = request.messages?.[request.messages.length - 1];
+      if (tail?.role === "user" && typeof tail.content === "string") {
+        calls.prompts.push(tail.content);
       }
     }
     if (script.hold) {
@@ -277,8 +298,8 @@ function makeApprovalEngine(
       calls.acquiredEnvs.push(env);
       return { ok: true, env: env as unknown as SessionEnvironment };
     },
-    async runTurn(env, _request, _emit, _signal, opts) {
-      return applyScript(env as unknown as DispatchFakeEnv, opts);
+    async runTurn(env, request, _emit, _signal, opts) {
+      return applyScript(env as unknown as DispatchFakeEnv, request, opts);
     },
     async runCold(_request, _emit, _signal, _presigned) {
       calls.cold += 1;
@@ -544,6 +565,83 @@ describe("runWithKeepalive: approval park + resume", () => {
       calls.resumes[0].reply,
       "reject",
       "deny -> respondPermission reject",
+    );
+  });
+
+  it("settles a rewritten denial then prompts a trailing fresh user turn on the warm session", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+
+    const request: AgentRunRequest = {
+      ...pauseTurn(),
+      messages: [
+        { role: "user", content: "do X" },
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              output: { approved: false },
+            },
+          ],
+        },
+        { role: "user", content: "What was the codeword I gave you?" },
+      ],
+    };
+
+    const result = await runWithKeepalive(
+      request,
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(calls.acquire, 1, "the fresh turn kept the warm environment");
+    assert.equal(calls.resumes.length, 0, "it did not take approval-resume");
+    assert.deepEqual(calls.settledBeforePrompts, [
+      { permissionId: "perm-1", reply: "reject", toolCallId: "tc-gate" },
+    ]);
+    assert.deepEqual(calls.prompts, ["What was the codeword I gave you?"]);
+    assert.equal(calls.turns[1].opts.continuation, true);
+    assert.equal(calls.turns[1].env, calls.turns[0].env);
+  });
+
+  it("ignores a denied tool result older than the last assistant message", () => {
+    const request: AgentRunRequest = {
+      messages: [
+        { role: "user", content: "first" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              output: { approved: false },
+            },
+          ],
+        },
+        { role: "user", content: "second" },
+        { role: "assistant", content: "finished a later turn" },
+        { role: "user", content: "fresh question" },
+      ],
+    };
+
+    assert.equal(
+      approvalDecisionForToolCall(request, "tc-gate"),
+      undefined,
     );
   });
 
@@ -1572,6 +1670,7 @@ function pausableHarness(
     logs: [] as string[],
     resolvePrompt: undefined as ((value: unknown) => void) | undefined,
     promptCount: 0,
+    prompts: [] as any[],
     /** Ordered marks for the settle-before-terminal-record invariant (see the test at the end). */
     journal: [] as string[],
   };
@@ -1645,8 +1744,9 @@ function pausableHarness(
         queueMicrotask(emitPiBatchResults);
       }
     },
-    prompt(_blocks: any) {
+    prompt(blocks: any) {
       calls.promptCount += 1;
+      calls.prompts.push(blocks);
       // Stays pending (Claude never resolves prompt on an unanswered gate) until the test resolves
       // it — modelling the ORIGINAL prompt continuing after the parked gate is answered.
       return new Promise((resolve) => {
@@ -2040,6 +2140,153 @@ describe("runTurn: real approval park + respondPermission resume", () => {
 
     await env.destroy();
   });
+
+  it("settles a parked denial before sending a fresh prompt to session.prompt", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate",
+        title: "commit",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate", name: "commit", rawInput: {} },
+    });
+    await flush();
+    await firstTurn;
+
+    const parked = env.parkedApproval!;
+    const resolveOriginalPrompt = calls.resolvePrompt!;
+    env.clearTurn();
+    const freshText = "What was the codeword I gave you?";
+    const freshRequest: AgentRunRequest = {
+      ...engineReq,
+      messages: [{ role: "user", content: freshText }],
+    };
+    const secondTurn = runTurn(
+      env,
+      freshRequest,
+      undefined,
+      undefined,
+      {
+        approvalParkMode: true,
+        continuation: true,
+        settleApprovalsThenPrompt: {
+          decisions: [
+            {
+              permissionId: parked.permissionId,
+              reply: "reject",
+              toolCallId: parked.toolCallId,
+              toolName: parked.toolName,
+              args: parked.args,
+              interactionToken: parked.interactionToken,
+              promptPromise: parked.promptPromise,
+            },
+          ],
+        },
+      },
+    );
+    for (let i = 0; i < 20 && calls.permissionReplies.length === 0; i += 1) {
+      await flush();
+    }
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-1", reply: "reject" },
+    ]);
+
+    resolveOriginalPrompt({
+      stopReason: "complete",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+    for (let i = 0; i < 20 && calls.promptCount < 2; i += 1) await flush();
+    assert.equal(calls.promptCount, 2, "the fresh text became a new prompt");
+    assert.deepEqual(calls.prompts[1], [{ type: "text", text: freshText }]);
+    calls.resolvePrompt!({
+      stopReason: "complete",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+
+    const result = await secondTurn;
+    assert.equal(result.ok, true);
+    assert.equal(result.stopReason, "complete");
+    await env.destroy();
+  });
+
+  it("pauses when the harness re-gates after a denial instead of hanging on the old prompt", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate", name: "commit", rawInput: {} },
+    });
+    await flush();
+    await firstTurn;
+
+    const parked = env.parkedApproval!;
+    env.clearTurn();
+    const secondTurn = runTurn(
+      env,
+      { ...engineReq, messages: [{ role: "user", content: "try another way" }] },
+      undefined,
+      undefined,
+      {
+        approvalParkMode: true,
+        continuation: true,
+        settleApprovalsThenPrompt: {
+          decisions: [
+            {
+              permissionId: parked.permissionId,
+              reply: "reject",
+              toolCallId: parked.toolCallId,
+              toolName: parked.toolName,
+              args: parked.args,
+              interactionToken: parked.interactionToken,
+              promptPromise: parked.promptPromise,
+            },
+          ],
+        },
+      },
+    );
+    for (let i = 0; i < 20 && calls.permissionReplies.length === 0; i += 1) {
+      await flush();
+    }
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-regated", name: "deploy", rawInput: {} },
+    });
+
+    const result = await secondTurn;
+    assert.equal(result.ok, true);
+    assert.equal(result.stopReason, "paused");
+    assert.equal(
+      calls.promptCount,
+      1,
+      "the fresh prompt was not sent behind a new gate",
+    );
+    assert.equal(env.parkedApproval?.toolCallId, "tc-regated");
+    await env.destroy();
+  }, 1_000);
 
   it("creates and resolves a durable gate row without workflow context", async () => {
     const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
@@ -3393,6 +3640,117 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       );
       assert.equal(lastResultByCall.get("tool-b")?.isError, false);
       assert.equal(env.parkedApprovedExecutions?.size, 0);
+    } finally {
+      timeoutSpy.mockRestore();
+      if (env) await env.destroy();
+    }
+  });
+
+  it("parks a FIRST-turn Pi batch whose allowed sibling can never close", async () => {
+    // The browser pass of 2026-09-04, sessions d66e2920 (17:32Z) and 6d06f624 (17:57Z). The model
+    // asked for a Read and a Bash in ONE parallel batch. The Read answered `allow`; the Bash
+    // parked. Pi will not execute any call in a batch while a sibling gate is open, so the
+    // allowed Read never closed. This is the FIRST turn, and the carry-and-park branch used to
+    // require a resume, so the turn took the closure wait instead and sat on the 30-minute
+    // per-tool-call bound. It never parked, never emitted `done`, and its alive watchdog kept
+    // beating `running=true`, so every durable continuation aimed at the next turn was refused
+    // with "Continuation could not establish alive ownership".
+    //
+    // A healthy gated turn from the same hour shows the Read's `tool_result` BEFORE the Bash
+    // gate. Sequential calls leave nothing open at pause time, which is why this only bites a
+    // parallel batch.
+    const batch: PiBatchCall[] = [
+      {
+        permissionId: "permission-read",
+        toolCallId: "tool-read",
+        toolName: "reader",
+        args: { path: "notes.md" },
+        output: "read output",
+      },
+      {
+        permissionId: "permission-bash",
+        toolCallId: "tool-bash",
+        toolName: "runner",
+        args: { command: "echo one" },
+        output: "bash output",
+      },
+    ];
+    const { deps } = pausableHarness({ piBatching: batch });
+    deps.createOtel = createSandboxAgentOtel as any;
+    // The real responder, so the plan below actually decides. The fake one pends every gate and
+    // would never mark an allowed execution, which is the whole precondition here.
+    delete (deps as { responderFactory?: unknown }).responderFactory;
+    const closureWaitMs = 271_828;
+    deps.resolveRunLimits = () => ({
+      totalMs: 1_000_000,
+      idleMs: 500_000,
+      ttfbMs: 500_000,
+      toolCallMs: closureWaitMs,
+    });
+    deps.createRunLimits = () => ({
+      onTrip() {},
+      noteToolCallStart() {},
+      noteToolCallEnd() {},
+      wrapEmit: (emit: (event: any) => void) => emit,
+      notePaused() {},
+      dispose() {},
+    });
+    // Count the closure waits by their bound, and let one that IS armed fire at once, so the red
+    // is an assertion rather than a 30-minute hang.
+    const realSetTimeout = globalThis.setTimeout;
+    let closureWaitCount = 0;
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+      handler: (...args: any[]) => void,
+      timeout?: number,
+      ...args: any[]
+    ) => {
+      if (timeout === closureWaitMs) {
+        closureWaitCount += 1;
+        return realSetTimeout(handler, 0, ...args);
+      }
+      return realSetTimeout(handler, timeout, ...args);
+    }) as typeof setTimeout);
+    let env: SessionEnvironment | undefined;
+
+    try {
+      const piRequest: AgentRunRequest = {
+        ...engineReq,
+        harness: "pi_agenta",
+        permissions: { default: "ask" },
+        customTools: [
+          { name: "reader", permission: "allow" },
+          { name: "runner", permission: "ask" },
+        ],
+        messages: [{ role: "user", content: "read the file then echo" }],
+      };
+      const acquired = await acquireEnvironment(piRequest, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      env = acquired.env;
+
+      const result = await runTurn(env, piRequest, undefined, undefined, {
+        approvalParkMode: true,
+      });
+
+      assert.equal(
+        result.stopReason,
+        "paused",
+        "the gated first turn must END as paused, not hang in terminalization",
+      );
+      assert.equal(
+        closureWaitCount,
+        0,
+        "an allowed sibling of a pending Pi gate can never close, so the turn must not wait",
+      );
+      assert.deepEqual(
+        [...(env.parkedApprovedExecutions?.keys() ?? [])],
+        ["tool-read"],
+        "the allowed call is carried so the resume re-announces it",
+      );
+      assert.ok(
+        env.parkedApprovals.has("tool-bash"),
+        "the gated call is parked for the human to answer",
+      );
     } finally {
       timeoutSpy.mockRestore();
       if (env) await env.destroy();

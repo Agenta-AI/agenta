@@ -64,6 +64,7 @@ export async function prepareEnvironmentSetup(
   request: AgentRunRequest,
   deps: SandboxAgentDeps = {},
   presignedMount?: MountCredentials | null,
+  signal?: AbortSignal,
 ) {
   const logger = deps.log ?? defaultLog;
   const acquireStartedAt = Date.now();
@@ -116,6 +117,7 @@ export async function prepareEnvironmentSetup(
             apiBase: apiBase(),
             authorization: runCred,
             log: logger,
+            signal,
           })
         : null;
   // A session-owned run expects a durable session cwd mount. When signing returns nothing the run
@@ -136,6 +138,7 @@ export async function prepareEnvironmentSetup(
           apiBase: apiBase(),
           authorization: runCred,
           log: logger,
+          signal,
         })
       : null;
   // A workflow-artifact run expects an agent mount; same structured degrade signal when unsigned.
@@ -390,6 +393,10 @@ export async function prepareEnvironmentSetup(
     mountProjectId: mountCreds?.projectId,
     projectScopeId: projectScopeFor(request, mountCreds?.projectId)?.id,
     loadedFromContinuity: false,
+    nativeHistoryVerified: false,
+    // Daytona keeps its established per-harness transcript mounts. Local becomes durable only
+    // after its cwd mount succeeds; the Pi transcript directory lives underneath that cwd.
+    nativeHistoryDurable: plan.isDaytona,
     resumable: false,
     continuityTurnIndex: undefined,
     sessionDestroyRequested: false,

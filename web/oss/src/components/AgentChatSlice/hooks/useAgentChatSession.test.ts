@@ -1,0 +1,868 @@
+import {act, createElement} from "react"
+
+import type {UIMessage} from "ai"
+import {createRoot} from "react-dom/client"
+import {beforeEach, describe, expect, it, vi} from "vitest"
+;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
+    true
+
+const state = vi.hoisted(() => ({
+    acceptedRunBySession: new Map<string, string | null>(),
+    turnDeliverySourceBySession: new Map<string, "legacy" | "shared">(),
+    capturedHooks: undefined as
+        | {
+              prepareRequest: (args: {messages: UIMessage[]; id?: string}) => Promise<unknown>
+              onData: (part: {type: string; data?: unknown}) => void
+              onFinish: (args: {
+                  message: UIMessage
+                  messages: UIMessage[]
+                  finishReason?: string
+                  isAbort?: boolean
+                  isDisconnect?: boolean
+                  isError?: boolean
+              }) => void
+              onError: () => void
+              sendAutomaticallyWhen: (args: {messages: UIMessage[]}) => boolean
+          }
+        | undefined,
+    messages: [] as UIMessage[],
+    projectId: "project-id" as string | null,
+    latestTurnId: undefined as string | undefined,
+    hitlPending: false,
+    sessionTurnId: null as string | null,
+    stoppingTurnId: null as string | null,
+    stopStateLoading: false,
+    cancelSessionExecution: vi.fn(),
+    resolveStopExecution: vi.fn(),
+    regenerate: vi.fn(() => Promise.resolve()),
+    sendMessage: vi.fn(() => Promise.resolve()),
+    turnIds: new Map<string, string>(),
+    hydrationBusyRef: undefined as {current: boolean} | undefined,
+    busy: false,
+    stop: vi.fn(),
+    switchEntity: vi.fn(),
+    respondAnswer: vi.fn(),
+    addToolOutput: vi.fn(),
+    durableCapability: false,
+    setCommitSignal: vi.fn(),
+    invalidateCommit: vi.fn(),
+}))
+
+vi.mock("@agenta/chat/assets", () => ({
+    buildRequestWithinDeadline: (build: () => Promise<unknown>) => build(),
+    getMessageTraceId: () => undefined,
+    latestTurnId: () => state.latestTurnId,
+    // The continuation preflight is a pass-through here: this suite drives the execution guard,
+    // not the durable retry, so the request builder must simply run.
+    prepareAfterContinuationPreflight: (
+        _resume: unknown,
+        _sessionId: string,
+        build: () => Promise<unknown>,
+    ) => build(),
+    resolveStopExecution: state.resolveStopExecution,
+    startupLabelFromDataPart: () => undefined,
+    submitApprovalForCapability: async ({
+        durableApprovals,
+        submitDurable,
+        retireDurable,
+        recordLegacy,
+        releaseLegacy,
+    }: {
+        durableApprovals: boolean
+        submitDurable: () => Promise<unknown>
+        retireDurable: () => void
+        recordLegacy: () => Promise<void>
+        releaseLegacy: () => void
+    }) => {
+        if (durableApprovals) {
+            try {
+                return await submitDurable()
+            } finally {
+                retireDurable()
+            }
+        }
+        await recordLegacy()
+        releaseLegacy()
+        return {durable: false, recoverable: false}
+    },
+}))
+
+vi.mock("@agenta/chat/hooks", () => ({
+    useSessionChat: (args: {hooks: NonNullable<typeof state.capturedHooks>}) => {
+        state.capturedHooks = args.hooks
+        return {}
+    },
+}))
+
+vi.mock("@agenta/chat/model", () => ({
+    createUserStoppedState: () => ({stopped: false, turnIdentity: null}),
+    ignoreStreamRejection: () => undefined,
+    isSessionTurnStopping: ({
+        currentTurnId,
+        stoppingTurnId,
+    }: {
+        currentTurnId?: string | null
+        stoppingTurnId?: string | null
+    }) => Boolean(currentTurnId && stoppingTurnId === currentTurnId),
+    parseAgentRunError: () => ({message: "error"}),
+    reduceUserStoppedState: (
+        current: {stopped: boolean; turnIdentity: null},
+        event: {type: string},
+    ) => {
+        if (event.type === "user-stop" && !current.stopped) return {...current, stopped: true}
+        if (event.type === "reset" && current.stopped) return {...current, stopped: false}
+        return current
+    },
+    withoutSharedSenderAcceptanceMessages: (messages: UIMessage[]) => messages,
+}))
+
+vi.mock("@agenta/chat/state", () => ({
+    acceptedRunBySession: state.acceptedRunBySession,
+    clearSessionTurnId: (sessionId: string) => state.turnIds.delete(sessionId),
+    clearTurnClockAtom: "clear-turn-clock",
+    expandedKeysForMessages: () => [],
+    getSessionTurnId: (sessionId: string) => state.turnIds.get(sessionId),
+    isChatBusy: () => state.busy,
+    persistSessionMessagesAtom: "persist-messages",
+    pruneExpandedAtom: "prune-expanded",
+    sessionMessagesAtom: "session-messages",
+    sessionRecordCountsReadAtom: "record-counts",
+    setSessionStatusAtom: "set-session-status",
+    setSessionTurnId: (sessionId: string, turnId: string) => state.turnIds.set(sessionId, turnId),
+    setAcceptedSessionTurnId: (sessionId: string, turnId: string) =>
+        state.turnIds.set(sessionId, turnId),
+    stampMessagesCreatedAtAtom: "stamp-created-at",
+    startTurnClockAtom: "start-turn-clock",
+    turnDeliverySourceBySession: state.turnDeliverySourceBySession,
+}))
+
+vi.mock("@agenta/entities/session", () => ({
+    cancelSessionExecution: state.cancelSessionExecution,
+    invalidateSessionListQueries: vi.fn(),
+    killSession: vi.fn(),
+    recordInteractionAnswerAtom: "record-interaction-answer",
+    respondInteractionAnswerAtom: "respond-interaction-answer",
+    respondInteractionAnswersAtom: "respond-interaction-answers",
+    resumeSessionContinuationAtom: "resume-session-continuation",
+    sessionDurableApprovalsCapabilityAtom: "session-durable-approvals-capability",
+    revalidateSessionMountsAtom: "revalidate-mounts",
+    revalidateSessionRecordsAtom: "revalidate-records",
+}))
+
+vi.mock("@agenta/entities/trace", () => ({markTraceAsFresh: vi.fn()}))
+vi.mock("@agenta/entities/workflow", () => ({
+    invalidateAgentCommittedRevisionCache: state.invalidateCommit,
+    workflowMolecule: {
+        selectors: {configuration: () => "workflow-configuration"},
+    },
+}))
+
+vi.mock("@agenta/playground", () => ({
+    agentShouldResumeAfterApproval: ({liveInteraction}: {liveInteraction?: unknown}) =>
+        liveInteraction !== null,
+    approvalResolution: vi.fn(),
+    buildAgentRequest: vi.fn(async () => ({
+        invocationUrl: "https://agent.test/invoke",
+        headers: {},
+        requestBody: {},
+    })),
+    buildTurnCapture: vi.fn(),
+    isHitlPending: () => state.hitlPending,
+    isResumeSend: () => false,
+    playgroundController: {actions: {switchEntity: "switch-entity"}},
+    recordAnswerThenRelease: vi.fn(),
+}))
+
+vi.mock("@agenta/shared/state", () => ({
+    agentSelfCommitSignalAtom: "commit-signal",
+}))
+vi.mock("@agenta/shared/utils", () => ({generateId: () => "generated-id"}))
+vi.mock("@agenta/ui/app-message", () => ({message: {warning: vi.fn()}}))
+vi.mock("@ai-sdk/react", () => ({
+    useChat: () => ({
+        addToolApprovalResponse: vi.fn(),
+        addToolOutput: state.addToolOutput,
+        error: undefined,
+        messages: state.messages,
+        regenerate: state.regenerate,
+        sendMessage: state.sendMessage,
+        setMessages: vi.fn(),
+        status: "ready",
+        stop: state.stop,
+    }),
+}))
+vi.mock("@tanstack/react-query", () => ({
+    useQueryClient: () => ({invalidateQueries: vi.fn()}),
+}))
+
+vi.mock("jotai", () => ({
+    useAtomValue: () => state.projectId,
+    useSetAtom: (atom: string) =>
+        atom === "respond-interaction-answer"
+            ? state.respondAnswer
+            : atom === "session-durable-approvals-capability"
+              ? () => Promise.resolve(state.durableCapability)
+              : atom === "switch-entity"
+                ? state.switchEntity
+                : atom === "commit-signal"
+                  ? state.setCommitSignal
+                  : vi.fn(),
+    useStore: () => ({
+        get: (atom: string) => {
+            if (atom === "record-counts" || atom === "session-messages") return {}
+            if (atom === "open-sessions") return new Set()
+            return undefined
+        },
+    }),
+}))
+
+vi.mock("@/oss/state/project", () => ({projectIdAtom: "project-id"}))
+vi.mock("../assets/constants", () => ({
+    doesAgentChatStopKillSession: () => false,
+}))
+vi.mock("../components/Inspector/invalidate", () => ({
+    invalidateSessionInspector: vi.fn(),
+}))
+vi.mock("../state/scope", () => ({useChatScopeKey: () => "scope"}))
+vi.mock("../state/sessions", () => ({
+    openSessionIdsAtomFamily: () => "open-sessions",
+}))
+vi.mock("../state/turnCaptures", () => ({
+    captureTurnRequestAtom: "capture-request",
+}))
+vi.mock("./useFileActivityDetector", () => ({
+    useFileActivityDetector: vi.fn(),
+}))
+vi.mock("./useSessionHydration", () => ({
+    useSessionHydration: ({busyRef}: {busyRef: {current: boolean}}) => {
+        state.hydrationBusyRef = busyRef
+        return {
+            hydratedEmpty: false,
+            isHydrating: false,
+            runningElsewhere: false,
+            sessionTurnId: state.sessionTurnId,
+            stoppingTurnId: state.stoppingTurnId,
+            stopStateLoading: state.stopStateLoading,
+        }
+    },
+}))
+vi.mock("./useToolCacheInvalidation", () => ({
+    useToolCacheInvalidation: vi.fn(),
+}))
+
+import {useAgentChatSession} from "./useAgentChatSession"
+
+describe("useAgentChatSession execution guard", () => {
+    beforeEach(() => {
+        state.acceptedRunBySession.clear()
+        state.turnDeliverySourceBySession.clear()
+        state.turnIds.clear()
+        state.respondAnswer.mockReset().mockResolvedValue({
+            durable: true,
+            recoverable: false,
+            executionId: "questionnaire-child",
+        })
+        state.addToolOutput.mockReset().mockResolvedValue(undefined)
+        state.durableCapability = false
+        state.sendMessage.mockClear()
+        state.regenerate.mockClear()
+        state.cancelSessionExecution.mockReset()
+        state.resolveStopExecution.mockReset()
+        state.stop.mockReset()
+        state.switchEntity.mockClear()
+        state.setCommitSignal.mockClear()
+        state.invalidateCommit.mockClear()
+        state.messages = []
+        state.resolveStopExecution.mockImplementation(async ({readExecutionId}) => {
+            const executionId = readExecutionId()
+            return executionId ? {status: "resolved", executionId} : {status: "settled"}
+        })
+        state.projectId = "project-id"
+        state.latestTurnId = undefined
+        state.hitlPending = false
+        state.sessionTurnId = null
+        state.stoppingTurnId = null
+        state.stopStateLoading = false
+        state.busy = false
+    })
+
+    it("answers a queued questionnaire through server ownership without SDK auto-resume", async () => {
+        state.durableCapability = true
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const root = createRoot(document.createElement("div"))
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+        const output = {action: "accept", content: {goal: "Correctness"}}
+        await act(async () => {
+            await expect(
+                result!.handleClientToolOutput({
+                    toolName: "request_input",
+                    toolCallId: "questionnaire",
+                    output,
+                }),
+            ).resolves.toEqual({
+                durable: true,
+                recoverable: false,
+                executionId: "questionnaire-child",
+            })
+        })
+        expect(state.respondAnswer).toHaveBeenCalledWith({
+            sessionId: "session-1",
+            toolCallId: "questionnaire",
+            resolution: {
+                tool_call_id: "questionnaire",
+                tool_name: "request_input",
+                outcome: "completed",
+                output,
+            },
+        })
+        expect(state.addToolOutput).not.toHaveBeenCalled()
+        expect(state.capturedHooks!.sendAutomaticallyWhen({messages: []})).toBe(false)
+        act(() => root.unmount())
+    })
+
+    it("deduplicates live-reader and native commit notifications through the same config switch", () => {
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const root = createRoot(document.createElement("div"))
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+        const revision = {revisionId: "revision-2", version: "2"}
+        act(() => {
+            result!.onCommittedRevision(revision)
+            result!.onCommittedRevision(revision)
+        })
+        state.messages = [
+            {
+                id: "commit",
+                role: "assistant",
+                parts: [{type: "data-committed-revision", data: revision}],
+            } as UIMessage,
+        ]
+        act(() => root.render(createElement(Probe)))
+        expect(state.invalidateCommit).toHaveBeenCalledOnce()
+        expect(state.switchEntity).toHaveBeenCalledExactlyOnceWith({
+            currentEntityId: "revision-1",
+            newEntityId: "revision-2",
+        })
+        expect(state.setCommitSignal).toHaveBeenCalledExactlyOnceWith({
+            revisionId: "revision-2",
+            version: "2",
+            prevParameters: null,
+            at: expect.any(Number),
+        })
+        act(() => root.unmount())
+    })
+
+    it("allows durable hydration for an accepted shared sender while protecting local streaming", async () => {
+        state.busy = true
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const root = createRoot(document.createElement("div"))
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+        expect(state.hydrationBusyRef!.current).toBe(true)
+
+        await act(() => state.capturedHooks!.prepareRequest({messages: [], id: "session-1"}))
+        act(() =>
+            state.capturedHooks!.onData({
+                type: "data-session-accepted",
+                data: {executionId: "accepted-turn"},
+            }),
+        )
+        expect(result!.acceptedRunPending).toBe(true)
+        expect(state.hydrationBusyRef!.current).toBe(false)
+
+        state.busy = false
+        act(() => root.render(createElement(Probe)))
+        expect(result!.acceptedRunPending).toBe(true)
+        expect(state.hydrationBusyRef!.current).toBe(false)
+        act(() => root.unmount())
+    })
+
+    it("settles a desktop accepted turn when its shared invoke stream finishes", () => {
+        const sessionId = "session-1"
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        act(() =>
+            state.capturedHooks!.onData({
+                type: "data-session-accepted",
+                data: {executionId: "turn-1"},
+            }),
+        )
+        expect(result!.acceptedRunPending).toBe(true)
+
+        act(() =>
+            state.capturedHooks!.onFinish({
+                message: {id: "assistant-1", role: "assistant", parts: []},
+                messages: [],
+            }),
+        )
+        expect(result!.acceptedRunPending).toBe(false)
+        expect(state.acceptedRunBySession.has(sessionId)).toBe(false)
+
+        act(() => root.unmount())
+    })
+
+    it("clears the previous turn before sends, regeneration, and SDK automatic requests", async () => {
+        const sessionId = "session-1"
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        state.turnIds.set(sessionId, "turn-before-send")
+        act(() => void result!.sendMessage({text: "next"}))
+        expect(state.turnIds.get(sessionId)).toBeUndefined()
+
+        state.turnIds.set(sessionId, "turn-before-regenerate")
+        act(() => void result!.regenerate())
+        expect(state.turnIds.get(sessionId)).toBeUndefined()
+
+        state.turnIds.set(sessionId, "turn-before-auto-resume")
+        await act(() => state.capturedHooks!.prepareRequest({messages: [], id: sessionId}))
+        expect(state.turnIds.get(sessionId)).toBeUndefined()
+
+        act(() => root.unmount())
+    })
+
+    it("voids an approval resume before cancellation settles or its stream errors", async () => {
+        const sessionId = "session-1"
+        let resolveCancel: ((value: unknown) => void) | undefined
+        state.cancelSessionExecution.mockReturnValue(
+            new Promise((resolve) => {
+                resolveCancel = resolve
+            }),
+        )
+
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        act(() => result!.markLiveGate({kind: "approval", id: "approval-1"}))
+        act(() => result!.handleStop())
+        act(() => state.capturedHooks!.onError())
+
+        expect(state.capturedHooks!.sendAutomaticallyWhen({messages: []})).toBe(false)
+
+        await act(async () => {
+            resolveCancel?.({
+                accepted: true,
+                conflict: false,
+                execution: {id: "turn-1", state: "stopping"},
+            })
+            await Promise.resolve()
+        })
+        act(() => root.unmount())
+    })
+
+    it("stops an accepted shared turn before transcript metadata arrives", async () => {
+        state.busy = true
+        state.cancelSessionExecution.mockResolvedValue({
+            accepted: true,
+            conflict: false,
+            execution: {id: "accepted-turn", state: "stopping"},
+        })
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+        await act(() => state.capturedHooks!.prepareRequest({messages: [], id: "session-1"}))
+        act(() =>
+            state.capturedHooks!.onData({
+                type: "data-session-accepted",
+                data: {executionId: "accepted-turn"},
+            }),
+        )
+        await act(async () => result!.handleStop())
+        expect(state.cancelSessionExecution).toHaveBeenCalledWith({
+            sessionId: "session-1",
+            projectId: "project-id",
+            expectedExecutionId: "accepted-turn",
+        })
+        expect(state.resolveStopExecution).not.toHaveBeenCalled()
+        act(() => root.unmount())
+    })
+
+    it("keeps the approval resume void when Stop cannot load the project", () => {
+        state.projectId = null
+        const sessionId = "session-1"
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        act(() => result!.markLiveGate({kind: "approval", id: "approval-1"}))
+        act(() => result!.handleStop())
+        act(() => state.capturedHooks!.onError())
+
+        expect(state.cancelSessionExecution).not.toHaveBeenCalled()
+        expect(state.capturedHooks!.sendAutomaticallyWhen({messages: []})).toBe(false)
+
+        act(() => root.unmount())
+    })
+
+    it("keeps remounted interaction actions closed until an accepted paused Stop settles", async () => {
+        const sessionId = "session-1"
+        state.latestTurnId = "turn-1"
+        state.hitlPending = true
+        state.cancelSessionExecution.mockResolvedValue({
+            accepted: true,
+            conflict: false,
+            execution: {id: "turn-1", state: "stopping"},
+        })
+
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+
+        const firstContainer = document.createElement("div")
+        const firstRoot = createRoot(firstContainer)
+        act(() => firstRoot.render(createElement(Probe)))
+        await act(async () => {
+            result!.handleStop()
+            await Promise.resolve()
+        })
+        expect(state.cancelSessionExecution).toHaveBeenCalledWith({
+            sessionId,
+            projectId: "project-id",
+            expectedExecutionId: "turn-1",
+        })
+        act(() => firstRoot.unmount())
+
+        state.sessionTurnId = "turn-1"
+        state.stoppingTurnId = "turn-1"
+        const remountContainer = document.createElement("div")
+        const remountRoot = createRoot(remountContainer)
+        act(() => remountRoot.render(createElement(Probe)))
+        expect(result!.stopping).toBe(true)
+
+        state.stoppingTurnId = null
+        act(() => remountRoot.render(createElement(Probe)))
+        expect(result!.stopping).toBe(false)
+
+        act(() => remountRoot.unmount())
+    })
+
+    it("settles an acknowledged legacy Stop without entering the retry deadline", async () => {
+        vi.useFakeTimers()
+        const sessionId = "session-1"
+        state.busy = true
+        state.turnIds.set(sessionId, "turn-1")
+        state.cancelSessionExecution.mockResolvedValue({
+            accepted: true,
+            conflict: false,
+            execution: {id: "turn-1", state: "idle"},
+        })
+
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        await act(async () => {
+            result!.handleStop()
+            await Promise.resolve()
+        })
+        act(() => vi.advanceTimersByTime(30_000))
+
+        expect(state.stop).toHaveBeenCalledOnce()
+        expect(state.cancelSessionExecution).toHaveBeenCalledOnce()
+        expect(result!.stopping).toBe(false)
+
+        act(() => root.unmount())
+        vi.useRealTimers()
+    })
+
+    it("drops a stale retry fence after conflict so the next Stop targets the observed run", async () => {
+        vi.useFakeTimers()
+        const sessionId = "session-1"
+        state.busy = true
+        state.turnIds.set(sessionId, "turn-original")
+        state.cancelSessionExecution
+            .mockResolvedValueOnce({
+                accepted: true,
+                conflict: false,
+                execution: {id: "turn-original", state: "stopping"},
+            })
+            .mockResolvedValueOnce({
+                accepted: false,
+                conflict: true,
+                execution: {id: null, state: "idle"},
+            })
+            .mockResolvedValueOnce({
+                accepted: true,
+                conflict: false,
+                execution: {id: "turn-replacement", state: "stopping"},
+            })
+
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        await act(async () => {
+            result!.handleStop()
+            await Promise.resolve()
+        })
+        act(() => vi.advanceTimersByTime(30_000))
+
+        state.turnIds.set(sessionId, "turn-replacement")
+        await act(async () => {
+            result!.handleStop()
+            await Promise.resolve()
+        })
+        await act(async () => {
+            result!.handleStop()
+            await Promise.resolve()
+        })
+
+        expect(state.cancelSessionExecution).toHaveBeenNthCalledWith(2, {
+            sessionId,
+            projectId: "project-id",
+            expectedExecutionId: "turn-original",
+        })
+        expect(state.cancelSessionExecution).toHaveBeenNthCalledWith(3, {
+            sessionId,
+            projectId: "project-id",
+            expectedExecutionId: "turn-replacement",
+        })
+
+        act(() => root.unmount())
+        vi.useRealTimers()
+    })
+
+    it("resets a pending execution lookup when the mounted session changes", async () => {
+        let release!: (value: {status: "aborted"}) => void
+        state.busy = true
+        state.resolveStopExecution.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    release = resolve
+                }),
+        )
+
+        let sessionId = "session-1"
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        act(() => result!.handleStop())
+        expect(result!.stopping).toBe(true)
+
+        sessionId = "session-2"
+        act(() => root.render(createElement(Probe)))
+        expect(result!.stopping).toBe(false)
+
+        await act(async () => {
+            release({status: "aborted"})
+            await Promise.resolve()
+        })
+        expect(result!.stopping).toBe(false)
+
+        act(() => root.unmount())
+    })
+
+    it("ignores a cancellation response from the previously mounted session", async () => {
+        let release!: (value: {
+            accepted: true
+            conflict: false
+            execution: {id: string; state: "stopping"}
+        }) => void
+        state.busy = true
+        state.turnIds.set("session-1", "turn-1")
+        state.cancelSessionExecution.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    release = resolve
+                }),
+        )
+
+        let sessionId = "session-1"
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        act(() => result!.handleStop())
+        expect(result!.stopping).toBe(true)
+
+        sessionId = "session-2"
+        act(() => root.render(createElement(Probe)))
+        expect(result!.stopping).toBe(false)
+
+        await act(async () => {
+            release({
+                accepted: true,
+                conflict: false,
+                execution: {id: "turn-1", state: "stopping"},
+            })
+            await Promise.resolve()
+        })
+        expect(result!.stopping).toBe(false)
+
+        act(() => root.unmount())
+    })
+
+    it("waits for a resumed execution id before sending Stop", async () => {
+        const sessionId = "session-1"
+        let release!: (value: {status: "resolved"; executionId: string}) => void
+        state.busy = true
+        state.resolveStopExecution.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    release = resolve
+                }),
+        )
+        state.cancelSessionExecution.mockResolvedValue({
+            accepted: true,
+            conflict: false,
+            execution: {id: "turn-resumed", state: "stopping"},
+        })
+
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const container = document.createElement("div")
+        const root = createRoot(container)
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId,
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+
+        act(() => result!.handleStop())
+        expect(state.resolveStopExecution).toHaveBeenCalledOnce()
+        expect(state.cancelSessionExecution).not.toHaveBeenCalled()
+
+        await act(async () => {
+            release({status: "resolved", executionId: "turn-resumed"})
+            await Promise.resolve()
+        })
+        expect(state.cancelSessionExecution).toHaveBeenCalledWith({
+            sessionId,
+            projectId: "project-id",
+            expectedExecutionId: "turn-resumed",
+        })
+
+        act(() => root.unmount())
+    })
+})

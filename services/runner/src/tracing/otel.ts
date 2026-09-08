@@ -2082,11 +2082,18 @@ export function createSandboxAgentOtel(
     }
     // Stamp the run's trace id on the turn's terminal event so a persisted transcript can link a
     // replayed turn back to its trace (undefined only in span-less mode with no valid traceparent).
-    // Mark a paused turn's terminal record so a cold reload can tell a pause from a real turn
+    // Mark a non-completing turn's terminal record so a cold reload can tell it from a real turn
     // boundary (the FE adoption heuristic and hydration read this). A completed turn omits it.
+    //
+    // These non-completing outcomes must remain distinguishable from a normal finish in Postgres.
+    // Keep an explicit allowlist so arbitrary harness reasons cannot leak into the record contract.
     record({
       type: "done",
-      ...(stopReason === "paused" ? { stopReason: "paused" } : {}),
+      ...(stopReason === "paused" ||
+      stopReason === "cancelled" ||
+      stopReason === "error"
+        ? { stopReason }
+        : {}),
       ...(runTraceId ? { traceId: runTraceId } : {}),
     });
     if (!emitSpans) return text;
