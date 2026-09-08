@@ -21,7 +21,7 @@ const GRID =
 export const AutomationListSkeleton = ({rows = 5}: {rows?: number}) => (
     <div className="overflow-x-auto" aria-hidden>
         <div className="min-w-[544px]">
-            <div className={`${GRID} border-0 border-b border-solid border-border px-2 py-2`}>
+            <div className={`${GRID} mb-1 border-0 border-b border-solid border-border px-2 py-2`}>
                 {Array.from({length: 4}, (_, i) => (
                     <Skeleton key={i} className="h-3 w-16" />
                 ))}

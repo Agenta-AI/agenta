@@ -161,7 +161,7 @@ export const AutomationListScreen = ({
             <div className="overflow-x-auto">
                     <div className="min-w-[572px]">
                         <div
-                            className={`${GRID} border-0 border-b border-solid border-border px-2 py-2 text-[12px] font-medium text-muted-foreground`}
+                            className={`${GRID} mb-1 border-0 border-b border-solid border-border px-2 py-2 text-[12px] font-medium text-muted-foreground`}
                         >
                             <span>Automation</span>
                             <span>Status</span>
