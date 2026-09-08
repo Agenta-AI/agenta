@@ -352,7 +352,10 @@ export function decideDesktopGate(input: GateInput): GateDecision {
 /** Reverse gate: runs in the MOBILE app. Sees only /m traffic behind Traefik. */
 export function decideMobileGate(input: GateInput): GateDecision {
     try {
-        if (!input.gateEnabled) return {kind: "pass"}
+        // Independent gates, as on the desktop half: `/m` still honours Classic mode on a
+        // deployment that turned the DEVICE gate off.
+        const classicGateEnabled = input.classicGateEnabled !== false
+        if (!input.gateEnabled && !classicGateEnabled) return {kind: "pass"}
         if (!isDocumentNavigation(input)) return {kind: "pass"}
 
         // Escape hatch: "Open mobile version" links carry ?view=mobile.
@@ -369,13 +372,25 @@ export function decideMobileGate(input: GateInput): GateDecision {
         // one-time code and strands the flow.
         if (AUTH_CALLBACK_RE.test(input.pathname)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTIN_COOKIE)) return {kind: "pass"}
-        // Classic mode off means /m is where this user belongs, so the device heuristic must not
-        // bounce them out of it. Without this the two gates ping-pong forever on a desktop UA:
-        // the desktop gate sends them here for the preference, this one sends them back for the
-        // device, and the cookie that started it never changes.
-        if (input.classicGateEnabled !== false && input.cookie(CLASSIC_MODE_COOKIE) === "0") {
-            return {kind: "pass"}
+        if (classicGateEnabled) {
+            const classic = input.cookie(CLASSIC_MODE_COOKIE)
+            // Classic mode off means /m is where this user belongs, so the device heuristic must
+            // not bounce them out of it. Without this the two gates ping-pong forever on a
+            // desktop UA: the desktop gate sends them here for the preference, this one sends
+            // them back for the device, and the cookie that started it never changes.
+            if (classic === "0") return {kind: "pass"}
+            // Mirror image: the desktop gate already ranks Classic mode above the device
+            // heuristic (`wantsClassic`), so without the same precedence here a phone whose user
+            // asked for the full app is passed through below and parked on /m.
+            if (classic === "1") {
+                return {
+                    kind: "redirect",
+                    location: mapMobileToDesktop(input.pathname, input.search),
+                }
+            }
         }
+
+        if (!input.gateEnabled) return {kind: "pass"}
         // Checked after ?view=mobile so the opt-in cookie is still set if the bounce is re-enabled.
         if (input.reverseGateEnabled === false) return {kind: "pass"}
         if (isMobileDevice(input.header)) return {kind: "pass"}

@@ -14,5 +14,6 @@ export {
     desktopEscapeHref,
     useClassicModeCookieSync,
     useClassicModeRedirect,
+    useDesktopModeRedirect,
     writeClassicModeCookie,
 } from "./useClassicModeGate"

@@ -579,6 +579,66 @@ describe("decideMobileGate", () => {
         })
     })
 
+    it("bounces a Classic-mode-ON user out of /m, phone included", () => {
+        // The switch says "full desktop app", so it outranks the device heuristic here exactly
+        // as `wantsClassic` does on the desktop half.
+        const i = input({
+            gateEnabled: true,
+            pathname: "/w/ws1/p/pr1/sessions/abc",
+            headers: docHeaders(MOBILE_UA),
+        })
+        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "1" : undefined)
+        expect(decideMobileGate(i)).toEqual({
+            kind: "redirect",
+            location: "/w/ws1/p/pr1/observability?session=abc",
+        })
+
+        // And the desktop half must keep them there, or the two gates loop.
+        expect(decideDesktopGate({...i, pathname: "/w/ws1/p/pr1/observability"})).toEqual({
+            kind: "pass",
+        })
+    })
+
+    it("bounces a Classic-mode-ON user out of /m with the device gate off", () => {
+        const i = input({
+            gateEnabled: false,
+            pathname: "/w/ws1/p/pr1/sessions",
+            headers: docHeaders(MOBILE_UA),
+        })
+        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "1" : undefined)
+        expect(decideMobileGate(i)).toEqual({kind: "redirect", location: "/w/ws1/p/pr1/sessions"})
+    })
+
+    it("keeps a Classic-mode-ON user on /m when they opted in or the classic gate is off", () => {
+        for (const overrides of [{}, {classicGateEnabled: false}]) {
+            const i = input({
+                gateEnabled: true,
+                pathname: "/w/ws1/p/pr1/sessions",
+                headers: docHeaders(MOBILE_UA),
+                ...overrides,
+            })
+            const optedIn = "classicGateEnabled" in overrides ? undefined : "1"
+            i.cookie = (name) =>
+                name === CLASSIC_MODE_COOKIE
+                    ? "1"
+                    : name === MOBILE_OPTIN_COOKIE
+                      ? optedIn
+                      : undefined
+            expect(decideMobileGate(i)).toEqual({kind: "pass"})
+        }
+    })
+
+    it("never bounces a Classic-mode-ON user off an OAuth landing", () => {
+        const i = input({
+            gateEnabled: true,
+            pathname: "/auth/callback/google",
+            search: "?code=abc",
+            headers: docHeaders(MOBILE_UA),
+        })
+        i.cookie = (name) => (name === CLASSIC_MODE_COOKIE ? "1" : undefined)
+        expect(decideMobileGate(i)).toEqual({kind: "pass"})
+    })
+
     it("still bounces a desktop UA out of /m when the classic gate is disabled", () => {
         const i = input({
             gateEnabled: true,
