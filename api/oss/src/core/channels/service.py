@@ -44,6 +44,7 @@ from oss.src.core.channels.dtos import (
     ChannelThreadCreate,
     ChannelThreadData,
     ChannelThreadQuery,
+    ChannelTriggerKind,
     ChannelTriggerState,
     ChannelTurnInput,
 )
@@ -1348,11 +1349,19 @@ class ChannelsService:
         if is_message_scope:
             thread_key = event.id
         else:
-            thread_key = compose_external_key(
-                capabilities,
-                ChannelKeyGrain.THREAD,
-                event.data.external_locator,
-            )
+            if space.kind is ChannelSpaceKind.PRIVATE:
+                # A DM is one conversation: every message in it continues the
+                # same thread, keyed on the space itself, and the reply goes
+                # out top-level (the locator carries no thread_ts). Keying a
+                # DM per message gave the agent no memory between messages
+                # and threaded every answer under the message it answered.
+                thread_key = space.external_key
+            else:
+                thread_key = compose_external_key(
+                    capabilities,
+                    ChannelKeyGrain.THREAD,
+                    event.data.external_locator,
+                )
             thread = await self.channels_dao.fetch_current_thread(
                 project_id=project_id,
                 space_id=space.id,
@@ -1395,6 +1404,27 @@ class ChannelsService:
                 None,
             )
 
+        # The trigger gate. Every message is stored (the fill reads it back
+        # as context), but only some open a turn: a DM, a reply inside a
+        # thread the agent already holds, an answer to a pending choice, or
+        # -- per the effective policy -- a mention, a command, a button.
+        if event.kind is ChannelEventKind.MESSAGE and not _is_trigger(
+            event=event,
+            space=space,
+            policy=policy,
+            thread=thread,
+            capabilities=capabilities,
+            resolved_choice=resolved_choice,
+        ):
+            log.info(
+                "[CHANNELS] event=%s is not a trigger in space=%s (kind=%s) -- "
+                "stored, no turn",
+                event.id,
+                space.id,
+                space.kind.value,
+            )
+            return None
+
         if thread is None or not thread.flags.is_active:
             thread = await self.channels_dao.create_thread(
                 project_id=project_id,
@@ -1405,7 +1435,7 @@ class ChannelsService:
                     external_key=thread_key,
                     session_id=str(thread_key or space.external_key),
                     data=ChannelThreadData(
-                        external_locator=event.data.external_locator,
+                        external_locator=_thread_locator(space=space, event=event),
                     ),
                 ),
             )
@@ -1485,6 +1515,26 @@ class ChannelsService:
         if not resolution.policy.forwardfill:
             # the turn takes the addressing event alone
             events = [stored for stored in events if stored.id == event_id]
+        else:
+            # The range is read per space (the offset is per thread), so a
+            # fresh thread in a busy channel would otherwise see the whole
+            # channel's history. Keep the thread's own messages: all of them
+            # in a DM, which is one conversation; only those under the same
+            # thread key elsewhere; the addressing event alone under message
+            # scope, where a thread is one message by definition.
+            connection = await self.channels_dao.fetch_connection(
+                project_id=project_id,
+                connection_id=resolution.space.connection_id,
+            )
+            capabilities = await self.fetch_capabilities(
+                channel=connection.channel, connection=connection
+            )
+            events = _events_of_thread(
+                events,
+                event_id=event_id,
+                resolution=resolution,
+                capabilities=capabilities,
+            )
 
         content: List[dict] = []
         for stored in events:
@@ -1711,6 +1761,72 @@ def resolve_pending_choice(
     return None
 
 
+def _is_trigger(
+    *,
+    event: ChannelInboxEvent,
+    space: ChannelSpace,
+    policy: ChannelEffectivePolicy,
+    thread: Optional[ChannelThread],
+    capabilities: ChannelCapabilities,
+    resolved_choice: Optional[str],
+) -> bool:
+    """Does this stored message open a turn? See the gate in `resolve`."""
+    from oss.src.core.channels.commands import parse_command
+
+    if space.kind is ChannelSpaceKind.PRIVATE:
+        return True
+    if resolved_choice is not None:
+        return True
+    if thread is not None and thread.flags.is_active:
+        return True
+    triggers = policy.triggers
+    content = event.data.processed.content
+    if ChannelTriggerKind.MENTION in triggers:
+        named = _parse_sigil(
+            content=content, sigil=capabilities.addressing.sigils.agent
+        )
+        if event.data.addressed or named is not None:
+            return True
+    if ChannelTriggerKind.COMMAND in triggers:
+        if parse_command(content=content, capabilities=capabilities) is not None:
+            return True
+    return False
+
+
+def _thread_locator(*, space: ChannelSpace, event: ChannelInboxEvent) -> Dict[str, Any]:
+    """Where the thread's replies go. In a DM the reply is top-level, so the
+    per-message thread field is dropped; elsewhere the event's own locator."""
+    locator = dict(event.data.external_locator or {})
+    if space.kind is ChannelSpaceKind.PRIVATE:
+        locator.pop("thread_ts", None)
+    return locator
+
+
+def _events_of_thread(
+    events: List[ChannelInboxEvent],
+    *,
+    event_id: UUID,
+    resolution: ChannelResolution,
+    capabilities: ChannelCapabilities,
+) -> List[ChannelInboxEvent]:
+    if resolution.space.kind is ChannelSpaceKind.PRIVATE:
+        return events
+    if resolution.policy.session_scope is ChannelSessionScope.MESSAGE:
+        return [stored for stored in events if stored.id == event_id]
+    thread_key = resolution.thread.external_key
+    kept = []
+    for stored in events:
+        try:
+            key = compose_external_key(
+                capabilities, ChannelKeyGrain.THREAD, stored.data.external_locator
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            key = None
+        if key == thread_key or stored.id == event_id:
+            kept.append(stored)
+    return kept
+
+
 def _first_text(content: List[dict]) -> str:
     for part in content:
         if isinstance(part, dict) and part.get("type") == "text":
@@ -1752,6 +1868,15 @@ def _channel_defaults(capabilities: ChannelCapabilities):
     )
 
     return ChannelPolicy(
+        # What runs a turn unless a level narrows it: being spoken to (a
+        # mention or an agent sigil), a command, or a button. A DM and a
+        # follow-up inside a thread the agent already answered in are
+        # admitted by `resolve` regardless -- they are addressed by nature.
+        triggers={
+            ChannelTriggerKind.MENTION,
+            ChannelTriggerKind.COMMAND,
+            ChannelTriggerKind.ACTION,
+        },
         session_scope=session_scope,
         backfill=capabilities.fill.backfill.supported,
         forwardfill=capabilities.fill.forwardfill.supported,

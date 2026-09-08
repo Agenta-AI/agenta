@@ -1122,3 +1122,58 @@ async def test_parse_event_threaded_reply_keeps_the_parent_thread_ts():
 
     assert event is not None
     assert event.external_locator["thread_ts"] == "42.1"
+
+
+@pytest.mark.parametrize(
+    "subtype",
+    [
+        "channel_join",
+        "channel_leave",
+        "channel_topic",
+        "channel_purpose",
+        "pinned_item",
+    ],
+)
+async def test_a_system_notice_subtype_is_not_a_message(subtype):
+    """Inviting the bot fired a channel_join that ran a paid turn (F94)."""
+    adapter = SlackAdapter()
+    body = json.dumps(
+        {
+            "type": "event_callback",
+            "team_id": "T1",
+            "event": {
+                "type": "message",
+                "subtype": subtype,
+                "channel": "C1",
+                "user": "U1",
+                "text": "<@UBOT> has joined the channel",
+                "ts": "1.1",
+            },
+        }
+    ).encode()
+
+    assert await adapter.parse_event(body=body, connection=None) is None
+
+
+@pytest.mark.parametrize("subtype", ["thread_broadcast", "file_share"])
+async def test_a_subtype_that_still_carries_a_persons_message_stays(subtype):
+    adapter = SlackAdapter()
+    body = json.dumps(
+        {
+            "type": "event_callback",
+            "team_id": "T1",
+            "event": {
+                "type": "message",
+                "subtype": subtype,
+                "channel": "C1",
+                "user": "U1",
+                "text": "here is the file",
+                "ts": "1.1",
+            },
+        }
+    ).encode()
+
+    event = await adapter.parse_event(body=body, connection=None)
+
+    assert event is not None
+    assert event.processed.content[0]["text"] == "here is the file"

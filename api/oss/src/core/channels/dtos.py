@@ -442,6 +442,9 @@ class ChannelInboxEventData(BaseModel):
     # the adapter's classification, carried through so a get-or-create space
     # knows its kind without re-parsing the platform payload
     space_kind: Optional[ChannelSpaceKind] = None
+    # the adapter's verdict on whether the message spoke to the bot (an
+    # app_mention, a sigil): the trigger gate reads it at dispatch
+    addressed: Optional[bool] = None
     # raw:            Optional[Dict[str, Any]] = None
 
 

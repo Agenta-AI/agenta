@@ -53,6 +53,10 @@ _LISTING_PAGE_SIZE = 200
 # tier at fetch time.
 _DEFAULT_BACKFILL_LIMIT = int(os.getenv("AGENTA_CHANNELS_BACKFILL_LIMIT") or 50)
 
+# Message subtypes that are still a person's message: a reply also sent to the
+# channel, and a file shared with a comment. Every other subtype is a notice.
+_MESSAGE_SUBTYPES = {"thread_broadcast", "file_share"}
+
 # Slack's own signal that an installation stopped -- deactivate, never
 # route these as messages.
 _DEACTIVATION_EVENT_TYPES = {"app_uninstalled", "tokens_revoked"}
@@ -266,6 +270,13 @@ class SlackAdapter(ChannelAdapterInterface):
         # self-sustaining bot-echo cascade. No edit-processing path exists, so
         # drop these subtypes outright (QA finding, 2026-08-17).
         if event.get("subtype") in ("message_changed", "message_deleted"):
+            return None
+        # Every other subtype is a system notice (channel_join, channel_topic,
+        # pinned_item, ...), not a person talking; admitting one ran a paid
+        # turn the moment the bot was invited. Two subtypes carry a real
+        # human message and stay.
+        subtype = event.get("subtype")
+        if subtype and subtype not in _MESSAGE_SUBTYPES:
             return None
 
         team_id = payload.get("team_id") or ""
