@@ -42,7 +42,9 @@ export const SidebarLogo = ({collapsed, toggle}: {collapsed: boolean; toggle?: R
             // mt/ml push the whole centred row away from the corner; padding alone read as
             // no change because the 48px row's centring already held the logo 14px down.
             "flex h-8 shrink-0 items-center mt-1.5 mb-1",
-            collapsed ? "justify-center" : toggle ? "justify-between ml-2 pl-3 pr-2" : "px-3",
+            // pr-3, not pr-2: the toggle is an icon in a borderless box, so at 8px its glyph sat
+            // closer to the rail's edge than the nav rows' labels sit to theirs.
+            collapsed ? "justify-center" : toggle ? "justify-between ml-2 px-3" : "px-3",
         ].join(" ")}
     >
         {collapsed ? (

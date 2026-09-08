@@ -283,7 +283,7 @@ export const ProjectOrgSwitcherView = ({
                 // Same 300ms the rail itself uses (SidebarShell): without it this box jumps to its
                 // collapsed geometry on the first frame while the rail is still sliding, and the
                 // switcher reads as a separate, badly-timed element rather than part of the rail.
-                "flex gap-1 px-2 py-2 transition-all duration-300",
+                "flex gap-1 px-2 pb-1.5 pt-1 transition-all duration-300",
                 collapsed ? "flex-col items-center" : "w-full items-center",
             )}
         >
