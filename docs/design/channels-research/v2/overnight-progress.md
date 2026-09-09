@@ -210,3 +210,22 @@ Live QA coverage on the custom bot is now: happy-path DM, single delivery (no do
 conversation memory across turns, and HTML escaping. The custom-bot Telegram channel is
 production-ready and live-verified. Remaining live checks (callback/approval buttons, group
 mention) need a group chat or an approval-triggering agent; noted for a later pass.
+
+## Group-chat live QA finding: the bot's privacy mode blocks group messages (2026-09-09)
+Tested group chats live with the QA account: created a group, added the bot, and sent a
+message that mentions the bot (@newagentabot ...).
+- The bot received only the group SERVICE messages (group created, bot added): the ingress
+  logged two events per test, both with EMPTY text and addressed=false, message ids that do
+  NOT match the mention message id I sent (Telethon sent msg 206; the bot saw 106/107).
+- The bot never received the user's @mention text message, so it never answered in the group.
+Cause: the bot's group privacy mode is ON (BotFather default). With privacy on, Telegram does
+not deliver ordinary group messages to the bot. This is a per-bot BotFather setting
+(/setprivacy -> Disable), on the bot owner's Telegram account, not a code defect. My
+mention-boundary fix is correct (the regex matches the stored username; verified in isolation).
+Implications for group support in v1:
+- The setup flow must tell the user to disable group privacy in BotFather for group use, OR
+  we accept that a hosted/custom bot only answers @mentions/commands/replies in groups (which
+  privacy mode still delivers, but the delivery of the plain @mention needs to be confirmed).
+- After privacy is disabled, re-test that a group @mention opens a turn (the effective policy
+  must include MENTION triggers for the group space).
+DM (private chat) is fully working and live-verified; this finding is specific to groups.
