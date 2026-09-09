@@ -1,7 +1,12 @@
-import {useMemo, type ReactNode, type RefObject} from "react"
+import {useMemo, useRef, useState, type ReactNode, type RefObject} from "react"
 
-import {ChatComposer} from "@agenta/chat/components"
-import type {useComposerAttachments} from "@agenta/chat/hooks"
+import {
+    ChatComposer,
+    MicPermissionNotice,
+    RecordingBar,
+    VoiceInputButton,
+} from "@agenta/chat/components"
+import {useVoiceComposer, type useComposerAttachments} from "@agenta/chat/hooks"
 import {AgentChip} from "@agenta/entity-ui/agent"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button} from "@agenta/ui/ui"
@@ -92,6 +97,20 @@ export const HomeTaskComposer = ({
     const effectiveAgentId = fixedAgentId ?? picked ?? agents[0]?.id ?? null
     const creating = mode === "create"
 
+    // Voice needs a handle whether or not the host asked for one.
+    const ownInputRef = useRef<RichChatInputHandle | null>(null)
+    const richInputRef = inputRef ?? ownInputRef
+    const [dictating, setDictating] = useState(false)
+
+    // A take on Home is always an ATTACHMENT, never a message of its own: there is no conversation
+    // here to send it into — the composer's text is what gets sent, with the clip riding along.
+    const voice = useVoiceComposer({
+        richInputRef,
+        stagedCount: attachments.files.length,
+        onAttach: (file) => attachments.addFiles([file]),
+        onSendVoiceMessage: (file) => attachments.addFiles([file]),
+    })
+
     const selectedName = useMemo(
         () => agents.find((agent) => agent.id === effectiveAgentId)?.name,
         [agents, effectiveAgentId],
@@ -154,6 +173,11 @@ export const HomeTaskComposer = ({
 
     return (
         <div className="relative flex flex-col">
+            <MicPermissionNotice
+                open={!!voice.micError && !voice.voiceRecorder.active}
+                message={voice.micError}
+                onDismiss={voice.dismissMicError}
+            />
             {/* Lifted, so the dock behind it stays behind it. The ring lives HERE and not around
                 the whole thing: it marks the box you are typing in, and sweeping the dock too made
                 it read as a border on the pair. */}
@@ -180,7 +204,8 @@ export const HomeTaskComposer = ({
                     }
                 >
                     <ChatComposer
-                        inputRef={inputRef}
+                        inputRef={richInputRef}
+                        dictating={dictating}
                         onSubmit={async (text) => {
                             try {
                                 if (creating) {
@@ -198,7 +223,24 @@ export const HomeTaskComposer = ({
                         attachments={attachments}
                         placeholder={creating ? CREATE_PLACEHOLDER : placeholder}
                         disabled={!creating && !effectiveAgentId}
-                        extraPrefix={extraPrefix}
+                        extraPrefix={
+                            <>
+                                <VoiceInputButton
+                                    inputRef={richInputRef}
+                                    onStartAudio={voice.startVoiceMessage}
+                                    audioSupported={voice.voiceRecorder.supported}
+                                    audioPending={voice.voiceRecorder.pending}
+                                    // Home reads no model catalogue, so it makes no claim about
+                                    // whether the agent can hear — the menu stays neutral.
+                                    audioPerceivable={null}
+                                    attachmentsFull={attachments.atMax}
+                                    onDictationError={voice.setDictationError}
+                                    onDictatingChange={setDictating}
+                                    stopRef={voice.dictationStopRef}
+                                />
+                                {extraPrefix}
+                            </>
+                        }
                         // While the ring is running it IS the border. The composer's own edge —
                         // and the focus edge the autofocus fires — paint over the ring's 1px rim
                         // and hide the very thing the mode exists to show. `!`, because
@@ -207,6 +249,15 @@ export const HomeTaskComposer = ({
                         className={creating ? "!border-transparent" : undefined}
                     />
                 </div>
+                {voice.voiceRecorder.takeoverVisible ? (
+                    <div className="pointer-events-none absolute inset-0 flex justify-center">
+                        <RecordingBar
+                            recorder={voice.voiceRecorder}
+                            willSend={voice.voiceWillSend}
+                            className="h-full w-full"
+                        />
+                    </div>
+                ) : null}
             </div>
             {/* Docked UNDER the composer, not inside its footer: what the message is aimed at is a
                 standing fact about the composer, and in the footer it competed for the same row as

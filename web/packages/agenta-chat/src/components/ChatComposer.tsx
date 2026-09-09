@@ -13,7 +13,7 @@ import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {Paperclip} from "@phosphor-icons/react"
+import {Plus} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
@@ -221,7 +221,7 @@ export const ChatComposer = ({
                                 onClick={() => fileInputRef.current?.click()}
                                 aria-label="Attach files"
                             >
-                                <Paperclip size={16} />
+                                <Plus size={16} />
                             </Button>
                         </SimpleTooltip>
                     </div>
