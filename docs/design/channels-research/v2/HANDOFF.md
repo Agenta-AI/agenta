@@ -13,7 +13,7 @@ Branches (a linear stack; each PR's base is the branch below it):
 - `channels/telegram` — custom Telegram bot. PR #6679, base channels/fix-approval-card-on-park.
 - `channels/telegram-hosted` — hosted (Agenta-owned) Telegram bot. PR #6724, base channels/telegram.
 - `channels/telegram-ui` — the connect screen on the agent page (+ the bindings endpoint and
-  the unarchive-cascade fix). Base channels/telegram-hosted. PR: see the PR stack below.
+  the unarchive-cascade fix). PR #6737, base channels/telegram-hosted.
 All three are pushed. PRs are ready but must NOT be merged yet.
 
 Running stack: `agenta-ee-dev-channels` (this worktree,
@@ -71,8 +71,8 @@ light and dark (2026-09-09 evening; details and screenshots in STATUS.md, sectio
 
 ## Next steps (in order)
 1. Second Codex (gpt-astra) review of the final channels/telegram-ui diff; address findings.
-2. Open the channels/telegram-ui PR (base channels/telegram-hosted), let CodeRabbit run,
-   address its findings. Do NOT merge.
+2. PR #6737 is open (base channels/telegram-hosted); let CodeRabbit run and address its
+   findings. Do NOT merge.
 3. Slack live QA on this stack through the NEW card: complete the hosted install (needs a
    Slack workspace login) and submit a custom app (needs the signing secret; the QA Slack env
    has it commented out). Both flows are wired and reach Slack; only the last step is unproven.
@@ -117,7 +117,7 @@ the Agenta channel are in the foundational PR (#6644); Telegram and the UI are o
 - #6653 channels/fix-approval-card-on-park -> docs-and-decisions — render the approval card on a park.
 - #6679 channels/telegram -> fix-approval-card-on-park — custom Telegram bot (my work).
 - #6724 channels/telegram-hosted -> telegram — hosted Telegram bot (my work).
-- channels/telegram-ui -> telegram-hosted — the agent-page connect screen (my work, no PR yet).
+- #6737 channels/telegram-ui -> telegram-hosted — the agent-page connect screen (my work).
 All PRs are ready for review, NOT to be merged yet. Merge order is bottom-up, into
 release/v0.115.4 (never main). Check each PR's threads + Codex/CodeRabbit before merging.
 
