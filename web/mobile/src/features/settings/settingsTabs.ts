@@ -43,6 +43,9 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             billingEnabled,
             canShowTools: toolsEnabled,
             canShowTriggers: toolsEnabled,
+            // Channels live on the agent page here, not in settings: this app has no channels
+            // settings page, and `AVAILABLE_SETTINGS_TABS` lists none, so the flag stays off.
+            canShowChannels: false,
             canViewApiKeys: true,
             canViewEvents: true,
             isEE: enterprise,

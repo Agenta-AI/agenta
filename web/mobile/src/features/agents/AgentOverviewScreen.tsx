@@ -19,6 +19,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {SessionAutomationDrawers} from "../sessions/SessionAutomationDrawers"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {AgentChannelsCard} from "./AgentChannelsCard"
 import {AgentComposer} from "./AgentComposer"
 
 /** One agent's overview: the desktop page's shared cards, with a config card for its rail. */
@@ -42,6 +43,11 @@ export const AgentOverviewScreen = ({
         () => new Map(agents.map((entry) => [entry.id, entry.name || entry.slug || "Agent"])),
         [agents],
     )
+
+    // The Channels card resolves the agent a connection answers as, from the same roster the
+    // body's rows read; a connection pointed at an agent this project no longer holds is
+    // unknown, hence null.
+    const resolveAgentName = useCallback((id: string) => agentNames.get(id) ?? null, [agentNames])
 
     const sessionMenu = useSessionRowMenu(base)
 
@@ -138,6 +144,13 @@ export const AgentOverviewScreen = ({
                             agentId={agentId}
                             agentNames={agentNames}
                             usage={<UsageCard appId={agentId} />}
+                            channels={
+                                <AgentChannelsCard
+                                    appId={agentId}
+                                    agentName={name}
+                                    resolveAgentName={resolveAgentName}
+                                />
+                            }
                             sessionsHref={`${base}/sessions`}
                             automationSessionsHref={`${base}/sessions?mode=${sessionRouteModes.automation}`}
                             onEditConfig={onEditConfig}
