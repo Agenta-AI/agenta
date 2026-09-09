@@ -4,7 +4,7 @@ The single source of truth for this project's state. Updated after every
 milestone. Read this first. If a detail lives in another doc, this file links to
 it; this file stays the map.
 
-Last updated: 2026-09-09.
+Last updated: 2026-09-09 (evening: frontend finished, live-verified through the UI).
 
 ## INFRA FACTS (do not re-derive; correct as needed)
 - The ngrok tunnel is PAID, not free. There is NO interstitial. If a browser XHR
@@ -90,21 +90,22 @@ screenshot before marking a UI step done (UI changes need browser QA).
   list connections, connect hosted Telegram (mint link), connect Slack (hosted
   install redirect), custom Telegram (createChannelConnection + bot token),
   behavior switches (map dm/group to grants/policy), disconnect (archive).
-- [~] F3: mapConnections reads real rows; hosted-Telegram CONNECT is wired to
+- [x] F3 (done 2026-09-09 evening, see the section at the bottom). Earlier note: mapConnections reads real rows; hosted-Telegram CONNECT is wired to
   the real bind link (compiles on the stack). hosted-Telegram CONNECT + DISCONNECT wired (compile-verified). REMAINING:
   browser QA (needs a live session), QR image, Slack connect, behavior switches. Original F3 text:
   Map the design's simple model to the backend: design ChannelConnections
   {slack,telegram:{kind,status,dm,group,chats}} <- connections + agents + grants +
   policy + spaces. Replace the components' placeholder local state with the real
   queries/mutations. Keep the design's look.
-- [~] F4 Mounted on the agent overview: AgentChannelsCard (web/oss) renders
+- [x] F4 (done 2026-09-09 evening; browser-verified light + dark). Earlier note: Mounted on the agent overview: AgentChannelsCard (web/oss) renders
   ChannelsPage in an antd Drawer, in the AgentOverviewBody rail slot. The route
   COMPILES cleanly (verified on the stack). Reads real connections. REMAINING:
   browser QA screenshot, and wire the connect/disconnect ACTIONS (F3).
-- [ ] F5 Mount on /m (web/mobile/src/features/agents/AgentOverviewScreen.tsx) with
-  a bottom-sheet renderPanel. Desktop + /m parity.
-- [ ] F6 Light + dark mode pass; Storybook entries for the components.
-- [ ] F7 Leave the old Settings channels screen in place, untouched.
+- [x] F5 Mounted on /m (web/mobile/src/features/agents/AgentChannelsCard.tsx, bottom sheet via
+  Sheet side=responsive); browser-verified on a 390px viewport.
+- [x] F6 Dark-mode pass (screenshots in ~/agenta-qa-evidence/2026-09-09-channels-ui-v2/);
+  Storybook stories co-located in web/packages/agenta-settings-ui/src/channels/*.stories.tsx.
+- [x] F7 The old Settings channels screen is untouched.
 Mount point notes (RESOLVED 2026-09-09): desktop agent overview =
 web/oss/src/components/pages/overview/agent/AgentOverview.tsx, which renders
 AgentOverviewBody (web/packages/agenta-entity-ui/src/agent/AgentOverviewBody.tsx)
@@ -136,9 +137,10 @@ disconnect (archiveChannelConnection), then Slack hosted (OAuth redirect), then 
 behavior switches (grants/policy), then custom Telegram (createChannelConnection).
 
 Cross-cutting:
-- [ ] Codex (gpt-astra) review of the new frontend + disconnect fix.
+- [~] Codex (gpt-astra) review of the finished frontend: first round done (7 findings, all
+  addressed); a second round on the final diff is the next step.
 - [ ] CodeRabbit on each PR.
-- [ ] Live QA end to end through the UI (desktop + /m), plus UI visual QA.
+- [x] Live QA end to end through the UI (desktop + /m), plus UI visual QA (2026-09-09 evening).
 - [ ] Update STATUS.md after each milestone.
 
 ## Branches / PRs
@@ -271,3 +273,78 @@ Codex direct answers: regenerate the api-client (Fern) for the bind-link instead
 the direct fetch (web/AGENTS.md requires it); keep action injection but remove the
 implicit simulate (move fixtures to Storybook); hide unfinished Slack/custom/QR/
 policy for v1; keep the rail slot; remove the unused unarchive wrapper.
+
+
+## Frontend finished and live-verified through the UI (2026-09-09 evening)
+Branch channels/telegram-ui. Everything below is browser-verified on the channels stack with a
+throwaway account (channels-ui-<epoch>@test.agenta.ai, created via the admin endpoint; the
+QA project's owner mailbox cannot receive codes, and its password is not ours to type).
+Screenshots: ~/agenta-qa-evidence/2026-09-09-channels-ui-v2/ (01-09).
+
+Backend additions (small, on this branch):
+- `GET /channels/catalog/channels/telegram_hosted/bindings/?connection_id=` lists the chats a
+  /start has bound to the hosted connection (project-scoped; 404 when no hosted bot). The UI
+  polls it to tell "link minted" apart from "chat connected" (Codex #3).
+- The bind-link response now carries `connection_id`.
+- Fix: `unarchive_connection` now restores the agents that were archived together with the
+  connection (same instant). Without it a reconnect after a disconnect recreated the "default"
+  agent and tripped `uq_channel_agents_connection_slug` / `uq_channel_agents_default` (500 on
+  the bind-link mint). Found live; unit-tested (883 channels+secrets).
+- The generated TypeScript client was regenerated for the channels resource only (the sessions
+  drift in the same spec was reverted on purpose; it renames SessionCapabilities and is not ours).
+
+Frontend (web/packages/agenta-settings-ui/src/channels, web/oss, web/mobile):
+- `actions.ts`: `buildAgentChannelsActions({client, projectId, appId, resolveAgentName,
+  hostedSlackInstallUrl})` holds every backend call and the mapping; both hosts are thin
+  (desktop: antd Drawer; /m: Sheet). Per web/AGENTS.md the calls go through the generated
+  client, not a raw fetch.
+- The 3-state card (Option 1): not connected -> Connect; connected here -> manage; connected to
+  agent X -> "Connected to X" + "Connect here" (retargets the connection's default channel agent
+  to this app via editChannelAgent, or creates it when the connection has none).
+- Pending state: a hosted Telegram connection with zero bound chats reads "Not linked yet ·
+  finish connecting" and opens the connect flow, never the manage view. (A reload during the
+  flow used to flip the panel to "connected" before /start; seen live after a hot reload.)
+- Hosted Telegram flow: mint -> real QR (vendored dependency-free encoder, `qr/encode.ts`, 7
+  unit tests) + deep link + copy -> waiting (polls bindings until the count rises; link expiry
+  -> "Get a new link"; "I already linked this chat" escape) -> linked -> manage.
+- Hosted Slack: opens the install redirect in a new tab (fallback link under the button), polls
+  the connections until the Slack connection appears, then points it at this agent.
+- Custom Slack/Telegram: the fields come from `fetchChannelSetup` (Slack: bot token, signing
+  secret, app id; Telegram: bot token), the manifest is the real one (copy + review),
+  `createChannelConnection` then the default agent for this app. The design's client-id /
+  client-secret fields and the name/handle step were dropped: the backend declares different
+  fields and the manifest is fixed.
+- Errors and pending: mint failure -> alert + Try again + Use your own bot; archive failure ->
+  alert, panel stays open; Disconnect and Connect-here disabled while running; the message
+  comes from the API's `detail` / `detail.message`, never Fern's "Status code: …" wrapper.
+- Left out on purpose (not wired in this release, so not shown as placeholders): the chat
+  list, the DM/group behavior switches, the Advanced policy rows, allowed Telegram user ids.
+
+Live checks that passed (throwaway project):
+- Card in all three states; "connect here" retarget (Answers as -> this agent); disconnect
+  (archive) -> row back to Connect; reconnect -> QR -> Telethon `/start <token>` -> the bot says
+  "You are connected" -> the panel flips to linked/manage on its own (poll) -> row shows
+  "@newagentabot · Direct messages".
+- Bindings refusal path: a chat bound to another project gets the generic "not valid anymore"
+  reply (ingress design), the count does not rise.
+- Hosted Slack: "Add to Slack" lands on slack.com/oauth with the right scopes + callback;
+  waiting state + cancel + fallback link work. Not completed: needs a Slack workspace login.
+- Custom Slack: manifest loads and renders; the three declared fields render; Connect stays
+  disabled until filled. Not submitted: the QA Slack env has no signing secret.
+- /m: the card and the bottom sheet render with real data (390px viewport).
+- Dark mode: card, manage panel, both Slack flows (screenshots 05-08).
+
+NOT verified today: the agent's ANSWER in Telegram on the throwaway project. The message
+reaches the agent (inbox -> dispatch -> runner session), but every QA key fails at the model:
+the OpenAI QA key has no credits ("You have no credits remaining"), and the Claude harness
+did not bind the vault's Anthropic key (`credentialMode=runtime_provided credentialBindings=[]`,
+"model authentication failed") — a model-credential matter outside channels. The answer path
+was live-verified earlier today on the QA project (HOSTEDOK, see overnight-progress.md).
+Finding for the release: a failed run leaves Telegram silent (the "Thinking…" indicator is
+marked sent but the user never sees an error).
+
+Stack repairs done today (not code): the worktree wipe had left worker-queues, worker-streams,
+services, runner and web-mobile mounting the deleted inode (workers crash-looped with "No module
+named entrypoints.worker_queues"; services could not reach the runner). Rebuilt the env file
+from the api container's env and a local override (image tags + runner login mounts), then
+recreated those five containers. Both files are gitignored; the recipe stands.

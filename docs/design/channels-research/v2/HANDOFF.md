@@ -12,7 +12,8 @@ The old technical channels screen stays in Settings until a new version replaces
 Branches (a linear stack; each PR's base is the branch below it):
 - `channels/telegram` — custom Telegram bot. PR #6679, base channels/fix-approval-card-on-park.
 - `channels/telegram-hosted` — hosted (Agenta-owned) Telegram bot. PR #6724, base channels/telegram.
-- `channels/telegram-ui` — the connect screen on the agent page. NO PR yet, base channels/telegram-hosted.
+- `channels/telegram-ui` — the connect screen on the agent page (+ the bindings endpoint and
+  the unarchive-cascade fix). Base channels/telegram-hosted. PR: see the PR stack below.
 All three are pushed. PRs are ready but must NOT be merged yet.
 
 Running stack: `agenta-ee-dev-channels` (this worktree,
@@ -44,16 +45,21 @@ live-verified through the QA Telegram account:
 - Option 1 retarget: connecting Telegram from an agent points the project's one shared
   connection at THAT agent; a different agent gets retargeted, the same agent is a no-op.
 
-Frontend — first pass, on channels/telegram-ui, compiles on the stack:
-- The designed Channels card is mounted on the agent Overview rail, reads real connections,
-  and connects Telegram via the real bind link; Disconnect archives.
-- Codex reviewed it and raised 7 issues. FIXED (5): render the rail slot; sync fetched
-  connections; skip archived rows; preserve the hosted flag in the schema; retarget backend.
-- REMAINING (3): (a) the Telegram link-click fabricates a "connected" state before /start
-  completes — separate link creation from the confirmed bind and use the real connection id;
-  (b) the frontend 3-state card for Option 1 (connected here / connected to agent X, connect
-  here / not connected) with agent-name resolution and wording; (c) error and pending states
-  (mint 404, archive failure, stuck "Preparing…").
+Frontend — DONE on channels/telegram-ui, live-verified through the UI on desktop and /m,
+light and dark (2026-09-09 evening; details and screenshots in STATUS.md, section
+"Frontend finished and live-verified through the UI"):
+- The 3-state card (not connected / connected here / connected to agent X + connect here),
+  the pending state (link minted, no chat bound yet), the real hosted-Telegram flow with a
+  vendored QR encoder and a bind poll, hosted Slack (install redirect + poll), custom Slack
+  and Telegram on the backend-declared fields and manifest, error and pending states.
+- All 7 Codex findings from the first review are addressed. Two more bugs found live and
+  fixed: reconnect after disconnect 500'd (unarchive did not restore the agents); a reload
+  during the connect flow showed "connected" before /start (now "pending").
+- Shared actions builder in the package (`actions.ts`); hosts are thin (Drawer on desktop,
+  Sheet on /m). Stories co-located in the package. QR encoder unit-tested.
+- Not verified: the agent's answer in Telegram on the throwaway project (QA model keys fail:
+  OpenAI has no credits; the Claude harness did not bind the vault key). The answer path was
+  live-verified earlier the same day on the QA project.
 
 ## Locked decisions
 - Connect screens live on the AGENT PAGE; the old Settings channels screen stays untouched.
@@ -64,14 +70,17 @@ Frontend — first pass, on channels/telegram-ui, compiles on the stack:
   Telegram is private chats only for v1. PRs ready but not merged.
 
 ## Next steps (in order)
-1. Finish the frontend: the 3 remaining Codex items above (the 3-state card is the big one),
-   then Slack connect, the QR image (no web QR lib yet — add one or render inline SVG), the /m
-   app mount (web/mobile/src/features/agents/AgentOverviewScreen.tsx), a dark-mode pass, and
-   Storybook entries. Codex advised regenerating the api-client (Fern) for the bind-link
-   instead of the direct fetch (web/AGENTS.md requires Fern for new backend functions).
-2. Visual QA in a browser on the agent Overview page; screenshot desktop and /m, light and dark.
-3. Run a Codex review of the finished frontend + CodeRabbit on the PR; address findings.
-4. Open the channels/telegram-ui PR (ready, not merged). Confirm all three PRs are review-ready.
+1. Second Codex (gpt-astra) review of the final channels/telegram-ui diff; address findings.
+2. Open the channels/telegram-ui PR (base channels/telegram-hosted), let CodeRabbit run,
+   address its findings. Do NOT merge.
+3. Slack live QA on this stack through the NEW card: complete the hosted install (needs a
+   Slack workspace login) and submit a custom app (needs the signing secret; the QA Slack env
+   has it commented out). Both flows are wired and reach Slack; only the last step is unproven.
+4. Give the throwaway project a working model key (or a Claude login the runner binds) and
+   confirm the agent answers in Telegram from the UI-created connection.
+5. Optional: a `test` script + vitest devDependency for @agenta/settings-ui so CI runs the QR
+   tests (today they run via a sibling package's vitest binary; the lockfile change needs a
+   pnpm install in a scratch clone, never in this tree).
 
 ## How to run / verify
 - Unit tests (in the api container): docker exec -w /app agenta-ee-dev-channels-api-1 python -m
@@ -80,6 +89,15 @@ Frontend — first pass, on channels/telegram-ui, compiles on the stack:
   `docker logs agenta-ee-dev-channels-web-1` for the compile result.
 - Live Telegram QA: the QA account is ~/.agenta-telegram-qa.env (Telethon driver in the
   session scratchpad); drive @newagentabot.
+- QR unit tests: from web/packages/agenta-settings-ui run
+  `../agenta-entity-ui/node_modules/.bin/vitest run src/channels/qr/encode.test.ts --root .`
+- Type-checks by binary path only (a `pnpm run` triggers an install that breaks the tree):
+  `packages/agenta-settings-ui/node_modules/.bin/tsc --noEmit --incremental false -p packages/agenta-settings-ui/tsconfig.json`,
+  same for oss/ and mobile/ with their own tsconfig.
+- Browser QA: the QA project owner's mailbox gets no codes; create a throwaway account with
+  the admin endpoint (`POST /admin/simple/accounts/` with an email:password identity, a
+  password with a special character, and `allow_email: true` on its organization flags),
+  then sign in on the ngrok URL with `?view=desktop` to skip the /m gate.
 - If the worktree is missing (the daily cleanup removes pushed worktrees): recreate with
   `git worktree add <path> channels/telegram-ui`, then `chmod -R a+rwX web/` and
   `docker restart` the web and api containers so their source mounts re-resolve. The env file
