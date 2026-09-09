@@ -1,17 +1,18 @@
 /**
  * Regression test for the "How to use API" drawer render loop (issue #6708).
  *
- * The drawer opened from the variants registry took a revision id as a prop and then
- * reconciled it against a variant with three effects that wrote each other's inputs.
- * With MORE THAN ONE variant the reconciliation never reached a fixed point: the
- * snippet alternated between the two variants forever, and the first click on a
- * language tab turned the loop synchronous and froze the tab.
+ * The drawer opened from the variants registry takes a revision id as a prop and used to
+ * reconcile it against a separately stored variant id with three effects that each wrote
+ * what another read. With MORE THAN ONE variant those effects oscillated instead of
+ * settling: the snippet alternated between the two variants forever, and the first click on
+ * a language tab turned the loop synchronous and froze the tab.
  *
- * The test keeps the real workflow atoms and the real react-query wiring, and mocks
- * only the HTTP layer and the heavy leaf components. It asserts that the snippet
- * settles on ONE variant and that the component stops committing.
+ * The test keeps the real workflow atoms and the real react-query wiring, and mocks only the
+ * HTTP layer and the heavy leaf components. It asserts that the snippet settles on ONE
+ * variant, that the drawer never renders the variant the user did not open, and that
+ * rendering stops once the queries have resolved.
  */
-import {act} from "react"
+import {act, useState} from "react"
 
 import {queryClient} from "@agenta/shared/api"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
@@ -72,22 +73,47 @@ const REVISIONS = [
     revisionFixture(REV_SECOND_V1, VARIANT_SECOND, "e2e", 1),
 ]
 
-/** Per-URL latency, so the test can order the two list queries the way the browser does. */
+/**
+ * Per-request-shape controls. `/workflows/revisions/query` serves three different requests
+ * and the drawer's behaviour depends on which of them lands first, so each shape gets its
+ * own handler: a latency for the ordering cases, and a gate the late-prop case releases by
+ * hand.
+ */
 const latency = {byVariant: 0, byWorkflow: 0}
+let byVariantGate: Promise<void> | null = null
+let releaseByVariantGate: (() => void) | null = null
+
+const openByVariantGate = () => {
+    byVariantGate = new Promise<void>((resolve) => {
+        releaseByVariantGate = resolve
+    })
+}
 
 const post = vi.fn(async (url: string, body: any) => {
     if (url.endsWith("/workflows/variants/query")) {
         return {data: {count: VARIANTS.length, workflow_variants: VARIANTS}}
     }
     if (url.endsWith("/workflows/revisions/query")) {
+        // One revision by id: the detail fetch behind workflowMolecule.selectors.data.
+        if (body?.workflow_revision_refs) {
+            const ids = body.workflow_revision_refs.map((ref: any) => ref.id)
+            const revisions = REVISIONS.filter((revision) => ids.includes(revision.id))
+            return {data: {count: revisions.length, workflow_revisions: revisions}}
+        }
+        // Every revision of one variant.
         if (body?.workflow_variant_refs) {
             const variantId = body.workflow_variant_refs[0]?.id
+            if (byVariantGate) await byVariantGate
             await new Promise((r) => setTimeout(r, latency.byVariant))
             const revisions = REVISIONS.filter((r) => r.workflow_variant_id === variantId)
             return {data: {count: revisions.length, workflow_revisions: revisions}}
         }
-        await new Promise((r) => setTimeout(r, latency.byWorkflow))
-        return {data: {count: REVISIONS.length, workflow_revisions: REVISIONS}}
+        // Every revision of the whole app.
+        if (body?.workflow_refs) {
+            await new Promise((r) => setTimeout(r, latency.byWorkflow))
+            return {data: {count: REVISIONS.length, workflow_revisions: REVISIONS}}
+        }
+        throw new Error(`unexpected /workflows/revisions/query body: ${JSON.stringify(body)}`)
     }
     return {data: {}}
 })
@@ -106,28 +132,28 @@ vi.mock("@agenta/shared/api", async (original) => ({
     },
 }))
 
-/** Reads the variant slug the drawer put in the snippet, for one recorded commit. */
+/** Reads the variant slug the drawer put in the snippet, for one recorded render. */
 const slugOf = (snippet: string) => {
     const match = snippet.match(/variant_slug="([^"]*)"/)
     return match?.[1] ?? null
 }
 
-// Leaf components the loop does not need. LanguageCodeBlock stands in for the Lexical
-// code editor and records the snippet the drawer hands it on every commit.
+// Leaf components the loop does not need. LanguageCodeBlock stands in for the Lexical code
+// block editor and records the snippet the drawer hands it on every render.
 const snippets: string[] = []
 /**
- * A synchronous render loop never yields, so a plain timeout would hang the whole run
- * instead of failing this test. Cap the commits and throw the trajectory instead.
+ * A synchronous render loop never yields, so a plain test timeout would hang the whole run
+ * instead of failing this test. Cap the renders and throw the trajectory instead.
  */
-const MAX_COMMITS = 60
+const MAX_RENDERS = 60
 vi.mock(
     "@/oss/components/pages/overview/deployments/DeploymentDrawer/assets/LanguageCodeBlock",
     () => ({
         default: ({fetchConfigCodeSnippet}: any) => {
             snippets.push(String(fetchConfigCodeSnippet?.python ?? ""))
-            if (snippets.length > MAX_COMMITS) {
+            if (snippets.length > MAX_RENDERS) {
                 throw new Error(
-                    `render loop: ${snippets.length} commits, variant slug trajectory ` +
+                    `render loop: ${snippets.length} renders, variant slug trajectory ` +
                         JSON.stringify(snippets.slice(0, 24).map(slugOf)),
                 )
             }
@@ -153,6 +179,10 @@ let root: ReturnType<typeof createRoot> | null = null
 
 beforeEach(() => {
     snippets.length = 0
+    latency.byVariant = 0
+    latency.byWorkflow = 0
+    byVariantGate = null
+    releaseByVariantGate = null
     queryClient.clear()
     Object.defineProperty(window, "matchMedia", {
         writable: true,
@@ -173,7 +203,15 @@ afterEach(() => {
     container = null
 })
 
-const mount = async (initialRevisionId: string) => {
+/** Lets the test change the prop after mount, the way the host swaps the opened row. */
+let setPropRevisionId: ((value: string | undefined) => void) | null = null
+const Host = ({initial}: {initial: string | undefined}) => {
+    const [revisionId, setRevisionId] = useState(initial)
+    setPropRevisionId = setRevisionId
+    return <VariantUseApiContent initialRevisionId={revisionId} />
+}
+
+const renderDrawer = async (initialRevisionId: string | undefined) => {
     const store = createStore()
     store.set(queryClientAtom, queryClient)
     store.set(projectIdAtom, "project-1")
@@ -187,14 +225,16 @@ const mount = async (initialRevisionId: string) => {
         root!.render(
             <QueryClientProvider client={queryClient}>
                 <Provider store={store}>
-                    <VariantUseApiContent initialRevisionId={initialRevisionId} />
+                    <Host initial={initialRevisionId} />
                 </Provider>
             </QueryClientProvider>,
         )
     })
+}
 
-    // Let every query settle.
-    for (let i = 0; i < 30; i++) {
+/** Runs timers and microtasks until every query has settled. */
+const settle = async (rounds = 30) => {
+    for (let i = 0; i < rounds; i++) {
         await act(async () => {
             await new Promise((r) => setTimeout(r, 10))
         })
@@ -202,33 +242,71 @@ const mount = async (initialRevisionId: string) => {
 }
 
 it("settles on the opened revision's variant when the app has two variants", async () => {
-    // The by-variant list resolves before the by-workflow list, as it does in the browser:
+    // The by-variant list resolves before the workflow-wide list, as it does in the browser:
     // the drawer used to pick a variant from the variants list first and only then learn
     // which variant the opened revision belongs to.
-    latency.byVariant = 0
     latency.byWorkflow = 30
 
-    await mount(REV_SECOND_V1)
+    await renderDrawer(REV_SECOND_V1)
+    await settle()
 
     const trajectory = snippets.map(slugOf)
 
     // Before the fix this ran forever, alternating between the two variants.
-    expect(trajectory.length).toBeLessThanOrEqual(6)
+    expect(trajectory.length).toBeLessThan(MAX_RENDERS)
     expect(trajectory[trajectory.length - 1]).toBe(`${APP_SLUG}.e2e`)
     // The drawer must never build a snippet for the variant the user did not open.
     expect(trajectory).not.toContain(`${APP_SLUG}.default`)
+
+    // Rendering has stopped: another idle period adds no renders.
+    const settledCount = snippets.length
+    await settle(10)
+    expect(snippets.length).toBe(settledCount)
 }, 20000)
 
 it("falls back to the first variant's latest revision when opened without one", async () => {
-    latency.byVariant = 0
-    latency.byWorkflow = 0
-
-    await mount("")
+    await renderDrawer(undefined)
+    await settle()
 
     const trajectory = snippets.map(slugOf)
 
-    expect(trajectory.length).toBeLessThanOrEqual(6)
+    expect(trajectory.length).toBeLessThan(MAX_RENDERS)
     expect(trajectory[trajectory.length - 1]).toBe(`${APP_SLUG}.default`)
     // v2 is the latest revision of the default variant.
+    expect(snippets[snippets.length - 1]).toContain("variant_version=2")
+}, 20000)
+
+it("keeps a revision the prop supplies in the same pass as the fallback list", async () => {
+    // Both writers see an empty selection in one pass: the prop arrives while the fallback
+    // variant's revision list lands. The fallback must not overwrite the requested revision.
+    openByVariantGate()
+
+    await renderDrawer(undefined)
+    await settle(5)
+
+    await act(async () => {
+        setPropRevisionId?.(REV_SECOND_V1)
+        releaseByVariantGate?.()
+        await new Promise((r) => setTimeout(r, 10))
+    })
+    byVariantGate = null
+    await settle()
+
+    const trajectory = snippets.map(slugOf)
+
+    expect(trajectory.length).toBeLessThan(MAX_RENDERS)
+    expect(trajectory[trajectory.length - 1]).toBe(`${APP_SLUG}.e2e`)
+}, 20000)
+
+it("recovers when the opened revision does not exist", async () => {
+    // A stale id behind a shared link resolves to nothing. The drawer must fall back to a
+    // real revision rather than wait for a revision that will never arrive.
+    await renderDrawer("rev-deleted")
+    await settle()
+
+    const trajectory = snippets.map(slugOf)
+
+    expect(trajectory.length).toBeLessThan(MAX_RENDERS)
+    expect(trajectory[trajectory.length - 1]).toBe(`${APP_SLUG}.default`)
     expect(snippets[snippets.length - 1]).toContain("variant_version=2")
 }, 20000)

@@ -3,7 +3,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import {
     workflowMolecule,
     workflowVariantsListDataAtomFamily,
-    workflowRevisionsListDataAtomFamily,
+    workflowRevisionRefsByVariantAtomFamily,
 } from "@agenta/entities/workflow"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {PythonOutlined} from "@ant-design/icons"
@@ -37,10 +37,10 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
     const variants = useAtomValue(workflowVariantsListDataAtomFamily(appId || ""))
     const currentApp = useAtomValue(currentAppAtom)
 
-    // The revision is the ONLY selection state here; the variant is DERIVED from it and is
-    // never stored. Two states that must agree cannot be reconciled by effects that each
-    // write what another reads: with more than one variant that reconciliation had no fixed
-    // point and the drawer re-rendered forever (issue #6708).
+    // The revision is the authoritative selection; the parent variant is derived from it and
+    // is never stored. Two states that must agree used to be reconciled by three effects that
+    // each wrote what another read, and with more than one variant they oscillated instead of
+    // settling on a coherent pair (issue #6708).
     const [selectedRevisionId, setSelectedRevisionId] = useState<string | undefined>(
         initialRevisionId,
     )
@@ -87,45 +87,70 @@ const VariantUseApiContent = ({initialRevisionId}: VariantUseApiContentProps) =>
             [selectedRevisionId],
         ),
     )
+    const selectedRevisionQuery = useAtomValue(
+        useMemo(
+            () => workflowMolecule.selectors.query(selectedRevisionId || ""),
+            [selectedRevisionId],
+        ),
+    )
+
+    // Tell "still fetching" apart from "this revision does not exist". Without the split a
+    // stale id (a deleted revision behind a shared link) would spin for ever.
+    const isResolvingRevision =
+        Boolean(selectedRevisionId) &&
+        !selectedRevision &&
+        Boolean(selectedRevisionQuery?.isPending)
+    const isUnresolvableRevision =
+        Boolean(selectedRevisionId) && !selectedRevision && !selectedRevisionQuery?.isPending
 
     const derivedVariantId =
         selectedRevision?.workflow_variant_id ?? selectedRevision?.variant_id ?? undefined
 
-    // With no revision selected yet the drawer defaults to the first variant, and the effect
-    // below then adopts that variant's latest revision.
-    const selectedVariantId = derivedVariantId ?? (selectedRevisionId ? undefined : variants[0]?.id)
+    // Before a revision is chosen, and when the chosen one cannot be resolved, the drawer
+    // falls back to the first variant and the effect below adopts its latest revision.
+    const needsFallbackVariant = !selectedRevisionId || isUnresolvableRevision
+    const selectedVariantId =
+        derivedVariantId ?? (needsFallbackVariant ? variants[0]?.id : undefined)
 
-    const variantRevisionsAtom = useMemo(
-        () => workflowRevisionsListDataAtomFamily(selectedVariantId || ""),
-        [selectedVariantId],
+    // Only the newest revision's id and version are needed, so read the thin refs rather than
+    // resolving every revision entity of the variant.
+    const variantRevisionRefs = useAtomValue(
+        useMemo(
+            () => workflowRevisionRefsByVariantAtomFamily(selectedVariantId || ""),
+            [selectedVariantId],
+        ),
     )
-
-    const variantRevisions = useAtomValue(variantRevisionsAtom)
     const latestRevision = useMemo(() => {
-        if (!Array.isArray(variantRevisions) || variantRevisions.length === 0) return null
+        if (!Array.isArray(variantRevisionRefs) || variantRevisionRefs.length === 0) return null
         // Already sorted by version desc from the atom family
-        return variantRevisions[0]
-    }, [variantRevisions])
+        return variantRevisionRefs[0]
+    }, [variantRevisionRefs])
 
-    // The only other writer of the selection. It runs while nothing is selected and writes a
-    // truthy id, so it can run at most once and cannot cycle with anything.
+    // The only other writer of the selection. It writes only while there is nothing usable
+    // selected, and the functional update keeps a revision the prop supplied in the same pass.
     useEffect(() => {
-        if (selectedRevisionId) return
-        if (latestRevision?.id) setSelectedRevisionId(latestRevision.id)
-    }, [latestRevision?.id, selectedRevisionId])
+        if (!latestRevision?.id) return
+        if (selectedRevisionId && !isUnresolvableRevision) return
+        setSelectedRevisionId((current) =>
+            current && !isUnresolvableRevision ? current : latestRevision.id,
+        )
+    }, [isUnresolvableRevision, latestRevision?.id, selectedRevisionId])
 
     const selectedVariant = useMemo(
         () => variants.find((variant) => variant.id === selectedVariantId),
         [selectedVariantId, variants],
     )
 
-    // Show the spinner while the opened revision resolves, rather than a snippet built from
-    // whichever variant happens to be first.
-    const isLoading = Boolean(selectedRevisionId) && !selectedRevision
+    // Show the spinner while the opened revision is still being fetched, rather than a snippet
+    // built from whichever variant happens to be first.
+    const isLoading = isResolvingRevision
 
     // The variants list can arrive after the revision does; the revision carries the same slug.
     const variantSlug =
-        selectedVariant?.slug || selectedRevision?.workflow_variant_slug || "my-variant-slug"
+        selectedVariant?.slug ||
+        selectedRevision?.workflow_variant_slug ||
+        selectedRevision?.variant_slug ||
+        "my-variant-slug"
     const variantVersion = selectedRevision?.version ?? latestRevision?.version ?? 1
     const appSlug = currentApp?.slug || "my-app-slug"
     const apiKey = apiKeyValue || "YOUR_API_KEY"
