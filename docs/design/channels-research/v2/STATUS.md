@@ -263,9 +263,8 @@ connections were ignored). REMAINING (in priority order):
   project connection regardless of agent. Decide how the agent page presents a
   project-wide connection (see the report). Then scope the card by the agent's
   channel-agent references and make archive's project-wide effect explicit.
-- [P2 #5] Exclude archived rows (deleted_at) before "connected" mapping.
-- [P2 #6] flags.is_hosted is stripped by web/oss/src/state/channels/schemas.ts
-  (nested passthrough); preserve it so hosted != custom.
+- [x P2 #5] Exclude archived rows (deleted_at) before mapping. DONE.
+- [x P2 #6] Preserve flags.is_hosted in the schema. DONE.
 - [P2 #7] Error/pending states: mint 404 leaves "Preparing…" forever; archive
   failures are swallowed; disable Disconnect while running.
 Codex direct answers: regenerate the api-client (Fern) for the bind-link instead of
