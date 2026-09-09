@@ -43,7 +43,8 @@ export interface HomeTaskComposerProps {
     mode?: HomeComposerMode
     /** Send, in create mode. Absent ⇒ the host does not offer creating here. */
     onCreate?: (input: {text: string}) => void | Promise<void>
-    onCancelCreate?: () => void
+    /** Unbind the agent. The host's answer is create mode — the composer is never aimed at nothing. */
+    onClearAgent?: () => void
     /** The input itself, for a host that needs to put the caret in it (switching to create). */
     inputRef?: RefObject<RichChatInputHandle | null>
 }
@@ -74,7 +75,7 @@ export const HomeTaskComposer = ({
     agentId,
     mode = "task",
     onCreate,
-    onCancelCreate,
+    onClearAgent,
     inputRef,
 }: HomeTaskComposerProps) => {
     // Default to the most recently touched agent — the one you're most likely to want next.
@@ -89,29 +90,35 @@ export const HomeTaskComposer = ({
         [agents, effectiveAgentId],
     )
 
+    // No way to clear create mode: the composer always sends somewhere, and "no agent" is not a
+    // state it can be in. Binding one of the rows below is what replaces it.
     const bound = creating ? (
-        <span className="flex items-center gap-1.5 rounded-control bg-muted py-0.5 pl-1.5 pr-0.5 text-[13px] font-medium text-foreground">
+        <span className="flex min-w-0 items-center gap-1.5 pl-1 text-[12px] text-foreground">
             <span className="flex size-5 shrink-0 items-center justify-center rounded-control-sm bg-colorFillSecondary text-muted-foreground">
                 <RobotIcon aria-hidden size={13} />
             </span>
             New agent
-            <Button
-                variant="ghost"
-                size="icon"
-                className="size-5"
-                aria-label="Cancel creating an agent"
-                onClick={onCancelCreate}
-            >
-                <XIcon size={13} />
-            </Button>
         </span>
     ) : fixedAgentId || !effectiveAgentId ? null : (
         // Named, not picked: the list below IS the picker, and a dropdown here offered a
         // second way to do the same thing while hiding that the rows do it.
-        <span className="flex min-w-0 items-center gap-1.5 pl-1 text-[13px] font-medium text-foreground">
-            <AgentChip workflowId={effectiveAgentId} box="size-5" glyph={13} />
-            <span className="min-w-0 truncate">{selectedName}</span>
-        </span>
+        <>
+            <span className="flex min-w-0 items-center gap-1.5 pl-1 text-[12px] text-foreground">
+                <AgentChip workflowId={effectiveAgentId} box="size-5" glyph={13} />
+                <span className="min-w-0 truncate">{selectedName}</span>
+            </span>
+            {onClearAgent ? (
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="ml-auto size-5"
+                    aria-label="Unbind this agent"
+                    onClick={onClearAgent}
+                >
+                    <XIcon size={13} />
+                </Button>
+            ) : null}
+        </>
     )
 
     return (

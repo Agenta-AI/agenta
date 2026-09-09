@@ -129,7 +129,7 @@ export const HomeFocus = ({
                                 await onCreateFromPrompt(input)
                                 setCreating(false)
                             }}
-                            onCancelCreate={() => setCreating(false)}
+                            onClearAgent={startCreating}
                             onStart={onStartTask}
                             inputRef={inputRef}
                             extraPrefix={composerExtraPrefix}
