@@ -6,4 +6,5 @@ export interface ChannelInboxEventData {
     external_locator: Record<string, unknown>;
     processed: AgentaApi.ChannelInboxEventProcessed;
     space_kind?: (AgentaApi.ChannelSpaceKind | null) | undefined;
+    addressed?: (boolean | null) | undefined;
 }

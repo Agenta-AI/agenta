@@ -2,6 +2,7 @@
 
 export const ChannelSecretKind = {
     Slack: "slack",
+    Telegram: "telegram",
     Agenta: "agenta",
     Bridge: "bridge",
 } as const;

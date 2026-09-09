@@ -11,4 +11,5 @@
 export interface ChannelSecretSettingsDto {
     bot_token?: (string | null) | undefined;
     signing_secret?: (string | null) | undefined;
+    webhook_secret?: (string | null) | undefined;
 }

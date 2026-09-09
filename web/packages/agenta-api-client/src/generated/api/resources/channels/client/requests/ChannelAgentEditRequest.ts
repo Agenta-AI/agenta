@@ -6,13 +6,7 @@ import type * as AgentaApi from "../../../../index.js";
  * @example
  *     {
  *         agent_id: "agent_id",
- *         agent: {
- *             data: {
- *                 references: {
- *                     "key": {}
- *                 }
- *             }
- *         }
+ *         agent: {}
  *     }
  */
 export interface ChannelAgentEditRequest {
