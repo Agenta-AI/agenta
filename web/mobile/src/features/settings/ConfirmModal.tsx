@@ -1,6 +1,5 @@
 import type {ReactNode} from "react"
 
-import {Button} from "@/components/ui/button"
 import {
     Dialog,
     DialogContent,
@@ -8,7 +7,9 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog"
+} from "@agenta/ui/ui"
+
+import {Button} from "@/components/ui/button"
 
 /**
  * The confirm-then-act modal every destructive action uses, so a delete reads the same wherever

@@ -18,8 +18,9 @@ import {
 } from "@agenta/automation-ui"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {AgentGlyph} from "@agenta/entity-ui/agent"
-import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {useFilterMenuView} from "@agenta/ui/filter-menu"
+import {InputGroup, InputGroupAddon, InputGroupInput} from "@agenta/ui/ui"
 import {
     CaretDown,
     ClockClockwise,
@@ -34,7 +35,6 @@ import {useRouter} from "next/router"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {Button} from "@/components/ui/button"
-import {InputGroup, InputGroupAddon, InputGroupInput} from "@/components/ui/input-group"
 import {FOCUS_RING} from "@/lib/interactive"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -166,49 +166,50 @@ export const AutomationListScreen = ({
 
         return (
             <div className="overflow-x-auto">
-                    <div className="min-w-[572px]">
-                        <div
-                            className={`${GRID} mb-1 border-0 border-b border-solid border-border px-2 py-2 text-[12px] font-medium text-muted-foreground`}
-                        >
-                            <span>Automation</span>
-                            <span>Status</span>
-                            <span>Runs when</span>
-                            <span>Agent</span>
-                            <span className="sr-only">Actions</span>
-                        </div>
+                <div className="min-w-[572px]">
+                    <div
+                        className={`${GRID} mb-1 border-0 border-b border-solid border-border px-2 py-2 text-[12px] font-medium text-muted-foreground`}
+                    >
+                        <span>Automation</span>
+                        <span>Status</span>
+                        <span>Runs when</span>
+                        <span>Agent</span>
+                        <span className="sr-only">Actions</span>
+                    </div>
 
-                        {matchCount === 0 ? (
-                            <AutomationListNoMatch
-                                term={term || undefined}
-                                onClear={
-                                    term
-                                        ? () => setSearch("")
-                                        : isDefaultAutomationListView(view)
-                                          ? undefined
-                                          : () => setView(DEFAULT_AUTOMATION_LIST_VIEW)
-                                }
-                            />
-                        ) : (
-                            groups.map((group) => (
-                                <Fragment key={group.key}>
-                                    {/* `Group by: None` returns one unlabelled group, so the
+                    {matchCount === 0 ? (
+                        <AutomationListNoMatch
+                            term={term || undefined}
+                            onClear={
+                                term
+                                    ? () => setSearch("")
+                                    : isDefaultAutomationListView(view)
+                                      ? undefined
+                                      : () => setView(DEFAULT_AUTOMATION_LIST_VIEW)
+                            }
+                        />
+                    ) : (
+                        groups.map((group) => (
+                            <Fragment key={group.key}>
+                                {/* `Group by: None` returns one unlabelled group, so the
                                         table is byte-for-byte what it was before grouping. */}
-                                    {group.label === null ? null : (
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleGroup(group.key)}
-                                            aria-expanded={!collapsed.has(group.key)}
-                                            className={`box-border flex w-full cursor-pointer appearance-none items-center gap-1.5 border-0 bg-transparent px-2 pb-1.5 pt-3.5 text-left font-[inherit] text-[13px] text-muted-foreground hover:text-foreground ${FOCUS_RING}`}
-                                        >
-                                            <span>{group.label}</span>
-                                            <CaretDown
-                                                size={12}
-                                                aria-hidden
-                                                className={`shrink-0 transition-transform ${collapsed.has(group.key) ? "-rotate-90" : ""}`}
-                                            />
-                                        </button>
-                                    )}
-                                    {(collapsed.has(group.key) ? [] : group.automations).map((automation) => {
+                                {group.label === null ? null : (
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleGroup(group.key)}
+                                        aria-expanded={!collapsed.has(group.key)}
+                                        className={`box-border flex w-full cursor-pointer appearance-none items-center gap-1.5 border-0 bg-transparent px-2 pb-1.5 pt-3.5 text-left font-[inherit] text-[13px] text-muted-foreground hover:text-foreground ${FOCUS_RING}`}
+                                    >
+                                        <span>{group.label}</span>
+                                        <CaretDown
+                                            size={12}
+                                            aria-hidden
+                                            className={`shrink-0 transition-transform ${collapsed.has(group.key) ? "-rotate-90" : ""}`}
+                                        />
+                                    </button>
+                                )}
+                                {(collapsed.has(group.key) ? [] : group.automations).map(
+                                    (automation) => {
                                         // Run outcomes land in W6; until then nothing here has failed.
                                         const status = automationStatus(automation, false)
                                         const color = STATUS_COLOR[status]
@@ -320,10 +321,11 @@ export const AutomationListScreen = ({
                                                 </span>
                                             </div>
                                         )
-                                    })}
-                                </Fragment>
-                            ))
-                        )}
+                                    },
+                                )}
+                            </Fragment>
+                        ))
+                    )}
                 </div>
             </div>
         )
@@ -393,4 +395,3 @@ export const AutomationListScreen = ({
         </>
     )
 }
-

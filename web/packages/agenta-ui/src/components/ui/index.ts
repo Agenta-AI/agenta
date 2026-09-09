@@ -7,6 +7,13 @@ export {Badge, badgeVariants, type BadgeProps} from "./badge"
 export {Button, buttonVariants, type ButtonProps} from "./button"
 export {LoadingButton, type LoadingButtonProps} from "./button-composed"
 export {Input, Textarea, inputVariants, type InputProps, type TextareaProps} from "./input"
+export {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupButton,
+    InputGroupText,
+    InputGroupInput,
+} from "./input-group"
 export {InputNumber, inputNumberVariants, type InputNumberProps} from "./input-number"
 export {
     InputAffix,
