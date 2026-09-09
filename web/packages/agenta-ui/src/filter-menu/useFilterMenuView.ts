@@ -12,7 +12,7 @@ import {useCallback, useEffect, useRef, useState} from "react"
  * Read after mount rather than during render: the server has no `localStorage`, and seeding state
  * from it would hydrate a different tree than the one that was sent.
  */
-export const useFilterMenuView = <View extends Record<string, unknown>>({
+export const useFilterMenuView = <View extends object>({
     key,
     fallback,
     persist,
@@ -47,7 +47,6 @@ export const useFilterMenuView = <View extends Record<string, unknown>>({
             // usable at its defaults, and a broken preference is not worth a broken screen.
         }
         // Mount only: `persist` is a literal at every call site, and re-reading would fight writes.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [key])
 
     const setView = useCallback(
@@ -60,7 +59,6 @@ export const useFilterMenuView = <View extends Record<string, unknown>>({
             } catch {
                 // Storage refused. The view still changed; only the memory of it is lost.
             }
-            // eslint-disable-next-line react-hooks/exhaustive-deps
         },
         [key],
     )

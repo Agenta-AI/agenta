@@ -51,7 +51,7 @@ export const AutomationActionsMenu = ({
     onLeave?: (url: string) => void
 }) => {
     const router = useRouter()
-    const {create, remove, setActive} = useAutomation(automation.id, automation.kind)
+    const {remove, setActive} = useAutomation(automation.id, automation.kind)
     const startSession = useStartBlankSession(base)
     const {confirm, modal} = useConfirmModal()
 

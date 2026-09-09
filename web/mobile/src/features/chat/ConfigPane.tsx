@@ -1,6 +1,6 @@
+import {AutomationDrawer} from "@agenta/automation-ui"
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
-import {AutomationDrawer} from "@agenta/automation-ui"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
 import {shortcutAria} from "@agenta/shared/utils"

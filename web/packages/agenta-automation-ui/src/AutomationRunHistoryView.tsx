@@ -3,10 +3,10 @@ import {useCallback, useMemo, useState, type ReactNode} from "react"
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 
+import {type Automation} from "./automationModel"
 import {AutomationRunFilterMenu} from "./AutomationRunFilterMenu"
 import {AutomationRunList} from "./AutomationRunList"
 import {AutomationRunPane} from "./AutomationRunPane"
-import {type Automation} from "./automationModel"
 import {useMediaQuery} from "./lib/useMediaQuery"
 import {cn} from "./lib/utils"
 import {

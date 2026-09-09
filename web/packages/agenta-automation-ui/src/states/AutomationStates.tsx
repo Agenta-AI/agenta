@@ -28,10 +28,7 @@ export const AutomationListSkeleton = ({rows = 5}: {rows?: number}) => (
                 ))}
             </div>
             {Array.from({length: rows}, (_, i) => (
-                <div
-                    key={i}
-                    className={`${GRID} items-center px-2 py-[13px]`}
-                >
+                <div key={i} className={`${GRID} items-center px-2 py-[13px]`}>
                     <Skeleton className="h-3.5 w-4/5" />
                     <Skeleton className="h-3.5 w-16" />
                     <Skeleton className="h-3.5 w-3/5" />
@@ -62,11 +59,7 @@ export const AutomationListNoMatch = ({
 }) => (
     <div className="flex flex-col items-center justify-center gap-2.5 px-8 py-14 text-center">
         <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-muted text-muted-foreground">
-            {term ? (
-                <MagnifyingGlass size={19} aria-hidden />
-            ) : (
-                <Funnel size={19} aria-hidden />
-            )}
+            {term ? <MagnifyingGlass size={19} aria-hidden /> : <Funnel size={19} aria-hidden />}
         </span>
         <p className="m-0 text-[14px] font-medium text-foreground">
             {term ? `Nothing matches \u201C${term}\u201D` : "No automation matches these filters"}

@@ -8,7 +8,6 @@ import {
     AutomationTriggerDrawers,
     useAutomationEditor,
 } from "@agenta/automation-ui"
-
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
