@@ -71,8 +71,7 @@ export function runGroups(runs: TriggerDelivery[], grouping: RunGrouping): RunDa
 
     const buckets = new Map<string, RunDayGroup>()
     for (const delivery of runs) {
-        const key =
-            grouping === "status" ? statusKey(delivery) : (runType(delivery) as string)
+        const key = grouping === "status" ? statusKey(delivery) : (runType(delivery) as string)
         const label =
             grouping === "status"
                 ? runOutcomeLabel(delivery).toUpperCase()

@@ -39,12 +39,7 @@ export const AutomationSaveBar = ({
         >
             Discard
         </Button>
-        <Button
-            type="button"
-            className="font-normal"
-            disabled={saving || !dirty}
-            onClick={onSave}
-        >
+        <Button type="button" className="font-normal" disabled={saving || !dirty} onClick={onSave}>
             {saving ? "Saving…" : "Save"}
         </Button>
     </div>
