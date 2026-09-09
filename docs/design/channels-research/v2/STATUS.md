@@ -236,3 +236,26 @@ confirm whether it renders in his own browser, or a stack auth fix.
 Meanwhile: UI code (F1-F4 first pass; Telegram connect + disconnect wired) compiles
 and is pushed on channels/telegram-ui. Running Codex review of it now (no browser
 needed).
+
+## Codex UI review 2026-09-09: "do not merge as working"; findings tracked
+Codex (gpt-astra) reviewed channels/telegram-ui. Fixed now: #1 render the {channels}
+slot (card never mounted); #2 ChannelsPage syncs with initialConnections (fetched
+connections were ignored). REMAINING (in priority order):
+- [P1 #3] Telegram link-click fabricates a "connected" object with no connectionId,
+  before /start completes -> Disconnect becomes a no-op. Separate link creation from
+  a confirmed bind; resolve the REAL connection id; require it for Disconnect.
+- [P1 #4] DESIGN QUESTION for Mahmoud: a hosted Telegram connection is per-PROJECT
+  (one shared connection, reused across agents), but the design puts "connect" on
+  the agent page as if per-agent. So the card currently shows/【archives every
+  project connection regardless of agent. Decide how the agent page presents a
+  project-wide connection (see the report). Then scope the card by the agent's
+  channel-agent references and make archive's project-wide effect explicit.
+- [P2 #5] Exclude archived rows (deleted_at) before "connected" mapping.
+- [P2 #6] flags.is_hosted is stripped by web/oss/src/state/channels/schemas.ts
+  (nested passthrough); preserve it so hosted != custom.
+- [P2 #7] Error/pending states: mint 404 leaves "Preparing…" forever; archive
+  failures are swallowed; disable Disconnect while running.
+Codex direct answers: regenerate the api-client (Fern) for the bind-link instead of
+the direct fetch (web/AGENTS.md requires it); keep action injection but remove the
+implicit simulate (move fixtures to Storybook); hide unfinished Slack/custom/QR/
+policy for v1; keep the rail slot; remove the unused unarchive wrapper.
