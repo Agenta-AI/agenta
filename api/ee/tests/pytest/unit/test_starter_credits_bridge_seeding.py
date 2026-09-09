@@ -1494,6 +1494,29 @@ class TestReconcilingOnRead:
         assert [model.slug for model in fresh.data.models] == ["vertex_ai/new-model"]
         assert _all_key_update_calls() == []
 
+    async def test_a_failed_read_back_never_reaches_the_caller(self, seeding_env):
+        # The re-read and the cache drop both reach the database. Neither may take the
+        # caller's secrets list down with it.
+        stale = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        service._hold_off(str(seeding_env.project.id))
+
+        async def explode(*args, **kwargs):
+            raise ConnectionError("the database is down")
+
+        seeding_env.monkeypatch.setattr(
+            seeding_env.vault, "get_secret_by_slug", explode
+        )
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[stale],
+            )
+            is None
+        )
+
     async def test_a_row_that_is_still_stale_hands_nothing_back(self, seeding_env):
         # Nothing better to give the caller than what it already holds, and the cached list
         # must not be dropped on every read while a project cannot be repaired.

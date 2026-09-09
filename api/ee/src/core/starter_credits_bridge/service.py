@@ -273,17 +273,27 @@ async def reconcile_starter_credits_on_read(
     # row already, and reads are served from a cached list, so a snapshot taken before that
     # repair can still be published after it. Answering from the row itself is what keeps a
     # reader that skipped the repair from serving the stale model anyway.
-    fresh = await _vault_service().get_secret_by_slug(
-        STARTER_CREDITS_SLUG,
-        project_id=project_id,
-    )
-    if fresh is None or _stored_model_slugs(fresh) != [config.model_id]:
-        # Still stale, so there is nothing better to hand back than what the caller has.
-        return None
+    try:
+        fresh = await _vault_service().get_secret_by_slug(
+            STARTER_CREDITS_SLUG,
+            project_id=project_id,
+        )
+        if fresh is None or _stored_model_slugs(fresh) != [config.model_id]:
+            # Still stale, so there is nothing better to hand back than what the caller has.
+            return None
 
-    # The caller's list was stale while the row was not, so the cached list it came from is
-    # stale too. Drop it, or every read pays for this re-read until the entry expires.
-    await invalidate_cache(project_id=key)
+        # The caller's list was stale while the row was not, so the cached list it came from
+        # is stale too. Drop it, or every read pays for this re-read until the entry expires.
+        await invalidate_cache(project_id=key)
+    except Exception:
+        # Inside the guard like everything else: the re-read and the cache drop both reach
+        # the database, and neither may take the caller's secrets list down with it.
+        log.warning(
+            "[starter_credits_bridge] could not read the row back; the read stands",
+            project_id=key,
+            exc_info=True,
+        )
+        return None
 
     return fresh
 
