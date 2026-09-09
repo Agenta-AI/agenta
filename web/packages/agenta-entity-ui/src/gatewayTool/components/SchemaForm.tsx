@@ -22,7 +22,14 @@ import {
     InputNumber,
     TimePicker,
 } from "@agenta/ui/ui"
-import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
+import {
+    CaretLeft,
+    CaretRight,
+    Check,
+    MinusCircle,
+    Plus,
+    SlidersHorizontal,
+} from "@phosphor-icons/react"
 // DELIBERATE RESIDUE — antd `Form` stays as the state engine (registration, rules,
 // validateFields, useWatch). The `form: FormInstance` prop is cross-package public API:
 // web/oss ElicitationWidget drives it with `useWatch`/`validateFields`/`setFieldsValue`,
@@ -436,7 +443,10 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                         )}
                     </div>
                 ) : (
-                    <>
+                    // The fields are siblings with no chrome between them, so the column has to
+                    // own the rhythm: without it a label sat directly under the control above it
+                    // and the stack read as one run-on field.
+                    <div className="flex flex-col gap-4">
                         {requiredFields.map((field) => (
                             <SchemaFormField key={field.name} field={field} disabled={disabled} />
                         ))}
@@ -452,9 +462,23 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                   />
                               ))
                             : optionalFields.length > 0 && (
-                                  <Accordion type="multiple" variant="ghost" className="-mx-4 mt-1">
+                                  <Accordion type="multiple" variant="ghost" className="-mx-4">
                                       <AccordionItem value="optional">
-                                          <AccordionTrigger className="py-2 text-xs">
+                                          {/* Caret at the end, so the row reads label-first like
+                                              every other heading in this form. The sliders name
+                                              what is behind it: extras that tune the event, not
+                                              more of the fields above. */}
+                                          <AccordionTrigger
+                                              caret="end"
+                                              className="gap-1.5 py-2 text-xs"
+                                          >
+                                              <span className="flex h-[22px] shrink-0 items-center">
+                                                  <SlidersHorizontal
+                                                      aria-hidden
+                                                      size={13}
+                                                      className="text-colorTextDescription"
+                                                  />
+                                              </span>
                                               <span className="text-xs text-colorTextDescription">
                                                   {optionalLabel
                                                       ? optionalLabel(optionalFields.length)
@@ -468,18 +492,20 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                               forceMount
                                               className="data-[state=closed]:hidden"
                                           >
-                                              {optionalFields.map((field) => (
-                                                  <SchemaFormField
-                                                      key={field.name}
-                                                      field={field}
-                                                      disabled={disabled}
-                                                  />
-                                              ))}
+                                              <div className="flex flex-col gap-4">
+                                                  {optionalFields.map((field) => (
+                                                      <SchemaFormField
+                                                          key={field.name}
+                                                          field={field}
+                                                          disabled={disabled}
+                                                      />
+                                                  ))}
+                                              </div>
                                           </AccordionContent>
                                       </AccordionItem>
                                   </Accordion>
                               )}
-                    </>
+                    </div>
                 )}
             </Form>
         )
@@ -543,11 +569,10 @@ function FieldLabel({field}: {field: FormFieldDescriptor}) {
     return (
         <span className="inline-flex items-center gap-1 text-[13px] font-medium leading-tight">
             <span>{field.label}</span>
-            {/* Word, not an asterisk — FormItem no longer asks Field chrome for the `*`. It sits
-                before the help icon: Required qualifies the field, the icon explains it. */}
-            {field.required && (
-                <span className="text-xs font-normal text-colorError">Required</span>
-            )}
+            {/* No "Required" marker on the label: every field in these schemas is either needed
+                or plainly optional under its own heading, and the word repeated down a column
+                read as an error state on a form nobody had filled in yet. The requirement is
+                still enforced, and REQUIRED_MESSAGE says so at the point it is broken. */}
             {field.description && <HelpTip label={field.label}>{field.description}</HelpTip>}
         </span>
     )
