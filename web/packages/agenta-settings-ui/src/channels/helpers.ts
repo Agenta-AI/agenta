@@ -77,6 +77,19 @@ export const summarizeConnection = (
         }
     }
 
+    if (connection.answeredHere === false) {
+        return {
+            sub: connection.answeringAgentName
+                ? `Answers as ${connection.answeringAgentName} · connect here`
+                : "Connected to another agent · connect here",
+            subClass: "text-colorTextSecondary",
+            dotClass: "bg-colorWarning",
+            connected: true,
+            needsAttention: false,
+            action: "manage",
+        }
+    }
+
     if (connection.status === "pending") {
         return {
             sub: "Not linked yet · finish connecting",

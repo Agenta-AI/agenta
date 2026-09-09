@@ -151,7 +151,7 @@ export const ChannelsPage = ({
                           activePlatform === "slack" ? workspaceName : "Telegram"
                       }`,
                       onClose: close,
-                      children: active ? (
+                      children: active && active.answeredHere !== false ? (
                           <ChannelManagePanel
                               connection={active}
                               agentId={agentId}
