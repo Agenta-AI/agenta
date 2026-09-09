@@ -265,8 +265,8 @@ connections were ignored). REMAINING (in priority order):
   resolution + wording.
 - [x P2 #5] Exclude archived rows (deleted_at) before mapping. DONE.
 - [x P2 #6] Preserve flags.is_hosted in the schema. DONE.
-- [P2 #7] Error/pending states: mint 404 leaves "Preparing…" forever; archive
-  failures are swallowed; disable Disconnect while running.
+- [~ P2 #7] Connect-side error+retry added (mint 404 no longer sticks). REMAINING:
+  show an archive-failure message and disable Disconnect while it runs.
 Codex direct answers: regenerate the api-client (Fern) for the bind-link instead of
 the direct fetch (web/AGENTS.md requires it); keep action injection but remove the
 implicit simulate (move fixtures to Storybook); hide unfinished Slack/custom/QR/
