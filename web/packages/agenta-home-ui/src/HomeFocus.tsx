@@ -1,7 +1,8 @@
-import {useCallback, useState, type ReactNode} from "react"
+import {useCallback, useRef, useState, type ReactNode} from "react"
 
 import type {useComposerAttachments} from "@agenta/chat/hooks"
 import {AGENT_TEMPLATES, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {HomeEntityList, type HomeListAgent, type HomeListTab} from "./HomeEntityList"
 import {HomeGreeting} from "./HomeGreeting"
@@ -62,6 +63,14 @@ export const HomeFocus = ({
     const [tab, setTab] = useState<HomeListTab>("agents")
     const [creating, setCreating] = useState(false)
     const [agentId, setAgentId] = useState<string | null>(null)
+    const inputRef = useRef<RichChatInputHandle | null>(null)
+
+    // "+ New" answers "what next" with "type here", so the caret goes there. A frame late: the
+    // rich input is lazy, so on the click's own tick the handle can still be null.
+    const startCreating = useCallback(() => {
+        setCreating(true)
+        requestAnimationFrame(() => inputRef.current?.focus())
+    }, [])
 
     // Picking an agent is an answer to "which agent runs this", so it also answers "am I creating
     // one" — leaving create mode on would send the pick nowhere.
@@ -110,6 +119,7 @@ export const HomeFocus = ({
                             }}
                             onCancelCreate={() => setCreating(false)}
                             onStart={onStartTask}
+                            inputRef={inputRef}
                             extraPrefix={composerExtraPrefix}
                         />
                     </div>
@@ -124,7 +134,7 @@ export const HomeFocus = ({
                     onSelectAgent={selectAgent}
                     onPickTemplate={onCreateFromTemplate}
                     templatesHref={templatesHref}
-                    onNew={() => setCreating(true)}
+                    onNew={startCreating}
                     loading={loading}
                     loadingSlot={loadingSlot}
                     emptySlot={emptySlot}

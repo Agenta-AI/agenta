@@ -1,9 +1,10 @@
-import {useMemo, useState, type ReactNode} from "react"
+import {useMemo, useState, type ReactNode, type RefObject} from "react"
 
 import {ChatComposer} from "@agenta/chat/components"
 import type {useComposerAttachments} from "@agenta/chat/hooks"
 import {AgentPicker} from "@agenta/entity-ui/agent"
 import {Button} from "@agenta/ui/ui"
+import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {RobotIcon, XIcon} from "@phosphor-icons/react"
 
 export interface HomeTaskComposerAgent {
@@ -44,6 +45,8 @@ export interface HomeTaskComposerProps {
     /** Send, in create mode. Absent ⇒ the host does not offer creating here. */
     onCreate?: (input: {text: string}) => void | Promise<void>
     onCancelCreate?: () => void
+    /** The input itself, for a host that needs to put the caret in it (switching to create). */
+    inputRef?: RefObject<RichChatInputHandle | null>
 }
 
 const CREATE_PLACEHOLDER = "Describe the agent you want — what it does, when it runs…"
@@ -75,6 +78,7 @@ export const HomeTaskComposer = ({
     mode = "task",
     onCreate,
     onCancelCreate,
+    inputRef,
 }: HomeTaskComposerProps) => {
     const [ownAgentId, setOwnAgentId] = useState<string | null>(null)
     const agentId = controlledAgentId !== undefined ? controlledAgentId : ownAgentId
@@ -93,6 +97,7 @@ export const HomeTaskComposer = ({
 
     return (
         <ChatComposer
+            inputRef={inputRef}
             onSubmit={async (text) => {
                 try {
                     if (creating) {
