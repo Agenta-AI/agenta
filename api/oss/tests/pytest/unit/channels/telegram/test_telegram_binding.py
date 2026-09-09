@@ -10,6 +10,10 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.channels.adapters.telegram_hosted.capabilities import (
+    fetch_telegram_hosted_capabilities,
+)
+from oss.src.core.channels.identity import compose_external_user_key
 from oss.src.core.channels.telegram_binding import (
     BindToken,
     BindTokenAlreadyUsed,
@@ -23,12 +27,14 @@ from oss.src.core.channels.telegram_binding import (
 
 pytestmark = pytest.mark.asyncio
 
+_CAPS = fetch_telegram_hosted_capabilities()
+
 
 class _FakeStore:
     def __init__(self):
         self.tokens: Dict[str, BindToken] = {}
         self.bindings: Dict[Tuple[str, str], ChatBinding] = {}
-        self.links = []  # (bot_id, chat_id, sender_id) the account links written
+        self.links = []  # (bot_id, chat_id, external_user_key) written
 
     async def save_token(self, token: BindToken) -> None:
         self.tokens[token.token] = token
@@ -40,7 +46,7 @@ class _FakeStore:
         return self.bindings.get((bot_id, chat_id))
 
     async def consume_token_and_bind(
-        self, *, token: BindToken, bot_id: str, chat_id: str, sender_id: str
+        self, *, token: BindToken, bot_id: str, chat_id: str, external_user_key: str
     ) -> ChatBinding:
         # The real DAO does this in one transaction; the fake does it in order.
         self.tokens[token.token] = BindToken(
@@ -58,12 +64,14 @@ class _FakeStore:
             connection_id=token.connection_id,
         )
         self.bindings[(bot_id, chat_id)] = binding
-        self.links.append((bot_id, chat_id, sender_id))
+        self.links.append((bot_id, chat_id, external_user_key))
         return binding
 
 
 def _service(store, *, bot_username="AgentaBot", ttl=timedelta(minutes=30)):
-    return TelegramBindingService(store=store, bot_username=bot_username, ttl=ttl)
+    return TelegramBindingService(
+        store=store, bot_username=bot_username, capabilities=_CAPS, ttl=ttl
+    )
 
 
 async def test_issue_bind_link_returns_a_deep_link_and_stores_the_token():
@@ -100,8 +108,10 @@ async def test_consume_binds_the_chat_and_links_the_account():
 
     assert binding.project_id == project_id
     assert binding.chat_id == "555"
-    # the sender's account link was written with the chat's scope id
-    assert store.links == [("100", "555", "777")]
+    # the account link uses the SAME key the inbox worker composes for a message
+    # from this sender in this chat, so the worker finds it.
+    expected_key = compose_external_user_key(_CAPS, "777", scope_id="555")
+    assert store.links == [("100", "555", expected_key)]
     # the token is now consumed
     assert (await store.get_token(token)).is_consumed()
 
@@ -147,7 +157,8 @@ async def test_a_replayed_start_on_the_same_project_is_idempotent():
     )
     assert second == first
     # the account link is not written twice
-    assert store.links == [("100", "555", "777")]
+    expected_key = compose_external_user_key(_CAPS, "777", scope_id="555")
+    assert store.links == [("100", "555", expected_key)]
 
 
 async def test_a_chat_bound_to_another_project_is_refused():

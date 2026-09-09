@@ -20,6 +20,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Protocol
 from uuid import UUID
 
+from oss.src.core.channels.dtos import ChannelCapabilities
+from oss.src.core.channels.identity import compose_external_user_key
+
 # Telegram caps the deep-link `start` parameter at 64 characters, so a signed
 # state payload does not fit. token_urlsafe(32) is 43 url-safe characters.
 _TOKEN_NBYTES = 32
@@ -101,7 +104,7 @@ class TelegramBindingStore(Protocol):
         token: BindToken,
         bot_id: str,
         chat_id: str,
-        sender_id: str,
+        external_user_key: str,
     ) -> ChatBinding: ...
 
 
@@ -113,11 +116,18 @@ class TelegramBindingService:
         *,
         store: TelegramBindingStore,
         bot_username: str,
+        capabilities: ChannelCapabilities,
         ttl: timedelta = _DEFAULT_TTL,
     ) -> None:
         self._store = store
         # The @username of the hosted bot; the deep link is t.me/<username>.
         self._bot_username = bot_username.lstrip("@")
+        # The hosted capability declaration, the one source for the account key
+        # shape. The bind writes the account link with the SAME key the inbox
+        # worker later composes for an incoming message (the chat id as the
+        # scope, the sender as the user), so the worker finds the link instead
+        # of falling back to the agent creator.
+        self._capabilities = capabilities
         self._ttl = ttl
 
     async def issue_bind_link(
@@ -173,11 +183,19 @@ class TelegramBindingService:
         if record.is_expired():
             raise BindTokenExpired()
 
+        # The account key the inbox worker will compose for a message from this
+        # sender in this chat: the chat id is the scope, the sender is the user.
+        external_user_key = compose_external_user_key(
+            self._capabilities,
+            str(sender_id),
+            scope_id=str(chat_id),
+        )
+
         return await self._store.consume_token_and_bind(
             token=record,
             bot_id=bot_id,
             chat_id=chat_id,
-            sender_id=sender_id,
+            external_user_key=external_user_key,
         )
 
     async def resolve_bound_connection(
