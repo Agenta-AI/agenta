@@ -36,7 +36,7 @@ export function runCountCaption(count: number): string {
 export interface RunDayGroup {
     /** Stable key ("2026-09-08", "ok", "scheduled"), and the list's React key. */
     key: string
-    /** Uppercase heading — "TODAY", "YESTERDAY", "FRI", "27 AUG". `null` draws none. */
+    /** Heading — "Today", "Yesterday", "Fri", "27 Aug". `null` draws none. */
     label: string | null
     runs: TriggerDelivery[]
 }
@@ -101,7 +101,7 @@ export function runWhenLabel(delivery: TriggerDelivery, now = Date.now()): strin
  *
  * Newest group first and newest run inside it, off `sortRuns`, so the order is the one every
  * other surface here reads. A row whose timestamp will not parse cannot claim a day, so it
- * falls into a trailing "EARLIER" group rather than being dropped or dated wrongly.
+ * falls into a trailing "Earlier" group rather than being dropped or dated wrongly.
  */
 export function runDayGroups(deliveries: TriggerDelivery[], now = Date.now()): RunDayGroup[] {
     const groups: RunDayGroup[] = []
@@ -116,7 +116,7 @@ export function runDayGroups(deliveries: TriggerDelivery[], now = Date.now()): R
         }
         groups.push({
             key,
-            label: dated ? dayLabel(at, now).toUpperCase() : "EARLIER",
+            label: dated ? dayLabel(at, now) : "Earlier",
             runs: [delivery],
         })
     }

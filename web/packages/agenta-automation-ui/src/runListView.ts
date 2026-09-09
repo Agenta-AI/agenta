@@ -82,9 +82,7 @@ export function runGroups(runs: TriggerDelivery[], grouping: RunGrouping): RunDa
     for (const delivery of runs) {
         const key = grouping === "status" ? statusKey(delivery) : (runType(delivery) as string)
         const label =
-            grouping === "status"
-                ? runOutcomeLabel(delivery).toUpperCase()
-                : RUN_TYPE_LABEL[runType(delivery)].toUpperCase()
+            grouping === "status" ? runOutcomeLabel(delivery) : RUN_TYPE_LABEL[runType(delivery)]
         const bucket = buckets.get(key)
         if (bucket) bucket.runs.push(delivery)
         else buckets.set(key, {key, label, runs: [delivery]})
