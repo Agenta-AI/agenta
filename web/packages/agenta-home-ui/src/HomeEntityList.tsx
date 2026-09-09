@@ -45,6 +45,9 @@ const TAB_BASE =
 const TAB_ON = "border-b-foreground font-medium text-foreground"
 const TAB_OFF = "border-b-transparent font-normal text-muted-foreground hover:text-foreground"
 
+/** How many templates the tab shows before handing off to the gallery. */
+const TEMPLATE_SHORTLIST = 5
+
 const ROW =
     "box-border flex w-full cursor-pointer appearance-none items-center gap-3.5 rounded-[10px] border-0 bg-transparent px-1.5 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent"
 
@@ -182,7 +185,7 @@ export const HomeEntityList = ({
                         )))
                 ) : (
                     <>
-                        {templates.map((template) => (
+                        {templates.slice(0, TEMPLATE_SHORTLIST).map((template) => (
                             <Row
                                 key={template.key}
                                 tile={
