@@ -262,9 +262,8 @@ connections were ignored). REMAINING (in priority order):
   (one shared connection, reused across agents), but the design puts "connect" on
   the agent page as if per-agent. So the card currently shows/【archives every
   project connection regardless of agent. DECIDED Option 1. BACKEND DONE: ensure retargets the connection's answering
-  agent to the calling agent (connect here). REMAINING (frontend): the 3-state
-  card (connected here / connected to agent X / not connected) + agent-name
-  resolution + wording.
+  agent to the calling agent (connect here). FRONTEND DONE: the 3-state card resolves the answering agent + name and
+  shows 'Answers as X, connect here'; connecting retargets. Compiles; needs browser QA.
 - [x P2 #5] Exclude archived rows (deleted_at) before mapping. DONE.
 - [x P2 #6] Preserve flags.is_hosted in the schema. DONE.
 - [~ P2 #7] Connect-side error+retry added (mint 404 no longer sticks). REMAINING:
