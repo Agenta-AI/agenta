@@ -254,9 +254,8 @@ needed).
 Codex (gpt-astra) reviewed channels/telegram-ui. Fixed now: #1 render the {channels}
 slot (card never mounted); #2 ChannelsPage syncs with initialConnections (fetched
 connections were ignored). REMAINING (in priority order):
-- [P1 #3] Telegram link-click fabricates a "connected" object with no connectionId,
-  before /start completes -> Disconnect becomes a no-op. Separate link creation from
-  a confirmed bind; resolve the REAL connection id; require it for Disconnect.
+- [x P1 #3] No more fabricated connected state; refetch after connect/disconnect
+  gives the real connection id. DONE.
 - [P1 #4] DESIGN QUESTION for Mahmoud: a hosted Telegram connection is per-PROJECT
   (one shared connection, reused across agents), but the design puts "connect" on
   the agent page as if per-agent. So the card currently shows/【archives every
