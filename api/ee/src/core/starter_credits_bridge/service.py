@@ -203,9 +203,12 @@ async def seed_starter_credits_bridge(
 # next read, and a row already on the funded model costs a list scan either way.
 _reconciling_projects: set[str] = set()
 
-# How long a project that did NOT repair waits before a read tries again. The retry is what
-# recovers a transient proxy failure, but a row that cannot be repaired at all (a deleted
-# proxy key, say) would otherwise send one proxy call per secrets list forever.
+# How long a project waits after ONE repair attempt before a read makes another. A retry is
+# what recovers a transient proxy failure, but nothing else bounds how often a project can
+# be repaired, and two cases would otherwise write on every secrets list: a row that cannot
+# be repaired at all (a deleted proxy key, say), and two API replicas configured with
+# different model ids, each repairing the row back to its own. A healthy project never
+# reaches this: its row matches and the check above returns first.
 _RECONCILE_RETRY_COOLDOWN_SECONDS = 300.0
 
 _reconcile_cooldowns: dict[str, float] = {}
@@ -264,16 +267,15 @@ async def reconcile_starter_credits_on_read(
             project_id=key,
             exc_info=True,
         )
-        _hold_off(key)
         return None
     finally:
+        # Armed on every attempt, not only a failed one: a repeated repair means something
+        # is wrong (a row that will not stay repaired), and that must not run per read.
+        _hold_off(key)
         _reconciling_projects.discard(key)
 
     if not repaired:
-        _hold_off(key)
         return None
-
-    _reconcile_cooldowns.pop(key, None)
 
     return await _vault_service().get_secret_by_slug(
         STARTER_CREDITS_SLUG,
@@ -282,7 +284,7 @@ async def reconcile_starter_credits_on_read(
 
 
 def _hold_off(project_id: str) -> None:
-    """Stop reads retrying a project that did not repair, for a while."""
+    """Stop reads repairing this project again for a while."""
     _reconcile_cooldowns[project_id] = _monotonic() + _RECONCILE_RETRY_COOLDOWN_SECONDS
 
 

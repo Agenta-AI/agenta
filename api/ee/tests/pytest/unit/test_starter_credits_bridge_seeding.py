@@ -1369,6 +1369,8 @@ class TestReconcilingOnRead:
 
         assert repaired is not None
         assert [model.slug for model in repaired.data.models] == ["vertex_ai/new-model"]
+        # One attempt per project per cooldown, so nothing can rewrite a row per read.
+        assert str(seeding_env.project.id) in service._reconcile_cooldowns
         (update,) = _all_key_update_calls()
         assert update == {"key": minted, "models": ["vertex_ai/new-model"]}
         assert repaired.data.provider.key == minted
