@@ -262,3 +262,18 @@ Next increments: the Postgres binding table + DAO + migration; the HostedTelegra
 (channel key telegram_hosted, fixed ["project"] identity, shared transport); the ingress
 hosted-resolve branch; the bind-start router endpoint; env.py TELEGRAM_HOSTED_BOT_TOKEN.
 Live verification waits on the staging bot being pointed at the hosted webhook.
+
+## Lane 3 increment 2 (2026-09-09): env config + hosted capabilities
+- env.py: ChannelsTelegramConfig reads TELEGRAM_HOSTED_BOT_TOKEN and
+  TELEGRAM_HOSTED_WEBHOOK_SECRET; `enabled` is true only when both are set; exposed at
+  env.channels.telegram (mirrors env.channels.slack). Verified the import in the container.
+- adapters/telegram_hosted/capabilities.py: identity keys on ["project"], space/thread still
+  on the chat, rendering/fill/addressing identical to the custom bot, no paste-a-token setup.
+- Tests: hosted capability shape + env enabled-gating. 44 telegram unit tests green.
+Remaining lane-3 slice (built together, their contract is interdependent, then live-tested):
+the Postgres binding table + DAO (atomic consume+bind+account-link using compose_external_user_key
+with chat_id, matching the inbox worker), the HostedTelegramAdapter (deployment-token egress,
+deployment-secret verify_signature returning the project, no-op activation), the ingress
+hosted-resolve branch, and the bind-start router endpoint. Live verification needs the staging
+bot pointed at the hosted webhook (needs the bot's group privacy off and the custom connection
+removed first).
