@@ -175,3 +175,19 @@ RISK NOTE: the daily cleanup may remove this worktree again whenever its branch 
 fully pushed. Keep work pushed (safe) and recreate the worktree per session; do not
 rely on gitignored files surviving. Consider leaving one uncommitted sentinel file
 if the cleanup skips dirty worktrees.
+
+## Browser QA BLOCKED by a degraded dev web (2026-09-09)
+After the worktree wipe + recovery (recreate worktree, chmod, web restart, deps
+install completed, cleared .next and rebuilt), the web app renders BLANK at /w
+(bodyLen 0). Verified it is NOT the channels code: the only client errors are
+harmless PostHog 404s, and the agent-overview route compiles 200 server-side. The
+blank is a dev-server/session state after the recovery, not my changes.
+State of the UI code (all pushed on channels/telegram-ui, compiles on the stack):
+F1 components placed; F2 data layer (bind-link + archive); F3 hosted-Telegram
+CONNECT wired to the real bind link; F4 mounted on the agent overview rail reading
+real connections. NOT yet browser-verified due to the blank app.
+To unblock visual QA: do a clean stack redeploy — restore the lost env file from a
+sibling (see the recovery recipe above), recreate web (and api/workers for hosted
+env), then load an agent overview. Root cause of the instability: the daily cleanup
+removes this worktree once its branch is pushed, taking the gitignored env/override
+with it. Recommend excluding this worktree from the cleanup.
