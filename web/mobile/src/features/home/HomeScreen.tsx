@@ -50,13 +50,21 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
         isError: agentsQuery.isError,
     })
 
+    // Newest first. The list arrives in whatever order the query returns, which put agents made
+    // months ago above one created a minute earlier — and the head of this list is also what the
+    // composer binds by default.
     const listAgents = useMemo<HomeListAgent[]>(
         () =>
-            agents.map((agent) => ({
-                id: agent.id,
-                name: agent.name || agent.slug || "Untitled agent",
-                description: agent.description,
-            })),
+            [...agents]
+                .sort(
+                    (a, b) =>
+                        Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? "") || 0,
+                )
+                .map((agent) => ({
+                    id: agent.id,
+                    name: agent.name || agent.slug || "Untitled agent",
+                    description: agent.description,
+                })),
         [agents],
     )
 
