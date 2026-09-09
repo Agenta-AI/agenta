@@ -169,3 +169,21 @@ tested, QA'd, and production ready; use subagents for testing and QA; do live QA
 - Decision: build the hosted-bot backend now, scoped and unit-tested, on a branch stacked on
   channels/telegram. The custom path stays untouched. Live verification is deferred because it
   needs a dedicated hosted bot token that only Mahmoud can create.
+
+## CodeRabbit review addressed on PR #6679 (2026-09-09)
+CodeRabbit posted 12 findings: 6 on code, 6 on research docs. Fixed 5 code findings in
+commit 3bc293a8f5, with tests, all 855 channels+secrets unit tests green:
+- adapter: best-effort typing and callback calls also swallow httpx transport errors.
+- mapping: bot-mention match now requires a username boundary (@agenta_bot != @agenta_bot2).
+- signature: compare the secret token as bytes, so a non-ASCII header raises 401 not 500.
+- secrets: reject a blank secondary credential (empty webhook_secret), like the primary.
+- service: re-run activation after a Telegram token rotation (gated on the telegram
+  channel, like the webhook-secret mint), so a rotated bot re-points its webhook; raise on
+  failure instead of a silent break.
+Deferred (1 open thread, flagged for a maintainer): the outbox atomic-claim finding is a
+property of JP's shared outbox worker for all channels, not introduced here; the _send
+idempotency guard already prevents the observed duplicate. A true concurrent-claim fix
+belongs in a separate change to the worker, not this PR.
+The 6 doc findings are on planning docs; the security notes are already addressed by the
+revised lane-3 plan (webhook secret before write, opaque token, sender-match). All replied
+and resolved. Only the deferred outbox thread stays open.
