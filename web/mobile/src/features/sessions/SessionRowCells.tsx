@@ -17,6 +17,13 @@ import {cn} from "@/lib/utils"
 import {SessionRowMenu} from "./SessionRowMenu"
 
 /**
+ * An archived row is still readable, just not competing: archived is a state the reader chose to
+ * put a session out of the way, and under the Archived filter a whole page at full strength reads
+ * as the live list. The kebab keeps its own weight — unarchiving is the point of being here.
+ */
+const FADED = "opacity-60"
+
+/**
  * A row's inline verb — a real button with a box and a hover fill, not a bare glyph, so it reads
  * as something to press.
  *
@@ -119,7 +126,7 @@ export const SessionRowCells = ({
 
     return (
         <>
-            <span className="flex min-w-0 items-center gap-2">
+            <span className={cn("flex min-w-0 items-center gap-2", archived && FADED)}>
                 <StatusDot status={vm.status} />
                 {rename.renaming ? (
                     <span className="min-w-0 flex-1" onClick={swallow}>
@@ -177,7 +184,7 @@ export const SessionRowCells = ({
             </span>
 
             {!showAgent ? null : vm.agentId ? (
-                <span className="flex min-w-0 items-center gap-1.5">
+                <span className={cn("flex min-w-0 items-center gap-1.5", archived && FADED)}>
                     {/* The agent's own mark, not a generic robot — the same tile the automations
                         table and the agent picker draw. */}
                     <AgentChip workflowId={vm.agentId} box="size-5" glyph={13} />
@@ -187,7 +194,9 @@ export const SessionRowCells = ({
                 <SessionAgentName agentId={null} />
             )}
 
-            <span className="truncate text-right text-[13px] text-muted-foreground">{updated}</span>
+            <span className={cn("truncate text-right text-[13px] text-muted-foreground", archived && FADED)}>
+                {updated}
+            </span>
 
             <span className="flex justify-end" onClick={swallow}>
                 <SessionRowMenu

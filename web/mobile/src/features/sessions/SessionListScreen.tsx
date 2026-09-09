@@ -25,7 +25,11 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
 import {SessionFilterMenu} from "./SessionFilterMenu"
 import {SessionListTable} from "./SessionListTable"
-import {DEFAULT_SESSION_LIST_VIEW, type SessionListView} from "./sessionListView"
+import {
+    activityFloorIso,
+    DEFAULT_SESSION_LIST_VIEW,
+    type SessionListView,
+} from "./sessionListView"
 import {useSessionRowMenu} from "./useSessionRowMenu"
 
 /**
@@ -61,18 +65,25 @@ export const SessionListScreen = ({
         if (scope) applyScope(scope)
     }, [applyScope, routeMode])
 
-    const list = useSessionsList({
-        defaultPolicy: {origin: "exclude-trigger", expansions: []},
-        automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
-    })
-
     // Grouping is a display preference a reader sets once; the filters are a question they were
-    // asking at the time, so only the first survives a reload — and the filters live in the
-    // shared atoms anyway.
+    // asking at the time, so only the first survives a reload — and the rest live in the shared
+    // atoms anyway.
     const [view, setView] = useFilterMenuView<SessionListView>({
         key: "agenta:sessions:view",
         fallback: DEFAULT_SESSION_LIST_VIEW,
         persist: ["group"],
+    })
+
+    // Recomputed only when the facet changes or the hour rolls over — `activityFloorIso` floors
+    // to the hour, so this cannot mint a fresh query key on every render.
+    const activityFloor = useMemo(() => activityFloorIso(view.activity), [view.activity])
+
+    // The SAME arguments `SessionListTable` passes, so both hooks resolve to one query rather
+    // than two. This one is only here for the waiting count the filter menu shows.
+    const list = useSessionsList({
+        activityFloor,
+        defaultPolicy: {origin: "exclude-trigger", expansions: []},
+        automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
     })
 
     // Debounced: the search is a server predicate on two queries, so every keystroke would
@@ -166,6 +177,7 @@ export const SessionListScreen = ({
                         />
                         <SessionListTable
                             group={view.group}
+                            activityFloor={activityFloor}
                             agentNames={agentNames}
                             verbs={verbs}
                             onClearFilters={clearFilters}

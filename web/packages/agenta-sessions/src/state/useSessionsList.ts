@@ -13,6 +13,7 @@ import {
     sessionFiltersActiveExceptAgentAtom,
     sessionSearchAtom,
     sessionShowArchivedAtom,
+    sessionArchivedOnlyAtom,
     sessionShowTriggeredAtom,
     sessionStatusFilterAtom,
 } from "./filters"
@@ -71,7 +72,12 @@ export interface UseSessionsListArgs {
      * than writing to it, so the project page's filter is never left holding a value the user
      * did not choose.
      */
-    agentId?: string | null
+    /**
+     * ISO lower bound on last activity. A hook argument rather than a shared atom: the mobile list
+     * defaults it to seven days and the desktop page has no such control, and an atom would have
+     * silently applied one surface.s default to the other.
+     */
+    activityFloor?: string
 }
 
 /**
@@ -88,6 +94,7 @@ export interface UseSessionsListArgs {
  */
 export const useSessionsList = ({
     agentId: scopedAgentId,
+    activityFloor,
     defaultPolicy,
     automationPolicy,
 }: UseSessionsListArgs) => {
@@ -97,6 +104,7 @@ export const useSessionsList = ({
     const agentId = scopedAgentId ?? agentFilter
     const status = useAtomValue(sessionStatusFilterAtom)
     const includeArchived = useAtomValue(sessionShowArchivedAtom)
+    const archivedOnly = useAtomValue(sessionArchivedOnlyAtom)
     const showTriggered = useAtomValue(sessionShowTriggeredAtom)
     const projectFiltersActive = useAtomValue(sessionFiltersActiveAtom)
     const scopedFiltersActive = useAtomValue(sessionFiltersActiveExceptAgentAtom)
@@ -122,6 +130,8 @@ export const useSessionsList = ({
         agentId,
         status,
         includeArchived,
+        archivedOnly,
+        activityFloor,
         waitingSessionIds: waitingIds,
     }
     const pinnedQuery = useSessionList(pinnedSessionListArgs(shared, pinnedIds))
@@ -233,11 +243,13 @@ export const useSessionFilters = () => {
     const agentId = useAtomValue(sessionAgentFilterAtom)
     const status = useAtomValue(sessionStatusFilterAtom)
     const includeArchived = useAtomValue(sessionShowArchivedAtom)
+    const archivedOnly = useAtomValue(sessionArchivedOnlyAtom)
     const mode = useAtomValue(sessionShowTriggeredAtom)
     const setSearch = useSetAtom(sessionSearchAtom)
     const setAgentId = useSetAtom(sessionAgentFilterAtom)
     const setStatus = useSetAtom(sessionStatusFilterAtom)
     const setIncludeArchived = useSetAtom(sessionShowArchivedAtom)
+    const setArchivedOnly = useSetAtom(sessionArchivedOnlyAtom)
     const setMode = useSetAtom(sessionShowTriggeredAtom)
     const reset = useSetAtom(resetSessionFiltersAtom)
     return {
@@ -245,12 +257,14 @@ export const useSessionFilters = () => {
         agentId,
         status,
         includeArchived,
+        archivedOnly,
         /** True = the automations mode: the list shows trigger-started sessions INSTEAD. */
         mode,
         setSearch,
         setAgentId,
         setStatus,
         setIncludeArchived,
+        setArchivedOnly,
         setMode,
         reset,
     }

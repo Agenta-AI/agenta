@@ -73,6 +73,9 @@ export interface SessionListOptions {
     search?: string
     agentId?: string | null
     includeArchived?: boolean
+    archivedOnly?: boolean
+    /** ISO lower bound on last activity — the "Last activity" facet. */
+    activityFloor?: string
     /** Ids of sessions with a pending gate — the pushdown behind the "Waiting" filter. */
     waitingSessionIds?: string[]
     /** Page size. Drop it for callers that want one row (a roster's "last active") rather than
@@ -132,6 +135,8 @@ export const useSessionList = ({
     search = "",
     agentId = null,
     includeArchived = false,
+    archivedOnly = false,
+    activityFloor,
     originPolicy,
     expansions,
     waitingSessionIds,
@@ -151,6 +156,8 @@ export const useSessionList = ({
         search,
         agentId,
         includeArchived,
+        archivedOnly,
+        activityFloor,
         ...sessionListRequestFilters({origin: originPolicy, expansions}),
         flags: STATUS_FLAGS[status],
         sessionIds: idWindow.sessionIds,

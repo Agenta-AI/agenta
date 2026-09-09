@@ -6,6 +6,8 @@ import {FilterMenu, type FilterMenuSection} from "@agenta/ui/filter-menu"
 import {
     Archive,
     CalendarBlank,
+    ChatCircle,
+    Clock,
     Lightning,
     Minus,
     Robot,
@@ -17,6 +19,7 @@ import {
 import {
     DEFAULT_SESSION_LIST_VIEW,
     isDefaultSessionListView,
+    type SessionActivityWindow,
     type SessionGrouping,
     type SessionListView,
 } from "./sessionListView"
@@ -35,9 +38,9 @@ const StatusDot = ({className}: {className: string}) => (
  * the two nav entries offer one control rather than a popover on one and a toolbar of switches on
  * the other.
  *
- * Type is MULTI-select, and that is not cosmetic: "automation runs" picks WHICH sessions and
- * "archived" WIDENS the set. They are orthogonal, so collapsing them into one three-way choice
- * would quietly drop "archived automation runs".
+ * Type names the ONE set on screen — Chat, Automation, or Archived — the way the sidebar's Type
+ * facet does. Picking Automation or Archived shows those INSTEAD of the sessions you started, not
+ * alongside them, so the page always answers a single question.
  *
  * No sort row: the server orders sessions by recency everywhere in this app, and a client-side
  * sort would only re-order the pages that happen to have loaded.
@@ -62,32 +65,30 @@ export const SessionFilterMenu = ({
      */
     onReset: () => void
 }) => {
-    const {agentId, status, mode, includeArchived, setAgentId, setStatus, setMode, setIncludeArchived} =
+    const {agentId, status, mode, archivedOnly, setAgentId, setStatus, setMode, setArchivedOnly} =
         useSessionFilters()
 
     const sections = useMemo<FilterMenuSection[]>(() => {
-        const type = [...(mode ? ["automation"] : []), ...(includeArchived ? ["archived"] : [])]
+        const type = archivedOnly ? "archived" : mode ? "automation" : "chat"
         return [
             {
                 key: "type",
                 label: "Type",
+                // A bolt, not the robot: the robot means AGENT throughout this app, and an
+                // automation is a trigger that ran one.
                 icon: <Lightning size={ICON} />,
-                multi: true,
                 value: type,
-                // Neither on is not "nothing selected" — it is the default list, which is the
-                // sessions you started. Saying so beats an em dash.
-                valueLabel: type.length ? undefined : "Sessions",
                 options: [
-                    {
-                        value: "automation",
-                        label: "Automation runs",
-                        icon: <Lightning size={ICON} />,
-                    },
+                    {value: "chat", label: "Chat", icon: <ChatCircle size={ICON} />},
+                    {value: "automation", label: "Automation", icon: <Lightning size={ICON} />},
                     {value: "archived", label: "Archived", icon: <Archive size={ICON} />},
                 ],
+                // One list at a time, the way the sidebar's Type facet works: picking Automation
+                // or Archived shows THOSE, not those plus the ones you started. Chat is the
+                // default because it is the set a reader means by "my sessions".
                 onChange: (value) => {
-                    if (value === "automation") setMode(!mode)
-                    else setIncludeArchived(!includeArchived)
+                    setMode(value === "automation")
+                    setArchivedOnly(value === "archived")
                 },
             },
             {
@@ -138,6 +139,20 @@ export const SessionFilterMenu = ({
                 onChange: (value) => setAgentId(value === ALL_AGENTS ? null : value),
             },
             {
+                key: "activity",
+                label: "Last activity",
+                icon: <Clock size={ICON} />,
+                value: view.activity,
+                options: [
+                    {value: "all", label: "All", icon: <SquaresFour size={ICON} />},
+                    {value: "24h", label: "Today", icon: <Clock size={ICON} />},
+                    {value: "7d", label: "Last 7 days", icon: <Clock size={ICON} />},
+                    {value: "30d", label: "Last 30 days", icon: <Clock size={ICON} />},
+                ],
+                onChange: (value) =>
+                    onChange({...view, activity: value as SessionActivityWindow}),
+            },
+            {
                 key: "group",
                 label: "Group by",
                 icon: <Rows size={ICON} />,
@@ -155,11 +170,11 @@ export const SessionFilterMenu = ({
     }, [
         agentId,
         agents,
-        includeArchived,
+        archivedOnly,
         mode,
         onChange,
         setAgentId,
-        setIncludeArchived,
+        setArchivedOnly,
         setMode,
         setStatus,
         status,
@@ -173,7 +188,7 @@ export const SessionFilterMenu = ({
         Boolean(agentId) ||
         status !== "all" ||
         mode ||
-        includeArchived ||
+        archivedOnly ||
         !isDefaultSessionListView(view)
 
     return (

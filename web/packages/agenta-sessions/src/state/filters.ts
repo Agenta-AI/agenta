@@ -19,6 +19,15 @@ export const sessionSearchAtom = atom("")
 export const sessionAgentFilterAtom = atom<string | null>(null)
 export const sessionStatusFilterAtom = atom<SessionStatusFilter>("all")
 export const sessionShowArchivedAtom = atom(false)
+/**
+ * The archive INSTEAD of the list, where `sessionShowArchivedAtom` shows it alongside.
+ *
+ * Two atoms rather than a tri-state, because the two surfaces ask different questions: the
+ * desktop toolbar has a switch that widens the set, and the mobile list has a Type choice that
+ * replaces it. Server-side `archived_only` wins over `include_archived`, so setting both is not
+ * ambiguous.
+ */
+export const sessionArchivedOnlyAtom = atom(false)
 /** Automation runs are sessions too, so without this they sit in the list indistinguishable from
  * your own work. Hidden by default; the chip opts back in. */
 export const sessionShowTriggeredAtom = atom(false)
@@ -29,6 +38,7 @@ export const sessionFiltersActiveExceptAgentAtom = atom(
         Boolean(get(sessionSearchAtom).trim()) ||
         get(sessionStatusFilterAtom) !== "all" ||
         get(sessionShowArchivedAtom) ||
+        get(sessionArchivedOnlyAtom) ||
         get(sessionShowTriggeredAtom),
 )
 
@@ -41,6 +51,7 @@ export const resetSessionFiltersAtom = atom(null, (_get, set) => {
     set(sessionAgentFilterAtom, null)
     set(sessionStatusFilterAtom, "all")
     set(sessionShowArchivedAtom, false)
+    set(sessionArchivedOnlyAtom, false)
     set(sessionShowTriggeredAtom, false)
 })
 

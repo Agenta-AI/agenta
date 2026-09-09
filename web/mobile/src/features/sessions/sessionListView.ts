@@ -14,19 +14,50 @@ import type {SessionRowVm} from "@agenta/sessions/row"
 
 export type SessionGrouping = "agent" | "date" | "status" | "none"
 
+/** Last-activity floor, matching the sidebar's own facet. */
+export type SessionActivityWindow = "all" | "24h" | "7d" | "30d"
+
+const ACTIVITY_WINDOW_HOURS: Record<SessionActivityWindow, number | null> = {
+    all: null,
+    "24h": 24,
+    "7d": 24 * 7,
+    "30d": 24 * 30,
+}
+
 export interface SessionListView {
     group: SessionGrouping
+    activity: SessionActivityWindow
 }
 
 /**
  * Agent, not date. A reader scanning this list is looking for the thing they were talking to;
  * the Updated column already carries recency, and the server orders by it, so grouping by date
  * only restates the column beside it.
+ *
+ * Seven days, the same default the sidebar takes: a session list is a list of what you are
+ * working on, and everything ever started is an archive with a different purpose.
  */
-export const DEFAULT_SESSION_LIST_VIEW: SessionListView = {group: "agent"}
+export const DEFAULT_SESSION_LIST_VIEW: SessionListView = {group: "agent", activity: "7d"}
 
 export const isDefaultSessionListView = (view: SessionListView): boolean =>
-    view.group === DEFAULT_SESSION_LIST_VIEW.group
+    view.group === DEFAULT_SESSION_LIST_VIEW.group &&
+    view.activity === DEFAULT_SESSION_LIST_VIEW.activity
+
+/**
+ * The window as an ISO instant the server can compare against, or `undefined` for no bound.
+ *
+ * Rounded down to the hour so the value is stable between renders — a floor recomputed from
+ * `Date.now()` on every render would mint a new query key each time and refetch the list forever.
+ */
+export const activityFloorIso = (
+    activity: SessionActivityWindow,
+    now: number = Date.now(),
+): string | undefined => {
+    const hours = ACTIVITY_WINDOW_HOURS[activity]
+    if (!hours) return undefined
+    const HOUR_MS = 3_600_000
+    return new Date(Math.floor(now / HOUR_MS) * HOUR_MS - hours * HOUR_MS).toISOString()
+}
 
 export interface SessionListGroup {
     key: string

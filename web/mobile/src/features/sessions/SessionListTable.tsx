@@ -84,11 +84,14 @@ export interface SessionRowVerbs {
  */
 export const SessionListTable = ({
     group,
+    activityFloor,
     agentNames,
     verbs,
     onClearFilters,
 }: {
     group: SessionGrouping
+    /** ISO floor from the Last activity facet; undefined = no bound. */
+    activityFloor?: string
     /** Agent id → display name, for the group headings. A heading is a string, so it cannot
      *  resolve a name the way a row's `SessionAgentName` does. */
     agentNames: Map<string, string>
@@ -96,6 +99,7 @@ export const SessionListTable = ({
     onClearFilters: () => void
 }) => {
     const list = useSessionsList({
+        activityFloor,
         // Release contract: the human list hides automation runs; the Type filter's "Automation
         // runs" swaps in the automation policy. Same policies the desktop list passes.
         defaultPolicy: {origin: "exclude-trigger", expansions: []},
