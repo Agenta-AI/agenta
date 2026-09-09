@@ -19,6 +19,7 @@ from oss.src.core.channels.telegram_binding import (
     BindToken,
     BindTokenAlreadyUsed,
     ChatBinding,
+    ChatBoundElsewhere,
 )
 from oss.src.dbs.postgres.channels.identity_dbes import ChannelIdentityLinkDBE
 from oss.src.dbs.postgres.channels.telegram_bind_dbes import (
@@ -98,25 +99,26 @@ class TelegramBindingDAO:
         chat_id: str,
         external_user_key: str,
     ) -> ChatBinding:
+        now = datetime.now(timezone.utc)
         async with self.engine.session() as session:
             # 1. Consume the token, guarded so a concurrent /start cannot
-            # consume it twice: only the transaction that flips NULL -> now
-            # wins; a loser sees zero rows and is rejected.
+            # consume it twice and an expired one cannot slip through a race:
+            # only the transaction that flips an unexpired NULL -> now wins.
             consumed = await session.execute(
                 update(TelegramBindTokenDBE)
                 .where(
                     TelegramBindTokenDBE.token == token.token,
                     TelegramBindTokenDBE.consumed_at.is_(None),
+                    TelegramBindTokenDBE.expires_at > now,
                 )
-                .values(consumed_at=datetime.now(timezone.utc))
+                .values(consumed_at=now)
                 .returning(TelegramBindTokenDBE.id)
             )
             if consumed.scalar_one_or_none() is None:
                 raise BindTokenAlreadyUsed()
 
             # 2. Write the chat binding. ON CONFLICT DO NOTHING so a raced
-            # insert for the same chat does not error; the read-back below
-            # returns whichever binding actually persisted.
+            # insert for the same chat does not error.
             await session.execute(
                 pg_insert(TelegramChatBindingDBE)
                 .values(
@@ -130,7 +132,27 @@ class TelegramBindingDAO:
                 )
             )
 
-            # 3. Write the account link with the caller's composed key, ignoring
+            # 3. Read the authoritative binding INSIDE the transaction and check
+            # it is ours. A concurrent /start for a different project can win the
+            # chat; if it did, this transaction must write nothing, so raise
+            # before the account link and before commit. The context manager
+            # rolls back, which also undoes the token consume above, so the
+            # losing token stays usable.
+            stored = (
+                await session.execute(
+                    select(TelegramChatBindingDBE).where(
+                        TelegramChatBindingDBE.bot_id == bot_id,
+                        TelegramChatBindingDBE.chat_id == chat_id,
+                    )
+                )
+            ).scalar_one()
+            if (
+                stored.project_id != token.project_id
+                or stored.connection_id != token.connection_id
+            ):
+                raise ChatBoundElsewhere()
+
+            # 4. Write the account link with the caller's composed key, ignoring
             # a link that already exists for this connection and key.
             await session.execute(
                 pg_insert(ChannelIdentityLinkDBE)
@@ -146,11 +168,4 @@ class TelegramBindingDAO:
             )
 
             await session.commit()
-
-            stored = await session.execute(
-                select(TelegramChatBindingDBE).where(
-                    TelegramChatBindingDBE.bot_id == bot_id,
-                    TelegramChatBindingDBE.chat_id == chat_id,
-                )
-            )
-            return _to_chat_binding(stored.scalar_one())
+            return _to_chat_binding(stored)

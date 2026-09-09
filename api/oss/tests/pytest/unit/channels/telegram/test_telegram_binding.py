@@ -210,3 +210,32 @@ async def test_resolve_returns_the_binding_or_none():
     )
     resolved = await svc.resolve_bound_connection(bot_id="100", chat_id="555")
     assert resolved is not None and resolved.chat_id == "555"
+
+
+async def test_a_fresh_token_on_an_already_connected_chat_is_refused():
+    # A different fresh link for the SAME project, opened in an already-bound
+    # chat, must not silently re-bind: it would consume a token and leave the
+    # old account attribution. Refuse, and leave the fresh token unconsumed.
+    store = _FakeStore()
+    svc = _service(store)
+    project_id = uuid4()
+    url1 = await svc.issue_bind_link(
+        project_id=project_id, user_id=uuid4(), connection_id=uuid4()
+    )
+    token1 = url1.rsplit("=", 1)[1]
+    await svc.consume_bind_token(
+        token=token1, bot_id="100", chat_id="555", sender_id="777"
+    )
+    url2 = await svc.issue_bind_link(
+        project_id=project_id, user_id=uuid4(), connection_id=uuid4()
+    )
+    token2 = url2.rsplit("=", 1)[1]
+    from oss.src.core.channels.telegram_binding import ChatAlreadyConnected
+
+    with pytest.raises(ChatAlreadyConnected):
+        await svc.consume_bind_token(
+            token=token2, bot_id="100", chat_id="555", sender_id="777"
+        )
+    # the fresh token is untouched and only one account link was ever written
+    assert (await store.get_token(token2)).is_consumed() is False
+    assert len(store.links) == 1

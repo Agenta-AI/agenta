@@ -84,6 +84,13 @@ class ChatBoundElsewhere(BindTokenError):
     binding silently; the user disconnects the old one first."""
 
 
+class ChatAlreadyConnected(BindTokenError):
+    """This chat is already connected to THIS project, and a fresh link was
+    opened in it. v1 refuses to re-bind silently (which would leave the old
+    account attribution in place while consuming a new token); the user
+    disconnects first to change it."""
+
+
 class TelegramBindingStore(Protocol):
     """Persistence for the hosted bind. The real implementation is a Postgres
     DAO; tests pass an in-memory fake. `consume_token_and_bind` MUST be atomic:
@@ -173,14 +180,20 @@ class TelegramBindingService:
         if record is None:
             raise BindTokenInvalid()
 
-        # A chat already bound decides the outcome before the token state does:
-        # a replayed /start on the same project is a no-op success; a token
-        # aimed at a different project than the chat already holds is refused.
+        # A chat already bound decides the outcome before the token state does.
         existing = await self._store.get_binding(bot_id=bot_id, chat_id=chat_id)
         if existing is not None:
-            if existing.project_id == record.project_id:
+            if existing.project_id != record.project_id:
+                # aimed at a different project than the chat already holds
+                raise ChatBoundElsewhere()
+            if record.is_consumed():
+                # the completing token, re-delivered by Telegram: idempotent
+                # success on the binding it already made.
                 return existing
-            raise ChatBoundElsewhere()
+            # a fresh token for an already-connected chat: refuse rather than
+            # silently re-bind (which would consume the token but leave the old
+            # account attribution). The user disconnects first to change it.
+            raise ChatAlreadyConnected()
 
         if record.is_consumed():
             raise BindTokenAlreadyUsed()

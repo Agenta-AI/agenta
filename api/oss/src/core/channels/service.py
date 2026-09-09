@@ -614,15 +614,14 @@ class ChannelsService:
         agent in place. The bind link is minted against the returned connection.
         """
 
-        existing = await self.query_connections(project_id=project_id)
-        connection = next(
-            (
-                c
-                for c in existing
-                if c.channel == "telegram_hosted" and c.deleted_at is None
-            ),
-            None,
+        # Include archived rows: query_connections does not filter them, and a
+        # disconnected hosted connection still holds the project's unique
+        # external key, so creating a second one would conflict. Reuse it.
+        existing = await self.query_connections(
+            project_id=project_id,
+            connection=ChannelConnectionQuery(channel="telegram_hosted"),
         )
+        connection = next((c for c in existing if c.channel == "telegram_hosted"), None)
         if connection is None:
             connection = await self.create_connection(
                 project_id=project_id,
@@ -633,6 +632,16 @@ class ChannelsService:
                     name="Agenta on Telegram",
                     flags=ChannelConnectionFlags(is_hosted=True),
                 ),
+            )
+        elif connection.deleted_at is not None:
+            # a previously disconnected hosted connection: unarchive and reuse.
+            connection = (
+                await self.unarchive_connection(
+                    project_id=project_id,
+                    user_id=user_id,
+                    connection_id=connection.id,
+                )
+                or connection
             )
 
         agents = await self.query_agents(

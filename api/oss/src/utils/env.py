@@ -831,7 +831,9 @@ class ChannelsTelegramConfig(BaseModel):
 
     @property
     def enabled(self) -> bool:
-        return bool(self.bot_token and self.webhook_secret)
+        # A username is required too: without it the deep link degrades to
+        # https://t.me/?start=... , which connects nothing.
+        return bool(self.bot_token and self.webhook_secret and self.bot_username)
 
 
 class ChannelsConfig(BaseModel):

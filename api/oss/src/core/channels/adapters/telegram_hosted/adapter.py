@@ -67,7 +67,9 @@ class HostedTelegramAdapter(TelegramAdapter):
         if bot_id is not None:
             discovered["bot_id"] = bot_id
         if env.channels.telegram.bot_username:
-            discovered["bot_username"] = env.channels.telegram.bot_username
+            # strip a leading @ so parse_event's "@{username}" mention match
+            # does not become "@@username" and never match.
+            discovered["bot_username"] = env.channels.telegram.bot_username.lstrip("@")
         return discovered
 
     async def activate_connection(

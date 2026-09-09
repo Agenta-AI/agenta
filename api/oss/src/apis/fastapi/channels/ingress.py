@@ -25,7 +25,7 @@ from oss.src.core.channels.types import (
 )
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.core.channels.adapters.telegram.signature import verify_telegram_secret
-from oss.src.core.channels.telegram_binding import BindTokenError
+from oss.src.core.channels.telegram_binding import BindTokenError, ChatAlreadyConnected
 from oss.src.utils.env import env
 
 if TYPE_CHECKING:
@@ -295,46 +295,12 @@ class ChannelsIngressRouter:
             # Platform noise (ack, bot echo) -- not an error, nothing to log.
             return ChannelEventAck(status="accepted")
 
-        event = ChannelInboxEventCreate(
-            connection_id=connection_id,
-            external_id=inbound.external_id,
-            kind=inbound.kind,
-            origin=ChannelEventOrigin.PUSHED,
-            data=ChannelInboxEventData(
-                external_locator=inbound.external_locator,
-                processed=inbound.processed,
-                # The adapter's classification. Dropping it made every space a
-                # `group`, so a kind-level grant ("allow in DMs") never matched.
-                space_kind=inbound.space_kind,
-                addressed=inbound.addressed,
-            ),
-        )
-
-        # None means the platform redelivered -- the dedup contract, not an
-        # error. Treated identically to a fresh row.
-        await self.channels_service.record_inbox_event(
+        await self._record_and_enqueue(
             project_id=project_id,
-            event=event,
+            connection_id=connection_id,
+            channel=channel,
+            inbound=inbound,
         )
-
-        if self.dispatch_task is not None:
-            try:
-                await asyncio.wait_for(
-                    self.dispatch_task.kiq(
-                        project_id=str(project_id),
-                        connection_id=str(connection_id),
-                        channel=channel,
-                        external_id=inbound.external_id,
-                    ),
-                    timeout=_ENQUEUE_TIMEOUT_SECONDS,
-                )
-            except Exception as e:
-                log.error("Failed to enqueue channel inbox event: %s", e)
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Failed to enqueue channel inbox event",
-                ) from e
-
         return ChannelEventAck(status="accepted")
 
     async def _ingest_hosted(self, *, request: Request, bot_id: str) -> ChannelEventAck:
@@ -362,6 +328,13 @@ class ChannelsIngressRouter:
         sender_id = _update_sender_id(update)
         text = _update_text(update)
         if chat_id is None:
+            return ChannelEventAck(status="accepted")
+
+        # v1 hosted is private chats only. In a 1:1 chat the sender is the chat,
+        # so the bound account is the only participant and attribution is exact.
+        # A group would let an unbound member invoke the agent as the binder's
+        # account, so group updates are dropped until hosted groups are built.
+        if _update_chat_type(update) != "private":
             return ChannelEventAck(status="accepted")
 
         # The bind command. Consume the one-time token, then greet. A bad or
@@ -413,6 +386,14 @@ class ChannelsIngressRouter:
             binding = await self.telegram_binding_service.consume_bind_token(
                 token=token, bot_id=bot_id, chat_id=chat_id, sender_id=sender_id
             )
+        except ChatAlreadyConnected:
+            await self._hosted_say(
+                adapter,
+                chat_id,
+                "This chat is already connected to Agenta. To change the agent, "
+                "disconnect it in Agenta first.",
+            )
+            return
         except BindTokenError as e:
             await self._hosted_say(
                 adapter,
@@ -510,6 +491,10 @@ def _update_chat_id(update: Dict[str, Any]):
     return (_update_message(update).get("chat") or {}).get("id")
 
 
+def _update_chat_type(update: Dict[str, Any]) -> Optional[str]:
+    return (_update_message(update).get("chat") or {}).get("type")
+
+
 def _update_sender_id(update: Dict[str, Any]):
     message = update.get("message")
     if isinstance(message, dict):
@@ -530,9 +515,10 @@ def _update_text(update: Dict[str, Any]) -> str:
 def _start_command_token(text: str) -> Optional[str]:
     """The bind token of a `/start <token>` deep-link open, else None. Telegram
     sends the deep-link parameter as the argument to /start."""
-    if not text:
+    stripped = text.strip() if text else ""
+    if not stripped:
         return None
-    parts = text.strip().split(maxsplit=1)
+    parts = stripped.split(maxsplit=1)
     head = parts[0].split("@", 1)[0]  # "/start" or "/start@BotName"
     if head != "/start" or len(parts) < 2:
         return None
