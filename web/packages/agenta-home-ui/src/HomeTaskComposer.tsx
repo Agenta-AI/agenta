@@ -3,8 +3,8 @@ import {useMemo, type ReactNode, type RefObject} from "react"
 import {ChatComposer} from "@agenta/chat/components"
 import type {useComposerAttachments} from "@agenta/chat/hooks"
 import {AgentChip} from "@agenta/entity-ui/agent"
-import {Button} from "@agenta/ui/ui"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {Button} from "@agenta/ui/ui"
 import {RobotIcon, XIcon} from "@phosphor-icons/react"
 
 export interface HomeTaskComposerAgent {

@@ -1,9 +1,6 @@
 import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
-import {
-    templateProviderSlugs,
-    type AgentStarterTemplate,
-} from "@agenta/entities/workflow"
+import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {ArrowRightIcon, ListBulletsIcon, PlusIcon} from "@phosphor-icons/react"
 import Link from "next/link"
@@ -194,21 +191,21 @@ export const HomeEntityList = ({
             >
                 {showAgents ? (
                     (agentsBody ??
-                        agents.map((agent) => (
-                            <Row
-                                key={agent.id}
-                                tile={
-                                    // The glyph, not the tile, carries the breathing room: the
-                                    // box has to stay 34px or the row's left edge stops lining up
-                                    // with the tab above it.
-                                    <AgentChip workflowId={agent.id} box="size-[34px]" glyph={16} />
-                                }
-                                name={agent.name}
-                                description={agent.description}
-                                selected={agent.id === selectedAgentId}
-                                onClick={() => onSelectAgent(agent.id)}
-                            />
-                        )))
+                    agents.map((agent) => (
+                        <Row
+                            key={agent.id}
+                            tile={
+                                // The glyph, not the tile, carries the breathing room: the
+                                // box has to stay 34px or the row's left edge stops lining up
+                                // with the tab above it.
+                                <AgentChip workflowId={agent.id} box="size-[34px]" glyph={16} />
+                            }
+                            name={agent.name}
+                            description={agent.description}
+                            selected={agent.id === selectedAgentId}
+                            onClick={() => onSelectAgent(agent.id)}
+                        />
+                    )))
                 ) : (
                     <>
                         {templates.slice(0, TEMPLATE_SHORTLIST).map((template) => (
@@ -247,7 +244,11 @@ export const HomeEntityList = ({
                             <span className="flex-1 text-sm leading-[1.45] text-foreground">
                                 Browse all {templates.length} templates
                             </span>
-                            <ArrowRightIcon aria-hidden size={13} className="text-muted-foreground" />
+                            <ArrowRightIcon
+                                aria-hidden
+                                size={13}
+                                className="text-muted-foreground"
+                            />
                         </Link>
                     </>
                 )}

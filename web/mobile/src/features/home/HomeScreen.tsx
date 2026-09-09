@@ -1,6 +1,10 @@
 import {useMemo} from "react"
 
-import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
+import {
+    agentWorkflowsListQueryStateAtom,
+    invalidateWorkflowsListCache,
+    type Workflow,
+} from "@agenta/entities/workflow"
 import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue} from "jotai"
@@ -16,6 +20,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 import {FirstRunScreen} from "../onboarding/FirstRunScreen"
 import {resolveHomeSurface} from "../onboarding/homeSurface"
+
 import {HomeSkeleton} from "./states/HomeSkeleton"
 import {HomeListError, HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
 import {useHomeHandoff} from "./useHomeHandoff"
@@ -96,7 +101,8 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             emptySlot={<HomeSectionEmpty text="Agents you create will show up here." />}
             errorSlot={
                 agentsQuery.isError ? (
-                    <HomeListError onRetry={() => void agentsQuery.refetch()} />
+                    // The list atom exposes no refetch; invalidating its cache is what re-runs it.
+                    <HomeListError onRetry={() => void invalidateWorkflowsListCache()} />
                 ) : undefined
             }
         />
