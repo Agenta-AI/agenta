@@ -17,6 +17,10 @@ PR, a two-replica test, and the Codex review items listed at the end of the tabl
 - PR branch: `agent/hosted-subscription-connections-plan-20260907` (Codex's plan PR).
 - Implementation branch on origin: `spike/hosted-subscription-exploration`.
 - Pull request: [#6674](https://github.com/Agenta-AI/agenta/pull/6674) against `release/v0.115.4` (opened 2026-09-08).
+- 2026-09-09: `release/v0.115.4` merged into the branch (`277fb6d871`). Five files conflicted, all
+  additions on both sides: the release-gate coverage table and path rules, the vault router, the
+  secrets service, and the SDK connection resolver. The API, SDK, and runner unit suites pass on
+  the merged tree.
 - Workflow: ordinary Git in the explicitly requested worktree. Do not initialize GitButler here.
 
 ## Landed on the branch (2026-09-08)
