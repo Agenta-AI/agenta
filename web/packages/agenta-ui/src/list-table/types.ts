@@ -58,5 +58,14 @@ export interface ListTableProps<Row> {
     skeletonRows?: number
     /** Drawn in place of the rows when every group is empty. */
     empty?: ReactNode
+    /**
+     * Pin the header row to the top of the page's scroller.
+     *
+     * Costs the frame its own horizontal scroller: `overflow-x: auto` makes this box a scrollport
+     * in BOTH axes, and a `sticky` header inside one with no vertical range never moves. The page
+     * scroller absorbs the overflow instead, so a table wider than the viewport scrolls the column
+     * beside it rather than only itself.
+     */
+    stickyHeader?: boolean
     className?: string
 }

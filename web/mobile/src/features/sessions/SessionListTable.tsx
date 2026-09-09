@@ -1,17 +1,16 @@
 import {useCallback, useMemo, useState} from "react"
 
 import type {SessionRowVm} from "@agenta/sessions/row"
-import {useSessionPins, useSessionsList} from "@agenta/sessions/state"
-import {
-    SessionListEmpty,
-    SessionListError,
-    SessionListLoadMore,
-    type SessionMenuEntry,
-} from "@agenta/sessions-ui"
+import {sessionSearchAtom, useSessionPins, useSessionsList} from "@agenta/sessions/state"
+import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
 import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
+import {useAtomValue} from "jotai"
 
 import {useMediaQuery} from "@/lib/useMediaQuery"
 
+import {SessionsEmpty} from "./states/SessionsEmpty"
+import {SessionsError} from "./states/SessionsError"
+import {SessionsNoMatch} from "./states/SessionsNoMatch"
 import {SessionRowCells} from "./SessionRowCells"
 import {deriveSessionGroups, type SessionGrouping} from "./sessionListView"
 
@@ -107,6 +106,9 @@ export const SessionListTable = ({
     // rows read one array, so a Tailwind class on the cell alone would leave the grid a track
     // wider than its contents.
     const narrow = useMediaQuery(NARROW_QUERY)
+    // The APPLIED term, not the field's draft: the empty state quotes what the rows were actually
+    // queried for, so it can never name a search that has not run yet.
+    const term = useAtomValue(sessionSearchAtom).trim()
 
     // Group headings carry a chevron, so it has to do something: collapsed keys, not a flag per
     // group, because the groups themselves come and go as the grouping changes.
@@ -138,7 +140,7 @@ export const SessionListTable = ({
         return out
     }, [agentNames, group, list.groups])
 
-    if (list.isError) return <SessionListError onRetry={list.refetch} />
+    if (list.isError) return <SessionsError onRetry={list.refetch} />
 
     return (
         // Say that these rows are a previous query's while a new one resolves. Typing in the
@@ -149,6 +151,11 @@ export const SessionListTable = ({
                 <ListTable
                     columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
                     minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
+                    // Sessions is the long list in this app — hundreds of rows, four screens of
+                    // scrolling — so the column names have to stay put. Affordable here because
+                    // the minima fit every width this page is read at, so the frame's own
+                    // horizontal scroller was never doing anything.
+                    stickyHeader
                     loading={list.isPending}
                     groups={groups}
                     rowKey={(vm) => vm.id}
@@ -159,11 +166,13 @@ export const SessionListTable = ({
                         // Never while the rows are a previous query's. "No sessions yet" is a
                         // claim about the account, and showing it over an unsettled query told
                         // people with 43 sessions they had none.
-                        list.isPlaceholder ? null : (
-                            <SessionListEmpty
-                                filtered={list.filtersActive}
-                                onClearFilters={onClearFilters}
-                            />
+                        //
+                        // And never when a filter is what emptied the list: the two states make
+                        // different claims, and only one of them has a way out.
+                        list.isPlaceholder ? null : term || list.filtersActive ? (
+                            <SessionsNoMatch term={term || undefined} onClear={onClearFilters} />
+                        ) : (
+                            <SessionsEmpty />
                         )
                     }
                     renderRow={(vm) => (
