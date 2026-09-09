@@ -95,8 +95,12 @@ export const HomeFocus = ({
         })
     }, [])
 
+    // `overflow-x-hidden` is deliberate: `overflow-y-auto` alone makes overflow-x compute to
+    // `auto`, so the list's 8px hover bleed became a sideways scroll. The page scrolls one way.
     return (
-        <div className={`flex w-full flex-1 flex-col overflow-y-auto ${className ?? ""}`}>
+        <div
+            className={`flex w-full flex-1 flex-col overflow-y-auto overflow-x-hidden ${className ?? ""}`}
+        >
             <div className="mx-auto flex w-full max-w-[620px] flex-col gap-[26px]">
                 <HomeGreeting title={title} />
 

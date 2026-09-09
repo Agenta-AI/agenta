@@ -6,6 +6,7 @@ import {
 } from "@agenta/entities/workflow"
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {ArrowRightIcon, ListBulletsIcon, PlusIcon} from "@phosphor-icons/react"
+import Link from "next/link"
 
 import {TemplateProviderMarks} from "./TemplateProviderMarks"
 
@@ -237,7 +238,9 @@ export const HomeEntityList = ({
                             />
                         ))}
                         {/* The tab shows a shortlist; this is where the rest of them live. */}
-                        <a href={templatesHref} className={`${ROW} no-underline`}>
+                        {/* `Link`, not a bare anchor: mobile is served under a basePath, which Link applies and
+                            a raw href does not — this 404'd there. */}
+                        <Link href={templatesHref} className={`${ROW} no-underline`}>
                             <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[10px] border border-dashed border-border text-muted-foreground">
                                 <ListBulletsIcon aria-hidden size={17} />
                             </span>
@@ -245,7 +248,7 @@ export const HomeEntityList = ({
                                 Browse all {templates.length} templates
                             </span>
                             <ArrowRightIcon aria-hidden size={13} className="text-muted-foreground" />
-                        </a>
+                        </Link>
                     </>
                 )}
             </div>
