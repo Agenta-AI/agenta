@@ -229,3 +229,21 @@ Implications for group support in v1:
 - After privacy is disabled, re-test that a group @mention opens a turn (the effective policy
   must include MENTION triggers for the group space).
 DM (private chat) is fully working and live-verified; this finding is specific to groups.
+
+## Group code path confirmed correct (2026-09-09)
+Checked the default policy (`_channel_defaults` in service.py): it includes MENTION, COMMAND,
+and ACTION triggers. So once the bot RECEIVES a group message that mentions it, `_is_trigger`
+returns true (MENTION in triggers + addressed) and a turn opens. The group code path is
+correct by default; no code fix is needed. The sole blocker for groups is the bot's BotFather
+group-privacy setting, which stops Telegram from delivering group messages to the bot. This is
+external bot config on the owner's account, not a code change.
+
+## Status: autonomous work is complete; all remaining items need Mahmoud
+- Custom-bot DM: built, Codex + CodeRabbit reviewed, fixed, unit-tested (855), live-verified
+  (happy path, single delivery, memory, HTML escaping). PR #6679 ready; one open thread is the
+  deferred outbox concurrency finding (awaiting Option 1/2).
+- Groups: code correct; needs the bot's group privacy disabled in BotFather to finish live QA.
+- Hosted bot (lane 3): plan revised per Codex, build-ready; needs a token + two confirmations.
+- Images/voice: needs a scope decision + a vision-capable model.
+- UI: first pass built + visually verified; needs reconciliation with the existing Channels
+  settings UI, real-data wiring, dark mode, and Storybook (needs Mahmoud's taste + data layer).
