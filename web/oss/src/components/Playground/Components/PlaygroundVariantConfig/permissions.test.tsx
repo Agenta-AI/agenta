@@ -136,7 +136,10 @@ vi.mock("@/oss/components/AgentChatSlice/state/scope", () => ({useChatScopeKey: 
 vi.mock("@/oss/components/Drives/useChatScopeSessionId", () => ({
     useChatScopeSessionId: () => null,
 }))
-vi.mock("@/oss/hooks/useLLMProviderConfig", () => ({
+// The hook moved out of `web/oss` into the shared package; mocking the old path silently
+// matched nothing, so the real drawer rendered and its `useRouter` had no mounted router.
+vi.mock("@agenta/entity-ui/secretProvider", async (original) => ({
+    ...(await original<typeof import("@agenta/entity-ui/secretProvider")>()),
     useLLMProviderConfig: () => ({llmProviderConfig: undefined, overlay: null}),
 }))
 vi.mock("@/oss/hooks/useURL", () => ({

@@ -1,3 +1,6 @@
+/* eslint-disable import/order -- The hook now lives in `@agenta/chat/hooks`, and its import
+   has to stay BELOW the `vi.mock` factories: hoisting otherwise pulls that module graph in
+   ahead of them, and the workflow mock reads an import still in its TDZ. */
 import {act} from "react"
 
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
@@ -40,7 +43,7 @@ vi.mock("../state/sessions", () => {
     return {addSessionAtomFamily: () => add}
 })
 
-import {useChatSlashCommands} from "./useChatSlashCommands"
+import {useChatSlashCommands} from "@agenta/chat/hooks"
 
 it("pulses Permissions, not Advanced, and preserves explicit restrictions", async () => {
     Object.assign(globalThis, {IS_REACT_ACT_ENVIRONMENT: true})
