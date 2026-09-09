@@ -42,6 +42,19 @@ describe("withRenamedSession", () => {
         expect(withRenamedSession(data, "s1", "new")).toBe(data)
     })
 
+    // `/m` feeds the browser title from a per-session query that caches ONE session, not a list.
+    it("renames a bare session object", () => {
+        const data = {...row("s1", "old"), status: "idle"}
+
+        expect(withRenamedSession(data, "s1", "new")).toEqual({...row("s1", "new"), status: "idle"})
+    })
+
+    it("leaves a bare session for another id alone", () => {
+        const data = row("s2", "other")
+
+        expect(withRenamedSession(data, "s1", "new")).toBe(data)
+    })
+
     it("hands back the same object for a shape it does not recognise", () => {
         const data = {total: 3}
 
@@ -60,6 +73,11 @@ describe("NAMED_SESSION_QUERY_KEYS", () => {
     // cache and prefers the REMOTE title, which is how an unpatched entry undoes a rename.
     it("covers the reconciliation cache the tab titles are folded from", () => {
         expect(NAMED_SESSION_QUERY_KEYS).toContain("internal-reconciliation")
+    })
+
+    // `/m`'s browser title reads this one, and it used to lag a rename until the next refetch.
+    it("covers the per-session stream the browser title is fed from", () => {
+        expect(NAMED_SESSION_QUERY_KEYS).toContain("session-stream")
     })
 
     // A rename cannot change a pending gate, and patching it would rewrite the wrong shape.

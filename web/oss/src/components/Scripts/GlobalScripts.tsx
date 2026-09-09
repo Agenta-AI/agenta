@@ -1,3 +1,4 @@
+import {DEFAULT_PAGE_TITLE} from "@agenta/shared/utils"
 import dynamic from "next/dynamic"
 import Head from "next/head"
 
@@ -11,7 +12,8 @@ const GlobalScripts = () => {
     return (
         <>
             <Head>
-                <title>Agenta – the open-source workspace for building and running agents</title>
+                {/* App-wide default. robots.txt disallows crawling, so no SEO string here. */}
+                <title>{DEFAULT_PAGE_TITLE}</title>
                 {/*
                  * Next ships `width=device-width` by default. The addition that matters is
                  * `interactive-widget=resizes-content`: it makes the on-screen keyboard shrink the

@@ -1,8 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    BOTTOM_FADE_HOVER_HIDE,
-    BOTTOM_FADE_OVERLAY_STYLE,
     EDGE_FADE_MASK,
     jumpGateOpen,
     latestTurnId,
@@ -34,6 +32,7 @@ import {getSessionTurnId} from "@agenta/chat/state"
 import {cancelSessionExecution} from "@agenta/entities/session"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
+import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {
     ChatBubble,
@@ -42,6 +41,7 @@ import {
     turnRowClass,
 } from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {isAltChord} from "@agenta/ui/shortcuts"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
 import {User} from "lucide-react"
@@ -53,7 +53,7 @@ import {Button} from "@/components/ui/button"
 import {useProjectPermission} from "../context/useProjectPermission"
 import {failPendingTaskAtom, pendingTasksAtom, sendPendingTaskAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
-import {livenessQueryKey} from "../sessions/useLivenessPoll"
+import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
 import {Composer} from "./Composer"
@@ -61,17 +61,13 @@ import {ConnectModelStrip} from "./ConnectModelStrip"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
-import {StopButton} from "./StopButton"
 import {cancelledStopAction} from "./stopHereState"
 import {TurnRow} from "./TurnRow"
-import {
-    deriveMobileRemoteTurnPresentation,
-    showRunningElsewhere,
-    showTrailingWorkingPulse,
-} from "./turnStatus"
+import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
+import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
 
 /**
@@ -95,7 +91,6 @@ export const LiveConversation = ({
     sessionTurnId,
     stoppingTurnId,
     sharedReader,
-    livenessUpdatedAt,
     agentId,
     embedded = false,
 }: {
@@ -112,12 +107,15 @@ export const LiveConversation = ({
     /** Backend-advertised ability to receive display-only live frames from another sender. */
     sharedReader: boolean
     /** React Query timestamp used to reject the sender's stale post-settle liveness snapshot. */
-    livenessUpdatedAt: number
     /** Scopes the session tab rail to this agent's sessions. */
     agentId?: string | null
     /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
     embedded?: boolean
 }) => {
+    // Subscribed HERE, not in ChatScreen: this timestamp moves on every poll tick even when the
+    // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
+    const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
+    const startBlankSession = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
     const conversation = useAgentConversation({
         entityId,
         sessionId,
@@ -522,9 +520,10 @@ export const LiveConversation = ({
     // so the warning about tools that already ran, and putting a rewound user message back into
     // the composer, are this surface's job — same division the desktop uses. `composerRef` is
     // declared above, with the parked task that also refills the input.
+    const {rewind} = conversation
     const handleRewind = useCallback(
         (turn: TurnViewModel) => {
-            const plan = conversation.rewind(turn.message)
+            const plan = rewind(turn.message)
             if (!plan) return
             const run = () => {
                 plan.confirm()
@@ -546,8 +545,39 @@ export const LiveConversation = ({
                 onOk: run,
             })
         },
-        [conversation],
+        [rewind],
     )
+
+    // The desktop's run-level shortcuts, with its guards — what makes Stop's `Escape` true here.
+    const scrollerRef = autoScroll.ref
+    // Read through a ref: `pendingApprovals` is rebuilt every streamed commit, so depending on it
+    // would re-register the listener on the hot path.
+    const shortcutRef = useRef({streamingHere, pendingApprovals, approvalActions, stopHere})
+    shortcutRef.current = {streamingHere, pendingApprovals, approvalActions, stopHere}
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            // Radix lets a cancelled Escape through and never touches Alt+G; the pane can hide us.
+            if (e.defaultPrevented || isOverlayOpen()) return
+            if (!isOnScreen(scrollerRef.current)) return
+            const current = shortcutRef.current
+            if (e.key === "Escape" && !e.isComposing && current.streamingHere) {
+                e.preventDefault()
+                // `stopHere`, not the local abort: Escape must cancel the run on the server too.
+                current.stopHere()
+                return
+            }
+            // ONE gate, never "Approve all" — a mis-press must not grant a tool nobody read.
+            if (isAltChord(e) && e.code === "KeyG" && current.pendingApprovals.length > 0) {
+                e.preventDefault()
+                current.approvalActions.respond({
+                    approved: true,
+                    approvalId: current.pendingApprovals[0].approvalId,
+                })
+            }
+        }
+        document.addEventListener("keydown", onKey)
+        return () => document.removeEventListener("keydown", onKey)
+    }, [scrollerRef])
 
     let body
     if (conversation.isHydrating) {
@@ -630,15 +660,6 @@ export const LiveConversation = ({
                 scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
                 footer={
                     <div className="relative">
-                        {/* Bottom fade: a sibling overlay, NOT a second mask. A mask on the scroller
-                        would fade any hover toolbar that scrolls into the band, and no z-index
-                        escapes an ancestor's mask — the desktop learned this the same way. It sits
-                        above the footer and is dropped while a turn is hovered. */}
-                        <div
-                            aria-hidden
-                            className={`pointer-events-none absolute inset-x-0 bottom-full ${BOTTOM_FADE_HOVER_HIDE}`}
-                            style={BOTTOM_FADE_OVERLAY_STYLE}
-                        />
                         {/* What you have lined up stays visible while a gate is open: the queued
                         message is the acknowledgement that the user's Send was not lost. */}
                         {conversation.queued.length > 0 || conversation.editingId ? (
@@ -656,20 +677,6 @@ export const LiveConversation = ({
                                     />
                                 </ContentRail>
                             </div>
-                        ) : null}
-                        {showRunningElsewhere({
-                            running: remoteTurn.showRemoteStop,
-                            localStatus: conversation.runStatus,
-                        }) && !streamingHere ? (
-                            <ContentRail>
-                                <div className="flex justify-end pb-2">
-                                    <StopButton
-                                        key={sessionTurnId ?? sessionId}
-                                        sessionId={sessionId}
-                                        projectId={projectId}
-                                    />
-                                </div>
-                            </ContentRail>
                         ) : null}
                         {conversation.connectionWarning ? (
                             <ContentRail>
@@ -770,6 +777,7 @@ export const LiveConversation = ({
                             </ContentRail>
                         ) : null}
                         <Composer
+                            entityId={entityId}
                             sessionId={sessionId}
                             onSend={async ({text, parts}) => {
                                 setStoppingHere(false)
@@ -804,6 +812,8 @@ export const LiveConversation = ({
                             steerEnabled={conversation.steerEnabled}
                             inputBusy={conversation.inputBusy}
                             inputRef={composerRef}
+                            // Same gate the rail's `+` uses: starting one needs an agent.
+                            onNewSession={agentId ? () => startBlankSession(agentId) : undefined}
                         />
                     </div>
                 }

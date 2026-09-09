@@ -4,6 +4,7 @@ import {type SessionRowVm} from "@agenta/sessions/row"
 import {useSessionPins, useSessionsList} from "@agenta/sessions/state"
 import {sessionListPolicies} from "@agenta/sessions/state"
 import {SessionFiltersBar, SessionFiltersPanel, SessionsListView} from "@agenta/sessions-ui"
+import {mergeSessionMenuEntries} from "@agenta/sessions-ui"
 import {PageLayout} from "@agenta/ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {FilterRailLayout} from "@agenta/ui/components/presentational"
@@ -19,7 +20,7 @@ import {
 import {BROWSE_RAIL_MODE} from "../agent-home/assets/constants"
 import {agentsWorkflowsAtom} from "../agents/store"
 
-import {mergeSessionMenuEntries, toSessionMenuEntries} from "./assets/menuEntries"
+import {toSessionMenuEntries} from "./assets/menuEntries"
 import SessionAutomationDrawers from "./components/SessionAutomationDrawers"
 import {useSessionAutomationActions} from "./hooks/useSessionAutomationActions"
 

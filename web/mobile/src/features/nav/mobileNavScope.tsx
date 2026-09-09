@@ -68,8 +68,13 @@ const createMobileNavScope = (workspaceId: string, projectId: string): SidebarSc
         <SidebarLogo collapsed={collapsed} toggle={<SidebarToggleButton onDismiss={onDismiss} />} />
     )
 
-    const AfterBottom = () => (
-        <DrawerProjectSwitcher workspaceId={workspaceId} projectId={projectId} />
+    // Forwarded, or the switcher keeps its expanded padding inside the 48px rail.
+    const AfterBottom = ({collapsed}: {collapsed: boolean}) => (
+        <DrawerProjectSwitcher
+            workspaceId={workspaceId}
+            projectId={projectId}
+            collapsed={collapsed}
+        />
     )
 
     // Same slot the desktop rail fills, and hidden while collapsed for the same reason: the

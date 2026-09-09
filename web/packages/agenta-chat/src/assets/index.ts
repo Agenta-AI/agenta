@@ -19,3 +19,4 @@ export * from "./resolveStopExecution"
 export * from "./pendingSendEchoes"
 
 export {liveCommittedRevisions, type CommittedRevision} from "./committedRevisions"
+export * from "./filePaletteRows"

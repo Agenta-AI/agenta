@@ -1,9 +1,10 @@
 /** Which link shapes survive Streamdown's harden gate, and in what spelling (#6659). */
+import {MD_REHYPE_PLUGINS} from "@agenta/chat/markdown"
 import {renderToStaticMarkup} from "react-dom/server"
 import {defaultRehypePlugins, Streamdown, type Components} from "streamdown"
 import {describe, expect, it} from "vitest"
 
-import Markdown, {MD_REHYPE_PLUGINS} from "./markdown"
+import Markdown from "./markdown"
 
 const components: Components = {
     a: ({href, children}) => <a data-href={String(href)}>{children}</a>,

@@ -79,11 +79,7 @@ import {
     ConnectedSubagentList,
     SubagentDrawerContainer,
 } from "./agentTemplate/SubagentDrawerContainer"
-import {
-    SubagentHeaderIcon,
-    SubagentHeaderTitle,
-    SubagentOpenAgentButton,
-} from "./agentTemplate/SubagentHeader"
+import {SubagentHeaderTitle, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
 import {
     selectSubagentTools,
     SubagentList,
@@ -190,8 +186,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         editing,
         draft,
         setDraft,
-        drawerView,
-        setDrawerView,
         jsonInvalid,
         setJsonInvalid,
         openCreate,
@@ -510,7 +504,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [config.mcps],
     )
     const handleAddMcpServer = useCallback(
-        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed(), "form"),
+        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed()),
         [openCreate],
     )
 
@@ -520,7 +514,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         [config.skills],
     )
     const handleAddSkill = useCallback(
-        () => openCreate("skill", ITEM_KINDS.skill.createSeed(), "form"),
+        () => openCreate("skill", ITEM_KINDS.skill.createSeed()),
         [openCreate],
     )
 
@@ -1118,9 +1112,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // through an optional member cannot be called from here without breaking hook order.
     const editingSubagentSlug =
         shownEditing?.kind === "tool" ? (toolReferenceSlug(draft) ?? "") : ""
-    const subagentHeaderIcon = workflowReference ? (
-        <SubagentHeaderIcon bridge={workflowReference} slug={editingSubagentSlug} />
-    ) : undefined
     const subagentHeaderAction = workflowReference ? (
         <SubagentOpenAgentButton bridge={workflowReference} slug={editingSubagentSlug} />
     ) : undefined
@@ -1153,13 +1144,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                           <ConfigItemDrawer
                               open={!!editing}
                               mode={shownEditing.mode}
-                              icon={
-                                  bareChrome
-                                      ? undefined
-                                      : isSubagent
-                                        ? subagentHeaderIcon
-                                        : def.icon
-                              }
                               title={
                                   isSubagent && workflowReference ? (
                                       <SubagentHeaderTitle
@@ -1187,17 +1171,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               }
                               width={def.drawerWidth?.(draft)}
                               contentFlush={Boolean(def.formFlush?.(draft))}
-                              view={drawerView}
-                              onViewChange={setDrawerView}
                               onCancel={closeEditor}
                               onSave={commitDraft}
                               saveDisabled={
                                   draftInvalid ||
                                   draftUnchanged ||
-                                  (drawerView === "json" && jsonInvalid)
+                                  (def.jsonOnly(draft) && jsonInvalid)
                               }
                               jsonOnly={def.jsonOnly(draft)}
-                              formOnly={Boolean(def.formOnly?.(draft))}
                               headerExtra={isSubagent ? subagentHeaderAction : undefined}
                               disabled={readOnly}
                               form={
@@ -1273,12 +1254,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             <SectionDrawer
                 open={openSection === "advanced"}
                 title="Advanced"
-                icon={<SlidersHorizontal size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
                 disabled={disabled || !sectionDirty}
                 dirty={sectionDirty}
-                width={880}
+                width={mh.advancedDrawerWidth}
             >
                 <ChangedPathsProvider changes={drawerChangedPaths}>
                     <ModelHarnessSectionBody

@@ -189,7 +189,7 @@ const StripHome: React.FC = () => {
                     onOpenSession={handleOpenSession}
                     sessionMenuFor={sessionMenuFor}
                     onSessionMenuSelect={onSessionMenuSelect}
-                    onSessionRename={onSessionRename}
+                    onSessionRenameRow={onSessionRename}
                     agentsPanel={<YourAgentsTable variant="list" />}
                     triggersPanel={<NextTriggersSection />}
                     usagePanel={

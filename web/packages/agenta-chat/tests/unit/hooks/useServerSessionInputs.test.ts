@@ -35,9 +35,12 @@ const {
     updateInput: vi.fn(),
 }))
 
-vi.mock("@agenta/entities/session", async () => {
+// Partial mock: the composer pulls in the drive summary (and whatever the session module
+// grows next), so spread the real module and override only the atoms this test drives.
+vi.mock("@agenta/entities/session", async (importOriginal) => {
     const {atom} = await import("jotai")
     return {
+        ...(await importOriginal<typeof import("@agenta/entities/session")>()),
         fetchSessionCapabilitiesAtom: atom(null, (_get, _set, sessionId: string) =>
             fetchCapabilities(sessionId),
         ),

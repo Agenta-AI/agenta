@@ -11,8 +11,9 @@ export const SessionListSkeleton = ({rows = 8}: {rows?: number}) => (
             >
                 <span className="shrink-0 w-2 h-2 rounded-full bg-colorFillSecondary" />
                 <SkeletonBlock active className="h-4 min-w-0 flex-1" />
-                <SkeletonBlock active className="h-4 w-40 flex-none" />
-                <SkeletonBlock active className="h-4 w-24 flex-none" />
+                {/* Hidden below `sm`, mirroring the two columns SessionRow drops there. */}
+                <SkeletonBlock active className="hidden h-4 w-40 flex-none sm:block" />
+                <SkeletonBlock active className="hidden h-4 w-24 flex-none sm:block" />
             </div>
         ))}
     </div>

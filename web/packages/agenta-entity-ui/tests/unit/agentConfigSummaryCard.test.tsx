@@ -84,7 +84,7 @@ describe("AgentConfigSummaryCard", () => {
             host.querySelector('button, [role="button"], [tabindex], [aria-expanded]'),
         ).toBeNull()
         for (const [title, summary] of [
-            ["Model & harness", "Not set"],
+            ["Model", "Not set"],
             ["Instructions", "No instructions"],
             ["Tools", "None enabled"],
             ["MCP servers", "None connected"],
@@ -121,7 +121,7 @@ describe("AgentConfigSummaryCard", () => {
         await act(async () => edit.click())
         expect(onEdit).toHaveBeenCalledTimes(1)
         for (const title of [
-            "Model & harness",
+            "Model",
             "Instructions",
             "Tools",
             "MCP servers",

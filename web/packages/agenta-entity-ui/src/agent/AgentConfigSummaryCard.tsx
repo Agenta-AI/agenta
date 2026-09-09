@@ -59,22 +59,23 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
         [revision.data],
     )
 
-    const model = [summary.model, summary.harness].filter(Boolean).join(" · ")
+    // Model id only. The harness rode along as "· Pi core", which is the one part of this string a
+    // narrow row can least afford and the least likely thing anyone is checking here.
+    const model = summary.model ?? ""
+
     // Same order and icons as the playground's config sections, so this reads as a view of that
     // panel rather than a second account of the same settings.
     const rows: ConfigRow[] = [
         {
             key: "model",
             icon: <CpuIcon size={16} />,
-            title: "Model & harness",
-            // A model is the one required setting, so its absence is a warning rather than a gap —
-            // and a harness alone is not a model, so the status follows `summary.model` only.
+            // "Model", not "Model & harness": the harness no longer shows in the summary, and the
+            // playground's own section is labelled "Model" too.
+            title: "Model",
+            // A model is the one required setting, so its absence is a warning rather than a gap.
             ...(summary.model
                 ? stated(model)
-                : {
-                      summary: model || (onEdit ? "Choose a model" : "Not set"),
-                      status: "warning" as const,
-                  }),
+                : {summary: onEdit ? "Choose a model" : "Not set", status: "warning" as const}),
         },
         {
             key: "instructions",
@@ -153,7 +154,7 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
                         title={row.title}
                         summary={row.summary}
                         status={row.status}
-                        preserveTitle={row.key === "permissions"}
+                        preserveTitle={row.key === "model" || row.key === "permissions"}
                         // `onOpen` is the primitive's "leaves for somewhere else" mode; only the
                         // expanding row (and a read-only host) omits it.
                         onOpen={row.expands || !onEdit ? undefined : onEdit}

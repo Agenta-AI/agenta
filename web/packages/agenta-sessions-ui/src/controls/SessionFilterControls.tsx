@@ -161,7 +161,7 @@ export const SessionStatusChipsControl = ({
                     type="button"
                     onClick={() => setStatus(option.value)}
                     aria-pressed={option.value === status}
-                    className={`box-border flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border-0 px-3 py-1.5 text-sm leading-tight transition-colors ${
+                    className={`box-border flex shrink-0 cursor-pointer items-center gap-1 rounded-md border-0 px-2 py-1 text-xs leading-tight transition-colors ${
                         option.value === status
                             ? "bg-colorFillSecondary text-colorText"
                             : "bg-colorFillQuaternary text-colorTextSecondary"
@@ -169,7 +169,7 @@ export const SessionStatusChipsControl = ({
                 >
                     {option.label}
                     {option.value === "waiting" && waitingCount ? (
-                        <span className="rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText">
+                        <span className="rounded bg-colorWarningBg px-1 py-0.5 text-[11px] leading-none text-colorWarningText">
                             {waitingCount}
                         </span>
                     ) : null}
@@ -204,32 +204,42 @@ export const SessionAgentControl = ({agents}: {agents: {id: string; name: string
     )
 }
 
+/** `sm` is the popover density; the toolbar row keeps the default control scale. */
+export type SessionToggleSize = "default" | "sm"
+
 const ToggleRow = ({
     checked,
     onChange,
     tooltip,
+    size = "default",
     children,
 }: {
     checked: boolean
     onChange: (checked: boolean) => void
     tooltip: string
+    size?: SessionToggleSize
     children: ReactNode
 }) => (
     <Tip title={tooltip} side="right">
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-colorTextSecondary">
-            <Switch checked={checked} onCheckedChange={onChange} />
+        <label
+            className={`flex cursor-pointer items-center text-colorTextSecondary ${
+                size === "sm" ? "gap-1.5 text-xs" : "gap-2 text-sm"
+            }`}
+        >
+            <Switch checked={checked} onCheckedChange={onChange} size={size} />
             {children}
         </label>
     </Tip>
 )
 
 /** Picks WHICH sessions: automation runs INSTEAD of the ones you started. */
-export const SessionModeControl = () => {
+export const SessionModeControl = ({size}: {size?: SessionToggleSize}) => {
     const {mode, setMode} = useSessionFilters()
     return (
         <ToggleRow
             checked={mode}
             onChange={setMode}
+            size={size}
             tooltip="Runs started by an automation, instead of the sessions you started"
         >
             Automation runs
@@ -238,12 +248,13 @@ export const SessionModeControl = () => {
 }
 
 /** Widens the set: archived sessions are hidden but recoverable. */
-export const SessionArchivedControl = () => {
+export const SessionArchivedControl = ({size}: {size?: SessionToggleSize}) => {
     const {includeArchived, setIncludeArchived} = useSessionFilters()
     return (
         <ToggleRow
             checked={includeArchived}
             onChange={setIncludeArchived}
+            size={size}
             tooltip="Archived sessions are hidden but recoverable"
         >
             Archived

@@ -1,41 +1,6 @@
 import {useTypewriter} from "@agenta/chat/hooks"
-import {
-    BlockedChatLink,
-    isExternalHref,
-    isProtocolRelativeHref,
-    withExplicitRelativeLinks,
-} from "@agenta/entity-ui/drive"
-import {defaultRehypePlugins, Streamdown, type Components} from "streamdown"
-
-import {DriveLink} from "./DriveLink"
-
-// Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults.
-const rehypePlugins = withExplicitRelativeLinks(defaultRehypePlugins)
-
-export const markdownComponents: Components = {
-    // Streamdown's own anchor already sets target=_blank + rel=noreferrer; make the
-    // opener-severing explicit so the guarantee survives an upstream refresh.
-    //
-    // The host check runs FIRST, on the raw href: a target that names a host is refused and
-    // rendered the way harden renders the targets it refuses (#6666), never as an anchor.
-    a: ({node: _node, className, children, ...props}) =>
-        isProtocolRelativeHref(props.href) ? (
-            <BlockedChatLink href={props.href} className={className}>
-                {children}
-            </BlockedChatLink>
-        ) : isExternalHref(props.href) ? (
-            <a
-                {...props}
-                className={`text-primary font-medium underline ${className ?? ""}`}
-                rel="noopener noreferrer"
-                target="_blank"
-            >
-                {children}
-            </a>
-        ) : (
-            <DriveLink href={props.href ?? ""}>{children}</DriveLink>
-        ),
-}
+import ChatMarkdown from "@agenta/chat/markdown"
+import {chatFileResolver} from "@agenta/entity-ui/drive"
 
 /**
  * Streamdown's built-in classes assume a 14–30px type scale; the mobile app's base is 12px.
@@ -43,14 +8,18 @@ export const markdownComponents: Components = {
  * having to fork every element renderer. Semantic tokens only — the `sidebar` role Streamdown
  * reaches for is not part of the generated token bridge, so code/table chrome is re-surfaced
  * onto `muted`, and long unbroken tokens wrap instead of widening the viewport.
+ *
+ * From `sm:` the prose steps up to the desktop app's 14px body (oss AgentChatSlice/markdown.tsx),
+ * so a wide window reads at the same scale as /w instead of staying phone-sized.
  */
 const proseClassName = [
-    "w-full min-w-0 space-y-2 overflow-hidden text-xs wrap-anywhere",
-    "[&_p]:text-foreground [&_p]:text-xs",
+    "w-full min-w-0 space-y-2 overflow-hidden text-xs wrap-anywhere sm:text-sm",
+    "[&_a]:text-primary [&_a]:font-medium [&_a]:underline",
+    "[&_p]:text-foreground [&_p]:text-xs sm:[&_p]:text-sm",
     "[&_:is(h1,h2,h3,h4,h5,h6)]:mt-3 [&_:is(h1,h2,h3,h4,h5,h6)]:mb-1",
-    "[&_h1]:text-base [&_:is(h2,h3)]:text-sm [&_:is(h4,h5,h6)]:text-xs",
-    "[&_:is(ul,ol)]:my-1 [&_li]:py-0.5 [&_li]:text-xs",
-    "[&_blockquote]:my-2 [&_blockquote]:text-xs [&_blockquote_p]:text-muted-foreground",
+    "[&_h1]:text-base [&_:is(h2,h3)]:text-sm [&_:is(h4,h5,h6)]:text-xs sm:[&_:is(h4,h5,h6)]:text-sm",
+    "[&_:is(ul,ol)]:my-1 [&_li]:py-0.5 [&_li]:text-xs sm:[&_li]:text-sm",
+    "[&_blockquote]:my-2 [&_blockquote]:text-xs sm:[&_blockquote]:text-sm [&_blockquote_p]:text-muted-foreground",
     "[&_hr]:my-3",
     "[&_code]:text-[0.95em]",
     "[&_:is(th,td)]:px-2 [&_:is(th,td)]:py-1 [&_:is(th,td)]:text-xs",
@@ -61,11 +30,16 @@ const proseClassName = [
 ].join(" ")
 
 /**
- * Assistant message text rendered as markdown (desktop parity). User text stays literal.
+ * Assistant message text rendered as markdown through the shared `ChatMarkdown` renderer, so
+ * mobile and desktop parse, highlight, and heal identically; only the token layer differs.
  *
  * Text is revealed on the frame clock, so incomplete-markdown repair has to outlive the last
  * delta — until the reveal drains, what is on screen is a truncated prefix.
  */
+/** A markdown link to a path, not to the web, opens the file in the Files pane (#6659). Module
+ * scope so the renderer's resolver context keeps a stable identity across streamed tokens. */
+const useDriveLinkResolver = () => chatFileResolver
+
 export const AssistantMarkdown = ({
     streaming,
     text,
@@ -77,19 +51,12 @@ export const AssistantMarkdown = ({
     urgent?: boolean
 }) => {
     const {text: revealed, settled} = useTypewriter(text, {urgent})
-    const healing = streaming || !settled
     return (
-        <Streamdown
-            animated={false}
-            className={proseClassName}
-            components={markdownComponents}
-            controls={{code: {copy: true, download: false}, mermaid: false, table: false}}
-            lineNumbers={false}
-            mode={healing ? "streaming" : "static"}
-            parseIncompleteMarkdown={healing}
-            rehypePlugins={rehypePlugins}
-        >
-            {revealed}
-        </Streamdown>
+        <ChatMarkdown
+            baseClassName={proseClassName}
+            content={revealed}
+            streaming={streaming || !settled}
+            useLinkResolver={useDriveLinkResolver}
+        />
     )
 }

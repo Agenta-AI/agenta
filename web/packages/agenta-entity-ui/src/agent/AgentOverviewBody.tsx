@@ -28,6 +28,7 @@ export interface AgentOverviewBodyProps {
     onOpenRow: SessionListCardProps["onOpenRow"]
     menuFor?: SessionListCardProps["menuFor"]
     onMenuSelect?: SessionListCardProps["onMenuSelect"]
+    /** Persists a session rename; given it, a row renames in place from its menu. */
     onRenameRow?: SessionListCardProps["onRenameRow"]
     /** Touch hosts keep the pin visible instead of revealing it on hover. */
     alwaysShowPin?: boolean

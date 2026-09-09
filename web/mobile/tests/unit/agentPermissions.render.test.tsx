@@ -17,6 +17,13 @@ const fixture = vi.hoisted(() => ({environments: ["local"]}))
 const projectId = "permissions-test-project"
 const sessionId = "permissions-test-session"
 
+// v0.115.4's DrillInBridgeProvider reads the workspace id off the router to build the "Open agent"
+// href. This suite renders the provider outside a Next app, so stand in the fields it reads.
+vi.mock("next/router", async (original) => ({
+    ...(await original<object>()),
+    useRouter: () => ({query: {}, basePath: "", asPath: "/"}),
+}))
+
 vi.mock("@agenta/shared/api", async (original) => ({
     ...(await original<object>()),
     getEnabledSandboxProviders: () => fixture.environments,
@@ -120,6 +127,11 @@ afterEach(async () => {
     queryClient.clear()
 })
 
+// FAILING against v0.115.4: its `DrillInBridgeProvider` now reads the workspace id from
+// `useRouter()`, and this suite mounts the provider outside a Next app ("NextRouter was not
+// mounted"). Mocking `next/router` and mounting `RouterContext` both miss — vitest resolves a
+// different module instance than Next's own `useRouter` reads — so the suite needs either a
+// router-providing test harness or the provider to stop requiring one.
 describe("mobile schema-driven agent permissions", () => {
     it.each([{environments: []}, {environments: ["local"]}])(
         "hides empty Advanced for environments $environments",

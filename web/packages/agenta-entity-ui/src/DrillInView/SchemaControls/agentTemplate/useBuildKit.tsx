@@ -7,6 +7,7 @@
  * revision) plus the user's build-kit state — the master on/off and the platform ops switched off
  * individually — and returns:
  *   - `hasBuildKitOverlay`: whether to render the build-kit block / extend the Advanced section,
+ *   - `buildKitEnabled`: the master on/off, for callers that flag the panel while it is live,
  *   - `buildKitSection`: the drawer block (one tool list — platform tools with a switch each, the
  *     Agenta-owned embeds locked on) under the master enable switch.
  *
@@ -150,6 +151,8 @@ export function useBuildKit({
 
     return {
         hasBuildKitOverlay,
+        // The master on/off, so the Advanced rail can flag the panel while the overlay is live.
+        buildKitEnabled,
         buildKitSection,
     }
 }

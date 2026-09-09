@@ -3,8 +3,8 @@ import {useState} from "react"
 import {resolveDriveFileKind} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
+import {SimpleTooltip} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
-import {Tooltip} from "antd"
 import {AnimatePresence, motion} from "motion/react"
 
 import {DriveFileBody} from "./renderers"
@@ -61,7 +61,7 @@ export const DriveFileDownloadButton = ({mount, path}: {mount: Mount | null; pat
     const download = useDriveFileDownload()
     const [downloading, setDownloading] = useState(false)
     return (
-        <Tooltip title="Download">
+        <SimpleTooltip title="Download">
             <Button
                 icon={<DownloadSimple size={13} />}
                 aria-label="Download"
@@ -76,6 +76,6 @@ export const DriveFileDownloadButton = ({mount, path}: {mount: Mount | null; pat
                     }
                 }}
             />
-        </Tooltip>
+        </SimpleTooltip>
     )
 }
