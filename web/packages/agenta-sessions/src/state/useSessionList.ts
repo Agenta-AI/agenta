@@ -102,18 +102,6 @@ export const sessionListIdWindow = ({
 }
 
 /**
- * The project-wide session list, windowed on the server's activity ordering.
- *
- * Every filter is a server predicate: `search`, `references` (agent), `include_archived`, `flags`
- * (live), and a `session_ids` pushdown for the predicates that live outside the stream row
- * (waiting-on-you, pins). Narrowing a fetched page in the browser would filter the window rather
- * than the set — wrong counts, and an empty first page while later pages hold matches.
- *
- * The key and the request come from `@agenta/entities/session`; the query-client policy (stale
- * time, refetch cadence) stays here, because desktop and mobile don't agree on it. Mobile adopts
- * the same factory once its session PRs stop moving.
- */
-/**
  * The status filter as the server's own liveness predicate. `all` and `waiting` are absent on
  * purpose: the first restricts nothing, and the second is an id intersection (see `idWindow`),
  * not a flag.
@@ -127,6 +115,19 @@ const STATUS_FLAGS: Partial<
     // sandbox up. Passed as an explicit `false`, which the request builder forwards as given.
     idle: {is_alive: false},
 }
+
+/**
+ * The project-wide session list, windowed on the server's activity ordering.
+ *
+ * Every filter is a server predicate: `search`, `references` (agent), `include_archived`, `flags`
+ * (live), and a `session_ids` pushdown for the predicates that live outside the stream row
+ * (waiting-on-you, pins). Narrowing a fetched page in the browser would filter the window rather
+ * than the set — wrong counts, and an empty first page while later pages hold matches.
+ *
+ * The key and the request come from `@agenta/entities/session`; the query-client policy (stale
+ * time, refetch cadence) stays here, because desktop and mobile don't agree on it. Mobile adopts
+ * the same factory once its session PRs stop moving.
+ */
 
 export const useSessionList = ({
     excludeSessionIds,

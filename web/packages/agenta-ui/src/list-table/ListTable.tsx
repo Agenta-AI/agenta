@@ -22,6 +22,16 @@ const gridTemplate = (columns: ListTableColumn[]): string =>
 const SKELETON_WIDTHS = ["w-4/5", "w-3/5", "w-2/3", "w-1/2", "w-3/4"]
 
 /**
+ * The sticky stack, under `stickyHeader`: the column header pins at the top and a group heading
+ * pins directly beneath it.
+ *
+ * `height` and `groupTop` are ONE measurement written twice, because Tailwind cannot derive the
+ * second from the first. Change either and you must change the other — a heading pinned at the
+ * wrong offset leaves a sliver of rows showing through the gap above it.
+ */
+const STICKY = {height: "h-9", groupTop: "top-9"} as const
+
+/**
  * The list frame every table-shaped screen in this app shares: a header row, optional group
  * headings that collapse, and rows that open.
  *
@@ -70,7 +80,7 @@ export const ListTable = <Row,>({
                         // stuck directly beneath it without measuring anything — and the margin
                         // goes, or a 4px slot of rows would show through the gap.
                         stickyHeader
-                            ? "sticky top-0 z-20 h-9 items-center bg-background"
+                            ? `sticky top-0 z-20 ${STICKY.height} items-center bg-background`
                             : "mb-1 py-2",
                     )}
                     style={{gridTemplateColumns: grid}}
@@ -144,7 +154,8 @@ export const ListTable = <Row,>({
                                             "text-[13px] text-muted-foreground hover:text-foreground",
                                             // Stuck directly under the column header, so a long
                                             // run still says which group you are reading.
-                                            stickyHeader && "sticky top-9 z-10 bg-background",
+                                            stickyHeader &&
+                                                `sticky ${STICKY.groupTop} z-10 bg-background`,
                                             FOCUS_RING,
                                         )}
                                     >
@@ -162,7 +173,8 @@ export const ListTable = <Row,>({
                                     <p
                                         className={cn(
                                             "m-0 px-2 pb-1.5 pt-3.5 text-[13px] text-muted-foreground",
-                                            stickyHeader && "sticky top-9 z-10 bg-background",
+                                            stickyHeader &&
+                                                `sticky ${STICKY.groupTop} z-10 bg-background`,
                                         )}
                                     >
                                         {group.label}

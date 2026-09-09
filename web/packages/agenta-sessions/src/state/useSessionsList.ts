@@ -47,6 +47,13 @@ export function pinnedSessionListArgs(
     return {
         ...shared,
         originPolicy: "all",
+        // For the same reason as the origin above: a pin outranks the surface's own narrowing.
+        // Both of these would otherwise drop rows the reader explicitly asked to keep — the
+        // activity window silently hides a pin older than it (and the mobile list defaults that
+        // window to seven days), and the archive-only view empties the group of every live pin.
+        // The pin set is already the exact id list, so neither narrows anything worth keeping.
+        activityFloor: undefined,
+        archivedOnly: false,
         expansions: Array.from(new Set<SessionExpansion>([...shared.expansions, "trigger"])),
         sessionIds: pinnedIds,
         enabled: pinnedIds.length > 0,

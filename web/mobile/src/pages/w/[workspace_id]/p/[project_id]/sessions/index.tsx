@@ -1,4 +1,3 @@
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useRouter} from "next/router"
 
 import {SessionListScreen} from "@/features/sessions/SessionListScreen"
@@ -11,6 +10,6 @@ export default function SessionsPage() {
     // real loading state rather than an impossible case — returning null opened it as a blank
     // screen that then snapped into a full list.
     if (typeof workspaceId !== "string" || typeof projectId !== "string")
-        return <SessionsPageSkeleton frame={`${pageContentWidthClass} lg:px-16`} />
+        return <SessionsPageSkeleton />
     return <SessionListScreen workspaceId={workspaceId} projectId={projectId} />
 }

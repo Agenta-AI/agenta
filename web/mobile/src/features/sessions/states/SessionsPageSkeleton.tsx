@@ -3,6 +3,8 @@ import {SkeletonBlock} from "@agenta/ui/ui"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {cn} from "@/lib/utils"
 
+import {SESSIONS_PAGE_FRAME} from "../pageFrame"
+
 /**
  * The wide table's own tracks. This renders before the viewport is measured, so it takes the
  * wide set and lets the Agent bar hide below `sm` — the same thing the real table does there.
@@ -23,10 +25,13 @@ const TITLE_WIDTHS = ["w-4/5", "w-3/5", "w-11/12"]
  * No nav shell: this renders before there is a workspace or project to build one from, and a rail
  * that appears and then re-renders with real entries is worse than one that arrives whole.
  */
-export const SessionsPageSkeleton = ({frame}: {frame: string}) => (
+export const SessionsPageSkeleton = () => (
     <ScreenScaffold
         header={
-            <div className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${frame}`} aria-hidden>
+            <div
+                className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
+                aria-hidden
+            >
                 <div className="flex min-w-0 items-center gap-2">
                     <SkeletonBlock active className="size-7 shrink-0 rounded-md" />
                     <SkeletonBlock active className="h-6 w-32" />
@@ -35,7 +40,7 @@ export const SessionsPageSkeleton = ({frame}: {frame: string}) => (
         }
     >
         <div
-            className={`min-w-0 px-4 pb-12 pt-3 ${frame}`}
+            className={`min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`}
             aria-busy="true"
             aria-label="Loading sessions"
         >

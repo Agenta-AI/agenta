@@ -84,7 +84,8 @@ export const SessionListTable = ({
     agentNames,
     agentNamesReady,
     verbs,
-    onClearFilters,
+    onClearSearch,
+    onResetView,
 }: {
     group: SessionGrouping
     /** ISO floor from the Last activity facet; undefined = no bound. */
@@ -99,7 +100,10 @@ export const SessionListTable = ({
      */
     agentNamesReady: boolean
     verbs: SessionRowVerbs
-    onClearFilters: () => void
+    /** Undoes the SEARCH only — what a term that matched nothing needs. */
+    onClearSearch: () => void
+    /** Undoes every facet, the grouping and the search. */
+    onResetView: () => void
 }) => {
     const list = useSessionsList({
         activityFloor,
@@ -112,10 +116,17 @@ export const SessionListTable = ({
     // A breakpoint that picks the COLUMN SET, not a `display` value — the header row and the body
     // rows read one array, so a Tailwind class on the cell alone would leave the grid a track
     // wider than its contents.
-    const narrow = useMediaQuery(NARROW_QUERY)
+    // Narrow is the server default: this app is served at /m and read on a phone, so guessing
+    // wide meant every phone painted the four-column table once before swapping to three.
+    const narrow = useMediaQuery(NARROW_QUERY, true)
     // The APPLIED term, not the field's draft: the empty state quotes what the rows were actually
     // queried for, so it can never name a search that has not run yet.
     const term = useAtomValue(sessionSearchAtom).trim()
+    // `filtersActive` only knows the shared ATOMS, and the activity window is a hook argument, so
+    // it has to be counted here. Without it a list emptied by Last activity fell through to "No
+    // sessions yet" — a claim about the account, made over a project full of them, and reachable
+    // on the default path because that window defaults to seven days.
+    const narrowed = Boolean(term) || list.filtersActive || Boolean(activityFloor)
 
     // Group headings carry a chevron, so it has to do something: collapsed keys, not a flag per
     // group, because the groups themselves come and go as the grouping changes.
@@ -181,8 +192,11 @@ export const SessionListTable = ({
                         //
                         // And never when a filter is what emptied the list: the two states make
                         // different claims, and only one of them has a way out.
-                        list.isPlaceholder ? null : term || list.filtersActive ? (
-                            <SessionsNoMatch term={term || undefined} onClear={onClearFilters} />
+                        list.isPlaceholder ? null : narrowed ? (
+                            <SessionsNoMatch
+                                term={term || undefined}
+                                onClear={term ? onClearSearch : onResetView}
+                            />
                         ) : (
                             <SessionsEmpty />
                         )

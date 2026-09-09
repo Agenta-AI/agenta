@@ -9,7 +9,6 @@ import {
     useSessionsList,
 } from "@agenta/sessions/state"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar} from "@agenta/ui/list-table"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -22,17 +21,12 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {SESSIONS_PAGE_FRAME} from "./pageFrame"
 import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
 import {SessionFilterMenu} from "./SessionFilterMenu"
 import {SessionListTable} from "./SessionListTable"
 import {activityFloorIso, DEFAULT_SESSION_LIST_VIEW, type SessionListView} from "./sessionListView"
 import {useSessionRowMenu} from "./useSessionRowMenu"
-
-/**
- * The page column, shared with the automations page: same max width, same gutters, so a reader
- * moving between the two nav entries sees one page frame rather than two.
- */
-const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
 
 /**
  * The sessions page — the same table, toolbar and filter menu the automations page renders, over
@@ -90,18 +84,18 @@ export const SessionListScreen = ({
     const search = useDebouncedAtomSearch(setSearch, 300, seedSearch)
 
     const resetFilters = useSetAtom(resetSessionFiltersAtom)
-    // Two resets, because they undo different things. Clearing filters is what the empty state
-    // offers when a query hid every row; the menu's reset also puts the grouping back. Both have
-    // to clear the search DRAFT as well as the atom, or the field keeps a term that no longer
-    // applies to the rows under it.
-    const clearFilters = useCallback(() => {
+    // Two undos, because they answer different questions. A search that matched nothing is undone
+    // by clearing the SEARCH — wiping the reader's other narrowing at the same time hands back a
+    // list far wider than the one they were searching in, without saying so.
+    const clearSearch = search.reset
+    // The whole view: every facet, the grouping and the search draft. The draft matters — a reset
+    // that only touched the atoms would leave the box showing a term that no longer applies to
+    // the rows under it.
+    const resetView = useCallback(() => {
         resetFilters()
         search.reset()
-    }, [resetFilters, search])
-    const resetView = useCallback(() => {
-        clearFilters()
         setView(DEFAULT_SESSION_LIST_VIEW)
-    }, [clearFilters, setView])
+    }, [resetFilters, search, setView])
 
     // The shared row verbs — rename, pin, archive, delete — the same ones the agent overview and
     // the desktop list bind. Without them a row here offers only the pin.
@@ -143,7 +137,7 @@ export const SessionListScreen = ({
                         // every width: page column, 16px gutters on a phone, 64px and a deeper
                         // top from `lg`.
                         <div
-                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
+                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
                         >
                             <div className="flex min-w-0 items-center gap-2">
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
@@ -154,7 +148,7 @@ export const SessionListScreen = ({
                         </div>
                     }
                 >
-                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
+                    <div className={`min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`}>
                         {/* Search belongs to the list, not to the page: it sits on the table's own
                             left edge so it reads as the control that narrows what is below it.
                             One control beside the field, not four — type, status, agent and
@@ -179,7 +173,8 @@ export const SessionListScreen = ({
                             agentNames={agentNames}
                             agentNamesReady={!agentsQuery.isPending}
                             verbs={verbs}
-                            onClearFilters={clearFilters}
+                            onClearSearch={clearSearch}
+                            onResetView={resetView}
                         />
                     </div>
                 </ScreenScaffold>
