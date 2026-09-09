@@ -56,7 +56,7 @@ screenshot before marking a UI step done (UI changes need browser QA).
   icons, types, index). Package already has @agenta/ui + phosphor. Do NOT export
   from the package index until wired, so the app build is untouched. Verify the
   web container still builds.
-- [ ] F2 Data layer. The real calls exist in web/oss/src/state/channels/api.ts
+- [~] F2 Data layer (bind-link + archive calls added to api.ts; hooks/mapping next). The real calls exist in web/oss/src/state/channels/api.ts
   (connections, agents, spaces, grants, policy). ADD the hosted bind-link call
   (POST /catalog/channels/telegram_hosted/bind-link/) — NOT in the generated
   client yet, so add a direct authed call (getAgentaApiUrl + JWT + project_id),

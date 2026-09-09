@@ -3,6 +3,7 @@ import {getChannelsClient} from "@agenta/sdk/resources"
 import type {AgentaApi} from "@agentaai/api-client"
 import {getDefaultStore} from "jotai"
 
+import {fetchJson, getBaseUrl} from "@/oss/lib/api/assets/fetchClient"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {channelConnectionsResponseSchema, type ChannelConnectionsResponse} from "./schemas"
@@ -40,6 +41,36 @@ export const queryChannelConnections = async (
 
 export const createChannelConnection = (connection: AgentaApi.ChannelConnectionCreate) =>
     getChannelsClient().createChannelConnection({connection}, scope())
+
+export const archiveChannelConnection = (connectionId: string) =>
+    getChannelsClient().archiveChannelConnection({connection_id: connectionId}, scope())
+
+export const unarchiveChannelConnection = (connectionId: string) =>
+    getChannelsClient().unarchiveChannelConnection({connection_id: connectionId}, scope())
+
+// --- hosted Telegram bind link ----------------------------------------- //
+
+export interface TelegramHostedBindLink {
+    url: string
+    expires_in_seconds: number
+}
+
+/**
+ * Mint the one-time deep link (and its QR source URL) that connects a chat to
+ * the chosen agent through the shared Agenta Telegram bot. This endpoint is not
+ * in the generated api-client yet, so it is called directly with the app's
+ * authed fetch helper; fold it into the generated client on the next codegen.
+ */
+export const createTelegramHostedBindLink = async (
+    references: Record<string, unknown>,
+): Promise<TelegramHostedBindLink> => {
+    const projectId = getDefaultStore().get(projectIdAtom)
+    const url = new URL(
+        `${getBaseUrl()}/channels/catalog/channels/telegram_hosted/bind-link/`,
+    )
+    if (projectId) url.searchParams.set("project_id", projectId)
+    return fetchJson(url, {method: "POST", body: JSON.stringify({references})})
+}
 
 // --- agents -------------------------------------------------------------- //
 
