@@ -313,3 +313,77 @@ async def test_a_failed_reactivation_raises_and_does_not_hide_the_break():
                 id=existing.id, credentials={"bot_token": "new-token"}
             ),
         )
+
+
+# --- ensure_hosted_telegram_connection retargets by agent (Option 1) --------- #
+
+
+def _hosted_conn():
+    return ChannelConnection(
+        id=uuid4(),
+        channel="telegram_hosted",
+        external_key=uuid4(),
+        slug="agenta-telegram",
+        data={"connection_locator": {"project": str(uuid4())}},
+        flags=ChannelConnectionFlags(is_active=True, is_verified=True, is_hosted=True),
+    )
+
+
+def _agent_with_ref(connection_id, app_id):
+    return ChannelAgent(
+        id=uuid4(),
+        slug="default",
+        name="Default agent",
+        connection_id=connection_id,
+        created_by_id=uuid4(),
+        data=ChannelAgentData(references={"application": {"id": app_id}}),
+        flags=ChannelAgentFlags(is_default=True),
+    )
+
+
+def _ensure_service(connection, agent):
+    dao = MagicMock()
+    dao.query_connections = AsyncMock(return_value=[connection])
+    dao.query_agents = AsyncMock(return_value=[agent])
+    dao.fetch_agent = AsyncMock(return_value=agent)
+    dao.edit_agent = AsyncMock(side_effect=lambda **kw: kw["agent"])
+    dao.create_agent = AsyncMock()
+    service = ChannelsService(
+        channels_dao=dao, adapter_registry=ChannelAdapterRegistry(adapters={})
+    )
+    return service, dao
+
+
+async def test_connect_here_retargets_the_answering_agent_to_this_app():
+    conn = _hosted_conn()
+    app_a, app_b = uuid4(), uuid4()
+    agent = _agent_with_ref(conn.id, str(app_a))
+    service, dao = _ensure_service(conn, agent)
+
+    await service.ensure_hosted_telegram_connection(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        references={"application": {"id": str(app_b)}},
+    )
+
+    dao.edit_agent.assert_awaited_once()
+    written = dao.edit_agent.await_args.kwargs["agent"]
+    assert written.id == agent.id
+    assert str(written.data.references["application"].id) == str(app_b)
+    dao.create_agent.assert_not_awaited()
+
+
+async def test_connect_here_is_a_no_op_when_this_agent_already_answers():
+    conn = _hosted_conn()
+    app_a = uuid4()
+    agent = _agent_with_ref(conn.id, str(app_a))
+    service, dao = _ensure_service(conn, agent)
+
+    await service.ensure_hosted_telegram_connection(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        references={"application": {"id": str(app_a)}},
+    )
+
+    dao.edit_agent.assert_not_awaited()
+    dao.create_agent.assert_not_awaited()
