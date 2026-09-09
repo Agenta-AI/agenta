@@ -79,6 +79,7 @@ class PiHarness(Harness):
             platform_instructions=compose_platform_instructions(
                 config.gateway_integration_names,
                 [credential.binding.name for credential in config.sandbox_credentials],
+                [spec.name for spec in config.tool_specs],
             ),
         )
 
@@ -100,6 +101,7 @@ class ClaudeHarness(Harness):
             platform_instructions=compose_platform_instructions(
                 config.gateway_integration_names,
                 [credential.binding.name for credential in config.sandbox_credentials],
+                [spec.name for spec in config.tool_specs],
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,
@@ -131,6 +133,7 @@ class CodexHarness(Harness):
             platform_instructions=compose_platform_instructions(
                 config.gateway_integration_names,
                 [credential.binding.name for credential in config.sandbox_credentials],
+                [spec.name for spec in config.tool_specs],
             ),
             model=config.agent.model,
             resolved_connection=config.resolved_connection,

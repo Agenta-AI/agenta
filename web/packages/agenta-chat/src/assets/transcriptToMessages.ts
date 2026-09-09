@@ -77,6 +77,8 @@ interface DraftMessage {
     }
     /** Execution id of the paused approval turn, kept internal while replay associates its resume. */
     pausedExecutionId?: string
+    /** The record's `turn_id`. Emitted on USER rows only, so a client can recognise its own send. */
+    executionId?: string
     /** The turn's persisted `error` event — replayed through the same `metadata.runError` channel
      *  the live stream stamps, so a failure renders as the error bubble, not as body text. */
     runError?: string
@@ -709,6 +711,7 @@ export function transcriptToMessages(
             }
             if (!current) {
                 current = newDraft(row.id, role)
+                current.executionId = executionId
                 execution[role] = current
                 drafts.push(current)
             }
@@ -765,6 +768,9 @@ export function transcriptToMessages(
             if (d.runStopped) metadata.runStopped = true
             if (d.recordTerminal) metadata.recordTerminal = true
             if (d.approvalContinuation) metadata.approvalContinuation = d.approvalContinuation
+            // User rows only: an assistant `turnId` is the live stream's Stop guard, and minting
+            // one here from records would change what `latestTurnId` reports.
+            if (d.role === "user" && d.executionId) metadata.turnId = d.executionId
             if (d.runError && !d.runStopped)
                 metadata.runError = {
                     message: d.runError,

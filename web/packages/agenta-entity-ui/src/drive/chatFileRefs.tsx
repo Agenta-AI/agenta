@@ -25,10 +25,11 @@ import {
     sessionRecordFileRecencyAtomFamily,
     type Mount,
 } from "@agenta/entities/session"
-import {DriveFileInlineRef} from "@agenta/entity-ui/drive"
-import {useDriveArtifactId, useDriveSessionId} from "@agenta/entity-ui/drive"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
+
+import {DriveFileInlineRef} from "./DriveFileCard"
+import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 
 /** A span that could NAME a file; strip a leading `./` and require a path-ish shape: a slash, or a
  * letter-led trailing extension (`.ts`, `.tar.gz`). A bare `/[./]/` matched any dotted token —
@@ -36,6 +37,11 @@ import {atomFamily} from "jotai-family"
  * guaranteed-404 on-demand read once scrolled into view; the shape test drops those. */
 export const fileCandidate = (text: string): string | null => {
     const trimmed = text.trim()
+    // A mention that opens with two slashes names a HOST, not a file (#6666). This is the literal
+    // spelling only, deliberately narrower than the anchor's {@link isProtocolRelativeHref}: that
+    // one decodes, and a raw filename may legitimately contain `%2F` or a backslash. Nothing here
+    // navigates, so the wide test buys no safety and would reject real names.
+    if (trimmed.replace(/\\/g, "/").startsWith("//")) return null
     // Keep the leading slash on an absolute sandbox path. The Quick Look host uses the complete
     // tool-path tail to match the mount-relative file, while removing it turns `/tmp/...` into an
     // unrelated drive-relative path and loses the information needed for that match (#5983).
@@ -63,7 +69,8 @@ const recordIndexAtomFamily = atomFamily((sessionId: string) =>
 
 /** True when the record log proves this mention names a written file (tail match). */
 export const knownFromRecords = (byBasename: Map<string, string[]>, candidate: string): boolean => {
-    if (!candidate.includes("/")) return false
+    // Count segments WITHOUT the leading slash: `/README.md` is still a bare basename (#6004).
+    if (!candidate.replace(/^\/+/, "").includes("/")) return false
     const base = candidate.split("/").pop() ?? candidate
     return Boolean(byBasename.get(base)?.some((t) => mountPathMatchesToolPath(candidate, t)))
 }

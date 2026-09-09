@@ -1,5 +1,9 @@
 import {useTypewriter} from "@agenta/chat/hooks"
 import ChatMarkdown from "@agenta/chat/markdown"
+import {chatFileResolver} from "@agenta/entity-ui/drive"
+
+/** Module scope so the context value stays identity-stable across renders (#6659). */
+const useChatFileResolver = () => chatFileResolver
 
 /**
  * Streamdown's built-in classes assume a 14–30px type scale; the mobile app's base is 12px.
@@ -50,7 +54,10 @@ export const AssistantMarkdown = ({
         <ChatMarkdown
             baseClassName={proseClassName}
             content={revealed}
+            // A relative href names a file in this session's drive; a code span does not (#6659).
+            inlineCodeLinks={false}
             streaming={streaming || !settled}
+            useLinkResolver={useChatFileResolver}
         />
     )
 }

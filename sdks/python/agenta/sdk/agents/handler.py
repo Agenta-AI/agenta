@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
+from uuid import UUID
 
 from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig, to_messages
 from agenta.sdk.agents.interfaces import Backend, Environment
@@ -42,6 +43,11 @@ from agenta.sdk.agents.platform import (
 )
 from agenta.sdk.agents.platform import resolve_mcp as _platform_resolve_mcp
 from agenta.sdk.agents.platform import resolve_tools as _platform_resolve_tools
+from agenta.sdk.agents.platform import (
+    read_session_context as _platform_read_session_context,
+    run_optional,
+    session_context_timeout,
+)
 
 from agenta.sdk.agents.fold import fold, trim_to_trailing_unit
 from agenta.sdk.agents.tracing import (
@@ -49,7 +55,7 @@ from agenta.sdk.agents.tracing import (
     run_context as ambient_run_context,
     trace_context as ambient_trace_context,
 )
-from agenta.sdk.agents.dtos import RunContext, RunContextRun
+from agenta.sdk.agents.dtos import RunContext, RunContextRun, SessionContext
 
 from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
 from agenta.sdk.redaction.context import get_active_redactor, redaction_context
@@ -70,6 +76,7 @@ ResolveToolsFn = Callable[..., Awaitable[ResolvedToolSet]]
 ResolveMCPFn = Callable[..., Awaitable[List[ResolvedMCPServer]]]
 ResolveConnectionFn = Callable[..., Awaitable[ResolvedConnection]]
 ResolveSandboxCredentialsFn = Callable[..., Awaitable[List[Any]]]
+ResolveSessionContextFn = Callable[..., Awaitable[Optional[SessionContext]]]
 ResolveSessionConnectionFn = Callable[
     [ModelRef, RuntimeAuthContext], Awaitable[ResolvedConnection]
 ]
@@ -111,6 +118,113 @@ async def _default_resolve_mcp_servers(
 
 async def _default_resolve_connection(*, model, context) -> ResolvedConnection:
     return await _platform_resolve_connection(model=model, context=context)
+
+
+async def _default_resolve_session_context(
+    *, session_id, workflow_id
+) -> Optional[SessionContext]:
+    """The unbounded read. `_bounded_session_context` is the one deadline owner on this path."""
+    return await _platform_read_session_context(
+        session_id=session_id, workflow_id=workflow_id
+    )
+
+
+async def _bounded_session_context(
+    resolve: ResolveSessionContextFn,
+    *,
+    session_id: Optional[str],
+    workflow_id: Optional[str],
+) -> Optional[SessionContext]:
+    """Run the session-context resolver under one deadline, and swallow its failures.
+
+    The facts are optional: the turn is correct without them, and the renderer says nothing
+    about a fact it does not have. So no resolver may delay or break a turn. The deadline
+    covers the WHOLE call, bounds the unwind, and propagates a caller's cancellation. It is
+    the same helper the default resolver uses, so both paths behave identically.
+
+    This is the ONLY deadline on this path. The default resolver reads without a bound of
+    its own, so nothing nests: a nested pair would leave this grace period watching an inner
+    wrapper unwind rather than the client that holds the connections. An injected resolver
+    has no bound either, and this is what gives it one.
+
+    The resolver is passed as a callable, not called here, so a resolver that raises before
+    returning its awaitable is inside the boundary too.
+    """
+    return await run_optional(
+        lambda: resolve(session_id=session_id, workflow_id=workflow_id),
+        budget=session_context_timeout(),
+        label="session context resolver",
+    )
+
+
+def _reference_id(references, name: str) -> Optional[str]:
+    """The id of one entry in ``request.references``, whatever shape it arrived in.
+
+    A reference is a ``Reference`` model or the raw dict it was parsed from, depending on the
+    caller, so read both. The id is canonicalized as a UUID when it parses as one, so two
+    families that name the same artifact in different spellings compare equal rather than
+    reading as a disagreement.
+    """
+    reference = (references or {}).get(name)
+    identifier = (
+        reference.get("id")
+        if isinstance(reference, dict)
+        else getattr(reference, "id", None)
+    )
+    if not identifier:
+        return None
+    try:
+        return str(UUID(str(identifier)))
+    except (ValueError, AttributeError, TypeError):
+        return str(identifier)
+
+
+def _agent_artifact_id(run_context, references) -> Optional[str]:
+    """The workflow artifact this run belongs to. That is what ``rename_agent`` renames.
+
+    Prefer the run context: it is built from the RESOLVED tracing references, and it already
+    normalizes the three artifact families a caller may send. A playground turn labels the
+    artifact ``application``, a native workflow invocation labels it ``workflow``, and an
+    evaluator labels it ``evaluator``; all three are workflow-backed and name the same row.
+    Reading only ``workflow`` would report no name for every playground turn.
+
+    The run context is not always populated. An inline-config run skips reference hydration,
+    and a slug-only or parentless reference can leave no artifact id at all, so the request's
+    own references are the fallback rather than only the bare-SDK case.
+
+    Returns ``None`` for a run with no artifact at all, which reports no name. That is not
+    the same as "a draft has no name": a saved artifact carries its name while its config is
+    unsaved, and such a run is still a draft.
+
+    Competing families decline rather than pick. A request that carries ``application=A`` and
+    ``workflow=B`` names two different artifacts, and the family validator that would reject
+    it runs only during reference hydration, which an inline-config run bypasses. Preferring
+    one of them would put a name in the prompt that the run may not belong to, so an ambiguous
+    identity reports no name at all.
+    """
+    found = {
+        identifier
+        for identifier in (
+            _reference_id(references, name)
+            for name in ("workflow", "application", "evaluator")
+        )
+        if identifier
+    }
+    # The ambiguity check runs FIRST, before the run context is consulted. The run context is
+    # built from these same references and prefers the `workflow` family, so a request that
+    # names two artifacts produces a run context holding one of them. Reading it first would
+    # hand back the silent preference this check exists to refuse.
+    if len(found) > 1:
+        log.warning(
+            "agent: the run names %d competing workflow artifacts; reporting no agent name",
+            len(found),
+        )
+        return None
+    artifact = getattr(getattr(run_context, "workflow", None), "artifact", None)
+    identifier = getattr(artifact, "id", None)
+    if identifier:
+        return str(identifier)
+    return next(iter(found), None)
 
 
 def _check_harness_pre_resolve(model_ref: ModelRef, harness: Optional[str]) -> None:
@@ -200,6 +314,11 @@ class AgentComposition:
     resolve_connection: ResolveConnectionFn = field(default=_default_resolve_connection)
     resolve_sandbox_credentials: ResolveSandboxCredentialsFn = field(
         default=_resolve_sandbox_credentials
+    )
+    # The per-turn session facts. Resolved here, never read off the wire: see
+    # `agenta.sdk.agents.platform.session_context`.
+    resolve_session_context: ResolveSessionContextFn = field(
+        default=_default_resolve_session_context
     )
     # capability gating + fail-closed resolution policy; override to replace, not just add to.
     resolve_session_connection: Optional[ResolveSessionConnectionFn] = field(
@@ -328,12 +447,25 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             value = request_meta.get(name)
             return value.strip() if isinstance(value, str) and value.strip() else None
 
+        # The per-turn session facts. Resolved HERE, from the backend, and never read off
+        # `request.meta`: the playground posts a turn straight to this service, so `meta` is
+        # client input on the path the browser uses. A client must not be able to tell the
+        # agent it is already named. The API stamps `meta.session_context` for the runs it
+        # proxies; that stamp is deliberately ignored, because a service cannot tell it apart
+        # from a forged one in its own request body.
+        session_context = await _bounded_session_context(
+            comp.resolve_session_context,
+            session_id=session_id,
+            workflow_id=_agent_artifact_id(rc, request.references),
+        )
+
         session_config = SessionConfig(
             agent=agent_template,
             resolved_connection=resolved_connection,
             permission_default=agent_template.permission_default,
             trace=comp.trace_context(),
             run_context=rc,
+            session_context=session_context,
             session_id=session_id,
             detached=bool(flags.detached),
             turn_id=_meta_string("run_id"),

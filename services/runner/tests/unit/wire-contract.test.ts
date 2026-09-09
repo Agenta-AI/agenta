@@ -51,6 +51,7 @@ const KNOWN_REQUEST_KEYS = [
   "permissions",
   "gatewayPolicy",
   "platformInstructions",
+  "turnContext",
   "systemPrompt",
   "appendSystemPrompt",
   "skills",
@@ -130,6 +131,11 @@ describe("wire contract: requests (vs Python golden)", () => {
   it("pi request: shape, tool axes, and the runner helpers", () => {
     const req = loadGolden("run_request.pi_core.json") as AgentRunRequest;
     assert.equal(req.harness, "pi_core");
+    assert.equal(
+      req.turnContext,
+      '## This session\n\nThis session is named "Q3 notes".',
+    );
+    assert.equal("sessionContext" in req, false);
     assert.ok(Array.isArray(req.messages));
     // The serializer emits `messages` only; the runner derives the latest turn.
     assert.equal(resolvePromptText(req), "hi");

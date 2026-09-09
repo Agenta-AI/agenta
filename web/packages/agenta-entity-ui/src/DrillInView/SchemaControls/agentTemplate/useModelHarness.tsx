@@ -1,5 +1,5 @@
 /**
- * useModelHarness — the Model + Advanced sections (the panel's most stateful part). One
+ * useModelHarness — the Model, Permissions, and Advanced sections. One
  * hook because the model/connection state feeds both; returns each section's summary + bodies.
  */
 import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
@@ -22,14 +22,13 @@ import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Cube, Key, ShieldCheck, Wrench} from "@phosphor-icons/react"
+import {Cube, Key, Wrench} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
 import {useFocusPaths, useHasFocusUnder} from "../../../drawers/shared/FocusPathsContext"
 import {FieldLayoutProvider, RailField} from "../../../drawers/shared/RailField"
 import {SectionRail, type SectionRailItem} from "../../../drawers/shared/SectionRail"
-import {ClaudePermissionsControl} from "../ClaudePermissionsControl"
 import type {PickerSelection} from "../connectionPicker"
 import {
     allowedConnectionModes,
@@ -54,14 +53,13 @@ import {
     permissionPolicyLabel,
     permissionPolicyOptionsForEnum,
 } from "../permissionPolicy"
-import {PiPermissionsControl} from "../PiPermissionsControl"
-import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
 import {AgentSecretsSection} from "./AgentSecretsSection"
 import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
 import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
 import ModelPickerControl from "./ModelPickerControl"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
+import {shouldPromptForProviderKey} from "./providerKeyPrompt"
 import {RevertGroupButton} from "./RevertGroupButton"
 import {useBuildKit} from "./useBuildKit"
 
@@ -89,6 +87,7 @@ export function useModelHarness({
     buildKitOverride,
     credentialOperationsBlocked = false,
     onCredentialRevisionCommitted,
+    normalizeSandbox = false,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
@@ -102,6 +101,8 @@ export function useModelHarness({
     credentialOperationsBlocked?: boolean
     /** Clear the owning section draft before the host adopts an immediate credential revision. */
     onCredentialRevisionCommitted?: () => void
+    /** Only the live panel owner normalizes; mounting a section body never does. */
+    normalizeSandbox?: boolean
 }) {
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
     const subProps = useCallback(
@@ -163,13 +164,14 @@ export function useModelHarness({
     )
     const sandboxValue = typeof sandbox.kind === "string" ? sandbox.kind : null
     useEffect(() => {
+        if (disabled || !normalizeSandbox) return
         const availableValue = sandboxOptions.some((option) => option.value === sandboxValue)
             ? sandboxValue
             : (sandboxOptions[0]?.value ?? null)
         if (availableValue && availableValue !== sandboxValue) {
             setSection("sandbox", {...sandbox, kind: availableValue})
         }
-    }, [sandbox, sandboxOptions, sandboxValue, setSection])
+    }, [disabled, normalizeSandbox, sandbox, sandboxOptions, sandboxValue, setSection])
 
     // Model + credential connection (`llm`). It is ALWAYS a structured object (the harness-filtered
     // picker only ever produces one); a legacy bare string is read for display. composeModelValue
@@ -177,8 +179,6 @@ export function useModelHarness({
     // is harness-filtered: selecting a model sets BOTH the model id and its provider, fed by the
     // `/inspect` capability map below.
     const harnessValue = effectiveHarnessValue(harness)
-    // "pi_agenta" is a removed experiment; old stored revisions may still carry it.
-    const isPiHarness = harnessValue === "pi_core" || harnessValue === "pi_agenta"
     const llm = config.llm
     const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
     const connection = useMemo(() => connectionFromConfig(llm), [llm])
@@ -235,15 +235,13 @@ export function useModelHarness({
             ) ?? null
         )
     }, [standardSecrets, selectedProviderFamily])
-    // Self-managed agents never need a vault key — the harness signs itself in. Neither does a
-    // named custom-provider connection (agenta mode with a slug): it carries its own credentials,
-    // so a missing STANDARD vault key for the family is not this connection's problem.
-    const providerNeedsKey =
-        connection.mode !== "self_managed" &&
-        !(connection.mode === "agenta" && !!connection.slug) &&
-        vaultLoaded &&
-        !!providerVaultEntry &&
-        !providerVaultEntry.key
+    // Presence goes through `hasStoredKey`, never the row's value (see the module for the rule).
+    const providerNeedsKey = shouldPromptForProviderKey({
+        connectionMode: connection.mode,
+        connectionSlug: connection.slug,
+        vaultLoaded,
+        standardProviderEntry: providerVaultEntry,
+    })
 
     // The "Add custom provider" footer + drawer come from context, same source as the completion picker.
     const {llmProviderConfig, permissions, onWorkflowRevisionCommitted} = useDrillInUI()
@@ -363,21 +361,11 @@ export function useModelHarness({
     // Reset a connection mode the new harness disallows; guarded on a non-empty option set so a
     // harness publishing no modes stays permissive.
     useEffect(() => {
+        if (disabled) return
         if (modeOptions.length > 0 && !modeOptions.includes(connection.mode)) {
             writeModel({mode: modeOptions[0], slug: null})
         }
-    }, [connection.mode, modeOptions, writeModel])
-
-    // Claude permissions (Layer 1, Claude-only): the Claude harness's own permission knobs, the
-    // first-class `harness.permissions` slice. Shown in Advanced only for the Claude harness.
-    const claudePermissions = useMemo(() => {
-        const perms = harness.permissions
-        return perms && typeof perms === "object" ? (perms as Record<string, unknown>) : null
-    }, [harness])
-    const setClaudePermissions = useCallback(
-        (next: Record<string, unknown>) => setSection("harness", {...harness, permissions: next}),
-        [harness, setSection],
-    )
+    }, [disabled, connection.mode, modeOptions, writeModel])
 
     // Prefer the harness catalog's label ("Sonnet") over the stored id ("sonnet"), so the summary
     // names the model the way the picker did. A connection model key is namespaced
@@ -395,8 +383,6 @@ export function useModelHarness({
             .join(" · ") || undefined
 
     const hasModelOrHarness = Boolean(props.llm || harnessProps.kind)
-    const hasClaudePermissions = harnessValue === "claude"
-    const hasPiPermissions = isPiHarness
     // Shared with the composer's `/permissions` palette, so the two lists cannot drift.
     const runnerPermissionOptions = useMemo(
         () =>
@@ -410,11 +396,8 @@ export function useModelHarness({
     const currentRunnerPermission = runnerPermissionValue ?? "allow_reads"
     const runnerPermissionSummary = permissionPolicyLabel(currentRunnerPermission)
 
-    // Playground-only "build kit" overlay (read-only) shown at the top of Advanced. It also flags
-    // sandbox-permission keys the overlay overrides for the user's own permission control below.
-    const {hasBuildKitOverlay, buildKitSection, permissionOverrideHint} = useBuildKit({
+    const {hasBuildKitOverlay, buildKitSection} = useBuildKit({
         revisionId: revisionId ?? null,
-        sandboxPermissions: (sandbox.permissions as Record<string, unknown> | null) ?? null,
         disabled,
         stateOverride: buildKitOverride,
     })
@@ -423,25 +406,14 @@ export function useModelHarness({
     // `defaultOpen` so a drawer opened from a "something changed" indicator lands with the changed
     // group ALREADY expanded instead of three closed rows. Mount-time is the right moment:
     // `SectionDrawer` uses `destroyOnClose`, so this re-evaluates on every open.
-    const sandboxChanged = useHasChangedUnder("sandbox")
-    const runnerChanged = useHasChangedUnder("runner")
-    // Only `harness.permissions` belongs to this group — `harness.kind` is the Model
-    // section's, so a harness selection must not light the Permissions header (or its group-revert).
-    const harnessPermsChanged = useHasChangedUnder("harness.permissions")
-    const permissionsChanged = runnerChanged || harnessPermsChanged
+    const sandboxChanged = useHasChangedUnder("sandbox.kind")
     const changedIndicator = (changed: boolean) =>
         changed ? ({tone: "draft", tooltip: "Unsaved changes in this group."} as const) : undefined
 
     // Section-scoped undo: restore every changed property in this group to its committed value. The
     // per-row dot reverts ONE property; this is "undo the whole group". Null when nothing changed or
     // the surface offers no revert, so the header keeps its normal actions.
-    const revertSandbox = useRevertUnder("sandbox")
-    const revertRunner = useRevertUnder("runner")
-    const revertHarnessPerms = useRevertUnder("harness.permissions")
-    const revertPermissions = useCallback(() => {
-        revertRunner?.()
-        revertHarnessPerms?.()
-    }, [revertRunner, revertHarnessPerms])
+    const revertSandbox = useRevertUnder("sandbox.kind")
 
     // Confirmed — see `RevertGroupButton`, which owns the confirm step.
     const revertAction = (onRevert: (() => void) | null) =>
@@ -453,29 +425,17 @@ export function useModelHarness({
     // to disambiguate, so it renders FLAT (just the controls, like the Connect-key field); spread
     // across several, the group headers earn their keep by saying which change belongs where.
     const focus = useFocusPaths()
-    const sandboxInFocus = useHasFocusUnder("sandbox")
-    const runnerInFocus = useHasFocusUnder("runner")
-    // Split like the changed/revert side: harness.kind focuses the Model section,
-    // harness.permissions the Permissions group — so neither pulls the other into focus.
+    const sandboxInFocus = useHasFocusUnder("sandbox.kind")
+    // Hidden harness policies do not focus the model picker.
     const harnessKindInFocus = useHasFocusUnder("harness.kind")
-    const harnessPermsInFocus = useHasFocusUnder("harness.permissions")
-    const permissionsInFocus = runnerInFocus || harnessPermsInFocus
-    const focusedGroupCount = (sandboxInFocus ? 1 : 0) + (permissionsInFocus ? 1 : 0)
-    const flatFocus = focus.active && focusedGroupCount <= 1
+    const flatFocus = focus.active
 
     // Same, for the Model section body: the connection list owns both `llm.model` and the
     // `harness.kind` a picked row sets, so a change filter keeps it whenever either is in scope.
     const modelInFocus = useHasFocusUnder("llm.model")
 
-    const hasAdvanced = Boolean(
-        sandboxProps.kind ||
-        sandboxProps.permissions ||
-        runnerProps.permissions ||
-        hasClaudePermissions ||
-        hasPiPermissions ||
-        hasBuildKitOverlay ||
-        Boolean(revisionId),
-    )
+    const hasExecutionGroup = sandboxOptions.length > 1
+    const hasAdvanced = hasExecutionGroup || hasBuildKitOverlay || Boolean(revisionId)
 
     // Harness list, from the inspect capabilities map. Model compatibility is shown per-card
     // (below); the model picker also needs it, to cross each connection with the harnesses that
@@ -604,12 +564,8 @@ export function useModelHarness({
     )
 
     // Advanced header summary: sandbox only — the connection mode now comes with the picked model.
-    const advancedSummary = sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined
-
-    const hasExecutionGroup = Boolean(sandboxProps.kind || sandboxProps.permissions)
-    const hasPermissionsGroup = Boolean(
-        runnerPermissionSchema || hasClaudePermissions || hasPiPermissions,
-    )
+    const advancedSummary =
+        hasExecutionGroup && sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined
     // Shared Advanced controls, rendered by both the wide drawer body and the tabs-inline body.
     // Each group is a `ConfigAccordionSection` (the shared drawer section shell used by the trigger
     // and tools drawers); inside, configuration reads as the drawer's `[rail | content]` rhythm via
@@ -654,7 +610,7 @@ export function useModelHarness({
 
     const executionBody = (
         <>
-            {sandboxProps.kind ? (
+            {hasExecutionGroup ? (
                 <RailField label="Sandbox" align="center" path="sandbox.kind">
                     <EnumSelectControl
                         schema={sandboxProps.kind}
@@ -665,18 +621,6 @@ export function useModelHarness({
                         disabled={disabled}
                     />
                 </RailField>
-            ) : null}
-            {sandboxProps.permissions && sandbox.kind !== "local" ? (
-                <>
-                    {focus.active ? null : permissionOverrideHint}
-                    {/* Renders its knobs as peer RailField rows (Network egress / Filesystem
-                        / Enforcement) sharing this section's rail — no nested sub-form. */}
-                    <SandboxPermissionControl
-                        value={(sandbox.permissions as Record<string, unknown> | null) ?? null}
-                        onChange={(v) => setSection("sandbox", {...sandbox, permissions: v})}
-                        disabled={disabled}
-                    />
-                </>
             ) : null}
         </>
     )
@@ -699,48 +643,18 @@ export function useModelHarness({
                     />
                 </RailField>
             ) : null}
-            {hasClaudePermissions ? (
-                <>
-                    {/* Caption then peer rail rows (mode / allow / ask / deny) sharing the
-                        section rail — the control renders its own RailField rows. */}
-                    {focus.active ? null : (
-                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[12px] text-[var(--ant-color-primary-text)]">
-                            Claude harness
-                        </span>
-                    )}
-                    <ClaudePermissionsControl
-                        value={claudePermissions}
-                        onChange={setClaudePermissions}
-                        disabled={disabled}
-                        // Mode options + labels come from the harness `permissions`
-                        // sub-schema (`default_mode` enum) so they follow the template.
-                        modeSchema={
-                            (
-                                harnessProps.permissions?.properties as
-                                    | Record<string, SchemaProperty>
-                                    | undefined
-                            )?.default_mode
-                        }
-                    />
-                </>
-            ) : null}
-            {hasPiPermissions ? (
-                <>
-                    {focus.active ? null : (
-                        <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[12px] text-[var(--ant-color-primary-text)]">
-                            Pi harness
-                        </span>
-                    )}
-                    {/* Peer rail rows (allow / ask / deny) sharing the section rail. Each
-                        declares its config path, so a focus filter keeps the changed row. */}
-                    <PiPermissionsControl
-                        value={(harness.permissions as Record<string, unknown> | null) ?? null}
-                        onChange={(permissions) => setSection("harness", {...harness, permissions})}
-                        disabled={disabled}
-                    />
-                </>
-            ) : null}
         </>
+    )
+
+    const secretsBody = (
+        <AgentSecretsSection
+            revisionId={revisionId}
+            bindings={secretBindings}
+            disabled={disabled}
+            localDraftDirty={credentialOperationsBlocked}
+            canEditSecrets={permissions?.canEditSecrets ?? false}
+            onRevisionCommitted={handleCredentialRevisionCommitted}
+        />
     )
 
     const advancedControls = (
@@ -760,8 +674,7 @@ export function useModelHarness({
                           summary: sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined,
                           caption: (
                               <span className="text-xs leading-snug text-colorTextDescription">
-                                  Where the agent&apos;s tools and code run, and what that sandbox
-                                  may touch.
+                                  Where the agent&apos;s tools and code run.
                               </span>
                           ),
                       },
@@ -782,56 +695,15 @@ export function useModelHarness({
                     }
                     summaryCollapsedOnly
                 >
-                    <AgentSecretsSection
-                        revisionId={revisionId}
-                        bindings={secretBindings}
-                        disabled={disabled}
-                        localDraftDirty={credentialOperationsBlocked}
-                        canEditSecrets={permissions?.canEditSecrets ?? false}
-                        onRevisionCommitted={handleCredentialRevisionCommitted}
-                    />
+                    {secretsBody}
                 </ConfigAccordionSection>
             )}
-
-            {hasPermissionsGroup
-                ? advancedGroup(
-                      {
-                          inFocus: permissionsInFocus,
-                          defaultOpen: permissionsChanged,
-                          indicator: changedIndicator(permissionsChanged),
-                          extra: permissionsChanged ? revertAction(revertPermissions) : undefined,
-                          icon: <ShieldCheck size={15} />,
-                          title: "Permissions",
-                          summary: runnerPermissionSummary,
-                          caption: (
-                              <span className="text-xs leading-snug text-colorTextDescription">
-                                  What the agent may do on its own before it must ask.
-                              </span>
-                          ),
-                      },
-                      permissionsBody,
-                  )
-                : null}
         </>
     )
 
     // One rail panel per Advanced group, schema-gated: no group, no rail item and no panel.
     const advancedPanels: AdvancedPanel[] = (
         [
-            hasPermissionsGroup && {
-                item: {
-                    value: "permissions",
-                    label: "Permissions",
-                    icon: <ShieldCheck size={14} />,
-                    status: permissionsChanged ? ("warning" as const) : undefined,
-                },
-                header: {
-                    title: "Permissions",
-                    caption: "What the agent may do on its own before it must ask.",
-                    extra: revertAction(permissionsChanged ? revertPermissions : null),
-                },
-                body: permissionsBody,
-            },
             hasExecutionGroup && {
                 item: {
                     value: "execution",
@@ -841,8 +713,7 @@ export function useModelHarness({
                 },
                 header: {
                     title: "Execution environment",
-                    caption:
-                        "Where the agent's tools and code run, and what that sandbox may touch.",
+                    caption: "Where the agent's tools and code run.",
                     extra: revertAction(revertSandbox),
                 },
                 body: executionBody,
@@ -855,6 +726,22 @@ export function useModelHarness({
                 },
                 // The block carries its own title + enable switch, so it needs no panel header.
                 body: buildKitSection,
+            },
+            // Always a panel. The stacked body showed this section unconditionally, and the rail
+            // replaced that body — without a panel of its own it would have nowhere left to render.
+            {
+                item: {
+                    value: "secrets",
+                    label: "Custom secrets",
+                    icon: <Key size={14} />,
+                },
+                header: {
+                    title: "Custom secrets",
+                    caption: secretBindings.length
+                        ? `${secretBindings.length} attached to this agent.`
+                        : "Values this agent reads at run time. None attached.",
+                },
+                body: secretsBody,
             },
         ] as (AdvancedPanel | false)[]
     ).filter((panel): panel is AdvancedPanel => Boolean(panel))
@@ -923,8 +810,8 @@ export function useModelHarness({
     return {
         hasModelOrHarness,
         mcpSupported,
-        // The selected model's provider has a standard vault slot but no key yet — the config panel
-        // highlights the Model section and the chat gates on it until it's connected.
+        // Standard vault slot, no key yet: the config panel highlights the Model section. The chat
+        // composer gates on its own project-wide `gateActive`, not on this.
         needsProviderKey: providerNeedsKey,
         // A model is selected but its harness can't run it — a *model* problem, so the config panel
         // flags the Model section as invalid.
@@ -934,6 +821,10 @@ export function useModelHarness({
         // One column of connection rows; it needs no more room than the plain drawer.
         modelHarnessDrawerWidth: 560,
         hasAdvanced,
+        hasExecutionGroup,
+        hasPermissions: Boolean(runnerPermissionSchema),
+        permissionsBody,
+        runnerPermissionSummary,
         advancedSummary,
         advancedDrawerBody,
         // Rail + one panel at a time: no wider than the Model drawer.

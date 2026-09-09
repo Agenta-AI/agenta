@@ -196,10 +196,9 @@ const RailTab = ({
         <SessionRowContextMenu
             entries={menuFor?.(vm)}
             onSelect={(key) => {
-                if (key === "rename" && onRename) {
-                    startRename()
-                    return
-                }
+                // Deferred, not run here: an input that mounts inside the menu's focus trap is
+                // blurred straight back out, and a blur commits. See `useDeferredMenuSelect`.
+                if (key === "rename" && onRename) return () => startRename()
                 onMenuSelect?.(vm, key)
             }}
         >
