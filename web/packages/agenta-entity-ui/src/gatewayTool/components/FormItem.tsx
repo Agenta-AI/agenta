@@ -46,7 +46,7 @@ export function FormItem({
 
                 return (
                     <FieldChrome
-                        // No `required` asterisk — SchemaForm's FieldLabel carries the word marker.
+                        // No `required` asterisk: these schemas mark nothing on the label.
                         label={hideLabel ? undefined : label}
                         error={error}
                         className={className}
