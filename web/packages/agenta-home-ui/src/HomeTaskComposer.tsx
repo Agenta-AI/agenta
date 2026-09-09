@@ -1,8 +1,8 @@
-import {useMemo, useState, type ReactNode, type RefObject} from "react"
+import {useMemo, type ReactNode, type RefObject} from "react"
 
 import {ChatComposer} from "@agenta/chat/components"
 import type {useComposerAttachments} from "@agenta/chat/hooks"
-import {AgentPicker} from "@agenta/entity-ui/agent"
+import {AgentChip} from "@agenta/entity-ui/agent"
 import {Button} from "@agenta/ui/ui"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {RobotIcon, XIcon} from "@phosphor-icons/react"
@@ -33,9 +33,8 @@ export interface HomeTaskComposerProps {
     fixedAgentId?: string
     /** Placeholder override; a pinned host names the agent it is talking to. */
     placeholder?: string
-    /** The bound agent, when the host drives the selection (Home's list binds it by clicking). */
+    /** The bound agent. The HOST owns the selection — Home's list is what changes it. */
     agentId?: string | null
-    onAgentChange?: (agentId: string) => void
     /**
      * `create` turns the same composer into "describe an agent": the picker becomes a cancellable
      * "New agent" pill and send creates instead of starting. A separate create composer beside
@@ -54,11 +53,10 @@ const CREATE_PLACEHOLDER = "Describe the agent you want — what it does, when i
 /**
  * Home's primary action: describe a task, pick the agent to run it, send.
  *
- * The picker rides the composer's prefix (left), leaving the send button where it always is —
- * the send affordance is the one the rest of the app teaches, and a bespoke "Start" button
- * beside it would be a second way to do the same thing. The picker is the app's ONE
- * `AgentPicker`, not a local select: a second list of the same agents is how two surfaces stop
- * agreeing on what an agent looks like.
+ * Which agent it is aimed at is NAMED in a strip docked under the input, not picked there: the
+ * list below the composer is what binds one, and a dropdown here was a second way to do the same
+ * thing that also hid the fact that the rows do it. The send button stays where it always is —
+ * that affordance is the one the rest of the app teaches.
  *
  * Two modes, one input. `task` runs work with an agent that exists; `create` describes one to
  * make. Create used to live inside the picker as a hidden option, which meant send did two
@@ -73,84 +71,82 @@ export const HomeTaskComposer = ({
     extraPrefix,
     fixedAgentId,
     placeholder = "Describe the task, or start the conversation…",
-    agentId: controlledAgentId,
-    onAgentChange,
+    agentId,
     mode = "task",
     onCreate,
     onCancelCreate,
     inputRef,
 }: HomeTaskComposerProps) => {
-    const [ownAgentId, setOwnAgentId] = useState<string | null>(null)
-    const agentId = controlledAgentId !== undefined ? controlledAgentId : ownAgentId
-
     // Default to the most recently touched agent — the one you're most likely to want next.
-    // A pick only counts while it is still in the list: an agent deleted (or filtered out) under
-    // the composer otherwise left the trigger blank and sent the task to an agent that is gone.
+    // A binding only counts while it is still in the list: an agent deleted (or filtered out)
+    // under the composer otherwise left the strip blank and sent the task to an agent that is gone.
     const picked = agentId && agents.some((agent) => agent.id === agentId) ? agentId : null
     const effectiveAgentId = fixedAgentId ?? picked ?? agents[0]?.id ?? null
     const creating = mode === "create"
 
-    const setAgentId = useMemo(
-        () => onAgentChange ?? setOwnAgentId,
-        [onAgentChange],
+    const selectedName = useMemo(
+        () => agents.find((agent) => agent.id === effectiveAgentId)?.name,
+        [agents, effectiveAgentId],
     )
 
+    const bound =
+        creating ? (
+            <span className="flex items-center gap-1.5 rounded-control bg-muted py-0.5 pl-1.5 pr-0.5 text-[13px] font-medium text-foreground">
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-control-sm bg-colorFillSecondary text-muted-foreground">
+                    <RobotIcon aria-hidden size={13} />
+                </span>
+                New agent
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-5"
+                    aria-label="Cancel creating an agent"
+                    onClick={onCancelCreate}
+                >
+                    <XIcon size={13} />
+                </Button>
+            </span>
+        ) : fixedAgentId || !effectiveAgentId ? null : (
+            // Named, not picked: the list below IS the picker, and a dropdown here offered a
+            // second way to do the same thing while hiding that the rows do it.
+            <span className="flex min-w-0 items-center gap-1.5 pl-1 text-[13px] font-medium text-foreground">
+                <AgentChip workflowId={effectiveAgentId} box="size-5" glyph={13} />
+                <span className="min-w-0 truncate">{selectedName}</span>
+            </span>
+        )
+
     return (
-        <ChatComposer
-            inputRef={inputRef}
-            onSubmit={async (text) => {
-                try {
-                    if (creating) {
-                        await onCreate?.({text})
-                        return
+        <div className="flex flex-col">
+            <ChatComposer
+                inputRef={inputRef}
+                onSubmit={async (text) => {
+                    try {
+                        if (creating) {
+                            await onCreate?.({text})
+                            return
+                        }
+                        if (!effectiveAgentId) return
+                        await onStart({agentId: effectiveAgentId, text})
+                    } catch (error) {
+                        // `ChatComposer.onSubmit` is fire-and-forget, so a rejecting host would
+                        // surface as an unhandled rejection and nothing else.
+                        onStartError?.(error)
                     }
-                    if (!effectiveAgentId) return
-                    await onStart({agentId: effectiveAgentId, text})
-                } catch (error) {
-                    // `ChatComposer.onSubmit` is fire-and-forget, so a rejecting host would
-                    // surface as an unhandled rejection and nothing else.
-                    onStartError?.(error)
-                }
-            }}
-            attachments={attachments}
-            placeholder={creating ? CREATE_PLACEHOLDER : placeholder}
-            disabled={!creating && !effectiveAgentId}
-            extraPrefix={
-                creating ? (
-                    <span className="flex items-center gap-1 rounded-control bg-muted py-1 pl-2 pr-1 text-[13px] font-medium text-foreground">
-                        <span className="flex size-5 shrink-0 items-center justify-center rounded-control-sm bg-colorFillSecondary text-muted-foreground">
-                            <RobotIcon aria-hidden size={13} />
-                        </span>
-                        New agent
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-5"
-                            aria-label="Cancel creating an agent"
-                            onClick={onCancelCreate}
-                        >
-                            <XIcon size={13} />
-                        </Button>
-                        {extraPrefix}
-                    </span>
-                ) : fixedAgentId ? (
-                    extraPrefix
-                ) : (
-                    <span className="flex items-center gap-1">
-                        <AgentPicker
-                            trigger="pill"
-                            density="compact"
-                            value={effectiveAgentId}
-                            onChange={setAgentId}
-                            triggerAriaLabel="Agent"
-                            // The composer's own surface already reads as a field; a filled pill
-                            // inside it makes a second box within a box.
-                            triggerClassName="bg-transparent hover:bg-muted"
-                        />
-                        {extraPrefix}
-                    </span>
-                )
-            }
-        />
+                }}
+                attachments={attachments}
+                placeholder={creating ? CREATE_PLACEHOLDER : placeholder}
+                disabled={!creating && !effectiveAgentId}
+                extraPrefix={extraPrefix}
+            />
+            {/* Docked UNDER the composer, not inside its footer: what the message is aimed at is a
+                standing fact about the composer, and in the footer it competed for the same row as
+                the actions you take on this one message. Tucked under the composer's radius so the
+                two read as one object. */}
+            {bound ? (
+                <div className="-mt-2 flex items-center gap-2 rounded-b-lg bg-[var(--ag-colorFillSecondary)] px-2.5 pb-2 pt-4">
+                    {bound}
+                </div>
+            ) : null}
+        </div>
     )
 }

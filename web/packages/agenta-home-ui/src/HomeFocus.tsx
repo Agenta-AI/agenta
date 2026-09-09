@@ -124,7 +124,6 @@ export const HomeFocus = ({
                             agents={agents.map((agent) => ({id: agent.id, name: agent.name}))}
                             attachments={attachments}
                             agentId={agentId}
-                            onAgentChange={selectAgent}
                             mode={creating ? "create" : "task"}
                             onCreate={async (input) => {
                                 await onCreateFromPrompt(input)
