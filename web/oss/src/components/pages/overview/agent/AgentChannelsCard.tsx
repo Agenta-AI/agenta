@@ -7,7 +7,11 @@ import {
 } from "@agenta/settings-ui"
 import {Drawer} from "antd"
 
-import {createTelegramHostedBindLink, queryChannelConnections} from "@/oss/state/channels/api"
+import {
+    archiveChannelConnection,
+    createTelegramHostedBindLink,
+    queryChannelConnections,
+} from "@/oss/state/channels/api"
 
 /**
  * The agent page's Channels section: the designed connect screen, wired to the real
@@ -31,6 +35,7 @@ function mapConnections(rows: any[]): DesignChannelConnections {
         // one connection per platform in the design; first active wins
         if (out[platform] && out[platform]?.status === "connected") continue
         out[platform] = {
+            connectionId: row?.id,
             platform,
             kind: flags?.is_hosted ? "hosted" : "custom",
             status: flags?.is_active === false ? "revoked" : "connected",
@@ -88,11 +93,19 @@ const AgentChannelsCard = ({appId}: {appId: string}) => {
         [appId],
     )
 
+    const onDisconnect = useCallback(
+        async (_platform: string, connectionId?: string) => {
+            if (connectionId) await archiveChannelConnection(connectionId)
+        },
+        [],
+    )
+
     return (
         <ChannelsPage
             initialConnections={connections}
             renderPanel={renderPanel}
             onConnectHostedTelegram={onConnectHostedTelegram}
+            onDisconnect={onDisconnect}
         />
     )
 }

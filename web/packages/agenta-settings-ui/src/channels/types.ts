@@ -27,6 +27,8 @@ export interface ChannelChat {
 }
 
 export interface ChannelConnection {
+    /** Backend connection id, so the host can archive it on disconnect. */
+    connectionId?: string
     platform: ChannelPlatform
     kind: ChannelInstallMode
     status: ChannelStatus

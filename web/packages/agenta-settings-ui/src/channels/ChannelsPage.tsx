@@ -39,6 +39,8 @@ export interface ChannelsPageProps {
     renderPanel: (props: ChannelsPanelRenderProps) => React.ReactNode
     /** Real action: mint the hosted-Telegram bind link. Omit for the placeholder flow. */
     onConnectHostedTelegram?: () => Promise<{url: string} | undefined>
+    /** Real action: disconnect (archive) a platform's connection. */
+    onDisconnect?: (platform: ChannelPlatform, connectionId?: string) => Promise<void> | void
 }
 
 const PLATFORMS: ChannelPlatform[] = ["slack", "telegram"]
@@ -50,6 +52,7 @@ export const ChannelsPage = ({
     forceInstallError = false,
     renderPanel,
     onConnectHostedTelegram,
+    onDisconnect,
 }: ChannelsPageProps) => {
     const [connections, setConnections] = useState<ChannelConnections>(initialConnections)
     const [activePlatform, setActivePlatform] = useState<ChannelPlatform | null>(null)
@@ -140,7 +143,16 @@ export const ChannelsPage = ({
                               agentName={agentName}
                               workspaceName={workspaceName}
                               onChange={(next) => setConnection(activePlatform, next)}
-                              onDisconnect={() => {
+                              onDisconnect={async () => {
+                                  try {
+                                      await onDisconnect?.(
+                                          activePlatform,
+                                          active?.connectionId,
+                                      )
+                                  } catch {
+                                      /* keep the panel open on failure */
+                                      return
+                                  }
                                   setConnection(activePlatform, null)
                                   close()
                               }}
