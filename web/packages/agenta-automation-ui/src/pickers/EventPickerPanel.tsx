@@ -206,8 +206,15 @@ export const EventPickerPanel = ({
 
     return (
         <div className="flex min-h-0 flex-col">
-            <div className="flex min-h-0 flex-1 flex-col gap-2.5 p-2.5">
-                <div className="flex min-h-0 flex-1 gap-[10px]">
+            {/* The panel body is the only scroller, and only downward: the panes inside grow to
+                their content so a filter form never gets a scrollbar of its own that cuts a field
+                in half, and overflow-x is pinned because setting overflow-y alone computes the
+                other axis to auto — which bought a 6px sideways scroll on nothing. */}
+            <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overflow-x-hidden p-2.5">
+                {/* Height comes from the taller pane, not from the box around it: as `flex-1` of a
+                    scrolling body the row stopped at the visible height, and the rail's rule
+                    ended mid-panel while the form ran on past it. */}
+                <div className="flex flex-1 items-stretch gap-[10px]">
                     {/* The rail never goes away: the search belongs to the app selected in it,
                         so hiding it would take away the one control that changes the scope. */}
                     <EventAppRail
@@ -219,7 +226,7 @@ export const EventPickerPanel = ({
                     />
                     {/* Only the right pane changes once an event is chosen — the rail stays put. */}
                     {showFilters ? (
-                        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto">
+                        <div className="flex min-w-0 flex-1 flex-col gap-2">
                             <div className="flex flex-col gap-1">
                                 <button
                                     type="button"

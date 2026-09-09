@@ -59,13 +59,15 @@ export const PickerOverlay = ({
                 <PopoverContent
                     align="start"
                     aria-label={title}
+                    collisionPadding={16}
                     // As wide as the control that opened it: a menu narrower than its own field
                     // reads as a different surface rather than that field, opened.
                     // Radix does not bound a popover's height, so a long event list ran off the
                     // bottom of the window. `available-height` is the room left below the
                     // trigger, less a margin so the panel never sits flush against the window
                     // edge; the panes inside flex within it rather than each capping themselves
-                    // at a guess.
+                    // at a guess. Bounding by the viewport instead was tried and is worse: the
+                    // panel then hangs past the bottom of the window and takes Done with it.
                     className={cn(
                         "flex max-h-[calc(var(--radix-popover-content-available-height)-16px)] w-[var(--radix-popover-trigger-width)] flex-col gap-0 overflow-hidden p-0",
                         contentClassName,
