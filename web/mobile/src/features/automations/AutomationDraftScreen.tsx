@@ -7,6 +7,7 @@ import {
     AutomationTriggerDrawers,
     useAutomationCreate,
 } from "@agenta/automation-ui"
+import {LoaderCircle} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -83,6 +84,13 @@ export const AutomationDraftScreen = ({
                                             title={state.blockedReason || undefined}
                                             onClick={() => void onCreate()}
                                         >
+                                            {/* Creating writes a trigger and, for a schedule,
+                                                its first run — long enough that a button which
+                                                only greys out reads as broken. Sized by class:
+                                                lucide's `size` prop leaves the svg em-scaled. */}
+                                            {state.saving ? (
+                                                <LoaderCircle className="size-3 animate-spin" />
+                                            ) : null}
                                             Create automation
                                         </Button>
                                     </span>

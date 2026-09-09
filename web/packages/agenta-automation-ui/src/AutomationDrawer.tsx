@@ -6,7 +6,7 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button} from "@agenta/ui/ui"
+import {Button, LoadingButton} from "@agenta/ui/ui"
 import {useAtom, useAtomValue} from "jotai"
 
 import {AutomationCreateBody} from "./AutomationCreateBody"
@@ -257,15 +257,16 @@ const AutomationCreateDrawer = ({
                     {/* A disabled button takes no pointer events, so the reason has to hang off
                         something that does. */}
                     <span title={state.blockedReason || undefined}>
-                        <Button
+                        <LoadingButton
                             type="button"
                             className="font-normal"
-                            disabled={!!state.blockedReason || state.saving}
+                            loading={state.saving}
+                            disabled={!!state.blockedReason}
                             title={state.blockedReason || undefined}
                             onClick={() => void state.create().then((made) => made && onClose())}
                         >
                             Create automation
-                        </Button>
+                        </LoadingButton>
                     </span>
                 </div>
             }
