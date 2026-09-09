@@ -78,8 +78,8 @@ screenshot before marking a UI step done (UI changes need browser QA).
   install redirect), custom Telegram (createChannelConnection + bot token),
   behavior switches (map dm/group to grants/policy), disconnect (archive).
 - [~] F3: mapConnections reads real rows; hosted-Telegram CONNECT is wired to
-  the real bind link (compiles on the stack). REMAINING: browser QA, QR image,
-  disconnect (archive), Slack connect, behavior switches. Original F3 text:
+  the real bind link (compiles on the stack). hosted-Telegram CONNECT + DISCONNECT wired (compile-verified). REMAINING:
+  browser QA (needs a live session), QR image, Slack connect, behavior switches. Original F3 text:
   Map the design's simple model to the backend: design ChannelConnections
   {slack,telegram:{kind,status,dm,group,chats}} <- connections + agents + grants +
   policy + spaces. Replace the components' placeholder local state with the real
