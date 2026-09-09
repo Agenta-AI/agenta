@@ -53,7 +53,7 @@ export const AutomationRunList = ({
                 groups.map((group) => (
                     <section key={group.key} className="mb-1 last:mb-0">
                         {group.label ? (
-                            <h2 className="m-0 flex items-center gap-1.5 pb-1 pl-2.5 pt-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                            <h2 className="m-0 flex items-center gap-1.5 pb-1 pl-2.5 pt-3 text-[12px] font-medium capitalize text-muted-foreground">
                                 {group.label}
                             </h2>
                         ) : null}
