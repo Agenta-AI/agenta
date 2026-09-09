@@ -16,6 +16,9 @@ const APPEND_MS = 70
 const VOICE_BAND = 0.55
 /** Speech rarely pins the analyser, so lift the range into something legible. */
 const GAIN = 2.2
+/** Bar thickness. Stated rather than derived from the slice count, so the strip reads as fine
+ * lines at any width and the leftover space becomes the gaps. */
+const BAR_WIDTH = 2.5
 
 type RoundRectCtx = CanvasRenderingContext2D & {
     roundRect?: (x: number, y: number, w: number, h: number, radii: number) => void
@@ -89,8 +92,9 @@ const RecordingWaveform = ({
             const width = canvas.clientWidth
             const height = canvas.clientHeight
             const mid = height / 2
-            const gap = 2
-            const barWidth = Math.max(1, (width - gap * (HISTORY - 1)) / HISTORY)
+            const barWidth = Math.max(1, Math.min(BAR_WIDTH, width / HISTORY))
+            // The remainder, so the strip still spans the full width at whatever size it is given.
+            const gap = HISTORY > 1 ? Math.max(1, (width - barWidth * HISTORY) / (HISTORY - 1)) : 0
             const radius = barWidth / 2
             const rounded = ctx as RoundRectCtx
 
