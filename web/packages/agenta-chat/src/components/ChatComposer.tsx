@@ -242,7 +242,7 @@ export const ChatComposer = ({
                                 >
                                     {/* The horizontal clip turned upright: a right angle off a true horizontal stands
                                     exactly vertical, where the default diagonal one only approximates it. */}
-                                    <PaperclipHorizontal size={16} className="rotate-90" />
+                                    <PaperclipHorizontal size={16} className="-rotate-90" />
                                 </Button>
                             </SimpleTooltip>
                         )}
