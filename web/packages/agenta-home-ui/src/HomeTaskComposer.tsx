@@ -89,61 +89,64 @@ export const HomeTaskComposer = ({
         [agents, effectiveAgentId],
     )
 
-    const bound =
-        creating ? (
-            <span className="flex items-center gap-1.5 rounded-control bg-muted py-0.5 pl-1.5 pr-0.5 text-[13px] font-medium text-foreground">
-                <span className="flex size-5 shrink-0 items-center justify-center rounded-control-sm bg-colorFillSecondary text-muted-foreground">
-                    <RobotIcon aria-hidden size={13} />
-                </span>
-                New agent
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-5"
-                    aria-label="Cancel creating an agent"
-                    onClick={onCancelCreate}
-                >
-                    <XIcon size={13} />
-                </Button>
+    const bound = creating ? (
+        <span className="flex items-center gap-1.5 rounded-control bg-muted py-0.5 pl-1.5 pr-0.5 text-[13px] font-medium text-foreground">
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-control-sm bg-colorFillSecondary text-muted-foreground">
+                <RobotIcon aria-hidden size={13} />
             </span>
-        ) : fixedAgentId || !effectiveAgentId ? null : (
-            // Named, not picked: the list below IS the picker, and a dropdown here offered a
-            // second way to do the same thing while hiding that the rows do it.
-            <span className="flex min-w-0 items-center gap-1.5 pl-1 text-[13px] font-medium text-foreground">
-                <AgentChip workflowId={effectiveAgentId} box="size-5" glyph={13} />
-                <span className="min-w-0 truncate">{selectedName}</span>
-            </span>
-        )
+            New agent
+            <Button
+                variant="ghost"
+                size="icon"
+                className="size-5"
+                aria-label="Cancel creating an agent"
+                onClick={onCancelCreate}
+            >
+                <XIcon size={13} />
+            </Button>
+        </span>
+    ) : fixedAgentId || !effectiveAgentId ? null : (
+        // Named, not picked: the list below IS the picker, and a dropdown here offered a
+        // second way to do the same thing while hiding that the rows do it.
+        <span className="flex min-w-0 items-center gap-1.5 pl-1 text-[13px] font-medium text-foreground">
+            <AgentChip workflowId={effectiveAgentId} box="size-5" glyph={13} />
+            <span className="min-w-0 truncate">{selectedName}</span>
+        </span>
+    )
 
     return (
-        <div className="flex flex-col">
-            <ChatComposer
-                inputRef={inputRef}
-                onSubmit={async (text) => {
-                    try {
-                        if (creating) {
-                            await onCreate?.({text})
-                            return
+        <div className="relative flex flex-col">
+            {/* Lifted, so the dock behind it stays behind it. */}
+            <div className="relative z-10">
+                <ChatComposer
+                    inputRef={inputRef}
+                    onSubmit={async (text) => {
+                        try {
+                            if (creating) {
+                                await onCreate?.({text})
+                                return
+                            }
+                            if (!effectiveAgentId) return
+                            await onStart({agentId: effectiveAgentId, text})
+                        } catch (error) {
+                            // `ChatComposer.onSubmit` is fire-and-forget, so a rejecting host would
+                            // surface as an unhandled rejection and nothing else.
+                            onStartError?.(error)
                         }
-                        if (!effectiveAgentId) return
-                        await onStart({agentId: effectiveAgentId, text})
-                    } catch (error) {
-                        // `ChatComposer.onSubmit` is fire-and-forget, so a rejecting host would
-                        // surface as an unhandled rejection and nothing else.
-                        onStartError?.(error)
-                    }
-                }}
-                attachments={attachments}
-                placeholder={creating ? CREATE_PLACEHOLDER : placeholder}
-                disabled={!creating && !effectiveAgentId}
-                extraPrefix={extraPrefix}
-            />
+                    }}
+                    attachments={attachments}
+                    placeholder={creating ? CREATE_PLACEHOLDER : placeholder}
+                    disabled={!creating && !effectiveAgentId}
+                    extraPrefix={extraPrefix}
+                />
+            </div>
             {/* Docked UNDER the composer, not inside its footer: what the message is aimed at is a
                 standing fact about the composer, and in the footer it competed for the same row as
-                the actions you take on this one message. Tucked under the composer's radius so the
-                two read as one object. */}
+                the actions you take on this one message. It slides BEHIND the composer — same
+                border, no fill of its own — so the composer keeps its own shape and only the
+                dock's sides and foot show below it. */}
             {bound ? (
-                <div className="-mt-2 flex items-center gap-2 rounded-b-lg bg-[var(--ag-colorFillSecondary)] px-2.5 pb-2 pt-4">
+                <div className="-mt-3 flex items-center gap-2 rounded-b-lg border border-solid border-[var(--ag-composer-border)] bg-transparent px-2.5 pb-2 pt-5">
                     {bound}
                 </div>
             ) : null}
