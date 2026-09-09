@@ -315,3 +315,23 @@ The hosted bot is code-complete, unit-tested (871 channels+secrets), persistence
 Postgres, and live-verified end to end. Branch channels/telegram-hosted.
 Note: this dev stack now runs the test bot as the hosted bot (local override, gitignored). The
 custom-bot PR #6679 is independent and already verified/merge-ready.
+
+## Hosted bot reviews addressed (2026-09-09)
+Codex (gpt-astra, xhigh) reviewed the hosted CODE and found two P1s and several P2/P3s; it even
+reproduced a cross-project race against Postgres. All fixed in commit 4e86104f18:
+- P1 group sender -> hosted flow drops non-private chats (v1 private-only; exact attribution).
+- P1 concurrent-bind race -> consume_token_and_bind validates binding ownership inside the
+  transaction and rolls back the loser; expiry added to the consume predicate. Re-proven against
+  Postgres under true concurrency: one wins, one refused, one binding, one link, one token used.
+- P2 fresh-link replay -> a fresh token on an already-connected chat is refused
+  (ChatAlreadyConnected), not a phantom success; a consumed token stays idempotent.
+- P2 reconnect -> ensure reuses and unarchives an archived hosted connection.
+- P2 username -> enabled requires a username; adapter strips a leading @.
+- P3 -> /start parser no longer crashes on whitespace.
+- simplify -> custom ingest path reuses _record_and_enqueue.
+CodeRabbit posted 4 findings on the PR; all addressed (the DTOs moved to models.py in
+e7ca80edf7; the other 3 were the same items Codex raised). All PR threads resolved.
+Live re-verified after the fixes: the bound chat still answers ("STILLWORKS", ~8s). 875
+channels+secrets unit tests pass. PR #6724 is reviewed, tested, and live-verified.
+Known v1 limits (documented, accepted): hosted is private chats only; a chat cannot be rebound
+to a different project until its binding is released (disconnect binding cleanup is a follow-up).
