@@ -48,14 +48,36 @@ Backend — Slack:
   served on the stack.
 - [ ] Live re-verify Slack end to end on this stack (not re-done yet this round).
 
-Frontend — the new design on the AGENT PAGE:
-- [ ] Wire the first-pass design (agenta-settings-ui/channels components) onto the
-  AGENT PAGE, connected to the real backend (connections, agents, hosted bind
-  link) for BOTH Slack and Telegram.
-- [ ] Desktop and /m parity.
-- [ ] Light and dark mode.
-- [ ] Storybook entries.
-- [ ] Leave the old Settings channels screen in place, untouched.
+Frontend — the new design on the AGENT PAGE (branch channels/telegram-ui):
+Sequenced build plan. Each step ends committed + verified; deploy to the stack and
+screenshot before marking a UI step done (UI changes need browser QA).
+- [ ] F1 Place the first-pass design components into web/packages/agenta-settings-ui/
+  src/channels/ (ChannelsPage, ChannelConnectFlow, ChannelManagePanel, helpers,
+  icons, types, index). Package already has @agenta/ui + phosphor. Do NOT export
+  from the package index until wired, so the app build is untouched. Verify the
+  web container still builds.
+- [ ] F2 Data layer. The real calls exist in web/oss/src/state/channels/api.ts
+  (connections, agents, spaces, grants, policy). ADD the hosted bind-link call
+  (POST /catalog/channels/telegram_hosted/bind-link/) — NOT in the generated
+  client yet, so add a direct authed call (getAgentaApiUrl + JWT + project_id),
+  clearly marked, or regenerate the client if low-risk. Build read/mutate hooks:
+  list connections, connect hosted Telegram (mint link), connect Slack (hosted
+  install redirect), custom Telegram (createChannelConnection + bot token),
+  behavior switches (map dm/group to grants/policy), disconnect (archive).
+- [ ] F3 Map the design's simple model to the backend: design ChannelConnections
+  {slack,telegram:{kind,status,dm,group,chats}} <- connections + agents + grants +
+  policy + spaces. Replace the components' placeholder local state with the real
+  queries/mutations. Keep the design's look.
+- [ ] F4 Mount on the AGENT PAGE (desktop). Find the agent detail/overview page
+  (components/pages/overview/agent or the agent view), add a "Channels"/"Connect"
+  section rendering ChannelsPage with an antd/@agenta drawer as renderPanel.
+- [ ] F5 Mount on /m (web/mobile/src/features/agents/AgentOverviewScreen.tsx) with
+  a bottom-sheet renderPanel. Desktop + /m parity.
+- [ ] F6 Light + dark mode pass; Storybook entries for the components.
+- [ ] F7 Leave the old Settings channels screen in place, untouched.
+Mount point notes: desktop agents list = pages/.../agents -> components/pages/agents/
+AgentsPage; agent detail/overview TBD (find it in F4). /m agent overview =
+features/agents/AgentOverviewScreen.tsx.
 
 Cross-cutting:
 - [ ] Codex (gpt-astra) review of the new frontend + disconnect fix.
