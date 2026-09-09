@@ -12,8 +12,8 @@ const Row = ({width}: {width: string}) => (
 )
 
 /**
- * Home's placeholder, drawn from `HomeFocus`'s own geometry: the greeting block, the composer with
- * its dock, the tab row, then five rows in the list. Every measurement is the one the real page
+ * Home's placeholder, drawn from `HomeFocus`'s own geometry: the greeting block, the composer,
+ * the tab row, then five rows in the list. Every measurement is the one the real page
  * uses — the 620px column, the 26px gaps, the 114px composer, the 34px tiles — so content replaces
  * this without moving anything.
  */
@@ -25,11 +25,9 @@ export const HomeSkeleton = ({className}: {className?: string}) => (
                 <Skeleton className="h-[30px] w-3/4 max-w-[360px]" />
             </div>
 
-            <div>
-                <Skeleton className="h-[114px] w-full rounded-lg" />
-                {/* The dock, at the height it shows below the composer it tucks behind. */}
-                <Skeleton className="mx-px h-9 w-[calc(100%-2px)] rounded-b-lg" />
-            </div>
+            {/* No dock: it names the bound agent, which is exactly what is not known yet. A bar
+                standing in for it would promise a second row that may not arrive. */}
+            <Skeleton className="h-[114px] w-full rounded-lg" />
 
             <div className="-mx-2 flex flex-col gap-2">
                 <div className="mb-1 mx-2 flex items-center gap-5 border-0 border-b border-solid border-b-[var(--ag-colorSplit)] px-1.5 pb-[7px]">
