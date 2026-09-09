@@ -64,9 +64,9 @@ screenshot before marking a UI step done (UI changes need browser QA).
   list connections, connect hosted Telegram (mint link), connect Slack (hosted
   install redirect), custom Telegram (createChannelConnection + bot token),
   behavior switches (map dm/group to grants/policy), disconnect (archive).
-- [~] F3 Mapping started: mapConnections turns backend rows into the design
-  per-platform shape (read). REMAINING: wire connect (telegram hosted -> bind
-  link), disconnect (archive), behavior switches. Original F3 text:
+- [~] F3: mapConnections reads real rows; hosted-Telegram CONNECT is wired to
+  the real bind link (compiles on the stack). REMAINING: browser QA, QR image,
+  disconnect (archive), Slack connect, behavior switches. Original F3 text:
   Map the design's simple model to the backend: design ChannelConnections
   {slack,telegram:{kind,status,dm,group,chats}} <- connections + agents + grants +
   policy + spaces. Replace the components' placeholder local state with the real
