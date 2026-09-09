@@ -17,7 +17,6 @@ interface RowInputs {
     projectURL: string
     dragZone?: string
     wrapRow?: SidebarRowWrappers[string]
-    rowIcon?: SidebarRowIcons[string]
 }
 
 /**
@@ -34,7 +33,7 @@ interface RowInputs {
 interface EntityRowCache {
     rows: Map<string, {ref: SidebarEntityRef; inputs: RowInputs; row: SidebarConfig}>
     /** The chrome the cached rows closed over — closures, so they cannot go in a comparison. */
-    chrome: {wrapRow?: RowInputs["wrapRow"]; rowIcon?: RowInputs["rowIcon"]}
+    chrome: {wrapRow?: RowInputs["wrapRow"]}
 }
 
 /** Shallow field comparison — refs are flat records, so this settles it without serializing. */
@@ -58,10 +57,7 @@ export const resetSidebarRowCache = (): void => {
 const ROW_CACHE_MAX = 2_000
 
 const sameRowInputs = (a: RowInputs, b: RowInputs): boolean =>
-    a.projectURL === b.projectURL &&
-    a.dragZone === b.dragZone &&
-    a.wrapRow === b.wrapRow &&
-    a.rowIcon === b.rowIcon
+    a.projectURL === b.projectURL && a.dragZone === b.dragZone && a.wrapRow === b.wrapRow
 
 const cachedRow = (
     entity: SidebarEntity,
@@ -70,12 +66,8 @@ const cachedRow = (
     build: (ref: SidebarEntityRef, dragZone?: string) => SidebarConfig,
 ): SidebarConfig => {
     let cache = rowCaches.get(entity)
-    if (
-        !cache ||
-        cache.chrome.wrapRow !== inputs.wrapRow ||
-        cache.chrome.rowIcon !== inputs.rowIcon
-    ) {
-        cache = {rows: new Map(), chrome: {wrapRow: inputs.wrapRow, rowIcon: inputs.rowIcon}}
+    if (!cache || cache.chrome.wrapRow !== inputs.wrapRow) {
+        cache = {rows: new Map(), chrome: {wrapRow: inputs.wrapRow}}
         rowCaches.set(entity, cache)
     }
 
@@ -147,18 +139,15 @@ export type SidebarKindIcon = (kind: SidebarEntity["kind"]) => ReactNode
  * playground's local tab cache. Same seam as `localSessionRefsAtom`: the package composes what
  * it is given.
  */
-/** Per-row icon renderers, injected by the app: this package stays headless and only calls them. */
-export type SidebarRowIcons = Record<string, (ref: SidebarEntityRef) => ReactElement>
-
 export type SidebarRowWrappers = Record<
     string,
     (ref: SidebarEntityRef, node: ReactNode) => ReactElement
 >
 
 /**
- * Maps one entity's gated source to menu children. Always returns ≥1 child — an
- * empty submenu would strip the parent's expand caret, leaving no way to open the
- * group (and so no way to trigger the gated fetch). Placeholders are disabled.
+ * Maps one entity's gated source to menu children. Returns ≥1 child unless the entity sets
+ * `hideWhenEmpty` — an empty submenu strips the parent's expand caret, leaving no way to open
+ * the group (and so no way to trigger the gated fetch). Placeholders are disabled.
  */
 export const resolveChildren = (
     entity: SidebarEntity,
@@ -167,7 +156,6 @@ export const resolveChildren = (
     idleFallback?: SidebarConfig[],
     kindIcon?: SidebarKindIcon,
     wrapRow?: SidebarRowWrappers[string],
-    rowIcon?: SidebarRowIcons[string],
 ): SidebarConfig[] => {
     const icon = () => entity.icon ?? kindIcon?.(entity.kind)
     const status = source?.status ?? "idle"
@@ -215,6 +203,9 @@ export const resolveChildren = (
 
     const refs = source?.refs ?? []
     if (!refs.length) {
+        // A source that names its own empty state is telling the reader something they have to
+        // act on — a filter that matched nothing. Only the generic "no rows at all" is silent.
+        if (entity.hideWhenEmpty && !source?.emptyLabel) return []
         return [
             {
                 key: `${entity.parentKey}-empty`,
@@ -243,7 +234,7 @@ export const resolveChildren = (
         link: entity.childLink(ref, projectURL),
         // A row can own more routes than it navigates to.
         matchLinks: entity.childMatchLinks?.(ref, projectURL),
-        icon: rowIcon?.(ref) ?? entity.getIcon?.(ref) ?? icon(),
+        icon: entity.getIcon?.(ref) ?? icon(),
         rowClassName: entity.getRowClassName?.(ref),
         isDynamic: true,
         onClick: entity.getOnClick?.(ref),
@@ -257,7 +248,7 @@ export const resolveChildren = (
     // A ref whose identity survived the poll keeps its row object, so `React.memo` on the row
     // components holds instead of re-rendering the whole list every 15s.
     const toRow = (ref: SidebarEntityRef, dragZone?: string): SidebarConfig =>
-        cachedRow(entity, ref, {projectURL, dragZone, wrapRow, rowIcon}, buildRow)
+        cachedRow(entity, ref, {projectURL, dragZone, wrapRow}, buildRow)
 
     const children: SidebarConfig[] =
         entity.getGroupKey && source?.groups?.length
@@ -286,13 +277,11 @@ export const useSidebarDynamicChildren = ({
     projectURL,
     kindIcon,
     rowWrappers,
-    rowIcons,
 }: {
     /** The active project's URL prefix — route shape is shared, the base is the app's. */
     projectURL: string | undefined
     kindIcon?: SidebarKindIcon
     rowWrappers?: SidebarRowWrappers
-    rowIcons?: SidebarRowIcons
 }): Record<string, SidebarConfig[]> => {
     const sources = useAtomValue(sidebarEntitySourcesAtom)
     const reordering = useAtomValue(sidebarReorderActiveAtom)
@@ -336,7 +325,6 @@ export const useSidebarDynamicChildren = ({
                 projectURL: resolvedProjectURL,
                 dragZone: entity.dragZone,
                 wrapRow: rowWrappers?.[key],
-                rowIcon: rowIcons?.[key],
             }
             const previous = resolvedRef.current[key]
             if (
@@ -355,13 +343,12 @@ export const useSidebarDynamicChildren = ({
                 idleFallback,
                 kindIcon,
                 rowWrappers?.[key],
-                rowIcons?.[key],
             )
             resolvedRef.current[key] = {source, inputs, idleFallback, children}
             result[key] = children
         }
         return result
-    }, [sources, projectURL, kindIcon, rowWrappers, rowIcons, reordering])
+    }, [sources, projectURL, kindIcon, rowWrappers, reordering])
 
     // Keep the last non-idle children per group so a group going idle (its query
     // unsubscribing) still renders its previous items instead of the idle placeholder.

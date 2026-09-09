@@ -11,12 +11,18 @@ export * from "./state"
 export * from "./reorder"
 export * from "./dynamic"
 export * from "./banners"
+export * from "./releases"
 
 export {useSidebarResize} from "./useSidebarResize"
 
 export {
     dropMissingAgentSessions,
     localSessionRefsAtom,
+    sidebarHasAnySessionAtomFamily,
+    sidebarSessionSearchLoadingAtom,
+    sidebarSessionSearchOpenAtom,
+    sidebarSessionSearchQueryAtom,
+    sidebarSessionSearchResultsAtom,
     withLocalSessions,
     type SessionSidebarRef,
 } from "./dynamic/sessionsSource"

@@ -685,9 +685,9 @@
     --ag-shell-line: #2c2c2c;
     --ag-scroll-thumb: rgba(255, 255, 255, 0.20);
     --ag-scroll-thumb-hover: rgba(255, 255, 255, 0.34);
-    --ag-shell-selected-bg: #57572a;
-    --ag-shell-selected-border: transparent;
-    --ag-shell-selected-text: #d1d151;
+    --ag-shell-selected-bg: #242424;
+    --ag-shell-selected-border: #292929;
+    --ag-shell-selected-text: rgba(255, 255, 255, 0.85);
     --ag-hero-action-bg: #d1d151;
     --ag-hero-action-hover-bg: #dcdc6b;
     --ag-hero-action-text: #141414;
