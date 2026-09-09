@@ -203,6 +203,13 @@ async def seed_starter_credits_bridge(
 # next read, and a row already on the funded model costs a list scan either way.
 _reconciling_projects: set[str] = set()
 
+# How long a project that did NOT repair waits before a read tries again. The retry is what
+# recovers a transient proxy failure, but a row that cannot be repaired at all (a deleted
+# proxy key, say) would otherwise send one proxy call per secrets list forever.
+_RECONCILE_RETRY_COOLDOWN_SECONDS = 300.0
+
+_reconcile_cooldowns: dict[str, float] = {}
+
 
 async def reconcile_starter_credits_on_read(
     *,
@@ -232,6 +239,11 @@ async def reconcile_starter_credits_on_read(
     key = str(project_id)
     if key in _reconciling_projects:
         return None
+
+    cooling_until = _reconcile_cooldowns.get(key)
+    if cooling_until is not None and _monotonic() < cooling_until:
+        return None
+
     _reconciling_projects.add(key)
 
     try:
@@ -252,17 +264,26 @@ async def reconcile_starter_credits_on_read(
             project_id=key,
             exc_info=True,
         )
+        _hold_off(key)
         return None
     finally:
         _reconciling_projects.discard(key)
 
     if not repaired:
+        _hold_off(key)
         return None
+
+    _reconcile_cooldowns.pop(key, None)
 
     return await _vault_service().get_secret_by_slug(
         STARTER_CREDITS_SLUG,
         project_id=project_id,
     )
+
+
+def _hold_off(project_id: str) -> None:
+    """Stop reads retrying a project that did not repair, for a while."""
+    _reconcile_cooldowns[project_id] = _monotonic() + _RECONCILE_RETRY_COOLDOWN_SECONDS
 
 
 def _find_starter_credits_row(secrets: list) -> Optional[SecretResponseDTO]:
@@ -326,13 +347,17 @@ async def reconcile_starter_credits_model(
             models=[config.model_id],
         )
     except Exception:
+        # Do NOT write the row. A row on the new model whose key still allows only the old
+        # one is just as broken, and it would read as current forever, so nothing would try
+        # again. Leaving it stale is what keeps the next read retrying the whole repair.
         log.warning(
             "[starter_credits_bridge] could not re-point the key's models; "
-            "rewriting the row anyway",
+            "leaving the row stale so the next read retries",
             organization_id=organization_id,
             project_id=str(project_id),
             exc_info=True,
         )
+        return False
 
     await vault_service.update_managed_secret(
         secret_id=row.id,

@@ -218,6 +218,8 @@ def _all_block_calls():
 @pytest.fixture
 def seeding_env(monkeypatch):
     """Arm the config and stub every dependency; returns the mutable stubs."""
+    service._reconciling_projects.clear()
+    service._reconcile_cooldowns.clear()
     FakeProxyClient.records = {}
     FakeProxyClient.generate_failures = []
     FakeProxyClient.update_failures = []
@@ -1276,10 +1278,11 @@ class TestReconcilingAStaleFundedModel:
         assert _all_key_update_calls() == []
         assert len(_all_generate_calls()) == 1
 
-    async def test_a_failed_key_update_still_repoints_the_row(self, seeding_env):
-        # A key restricted to a model the proxy no longer serves is already unusable, so a
-        # transient proxy failure must not hold the row back. Nothing is raised here: the
-        # signup path this runs inside deletes the new user when setup raises.
+    async def test_a_failed_key_update_leaves_the_row_stale(self, seeding_env):
+        # A row on the new model whose key still allows only the old one is just as broken,
+        # and it would read as current forever, so nothing would try again. Leaving it stale
+        # is what keeps the next read retrying. Nothing is raised: the signup path this runs
+        # inside deletes the new user when setup raises.
         await self._seed_then_cut_the_model_over(
             seeding_env, funded="vertex_ai/new-model"
         )
@@ -1290,7 +1293,8 @@ class TestReconcilingAStaleFundedModel:
         await _seed()
 
         row = seeding_env.vault.row
-        assert [model.slug for model in row.data.models] == ["vertex_ai/new-model"]
+        assert [model.slug for model in row.data.models] == ["vertex_ai/some-model"]
+        assert seeding_env.vault.update_calls == []
         assert len(_all_key_update_calls()) == 1
 
     async def test_reconciling_consumes_no_velocity_slot(self, seeding_env):
@@ -1385,6 +1389,45 @@ class TestReconcilingOnRead:
         assert _all_key_update_calls() == []
         assert seeding_env.vault.update_calls == []
 
+    async def test_a_failed_key_update_is_retried_by_a_later_read(self, seeding_env):
+        # The retry is the whole point of leaving the row stale, so pin that it happens
+        # once the proxy recovers.
+        row = await self._seed_then_cut_the_model_over(
+            seeding_env, funded="vertex_ai/new-model"
+        )
+        FakeProxyClient.update_failures = [
+            ProxyRequestError(status_code=503, detail="proxy down")
+        ]
+
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[row],
+            )
+            is None
+        )
+        assert [model.slug for model in row.data.models] == ["vertex_ai/some-model"]
+
+        # The cooldown holds a project that did not repair, so a read inside it is free.
+        assert (
+            await service.reconcile_starter_credits_on_read(
+                project_id=seeding_env.project.id,
+                secrets=[row],
+            )
+            is None
+        )
+        assert len(_all_key_update_calls()) == 1
+
+        service._reconcile_cooldowns.clear()
+        repaired = await service.reconcile_starter_credits_on_read(
+            project_id=seeding_env.project.id,
+            secrets=[row],
+        )
+
+        assert repaired is not None
+        assert [model.slug for model in repaired.data.models] == ["vertex_ai/new-model"]
+        assert len(_all_key_update_calls()) == 2
+
     async def test_the_read_stands_when_the_repair_fails(self, seeding_env):
         # A caller must never lose its whole secrets list over a connection that is at
         # worst as broken as it already was.
@@ -1406,8 +1449,10 @@ class TestReconcilingOnRead:
             )
             is None
         )
-        # The in-flight guard is released, so the next read tries again.
+        # The in-flight guard is released and the cooldown is armed, so a later read tries
+        # again without every read in between paying for it.
         assert service._reconciling_projects == set()
+        assert str(seeding_env.project.id) in service._reconcile_cooldowns
 
     async def test_a_row_the_bridge_does_not_own_is_left_alone(self, seeding_env):
         # A user may delete the seeded connection and save their own under the same slug.
