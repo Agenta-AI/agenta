@@ -15,7 +15,7 @@ import {
 import {CaretDown, Check, Lightning} from "@phosphor-icons/react"
 
 import {NewSkillMenuButton, type NewSkillMenuButtonProps} from "./NewSkillMenuButton"
-import {SkillAvatar, VersionTag} from "./SkillCard"
+import {SkillAvatar} from "./SkillCard"
 import type {SkillListItem} from "./types"
 
 export interface SkillAddChoice {
@@ -56,7 +56,6 @@ function SkillRow({
             title={<span className="font-mono">{option.name || option.slug}</span>}
             titleSuffix={
                 <span className="flex shrink-0 items-center gap-1.5">
-                    {option.version ? <VersionTag version={option.version} /> : null}
                     {option.origin === "builtin" ? (
                         <span className="flex items-center gap-0.5 text-[10px] text-[var(--ag-colorTextTertiary)]">
                             <Lightning size={10} weight="fill" />
@@ -118,7 +117,7 @@ function SkillRow({
                                 </DropdownMenuItem>
                                 {option.version ? (
                                     <DropdownMenuItem onSelect={() => onAdd("pinned")}>
-                                        Add pinned to v{option.version}
+                                        Add pinned to the current version
                                     </DropdownMenuItem>
                                 ) : null}
                             </DropdownMenuContent>

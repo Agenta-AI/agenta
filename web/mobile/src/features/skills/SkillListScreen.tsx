@@ -1,7 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {
-    builtinSkillsAtom,
     skillsListDataAtom,
     skillsListQueryAtom,
     skillsSearchAtom,
@@ -46,14 +45,10 @@ export const SkillListScreen = ({
     useBindProjectContext(projectId)
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)
-    const builtinSkills = useAtomValue(builtinSkillsAtom)
     const [search, setSearch] = useAtom(skillsSearchAtom)
     const [showArchived, setShowArchived] = useAtom(skillsShowArchivedAtom)
 
-    const {sections} = useMemo(
-        () => buildRegistrySections(projectSkills, builtinSkills),
-        [projectSkills, builtinSkills],
-    )
+    const {sections} = useMemo(() => buildRegistrySections(projectSkills), [projectSkills])
 
     // Card tap -> the detail drawer (read-only editor + versions rail + used-by).
     const [detailSkill, setDetailSkill] = useState<SkillListItem | null>(null)

@@ -1,6 +1,6 @@
 /**
  * One registry card: `sk` square avatar tinted by origin (olive = project, gray = imported,
- * ink + lightning = Agenta built-in), mono name, version tag, 2-line description, meta line.
+ * ink + lightning = Agenta built-in), mono name, 2-line description, meta line.
  */
 import {cn} from "@agenta/ui/styles"
 import {Lightning} from "@phosphor-icons/react"
@@ -22,19 +22,6 @@ export function SkillAvatar({origin}: {origin: SkillListItem["origin"]}) {
             )}
         >
             {origin === "builtin" ? <Lightning size={13} weight="fill" /> : "sk"}
-        </span>
-    )
-}
-
-export function VersionTag({version, className}: {version: string; className?: string}) {
-    return (
-        <span
-            className={cn(
-                "shrink-0 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-1 font-mono text-[10px] tabular-nums text-[var(--ag-colorTextSecondary)]",
-                className,
-            )}
-        >
-            v{version}
         </span>
     )
 }
@@ -76,7 +63,6 @@ export function SkillCard({skill, onOpen}: SkillCardProps) {
                         Archived
                     </span>
                 ) : null}
-                {skill.version ? <VersionTag version={skill.version} /> : null}
             </span>
             <span className="line-clamp-2 min-h-8 text-xs text-[var(--ag-colorTextSecondary)]">
                 {skill.description || "No description."}

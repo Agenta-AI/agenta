@@ -15,7 +15,7 @@ import {
     type SkillEmbedTarget,
     type SkillRegistryItem,
 } from "@agenta/skills"
-import {builtinSkillsAtom, skillsListDataAtom, skillsListQueryAtom} from "@agenta/skills/state"
+import {skillsListDataAtom, skillsListQueryAtom} from "@agenta/skills/state"
 import type {SkillsPickerHostProps} from "@agenta/ui/drill-in"
 import {useAtomValue} from "jotai"
 
@@ -54,7 +54,6 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)
-    const builtinSkills = useAtomValue(builtinSkillsAtom)
     const addedBySlug = useMemo(
         () => new Map(added.map((entry) => [entry.slug, {pinnedVersion: entry.pinnedVersion}])),
         [added],
@@ -72,11 +71,8 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
                 return item.origin ? {...mapped, source: toSourceInfo(item.origin)} : mapped
             })
             .filter((item): item is SkillListItem => item !== null)
-        const builtin = builtinSkills
-            .map((item) => toPickerItem(item, "builtin", addedBySlug))
-            .filter((item): item is SkillListItem => item !== null)
-        return [...project, ...builtin]
-    }, [addedBySlug, builtinSkills, projectSkills])
+        return project
+    }, [addedBySlug, projectSkills])
 
     const handleAdd = useCallback(
         (choices: SkillAddChoice[]) => {

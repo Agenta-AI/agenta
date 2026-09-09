@@ -21,8 +21,6 @@ type Story = StoryObj<typeof meta>
 
 export const WithFollowersAndPins: Story = {
     args: {
-        fromVersion: "3",
-        toVersion: "4",
         usedBy: [
             {id: "a1", name: "Support triage", mode: "latest"},
             {id: "a2", name: "Docs writer", mode: "latest"},
@@ -33,8 +31,6 @@ export const WithFollowersAndPins: Story = {
 
 export const NoUsers: Story = {
     args: {
-        fromVersion: "1",
-        toVersion: "2",
         usedBy: [],
     },
 }

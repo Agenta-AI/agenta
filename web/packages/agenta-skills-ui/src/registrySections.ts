@@ -27,7 +27,7 @@ export const toSkillListItem = (
     name: item.name ?? item.skill_name ?? item.workflow_slug ?? "",
     description: item.description ?? item.skill_description ?? undefined,
     origin,
-    // API sends "v1"; VersionTag adds the "v" prefix itself.
+    // API sends "v1"; the stored form drops the prefix.
     version: item.version?.replace(/^v/, "") ?? undefined,
     filesCount: item.files_count ?? undefined,
     usedByCount: item.used_by_count ?? undefined,
@@ -45,13 +45,12 @@ export const toSourceInfo = (origin: SkillOriginInfo): SkillSourceInfo => ({
 
 export interface RegistrySections {
     sections: SkillGallerySection[]
-    /** Rail entries: All / This project / one per repo / Agenta, with counts. */
+    /** Rail entries: All / This project / one per repo, with counts. */
     sources: SkillSourceNavEntry[]
 }
 
 export function buildRegistrySections(
     projectSkills: SkillRegistryItem[],
-    builtinSkills: SkillRegistryItem[],
     /** Rail selection; "all" shows everything. */
     selectedSource = "all",
 ): RegistrySections {
@@ -96,11 +95,6 @@ export function buildRegistrySections(
             skills: unsourced.map((item) => withSource(item, "project")),
         },
         ...sourceSections,
-        {
-            key: "agenta",
-            label: "Agenta",
-            skills: builtinSkills.map((item) => toSkillListItem(item, "builtin")),
-        },
     ]
 
     const sources: SkillSourceNavEntry[] = [

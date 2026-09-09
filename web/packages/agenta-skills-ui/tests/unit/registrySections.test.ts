@@ -35,7 +35,8 @@ describe("toSkillListItem", () => {
         expect(item.origin).toBe("project")
     })
 
-    it("strips the v prefix so the tag does not render vv2", () => {
+    it("strips the v prefix the API sends", () => {
+        // Not rendered any more, but embeds still pin by this value.
         expect(toSkillListItem(skill({version: "v2"}), "project").version).toBe("2")
     })
 })
@@ -55,17 +56,14 @@ describe("toSourceInfo", () => {
 
 describe("buildRegistrySections", () => {
     it("groups imported skills by repository and leaves the rest in This project", () => {
-        const {sections} = buildRegistrySections(
-            [
-                skill({name: "brainstorming", origin: origin()}),
-                skill({
-                    name: "executing-plans",
-                    origin: origin({path: "skills/executing-plans"}),
-                }),
-                skill({name: "locally-made"}),
-            ],
-            [skill({name: "agenta-getting-started"})],
-        )
+        const {sections} = buildRegistrySections([
+            skill({name: "brainstorming", origin: origin()}),
+            skill({
+                name: "executing-plans",
+                origin: origin({path: "skills/executing-plans"}),
+            }),
+            skill({name: "locally-made"}),
+        ])
 
         const byKey = Object.fromEntries(sections.map((s) => [s.key, s]))
         expect(byKey["source:obra/superpowers"].skills.map((s) => s.name)).toEqual([
@@ -73,14 +71,18 @@ describe("buildRegistrySections", () => {
             "executing-plans",
         ])
         expect(byKey.project.skills.map((s) => s.name)).toEqual(["locally-made"])
-        expect(byKey.agenta.skills.map((s) => s.name)).toEqual(["agenta-getting-started"])
+    })
+
+    it("has no Agenta section — built-in skills are not surfaced", () => {
+        const {sections, sources} = buildRegistrySections([skill({name: "locally-made"})])
+        expect(sections.some((s) => s.key === "agenta")).toBe(false)
+        expect(sources.some((s) => s.key === "agenta")).toBe(false)
     })
 
     it("moves a detached import back to This project but keeps its provenance", () => {
-        const {sections} = buildRegistrySections(
-            [skill({name: "brainstorming", origin: origin({detached: true})})],
-            [],
-        )
+        const {sections} = buildRegistrySections([
+            skill({name: "brainstorming", origin: origin({detached: true})}),
+        ])
 
         const project = sections.find((s) => s.key === "project")!
         expect(project.skills.map((s) => s.name)).toEqual(["brainstorming"])
@@ -91,10 +93,7 @@ describe("buildRegistrySections", () => {
     })
 
     it("carries the section's skill ids so update checks address them", () => {
-        const {sections} = buildRegistrySections(
-            [skill({workflow_id: "wf-1", origin: origin()})],
-            [],
-        )
+        const {sections} = buildRegistrySections([skill({workflow_id: "wf-1", origin: origin()})])
         const repo = sections.find((s) => s.key === "source:obra/superpowers")!
         expect(repo.skillIds).toEqual(["wf-1"])
         expect(repo.repository).toBe("obra/superpowers")
@@ -102,14 +101,10 @@ describe("buildRegistrySections", () => {
 
     it("counts every section in the rail and filters to the selected one", () => {
         const skills = [skill({origin: origin()}), skill({name: "local"})]
-        const {sources} = buildRegistrySections(skills, [skill({name: "builtin"})])
-        expect(sources.find((s) => s.key === "all")?.count).toBe(3)
+        const {sources} = buildRegistrySections(skills)
+        expect(sources.find((s) => s.key === "all")?.count).toBe(2)
 
-        const {sections} = buildRegistrySections(
-            skills,
-            [skill({name: "builtin"})],
-            "source:obra/superpowers",
-        )
+        const {sections} = buildRegistrySections(skills, "source:obra/superpowers")
         expect(sections.map((s) => s.key)).toEqual(["source:obra/superpowers"])
     })
 })

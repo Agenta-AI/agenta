@@ -309,12 +309,11 @@ export function describeSkill(skill: unknown): ItemDescriptor {
     const s = (skill ?? {}) as Record<string, unknown>
     if (isStaticSkill(s)) {
         const slug = staticEmbedSlug(s)
-        const version = embedRevisionVersion(s)
         return {
             name: staticEmbedName(s) ?? slug ?? "Static skill",
             mono: "sk",
             color: "#6b7280",
-            tags: version ? ["static", `v${version}`] : ["static"],
+            tags: ["static"],
             typeLabel: "static skill",
             subtitle: "Provided by Agenta — read-only",
         }
@@ -328,11 +327,11 @@ export function describeSkill(skill: unknown): ItemDescriptor {
             description: typeof s.description === "string" ? (s.description as string) : undefined,
             mono: "sk",
             color: "#b45309",
-            tags: pinned ? [{label: `Pinned v${pinned}`}] : [{label: "Latest", tone: "success"}],
+            tags: pinned ? [{label: "Pinned"}] : [{label: "Latest", tone: "success"}],
             typeLabel: "registry skill",
             typeColor: "gold",
             subtitle: pinned
-                ? `Registry skill — pinned to v${pinned}`
+                ? "Registry skill — pinned to the version it was added at"
                 : "Registry skill — follows the latest version",
         }
     }

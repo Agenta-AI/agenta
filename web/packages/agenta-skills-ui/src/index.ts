@@ -4,7 +4,7 @@
  */
 export * from "./types"
 export {NewSkillMenuButton, type NewSkillMenuButtonProps} from "./NewSkillMenuButton"
-export {SkillCard, SkillAvatar, VersionTag, type SkillCardProps} from "./SkillCard"
+export {SkillCard, SkillAvatar, type SkillCardProps} from "./SkillCard"
 export {
     SkillsGalleryPage,
     type SkillsGalleryPageProps,
@@ -15,7 +15,6 @@ export {
     type SkillGallerySectionsProps,
     type SkillGallerySection,
 } from "./SkillGallerySections"
-export {VersionsRailCard, type VersionsRailCardProps} from "./VersionsRailCard"
 export {
     SkillPickerDrawer,
     type SkillPickerDrawerProps,

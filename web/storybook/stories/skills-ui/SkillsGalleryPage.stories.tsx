@@ -75,20 +75,9 @@ const IMPORTED_SKILLS: SkillListItem[] = [
     },
 ]
 
-const BUILTIN_SKILLS: SkillListItem[] = [
-    {
-        id: "s4",
-        slug: "__ag__web-search",
-        name: "Web search",
-        description: "Search the web and cite sources. Provided and maintained by Agenta.",
-        origin: "builtin",
-    },
-]
-
 const SOURCES = [
-    {key: "all", label: "All skills", count: 4},
+    {key: "all", label: "All skills", count: 3},
     {key: "project", label: "This project", count: 2},
-    {key: "agenta", label: "Agenta", count: 1},
     {key: "anthropics-skills", label: "anthropics/skills", count: 1},
 ]
 
@@ -114,7 +103,6 @@ function GalleryHarness({empty}: {empty?: boolean}) {
                                   tag: "synced 5d ago",
                                   skills: IMPORTED_SKILLS,
                               },
-                              {key: "agenta", label: "Agenta", skills: BUILTIN_SKILLS},
                           ]
                 }
                 onOpenSkill={noop}

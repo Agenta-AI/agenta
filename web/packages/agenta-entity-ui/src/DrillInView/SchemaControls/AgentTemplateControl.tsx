@@ -900,7 +900,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         return (item: unknown, index: number) => {
             const status = base(item, index)
             if (status) return status
-            // Gold nudge on pinned embeds whose registry head moved past the pin.
+            // Gold nudge on pinned embeds the registry has moved past.
             if (!isEmbedRefSkill(item) || isStaticSkill(item)) return undefined
             const record = item as Record<string, unknown>
             const pinned = embedRevisionVersion(record)
@@ -910,8 +910,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             if (!head || Number(pinned) >= Number(head)) return undefined
             return {
                 tone: "incomplete" as const,
-                label: `v${head} available`,
-                tooltip: `Pinned to v${pinned}; the registry head is v${head}. Re-add pinned to update, or switch the reference to Latest.`,
+                label: "Update available",
+                tooltip:
+                    "This skill is pinned and the registry has a newer version. Re-add it pinned to update, or switch the reference to Latest.",
             }
         }
     }, [statusForKind, skillHeadVersions])

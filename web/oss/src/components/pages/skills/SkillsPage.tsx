@@ -2,7 +2,6 @@ import {useCallback, useMemo, useState} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
 import {
-    builtinSkillsAtom,
     skillsListDataAtom,
     skillsListQueryAtom,
     skillsSearchAtom,
@@ -22,14 +21,13 @@ import {useAtom, useAtomValue} from "jotai"
 export default function SkillsPage() {
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)
-    const builtinSkills = useAtomValue(builtinSkillsAtom)
     const [search, setSearch] = useAtom(skillsSearchAtom)
     const [showArchived, setShowArchived] = useAtom(skillsShowArchivedAtom)
 
     const [selectedSource, setSelectedSource] = useState("all")
     const {sections, sources} = useMemo(
-        () => buildRegistrySections(projectSkills, builtinSkills, selectedSource),
-        [projectSkills, builtinSkills, selectedSource],
+        () => buildRegistrySections(projectSkills, selectedSource),
+        [projectSkills, selectedSource],
     )
 
     const projectId = useAtomValue(projectIdAtom)

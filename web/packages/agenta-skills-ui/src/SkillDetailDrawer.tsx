@@ -2,12 +2,10 @@
  * Skill detail — the drawer a registry card opens (artboards 2/2b), one shell with the
  * editor anatomy throughout:
  *
- * - Read-only by default: SkillFormView disabled, the rail's bottom card is VERSIONS
- *   (replacing the drop zone) and clicking a row navigates revisions. USED BY chips sit
- *   under the header line.
- * - Viewing an older revision swaps the footer to `Restore as vN+1` (a normal new commit).
+ * - Read-only by default, always showing the head. USED BY chips sit under the header
+ *   line. Revision history is deliberately not surfaced: versioning stays under the hood.
  * - `Edit skill` turns the same drawer editable; Save opens the blast-radius dialog (5b) —
- *   the explicit replacement for silent auto-commit — then commits vN+1.
+ *   the explicit replacement for silent auto-commit — then commits.
  *
  * Connected on purpose (like the create drawer): revisions/usage load and the commit live
  * here once; hosts pass `projectId` and the card's list item.
@@ -54,10 +52,9 @@ import {
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 
-import {SkillAvatar, VersionTag} from "./SkillCard"
+import {SkillAvatar} from "./SkillCard"
 import {SkillSaveBlastRadius} from "./SkillSaveBlastRadius"
-import type {SkillListItem, SkillUsageRef, SkillVersionRow} from "./types"
-import {VersionsRailCard} from "./VersionsRailCard"
+import type {SkillListItem, SkillUsageRef} from "./types"
 
 export interface SkillDetailDrawerProps {
     open: boolean
@@ -82,16 +79,6 @@ const toFormValue = (skill?: Record<string, unknown>): Record<string, unknown> =
         ? {allow_executable_files: skill.allow_executable_files}
         : {}),
 })
-
-const shortAge = (iso?: string): string | undefined => {
-    if (!iso) return undefined
-    const ms = Date.now() - new Date(iso).getTime()
-    if (!Number.isFinite(ms) || ms < 0) return undefined
-    const days = Math.floor(ms / 86_400_000)
-    if (days >= 1) return `${days}d`
-    const hours = Math.floor(ms / 3_600_000)
-    return hours >= 1 ? `${hours}h` : "now"
-}
 
 /** First zod issue → one human line, mirroring the create drawer. */
 const firstIssue = (error: {issues: {path: PropertyKey[]; message: string}[]}): string => {
@@ -140,8 +127,6 @@ export function SkillDetailDrawer({
             })),
         [usageQuery.data],
     )
-
-    const [selectedId, setSelectedId] = useState<string | null>(null)
     const [editing, setEditing] = useState(false)
     const [draft, setDraft] = useState<Record<string, unknown>>({})
     const [saveOpen, setSaveOpen] = useState(false)
@@ -202,7 +187,6 @@ export function SkillDetailDrawer({
     if (open !== wasOpen) {
         setWasOpen(open)
         if (open) {
-            setSelectedId(null)
             setEditing(false)
             setSaveOpen(false)
             setSaveMessage("")
@@ -215,23 +199,7 @@ export function SkillDetailDrawer({
         }
     }
 
-    const selected = useMemo(
-        () => (selectedId ? revisions.find((rev) => rev.id === selectedId) : head) ?? head,
-        [head, revisions, selectedId],
-    )
-    const viewingOlder = Boolean(selected && head && selected.id !== head.id)
-    const nextVersion = String(Number(head?.version ?? "0") + 1)
-
-    const versionRows = useMemo<SkillVersionRow[]>(
-        () =>
-            revisions.map((rev) => ({
-                id: rev.id,
-                version: rev.version ?? "?",
-                message: rev.message,
-                age: shortAge(rev.createdAt),
-            })),
-        [revisions],
-    )
+    // Version numbers are deliberately not surfaced, so the drawer always shows the head.
 
     /** The revision this edit started from — the concurrency base. Captured on
      * ENTRY, because a background refetch can move `head` while the drawer is
@@ -239,12 +207,11 @@ export function SkillDetailDrawer({
      * the check exists to prevent. */
     const [editBaseId, setEditBaseId] = useState<string | null>(null)
     const startEdit = useCallback(() => {
-        setDraft(toFormValue(selected?.skill))
-        setSelectedId(null)
-        setEditBaseId((selected ?? head)?.id ?? null)
+        setDraft(toFormValue(head?.skill))
+        setEditBaseId(head?.id ?? null)
         setEditing(true)
         setError(null)
-    }, [head, selected])
+    }, [head])
 
     const askToCommit = useCallback((content: Record<string, unknown>, defaultMessage: string) => {
         const parsed = skillContentSchema.safeParse(content)
@@ -278,7 +245,6 @@ export function SkillDetailDrawer({
             setPending(null)
             setEditing(false)
             setEditBaseId(null)
-            setSelectedId(null)
         } catch (err) {
             setError(
                 err instanceof Error && err.message
@@ -351,8 +317,8 @@ export function SkillDetailDrawer({
     )
 
     const formValue = useMemo(
-        () => (editing ? draft : toFormValue(selected?.skill)),
-        [draft, editing, selected],
+        () => (editing ? draft : toFormValue(head?.skill)),
+        [draft, editing, head],
     )
 
     const title = (
@@ -371,12 +337,6 @@ export function SkillDetailDrawer({
             <span className="min-w-0 truncate font-mono text-sm font-medium">
                 {skill?.slug ?? ""}
             </span>
-            {selected?.version ? <VersionTag version={selected.version} /> : null}
-            {viewingOlder ? (
-                <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
-                    viewing v{selected?.version} — read-only
-                </span>
-            ) : null}
             {isBuiltin ? (
                 <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-[var(--ag-colorTextTertiary)]">
                     <Lightning size={10} weight="fill" />
@@ -480,13 +440,11 @@ export function SkillDetailDrawer({
                                         >
                                             Add — follow latest
                                         </DropdownMenuItem>
-                                        {head?.version ? (
-                                            <DropdownMenuItem
-                                                onSelect={() => void installToAgents("pinned")}
-                                            >
-                                                Add pinned to v{head.version}
-                                            </DropdownMenuItem>
-                                        ) : null}
+                                        <DropdownMenuItem
+                                            onSelect={() => void installToAgents("pinned")}
+                                        >
+                                            Add pinned to the current version
+                                        </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             </span>
@@ -521,18 +479,6 @@ export function SkillDetailDrawer({
                                             Save changes
                                         </Button>
                                     </>
-                                ) : viewingOlder ? (
-                                    <Button
-                                        onClick={() =>
-                                            askToCommit(
-                                                toFormValue(selected?.skill),
-                                                `Restore v${selected?.version}`,
-                                            )
-                                        }
-                                        disabled={busy}
-                                    >
-                                        Restore as v{nextVersion}
-                                    </Button>
                                 ) : skill?.archived ? (
                                     <>
                                         {archiveError ? (
@@ -635,6 +581,7 @@ export function SkillDetailDrawer({
                                                     head?.version &&
                                                     Number(agent.pinnedVersion) <
                                                         Number(head.version)
+
                                                 return (
                                                     <div
                                                         key={agent.id}
@@ -645,11 +592,11 @@ export function SkillDetailDrawer({
                                                         </span>
                                                         <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-[var(--ag-colorTextTertiary)]">
                                                             {agent.mode === "pinned"
-                                                                ? `pinned v${agent.pinnedVersion ?? "?"}`
+                                                                ? "pinned"
                                                                 : "latest"}
                                                             {stale ? (
                                                                 <span className="rounded bg-[var(--ag-colorWarningBg)] px-1.5 py-px text-[10px] text-[var(--ag-colorWarningText)]">
-                                                                    v{head?.version} available
+                                                                    update available
                                                                 </span>
                                                             ) : null}
                                                         </span>
@@ -676,9 +623,7 @@ export function SkillDetailDrawer({
                                     >
                                         <span className="max-w-40 truncate">{agent.name}</span>
                                         <span className="text-[var(--ag-colorTextTertiary)]">
-                                            {agent.mode === "pinned"
-                                                ? `pinned v${agent.pinnedVersion ?? "?"}`
-                                                : "latest"}
+                                            {agent.mode === "pinned" ? "pinned" : "latest"}
                                         </span>
                                     </span>
                                 ))}
@@ -705,19 +650,6 @@ export function SkillDetailDrawer({
                                     value={formValue}
                                     onChange={editing ? setDraft : () => undefined}
                                     disabled={!editing || busy}
-                                    railBottomSlot={
-                                        !editing && versionRows.length ? (
-                                            <VersionsRailCard
-                                                versions={versionRows}
-                                                activeId={selected?.id}
-                                                onSelect={(row) =>
-                                                    setSelectedId(
-                                                        row.id === head?.id ? null : row.id,
-                                                    )
-                                                }
-                                            />
-                                        ) : undefined
-                                    }
                                 />
                             </div>
                         )}
@@ -783,14 +715,10 @@ export function SkillDetailDrawer({
             >
                 <DialogContent className="sm:max-w-[520px]">
                     <DialogHeader>
-                        <DialogTitle>Commit v{nextVersion}</DialogTitle>
+                        <DialogTitle>Save changes</DialogTitle>
                     </DialogHeader>
                     <div className="flex flex-col gap-3">
-                        <SkillSaveBlastRadius
-                            fromVersion={head?.version ?? "?"}
-                            toVersion={nextVersion}
-                            usedBy={usedBy}
-                        />
+                        <SkillSaveBlastRadius usedBy={usedBy} />
                         <Input
                             value={saveMessage}
                             onChange={(e) => setSaveMessage(e.target.value)}
@@ -814,7 +742,7 @@ export function SkillDetailDrawer({
                             </Button>
                             <Button onClick={() => void commit()} disabled={busy}>
                                 {busy ? <Spinner size="small" /> : null}
-                                Commit v{nextVersion}
+                                Save
                             </Button>
                         </div>
                     </div>
