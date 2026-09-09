@@ -24,6 +24,7 @@ const EMPTY: DesignChannelConnections = {slack: null, telegram: null}
 function mapConnections(rows: any[]): DesignChannelConnections {
     const out: DesignChannelConnections = {slack: null, telegram: null}
     for (const row of rows ?? []) {
+        if (row?.deleted_at) continue // archived rows are not connections
         const channel: string = row?.channel ?? ""
         const flags = row?.flags ?? {}
         const platform = channel.startsWith("telegram")
